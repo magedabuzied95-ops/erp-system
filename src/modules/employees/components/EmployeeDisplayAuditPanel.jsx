@@ -96,7 +96,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs font-black text-emerald-300"><PackageCheck className="h-4 w-4" />إدارة العرض المستقلة</div>
-            <h2 className="mt-2 text-xl font-black">تمم على العرض</h2>
+            <h2 className="m1-section-title mt-2">تمم على العرض</h2>
             <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.</p>
           </div>
           <button type="button" onClick={onRefresh} disabled={loading} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-white disabled:opacity-50" aria-label="تحديث">
@@ -139,7 +139,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
           const stageProducts = kidsStageProducts[stage.key] || [];
           return <section key={stage.key} className="overflow-hidden rounded-3xl border border-violet-200 bg-violet-50/60 p-3 shadow-sm">
             <header className="mb-3 flex items-center justify-between rounded-2xl bg-violet-950 px-4 py-3 text-white">
-              <div><h3 className="text-base font-black">{stage.label}</h3><p className="mt-0.5 text-[11px] font-bold text-violet-200">مقاسات العرض من {stage.range}</p></div>
+              <div><h3 className="m1-section-title">{stage.label}</h3><p className="mt-0.5 text-[11px] font-bold text-violet-200">مقاسات العرض من {stage.range}</p></div>
               <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">{stageProducts.length}</span>
             </header>
             {stageProducts.length ? <div className="grid gap-2 sm:grid-cols-2">{stageProducts.map(renderProductCard)}</div> : <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-3 py-6 text-center text-xs font-bold text-slate-500">لا توجد مقاسات متاحة في هذه المرحلة</div>}

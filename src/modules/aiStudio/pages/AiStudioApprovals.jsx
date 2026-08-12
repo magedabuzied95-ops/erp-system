@@ -40,7 +40,7 @@ export default function AiStudioApprovals() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><ShieldCheck className="h-4 w-4" />AI Studio</div>
-            <h1 className="mt-1 text-xl font-black">Approvals</h1>
+            <h1 className="m1-page-title mt-1">Approvals</h1>
             <p className="mt-1 text-sm text-slate-400">Human approval for sensitive AI actions. Approval never bypasses RBAC — permissions are re-checked before execution.</p>
           </div>
           <div className="flex items-center gap-2">

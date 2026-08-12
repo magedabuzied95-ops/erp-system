@@ -124,7 +124,7 @@ export default function MarketingAttribution() {
                 <TrendingUp className="h-3.5 w-3.5" />
                 {t("marketing.analytics.attribution.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.analytics.attribution.title")}</h1>
+              <h1 className="m1-display">{t("marketing.analytics.attribution.title")}</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.analytics.attribution.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -209,7 +209,7 @@ export default function MarketingAttribution() {
 
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">{t("marketing.analytics.funnel.title")}</h2>
+            <h2 className="m1-section-title text-white">{t("marketing.analytics.funnel.title")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={funnelData}>
@@ -226,7 +226,7 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">{t("marketing.analytics.salesOverTime")}</h2>
+            <h2 className="m1-section-title text-white">{t("marketing.analytics.salesOverTime")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={salesOverTime}>
@@ -243,7 +243,7 @@ export default function MarketingAttribution() {
 
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">{t("marketing.analytics.platformComparison")}</h2>
+            <h2 className="m1-section-title text-white">{t("marketing.analytics.platformComparison")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -259,7 +259,7 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">{t("marketing.analytics.storyVsPost")}</h2>
+            <h2 className="m1-section-title text-white">{t("marketing.analytics.storyVsPost")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={storyVsPost}>
@@ -277,7 +277,7 @@ export default function MarketingAttribution() {
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="mb-4">
-              <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
+              <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.analytics.attribution.bestPerformers")}</p>
             </div>
             <div className="m1-table-container overflow-x-auto">
@@ -323,7 +323,7 @@ export default function MarketingAttribution() {
 
           <div className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-              <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.topCampaigns")}</h2>
+              <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.topCampaigns")}</h2>
               <div className="mt-4 space-y-3">
                 {topCampaigns.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.attribution.noCampaigns")}</div>
@@ -343,7 +343,7 @@ export default function MarketingAttribution() {
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-              <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
+              <h2 className="m1-section-title text-white">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
               <div className="mt-4 space-y-3">
                 {platformComparison.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.noPlatformComparison")}</div>

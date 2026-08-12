@@ -151,7 +151,7 @@ export default function BarcodePrintQueue() {
             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
               {t("products.barcodePrintQueue.eyebrow", "Barcode queue")}
             </p>
-            <h2 className="text-2xl font-black tracking-tight text-white">
+            <h2 className="m1-section-title text-white">
               {t("products.barcodePrintQueue.title", "Barcode Print Queue")}
             </h2>
             <p className="max-w-2xl text-sm leading-6 text-zinc-400">
@@ -240,7 +240,7 @@ export default function BarcodePrintQueue() {
                         </span>
                       </div>
 
-                      <h3 className="text-xl font-black text-white">
+                      <h3 className="m1-section-title text-white">
                         {item?.product_name || `Product #${item?.product_id || ""}`}
                       </h3>
                       <div className="flex flex-wrap gap-2 text-sm text-zinc-300">

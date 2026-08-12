@@ -80,7 +80,7 @@ export default function SectionCard({
             </button>
           ) : null}
           <div className="min-w-0">
-            <h2 className="truncate text-[14px] font-bold text-[var(--text)] 2xl:text-[15px]">{title}</h2>
+            <h2 className="m1-section-title truncate text-[14px] text-[var(--text)] 2xl:text-[15px]">{title}</h2>
             {subtitle ? <p className="mt-0.5 truncate text-[11px] text-[var(--text-tertiary)] 2xl:text-[12px]">{subtitle}</p> : null}
           </div>
         </div>

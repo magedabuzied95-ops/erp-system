@@ -251,7 +251,7 @@ export default function InventoryApprovalsPage() {
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-amber-300" />
             <div>
-              <h1 className="text-2xl font-black">اعتمادات الجرد</h1>
+              <h1 className="m1-page-title">اعتمادات الجرد</h1>
               <p className="mt-1 text-sm text-slate-300">لا يوجد رمز بوابة صالح. افتح بوابة المدير ثم أعد المحاولة.</p>
             </div>
           </div>
@@ -275,7 +275,7 @@ export default function InventoryApprovalsPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-slate-400 sm:block">مركز اعتماد الجرد</div>
-              <h1 className="text-2xl font-black sm:mt-2 sm:text-3xl">اعتمادات الجرد</h1>
+              <h1 className="m1-page-title sm:mt-2">اعتمادات الجرد</h1>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300 sm:mt-2 sm:text-sm sm:leading-6">
                 راجع الجلسات قيد المراجعة، وافق على الفروقات أو ارفضها مع سبب واضح قبل تعديل المخزون.
               </p>
@@ -342,11 +342,7 @@ export default function InventoryApprovalsPage() {
                     key={session.id}
                     type="button"
                     onClick={() => selectSession(session.id)}
-                    className={`w-full rounded-3xl border p-4 text-right transition ${
-                      String(selectedSessionId) === String(session.id)
-                        ? "border-amber-300/40 bg-amber-400/10"
-                        : "border-white/10 bg-white/5 hover:bg-white/10"
-                    }`}
+                    className={`w-full rounded-3xl border p-4 text-right transition ${ String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -402,7 +398,7 @@ export default function InventoryApprovalsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">تفاصيل الجلسة</div>
-                    <h2 className="mt-1 text-2xl font-black text-white">{text(selectedSession.title, "جرد")}</h2>
+                    <h2 className="m1-section-title mt-1 text-white">{text(selectedSession.title, "جرد")}</h2>
                     <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-300">
                       <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, "الفرع غير محدد")}</span>
                       <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, "المخزن غير محدد")}</span>
@@ -445,7 +441,7 @@ export default function InventoryApprovalsPage() {
                               {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-slate-500" />}
                             </div>
                             <div className="min-w-0">
-                              <h3 className="text-sm font-black leading-5 text-white">{text(item.product_name, "منتج")}</h3>
+                              <h3 className="m1-section-title text-white">{text(item.product_name, "منتج")}</h3>
                               {(color || size) ? <p className="mt-1 text-xs text-slate-400">{[color, size].filter(Boolean).join(" • ")}</p> : null}
                               {item.variant_sku || item.variant_barcode ? <p className="mt-1 truncate text-[10px] text-slate-500">{item.variant_sku || item.variant_barcode}</p> : null}
                             </div>
@@ -549,7 +545,7 @@ export default function InventoryApprovalsPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">رفض الجرد</div>
-                <h3 className="mt-1 text-2xl font-black">أدخل سبب الرفض</h3>
+                <h3 className="m1-section-title mt-1">أدخل سبب الرفض</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-300">السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.</p>
               </div>
               <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5">

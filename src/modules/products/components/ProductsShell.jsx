@@ -46,7 +46,7 @@ export default function ProductsShell({
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)] sm:text-xs sm:tracking-[0.24em]">
               {t("products.moduleEyebrow")}
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)] sm:mt-3 sm:text-3xl xl:text-4xl">
+            <h1 className="m1-display mt-2 text-[var(--text)] sm:mt-3">
               {title}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:mt-3 xl:text-base">
@@ -67,14 +67,7 @@ export default function ProductsShell({
               <Link
                 key={to}
                 to={to}
-                className={`
-                  flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200
-                  ${
-                    active
-                      ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
-                      : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:-translate-y-0.5 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-                  }
-                `}
+                className={`flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 ${ active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:-translate-y-0.5 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
               >
                 <Icon size={16} strokeWidth={2} />
                 {label}

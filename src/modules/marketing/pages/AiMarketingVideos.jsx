@@ -309,7 +309,7 @@ export default function AiMarketingVideos() {
             <Video className="h-4 w-4" />
             AI Video Queue
           </div>
-          <h1 className="mt-3 text-3xl font-black md:text-4xl">Videos</h1>
+          <h1 className="m1-display mt-3">Videos</h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
             MVP queue for future MP4, Reels, beat-sync, captions, templates, and TikTok publishing.
           </p>
@@ -580,13 +580,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,520px)_minmax(300px,1fr)]">
         <div className="mx-auto w-full max-w-[360px]">
-          <div className={`relative aspect-[9/16] overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl shadow-black/40 ${
-            activeSceneRole === "price" ? "bg-gradient-to-br from-slate-950 via-amber-950/40 to-black" :
-              activeSceneRole === "urgency" ? "bg-gradient-to-br from-rose-950/60 via-slate-950 to-black" :
-                activeSceneRole === "cta" ? "bg-gradient-to-br from-primary/40 via-slate-950 to-black" :
-                  activeSceneRole === "detail" ? "bg-gradient-to-br from-zinc-950 via-slate-900 to-black" :
-                    "bg-gradient-to-br from-slate-950 via-slate-900 to-black"
-          }`}>
+          <div className={`relative aspect-[9/16] overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl shadow-black/40 ${ activeSceneRole === "price" ? "bg-gradient-to-br from-slate-950 via-amber-950/40 to-black" : activeSceneRole === "urgency" ? "bg-gradient-to-br from-rose-950/60 via-slate-950 to-black" : activeSceneRole === "cta" ? "bg-gradient-to-br from-primary/40 via-slate-950 to-black" : activeSceneRole === "detail" ? "bg-gradient-to-br from-zinc-950 via-slate-900 to-black" : "bg-gradient-to-br from-slate-950 via-slate-900 to-black" }`}>
             {activeSceneImage ? <img src={activeSceneImage} alt="" className={`absolute inset-0 h-full w-full object-cover opacity-25 blur-2xl transition duration-700 ${isPlaying ? "scale-125" : "scale-110"}`} /> : null}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_45%_24%,rgba(34,211,238,.22),transparent_32%),radial-gradient(circle_at_82%_70%,rgba(251,191,36,.13),transparent_28%),linear-gradient(135deg,rgba(255,255,255,.08),transparent_42%,rgba(14,165,233,.1))] animate-pulse" />
             <div className="absolute -left-1/3 top-0 h-full w-1/2 rotate-12 bg-white/10 blur-2xl animate-[pulse_2.8s_ease-in-out_infinite]" />
@@ -604,9 +598,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                 <div className={`font-black leading-none text-white drop-shadow-[0_14px_28px_rgba(0,0,0,.65)] text-[2.8rem] ${isPlaying ? "animate-pulse" : ""}`}>{hookText}</div>
               </div>
             ) : null}
-            <div className={`absolute inset-x-0 z-10 flex items-center justify-center transition-all duration-700 ${
-              activeSceneRole === "detail" ? "top-[13%] h-[54%]" : activeSceneRole === "price" ? "top-[23%] h-[35%]" : activeSceneRole === "cta" ? "top-[18%] h-[42%]" : "top-[18%] h-[40%]"
-            }`}>
+            <div className={`absolute inset-x-0 z-10 flex items-center justify-center transition-all duration-700 ${ activeSceneRole === "detail" ? "top-[13%] h-[54%]" : activeSceneRole === "price" ? "top-[23%] h-[35%]" : activeSceneRole === "cta" ? "top-[18%] h-[42%]" : "top-[18%] h-[40%]" }`}>
               <div className="absolute h-56 w-56 rounded-full bg-primary/12 blur-3xl animate-pulse" />
               <div className="absolute h-72 w-72 rounded-full bg-white/6 blur-[80px]" />
               <div className="absolute bottom-4 h-8 w-52 rounded-[50%] bg-black/50 blur-xl" />
@@ -614,14 +606,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                 <img
                   src={activeSceneImage}
                   alt=""
-                  className={`relative z-10 max-h-full max-w-[86%] object-contain drop-shadow-[0_34px_30px_rgba(0,0,0,.66)] transition duration-700 ${
-                    activeSceneRole === "product" ? "scale-125 -translate-x-4 rotate-[-2deg]" :
-                      activeSceneRole === "detail" ? "scale-150 translate-x-8 -translate-y-2 rotate-2" :
-                        activeSceneRole === "price" ? "scale-95 translate-x-5 blur-[1px]" :
-                          activeSceneRole === "urgency" ? "scale-115 -translate-x-8 rotate-1" :
-                            activeSceneRole === "cta" ? "scale-110 translate-y-3" :
-                              "scale-125"
-                  }`}
+                  className={`relative z-10 max-h-full max-w-[86%] object-contain drop-shadow-[0_34px_30px_rgba(0,0,0,.66)] transition duration-700 ${ activeSceneRole === "product" ? "scale-125 -translate-x-4 rotate-[-2deg]" : activeSceneRole === "detail" ? "scale-150 translate-x-8 -translate-y-2 rotate-2" : activeSceneRole === "price" ? "scale-95 translate-x-5 blur-[1px]" : activeSceneRole === "urgency" ? "scale-115 -translate-x-8 rotate-1" : activeSceneRole === "cta" ? "scale-110 translate-y-3" : "scale-125" }`}
                 />
               ) : null}
             </div>
@@ -689,7 +674,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-black">Video preview</h2>
+              <h2 className="m1-section-title">Video preview</h2>
               <p className="mt-2 text-sm font-semibold text-slate-400">عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.</p>
             </div>
             <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>

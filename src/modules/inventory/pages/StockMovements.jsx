@@ -540,7 +540,7 @@ function StockMovements() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
         <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-xl font-black text-white">سجل الحركات</h3>
+            <h3 className="m1-section-title text-white">سجل الحركات</h3>
             <p className="mt-1 text-sm text-zinc-400">مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.</p>
           </div>
           <div className="text-sm text-zinc-400">
@@ -884,7 +884,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">سجل الاختيار</div>
-            <h3 className="mt-1 truncate text-xl font-black text-white">{group.product_name || movement.product_name || "سجل الاختيار"}</h3>
+            <h3 className="m1-section-title mt-1 truncate text-white">{group.product_name || movement.product_name || "سجل الاختيار"}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-400">
               {movement.color ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.color}</span> : null}
               {movement.size ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.size}</span> : null}

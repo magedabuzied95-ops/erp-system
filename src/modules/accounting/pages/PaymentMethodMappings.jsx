@@ -179,7 +179,7 @@ function PaymentMethodMappings() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
         <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
           <div>
-            <h3 className="text-xl font-black text-white">{t("accounting.paymentMappings.mappingsTitle")}</h3>
+            <h3 className="m1-section-title text-white">{t("accounting.paymentMappings.mappingsTitle")}</h3>
             <p className="mt-1 text-sm text-zinc-500">{t("accounting.paymentMappings.mappingsSubtitle")}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-zinc-200">{t("accounting.paymentMappings.rulesCount", { count: mappings.length })}</div>
@@ -291,7 +291,7 @@ function Modal({ title, children, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
         <div className="mb-5 flex items-center justify-between gap-3">
-          <h3 className="text-xl font-black text-white">{title}</h3>
+          <h3 className="m1-section-title text-white">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>

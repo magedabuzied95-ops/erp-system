@@ -316,7 +316,7 @@ function JournalEntries() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <h3 className="text-xl font-black text-white">{t("accounting.journal.ledgerTitle")}</h3>
+              <h3 className="m1-section-title text-white">{t("accounting.journal.ledgerTitle")}</h3>
               <p className="mt-1 text-sm text-zinc-400">{t("accounting.journal.ledgerSubtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -427,7 +427,7 @@ function JournalEntries() {
         <form onSubmit={submitJournalEntry} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h3 className="text-xl font-black text-white">قيد يومي يدوي</h3>
+              <h3 className="m1-section-title text-white">قيد يومي يدوي</h3>
               <p className="mt-1 text-sm text-zinc-400">القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -513,7 +513,7 @@ function JournalEntries() {
       {activeTab === "preview" ? (
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div>
-            <h3 className="text-xl font-black text-white">معاينة الترحيل</h3>
+            <h3 className="m1-section-title text-white">معاينة الترحيل</h3>
             <p className="mt-1 text-sm text-zinc-400">هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.</p>
           </div>
 
@@ -612,7 +612,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-primary/70">{t("accounting.journal.detailTitle")}</div>
-            <h3 className="mt-2 text-2xl font-black text-white">{entry.entry_number}</h3>
+            <h3 className="m1-section-title mt-2 text-white">{entry.entry_number}</h3>
             <p className="mt-1 text-sm text-zinc-400">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-200 transition hover:bg-white/10">

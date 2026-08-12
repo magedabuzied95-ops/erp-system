@@ -159,7 +159,7 @@ export default function StaffQrAttendance() {
                 <ScanLine className="h-3.5 w-3.5" />
                 Staff QR attendance
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Scan branch QR, then confirm GPS</h1>
+              <h1 className="m1-display">Scan branch QR, then confirm GPS</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
                 The scanner only records attendance when the QR token matches a configured branch and the device is inside that branch radius.
               </p>

@@ -36,7 +36,7 @@ export default function AiStudioExecutions() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Activity className="h-4 w-4" />AI Studio</div>
-            <h1 className="mt-1 text-xl font-black">Executions</h1>
+            <h1 className="m1-page-title mt-1">Executions</h1>
             <p className="mt-1 text-sm text-slate-400">Real workflow runs and their steps. Secrets are redacted server-side.</p>
           </div>
           <button type="button" onClick={() => void load()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>

@@ -106,7 +106,7 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
   return (
     <section className="mt-4 rounded-3xl border border-white/10 bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
       <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-        <h2 className="text-lg font-black">ثبّت بوابة الموظف على الموبايل</h2>
+        <h2 className="m1-section-title">ثبّت بوابة الموظف على الموبايل</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-white/70">افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.</p>
         {ios && !canInstall ? (
           <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white">
@@ -189,7 +189,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             </span>
             {isOverdue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">تصعيد</span> : null}
           </div>
-          <h3 className="mt-2 text-base font-black leading-6 text-text">{title}</h3>
+          <h3 className="m1-section-title mt-2 text-text">{title}</h3>
         </div>
         {isCompleted ? <CheckCircle2 className="mt-1 h-5 w-5 flex-none text-emerald-600" /> : <ClipboardList className="mt-1 h-5 w-5 flex-none text-text-muted" />}
       </div>
@@ -474,7 +474,7 @@ export default function EmployeePortal() {
       <main dir="rtl" className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
         <section className="mx-auto max-w-md rounded-3xl border border-amber-200 bg-surface p-5 text-right shadow-sm">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
-          <h1 className="mt-4 text-2xl font-black">بوابة الموظف غير متاحة</h1>
+          <h1 className="m1-page-title mt-4">بوابة الموظف غير متاحة</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{error}</p>
           <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-4 text-sm font-black">
             <RefreshCw className="h-4 w-4" />
@@ -490,7 +490,7 @@ export default function EmployeePortal() {
       <div className="mx-auto max-w-md">
         <header className="rounded-3xl bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
           <div className="text-xs font-black text-white/70">بوابة الموظف</div>
-          <h1 className="mt-2 text-2xl font-black leading-8">{portal?.employee?.name || "مهامي"}</h1>
+          <h1 className="m1-page-title mt-2">{portal?.employee?.name || "مهامي"}</h1>
           <div className="mt-1 text-sm font-semibold leading-6 text-white/70">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <div className="rounded-2xl bg-white/10 p-3 text-center">
@@ -531,7 +531,7 @@ export default function EmployeePortal() {
         <NotificationCard state={notificationState} hint={notificationHint} onEnable={enableNotifications} />
 
         <section className="mt-5">
-          <h2 className="text-sm font-black text-text-muted">المهام المطلوبة</h2>
+          <h2 className="m1-section-title text-text-muted">المهام المطلوبة</h2>
           <div className="mt-3 grid gap-3">
             {grouped.pending.length ? (
               grouped.pending.map((task) => (
@@ -544,7 +544,7 @@ export default function EmployeePortal() {
         </section>
 
         <section className="mt-6">
-          <h2 className="text-sm font-black text-text-muted">المهام المكتملة</h2>
+          <h2 className="m1-section-title text-text-muted">المهام المكتملة</h2>
           <div className="mt-3 grid gap-3">
             {grouped.completed.length ? (
               grouped.completed.map((task) => <TaskCard key={task.id} task={task} readOnly saving={false} onStatus={updateStatus} />)

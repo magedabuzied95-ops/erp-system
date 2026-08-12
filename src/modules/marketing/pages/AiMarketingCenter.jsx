@@ -827,7 +827,7 @@ function AiMarketingCenter() {
             <Bot className="h-4 w-4" />
             AI Marketing Engine
           </div>
-          <h1 className="mt-3 text-3xl font-black md:text-4xl">Stories and posts that stay clean</h1>
+          <h1 className="m1-display mt-3">Stories and posts that stay clean</h1>
           <div className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">
             AI Queue
           </div>
@@ -1288,7 +1288,7 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
     <div className="grid gap-4 rounded-3xl border border-white/10 bg-black/30 p-4 md:grid-cols-[minmax(0,1fr)_150px]">
       <div>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Generated story asset</h3>
+          <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">Generated story asset</h3>
           <Badge tone="emerald">{urls.length} rendered</Badge>
         </div>
         <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
@@ -1307,9 +1307,7 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
               key={`${url}-${index}`}
               type="button"
               onClick={() => onSelect?.(index)}
-              className={`overflow-hidden rounded-2xl border bg-slate-950 text-left transition ${
-                index === selectedIndex ? "border-primary ring-2 ring-primary/30" : "border-white/10 hover:border-white/30"
-              }`}
+              className={`overflow-hidden rounded-2xl border bg-slate-950 text-left transition ${ index === selectedIndex ? "border-primary ring-2 ring-primary/30" : "border-white/10 hover:border-white/30" }`}
             >
               <div className="aspect-[9/16] w-full overflow-hidden bg-slate-900">
                 <img src={url} alt={`Generated thumbnail ${index + 1}`} className="h-full w-full object-cover" />
@@ -1360,7 +1358,7 @@ function DeletePublishedContentModal({ target, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4">
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
-        <h2 className="text-xl font-black">حذف المحتوى المنشور</h2>
+        <h2 className="m1-section-title">حذف المحتوى المنشور</h2>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
           سيؤدي ذلك إلى حذف المحتوى المولّد من قاعدة بيانات مركز التسويق ومن التخزين الوسيط.
           لن يحذف المحتوى تلقائيًا من فيسبوك أو إنستجرام إلا إذا كانت عملية الحذف على المنصة مدعومة صراحةً.
@@ -1388,7 +1386,7 @@ function ContentHistoryModal({ target, rows = [], onClose }) {
       <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-black">Content History</h2>
+            <h2 className="m1-section-title">Content History</h2>
             <p className="mt-1 text-sm font-semibold text-slate-400">{target?.title || "AI marketing content"}</p>
           </div>
           <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>Close</button>
@@ -1498,7 +1496,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         ) : renderedStoryAssetUrl ? (
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">أصل القصة</h3>
+              <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">أصل القصة</h3>
               <Badge tone="emerald">Rendered</Badge>
             </div>
             <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
@@ -1508,7 +1506,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         ) : (
           <div className="rounded-3xl border border-amber-300/20 bg-amber-300/[0.04] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">معاينة سريعة</h3>
+              <h3 className="m1-section-title uppercase tracking-[0.18em] text-slate-300">معاينة سريعة</h3>
               <Badge tone={generatingStoryAsset ? "amber" : "slate"}>{generatingStoryAsset ? "جارٍ تجهيز الملف النهائي" : "غير منشورة"}</Badge>
             </div>
             <StoryCreativePreview slides={storySlides} title="معاينة الاستوري" />
@@ -1520,7 +1518,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-black">معاينة القصة</h2>
+              <h2 className="m1-section-title">معاينة القصة</h2>
               <p className="mt-2 text-sm font-semibold text-slate-400">9:16 story creative. CTA is a visual sticker here; the product link stays stored for publishing.</p>
             </div>
             <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Close</button>

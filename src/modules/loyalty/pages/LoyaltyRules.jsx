@@ -108,7 +108,7 @@ function LoyaltyRules() {
     <div className="space-y-6 text-white">
       <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-6">
         <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty Rules</p>
-        <h1 className="mt-2 text-3xl font-black">Reward policy and tier management</h1>
+        <h1 className="m1-page-title mt-2">Reward policy and tier management</h1>
         <p className="mt-2 max-w-3xl text-sm text-zinc-400">
           Control points earning, redemption value, and tier thresholds from a single rules screen.
         </p>
@@ -118,7 +118,7 @@ function LoyaltyRules() {
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold">Existing rules</h2>
+            <h2 className="m1-section-title">Existing rules</h2>
           </div>
           <div className="mt-4 space-y-3">
             {(loading ? [] : rules).map((rule) => (
@@ -129,11 +129,7 @@ function LoyaltyRules() {
                   setSelectedId(rule.id);
                   setForm(rule);
                 }}
-                className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                  selectedId === rule.id
-                    ? "border-primary/40 bg-primary/10"
-                    : "border-white/10 bg-white/[0.03] hover:border-primary/20"
-                }`}
+                className={`w-full rounded-2xl border px-4 py-3 text-left transition ${ selectedId === rule.id ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/[0.03] hover:border-primary/20" }`}
               >
                 <p className="font-semibold text-white">{rule.name}</p>
                 <p className="mt-1 text-xs text-zinc-500">
@@ -148,7 +144,7 @@ function LoyaltyRules() {
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold">Rule editor</h2>
+            <h2 className="m1-section-title">Rule editor</h2>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">

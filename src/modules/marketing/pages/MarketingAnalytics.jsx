@@ -119,7 +119,7 @@ export default function MarketingAnalytics() {
                 <BarChart3 className="h-3.5 w-3.5" />
                 {t("marketing.analytics.eyebrow")}
               </div>
-              <h1 className="text-4xl font-black tracking-tight md:text-5xl">{t("marketing.analytics.title")}</h1>
+              <h1 className="m1-display">{t("marketing.analytics.title")}</h1>
               <p className="max-w-4xl text-base leading-7 text-slate-300">{t("marketing.analytics.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">

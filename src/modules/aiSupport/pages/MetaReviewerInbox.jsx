@@ -78,7 +78,7 @@ export default function MetaReviewerInbox() {
       <section className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] md:grid-cols-[320px_1fr]">
         <aside className="border-b border-[var(--border)] p-4 md:border-b-0 md:border-r">
           <header className="mb-4 flex items-center justify-between">
-            <div><p className="text-xs text-[var(--muted)]">META REVIEW</p><h1 className="text-xl font-bold">AI Inbox</h1></div>
+            <div><p className="text-xs text-[var(--muted)]">META REVIEW</p><h1 className="m1-page-title">AI Inbox</h1></div>
             <button type="button" onClick={logout} className="rounded-full border border-[var(--border)] p-2" aria-label="Log out"><LogOut size={18} /></button>
           </header>
           <div className="mb-4 grid grid-cols-2 gap-2" role="tablist" aria-label="Review channel">

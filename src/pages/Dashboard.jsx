@@ -544,7 +544,7 @@ function Dashboard() {
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
           <div>
             <div className="text-[11px] font-semibold text-slate-400">{copy.executiveControlCenter}</div>
-            <h1 className="mt-1 text-xl font-black tracking-normal text-white md:text-2xl">
+            <h1 className="m1-page-title mt-1 text-white">
               {getGreeting(copy)}, {user?.name || copy.admin}
             </h1>
             <div className="mt-1 text-sm font-semibold text-slate-400">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
@@ -872,11 +872,7 @@ function ExecutiveSection({ sections, activeId, onSelect, children }) {
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${
-              activeId === id
-                ? "border-amber-600/35 bg-amber-50 text-amber-900"
-                : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100"
-            }`}
+            className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${ activeId === id ? "border-amber-600/35 bg-amber-50 text-amber-900" : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100" }`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -943,11 +939,7 @@ function QuickAction({ to, icon: Icon, label, primary = false }) {
   return (
     <Link
       to={to}
-      className={`group inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${
-        primary
-          ? "border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800"
-          : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white"
-      }`}
+      className={`group inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${ primary ? "border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800" : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white" }`}
     >
       <Icon className={`h-3.5 w-3.5 ${primary ? "text-white" : "text-zinc-500 transition group-hover:text-amber-700"}`} />
       <span className="whitespace-nowrap">{label}</span>
@@ -1081,7 +1073,7 @@ function WidgetShell({ widget, children, onToggleSize, onDropWidget }) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-zinc-600" />
-          <h2 className="truncate text-base font-black text-white">{widget.title}</h2>
+          <h2 className="m1-section-title truncate text-white">{widget.title}</h2>
         </div>
         <button type="button" onClick={() => onToggleSize(widget.id)} className="rounded-lg border border-white/[0.07] bg-white/[0.045] px-2 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-white/[0.08]">
           {widget.size === "wide" ? copy.compact : copy.wide}

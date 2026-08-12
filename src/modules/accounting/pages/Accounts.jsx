@@ -228,7 +228,7 @@ function Accounts() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <h3 className="text-xl font-black text-white">شجرة الحسابات</h3>
+                <h3 className="m1-section-title text-white">شجرة الحسابات</h3>
                 <p className="mt-1 text-sm text-zinc-400">الحسابات الافتراضية تُنشأ مرة واحدة فقط لكل مستأجر بدون تكرار.</p>
               </div>
               <div className="flex gap-2">
@@ -340,7 +340,7 @@ function Accounts() {
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
             <div className="flex flex-col gap-1 border-b border-white/10 p-5 md:flex-row md:items-end md:justify-between">
               <div>
-                <h3 className="text-xl font-black text-white">دفتر الأستاذ</h3>
+                <h3 className="m1-section-title text-white">دفتر الأستاذ</h3>
                 <p className="mt-1 text-sm text-zinc-400">{t("accounting.common.rows.liveRows", { count: rows.length })}</p>
               </div>
             </div>

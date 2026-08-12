@@ -54,7 +54,7 @@ function InboundAssistedRepliesCard() {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" /><h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
+        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" /><h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${capable ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/20 text-slate-300"}`}>{capable ? "Capability enabled" : "Capability off (server flag)"}</span>
       </div>
       <p className="mt-1.5 text-[12px] text-slate-400">On an inbound customer text, AI drafts a <b className="text-slate-200">grounded reply suggestion</b> that a human approves, edits, or rejects in the AI Inbox. <b className="text-slate-200">It never sends autonomously.</b>{!capable ? " The server capability flag is off, so no suggestions are generated yet." : ""}</p>
@@ -262,7 +262,7 @@ export default function AiStudio() {
               <Sparkles className="h-4 w-4" />
               AI Studio
             </div>
-            <h1 className="mt-1 text-xl font-black text-white">AI Studio</h1>
+            <h1 className="m1-page-title mt-1 text-white">AI Studio</h1>
             <p className="mt-1 text-sm text-slate-400">Central control plane for every AI capability in your store — configure agents, channels, knowledge and automations, and observe what the AI is doing.</p>
           </div>
           <button
@@ -284,7 +284,7 @@ export default function AiStudio() {
       <section>
         <div className="mb-2 flex items-center gap-2 px-1">
           <Activity className="h-4 w-4 text-primary" />
-          <h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Overview</h2>
+          <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">Overview</h2>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <MetricCard icon={Bot} label="AI replies" value={metrics.aiReplies} hint={metrics.analyticsAvailable ? "From AI agent analytics" : "Not available"} />
@@ -300,7 +300,7 @@ export default function AiStudio() {
       {visibleGroups.map((group) => (
         <section key={group.title}>
           <div className="mb-2 px-1">
-            <h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">{group.title}</h2>
+            <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">{group.title}</h2>
             {group.subtitle ? <p className="text-[11px] font-medium text-slate-500">{group.subtitle}</p> : null}
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

@@ -1978,9 +1978,7 @@ function InboxChannelSidebar({
       <button
         type="button"
         onClick={() => onSelectChannel("all")}
-        className={`relative mb-2 flex h-[58px] w-12 items-center justify-center text-center transition ${
-          !socialCommentsActive && activeChannel === "all" ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
-        }`}
+        className={`relative mb-2 flex h-[58px] w-12 items-center justify-center text-center transition ${ !socialCommentsActive && activeChannel === "all" ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white" }`}
       >
         {Number(allUnread || 0) > 0 ? (
           <span dir="ltr" className="absolute right-1 top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black leading-4 text-white shadow-[0_8px_18px_rgba(244,63,94,0.35)]">
@@ -1996,9 +1994,7 @@ function InboxChannelSidebar({
             type="button"
             onClick={() => onSelectChannel(channel.key)}
             title={channelBadgeLabel(channel.key)}
-            className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
-              !socialCommentsActive && activeChannel === channel.key ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
-            }`}
+            className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${ !socialCommentsActive && activeChannel === channel.key ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white" }`}
           >
             {Number(channel.unread || 0) > 0 ? (
               <span dir="ltr" className="absolute right-1 top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black leading-4 text-white shadow-[0_8px_18px_rgba(244,63,94,0.35)]">
@@ -2017,11 +2013,7 @@ function InboxChannelSidebar({
             title="Social Comments"
             aria-label="Social Comments"
             aria-pressed={socialCommentsActive}
-            className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
-              socialCommentsActive
-                ? "text-amber-200 drop-shadow-[0_0_12px_rgba(212,175,55,0.4)]"
-                : "text-amber-200/80 hover:text-amber-100"
-            }`}
+            className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${ socialCommentsActive ? "text-amber-200 drop-shadow-[0_0_12px_rgba(212,175,55,0.4)]" : "text-amber-200/80 hover:text-amber-100" }`}
           >
             {Number(socialCommentsCount || 0) > 0 ? (
               <span dir="ltr" className="absolute right-0 top-0 inline-flex min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black leading-[18px] text-slate-950 shadow-[0_8px_18px_rgba(212,175,55,0.28)]">
@@ -4284,9 +4276,7 @@ function RightToolsTabsPanel({
                 key={tab.key}
                 type="button"
                 onClick={() => onTabChange(tab.key)}
-                className={`inline-flex h-10 items-center justify-center gap-2 rounded-2xl border px-2 text-[11px] font-black transition ${
-                  active ? "border-cyan-300/35 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-slate-950/55 text-slate-200 hover:border-white/20"
-                }`}
+                className={`inline-flex h-10 items-center justify-center gap-2 rounded-2xl border px-2 text-[11px] font-black transition ${ active ? "border-cyan-300/35 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-slate-950/55 text-slate-200 hover:border-white/20" }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {tab.label}
@@ -7488,11 +7478,7 @@ export default function AiInbox() {
           setSelectedSessionId("");
           setMobileView("list");
         }}
-        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-          isAnalyticsMode
-            ? "bg-cyan-300 text-slate-950"
-            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-        }`}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${ isAnalyticsMode ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20" }`}
       >
         <span>Analytics</span>
       </button>
@@ -7505,11 +7491,7 @@ export default function AiInbox() {
           setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
           setMobileView("list");
         }}
-        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-          isConversationMode
-            ? "bg-cyan-300 text-slate-950"
-            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-        }`}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${ isConversationMode ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20" }`}
         >
         <span>AI Inbox</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isConversationMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
@@ -7525,11 +7507,7 @@ export default function AiInbox() {
           setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
           setMobileView("chat");
         }}
-        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-          isSocialMode
-            ? "bg-cyan-300 text-slate-950"
-            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-        }`}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${ isSocialMode ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20" }`}
         >
         <span>Social Comments</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isSocialMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
@@ -7545,11 +7523,7 @@ export default function AiInbox() {
           setSelectedSessionId("");
           setMobileView("list");
         }}
-        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-          isAutomationMode
-            ? "bg-cyan-300 text-slate-950"
-            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-        }`}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${ isAutomationMode ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20" }`}
       >
         <span>? Automation</span>
       </button>
@@ -7777,13 +7751,7 @@ export default function AiInbox() {
     return (
       <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
         {toast.text ? (
-          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
-            toast.tone === "rose"
-              ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
-              : toast.tone === "cyan"
-                ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
-                : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
-          }`}>{toast.text}</div>
+          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${ toast.tone === "rose" ? "border-rose-300/20 bg-rose-400/15 text-rose-100" : toast.tone === "cyan" ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100" : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100" }`}>{toast.text}</div>
         ) : null}
         {consoleOpen ? (
           <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
@@ -7813,13 +7781,7 @@ export default function AiInbox() {
     return (
       <div dir="ltr" className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
         {toast.text ? (
-          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
-            toast.tone === "rose"
-              ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
-              : toast.tone === "cyan"
-                ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
-                : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
-          }`}>{toast.text}</div>
+          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${ toast.tone === "rose" ? "border-rose-300/20 bg-rose-400/15 text-rose-100" : toast.tone === "cyan" ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100" : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100" }`}>{toast.text}</div>
         ) : null}
         {consoleOpen ? (
           <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
@@ -7864,13 +7826,7 @@ export default function AiInbox() {
     return (
       <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
         {toast.text ? (
-          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
-            toast.tone === "rose"
-              ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
-              : toast.tone === "cyan"
-                ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
-                : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
-          }`}>{toast.text}</div>
+          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${ toast.tone === "rose" ? "border-rose-300/20 bg-rose-400/15 text-rose-100" : toast.tone === "cyan" ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100" : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100" }`}>{toast.text}</div>
         ) : null}
         <div className="flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3">
           {renderCompactHeader()}
@@ -7883,13 +7839,7 @@ export default function AiInbox() {
   return (
     <div dir="ltr" className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
       {toast.text ? (
-        <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
-          toast.tone === "rose"
-            ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
-            : toast.tone === "cyan"
-              ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
-              : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
-        }`}>{toast.text}</div>
+        <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${ toast.tone === "rose" ? "border-rose-300/20 bg-rose-400/15 text-rose-100" : toast.tone === "cyan" ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100" : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100" }`}>{toast.text}</div>
       ) : null}
       {consoleOpen ? (
         <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
@@ -8390,13 +8340,7 @@ export default function AiInbox() {
   return (
     <div dir="ltr" className="min-h-full bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
       {toast.text ? (
-        <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
-          toast.tone === "rose"
-            ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
-            : toast.tone === "cyan"
-              ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
-              : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
-        }`}>{toast.text}</div>
+        <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${ toast.tone === "rose" ? "border-rose-300/20 bg-rose-400/15 text-rose-100" : toast.tone === "cyan" ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100" : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100" }`}>{toast.text}</div>
       ) : null}
       {consoleOpen ? (
         <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
@@ -8531,17 +8475,7 @@ export default function AiInbox() {
                     key={item.key}
                     type="button"
                     onClick={() => setLeadFilter(item.key)}
-                    className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
-                      leadFilter === item.key
-                        ? item.key === "ready_to_buy"
-                          ? "bg-emerald-300 text-slate-950"
-                          : item.key === "hot"
-                            ? "bg-rose-300 text-slate-950"
-                            : item.key === "warm"
-                              ? "bg-amber-300 text-slate-950"
-                              : "bg-cyan-300 text-slate-950"
-                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                    }`}
+                    className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${ leadFilter === item.key ? item.key === "ready_to_buy" ? "bg-emerald-300 text-slate-950" : item.key === "hot" ? "bg-rose-300 text-slate-950" : item.key === "warm" ? "bg-amber-300 text-slate-950" : "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20" }`}
                   >
                     {item.label}
                   </button>

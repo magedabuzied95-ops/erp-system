@@ -98,7 +98,7 @@ export default function AiStudioWorkflows() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Workflow className="h-4 w-4" />AI Studio</div>
-            <h1 className="mt-1 text-xl font-black">Workflows</h1>
+            <h1 className="m1-page-title mt-1">Workflows</h1>
             <p className="mt-1 text-sm text-slate-400">Design workflows in the visual builder, run them manually, or let ERP events trigger them automatically.</p>
           </div>
           <div className="flex flex-wrap gap-2">

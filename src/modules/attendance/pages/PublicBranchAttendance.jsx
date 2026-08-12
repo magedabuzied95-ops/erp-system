@@ -221,7 +221,7 @@ export default function PublicBranchAttendance() {
             </div>
             <div className="min-w-0">
               <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Attendance</div>
-              <h1 className="truncate text-2xl font-black">{loading ? "Loading..." : branch?.branch_name || "Branch check-in"}</h1>
+              <h1 className="m1-page-title truncate">{loading ? "Loading..." : branch?.branch_name || "Branch check-in"}</h1>
             </div>
           </div>
 

@@ -540,7 +540,7 @@ export default function AiChannels() {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {tr("eyebrow", "AI support command center")}
               </div>
-              <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{tr("title", "مركز التحكم في القنوات الذكية")}</h1>
+              <h1 className="m1-display mt-3">{tr("title", "مركز التحكم في القنوات الذكية")}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
                 {tr("subtitle", "Monitor every AI customer channel, handoff queue, inbox signal, and response metric from one operational view.")}
               </p>
@@ -582,7 +582,7 @@ export default function AiChannels() {
                 <MessageCircle className="h-3.5 w-3.5" />
                 WhatsApp Gateway
               </div>
-              <h2 className="mt-3 text-xl font-black text-white">WhatsApp Gateway / Evolution API</h2>
+              <h2 className="m1-section-title mt-3 text-white">WhatsApp Gateway / Evolution API</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
                 Manual WhatsApp gateway foundation for order confirmations and tests. This is separate from the existing Meta WhatsApp AI Inbox integration.
               </p>
@@ -689,24 +689,15 @@ export default function AiChannels() {
           {channelCards.map((channel) => {
             const Icon = channel.icon;
             return (
-              <article key={channel.key} className={`rounded-3xl border p-5 shadow-xl transition ${
-                channel.connected
-                  ? "border-emerald-300/25 bg-emerald-400/[0.055] shadow-emerald-950/20"
-                  : "border-white/10 bg-white/[0.045] shadow-black/10"
-              }`}>
+              <article key={channel.key} className={`rounded-3xl border p-5 shadow-xl transition ${ channel.connected ? "border-emerald-300/25 bg-emerald-400/[0.055] shadow-emerald-950/20" : "border-white/10 bg-white/[0.045] shadow-black/10" }`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className={`rounded-2xl border p-3 ${
-                    channel.tone === "emerald" ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" :
-                    channel.tone === "pink" ? "border-pink-300/20 bg-pink-400/10 text-pink-100" :
-                    channel.tone === "blue" ? "border-primary/20 bg-primary/10 text-primary" :
-                    "border-primary/20 bg-primary/10 text-primary"
-                  }`}>
+                  <div className={`rounded-2xl border p-3 ${ channel.tone === "emerald" ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : channel.tone === "pink" ? "border-pink-300/20 bg-pink-400/10 text-pink-100" : channel.tone === "blue" ? "border-primary/20 bg-primary/10 text-primary" : "border-primary/20 bg-primary/10 text-primary" }`}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <AIStatusBadge status={channel.aiStatus} />
                 </div>
 
-                <h2 className="mt-5 text-lg font-black text-white">{tr(`channels.${channel.key}`, channel.key)}</h2>
+                <h2 className="m1-section-title mt-5 text-white">{tr(`channels.${channel.key}`, channel.key)}</h2>
                 <div className="mt-4 rounded-2xl border border-primary/15 bg-primary/[0.06] p-3">
                   <div className="grid gap-2">
                     <label className="block">

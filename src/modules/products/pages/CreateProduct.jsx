@@ -2647,7 +2647,7 @@ function CreateProduct() {
           <section className="rounded-[18px] border border-border bg-surface-soft p-4 shadow-[var(--shadow-card)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-text">{t("products.editor.createTitle", "إنشاء منتج")}</h1>
+                <h1 className="m1-page-title text-text">{t("products.editor.createTitle", "إنشاء منتج")}</h1>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-text-muted">
                   {t("products.editor.createWorkflowDescription")}
                 </p>
@@ -2923,11 +2923,7 @@ function CreateProduct() {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveContentTab(tab.id)}
-                      className={`h-[var(--control-height-md)] rounded-[12px] border px-3 text-xs font-bold transition ${
-                        activeContentTab === tab.id
-                          ? "border-primary/40 bg-primary/15 text-primary"
-                          : "border-border bg-surface-soft text-text hover:border-border hover:bg-surface-soft"
-                      }`}
+                      className={`h-[var(--control-height-md)] rounded-[12px] border px-3 text-xs font-bold transition ${ activeContentTab === tab.id ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text hover:border-border hover:bg-surface-soft" }`}
                     >
                       {tab.title}
                     </button>
@@ -3547,7 +3543,7 @@ function CreateProduct() {
 
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                            <h3 className="truncate text-base font-black text-text">{group.color || `Color group ${groupIndex + 1}`}</h3>
+                            <h3 className="m1-section-title truncate text-text">{group.color || `Color group ${groupIndex + 1}`}</h3>
                             {getGroupManufacturerSummary(group) ? (
                               <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
                                 المصنع: {getGroupManufacturerSummary(group)}
@@ -4229,7 +4225,7 @@ function SectionHeader({ icon: Icon, title, subtitle, tone = "emerald", action =
           <Icon size={18} strokeWidth={2} />
         </div>
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight text-text">{title}</h2>
+          <h2 className="m1-section-title text-text">{title}</h2>
           {subtitle ? <p className="mt-1 text-sm leading-5 text-text-muted">{subtitle}</p> : null}
         </div>
       </div>

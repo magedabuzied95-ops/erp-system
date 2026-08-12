@@ -1054,9 +1054,7 @@ function BarcodeLabels() {
                       key={mode.value}
                       type="button"
                       onClick={() => setSheetMode(mode.value)}
-                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                        sheetMode === mode.value ? "bg-emerald-500 text-black" : "text-zinc-300 hover:bg-white/10"
-                      }`}
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${ sheetMode === mode.value ? "bg-emerald-500 text-black" : "text-zinc-300 hover:bg-white/10" }`}
                     >
                       {mode.label}
                     </button>
@@ -1207,16 +1205,10 @@ function BarcodeLabels() {
                       role="switch"
                       aria-checked={includeSmartProductQr}
                       onClick={() => setIncludeSmartProductQr((value) => !value)}
-                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${
-                        includeSmartProductQr
-                          ? "border-emerald-300/50 bg-emerald-500/80"
-                          : "border-white/10 bg-white/10"
-                      }`}
+                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${ includeSmartProductQr ? "border-emerald-300/50 bg-emerald-500/80" : "border-white/10 bg-white/10" }`}
                     >
                       <span
-                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${
-                          includeSmartProductQr ? "translate-x-[1.35rem]" : "translate-x-1"
-                        }`}
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${ includeSmartProductQr ? "translate-x-[1.35rem]" : "translate-x-1" }`}
                       />
                     </button>
                   </label>
@@ -1415,9 +1407,7 @@ function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sh
 
   return (
     <div
-      className={`rounded-[22px] border p-3 transition ${
-        quantity > 0 ? "border-emerald-500/30 bg-emerald-500/10" : "border-white/10 bg-white/5"
-      }`}
+      className={`rounded-[22px] border p-3 transition ${ quantity > 0 ? "border-emerald-500/30 bg-emerald-500/10" : "border-white/10 bg-white/5" }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">

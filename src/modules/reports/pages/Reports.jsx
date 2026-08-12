@@ -369,7 +369,7 @@ function Reports() {
                 <BarChart3 className="h-4 w-4" />
                 {isArabic ? "التحليلات والتقارير" : "Analytics & Reports"}
               </div>
-              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"}</h1>
+              <h1 className="m1-display mt-3">{isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"}</h1>
               <p className="mt-2 max-w-3xl text-sm font-semibold text-zinc-300">
                 {isArabic ? "عرض مركزي لأداء المبيعات والطلبات والمخزون والموظفين والولاء والحسابات والفروع والمخازن." : "Centralized performance intelligence across POS, orders, inventory, attendance, shifts, loyalty, accounting, branches, and warehouses."}
               </p>
@@ -444,11 +444,7 @@ function Reports() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-sm font-black transition ${
-                    activeTab === tab.key
-                      ? "border-emerald-300 bg-emerald-400 text-emerald-950"
-                      : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-emerald-300/40 hover:text-white"
-                  }`}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-sm font-black transition ${ activeTab === tab.key ? "border-emerald-300 bg-emerald-400 text-emerald-950" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-emerald-300/40 hover:text-white" }`}
                 >
                   {tab.label}
                 </button>
@@ -569,7 +565,7 @@ function AiInsightsCenter({ insights, loading }) {
             <Brain className="h-4 w-4" />
             AI Insights Center
           </div>
-          <h2 className="mt-2 text-2xl font-black text-white">Business Intelligence & Smart Recommendations</h2>
+          <h2 className="m1-section-title mt-2 text-white">Business Intelligence & Smart Recommendations</h2>
           <p className="mt-1 max-w-3xl text-sm font-semibold text-zinc-300">
             Automated analysis for sales, stock, people, customers, loyalty, shifts, expenses, and profit movement.
           </p>
@@ -657,7 +653,7 @@ function InsightCard({ insight }) {
         </span>
       </div>
       <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">{insight.category} · {insight.type}</div>
-      <h3 className="mt-2 text-base font-black text-white">{insight.title}</h3>
+      <h3 className="m1-section-title mt-2 text-white">{insight.title}</h3>
       <p className="mt-2 text-sm font-semibold leading-6 text-zinc-300">{insight.description}</p>
     </article>
   );

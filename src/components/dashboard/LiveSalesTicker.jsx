@@ -28,7 +28,7 @@ export const LiveSalesTicker = memo(function LiveSalesTicker({ sales = [], forma
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">{copy.eyebrow}</div>
-          <h2 className="text-base font-black text-white">{copy.title}</h2>
+          <h2 className="m1-section-title text-white">{copy.title}</h2>
         </div>
         <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-100">{copy.live}</span>
       </div>

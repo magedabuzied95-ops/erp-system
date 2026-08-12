@@ -145,7 +145,7 @@ export default function AiSupportKnowledgeBase() {
               <Bot className="h-4 w-4" />
               الدعم الذكي
             </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-[var(--text)]">قاعدة معرفة الدعم الذكي</h1>
+            <h1 className="m1-page-title mt-4 text-[var(--text)]">قاعدة معرفة الدعم الذكي</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               هذه المعلومات عامة ومسموح استخدامها في ردود الدعم الذكي. لا تضف بيانات داخلية أو أسعار غير مؤكدة هنا.
             </p>
@@ -192,11 +192,7 @@ export default function AiSupportKnowledgeBase() {
                       inputMode={field.inputMode}
                       onChange={(event) => updateField(field.key, event.target.value)}
                       placeholder={field.placeholder}
-                      className={`h-[var(--control-height-lg)] w-full rounded-2xl border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${
-                        (field.key === "phone" && !phoneValid) || (field.key === "whatsapp" && !whatsappValid)
-                          ? "border-rose-400/70 focus:ring-rose-400/10"
-                          : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/10"
-                      }`}
+                      className={`h-[var(--control-height-lg)] w-full rounded-2xl border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${ (field.key === "phone" && !phoneValid) || (field.key === "whatsapp" && !whatsappValid) ? "border-rose-400/70 focus:ring-rose-400/10" : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/10" }`}
                     />
                   ) : (
                     <textarea

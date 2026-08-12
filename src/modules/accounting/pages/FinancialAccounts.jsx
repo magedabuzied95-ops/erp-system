@@ -269,7 +269,7 @@ function FinancialAccounts() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">{t("accounting.financialAccounts.history.title")}</h3>
+          <h3 className="m1-section-title text-white">{t("accounting.financialAccounts.history.title")}</h3>
           <p className="mt-1 text-sm text-zinc-500">{selectedAccount ? selectedAccount.name : t("accounting.financialAccounts.history.selectAccount")}</p>
           <div className="mt-4 max-h-[560px] space-y-3 overflow-auto pr-1">
             {entries.length ? entries.map((entry) => (
@@ -297,7 +297,7 @@ function FinancialAccounts() {
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
         <div className="border-b border-white/10 p-4">
-          <h3 className="text-xl font-black text-white">{t("accounting.financialAccounts.transfers.title")}</h3>
+          <h3 className="m1-section-title text-white">{t("accounting.financialAccounts.transfers.title")}</h3>
         </div>
         <div className="m1-table-container overflow-x-auto">
           <table className="m1-table m1-table--compact min-w-[820px] w-full text-left text-sm">
@@ -432,7 +432,7 @@ function Modal({ title, children, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
         <div className="mb-5 flex items-center justify-between gap-3">
-          <h3 className="text-xl font-black text-white">{title}</h3>
+          <h3 className="m1-section-title text-white">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>

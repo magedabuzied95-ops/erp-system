@@ -95,7 +95,7 @@ export default function HRRequestsWorkspace() {
             <div className={isArabic ? "text-[11px] font-black text-[var(--muted)]" : "text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]"}>
               {isArabic ? "طلبات الموارد البشرية" : "HR Requests"}
             </div>
-            <h2 className="mt-2 text-2xl font-black text-[var(--text)]">
+            <h2 className="m1-section-title mt-2 text-[var(--text)]">
               {isArabic ? "طلبات الموظفين من البوابة" : "Employee requests from the portal"}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">

@@ -215,7 +215,7 @@ export default function PublicInvoice() {
         <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
           <div className="w-full rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
             <div className="text-sm tracking-[0.2em] text-amber-300">{invoicePrintLabel("unavailable", "الفاتورة غير متاحة")}</div>
-            <h1 className="mt-2 text-2xl font-black">{invoicePrintLabel("publicInvoiceLink", "رابط الفاتورة العامة")}</h1>
+            <h1 className="m1-page-title mt-2">{invoicePrintLabel("publicInvoiceLink", "رابط الفاتورة العامة")}</h1>
             <p className="mt-3 text-sm text-slate-300">{error || invoicePrintLabel("notFound", "الفاتورة غير موجودة")}</p>
             <div className="mt-6">
               <Link to="/" className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30 transition hover:-translate-y-0.5 hover:bg-emerald-400 active:translate-y-0">
@@ -288,13 +288,7 @@ export default function PublicInvoice() {
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-xs font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${
-                  key === "google"
-                    ? "bg-[linear-gradient(135deg,#1e293b,#334155)]"
-                    : key === "facebook"
-                      ? "bg-[#1452a4]"
-                      : "bg-[linear-gradient(135deg,#3b0764,#7e22ce)]"
-                }`}
+                className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-xs font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${ key === "google" ? "bg-[linear-gradient(135deg,#1e293b,#334155)]" : key === "facebook" ? "bg-[#1452a4]" : "bg-[linear-gradient(135deg,#3b0764,#7e22ce)]" }`}
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/95 shadow-sm">
                   <BrandedSocialIcon type={key} className={`h-4 w-4 ${key === "facebook" ? "text-[#1877f2]" : key === "instagram" ? "text-white" : ""}`} />

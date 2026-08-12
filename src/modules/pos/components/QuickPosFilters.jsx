@@ -97,9 +97,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
               key={option.id}
               type="button"
               onClick={() => onToggle(option.id)}
-              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-start text-xs font-bold transition ${
-                active ? "bg-emerald-400/15 text-emerald-100" : "text-zinc-200 hover:bg-white/[0.06]"
-              }`}
+              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-start text-xs font-bold transition ${ active ? "bg-emerald-400/15 text-emerald-100" : "text-zinc-200 hover:bg-white/[0.06]" }`}
             >
               <span className="truncate">{option.name}</span>
               <span className={`inline-flex h-4 w-4 items-center justify-center rounded border ${active ? "border-emerald-300 bg-emerald-300 text-black" : "border-white/20"}`}>
@@ -121,11 +119,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
         ref={buttonRef}
         type="button"
         onClick={() => onOpenChange(open ? "" : id)}
-        className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
-          open || selectedSet.size
-            ? "border-emerald-300/40 bg-emerald-400/12 text-emerald-100"
-            : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10"
-        }`}
+        className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ open || selectedSet.size ? "border-emerald-300/40 bg-emerald-400/12 text-emerald-100" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
       >
         <span>{label}{selectedSet.size ? ` (${selectedSet.size})` : ""}</span>
         <ChevronDown className={`h-3.5 w-3.5 transition ${open ? "rotate-180" : ""}`} />
@@ -172,11 +166,7 @@ function QuickPosFilters({
               key={gender.id}
               type="button"
               onClick={() => onToggleGender(gender.id)}
-              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
-                active
-                  ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]"
-                  : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10"
-              }`}
+              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ active ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
             >
               {gender.label}
               {Number.isFinite(Number(count)) ? <span className="rounded-full bg-black/15 px-1.5 py-0.5 text-[10px]">{count}</span> : null}

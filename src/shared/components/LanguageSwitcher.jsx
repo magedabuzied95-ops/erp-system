@@ -125,11 +125,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
                 role="menuitemradio"
                 aria-checked={active}
                 onClick={handleLanguageClick(language.key)}
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold transition ${
-                  active
-                    ? "bg-[var(--primary)] text-white"
-                    : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
-                }`}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : "text-zinc-300 hover:bg-white/[0.06] hover:text-white" }`}
               >
                 <span>{language.label}</span>
                 {active ? <Check className="h-4 w-4" /> : null}
@@ -177,11 +173,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
       <button
         type="button"
         onClick={() => setLanguage("ar")}
-        className={`inline-flex min-w-16 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition ${
-          current === "ar"
-            ? "bg-[var(--primary)] text-white shadow-lg"
-            : "text-[var(--muted)] hover:text-[var(--text)]"
-        }`}
+        className={`inline-flex min-w-16 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition ${ current === "ar" ? "bg-[var(--primary)] text-white shadow-lg" : "text-[var(--muted)] hover:text-[var(--text)]" }`}
       >
         {arLabel}
       </button>
@@ -189,11 +181,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
       <button
         type="button"
         onClick={() => setLanguage("en")}
-        className={`inline-flex min-w-16 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition ${
-          current === "en"
-            ? "bg-[var(--primary)] text-white shadow-lg"
-            : "text-[var(--muted)] hover:text-[var(--text)]"
-        }`}
+        className={`inline-flex min-w-16 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition ${ current === "en" ? "bg-[var(--primary)] text-white shadow-lg" : "text-[var(--muted)] hover:text-[var(--text)]" }`}
       >
         {enLabel}
       </button>

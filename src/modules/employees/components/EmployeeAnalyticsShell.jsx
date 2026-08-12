@@ -23,7 +23,7 @@ export default function EmployeeAnalyticsShell({
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className={labelClass}>{eyebrow}</p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight text-white xl:text-5xl">{title}</h1>
+            <h1 className="m1-display mt-3 text-white">{title}</h1>
             <p className="mt-4 text-sm leading-7 text-zinc-400 xl:text-base">{subtitle}</p>
           </div>
 
@@ -70,11 +70,7 @@ export default function EmployeeAnalyticsShell({
                 key={tab.key}
                 type="button"
                 onClick={() => onTabChange(tab.key)}
-                className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
-                  activeTab === tab.key
-                    ? "m1-analytics-tab-active text-black"
-                    : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
-                }`}
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${ activeTab === tab.key ? "m1-analytics-tab-active text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10" }`}
               >
                 {tab.label}
               </button>

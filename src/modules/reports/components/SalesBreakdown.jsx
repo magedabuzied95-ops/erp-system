@@ -41,13 +41,7 @@ export default function SalesBreakdown({ data, quality, showProfit, dimension, o
               disabled={unusable && !active}
               onClick={() => onDimensionChange(key)}
               title={unusable ? t("salesAnalytics.breakdown.unusableHint") : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition ${
-                active
-                  ? "bg-[var(--primary)] text-white"
-                  : unusable
-                    ? "cursor-not-allowed text-[var(--text-tertiary)] opacity-50"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-              }`}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : unusable ? "cursor-not-allowed text-[var(--text-tertiary)] opacity-50" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
             >
               {t(`salesAnalytics.breakdown.${key}`)}
               {unusable ? <span className="text-[10px]">· {t("salesAnalytics.breakdown.unusable")}</span> : null}

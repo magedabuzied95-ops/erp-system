@@ -38,7 +38,7 @@ export function ReportsHeader({ title, subtitle, children }) {
   return (
     <header className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
       <div className="min-w-0">
-        <h1 className="text-[20px] font-extrabold tracking-tight text-[var(--text)] sm:text-[24px] 2xl:text-[28px]">
+        <h1 className="m1-page-title text-[20px] text-[var(--text)] sm:text-[24px] 2xl:text-[28px]">
           {title}
         </h1>
         {subtitle ? (
@@ -61,7 +61,7 @@ export function Card({ title, subtitle, actions, children, className = "", bodyC
       {title ? (
         <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--border)] px-4 py-3 2xl:px-5">
           <div className="min-w-0">
-            <h2 className="truncate text-[14px] font-bold text-[var(--text)] 2xl:text-[15px]">{title}</h2>
+            <h2 className="m1-section-title truncate text-[14px] text-[var(--text)] 2xl:text-[15px]">{title}</h2>
             {subtitle ? (
               <p className="mt-0.5 truncate text-[11px] text-[var(--text-tertiary)] 2xl:text-[12px]">{subtitle}</p>
             ) : null}
@@ -79,7 +79,7 @@ export function Subtle({ title, children, className = "" }) {
   return (
     <section className={`min-w-0 ${className}`}>
       {title ? (
-        <h2 className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.09em] text-[var(--text-tertiary)] 2xl:text-[12px]">
+        <h2 className="m1-section-title mb-2.5 text-[11px] uppercase tracking-[0.09em] text-[var(--text-tertiary)] 2xl:text-[12px]">
           {title}
         </h2>
       ) : null}

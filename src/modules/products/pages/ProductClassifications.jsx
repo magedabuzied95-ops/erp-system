@@ -263,11 +263,7 @@ function ProductClassifications() {
                     setOptionForm(emptyOptionForm);
                     setSelectedGroupKey(group.key);
                   }}
-                  className={`relative overflow-hidden rounded-[1.45rem] border p-4 text-start transition duration-200 hover:-translate-y-0.5 ${
-                    active
-                      ? "border-[#7c3aed]/50 bg-[linear-gradient(135deg,rgba(109,40,217,0.18),rgba(255,255,255,0.04))] shadow-[0_18px_40px_rgba(109,40,217,0.16)]"
-                      : "border-white/8 bg-white/[0.03]"
-                  }`}
+                  className={`relative overflow-hidden rounded-[1.45rem] border p-4 text-start transition duration-200 hover:-translate-y-0.5 ${ active ? "border-[#7c3aed]/50 bg-[linear-gradient(135deg,rgba(109,40,217,0.18),rgba(255,255,255,0.04))] shadow-[0_18px_40px_rgba(109,40,217,0.16)]" : "border-white/8 bg-white/[0.03]" }`}
                 >
                   <div className={`absolute inset-0 bg-gradient-to-br ${accent} opacity-10`} />
                   <div className="relative flex items-start justify-between gap-3">
@@ -546,9 +542,7 @@ function Toggle({ checked, onChange, label }) {
     <button
       type="button"
       onClick={() => onChange?.(!checked)}
-      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-start transition ${
-        checked ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/8 bg-zinc-950/70 text-zinc-300"
-      }`}
+      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-start transition ${ checked ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/8 bg-zinc-950/70 text-zinc-300" }`}
     >
       <span className="text-sm font-black">{label}</span>
       <span className={`h-5 w-10 rounded-full p-1 ${checked ? "bg-emerald-400/40" : "bg-white/10"}`}>

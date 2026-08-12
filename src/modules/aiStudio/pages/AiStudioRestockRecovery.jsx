@@ -107,7 +107,7 @@ export default function AiStudioRestockRecovery() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><PackageCheck className="h-4 w-4" />AI Studio</div>
-            <h1 className="mt-1 text-xl font-black">Restock Recovery</h1>
+            <h1 className="m1-page-title mt-1">Restock Recovery</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-400">When a product comes back in stock, find customers who asked to be notified and create <b>internal</b> sales follow-ups. No customer message is ever sent automatically — employees do the outreach.</p>
           </div>
           <div className="flex flex-wrap gap-2">

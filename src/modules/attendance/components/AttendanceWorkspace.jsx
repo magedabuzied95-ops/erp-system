@@ -1359,7 +1359,7 @@ function AttendanceWorkspace({
       <div className="flex flex-col gap-4 rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.24em] text-zinc-500"}>{tr("eyebrow")}</div>
-          <h1 className="mt-2 text-3xl font-black text-white">{tr("title")}</h1>
+          <h1 className="m1-page-title mt-2 text-white">{tr("title")}</h1>
           <p className="mt-2 max-w-3xl text-sm text-zinc-400">
             {tr("subtitle")}
           </p>
@@ -1395,11 +1395,7 @@ function AttendanceWorkspace({
             key={tab.key}
             type="button"
             onClick={() => setSelectedTab(tab.key)}
-            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-              selectedTab === tab.key
-                ? "bg-emerald-500 text-black"
-                : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-            }`}
+            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${ selectedTab === tab.key ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
           >
             {tab.label}
           </button>
@@ -1422,7 +1418,7 @@ function AttendanceWorkspace({
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
               <div className={isArabic ? "text-[11px] font-bold text-amber-200" : "text-[11px] uppercase tracking-[0.2em] text-amber-200"}>{tr("admin.eyebrow")}</div>
-              <h2 className="mt-1 text-2xl font-black text-white">{tr("admin.title")}</h2>
+              <h2 className="m1-section-title mt-1 text-white">{tr("admin.title")}</h2>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
                 {tr("admin.subtitle")}
               </p>
@@ -1504,7 +1500,7 @@ function AttendanceWorkspace({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("dashboard.todayChart")}</div>
-                <h2 className="text-2xl font-black text-white">{tr("dashboard.branchAttendanceMix")}</h2>
+                <h2 className="m1-section-title text-white">{tr("dashboard.branchAttendanceMix")}</h2>
               </div>
               <div className="text-xs text-zinc-500">{tr("dashboard.presentLateOvertime")}</div>
             </div>
@@ -1530,7 +1526,7 @@ function AttendanceWorkspace({
             <div className="flex items-center justify-between">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{t("common.status")}</div>
-                <h2 className="text-2xl font-black text-white">{tr("dashboard.dailySummary")}</h2>
+                <h2 className="m1-section-title text-white">{tr("dashboard.dailySummary")}</h2>
               </div>
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
             </div>
@@ -1558,7 +1554,7 @@ function AttendanceWorkspace({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("dashboard.recentLogs")}</div>
-                <h2 className="text-2xl font-black text-white">{tr("dashboard.attendanceList")}</h2>
+                <h2 className="m1-section-title text-white">{tr("dashboard.attendanceList")}</h2>
               </div>
               <div className="flex items-center gap-2 text-sm text-zinc-400">
                 <Filter className="h-4 w-4" />
@@ -1611,7 +1607,7 @@ function AttendanceWorkspace({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.employeeList")}</div>
-                <h2 className="text-2xl font-black text-white">{tr("employees.employeesAndShifts")}</h2>
+                <h2 className="m1-section-title text-white">{tr("employees.employeesAndShifts")}</h2>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">
                   {isArabic ? "اختار موظف للتعديل أو افتح ملف موظف جديد. بيانات الموظف الكاملة أصبحت في صفحة مستقلة بدل الفورم الجانبي." : "Select an employee to edit or open a new employee profile. Full employee settings now live in a dedicated page."}
                 </p>
@@ -1712,7 +1708,7 @@ function AttendanceWorkspace({
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className={isArabic ? "text-[11px] font-bold text-amber-300" : "text-[11px] uppercase tracking-[0.2em] text-amber-300"}>{isArabic ? "ملف الموظف" : "Employee profile"}</div>
-                  <h2 className="mt-2 text-3xl font-black text-white">
+                  <h2 className="m1-section-title mt-2 text-white">
                     {employeeForm.id ? (employeeForm.full_name || tr("employees.editEmployee")) : (isArabic ? "إضافة موظف جديد" : "Add new employee")}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
@@ -1748,7 +1744,7 @@ function AttendanceWorkspace({
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                   {employeeForm.id ? tr("employees.editEmployee") : tr("employees.createEmployee")}
                 </div>
-                <h3 className="mt-2 text-2xl font-black text-white">{tr("employees.employeeProfile")}</h3>
+                <h3 className="m1-section-title mt-2 text-white">{tr("employees.employeeProfile")}</h3>
 
                 <div className="mt-4 grid gap-3">
                   <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
@@ -2074,7 +2070,7 @@ function AttendanceWorkspace({
             {isEditable ? (
               <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.shiftAssignment")}</div>
-                <h3 className="mt-2 text-2xl font-black text-white">{activeEditingEmployeeName || tr("options.selectEmployee")}</h3>
+                <h3 className="m1-section-title mt-2 text-white">{activeEditingEmployeeName || tr("options.selectEmployee")}</h3>
                 <div className="mt-4 grid gap-3">
                   <InputField label={tr("fields.shiftName")} value={shiftForm.shift_name} onChange={(value) => setShiftForm((prev) => ({ ...prev, shift_name: value }))} />
                   <div className="grid grid-cols-2 gap-3">
@@ -2141,7 +2137,7 @@ function AttendanceWorkspace({
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("devices.security")}</div>
-                <h2 className="text-2xl font-black text-white">{tr("devices.approvals")}</h2>
+                <h2 className="m1-section-title text-white">{tr("devices.approvals")}</h2>
                 <p className="mt-2 text-sm text-zinc-400">
                   {tr("devices.subtitle")}
                 </p>
@@ -2290,7 +2286,7 @@ function AttendanceWorkspace({
 
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-7">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("reports.employeeTrend")}</div>
-            <h2 className="text-2xl font-black text-white">{tr("reports.workedMinutesByDay")}</h2>
+            <h2 className="m1-section-title text-white">{tr("reports.workedMinutesByDay")}</h2>
             <div className="mt-5 h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={employeeChartData}>
@@ -2311,7 +2307,7 @@ function AttendanceWorkspace({
 
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-5">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("reports.branchTotals")}</div>
-            <h2 className="text-2xl font-black text-white">{tr("reports.branchReport")}</h2>
+            <h2 className="m1-section-title text-white">{tr("reports.branchReport")}</h2>
             <div className="mt-4 space-y-3">
               {(branchReport?.branches || []).length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
@@ -2342,7 +2338,7 @@ function AttendanceWorkspace({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("reports.employeeReport")}</div>
-                <h2 className="text-2xl font-black text-white">{employeeReport?.employee?.full_name || tr("options.selectEmployee")}</h2>
+                <h2 className="m1-section-title text-white">{employeeReport?.employee?.full_name || tr("options.selectEmployee")}</h2>
               </div>
               <div className="text-sm text-zinc-400">
                 {tr("reports.dateRange", { start: filters.startDate, end: filters.endDate })}
@@ -2390,7 +2386,7 @@ function AttendanceWorkspace({
         <div className="grid gap-6 xl:grid-cols-12">
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-5">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("kiosk.mode")}</div>
-            <h2 className="text-2xl font-black text-white">{tr("kiosk.openCloseShift")}</h2>
+            <h2 className="m1-section-title text-white">{tr("kiosk.openCloseShift")}</h2>
             <p className="mt-2 text-sm text-zinc-400">
               {tr("kiosk.subtitle")}
             </p>
@@ -2456,7 +2452,7 @@ function AttendanceWorkspace({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("kiosk.linkedToPos")}</div>
-                <h2 className="text-2xl font-black text-white">{tr("kiosk.shiftSnapshot")}</h2>
+                <h2 className="m1-section-title text-white">{tr("kiosk.shiftSnapshot")}</h2>
               </div>
               <ScanBarcode className="h-5 w-5 text-emerald-400" />
             </div>
@@ -2501,7 +2497,7 @@ function AttendanceWorkspace({
               </div>
               <div className="min-w-0">
                 <div className={isArabic ? "text-[11px] font-bold text-rose-300" : "text-[11px] uppercase tracking-[0.2em] text-rose-300"}>{tr("dialogs.deleteEmployeeTitle")}</div>
-                <h3 className="mt-1 text-2xl font-black text-white">{tr("dialogs.deleteEmployeeTitle")}</h3>
+                <h3 className="m1-section-title mt-1 text-white">{tr("dialogs.deleteEmployeeTitle")}</h3>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">{tr("dialogs.deleteEmployeeBody")}</p>
               </div>
             </div>
@@ -2547,7 +2543,7 @@ function AttendanceWorkspace({
               </div>
               <div className="min-w-0">
                 <div className={isArabic ? "text-[11px] font-bold text-amber-200" : "text-[11px] uppercase tracking-[0.2em] text-amber-200"}>{tr("dialogs.resetTodayAttendanceTitle")}</div>
-                <h3 className="mt-1 text-2xl font-black text-white">{tr("dialogs.resetTodayAttendanceTitle")}</h3>
+                <h3 className="m1-section-title mt-1 text-white">{tr("dialogs.resetTodayAttendanceTitle")}</h3>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">
                   {tr("dialogs.resetTodayAttendanceBody")}
                 </p>
@@ -2608,7 +2604,7 @@ function AttendanceWorkspace({
               </div>
               <div className="min-w-0">
                 <div className={isArabic ? "text-[11px] font-bold text-rose-300" : "text-[11px] uppercase tracking-[0.2em] text-rose-300"}>{tr("dialogs.deviceLocks")}</div>
-                <h3 className="mt-1 text-2xl font-black text-white">{deviceBindingResetTarget.title}</h3>
+                <h3 className="m1-section-title mt-1 text-white">{deviceBindingResetTarget.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">{deviceBindingResetTarget.body}</p>
               </div>
             </div>

@@ -25,7 +25,7 @@ export default function RolesTable({
 
       <div className="p-5 border-b border-zinc-800">
 
-        <h2 className="text-xl font-bold text-white">
+        <h2 className="m1-section-title text-white">
 
           Roles
 
@@ -46,15 +46,7 @@ export default function RolesTable({
                 setSelectedRole(role)
               }
 
-              className={`w-full text-left px-5 py-4 transition
-
-              ${
-                selectedRole?.id === role.id
-
-                ? "bg-primary/20 text-primary"
-
-                : "text-white hover:bg-zinc-800"
-              }`}
+              className={`w-full text-left px-5 py-4 transition ${ selectedRole?.id === role.id ? "bg-primary/20 text-primary" : "text-white hover:bg-zinc-800" }`}
             >
 
               {role.name}

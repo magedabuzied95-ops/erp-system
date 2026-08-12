@@ -39,7 +39,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
       <div className="mb-4 flex items-start gap-3">
         <div className="rounded-xl border border-primary/15 bg-primary/10 p-2 text-primary"><Icon className="h-5 w-5" /></div>
         <div>
-          <h2 className="text-base font-black text-white">{title}</h2>
+          <h2 className="m1-section-title text-white">{title}</h2>
           <p className="mt-1 text-sm leading-6 text-slate-400">{subtitle}</p>
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function AiSettings() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Brain</div>
-              <h1 className="mt-3 text-3xl font-black md:text-4xl">AI Settings</h1>
+              <h1 className="m1-display mt-3">AI Settings</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.</p>
               <p className="mt-3 max-w-3xl rounded-xl border border-primary/15 bg-primary/10 px-3 py-2 text-xs font-bold leading-5 text-primary">
                 Global settings are the master control. A channel can only auto-reply when global mode and channel mode both allow fully automatic replies.

@@ -110,7 +110,7 @@ function ProfitAndLoss() {
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">{t("accounting.reports.cards.profitLossStatement")}</h3>
+          <h3 className="m1-section-title text-white">{t("accounting.reports.cards.profitLossStatement")}</h3>
           <div className="mt-4 space-y-2">
             <Line label={t("accounting.reports.metrics.grossSales")} value={report.revenue?.gross_sales || 0} />
             <Line label={t("accounting.reports.metrics.discounts")} value={report.revenue?.discounts || 0} muted />
@@ -124,7 +124,7 @@ function ProfitAndLoss() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">{t("accounting.reports.cards.expensesByCategory")}</h3>
+          <h3 className="m1-section-title text-white">{t("accounting.reports.cards.expensesByCategory")}</h3>
           <div className="mt-4 space-y-3">
             {expenses.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{t("accounting.profitLoss.empty.noExpenseRows")}</div>

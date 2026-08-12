@@ -247,7 +247,7 @@ export default function AiAgentAnalytics() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><BarChart3 className="h-4 w-4" />AI Agent Analytics</div>
-              <h1 className="mt-3 text-3xl font-black md:text-4xl">Performance Dashboard</h1>
+              <h1 className="m1-display mt-3">Performance Dashboard</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Commercial and operational performance for AI-assisted conversations, drafts, orders, follow-ups, objections, and product demand.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-4">

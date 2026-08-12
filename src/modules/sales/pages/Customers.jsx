@@ -900,7 +900,7 @@ function Customers() {
         <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("customers.eyebrow")}</div>
-            <h1 className="mt-2 text-4xl font-black text-white lg:text-5xl">{t("customers.title")}</h1>
+            <h1 className="m1-display mt-2 text-white">{t("customers.title")}</h1>
             <p className="mt-3 text-sm font-medium text-zinc-400">
               {t("customers.subtitle")}
             </p>
@@ -971,7 +971,7 @@ function Customers() {
             className="rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
           >
           <div className="mb-5 flex flex-col gap-1">
-            <h2 className="text-xl font-black text-white">{editingId ? t("customers.form.titleUpdate") : t("customers.form.titleAdd")}</h2>
+            <h2 className="m1-section-title text-white">{editingId ? t("customers.form.titleUpdate") : t("customers.form.titleAdd")}</h2>
             <p className="text-sm text-zinc-500">{t("customers.form.subtitle")}</p>
           </div>
 
@@ -1039,7 +1039,7 @@ function Customers() {
 
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-6 py-5">
-            <h2 className="text-lg font-black text-white">{t("customers.table.title")}</h2>
+            <h2 className="m1-section-title text-white">{t("customers.table.title")}</h2>
           </div>
 
           <div className="m1-table-container overflow-x-auto">
@@ -1076,9 +1076,7 @@ function Customers() {
                   safeCustomers.map((customer, index) => (
                     <tr
                       key={customer.id}
-                      className={`transition hover:bg-emerald-400/10 ${
-                        index % 2 === 0 ? "bg-slate-900/35" : "bg-slate-950/30"
-                      }`}
+                      className={`transition hover:bg-emerald-400/10 ${ index % 2 === 0 ? "bg-slate-900/35" : "bg-slate-950/30" }`}
                     >
                       <td className="px-6 py-5 align-middle text-center">
                         <div className="grid w-full grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2">
@@ -1086,7 +1084,7 @@ function Customers() {
                             <UserRound className="h-6 w-6" />
                           </div>
                           <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
-                            <h3 className="w-full text-base font-black leading-tight text-white">{customer.name || t("customers.records.unnamed")}</h3>
+                            <h3 className="m1-section-title w-full text-white">{customer.name || t("customers.records.unnamed")}</h3>
                             <p className="w-full text-xs font-medium leading-tight text-zinc-500">{t("customers.records.id")} {customer.id}</p>
                           </div>
                           <div aria-hidden="true" />
@@ -1160,7 +1158,7 @@ function Customers() {
                           <UsersRound className="h-7 w-7" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-black text-white">{t("customers.empty.title")}</h3>
+                          <h3 className="m1-section-title text-white">{t("customers.empty.title")}</h3>
                           <p className="mt-1 text-sm text-zinc-500">{t("customers.empty.description")}</p>
                         </div>
                       </div>
@@ -1243,7 +1241,7 @@ function CustomerImportModal({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">استيراد من النظام القديم</div>
-              <h2 className="mt-2 text-3xl font-black">استيراد العملاء ونقاط الولاء</h2>
+              <h2 className="m1-section-title mt-2">استيراد العملاء ونقاط الولاء</h2>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
                 ارفع ملف Excel أو CSV، راجع المعاينة أولاً، ثم نفذ الاستيراد النهائي بدون تكرار العملاء الموجودين.
               </p>
@@ -1344,7 +1342,7 @@ function CustomerImportModal({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">معاينة الاستيراد</div>
-                  <h3 className="mt-1 text-xl font-black">ملخص الملف</h3>
+                  <h3 className="m1-section-title mt-1">ملخص الملف</h3>
                 </div>
                 {importDone ? <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-100">تم التنفيذ</span> : null}
               </div>
@@ -1423,7 +1421,7 @@ function CustomerProfileDrawer({
         <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">تدقيق محفظة العميل</div>
-            <h2 className="mt-2 text-3xl font-black">{customer?.name || "عميل"}</h2>
+            <h2 className="m1-section-title mt-2">{customer?.name || "عميل"}</h2>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-300">
               <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-zinc-500" />{customer?.phone || "-"}</span>
               <span className="inline-flex items-center gap-2"><Wallet className="h-4 w-4 text-emerald-300" />{formatMoney(walletBalance)}</span>
@@ -1628,7 +1626,7 @@ function CustomerStatementDrawer({
         <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">كشف حساب العميل</div>
-            <h2 className="mt-2 text-3xl font-black">{customerName}</h2>
+            <h2 className="m1-section-title mt-2">{customerName}</h2>
             <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2 xl:grid-cols-4">
               <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
                 <Phone className="h-4 w-4 text-zinc-500" />

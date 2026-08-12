@@ -15,7 +15,7 @@ function AiInsightCard({ title, insight, tone = "cyan" }) {
         </div>
         <div>
           <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">AI insight</div>
-          <h3 className="mt-1 text-lg font-black text-[var(--text)]">{title}</h3>
+          <h3 className="m1-section-title mt-1 text-[var(--text)]">{title}</h3>
         </div>
       </div>
 

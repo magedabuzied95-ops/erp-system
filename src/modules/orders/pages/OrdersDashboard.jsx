@@ -922,7 +922,7 @@ function OrdersDashboard() {
                 <ActiveWorkspaceIcon className="h-3.5 w-3.5" />
                 {t(activeWorkspace.labelKey)}
               </div>
-              <h2 className="mt-1 text-lg font-black text-white">{t("orders.dashboard.operationsWorkspace")}</h2>
+              <h2 className="m1-section-title mt-1 text-white">{t("orders.dashboard.operationsWorkspace")}</h2>
             </div>
             <BulkActions
               t={t}
@@ -1355,7 +1355,7 @@ function FulfillmentBoard({ t, orders, openOrder }) {
       {grouped.map((column) => (
         <div key={column.key} className="min-h-48 rounded-2xl border border-white/10 bg-white/5 p-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-black text-white">{column.label}</h3>
+            <h3 className="m1-section-title text-white">{column.label}</h3>
             <span className="rounded-full bg-black/20 px-2 py-0.5 text-xs font-black text-zinc-200">{column.orders.length}</span>
           </div>
           <div className="mt-3 space-y-2">
@@ -1409,7 +1409,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div className="min-w-0">
             <OrderCode order={order} />
-            <h2 className="mt-2 truncate text-2xl font-black">{getCustomerDisplayName(order, t("orders.fallback.customer"))}</h2>
+            <h2 className="m1-section-title mt-2 truncate">{getCustomerDisplayName(order, t("orders.fallback.customer"))}</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               <StatusBadge value={order.status} />
               <StatusBadge value={paymentBadgeValue(order)} />
@@ -1506,7 +1506,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
       <header className="flex items-start justify-between gap-3 border-b border-white/10 p-3">
         <div className="min-w-0">
           <OrderCode order={order} />
-          <h2 className="mt-2 truncate text-lg font-black">{customerName}</h2>
+          <h2 className="m1-section-title mt-2 truncate">{customerName}</h2>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <StatusBadge value={order.status} />
             <StatusBadge value={paymentBadgeValue(order)} />
@@ -1762,9 +1762,7 @@ function DueAmountCell({ order }) {
 function ExchangeBadge({ order, compact = false }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 font-black text-amber-100 ${
-        compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
-      }`}
+      className={`inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 font-black text-amber-100 ${ compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]" }`}
       title={`Paid now: ${formatCurrency(amountDueNowOf(order))} | Exchange credit: ${formatCurrency(exchangeCreditOf(order))} | Total: ${formatCurrency(totalValue(order))}`}
     >
       <RotateCcw className="h-3 w-3" />
@@ -1822,7 +1820,7 @@ function InfoTile({ icon: Icon, label, value }) {
 function Section({ title, children }) {
   return (
     <section className="mt-5">
-      <h3 className="mb-2 text-sm font-black text-white">{title}</h3>
+      <h3 className="m1-section-title mb-2 text-white">{title}</h3>
       <div className="space-y-2">{children}</div>
     </section>
   );
@@ -1832,7 +1830,7 @@ function EmptyState({ icon: Icon, title, text: body, compact = false }) {
   return (
     <div className={`rounded-2xl border border-dashed border-white/10 bg-white/5 text-center ${compact ? "p-4" : "mt-3 p-10"}`}>
       <Icon className="mx-auto h-10 w-10 text-zinc-500" />
-      <h3 className="mt-3 text-lg font-black text-white">{title}</h3>
+      <h3 className="m1-section-title mt-3 text-white">{title}</h3>
       <p className="mt-1 text-sm text-zinc-400">{body}</p>
     </div>
   );
@@ -1944,7 +1942,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.edit.title")}</div>
-            <h2 className="mt-1 text-xl font-black">{orderCode(order)}</h2>
+            <h2 className="m1-section-title mt-1">{orderCode(order)}</h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
         </header>
@@ -2042,7 +2040,7 @@ function CancelOrderModal({ t, order, cancelling, onClose, onConfirm }) {
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><RotateCcw className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <h2 className="text-lg font-black">{t("orders.cancel.title")}</h2>
+            <h2 className="m1-section-title">{t("orders.cancel.title")}</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{t("orders.cancel.description")}</p>
           </div>
         </div>
@@ -2077,7 +2075,7 @@ function ArchiveOrderModal({ t, order, archiving, onClose, onConfirm }) {
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-white/10 p-2 text-zinc-200"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <h2 className="text-lg font-black">{t("orders.archive.title")}</h2>
+            <h2 className="m1-section-title">{t("orders.archive.title")}</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{t("orders.archive.description", { order: orderCode(order) })}</p>
           </div>
         </div>
@@ -2100,7 +2098,7 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <h2 className="text-lg font-black">{tt(t, "orders.permanentDelete.title", "حذف نهائي")}</h2>
+            <h2 className="m1-section-title">{tt(t, "orders.permanentDelete.title", "حذف نهائي")}</h2>
             <p className="mt-2 text-sm leading-6 text-rose-100">
               {tt(t, "orders.permanentDelete.description", "سيتم حذف الفاتورة نهائياً ولا يمكن التراجع عن ذلك.")}
             </p>

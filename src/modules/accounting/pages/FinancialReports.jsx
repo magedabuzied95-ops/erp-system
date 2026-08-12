@@ -262,7 +262,7 @@ function FinancialReports() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--primary)]/70">
               {isArabic ? "التبويب الحالي" : "Current report"}
             </div>
-            <h2 className="text-2xl font-black text-[var(--text)]">{activeTitle}</h2>
+            <h2 className="m1-section-title text-[var(--text)]">{activeTitle}</h2>
             <p className="text-sm text-[var(--muted)]">{activeDescription}</p>
           </div>
 
@@ -628,7 +628,7 @@ function StateBox({ icon: Icon, title, message, actionLabel, onAction, tone = "n
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h3 className="text-lg font-black">{title}</h3>
+          <h3 className="m1-section-title">{title}</h3>
           <p className="mt-2 text-sm opacity-90">{message}</p>
           {actionLabel && onAction ? (
             <button
@@ -675,7 +675,7 @@ function NotesList({ notes = [], isArabic }) {
 function MiniTableCard({ title, rows, columns, isArabic }) {
   return (
     <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
-      <h3 className="text-base font-black text-[var(--text)]">{title}</h3>
+      <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4">
         <SimpleTable rows={rows} columns={columns} isArabic={isArabic} compact />
       </div>
@@ -686,7 +686,7 @@ function MiniTableCard({ title, rows, columns, isArabic }) {
 function DataTable({ title, rows, columns, isArabic }) {
   return (
     <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
-      <h3 className="text-base font-black text-[var(--text)]">{title}</h3>
+      <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4">
         <SimpleTable rows={rows} columns={columns} isArabic={isArabic} />
       </div>

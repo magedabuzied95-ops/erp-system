@@ -53,11 +53,7 @@ export default function NodePalette({ palette, onAdd, disabled }) {
                   onClick={() => !item.disabled && !disabled && onAdd(item)}
                   disabled={item.disabled || disabled}
                   title={item.disabled ? item.disabledReason : item.description}
-                  className={`group flex w-full items-start gap-2 rounded-xl border px-2.5 py-2 text-left transition ${
-                    item.disabled
-                      ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-55"
-                      : "border-white/10 bg-white/[0.04] hover:border-primary/40 hover:bg-white/[0.07]"
-                  }`}
+                  className={`group flex w-full items-start gap-2 rounded-xl border px-2.5 py-2 text-left transition ${ item.disabled ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-55" : "border-white/10 bg-white/[0.04] hover:border-primary/40 hover:bg-white/[0.07]" }`}
                 >
                   <span className="mt-0.5 shrink-0">
                     {item.disabled ? <Lock className="h-3.5 w-3.5 text-slate-500" /> : <Plus className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary" />}

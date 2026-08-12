@@ -76,11 +76,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                       onPresetChange(preset);
                       setOpen(false);
                     }}
-                    className={`rounded-lg px-2.5 py-2 text-start text-[12px] font-semibold transition ${
-                      active
-                        ? "bg-[var(--primary)] text-white"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-                    }`}
+                    className={`rounded-lg px-2.5 py-2 text-start text-[12px] font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
                     title={`${range.from} → ${range.to}`}
                   >
                     {t(`overview.period.${preset}`)}

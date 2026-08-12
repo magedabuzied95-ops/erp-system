@@ -717,7 +717,7 @@ function StockAdjustments() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-xl font-black text-white">نتائج البحث عن المنتجات</h3>
+                <h3 className="m1-section-title text-white">نتائج البحث عن المنتجات</h3>
                 <p className="mt-1 text-sm text-zinc-400">ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.</p>
               </div>
                 <div className="text-sm text-zinc-400">{filteredVariants.length} نتيجة</div>
@@ -743,11 +743,7 @@ function StockAdjustments() {
                       key={String(variant.variant_id)}
                       type="button"
                       onClick={() => selectVariant(variant)}
-                      className={`flex w-full items-center gap-4 rounded-3xl border p-4 text-left transition ${
-                        selected
-                          ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
-                      }`}
+                      className={`flex w-full items-center gap-4 rounded-3xl border p-4 text-left transition ${ selected ? "border-primary/30 bg-primary/10 shadow-lg shadow-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10" }`}
                     >
                       <ProductThumb imageUrl={variant.image_url} productName={variant.product_name} />
                       <div className="min-w-0 flex-1">
@@ -779,7 +775,7 @@ function StockAdjustments() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-black text-white">المنتج المحدد</h3>
+                <h3 className="m1-section-title text-white">المنتج المحدد</h3>
                 <p className="mt-1 text-sm text-zinc-400">يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.</p>
               </div>
             </div>
@@ -832,7 +828,7 @@ function StockAdjustments() {
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="mb-4">
-                <h3 className="text-xl font-black text-white">نموذج التسوية</h3>
+                <h3 className="m1-section-title text-white">نموذج التسوية</h3>
                 <p className="mt-1 text-sm text-zinc-400">حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.</p>
             </div>
 
@@ -848,13 +844,7 @@ function StockAdjustments() {
                           key={type.value}
                           type="button"
                           onClick={() => setAdjustmentType(type.value)}
-                          className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                            active
-                              ? type.tone === "emerald"
-                                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
-                                : "border-rose-400/30 bg-rose-500/10 text-rose-200"
-                              : "border-white/10 bg-white/5 text-white hover:bg-white/10"
-                          }`}
+                          className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${ active ? type.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
                         >
                           {type.label}
                         </button>
@@ -948,7 +938,7 @@ function StockAdjustments() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-xl font-black text-white">آخر التسويات</h3>
+                <h3 className="m1-section-title text-white">آخر التسويات</h3>
                 <p className="mt-1 text-sm text-zinc-400">أحدث سجلات التسوية المحلية مع سياق المنتج.</p>
               </div>
               <div className="text-sm text-zinc-400">{recentAdjustments.length} عنصر</div>
@@ -1124,7 +1114,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div>
               <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">ماسح الباركود</div>
-              <h3 className="mt-1 text-xl font-black text-white">امسح باركود المنتج</h3>
+              <h3 className="m1-section-title mt-1 text-white">امسح باركود المنتج</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
               إغلاق
@@ -1191,7 +1181,7 @@ function ConfirmationModal({
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div>
               <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">تأكيد التسوية</div>
-              <h3 className="mt-1 text-xl font-black text-white">{productName}</h3>
+              <h3 className="m1-section-title mt-1 text-white">{productName}</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
               إغلاق
@@ -1307,7 +1297,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">سجل المنتج</p>
-            <h3 className="mt-1 text-xl font-black text-white">{productName}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{productName}</h3>
             <p className="mt-1 text-sm text-zinc-400">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">

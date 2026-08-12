@@ -3759,11 +3759,7 @@ function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`relative overflow-hidden rounded-full border px-3 py-2.5 text-center font-black transition active:scale-[0.98] ${
-        active
-          ? "border-[#f8e7b3]/55 bg-[#f8e7b3] text-stone-950 shadow-[0_18px_34px_rgba(248,231,179,0.18)]"
-          : "border-white/10 bg-white/[0.06] text-white hover:border-[#f8e7b3]/35 hover:bg-[#f8e7b3]/10"
-      } ${compact ? "min-h-11 text-sm" : "min-h-14 text-[0.95rem] md:min-h-16 md:text-base"}`}
+      className={`relative overflow-hidden rounded-full border px-3 py-2.5 text-center font-black transition active:scale-[0.98] ${ active ? "border-[#f8e7b3]/55 bg-[#f8e7b3] text-stone-950 shadow-[0_18px_34px_rgba(248,231,179,0.18)]" : "border-white/10 bg-white/[0.06] text-white hover:border-[#f8e7b3]/35 hover:bg-[#f8e7b3]/10" } ${compact ? "min-h-11 text-sm" : "min-h-14 text-[0.95rem] md:min-h-16 md:text-base"}`}
     >
       <span className="block truncate">{label}</span>
       {Number.isFinite(Number(count)) ? <span className={`mt-0.5 block text-[10px] font-black ${active ? "text-stone-800" : "text-white/45"}`}>{count} {Number(count) === 1 ? "موديل" : "موديلات"}</span> : null}
@@ -4382,11 +4378,7 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group inline-flex min-h-[44px] min-w-[96px] items-center gap-2 rounded-full border px-3 py-1.5 text-right shadow-[0_10px_24px_rgba(39,20,75,0.045)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[120px] md:px-4 ${
-                active
-                  ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15"
-                  : "border-stone-200 bg-white text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-[#101010] dark:text-white"
-              }`}
+              className={`group inline-flex min-h-[44px] min-w-[96px] items-center gap-2 rounded-full border px-3 py-1.5 text-right shadow-[0_10px_24px_rgba(39,20,75,0.045)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[120px] md:px-4 ${ active ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-white text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-[#101010] dark:text-white" }`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-stone-950" : "bg-stone-100 text-[#d4af37] dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
@@ -4414,11 +4406,7 @@ function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading,
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${
-                active
-                  ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15"
-                  : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              }`}
+              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${ active ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white" }`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-stone-950" : "bg-white text-[#d4af37] shadow-sm dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
@@ -4457,11 +4445,7 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${
-                active
-                  ? "border-[#d4af37] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#d4af37]/15"
-                  : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              }`}
+              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${ active ? "border-[#d4af37] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white" }`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-white" : "bg-white text-[#d4af37] shadow-sm dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
@@ -4515,11 +4499,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
               type="button"
               disabled={disabled || !item.available}
               onClick={() => onSelect(item.size)}
-              className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${
-                active
-                  ? "border-[#d4af37] bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]"
-                  : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
-              } disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+              className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${ active ? "border-[#d4af37] bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200" } disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
             >
               {item.size}
               {item.available ? <span className="mr-1 opacity-60">({item.productCount})</span> : null}
@@ -4616,11 +4596,7 @@ function PremiumFilterChip({ to, active, icon: Icon = Sparkles, label, count, co
   return (
     <Link
       to={to}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-[11px] font-black transition duration-200 ${
-        active
-          ? "scale-[1.03] border-[#d4af37]/55 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.32)]"
-          : "border-white/10 bg-white/6 text-white/70 hover:-translate-y-0.5 hover:border-[#d4af37]/40 hover:bg-white/10 hover:text-white"
-      }`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-[11px] font-black transition duration-200 ${ active ? "scale-[1.03] border-[#d4af37]/55 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.32)]" : "border-white/10 bg-white/6 text-white/70 hover:-translate-y-0.5 hover:border-[#d4af37]/40 hover:bg-white/10 hover:text-white" }`}
       style={!active && color ? { borderColor: `${color}44` } : undefined}
     >
       {preview ? <span className="h-3 w-3 rounded-full border border-white/20" style={{ background: color || "#d4af37" }} /> : <Icon className="h-3.5 w-3.5" />}
@@ -4722,11 +4698,7 @@ function MobileFilterChip({ active, label, count, icon: Icon = Sparkles, color, 
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-black transition ${
-        active
-          ? "scale-[1.03] border-[#d4af37]/60 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.34)]"
-          : "border-white/10 bg-white/6 text-white/65"
-      }`}
+      className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-black transition ${ active ? "scale-[1.03] border-[#d4af37]/60 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.34)]" : "border-white/10 bg-white/6 text-white/65" }`}
       style={!active && color ? { borderColor: `${color}44` } : undefined}
     >
       {preview ? <span className="h-2.5 w-2.5 rounded-full border border-white/20" style={{ background: color || "#d4af37" }} /> : <Icon className="h-3 w-3" />}
@@ -8313,13 +8285,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       }}
                       onDragLeave={() => setPaymentProofDragActive(false)}
                       onDrop={handlePaymentProofDrop}
-                      className={`checkout-payment-upload ${shippingPaymentFile ? "checkout-payment-upload--has-file" : ""} ${
-                        errors.shipping_payment_screenshot
-                          ? "checkout-payment-upload--error"
-                          : paymentProofDragActive
-                            ? "checkout-payment-upload--active"
-                            : ""
-                      }`}
+                      className={`checkout-payment-upload ${shippingPaymentFile ? "checkout-payment-upload--has-file" : ""} ${ errors.shipping_payment_screenshot ? "checkout-payment-upload--error" : paymentProofDragActive ? "checkout-payment-upload--active" : "" }`}
                     >
                       <label className="block cursor-pointer">
                         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
@@ -9387,15 +9353,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
               <button
                 type="button"
                 onClick={() => chooseOption(option)}
-                className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-right transition duration-150 ${
-                  selected
-                    ? darkMode
-                      ? "border-[#e5c158]/30 bg-[#d4af37]/10"
-                      : "border-[#f3d77a] bg-[#f5f3ff]"
-                    : darkMode
-                      ? "border-white/10 bg-white/[0.025] hover:border-[#e5c158]/22 hover:bg-white/[0.045]"
-                      : "border-slate-300 bg-white hover:border-[#e5c158]/30 hover:bg-[#faf5ff]"
-                }`}
+                className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-right transition duration-150 ${ selected ? darkMode ? "border-[#e5c158]/30 bg-[#d4af37]/10" : "border-[#f3d77a] bg-[#f5f3ff]" : darkMode ? "border-white/10 bg-white/[0.025] hover:border-[#e5c158]/22 hover:bg-white/[0.045]" : "border-slate-300 bg-white hover:border-[#e5c158]/30 hover:bg-[#faf5ff]" }`}
               >
                 <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${selected ? (darkMode ? "border-[#f3d77a] bg-[#d4af37]/90 text-white" : "border-[#d4af37] bg-[#d4af37] text-white") : (darkMode ? "border-white/14 bg-white/[0.03] text-transparent group-hover:border-[#e5c158]/45" : "border-slate-300 bg-white text-transparent group-hover:border-[#d4af37]/35")}`}>
                   <Check className="h-3.5 w-3.5" />
@@ -9446,11 +9404,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
                 aria-modal="true"
                 aria-label={typeof panelTitle === "string" ? panelTitle : undefined}
                 onClick={(event) => event.stopPropagation()}
-                className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[75vh] flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 px-3 pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${
-                  darkMode
-                    ? "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white"
-                    : "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white"
-                }`}
+                className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[75vh] flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 px-3 pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${ darkMode ? "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white" : "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white" }`}
               >
                 <div className="sticky top-0 z-20 border-b border-white/10 pb-3">
                   <div className="flex items-center justify-between gap-3">
@@ -9458,11 +9412,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
                     <button
                       type="button"
                       onClick={close}
-                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
-                        darkMode
-                          ? "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950"
-                      }`}
+                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${ darkMode ? "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950" }`}
                       aria-label={sfText("storefront.common.close")}
                     >
                       <X className="h-4 w-4" />

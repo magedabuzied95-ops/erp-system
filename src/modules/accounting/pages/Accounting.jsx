@@ -163,7 +163,7 @@ function Accounting() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-black text-white">{t("accounting.snapshotTitle")}</h3>
+              <h3 className="m1-section-title text-white">{t("accounting.snapshotTitle")}</h3>
               <p className="mt-1 text-sm text-zinc-400">
                 {t("accounting.snapshotSubtitle")}
               </p>

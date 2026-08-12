@@ -189,11 +189,7 @@ function PosHeader({
                       }}
                       onMouseEnter={() => setActiveCustomerIndex(index)}
                       onClick={() => selectCustomerSuggestion(item)}
-                      className={`mb-1 w-full rounded-2xl border px-3 py-2.5 text-left transition ${
-                        active || activeCustomerIndex === index
-                          ? "border-[var(--primary)]/30 bg-[var(--primary-soft)] text-[var(--primary)]"
-                          : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--primary-soft)]/60"
-                      }`}
+                      className={`mb-1 w-full rounded-2xl border px-3 py-2.5 text-left transition ${ active || activeCustomerIndex === index ? "border-[var(--primary)]/30 bg-[var(--primary-soft)] text-[var(--primary)]" : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--primary-soft)]/60" }`}
                       >
                         <div className="text-sm font-semibold">{item.name}</div>
                         <div className="mt-0.5 text-[11px] text-[var(--muted)]">{phone}</div>
@@ -263,11 +259,7 @@ function CustomerTierBadge({ tier }) {
 
 function QuickStat({ icon: Icon, label, value, badge, accent = false }) {
   return (
-    <div className={`group flex min-h-[4.65rem] min-w-0 flex-col justify-between rounded-2xl border px-2.5 py-2.5 transition ${
-      accent
-        ? "border-emerald-300/18 bg-emerald-400/[0.075]"
-        : "border-white/10 bg-white/[0.035] hover:border-emerald-300/30 hover:bg-emerald-400/10"
-    }`}>
+    <div className={`group flex min-h-[4.65rem] min-w-0 flex-col justify-between rounded-2xl border px-2.5 py-2.5 transition ${ accent ? "border-emerald-300/18 bg-emerald-400/[0.075]" : "border-white/10 bg-white/[0.035] hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}>
       <div className="flex min-w-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-zinc-500">
         <Icon className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-emerald-200" : "text-emerald-300"}`} />
         <span className="min-w-0 truncate">{label}</span>

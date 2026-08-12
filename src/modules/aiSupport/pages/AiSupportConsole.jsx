@@ -251,7 +251,7 @@ function HistoryRow({ item }) {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{formatDateTime(item.created_at)}</div>
-          <h3 className="mt-2 text-base font-black text-white">{item.customer_message}</h3>
+          <h3 className="m1-section-title mt-2 text-white">{item.customer_message}</h3>
         </div>
         <div className="flex flex-wrap gap-2">
           <Pill tone={item.needs_human_support ? "amber" : "emerald"}>{item.needs_human_support ? "يحتاج تدخلًا بشريًا" : "أجاب الذكاء الاصطناعي"}</Pill>
@@ -543,7 +543,7 @@ export default function AiSupportConsole() {
                   <ShieldAlert className="h-4 w-4" />
                   Internal testing only - not visible to customers
                 </div>
-                <h1 className="mt-4 text-3xl font-black tracking-tight md:text-4xl">وحدة دعم الذكاء الاصطناعي</h1>
+                <h1 className="m1-display mt-4">وحدة دعم الذكاء الاصطناعي</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
                   Test customer-style product and store policy questions, then review saved answers before public release.
                 </p>

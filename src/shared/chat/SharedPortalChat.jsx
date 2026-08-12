@@ -713,7 +713,7 @@ export default function SharedPortalChat({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-black text-[var(--muted)]">{headerKicker}</p>
-            <h2 className="mt-1 text-2xl font-black text-[var(--text)]">{headerTitle}</h2>
+            <h2 className="m1-section-title mt-1 text-[var(--text)]">{headerTitle}</h2>
             <p className="mt-1 text-xs font-bold text-[var(--muted)]">التحديث الاحتياطي يعمل كل {Math.round(pollMs / 1000)} ثانية</p>
           </div>
           <button type="button" onClick={() => { void loadThreads(); if (activeThreadId) void loadThread(activeThreadId); }} className="theme-button-soft min-h-[var(--control-height-md)] px-3 text-sm">

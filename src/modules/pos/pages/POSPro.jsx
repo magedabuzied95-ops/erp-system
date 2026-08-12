@@ -939,11 +939,7 @@ const PosVariantColorPicker = ({
               aria-label={color || defaultLabel}
               aria-pressed={selected}
               onClick={() => onSelect?.(color)}
-              className={`group relative aspect-square min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${
-                selected
-                  ? "border-emerald-400 bg-emerald-500/15 ring-2 ring-emerald-400/35"
-                  : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10"
-              }`}
+              className={`group relative aspect-square min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${ selected ? "border-emerald-400 bg-emerald-500/15 ring-2 ring-emerald-400/35" : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10" }`}
             >
               <span className="absolute inset-0 flex items-center justify-center px-1 text-center text-[9px] font-black leading-tight text-zinc-200">
                 {color || defaultLabel}
@@ -7673,11 +7669,7 @@ function POSPro() {
               onClick={handleToggleSaleMode}
               disabled={saleModeSaving}
               title={salePricesEnabled ? "Sale Prices ON" : "Sale Prices OFF"}
-              className={`pos-toolbar-action pos-action-sale inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                salePricesEnabled
-                  ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15"
-                  : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15"
-              }`}
+              className={`pos-toolbar-action pos-action-sale inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${ salePricesEnabled ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15" : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15" }`}
             >
               {saleModeSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">Sale Prices</span>
@@ -7973,11 +7965,7 @@ function POSPro() {
                   type="button"
                   onClick={handleToggleFilters}
                   aria-expanded={filtersOpen}
-                  className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
-                    filtersOpen
-                      ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
-                      : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
-                  }`}
+                  className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ filtersOpen ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                   {t("pos.filters.title")}
@@ -8384,15 +8372,7 @@ function POSPro() {
                           onClick={() => setSelectedSize(size)}
                           onDoubleClick={() => handleVariantSizeDoubleClick(size, sizeVariant)}
                           disabled={disabled}
-                          className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-2 text-xs font-black transition ${
-                            recentlyAdded
-                              ? "border-emerald-300 bg-emerald-300 text-black ring-4 ring-emerald-400/20"
-                              : selectedSize === size
-                              ? "border-emerald-400/30 bg-emerald-500 text-black"
-                              : disabled
-                                ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600"
-                                : "border-white/10 bg-black/30 text-white hover:bg-white/10"
-                          }`}
+                          className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-2 text-xs font-black transition ${ recentlyAdded ? "border-emerald-300 bg-emerald-300 text-black ring-4 ring-emerald-400/20" : selectedSize === size ? "border-emerald-400/30 bg-emerald-500 text-black" : disabled ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-white hover:bg-white/10" }`}
                         >
                           <span className="block leading-tight">{getPosSizeDisplayLabel(activeProduct, size) || t("pos.labels.oneSize")}</span>
                           <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
@@ -8540,15 +8520,7 @@ function POSPro() {
                             onClick={() => setSelectedSize(size)}
                             onDoubleClick={() => handleVariantSizeDoubleClick(size, sizeVariant)}
                             disabled={disabled}
-                            className={`min-h-[var(--control-height-md)] rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
-                              recentlyAdded
-                                ? "bg-emerald-300 text-black ring-4 ring-emerald-400/20"
-                                : selectedSize === size
-                                ? "bg-emerald-500 text-black"
-                                : disabled
-                                  ? "cursor-not-allowed border border-white/5 bg-black/20 text-zinc-600"
-                                  : "border border-white/10 bg-black/30 text-white hover:bg-white/10"
-                            }`}
+                            className={`min-h-[var(--control-height-md)] rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${ recentlyAdded ? "bg-emerald-300 text-black ring-4 ring-emerald-400/20" : selectedSize === size ? "bg-emerald-500 text-black" : disabled ? "cursor-not-allowed border border-white/5 bg-black/20 text-zinc-600" : "border border-white/10 bg-black/30 text-white hover:bg-white/10" }`}
                           >
                             <span className="block leading-tight">{getPosSizeDisplayLabel(activeProduct, size) || t("pos.labels.oneSize")}</span>
                             <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
@@ -8592,9 +8564,7 @@ function POSPro() {
                         return (
                           <div
                             key={String(variant.variant_id || variant.id)}
-                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-white/5 px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm lg:grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr_0.7fr_0.8fr] lg:gap-3 ${
-                              selected ? "bg-emerald-500/10" : ""
-                            }`}
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-white/5 px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm lg:grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr_0.7fr_0.8fr] lg:gap-3 ${ selected ? "bg-emerald-500/10" : "" }`}
                           >
                             <div className="min-w-0">
                               <div className="truncate font-black text-white sm:font-semibold">
@@ -8819,9 +8789,7 @@ function PaymobTerminalModal({ state, loading, onClose, onRetry, onChangePayment
       <section className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/40">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
-              isFailed ? "border-rose-300/30 bg-rose-500/10 text-rose-100" : "border-cyan-300/30 bg-cyan-500/10 text-cyan-100"
-            }`}>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${ isFailed ? "border-rose-300/30 bg-rose-500/10 text-rose-100" : "border-cyan-300/30 bg-cyan-500/10 text-cyan-100" }`}>
               {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isFailed ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
               Paymob POS
             </div>

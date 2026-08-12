@@ -208,7 +208,7 @@ function ReorderSuggestions() {
           ) : (
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
               <Boxes className="mx-auto h-10 w-10 text-zinc-500" />
-              <h3 className="mt-3 text-lg font-black text-white">{t("purchases.reorder.emptyTitle")}</h3>
+              <h3 className="m1-section-title mt-3 text-white">{t("purchases.reorder.emptyTitle")}</h3>
               <p className="mt-1 text-sm font-bold text-zinc-400">{t("purchases.reorder.emptyDescription")}</p>
             </div>
           )}
@@ -293,7 +293,7 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
       <div className="flex min-w-0 items-center gap-3">
         <img src={imageFor(item.image_url)} alt="" className="h-16 w-16 shrink-0 rounded-xl border border-white/10 bg-white/5 object-contain p-1" loading="lazy" />
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-black text-white">{item.product_name}</h3>
+          <h3 className="m1-section-title truncate text-white">{item.product_name}</h3>
           <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-zinc-400">
             <span>{item.color || t("purchases.reorder.noColor")}</span>
             <span aria-hidden="true">•</span>

@@ -25,7 +25,7 @@ export default function PortalChatContactInfo({ open, onClose, contact = {}, mes
       <section className="mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto bg-[#0b0b0b] text-white shadow-2xl">
         <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between border-b border-white/10 bg-[#0b0b0b]/95 px-3 backdrop-blur-xl">
           <button type="button" onClick={onClose} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full bg-white/10" aria-label="إغلاق"><X className="h-5 w-5" /></button>
-          <h2 className="text-[15px] font-black">معلومات جهة الاتصال</h2>
+          <h2 className="m1-section-title text-[15px]">معلومات جهة الاتصال</h2>
           <span className="w-9" />
         </header>
 
@@ -34,7 +34,7 @@ export default function PortalChatContactInfo({ open, onClose, contact = {}, mes
             <div className="h-28 w-28 overflow-hidden rounded-full bg-[#202c33] ring-1 ring-white/10">
               <img src={avatar} alt={name} className="h-full w-full object-cover" />
             </div>
-            <h3 className="mt-4 max-w-full break-words text-2xl font-black" dir="auto">{name}</h3>
+            <h3 className="m1-section-title mt-4 max-w-full break-words" dir="auto">{name}</h3>
             {phone ? <a href={`tel:${phone}`} className="mt-1 text-[15px] font-semibold text-slate-400" dir="ltr">{phone}</a> : <p className="mt-1 text-sm text-slate-500">حساب أعمال</p>}
             {contact.about ? <p className="mt-2 text-sm font-medium text-slate-300" dir="auto">{contact.about}</p> : null}
           </div>

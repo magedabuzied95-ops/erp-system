@@ -86,14 +86,7 @@ function ThermalInvoice({
 
       id="invoice"
 
-      className="
-      bg-white
-      text-black
-      w-[380px]
-      mx-auto
-      p-6
-      font-sans
-      "
+      className="bg-white text-black w-[380px] mx-auto p-6 font-sans"
     >
 
       {/* ======================================================
@@ -105,19 +98,7 @@ function ThermalInvoice({
         {/* LOGO */}
 
         <div
-          className="
-          w-20
-          h-20
-          rounded-full
-          bg-black
-          text-white
-          mx-auto
-          flex
-          items-center
-          justify-center
-          text-3xl
-          font-black
-          "
+          className="w-20 h-20 rounded-full bg-black text-white mx-auto flex items-center justify-center text-3xl font-black"
         >
 
           TS
@@ -127,12 +108,7 @@ function ThermalInvoice({
         {/* STORE */}
 
         <h1
-          className="
-          text-4xl
-          font-black
-          mt-5
-          tracking-wide
-          "
+          className="text-4xl font-black mt-5 tracking-wide"
         >
 
           TIGER STORE
@@ -273,12 +249,7 @@ function ThermalInvoice({
 
                 key={item.variant_id}
 
-                className="
-                border-b
-                border-dashed
-                border-gray-400
-                pb-4
-                "
+                className="border-b border-dashed border-gray-400 pb-4"
               >
 
                 <div className="flex justify-between">
@@ -380,17 +351,7 @@ function ThermalInvoice({
         </div>
 
         <div
-          className="
-          flex
-          justify-between
-          text-3xl
-          font-black
-          border-t
-          border-dashed
-          border-black
-          pt-4
-          mt-4
-          "
+          className="flex justify-between text-3xl font-black border-t border-dashed border-black pt-4 mt-4"
         >
 
           <span>

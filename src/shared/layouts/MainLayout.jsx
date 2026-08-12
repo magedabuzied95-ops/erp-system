@@ -910,7 +910,7 @@ function MainLayout() {
                 <div className="flex items-center gap-3">
                   <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-12 w-12 rounded-2xl" />
                   <div className="min-w-0">
-                    <h2 className="truncate text-2xl font-bold tracking-tight text-[var(--text)]">{workspaceName}</h2>
+                    <h2 className="m1-section-title truncate text-[var(--text)]">{workspaceName}</h2>
                     <p className="mt-1 text-sm text-[var(--muted)]">
                       {t("common.welcomeBack")}, {user?.name}
                     </p>

@@ -478,7 +478,7 @@ function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
           <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
             {isArabic ? "قواعد الحضور والمرتبات" : "Attendance payroll rules"}
           </div>
-          <h3 className="mt-1 text-xl font-black text-[var(--text)]">
+          <h3 className="m1-section-title mt-1 text-[var(--text)]">
             {isArabic ? "إعدادات الاحتساب الأساسية" : "Core calculation settings"}
           </h3>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -779,7 +779,7 @@ export default function AttendanceCenter() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="text-xs font-black text-[var(--muted)]">{pageEyebrow}</div>
-            <h2 className="mt-1 text-3xl font-black text-[var(--text)]">{pageTitle}</h2>
+            <h2 className="m1-section-title mt-1 text-[var(--text)]">{pageTitle}</h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -860,7 +860,7 @@ export default function AttendanceCenter() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">{isArabic ? "تصحيح إداري" : "Admin correction"}</div>
-                <h3 className="mt-1 text-2xl font-black text-[var(--text)]">{isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"}</h3>
+                <h3 className="m1-section-title mt-1 text-[var(--text)]">{isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"}</h3>
                 <p className="mt-1 text-sm text-[var(--muted)]">{isArabic ? "يتم إنشاء سجل اليوم أو تصحيح السجل الموجود مع حفظ السبب واسم المسؤول." : "Creates the daily record or corrects the existing one with a full audit trail."}</p>
               </div>
               <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)]"><XCircle className="h-5 w-5" /></button>
@@ -949,7 +949,7 @@ function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{isArabic ? "تنبيه تشغيل" : "Operations alert"}</p>
-          <h3 className="mt-1 text-lg font-black text-[var(--text)]">{title}</h3>
+          <h3 className="m1-section-title mt-1 text-[var(--text)]">{title}</h3>
           <p className="mt-1 text-sm text-[var(--muted)]">{subtitle}</p>
         </div>
         <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-300">
@@ -997,7 +997,7 @@ function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) 
 function ChartPanel({ title, data, xKey = "date", type = "line", lines = [], bars = [] }) {
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-      <h3 className="text-base font-black text-[var(--text)]">{title}</h3>
+      <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4 h-72">
         <ResponsiveContainer width="100%" height="100%">
           {type === "line" ? (
@@ -1079,7 +1079,7 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
         </div>
       )) : <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-[var(--muted)]">{text.noRows}</div>}
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-        <h3 className="mb-3 text-base font-black text-[var(--text)]">{isArabic ? "إجماليات النتائج الحالية" : "Current results totals"}</h3>
+        <h3 className="m1-section-title mb-3 text-[var(--text)]">{isArabic ? "إجماليات النتائج الحالية" : "Current results totals"}</h3>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {[
             [isArabic ? "الحضور" : "Present", totals.present],
@@ -1140,7 +1140,7 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">{isArabic ? "اعتماد المرتب" : "Payroll approval"}</p>
-          <h3 className="mt-1 text-lg font-black text-[var(--text)]">{isArabic ? "طلبات الأوفر تايم" : "Overtime approvals"}</h3>
+          <h3 className="m1-section-title mt-1 text-[var(--text)]">{isArabic ? "طلبات الأوفر تايم" : "Overtime approvals"}</h3>
           <p className="mt-1 text-sm text-[var(--muted)]">{isArabic ? "الأوفر تايم لا يدخل في المرتب إلا بعد الاعتماد." : "Overtime is included in payroll only after approval."}</p>
         </div>
         <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-black text-primary">
@@ -1229,7 +1229,7 @@ function ReportsView({ payload, rows, text, onExport }) {
       <KpiCard label={text.missingHours} value={payload?.summary?.missing_hours || 0} icon={TimerOff} tone="orange" />
       <div className="theme-card p-5 xl:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="text-xl font-black text-[var(--text)]">{text.tabs[9]}</h3><p className="mt-1 text-sm text-[var(--muted)]" dir="ltr">{payload?.generated_at || ""}</p></div>
+          <div><h3 className="m1-section-title text-[var(--text)]">{text.tabs[9]}</h3><p className="mt-1 text-sm text-[var(--muted)]" dir="ltr">{payload?.generated_at || ""}</p></div>
           <button type="button" onClick={() => onExport("attendance-report", rows)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]"><Download className="h-4 w-4" />{text.excel}</button>
         </div>
       </div>
@@ -1257,7 +1257,7 @@ function DetailsDrawer({ row, text, onClose }) {
     <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose}>
       <aside className="ms-auto h-full w-full max-w-xl overflow-auto bg-[var(--card)] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
-          <div><h3 className="text-xl font-black text-[var(--text)]">{text.details}</h3><p className="mt-1 text-sm text-[var(--muted)]">{row.employee_name}</p></div>
+          <div><h3 className="m1-section-title text-[var(--text)]">{text.details}</h3><p className="mt-1 text-sm text-[var(--muted)]">{row.employee_name}</p></div>
           <button type="button" onClick={onClose} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-black text-[var(--text)]">{text.close}</button>
         </div>
         <div className="mt-5 grid gap-3">

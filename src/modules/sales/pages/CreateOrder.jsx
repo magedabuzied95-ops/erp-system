@@ -306,7 +306,7 @@ function CreateOrder() {
 
       <div>
 
-        <h1 className="text-5xl font-black text-gray-800 dark:text-white">
+        <h1 className="m1-display text-gray-800 dark:text-white">
 
           Create Order 🛒
 
@@ -409,7 +409,7 @@ function CreateOrder() {
 
       <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl">
 
-        <h2 className="text-3xl font-black dark:text-white">
+        <h2 className="m1-section-title dark:text-white">
 
           Cart Items
 
@@ -428,7 +428,7 @@ function CreateOrder() {
 
                   <div>
 
-                    <h3 className="font-black dark:text-white">
+                    <h3 className="m1-section-title dark:text-white">
 
                       {item.name}
 
@@ -492,13 +492,13 @@ function CreateOrder() {
 
         <div className="flex justify-between mt-10">
 
-          <h2 className="text-4xl font-black dark:text-white">
+          <h2 className="m1-section-title dark:text-white">
 
             Total
 
           </h2>
 
-          <h2 className="text-5xl font-black text-green-500">
+          <h2 className="m1-section-title text-green-500">
 
             {formatCurrency(totalPrice)}
 

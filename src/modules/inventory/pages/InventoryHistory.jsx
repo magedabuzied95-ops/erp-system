@@ -202,7 +202,7 @@ function InventoryHistory() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h3 className="text-xl font-black text-white">سجل الحركات</h3>
+            <h3 className="m1-section-title text-white">سجل الحركات</h3>
             <p className="mt-1 text-sm text-zinc-400">اضغط أي صف لعرض الكمية قبل الحركة وبعدها.</p>
           </div>
           <div className="text-sm text-zinc-400">{movements.length} صفًا ظاهرًا</div>
@@ -356,7 +356,7 @@ function TimelineDrawer({ movement, onClose }) {
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">الخط الزمني للمخزون</p>
-            <h3 className="mt-1 text-xl font-black text-white">{movement.product_name || "تفاصيل الحركة"}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{movement.product_name || "تفاصيل الحركة"}</h3>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
             إغلاق

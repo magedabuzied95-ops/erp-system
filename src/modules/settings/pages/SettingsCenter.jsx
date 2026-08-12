@@ -427,7 +427,7 @@ class SettingsCenterErrorBoundary extends Component {
     return (
       <div className="min-h-screen bg-slate-950 p-6 text-white">
         <div className="mx-auto max-w-xl rounded-3xl border border-rose-400/20 bg-rose-500/10 p-6">
-          <h1 className="text-xl font-black">Settings Center error</h1>
+          <h1 className="m1-page-title">Settings Center error</h1>
           <p className="mt-2 text-sm text-rose-100">{this.state.error?.message || "Unable to render settings."}</p>
           <button type="button" onClick={() => this.setState({ error: null })} className="mt-5 rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950">Retry</button>
         </div>
@@ -989,7 +989,7 @@ function SettingsCenterContent({ debugMode = false }) {
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className={`text-sm font-black ${headingText}`}>{localized(item.label, language)}</h3>
+              <h3 className={`m1-section-title ${headingText}`}>{localized(item.label, language)}</h3>
               {dirty ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{ui.modified}</span> : null}
               {item.isSecret ? <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300"><Lock className="h-3 w-3" />{ui.protected}</span> : null}
             </div>
@@ -1011,7 +1011,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 <Lock className="h-6 w-6" />
               </span>
               <div>
-                <h1 className={`text-xl font-black ${headingText}`}>Settings debug is unavailable</h1>
+                <h1 className={`m1-page-title ${headingText}`}>Settings debug is unavailable</h1>
                 <p className={`mt-2 text-sm leading-6 ${bodyText}`}>Developer settings are only available to super admin or developer users, or when debug settings are explicitly enabled.</p>
               </div>
             </div>
@@ -1036,7 +1036,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{ui.lastSaved} {lastSaved ? timeAgo(lastSaved) : ui.neverSaved}</span>
                 {isDirty || socialAutomationDirty || siteSettingsDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
               </div>
-              <h1 className={`mt-3 max-w-full break-words text-2xl font-black tracking-tight sm:text-3xl ${headingText}`}>{ui.subtitle}</h1>
+              <h1 className={`m1-page-title mt-3 max-w-full break-words ${headingText}`}>{ui.subtitle}</h1>
               <p className={`mt-1 text-sm font-medium ${bodyText}`}>{ui.description}</p>
             </div>
             <div className="flex min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:items-center">
@@ -1088,7 +1088,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 <div className="flex items-start gap-3">
                   <span className="grid h-14 w-14 place-items-center rounded-3xl bg-slate-950 text-white dark:bg-gradient-to-br dark:from-blue-500 dark:to-violet-500"><ActiveIcon className="h-6 w-6" /></span>
                   <div>
-                    <h2 className={`text-2xl font-black ${headingText}`}>{localized(activeCategoryMeta?.label, language)}</h2>
+                    <h2 className={`m1-section-title ${headingText}`}>{localized(activeCategoryMeta?.label, language)}</h2>
                     <p className={`mt-1 max-w-2xl text-sm leading-6 ${bodyText}`}>{localized(activeCategoryMeta?.description, language)}</p>
                   </div>
                 </div>
@@ -1134,7 +1134,7 @@ function SettingsCenterContent({ debugMode = false }) {
                     {sections.map((section) => (
                       <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <h2 className={`text-lg font-black ${headingText}`}>{section.title}</h2>
+                          <h2 className={`m1-section-title ${headingText}`}>{section.title}</h2>
                         </div>
                         <div className="mt-4 grid gap-4 2xl:grid-cols-2">{section.settings.map((item) => renderField(item))}</div>
                       </section>
@@ -1169,7 +1169,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 {sections.map((section) => (
                   <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h2 className={`text-lg font-black ${headingText}`}>{section.title}</h2>
+                      <h2 className={`m1-section-title ${headingText}`}>{section.title}</h2>
                       {activeCategory === "barcode_printing" && section.settings.some((item) => BARCODE_PRINT_SETTING_KEYS.includes(item.key)) ? (
                         <button
                           type="button"
@@ -1188,7 +1188,7 @@ function SettingsCenterContent({ debugMode = false }) {
                   <section id="social-automation-settings" className={`rounded-[1.75rem] p-5 ${shellCard}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <h2 className={`text-lg font-black ${headingText}`}>{ui.socialAutomation}</h2>
+                        <h2 className={`m1-section-title ${headingText}`}>{ui.socialAutomation}</h2>
                         <p className={`mt-1 text-sm leading-6 ${bodyText}`}>تنطبق هذه الإعدادات فقط على أتمتة تعليقات السوشيال داخل صندوق الوارد.</p>
                       </div>
                       <button
@@ -1430,7 +1430,7 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
     <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className={`text-xl font-black ${headingText}`}>Site Settings</h2>
+          <h2 className={`m1-section-title ${headingText}`}>Site Settings</h2>
           <p className={`mt-1 text-sm leading-6 ${bodyText}`}>Company identity used by sidebar, login, invoices, and storefront fallbacks.</p>
         </div>
         <button
@@ -1450,7 +1450,7 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
             <LogoAvatar src={companyLogoUrl} name={displayName} size="h-16 w-16" />
             <div className="min-w-0">
               <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>Live preview</div>
-              <h3 className={`mt-1 truncate text-2xl font-black ${headingText}`}>{displayName}</h3>
+              <h3 className={`m1-section-title mt-1 truncate ${headingText}`}>{displayName}</h3>
               <p className={`mt-1 text-sm ${bodyText}`}>{companyLogoUrl || faviconUrl ? "Branding assets are active." : "Fallback initials will be used until you upload a logo."}</p>
             </div>
           </div>
@@ -1550,7 +1550,7 @@ function StorefrontSettings(props) {
             <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-56 p-6">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-white/50">Live homepage preview</div>
-                {hero.title ? <h3 className="mt-2 text-3xl font-black">{hero.title}</h3> : null}
+                {hero.title ? <h3 className="m1-section-title mt-2">{hero.title}</h3> : null}
                 {hero.subtitle ? <p className="mt-2 max-w-xl text-sm text-white/70">{hero.subtitle}</p> : null}
                 {hero.buttonText ? <button type="button" className="mt-4 rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950">{hero.buttonText}</button> : null}
               </div>
@@ -1569,7 +1569,7 @@ function StorefrontSettings(props) {
           {renderField(setting("storefront.enable_product_sharing"), true)}
           {renderField(setting("storefront.enable_size_guide"), true)}
           <article id="setting-storefront.featured_collections" className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
-            <h3 className={`text-sm font-black ${headingText}`}>Featured collections</h3>
+            <h3 className={`m1-section-title ${headingText}`}>Featured collections</h3>
             <p className={`mt-1 text-xs ${bodyText}`}>Searchable collection selector replacement for the old JSON list.</p>
             <div className="mt-3">
               <CollectionSelector collections={featuredCollections} draft={collectionDraft} setDraft={setCollectionDraft} onChange={(next) => updateValue("storefront.featured_collections", next)} hint={ui.collectionHint} />
@@ -1598,7 +1598,7 @@ function StorefrontSettings(props) {
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>محفظة Vodafone Cash</h3>
+                <h3 className={`m1-section-title ${headingText}`}>محفظة Vodafone Cash</h3>
                 <p className={`mt-1 text-xs leading-5 ${bodyText}`}>تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.</p>
               </div>
               <TogglePill label="مفعل" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
@@ -1617,7 +1617,7 @@ function StorefrontSettings(props) {
                     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>InstaPay</h3>
+                <h3 className={`m1-section-title ${headingText}`}>InstaPay</h3>
                 <p className={`mt-1 text-xs leading-5 ${bodyText}`}>أدخل رابط الدفع المباشر وخصص الاسم الظاهر والنص المساعد والشعار.</p>
               </div>
               <TogglePill label="مفعل" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
@@ -1678,7 +1678,7 @@ function StorefrontSettings(props) {
           <article className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>رسوم تأكيد الشحن</h3>
+                <h3 className={`m1-section-title ${headingText}`}>رسوم تأكيد الشحن</h3>
                 <p className={`mt-1 text-xs leading-5 ${bodyText}`}>اضبط الرسوم الظاهرة في خطوة الدفع داخل صفحة إتمام الطلب.</p>
               </div>
               <TogglePill label="تفعيل رسوم تأكيد الشحن" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
@@ -1769,7 +1769,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
                 <Clock3 className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h2 className={`text-lg font-black ${headingText}`}>
+                <h2 className={`m1-section-title ${headingText}`}>
                   {language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"}
                 </h2>
                 <p className={`mt-1 text-sm font-bold leading-6 ${bodyText}`}>
@@ -1902,7 +1902,7 @@ function ProviderBadgePicker({ value, onChange }) {
   const activeProvider = normalizeProviderKey(value);
   return (
     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
-      <h3 className={`text-sm font-black ${headingText}`}>Default shipping provider</h3>
+      <h3 className={`m1-section-title ${headingText}`}>Default shipping provider</h3>
       <p className={`mt-1 text-xs leading-5 ${bodyText}`}>Select the fallback carrier used when a zone has no specific provider.</p>
       <select value={activeProvider} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-4 max-w-sm`}>
         {shippingProviderOptions.map((provider) => (
@@ -2011,7 +2011,7 @@ function BostaIntegrationPanel({ copy }) {
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>{copy.bostaConnection || "Connection"}</h3>
+                <h3 className={`m1-section-title ${headingText}`}>{copy.bostaConnection || "Connection"}</h3>
                 <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaConnectionHint || "Use your production Bosta API token. The key is never shown after saving."}</p>
               </div>
               <button type="button" onClick={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} className={`rounded-full px-3 py-1.5 text-xs font-black ${settings.enabled ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}>
@@ -2035,7 +2035,7 @@ function BostaIntegrationPanel({ copy }) {
           </article>
 
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
-            <h3 className={`text-base font-black ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
+            <h3 className={`m1-section-title ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
             <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint || "Imports Bosta City -> Zone -> District master locations. Checkout only shows dropoff-available rows."}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <TesterMetric label="Cities" value={counts.citiesSynced ?? counts.cities ?? 0} />
@@ -2053,7 +2053,7 @@ function BostaIntegrationPanel({ copy }) {
         <article className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className={`text-base font-black ${headingText}`}>{copy.bostaStatus || "Bosta status"}</h3>
+              <h3 className={`m1-section-title ${headingText}`}>{copy.bostaStatus || "Bosta status"}</h3>
               <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaStatusHint || "Operational checklist for API, location sync, and webhook readiness."}</p>
             </div>
             <code className="max-w-full break-all rounded-2xl bg-slate-950 px-3 py-2 text-xs font-bold text-cyan-100 dark:bg-black/40">
@@ -2196,7 +2196,7 @@ function ShippingTemplates({ zones, defaultPrice, copy, onChange }) {
         {templates.map(([id, title, description, build]) => (
           <button key={id} type="button" onClick={() => { onChange(build()); toast.success(copy.templateApplied); }} className={`min-h-36 rounded-2xl p-4 text-start transition hover:-translate-y-0.5 hover:border-slate-300 ${fieldSurface}`}>
             <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Truck className="h-5 w-5" /></span>
-            <h3 className={`mt-3 text-base font-black ${headingText}`}>{title}</h3>
+            <h3 className={`m1-section-title mt-3 ${headingText}`}>{title}</h3>
             <p className={`mt-2 text-xs leading-5 ${bodyText}`}>{description}</p>
           </button>
         ))}
@@ -3296,7 +3296,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
       <div className={`rounded-2xl p-4 ${fieldSurface}`}>
         <div className="mb-3 flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" /></span>
-          <h3 className={`text-sm font-black ${headingText}`}>{copy.quickTitle}</h3>
+          <h3 className={`m1-section-title ${headingText}`}>{copy.quickTitle}</h3>
         </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_7rem_auto] lg:items-center">
           <select value={draft.governorate_id || ""} onChange={(event) => applyDraftLocation("governorate", event.target.value)} className={inputClass}>
@@ -3373,7 +3373,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-400 text-slate-950"><PanelLeftClose className="h-5 w-5" /></span>
               <div>
-                <h2 className="text-lg font-black">Shipping Zones - Fullscreen</h2>
+                <h2 className="m1-section-title">Shipping Zones - Fullscreen</h2>
                 <p className="text-xs font-bold text-slate-400">{visibleZones.length} rules / {copy.shortcutHint} / ESC</p>
               </div>
             </div>
@@ -3622,7 +3622,7 @@ function VisualSection({ icon: Icon, title, description, children }) {
       <div className="mb-5 flex items-start gap-3">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-700 dark:bg-white/8 dark:text-slate-200"><Icon className="h-6 w-6" /></span>
         <div>
-          <h2 className={`text-xl font-black ${headingText}`}>{title}</h2>
+          <h2 className={`m1-section-title ${headingText}`}>{title}</h2>
           <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{description}</p>
         </div>
       </div>
@@ -3653,7 +3653,7 @@ function VisualUpload({ title, value, onChange, helper, placeholder, clearLabel,
     <article className={`rounded-2xl p-4 ${fieldSurface} ${wide ? "xl:col-span-2" : ""}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className={`text-sm font-black ${headingText}`}>{title}</h3>
+          <h3 className={`m1-section-title ${headingText}`}>{title}</h3>
           <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{helper}</p>
         </div>
         {hasValue ? (
@@ -3759,7 +3759,7 @@ function PreviewDrawer({ ui, onClose, children }) {
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
           <div>
             <div className={`text-xs font-black uppercase tracking-[0.16em] ${mutedText}`}>{ui.preview}</div>
-            <h2 className={`mt-1 text-xl font-black ${headingText}`}>{ui.previewTitle}</h2>
+            <h2 className={`m1-section-title mt-1 ${headingText}`}>{ui.previewTitle}</h2>
           </div>
           <button type="button" onClick={onClose} className="grid h-[var(--control-height-lg)] w-11 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
             <X className="h-5 w-5" />
@@ -3815,7 +3815,7 @@ function RetryCard({ ui, error, onRetry }) {
             <AlertCircle className="h-6 w-6" />
           </span>
           <div>
-            <h2 className={`text-lg font-black ${headingText}`}>{ui.apiErrorTitle}</h2>
+            <h2 className={`m1-section-title ${headingText}`}>{ui.apiErrorTitle}</h2>
             <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{ui.apiErrorHint}</p>
             <p className="mt-3 rounded-2xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-200">{error}</p>
           </div>
@@ -3836,7 +3836,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
         <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className={`text-2xl font-black ${headingText}`}>{ui.advanced}</h1>
+              <h1 className={`m1-page-title ${headingText}`}>{ui.advanced}</h1>
               <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{ui.advancedHint}</p>
             </div>
             <button type="button" onClick={onRetry} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
@@ -3850,7 +3850,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
         </section>
 
         <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
-          <h2 className={`text-lg font-black ${headingText}`}>Registry audit</h2>
+          <h2 className={`m1-section-title ${headingText}`}>Registry audit</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {legacyAudit.map(([setting, location, owner]) => (
               <div key={setting} className={`rounded-2xl p-3 ${subtleSurface}`}>
@@ -3863,7 +3863,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
         </section>
 
         <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
-          <h2 className={`text-lg font-black ${headingText}`}>Runtime metadata</h2>
+          <h2 className={`m1-section-title ${headingText}`}>Runtime metadata</h2>
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-xs text-slate-300 dark:border-white/10 dark:bg-black/30">
             <div>Loaded settings: {records.length}</div>
             <div>Edited local values: {Object.keys(values).length}</div>

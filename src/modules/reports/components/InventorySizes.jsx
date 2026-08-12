@@ -188,11 +188,7 @@ function TypePicker({ types = [], selected, onSelect, language }) {
           type="button"
           onClick={() => onSelect(type === selected ? "" : type)}
           aria-pressed={selected === type}
-          className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${
-            selected === type
-              ? "bg-[var(--primary)] text-white"
-              : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-          }`}
+          className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ selected === type ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
         >
           {dimensionLabel("product_type", type, language)}
         </button>

@@ -232,11 +232,7 @@ function SmartWarehouse() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                active
-                  ? "border-[var(--primary)] bg-[var(--primary)] text-white"
-                  : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]"
-              }`}
+              className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black transition ${ active ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]" }`}
             >
               <Icon className="h-4 w-4" />
               {tab.label}
@@ -331,7 +327,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="text-sm text-[var(--muted)]">Model-level count</div>
-                <h2 className="text-2xl font-black text-[var(--text)]">{productData.product?.name}</h2>
+                <h2 className="m1-section-title text-[var(--text)]">{productData.product?.name}</h2>
                 <div className="mt-1 text-sm text-[var(--muted)]">
                   {productData.colors?.length || 0} colors / {productData.sizes?.length || 0} sizes / stock {productData.totalStock || 0}
                 </div>
@@ -491,7 +487,7 @@ function ReportsPanel({ reports }) {
       <DataList title="Smart Alerts" rows={reports.alerts} render={(row) => <ReportRow row={row} value={row.alert_type} />} />
       <DataList title="Transfer Recommendations" rows={reports.transfers} render={(row) => <ReportRow row={row} value={`${row.source_stock || 0} > ${row.target_stock || 0}`} />} />
       <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 xl:col-span-2">
-        <h3 className="text-xl font-black text-[var(--text)]">Warehouse Heatmap</h3>
+        <h3 className="m1-section-title text-[var(--text)]">Warehouse Heatmap</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {reports.heatmap.map((section) => (
             <div key={section.id} className="rounded-2xl border border-[var(--border)] p-4" style={{ background: `color-mix(in srgb, ${section.color || "#2563eb"} 18%, var(--card))` }}>
@@ -518,7 +514,7 @@ function ReportRow({ row, value }) {
 function DataList({ title, rows, render }) {
   return (
     <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
-      <h3 className="text-xl font-black text-[var(--text)]">{title}</h3>
+      <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
       <div className="mt-4 space-y-3">
         {rows?.length ? rows.map((row, index) => (
           <div key={row.id || row.variant_id || index} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
@@ -589,7 +585,7 @@ function EmptyState({ icon: Icon = AlertTriangle, title, text, compact = false }
   return (
     <div className={`rounded-3xl border border-dashed border-[var(--border)] bg-[var(--card)] text-center ${compact ? "p-5" : "p-10"}`}>
       <Icon className="mx-auto h-10 w-10 text-[var(--muted)]" />
-      <h3 className="mt-3 text-lg font-black text-[var(--text)]">{title}</h3>
+      <h3 className="m1-section-title mt-3 text-[var(--text)]">{title}</h3>
       <p className="mt-2 text-sm text-[var(--muted)]">{text}</p>
     </div>
   );

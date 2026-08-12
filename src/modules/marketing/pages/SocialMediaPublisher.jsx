@@ -1671,7 +1671,7 @@ export default function SocialMediaPublisher() {
                 <Upload className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-lg font-black">{t("marketing.socialPublisher.uploadTitle")}</h2>
+                <h2 className="m1-section-title">{t("marketing.socialPublisher.uploadTitle")}</h2>
                 <p className="text-sm text-slate-400">{t("marketing.socialPublisher.uploadHint")}</p>
               </div>
             </div>

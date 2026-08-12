@@ -120,7 +120,7 @@ function SupplierDetails() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.supplierDetails.profile")}</div>
-                <h2 className="mt-2 text-2xl font-black text-white">{supplier.name}</h2>
+                <h2 className="m1-section-title mt-2 text-white">{supplier.name}</h2>
                 <p className="mt-1 text-sm text-zinc-400">{supplier.address || t("purchases.supplierDetails.noAddress")}</p>
               </div>
               <StatusBadge value={supplier.status} />
@@ -135,7 +135,7 @@ function SupplierDetails() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.purchaseHistory")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.purchaseHistory")}</h3>
             <div className="mt-4 space-y-3">
               {purchases.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
@@ -160,7 +160,7 @@ function SupplierDetails() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.transactionsHistory")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.transactionsHistory")}</h3>
             <div className="mt-4 space-y-3">
               {[...ledger].map((entry) => (
                 <div key={String(entry.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -182,7 +182,7 @@ function SupplierDetails() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.ledgerSummary")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.ledgerSummary")}</h3>
             <div className="mt-4 grid gap-3">
               <Info label={t("purchases.supplierDetails.openingBalance")} value={formatCurrency(balance)} />
               <Info label={t("purchases.supplierDetails.purchaseCount")} value={String(purchases.length)} />
@@ -192,7 +192,7 @@ function SupplierDetails() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.contactInfo")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.contactInfo")}</h3>
             <div className="mt-4 space-y-3 text-sm text-zinc-300">
               <ContactRow label={t("purchases.supplierDetails.phone")} value={supplier.phone} emptyLabel={t("purchases.supplierDetails.notAvailable")} />
               <ContactRow label={t("purchases.supplierDetails.email")} value={supplier.email} emptyLabel={t("purchases.supplierDetails.notAvailable")} />

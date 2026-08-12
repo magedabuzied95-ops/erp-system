@@ -282,14 +282,7 @@ export default function ProductColors({
   return (
 
     <div
-      className="
-      bg-[#0f172a]
-      border
-      border-white/10
-      rounded-3xl
-      p-6
-      shadow-2xl
-      "
+      className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 shadow-2xl"
     >
 
       {/* HEADER */}
@@ -297,11 +290,7 @@ export default function ProductColors({
       <div className="mb-8">
 
         <h2
-          className="
-          text-3xl
-          font-black
-          text-white
-          "
+          className="m1-section-title text-white"
         >{t("products.colors.title", "Product Colors")}</h2>
 
         <p className="text-gray-400 mt-2">{t("products.colors.description", "Add colors, images and sizes")}</p>
@@ -313,20 +302,11 @@ export default function ProductColors({
       <div className="mb-10">
 
         <h3
-          className="
-          text-white
-          text-xl
-          font-black
-          mb-5
-          "
+          className="m1-section-title text-white mb-5"
         >{t("products.colors.quickColors", "Quick Colors")}</h3>
 
         <div
-          className="
-          flex
-          flex-wrap
-          gap-4
-          "
+          className="flex flex-wrap gap-4"
         >
 
           {PRESET_COLORS.map(
@@ -389,13 +369,7 @@ export default function ProductColors({
                         preset.hex
                     }}
 
-                    className="
-                    w-6
-                    h-6
-                    rounded-full
-                    border
-                    border-white/20
-                    "
+                    className="w-6 h-6 rounded-full border border-white/20"
 
                   />
 
@@ -420,37 +394,18 @@ export default function ProductColors({
 
             key={color.id}
 
-            className="
-            bg-gradient-to-br
-            from-[#1e293b]
-            to-[#172033]
-            border
-            border-white/10
-            rounded-3xl
-            p-7
-            shadow-xl
-            "
+            className="bg-gradient-to-br from-[#1e293b] to-[#172033] border border-white/10 rounded-3xl p-7 shadow-xl"
 
           >
 
             {/* TOP */}
 
             <div
-              className="
-              flex
-              items-center
-              justify-between
-              flex-wrap
-              gap-5
-              "
+              className="flex items-center justify-between flex-wrap gap-5"
             >
 
               <div
-                className="
-                flex
-                items-center
-                gap-5
-                "
+                className="flex items-center gap-5"
               >
 
                 <div
@@ -460,25 +415,14 @@ export default function ProductColors({
                       color.hex
                   }}
 
-                  className="
-                  w-16
-                  h-16
-                  rounded-3xl
-                  border-4
-                  border-white/10
-                  shadow-lg
-                  "
+                  className="w-16 h-16 rounded-3xl border-4 border-white/10 shadow-lg"
 
                 />
 
                 <div>
 
                   <h3
-                    className="
-                    text-3xl
-                    font-black
-                    text-white
-                    "
+                    className="m1-section-title text-white"
                   >
 
                     {color.name}
@@ -486,19 +430,11 @@ export default function ProductColors({
                   </h3>
 
                   <div
-                    className="
-                    flex
-                    items-center
-                    gap-4
-                    mt-2
-                    "
+                    className="flex items-center gap-4 mt-2"
                   >
 
                     <span
-                      className="
-                      text-gray-400
-                      text-sm
-                      "
+                      className="text-gray-400 text-sm"
                     >
 
                       {color.hex}
@@ -506,15 +442,7 @@ export default function ProductColors({
                     </span>
 
                     <span
-                      className="
-                      bg-primary/20
-                      text-primary
-                      px-3
-                      py-1
-                      rounded-xl
-                      text-xs
-                      font-black
-                      "
+                      className="bg-primary/20 text-primary px-3 py-1 rounded-xl text-xs font-black"
                     >
 
                       {t("products.colors.sizeCount", "{{count}} Sizes", { count: color.sizes.length })}
@@ -522,15 +450,7 @@ export default function ProductColors({
                     </span>
 
                     <span
-                      className="
-                      bg-green-500/20
-                      text-green-400
-                      px-3
-                      py-1
-                      rounded-xl
-                      text-xs
-                      font-black
-                      "
+                      className="bg-green-500/20 text-green-400 px-3 py-1 rounded-xl text-xs font-black"
                     >
 
                       {t("products.colors.imageCount", "{{count}} Images", { count: color.images.length })}
@@ -553,19 +473,7 @@ export default function ProductColors({
                   )
                 }
 
-                className="
-                bg-red-500/20
-                hover:bg-red-500
-                text-red-400
-                hover:text-white
-                w-14
-                h-14
-                rounded-2xl
-                flex
-                items-center
-                justify-center
-                transition-all
-                "
+                className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white w-14 h-14 rounded-2xl flex items-center justify-center transition-all"
 
               >
 
@@ -580,12 +488,7 @@ export default function ProductColors({
             <div className="mt-8">
 
               <h4
-                className="
-                text-white
-                font-black
-                mb-4
-                text-lg
-                "
+                className="text-white font-black mb-4 text-lg"
               >
 
                 {t("products.colors.sizesFor", "Sizes for {{name}}", { name: color.name })}
@@ -737,21 +640,7 @@ export default function ProductColors({
             <div className="mt-8">
 
               <label
-                className="
-                bg-[#0f172a]
-                border-2
-                border-dashed
-                border-white/10
-                rounded-3xl
-                p-10
-                flex
-                flex-col
-                items-center
-                justify-center
-                cursor-pointer
-                hover:border-primary
-                transition-all
-                "
+                className="bg-[#0f172a] border-2 border-dashed border-white/10 rounded-3xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all"
               >
 
                 <ImageIcon
@@ -760,12 +649,7 @@ export default function ProductColors({
                 />
 
                 <p
-                  className="
-                  text-white
-                  font-black
-                  mt-5
-                  text-lg
-                  "
+                  className="text-white font-black mt-5 text-lg"
                 >{t("products.images.uploadImages", "Upload Images")}</p>
 
                 <p className="text-gray-400 mt-2">{t("products.images.multipleSupported", "Multiple images supported")}</p>
@@ -798,14 +682,7 @@ export default function ProductColors({
               color.images.length > 0 && (
 
                 <div
-                  className="
-                  grid
-                  grid-cols-2
-                  md:grid-cols-4
-                  xl:grid-cols-6
-                  gap-5
-                  mt-8
-                  "
+                  className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-5 mt-8"
                 >
 
                   {color.images.map(
@@ -816,11 +693,7 @@ export default function ProductColors({
 
                         key={index}
 
-                        className="
-                        relative
-                        group
-                        overflow-visible
-                        "
+                        className="relative group overflow-visible"
 
                       >
 
@@ -842,29 +715,7 @@ export default function ProductColors({
                             )
                           }
 
-                          className="
-                          absolute
-                          top-2
-                          right-2
-                          z-50
-                          w-8
-                          h-[var(--control-height-sm)]
-                          rounded-full
-                          border
-                          border-red-200/40
-                          bg-red-500/90
-                          text-white
-                          opacity-100
-                          transition-all
-                          flex
-                          items-center
-                          justify-center
-                          shadow-xl
-                          shadow-black/40
-                          backdrop-blur-md
-                          hover:scale-110
-                          hover:bg-red-500
-                          "
+                          className="absolute top-2 right-2 z-50 w-8 h-[var(--control-height-sm)] rounded-full border border-red-200/40 bg-red-500/90 text-white opacity-100 transition-all flex items-center justify-center shadow-xl shadow-black/40 backdrop-blur-md hover:scale-110 hover:bg-red-500"
 
                         >
 

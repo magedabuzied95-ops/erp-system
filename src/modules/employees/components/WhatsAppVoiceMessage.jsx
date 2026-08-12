@@ -127,9 +127,7 @@ export default function WhatsAppVoiceMessage({
         <button
           type="button"
           onClick={togglePlayback}
-          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
-            outgoing ? "bg-[#d9fdd3] text-[#005c4b]" : "bg-[#e9edef] text-[#202c33]"
-          }`}
+          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${ outgoing ? "bg-[#d9fdd3] text-[#005c4b]" : "bg-[#e9edef] text-[#202c33]" }`}
           aria-label={playing ? "Pause voice message" : "Play voice message"}
         >
           {playing ? <Pause className="h-[15px] w-[15px] fill-current" /> : <Play className="h-[15px] w-[15px] fill-current ps-0.5" />}
@@ -146,11 +144,7 @@ export default function WhatsAppVoiceMessage({
             return (
               <span
                 key={`${height}-${index}`}
-                className={`min-w-px flex-1 rounded-full transition-colors ${
-                  active
-                    ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]"
-                    : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75"
-                }`}
+                className={`min-w-px flex-1 rounded-full transition-colors ${ active ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]" : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75" }`}
                 style={{ height: `${height}px` }}
                 aria-hidden="true"
               />

@@ -441,7 +441,7 @@ function WebsiteSettings() {
               <Settings className="h-4 w-4" />
               {copy.website}
             </div>
-            <h1 className="mt-3 text-3xl font-black tracking-normal text-[var(--text)]">{copy.title}</h1>
+            <h1 className="m1-page-title mt-3 text-[var(--text)]">{copy.title}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{copy.subtitle}</p>
           </div>
           <a href={publicStorefrontUrl("/")} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-black text-white shadow-lg">
@@ -477,7 +477,7 @@ function WebsiteSettings() {
             <div className="border-b border-[var(--border)] p-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-[var(--text)]">{copy.shippingTitle}</h2>
+                  <h2 className="m1-section-title text-[var(--text)]">{copy.shippingTitle}</h2>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">{copy.shippingText}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -622,7 +622,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
         {cards.map((card) => <SettingCard key={card.title} {...card} />)}
       </div>
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
-        <h2 className="text-xl font-black text-[var(--text)]">{copy.pricingTitle}</h2>
+        <h2 className="m1-section-title text-[var(--text)]">{copy.pricingTitle}</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">{copy.pricingText}</p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <label className="flex min-h-24 items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
@@ -646,7 +646,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
         <div className="mt-5 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-lg font-black text-[var(--text)]">Existing Sale Prices</h3>
+              <h3 className="m1-section-title text-[var(--text)]">Existing Sale Prices</h3>
               <p className="mt-1 text-sm font-bold text-[var(--muted)]">{saleModePreviewText(pricing)}</p>
             </div>
             <button type="button" onClick={() => markPricing({ sale_mode_enabled: !pricing.sale_mode_enabled, sale_mode_type: "use_existing_sale_prices_only", sale_mode_value: 0 })} className={`h-[var(--control-height-lg)] rounded-xl px-4 text-sm font-black ${pricing.sale_mode_enabled ? "bg-amber-300 text-zinc-950" : "border border-amber-300/30 text-amber-100"}`}>

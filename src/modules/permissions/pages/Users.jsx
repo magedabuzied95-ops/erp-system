@@ -442,7 +442,7 @@ function UsersPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Create user</h3>
+            <h3 className="m1-section-title text-white">Create user</h3>
             <div className="mt-4 space-y-3">
               <Field label="Name" value={name} onChange={setName} placeholder="Full name" />
               <Field label="Email" value={email} onChange={setEmail} placeholder="user@company.com" />
@@ -482,7 +482,7 @@ function UsersPage() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-black text-white">Users</h3>
+              <h3 className="m1-section-title text-white">Users</h3>
               <p className="mt-1 text-sm text-zinc-400">Assign roles from the matrix and preserve compatibility with legacy pages.</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
@@ -618,7 +618,7 @@ function Modal({ title, onClose, children }) {
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-black text-white">{title}</h3>
+            <h3 className="m1-section-title text-white">{title}</h3>
           </div>
           <button
             type="button"

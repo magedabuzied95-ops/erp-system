@@ -43,9 +43,7 @@ function ImageThumbnailActions({
 
   return (
     <div
-      className={`group relative h-24 w-24 overflow-hidden rounded-xl border bg-zinc-950/80 shadow-lg shadow-black/10 ${
-        isPrimary ? "border-emerald-400/70" : "border-white/10"
-      } ${className}`}
+      className={`group relative h-24 w-24 overflow-hidden rounded-xl border bg-zinc-950/80 shadow-lg shadow-black/10 ${ isPrimary ? "border-emerald-400/70" : "border-white/10" } ${className}`}
     >
       {src ? (
         <img src={src} alt={alt} className={`h-full w-full transition duration-200 group-hover:scale-[1.03] ${imageClassName}`} />

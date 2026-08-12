@@ -139,7 +139,7 @@ function AuditTrail() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
         <div className="flex items-center justify-between border-b border-white/10 p-4">
           <div>
-            <h2 className="text-xl font-black text-white">{t("accounting.auditTrail.eventsTitle")}</h2>
+            <h2 className="m1-section-title text-white">{t("accounting.auditTrail.eventsTitle")}</h2>
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.auditTrail.recentEntries", { count: rows.length })}</p>
           </div>
           <ShieldCheck className="h-6 w-6 text-primary" />
@@ -239,7 +239,7 @@ function JsonModal({ payload, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black">
         <div className="flex items-center justify-between border-b border-white/10 p-4">
-          <h3 className="text-lg font-black text-white">{payload.title}</h3>
+          <h3 className="m1-section-title text-white">{payload.title}</h3>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>

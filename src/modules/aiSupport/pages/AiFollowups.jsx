@@ -501,7 +501,7 @@ export default function AiFollowups() {
                 <Clock3 className="h-4 w-4" />
                 AI Follow-up Execution Center
               </div>
-              <h1 className="mt-3 text-2xl font-black md:text-3xl">Follow-ups ready for staff action</h1>
+              <h1 className="m1-page-title mt-3">Follow-ups ready for staff action</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
                 Compact task queue for follow-up handling. Staff can triage, claim, resolve, snooze, or jump back to the exact conversation in AI Inbox.
               </p>
@@ -544,11 +544,7 @@ export default function AiFollowups() {
               key={tab.key}
               type="button"
               onClick={() => setActiveStatus(tab.key)}
-              className={`h-[var(--control-height-md)] rounded-xl px-4 text-sm font-black transition ${
-                activeStatus === tab.key
-                  ? "bg-white text-slate-950"
-                  : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10"
-              }`}
+              className={`h-[var(--control-height-md)] rounded-xl px-4 text-sm font-black transition ${ activeStatus === tab.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10" }`}
             >
               {tab.label}
             </button>
@@ -561,11 +557,7 @@ export default function AiFollowups() {
               key={filter.key}
               type="button"
               onClick={() => setActiveFilter(filter.key)}
-              className={`h-[var(--control-height-md)] rounded-full px-3 text-xs font-black transition ${
-                activeFilter === filter.key
-                  ? "bg-primary text-slate-950"
-                  : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10"
-              }`}
+              className={`h-[var(--control-height-md)] rounded-full px-3 text-xs font-black transition ${ activeFilter === filter.key ? "bg-primary text-slate-950" : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10" }`}
             >
               {filter.label}
             </button>

@@ -31,11 +31,7 @@ export default function InventoryBreakdown({ data, dimension, showValue, quality
               onClick={() => onDimensionChange(key)}
               aria-pressed={dimension === key}
               disabled={disabled}
-              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${
-                dimension === key
-                  ? "bg-[var(--primary)] text-white"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-              }`}
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ dimension === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
             >
               {t(`inventory.breakdown.${key}`)}
             </button>

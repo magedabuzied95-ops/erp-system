@@ -542,7 +542,7 @@ function Branches() {
                 <Building2 className="h-5 w-5" />
                 <span className="text-xs font-semibold uppercase tracking-[0.18em]">{t("branches.eyebrow")}</span>
               </div>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--text)]">{t("branches.title")}</h1>
+              <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("branches.title")}</h1>
               <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{t("branches.subtitle")}</p>
             </div>
             <button
@@ -590,11 +590,7 @@ function Branches() {
                   key={status}
                   type="button"
                   onClick={() => setStatusFilter(status)}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                    statusFilter === status
-                      ? "bg-[var(--primary)] text-white"
-                      : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
-                  }`}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${ statusFilter === status ? "bg-[var(--primary)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]" }`}
                 >
                   {label}
                 </button>
@@ -620,7 +616,7 @@ function Branches() {
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--card)] text-[var(--primary)]">
                     <Building2 className="h-8 w-8" />
                   </div>
-                  <h3 className="mt-4 text-xl font-black text-[var(--text)]">{t("branches.empty.title")}</h3>
+                  <h3 className="m1-section-title mt-4 text-[var(--text)]">{t("branches.empty.title")}</h3>
                   <button
                     type="button"
                     onClick={openCreateModal}
@@ -656,7 +652,7 @@ function Branches() {
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">
                   {editingBranch ? t("branches.edit") : t("branches.create")}
                 </div>
-                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">
+                <h2 className="m1-section-title mt-2 text-[var(--text)]">
                   {editingBranch ? editingBranch?.name || t("branches.row.unassigned") : t("branches.new")}
                 </h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">
@@ -751,7 +747,7 @@ function Branches() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">{t("branches.view")}</div>
-                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h2>
+                <h2 className="m1-section-title mt-2 text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h2>
                 <StatusBadge status={viewBranch?.is_active === false ? t("branches.status.inactive") : t("branches.status.active")} active={viewBranch?.is_active !== false} />
               </div>
               <button
@@ -805,7 +801,7 @@ function Branches() {
                       <QrCode className="h-3.5 w-3.5" />
                       {t("branches.qr.branchBadge")}
                     </div>
-                    <h3 className="mt-3 text-2xl font-black leading-tight text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h3>
+                    <h3 className="m1-section-title mt-3 text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h3>
                     {qrInfo?.company_name ? <p className="mt-1 text-sm font-semibold text-[var(--muted)]">{qrInfo?.company_name}</p> : null}
                     <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted)]">{t("branches.qr.subtitle")}</p>
                   </div>
@@ -973,7 +969,7 @@ function Branches() {
               </div>
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">{t("branches.confirm.title")}</div>
-                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">{deleteTarget?.name || t("branches.row.unassigned")}</h2>
+                <h2 className="m1-section-title mt-2 text-[var(--text)]">{deleteTarget?.name || t("branches.row.unassigned")}</h2>
                 <p className="mt-2 text-sm text-[var(--muted)]">
                   {t("branches.confirm.subtitle")}
                 </p>
@@ -1093,11 +1089,7 @@ function StatusBadge({ status, active }) {
   const isActive = typeof active === "boolean" ? active : status === "Active";
   return (
     <span
-      className={`mt-2 inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${
-        isActive
-          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-          : "border-zinc-400/20 bg-zinc-400/10 text-zinc-300"
-      }`}
+      className={`mt-2 inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${ isActive ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-zinc-400/20 bg-zinc-400/10 text-zinc-300" }`}
     >
       {status}
     </span>

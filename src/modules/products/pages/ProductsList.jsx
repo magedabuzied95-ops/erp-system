@@ -296,13 +296,7 @@ const ProductColorImageBadge = ({ row = {}, onClick }) => {
       type="button"
       onClick={onClick}
       title={title}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black transition ${
-        isComplete
-          ? "border-emerald-300/25 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/20"
-          : isIncomplete
-            ? "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20"
-            : "border-zinc-400/20 bg-zinc-500/10 text-zinc-300 hover:bg-zinc-500/15"
-      }`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black transition ${ isComplete ? "border-emerald-300/25 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/20" : isIncomplete ? "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20" : "border-zinc-400/20 bg-zinc-500/10 text-zinc-300 hover:bg-zinc-500/15" }`}
     >
       {isComplete ? <CheckCircle size={12} /> : isIncomplete ? <AlertTriangle size={12} /> : <Package2 size={12} />}
       <span>{isComplete ? "✓ الصور مكتملة" : isIncomplete ? `⚠ صور ناقصة (${missingColors}/${totalColors})` : "لا توجد ألوان"}</span>
@@ -344,15 +338,7 @@ const ProductThermalLevelBadge = ({ row = {} }) => {
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${
-        hasProductThermal && hasColorThermal
-          ? "border-violet-300/30 bg-violet-500/15 text-violet-200"
-          : hasColorThermal
-            ? "border-primary/30 bg-primary/15 text-primary"
-            : hasProductThermal
-              ? "border-amber-300/30 bg-amber-500/15 text-amber-200"
-              : "border-zinc-400/20 bg-zinc-500/10 text-zinc-400"
-      }`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${ hasProductThermal && hasColorThermal ? "border-violet-300/30 bg-violet-500/15 text-violet-200" : hasColorThermal ? "border-primary/30 bg-primary/15 text-primary" : hasProductThermal ? "border-amber-300/30 bg-amber-500/15 text-amber-200" : "border-zinc-400/20 bg-zinc-500/10 text-zinc-400" }`}
     >
       <Zap size={11} />
       {label}
@@ -1184,7 +1170,7 @@ function PriceEditorModal({ product, onClose, onSave }) {
         <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "تحديث الأسعار فقط")}</p>
-            <h2 className="mt-1 truncate text-xl font-black text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
+            <h2 className="m1-section-title mt-1 truncate text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
             <p className="mt-1 truncate text-sm text-zinc-400">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white disabled:opacity-50">
@@ -1275,9 +1261,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
         aria-label={label}
-        className={`w-full rounded-xl border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${
-          changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950"
-        } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
+        className={`w-full rounded-xl border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${ changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950" } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
       />
     </label>
   );
@@ -1584,7 +1568,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "Price-only update")}</p>
-            <h2 className="mt-0.5 truncate text-lg font-black text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
+            <h2 className="m1-section-title mt-0.5 truncate text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
             <p className="truncate text-sm text-zinc-400">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white outline-none transition hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
@@ -2844,11 +2828,7 @@ function ProductsList() {
               setCatalogTab("products");
               setPage(1);
             }}
-            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${
-              catalogTab === "products"
-                ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]"
-                : "text-zinc-300 hover:bg-white/5 hover:text-white"
-            }`}
+            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
           >
             {t("products.tabs.products", "المنتجات")}
           </button>
@@ -2858,11 +2838,7 @@ function ProductsList() {
               setCatalogTab("offers");
               setPage(1);
             }}
-            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${
-              catalogTab === "offers"
-                ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]"
-                : "text-zinc-300 hover:bg-white/5 hover:text-white"
-            }`}
+            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-white" }`}
           >
             {t("products.tabs.offers", "العروض")}
           </button>
@@ -2944,11 +2920,7 @@ function ProductsList() {
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 disabled={!classificationFilterGroups.length}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                  activeClassificationCount
-                    ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]"
-                    : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8"
-                }`}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeClassificationCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]" : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8" }`}
                 aria-expanded={filtersOpen}
               >
                 <Filter size={16} />
@@ -2974,11 +2946,7 @@ function ProductsList() {
                   <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                     <Filter size={14} />
                     {t("products.filters.classifications", "Product filters")}
-                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${
-                      activeClassificationCount
-                        ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
-                        : "border-white/10 bg-white/[0.04] text-zinc-500"
-                    }`}>
+                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${ activeClassificationCount ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : "border-white/10 bg-white/[0.04] text-zinc-500" }`}>
                       {activeClassificationCount}
                     </span>
                   </div>
@@ -3014,11 +2982,7 @@ function ProductsList() {
                         <button
                           type="button"
                           onClick={() => setClassificationGroupFilter(group.key, "all")}
-                          className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${
-                            classificationFilters[group.key] === "all"
-                              ? "border-white/15 bg-white/10 text-white"
-                              : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-200"
-                          }`}
+                          className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${ classificationFilters[group.key] === "all" ? "border-white/15 bg-white/10 text-white" : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-200" }`}
                         >
                           {t("products.filters.allClassifications", "All")}
                         </button>
@@ -3029,11 +2993,7 @@ function ProductsList() {
                               key={`${group.key}-${option.value}`}
                               type="button"
                               onClick={() => setClassificationGroupFilter(group.key, option.value)}
-                              className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${
-                                isActive
-                                  ? "border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]"
-                                  : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white"
-                              }`}
+                              className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white" }`}
                             >
                               {option.label}
                             </button>
@@ -3116,7 +3076,7 @@ function ProductsList() {
             ) : visibleRows.length === 0 ? (
               <div className="rounded-3xl border border-white/8 bg-white/5 p-6 text-center">
                 <Package2 className="mx-auto text-zinc-500" size={36} />
-                <h3 className="mt-3 text-lg font-black text-white">{t("products.empty.title")}</h3>
+                <h3 className="m1-section-title mt-3 text-white">{t("products.empty.title")}</h3>
                 <p className="mt-2 text-sm text-zinc-400">{t("products.empty.description")}</p>
               </div>
             ) : (
@@ -3215,7 +3175,7 @@ function ProductsList() {
                     <td colSpan="7" className="px-4 py-12 text-center">
                       <div className="w-full rounded-3xl border border-white/8 bg-white/5 p-8">
                         <Package2 className="mx-auto text-zinc-500" size={42} />
-                        <h3 className="mt-4 text-xl font-black text-white">{t("products.empty.title")}</h3>
+                        <h3 className="m1-section-title mt-4 text-white">{t("products.empty.title")}</h3>
                         <p className="mt-2 text-sm text-zinc-400">
                           {t("products.empty.description")}
                         </p>
@@ -3323,25 +3283,12 @@ function ProductsList() {
                         <td className="px-4 py-4 align-middle">
                           <div className="flex flex-col items-center gap-2">
                             <span
-                              className={`
-                                inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
-                                ${
-                                  statusKey === "active"
-                                    ? "bg-emerald-500/15 text-emerald-300"
-                                    : statusKey === "low"
-                                      ? "bg-amber-500/15 text-amber-300"
-                                      : statusKey === "out"
-                                        ? "bg-red-500/15 text-red-300"
-                                        : "bg-zinc-500/15 text-zinc-300"
-                                }
-                              `}
+                              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${ statusKey === "active" ? "bg-emerald-500/15 text-emerald-300" : statusKey === "low" ? "bg-amber-500/15 text-amber-300" : statusKey === "out" ? "bg-red-500/15 text-red-300" : "bg-zinc-500/15 text-zinc-300" }`}
                             >
                               {status}
                             </span>
                             <span
-                              className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${
-                                storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300"
-                              }`}
+                              className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${ storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300" }`}
                             >
                               {storefrontVisible
                                 ? t("products.storefront.visible", "ظاهر بالموقع")
@@ -3476,7 +3423,7 @@ function ProductsList() {
                 <Power size={20} />
               </span>
               <div className="min-w-0">
-                <h2 className="text-xl font-black text-white">
+                <h2 className="m1-section-title text-white">
                   {isInactiveProduct(statusActionProduct)
                     ? t("products.statusModal.activateTitle", "Activate product?")
                     : t("products.statusModal.deactivateTitle", "Deactivate product?")}
@@ -3500,11 +3447,7 @@ function ProductsList() {
               <button
                 type="button"
                 onClick={handleConfirmProductStatusToggle}
-                className={`rounded-2xl px-4 py-2.5 text-sm font-black text-white ${
-                  isInactiveProduct(statusActionProduct)
-                    ? "bg-emerald-600 hover:bg-emerald-500"
-                    : "bg-amber-600 hover:bg-amber-500"
-                }`}
+                className={`rounded-2xl px-4 py-2.5 text-sm font-black text-white ${ isInactiveProduct(statusActionProduct) ? "bg-emerald-600 hover:bg-emerald-500" : "bg-amber-600 hover:bg-amber-500" }`}
               >
                 {isInactiveProduct(statusActionProduct)
                   ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
@@ -3520,7 +3463,7 @@ function ProductsList() {
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{t("products.selected.title")}</p>
-              <h2 className="mt-3 text-3xl font-black text-white">{selectedProduct.name}</h2>
+              <h2 className="m1-section-title mt-3 text-white">{selectedProduct.name}</h2>
               <p className="mt-3 text-zinc-400">{selectedProduct.description || t("products.empty.firstDescription")}</p>
             </div>
             <Link
@@ -3551,7 +3494,7 @@ function ProductsList() {
       {!loading && !error && rows.length === 0 ? (
         <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-12 text-center">
           <AlertTriangle className="mx-auto text-amber-400" size={40} />
-          <h3 className="mt-4 text-2xl font-black text-white">{t("products.empty.catalogTitle")}</h3>
+          <h3 className="m1-section-title mt-4 text-white">{t("products.empty.catalogTitle")}</h3>
           <p className="mt-2 text-zinc-400">{t("products.empty.catalogDescription")}</p>
           <button
             onClick={() => navigate("/products/add")}
@@ -3660,7 +3603,7 @@ function BarcodeQueueBulkModal({
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
               {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
             </p>
-            <h2 className="mt-2 text-2xl font-black text-white">
+            <h2 className="m1-section-title mt-2 text-white">
               {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -3735,7 +3678,7 @@ function BarcodeQueueBulkModal({
           <div className="space-y-4">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-black uppercase tracking-[0.18em] text-zinc-400">
+                <h3 className="m1-section-title uppercase tracking-[0.18em] text-zinc-400">
                   {t("products.bulk.selectionSummary", "Selection")}
                 </h3>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
@@ -3777,11 +3720,7 @@ function BarcodeQueueBulkModal({
                           return (
                             <label
                               key={`${productKey}-${colorKey || group.color || "color"}`}
-                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${
-                                isChecked
-                                  ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100"
-                                  : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
-                              }`}
+                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${ isChecked ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10" }`}
                             >
                               <input
                                 type="checkbox"
@@ -3864,22 +3803,12 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
             <ProductArticleBadges row={row} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${
-                  statusKey === "active"
-                    ? "bg-emerald-500/15 text-emerald-300"
-                    : statusKey === "low"
-                      ? "bg-amber-500/15 text-amber-300"
-                      : statusKey === "out"
-                        ? "bg-red-500/15 text-red-300"
-                        : "bg-zinc-500/15 text-zinc-300"
-                }`}
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${ statusKey === "active" ? "bg-emerald-500/15 text-emerald-300" : statusKey === "low" ? "bg-amber-500/15 text-amber-300" : statusKey === "out" ? "bg-red-500/15 text-red-300" : "bg-zinc-500/15 text-zinc-300" }`}
               >
                 {status}
               </span>
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${
-                  storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300"
-                }`}
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${ storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300" }`}
               >
                 {storefrontVisible
                   ? t("products.storefront.visible", "ظاهر بالموقع")
@@ -3965,11 +3894,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <button
             type="button"
             onClick={() => setMoreOpen((current) => !current)}
-            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
-              moreOpen
-                ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100"
-                : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
-            }`}
+            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ moreOpen ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8" }`}
             aria-expanded={moreOpen}
             aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
           >

@@ -120,7 +120,7 @@ export default function EmployeeHub() {
         <div className="flex flex-col gap-2">
           <div>
             <p className={isRtl ? "text-[11px] font-black leading-5 text-[var(--muted)]" : "text-[11px] font-black uppercase tracking-[0.22em] text-[var(--muted)]"}>{t("common.employeeHub.eyebrow")}</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--text)]">{t("common.employeeHub.title")}</h1>
+            <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("common.employeeHub.title")}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               {t("common.employeeHub.subtitle")}
             </p>
@@ -210,7 +210,7 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]">
               إدارة الموظفين
             </div>
-            <h2 className="mt-2 text-2xl font-black text-[var(--text)]">
+            <h2 className="m1-section-title mt-2 text-[var(--text)]">
               دليل الموظفين أولاً
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
@@ -292,7 +292,7 @@ function EmployeeOverview({ onSelectTab, t, isRtl }) {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-black text-[var(--text)]">{card.title}</h2>
+                <h2 className="m1-section-title text-[var(--text)]">{card.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{card.text}</p>
               </div>
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
@@ -317,7 +317,7 @@ function EmployeeReports({ onSelectTab, t, isRtl }) {
   return (
     <section className="theme-card p-5">
       <div className="flex flex-col gap-2 border-b border-[var(--border)] pb-4">
-        <h2 className="text-2xl font-black text-[var(--text)]">{t("common.employeeHub.reports.title")}</h2>
+        <h2 className="m1-section-title text-[var(--text)]">{t("common.employeeHub.reports.title")}</h2>
         <p className="text-sm leading-6 text-[var(--muted)]">{t("common.employeeHub.reports.subtitle")}</p>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">

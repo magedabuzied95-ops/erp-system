@@ -289,7 +289,7 @@ export default function CouponsManager() {
             <TicketPercent className="h-4 w-4" />
             {cText("eyebrow", "الكوبونات")}
           </div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{cText("title", "حملات الكوبونات")}</h1>
+          <h1 className="m1-display mt-3">{cText("title", "حملات الكوبونات")}</h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-400">{cText("subtitle", "أنشئ أكواد الكوبونات وولّدها وتابعها وصدّرها من داخل النظام.")}</p>
         </div>
         <button type="button" onClick={openCreate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
@@ -310,7 +310,7 @@ export default function CouponsManager() {
       <div className="mt-5 grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
         <aside className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="text-sm font-black text-white">{cText("campaignLabel", "الحملات")}</h2>
+            <h2 className="m1-section-title text-white">{cText("campaignLabel", "الحملات")}</h2>
             {loading ? <Loader2 className="h-4 w-4 animate-spin text-violet-200" /> : null}
           </div>
           <div className="space-y-2">
@@ -345,7 +345,7 @@ export default function CouponsManager() {
             <>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-white">{selectedCampaign.name}</h2>
+                  <h2 className="m1-section-title text-white">{selectedCampaign.name}</h2>
                   <p className="mt-1 text-sm text-zinc-400">
                     {selectedCampaign.discount_type === "percentage" ? `${Number(selectedCampaign.discount_value)}%` : formatCurrency(selectedCampaign.discount_value)} / {selectedCampaign.channel}
                   </p>
@@ -444,7 +444,7 @@ export default function CouponsManager() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">PDF عبر البريد</div>
-                <h2 className="mt-1 text-xl font-black text-white">إرسال قسائم الخصم</h2>
+                <h2 className="m1-section-title mt-1 text-white">إرسال قسائم الخصم</h2>
                 <p className="mt-1 text-sm text-zinc-400">سيتم إرسال ملف A4 جاهز للطباعة كمرفق.</p>
               </div>
               <button type="button" onClick={() => setEmailDialogOpen(false)} className="rounded-xl border border-white/10 p-2 text-zinc-300"><X className="h-4 w-4" /></button>
@@ -483,7 +483,7 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? cText("modal.edit", "تعديل الحملة") : cText("modal.create", "حملة جديدة")}</div>
-            <h2 className="mt-1 text-2xl font-black">{editing ? editing.name : cText("modal.title", "حملة كوبونات")}</h2>
+            <h2 className="m1-section-title mt-1">{editing ? editing.name : cText("modal.title", "حملة كوبونات")}</h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-zinc-300"><X className="h-4 w-4" /></button>
         </div>

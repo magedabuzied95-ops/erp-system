@@ -182,7 +182,7 @@ function ActivityLogs() {
 
         <div>
 
-          <h1 className="text-5xl font-black text-white">
+          <h1 className="m1-display text-white">
 
             Activity Logs
 
@@ -197,17 +197,7 @@ function ActivityLogs() {
         </div>
 
         <div
-          className="
-          bg-gradient-to-r
-          from-primary
-          to-primary
-          text-white
-          px-8
-          py-5
-          rounded-3xl
-          shadow-2xl
-          font-black
-          "
+          className="bg-gradient-to-r from-primary to-primary text-white px-8 py-5 rounded-3xl shadow-2xl font-black"
         >
 
           {logs.length}
@@ -244,18 +234,7 @@ function ActivityLogs() {
               )
             }
 
-            className="
-            w-full
-            bg-zinc-800
-            border
-            border-zinc-700
-            rounded-2xl
-            pl-14
-            pr-4
-            py-4
-            text-white
-            outline-none
-            "
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl pl-14 pr-4 py-4 text-white outline-none"
           />
 
         </div>
@@ -287,15 +266,7 @@ function ActivityLogs() {
 
                     key={log.id}
 
-                    className="
-                    bg-zinc-900
-                    border
-                    border-zinc-800
-                    rounded-3xl
-                    p-6
-                    hover:border-primary
-                    transition-all
-                    "
+                    className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-primary transition-all"
                   >
 
                     <div className="flex gap-5">
@@ -303,16 +274,7 @@ function ActivityLogs() {
                       {/* ICON */}
 
                       <div
-                        className="
-                        w-16
-                        h-16
-                        rounded-2xl
-                        bg-primary/20
-                        text-primary
-                        flex
-                        items-center
-                        justify-center
-                        "
+                        className="w-16 h-16 rounded-2xl bg-primary/20 text-primary flex items-center justify-center"
                       >
 
                         <Icon size={30} />
@@ -327,7 +289,7 @@ function ActivityLogs() {
 
                           <div>
 
-                            <h2 className="text-2xl font-black text-white">
+                            <h2 className="m1-section-title text-white">
 
                               {log.action}
 
@@ -357,12 +319,7 @@ function ActivityLogs() {
                         {/* DETAILS */}
 
                         <div
-                          className="
-                          mt-5
-                          bg-zinc-800
-                          rounded-2xl
-                          p-5
-                          "
+                          className="mt-5 bg-zinc-800 rounded-2xl p-5"
                         >
 
                           <p className="text-gray-300 leading-relaxed">
@@ -408,17 +365,10 @@ function ActivityLogs() {
           ) : (
 
             <div
-              className="
-              bg-zinc-900
-              border
-              border-zinc-800
-              rounded-3xl
-              p-20
-              text-center
-              "
+              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-20 text-center"
             >
 
-              <h2 className="text-4xl font-black text-white">
+              <h2 className="m1-section-title text-white">
 
                 No Activity Logs
 

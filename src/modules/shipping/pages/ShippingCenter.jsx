@@ -92,7 +92,7 @@ function ShipmentDrawer({ order, onClose }) {
         <header className="flex items-center justify-between border-b border-white/10 p-5">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Shipment Drawer</div>
-            <h2 className="mt-1 text-2xl font-black">{order.order_number}</h2>
+            <h2 className="m1-section-title mt-1">{order.order_number}</h2>
           </div>
           <button onClick={onClose} className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/10"><X className="h-5 w-5" /></button>
         </header>
@@ -254,7 +254,7 @@ export default function ShippingCenter() {
         <header className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">Operations</div>
-            <h1 className="mt-2 text-3xl font-black tracking-tight">Shipping Center</h1>
+            <h1 className="m1-page-title mt-2">Shipping Center</h1>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.</p>
           </div>
           <div className="flex flex-wrap gap-2">

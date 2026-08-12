@@ -431,7 +431,7 @@ function WarehouseLivePicks() {
         <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
             <div className="min-w-0">
-              <h1 className="truncate text-base font-black leading-tight text-white sm:text-xl">التقاط المخزن المباشر</h1>
+              <h1 className="m1-page-title truncate text-white">التقاط المخزن المباشر</h1>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -502,11 +502,7 @@ function WarehouseLivePicks() {
 function LatestPickCard({ item, active = false }) {
   return (
     <article
-      className={`overflow-hidden rounded-[2rem] border p-3 sm:p-4 ${
-        active
-          ? "border-emerald-300/30 bg-[linear-gradient(135deg,rgba(34,197,94,0.18),rgba(251,191,36,0.12),rgba(255,255,255,0.04))] shadow-[0_0_0_1px_rgba(34,197,94,0.14),0_24px_60px_rgba(16,185,129,0.16)]"
-          : "border-amber-300/20 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.04))] shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
-      }`}
+      className={`overflow-hidden rounded-[2rem] border p-3 sm:p-4 ${ active ? "border-emerald-300/30 bg-[linear-gradient(135deg,rgba(34,197,94,0.18),rgba(251,191,36,0.12),rgba(255,255,255,0.04))] shadow-[0_0_0_1px_rgba(34,197,94,0.14),0_24px_60px_rgba(16,185,129,0.16)]" : "border-amber-300/20 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.04))] shadow-[0_20px_60px_rgba(0,0,0,0.35)]" }`}
     >
       <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">
         <SquareStack className="h-3.5 w-3.5" />
@@ -557,7 +553,7 @@ function EmptyState() {
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/[0.05] text-amber-200">
           <Warehouse className="h-10 w-10" />
         </div>
-        <h2 className="text-2xl font-black text-white">بانتظار أول سحب من الـ POS</h2>
+        <h2 className="m1-section-title text-white">بانتظار أول سحب من الـ POS</h2>
         <p className="text-sm leading-7 text-zinc-400">التنبيه سيظهر مباشرة بعد "إضافة للفاتورة" بدون أي إجراءات يدوية.</p>
       </div>
     </div>

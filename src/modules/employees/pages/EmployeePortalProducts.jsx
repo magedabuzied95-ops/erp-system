@@ -552,11 +552,7 @@ function ProductCard({ product, active, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(product)}
-      className={`flex w-full flex-row-reverse gap-3 rounded-[1.35rem] border p-3 text-right shadow-[0_20px_50px_rgba(0,0,0,0.22)] transition active:scale-[0.99] ${
-        active
-          ? "border-emerald-300/40 bg-gradient-to-br from-emerald-500/10 via-zinc-950 to-black ring-1 ring-emerald-400/20"
-          : "border-white/10 bg-zinc-950 hover:border-emerald-300/30 hover:bg-zinc-900"
-      }`}
+      className={`flex w-full flex-row-reverse gap-3 rounded-[1.35rem] border p-3 text-right shadow-[0_20px_50px_rgba(0,0,0,0.22)] transition active:scale-[0.99] ${ active ? "border-emerald-300/40 bg-gradient-to-br from-emerald-500/10 via-zinc-950 to-black ring-1 ring-emerald-400/20" : "border-white/10 bg-zinc-950 hover:border-emerald-300/30 hover:bg-zinc-900" }`}
     >
       <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
         {previewImageUrl ? (
@@ -577,7 +573,7 @@ function ProductCard({ product, active, onOpen }) {
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-black text-white">{product.name || "Product"}</h3>
+            <h3 className="m1-section-title truncate text-white">{product.name || "Product"}</h3>
             <div className="mt-1 truncate text-[11px] font-semibold text-zinc-400">
               {product.article_code ? `SKU / Article: ${product.article_code}` : "SKU / Article: -"}
             </div>
@@ -655,7 +651,7 @@ function ProductPickerSheet({
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Variant selection</div>
-            <h3 className="truncate text-base font-black text-white">{product.name || "Product"}</h3>
+            <h3 className="m1-section-title truncate text-white">{product.name || "Product"}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-400">
               <span>SKU / Article: {product.article_code || "-"}</span>
               <span>Brand: {product.manufacturer_name || "-"}</span>
@@ -704,9 +700,7 @@ function ProductPickerSheet({
                         key={color || "default"}
                         type="button"
                         onClick={() => onSelectColor(color)}
-                        className={`min-h-[var(--control-height-lg)] rounded-full border px-4 py-2 text-sm font-black transition ${
-                          active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]"
-                        }`}
+                        className={`min-h-[var(--control-height-lg)] rounded-full border px-4 py-2 text-sm font-black transition ${ active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]" }`}
                       >
                         {color}
                         <span className={`mr-2 text-[11px] font-bold ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>({colorStock})</span>
@@ -734,13 +728,7 @@ function ProductPickerSheet({
                         type="button"
                         onClick={() => onSelectSize(size)}
                         disabled={Number(stock || 0) <= 0}
-                        className={`min-h-16 rounded-2xl border px-3 py-2 text-right transition ${
-                          active
-                            ? "border-emerald-400/30 bg-emerald-500 text-zinc-950"
-                            : Number(stock || 0) <= 0
-                              ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600"
-                              : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]"
-                        }`}
+                        className={`min-h-16 rounded-2xl border px-3 py-2 text-right transition ${ active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]" }`}
                       >
                         <div className="text-2xl font-black leading-none">{size}</div>
                         <div className={`mt-1 text-[11px] font-semibold leading-none ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>Stock: {Number(stock || 0)}</div>
@@ -812,7 +800,7 @@ function EmployeePortalCameraScannerModal({
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">EMPLOYEE SCANNER</div>
-            <h3 id="employee-portal-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
+            <h3 id="employee-portal-camera-scanner-title" className="m1-section-title mt-1 text-white">امسح الباركود أو QR بالكاميرا</h3>
             <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الباركود داخل الإطار.</p>
           </div>
           <button
@@ -1821,7 +1809,7 @@ export default function EmployeePortalProducts() {
           <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
             <div className="flex items-center gap-2 text-amber-300">
               <Store className="h-5 w-5" />
-              <h1 className="text-xl font-black">Employee Portal Products</h1>
+              <h1 className="m1-page-title">Employee Portal Products</h1>
             </div>
             <p className="mt-3 text-sm font-semibold leading-6 text-zinc-300">{error}</p>
           </section>
@@ -1864,11 +1852,7 @@ export default function EmployeePortalProducts() {
               type="button"
               onClick={() => setFiltersOpen(true)}
               aria-expanded={filtersOpen}
-              className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border transition ${
-                filtersOpen || activeFilterCount > 0
-                  ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
-                  : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
-              }`}
+              className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
               aria-label="الفلاتر"
               title="الفلاتر"
             >
@@ -1887,7 +1871,7 @@ export default function EmployeePortalProducts() {
 
         <section className="mt-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-black text-zinc-300">النتائج</h2>
+            <h2 className="m1-section-title text-zinc-300">النتائج</h2>
             <div className="text-xs font-semibold text-zinc-500">{visibleProducts.length.toLocaleString("ar-EG")} منتج</div>
           </div>
           <ProductGrid

@@ -73,7 +73,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
             <ShieldCheck className="h-4 w-4" />
             Permission matrix
           </div>
-          <h2 className="mt-2 text-2xl font-black text-white">{role.name}</h2>
+          <h2 className="m1-section-title mt-2 text-white">{role.name}</h2>
           <p className="mt-1 text-sm text-zinc-400">{moduleCount} modules selected, {selected.length} permissions enabled.</p>
         </div>
 

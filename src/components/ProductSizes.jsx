@@ -67,14 +67,7 @@ export default function ProductSizes({
   return (
 
     <div
-      className="
-      bg-[#0f172a]
-      border
-      border-white/10
-      rounded-3xl
-      p-6
-      shadow-2xl
-      "
+      className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 shadow-2xl"
     >
 
       {/* HEADER */}
@@ -82,11 +75,7 @@ export default function ProductSizes({
       <div className="mb-6">
 
         <h2
-          className="
-          text-3xl
-          font-black
-          text-white
-          "
+          className="m1-section-title text-white"
         >
 
           Select Sizes
@@ -327,14 +316,7 @@ export default function ProductSizes({
       <div className="mt-5 flex justify-end">
 
         <div
-          className="
-          bg-blue-500/20
-          text-blue-400
-          px-4
-          py-2
-          rounded-xl
-          font-black
-          "
+          className="bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl font-black"
         >
 
           {selectedSizes.length} Selected

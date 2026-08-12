@@ -91,7 +91,7 @@ function MiniPanel({ title, icon: Icon, children }) {
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
       <div className="mb-4 flex items-center gap-2">
         {Icon ? <Icon className="h-5 w-5 text-primary" /> : null}
-        <h2 className="text-lg font-black text-white">{title}</h2>
+        <h2 className="m1-section-title text-white">{title}</h2>
       </div>
       {children}
     </section>
@@ -154,7 +154,7 @@ export default function AttendanceReports() {
                 <Table2 className="h-3.5 w-3.5" />
                 Attendance reports
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Export-ready attendance reports</h1>
+              <h1 className="m1-display">Export-ready attendance reports</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
                 Filter by date and employee, then export a clean operational table with monthly totals.
               </p>
@@ -237,7 +237,7 @@ export default function AttendanceReports() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">Monthly totals</h2>
+              <h2 className="m1-section-title text-white">Monthly totals</h2>
               <p className="text-sm text-slate-400">Grouped by month for the active filter range.</p>
             </div>
           </div>
@@ -310,7 +310,7 @@ export default function AttendanceReports() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">Attendance table</h2>
+              <h2 className="m1-section-title text-white">Attendance table</h2>
               <p className="text-sm text-slate-400">Employee, branch, worked hours, and checkout status.</p>
             </div>
             <div className="text-sm text-slate-400">{rows.length} rows</div>

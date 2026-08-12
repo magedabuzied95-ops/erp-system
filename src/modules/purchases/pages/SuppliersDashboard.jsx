@@ -608,7 +608,7 @@ function EmptyState({ onCreate }) {
   return (
     <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
       <ShieldCheck className="mx-auto h-12 w-12 text-zinc-500" />
-      <h3 className="mt-4 text-xl font-black text-white">{t("purchases.suppliersDashboard.emptyTitle")}</h3>
+      <h3 className="m1-section-title mt-4 text-white">{t("purchases.suppliersDashboard.emptyTitle")}</h3>
       <p className="mt-2 text-sm text-zinc-400">{t("purchases.suppliersDashboard.emptyDescription")}</p>
       <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black">
         <Plus className="h-4 w-4" />
@@ -629,7 +629,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{t("purchases.tabs.suppliers")}</div>
-              <h2 className="mt-1 text-2xl font-black text-white">{supplier ? t("purchases.suppliersDashboard.editSupplier") : t("purchases.suppliersDashboard.addSupplier")}</h2>
+              <h2 className="m1-section-title mt-1 text-white">{supplier ? t("purchases.suppliersDashboard.editSupplier") : t("purchases.suppliersDashboard.addSupplier")}</h2>
             </div>
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
               <X className="h-5 w-5" />
@@ -694,7 +694,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-mono text-sm text-emerald-300">{supplier.supplier_code}</div>
-              <h2 className="mt-1 text-2xl font-black text-white">{supplier.name}</h2>
+              <h2 className="m1-section-title mt-1 text-white">{supplier.name}</h2>
               <p className="mt-1 text-sm text-zinc-400">{supplier.address || t("purchases.supplierDetails.noAddress")}</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
@@ -720,7 +720,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
             <MiniStat label={t("purchases.suppliersDashboard.orders")} value={supplier.purchase_count || supplier.purchaseCount || history.length || 0} icon={<FilePlus2 className="h-4 w-4" />} />
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-black text-white">{t("purchases.suppliersDashboard.supplierInfo")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.suppliersDashboard.supplierInfo")}</h3>
             <div className="mt-4 grid gap-3 text-sm text-zinc-300">
               <Info icon={<Phone className="h-4 w-4" />} label={t("purchases.supplierDetails.phone")} value={supplier.phone || t("purchases.supplierDetails.notAvailable")} />
               <Info icon={<Phone className="h-4 w-4" />} label={t("purchases.suppliersDashboard.whatsapp")} value={supplier.whatsapp || supplier.phone || t("purchases.supplierDetails.notAvailable")} />
@@ -730,7 +730,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-black text-white">{t("purchases.suppliersDashboard.lastOrders")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.suppliersDashboard.lastOrders")}</h3>
             <div className="mt-3 space-y-2">
               {history.length ? history.map((purchase) => (
                 <div key={purchase.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-zinc-950/80 p-3">
@@ -747,7 +747,7 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-black text-white">{t("purchases.supplierDetails.notes")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.supplierDetails.notes")}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{supplier.notes || t("purchases.suppliersDashboard.noNotesRecorded")}</p>
           </div>
         </div>

@@ -2385,11 +2385,7 @@ function PurchaseOrder() {
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 aria-expanded={filtersOpen}
-                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
-                  filtersOpen
-                    ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
-                    : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
-                }`}
+                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ filtersOpen ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
               >
                 <SlidersHorizontal className="h-4 w-4" />
                 {isArabic ? "الفلاتر" : "Filters"}
@@ -2454,11 +2450,7 @@ function PurchaseOrder() {
 
         <div
           ref={productPanelRef}
-          className={`order-1 min-w-0 space-y-3 transition-all duration-300 ease-out xl:order-2 ${
-            productPanelExpanded
-              ? "fixed inset-3 z-50 flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/98 p-3 shadow-2xl shadow-black/60 sm:inset-5"
-              : ""
-          }`}
+          className={`order-1 min-w-0 space-y-3 transition-all duration-300 ease-out xl:order-2 ${ productPanelExpanded ? "fixed inset-3 z-50 flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/98 p-3 shadow-2xl shadow-black/60 sm:inset-5" : "" }`}
         >
           {productPanelExpanded ? (
             <button
@@ -2479,7 +2471,7 @@ function PurchaseOrder() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.productCards")}</div>
-                <h3 className="mt-0.5 text-lg font-black text-white">{t("purchases.create.variantProcurementGrid")}</h3>
+                <h3 className="m1-section-title mt-0.5 text-white">{t("purchases.create.variantProcurementGrid")}</h3>
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-xs text-zinc-400">{t("purchases.create.variantsCount", { count: filteredProducts.length })}</div>
@@ -2516,7 +2508,7 @@ function PurchaseOrder() {
             ) : groupedCards.length === 0 ? (
               <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
                 <PackagePlus className="mx-auto h-12 w-12 text-zinc-500" />
-                <h3 className="mt-4 text-xl font-black text-white">
+                <h3 className="m1-section-title mt-4 text-white">
                   {search.trim()
                     ? t("purchases.create.noMatchingProducts")
                     : isArabic
@@ -2593,7 +2585,7 @@ function PurchaseOrder() {
       {confirmReceivedEditSave ? (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4 backdrop-blur">
           <div className="w-full max-w-md rounded-3xl border border-amber-400/20 bg-zinc-950 p-5 shadow-2xl">
-            <h3 className="text-xl font-black text-white">{t("purchases.details.confirmReceivedEdit")}</h3>
+            <h3 className="m1-section-title text-white">{t("purchases.details.confirmReceivedEdit")}</h3>
             <p className="mt-3 text-sm font-semibold leading-6 text-amber-100">
               {t("purchases.details.receivedSaveWarning")}
             </p>
@@ -2890,7 +2882,7 @@ function PurchaseCart({
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-l from-white/[0.05] to-transparent px-4 py-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.purchaseCart")}</div>
-          <h3 className="mt-0.5 text-lg font-black text-white">{formatCurrency(total)}</h3>
+          <h3 className="m1-section-title mt-0.5 text-white">{formatCurrency(total)}</h3>
           {activeSupplier ? <div className="mt-1 text-xs text-zinc-500">{activeSupplier.name}</div> : null}
         </div>
         <div className="flex items-center gap-2">
@@ -4060,7 +4052,7 @@ function Modal({ eyebrow, title, children, onClose }) {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{eyebrow}</div>
-            <h3 className="mt-1 text-xl font-black text-white">{title}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{title}</h3>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
             <X className="h-5 w-5" />

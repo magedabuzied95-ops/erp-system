@@ -95,7 +95,7 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
             {isArabic ? "وصول بوابة الموظف" : "Employee Portal Access"}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h3 className="text-2xl font-black text-white">{isArabic ? "إعدادات حساب الموظف" : "Employee account settings"}</h3>
+            <h3 className="m1-section-title text-white">{isArabic ? "إعدادات حساب الموظف" : "Employee account settings"}</h3>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${portalStatusActive ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-100"}`}>
               {portalStatusActive ? (isArabic ? "نشط" : "Active") : (isArabic ? "معطل" : "Disabled")}
             </span>

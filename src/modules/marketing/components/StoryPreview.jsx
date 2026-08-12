@@ -326,7 +326,7 @@ export function StoryHero({ campaign, story, template, product }) {
       <StoryBadge story={story} template={template} product={product} />
       <div className="min-h-0 space-y-2">
         {safeHook ? <p className={`line-clamp-2 text-[13px] font-black leading-5 ${light ? "text-slate-700" : "text-white/78"}`}>{safeHook}</p> : null}
-        <h3 className={`${productTitleClass(displayProductName, template)} line-clamp-2 max-w-full text-left [overflow-wrap:anywhere]`} dir="ltr" title={productName}>
+        <h3 className={`m1-section-title ${productTitleClass(displayProductName, template)} line-clamp-2 max-w-full text-left [overflow-wrap:anywhere]`} dir="ltr" title={productName}>
           {displayProductName}
         </h3>
       </div>
@@ -515,9 +515,7 @@ export function StoryTimeline({ stories = [], currentIndex, onSelect }) {
           key={`${story.position}-${story.type}`}
           type="button"
           onClick={() => onSelect(index)}
-          className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-right transition ${
-            index === currentIndex ? "border-primary/35 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]"
-          }`}
+          className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-right transition ${ index === currentIndex ? "border-primary/35 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]" }`}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">{story.position || index + 1}</span>
           <span className="min-w-0">

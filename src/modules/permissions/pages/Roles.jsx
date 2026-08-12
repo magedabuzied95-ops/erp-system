@@ -144,7 +144,7 @@ function RolesPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Create role</h3>
+            <h3 className="m1-section-title text-white">Create role</h3>
             <p className="mt-1 text-sm text-zinc-400">Built-in roles are seeded; custom roles can be added locally even if the backend is offline.</p>
             <div className="mt-4 space-y-3">
               <Field label="Role name" value={name} onChange={setName} placeholder="Custom role name" />
@@ -225,7 +225,7 @@ function RolesPage() {
                     <ShieldCheck className="h-4 w-4" />
                     Selected role
                   </div>
-                  <h3 className="mt-2 text-2xl font-black text-white">{selectedRole.name}</h3>
+                  <h3 className="m1-section-title mt-2 text-white">{selectedRole.name}</h3>
                   <p className="mt-1 text-sm text-zinc-400">{selectedRole.description || "No description provided."}</p>
                 </div>
                 <Link to="/settings/permissions" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">

@@ -13,7 +13,7 @@ function ChunkReloadFallback({ showAction = false }) {
         <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-white" aria-hidden="true" />
         {showAction ? (
           <>
-            <h1 className="mt-5 text-lg font-black">{i18n.t("common.reloadAfterUpdate")}</h1>
+            <h1 className="m1-page-title mt-5">{i18n.t("common.reloadAfterUpdate")}</h1>
             <button
               type="button"
               onClick={() => window.location.reload()}
@@ -65,7 +65,7 @@ export default class DebugErrorBoundary extends React.Component {
 
       return (
         <div className="m-6 rounded-2xl border border-red-500/40 bg-red-950/40 p-6 text-red-100">
-          <h1 className="text-xl font-bold">{title}</h1>
+          <h1 className="m1-page-title">{title}</h1>
           <pre className="mt-4 whitespace-pre-wrap text-sm">
             {String(this.state.error?.message || this.state.error)}
           </pre>

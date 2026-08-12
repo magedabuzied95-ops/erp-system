@@ -96,7 +96,7 @@ function LoyaltyDashboard() {
       <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-[#0b1220] p-6 shadow-2xl shadow-black/20 xl:flex-row xl:items-center">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty</p>
-          <h1 className="mt-2 text-3xl font-black">Customer Loyalty Intelligence</h1>
+          <h1 className="m1-page-title mt-2">Customer Loyalty Intelligence</h1>
           <p className="mt-2 max-w-3xl text-sm text-zinc-400">
             Track points issuance, redemptions, tier movement, and customer value from one operational dashboard.
           </p>
@@ -125,7 +125,7 @@ function LoyaltyDashboard() {
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold">Top Loyalty Customers</h2>
+              <h2 className="m1-section-title">Top Loyalty Customers</h2>
               <p className="mt-1 text-sm text-zinc-500">Highest value and point balance customers</p>
             </div>
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -157,7 +157,7 @@ function LoyaltyDashboard() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
-          <h2 className="text-lg font-bold">Tier Distribution</h2>
+          <h2 className="m1-section-title">Tier Distribution</h2>
           <div className="mt-5 space-y-3">
             {Object.entries(tierCounts).map(([tier, count]) => (
               <div key={tier} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -176,7 +176,7 @@ function LoyaltyDashboard() {
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
-          <h2 className="text-lg font-bold">Transaction History</h2>
+          <h2 className="m1-section-title">Transaction History</h2>
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
@@ -204,7 +204,7 @@ function LoyaltyDashboard() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
-          <h2 className="text-lg font-bold">Rules Snapshot</h2>
+          <h2 className="m1-section-title">Rules Snapshot</h2>
           <div className="mt-5 space-y-3">
             {rules.map((rule) => (
               <div key={rule.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

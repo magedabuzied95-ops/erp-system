@@ -114,7 +114,7 @@ function Reports() {
     <div className="space-y-8">
       <div className="flex items-center justify-between flex-wrap gap-5">
         <div>
-          <h1 className="text-5xl font-black text-white">{t("reports.title")}</h1>
+          <h1 className="m1-display text-white">{t("reports.title")}</h1>
           <p className="text-gray-400 mt-3 text-lg">{t("reports.subtitle")}</p>
         </div>
 
@@ -140,7 +140,7 @@ function Reports() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7">
-          <h2 className="text-3xl font-black text-white">{t("reports.sections.revenueAnalytics")}</h2>
+          <h2 className="m1-section-title text-white">{t("reports.sections.revenueAnalytics")}</h2>
           <div className="h-[350px] mt-8">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={revenueChart}>
@@ -154,7 +154,7 @@ function Reports() {
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7">
-          <h2 className="text-3xl font-black text-white">{t("reports.sections.orderStatus")}</h2>
+          <h2 className="m1-section-title text-white">{t("reports.sections.orderStatus")}</h2>
           <div className="h-[350px] mt-8">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -172,7 +172,7 @@ function Reports() {
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden">
         <div className="p-6 border-b border-zinc-800">
-          <h2 className="text-3xl font-black text-white">{t("reports.sections.table")}</h2>
+          <h2 className="m1-section-title text-white">{t("reports.sections.table")}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -211,7 +211,7 @@ function Card({ title, value, icon: Icon }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-gray-400">{title}</p>
-          <h2 className="text-4xl font-black text-white mt-4">{value}</h2>
+          <h2 className="m1-section-title text-white mt-4">{value}</h2>
         </div>
         <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary">
           <Icon size={32} />

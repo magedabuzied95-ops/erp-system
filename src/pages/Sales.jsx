@@ -180,34 +180,19 @@ function Sales() {
       {/* HEADER */}
 
       <div
-        className="
-        flex
-        items-center
-        justify-between
-        flex-wrap
-        gap-5
-        "
+        className="flex items-center justify-between flex-wrap gap-5"
       >
 
         <div>
 
           <h1
-            className="
-            text-5xl
-            font-black
-            text-gray-800
-            dark:text-white
-            "
+            className="m1-display text-gray-800 dark:text-white"
           >
             Sales PRO 💰
           </h1>
 
           <p
-            className="
-            text-gray-500
-            mt-3
-            text-lg
-            "
+            className="text-gray-500 mt-3 text-lg"
           >
             Enterprise sales & invoice management
           </p>
@@ -215,17 +200,7 @@ function Sales() {
         </div>
 
         <div
-          className="
-          bg-gradient-to-r
-          from-green-500
-          to-emerald-600
-          text-white
-          px-8
-          py-5
-          rounded-3xl
-          shadow-2xl
-          font-black
-          "
+          className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-5 rounded-3xl shadow-2xl font-black"
         >
           Smart Sales
         </div>
@@ -235,24 +210,13 @@ function Sales() {
       {/* KPI */}
 
       <div
-        className="
-        grid
-        grid-cols-1
-        md:grid-cols-3
-        gap-6
-        "
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
 
         {/* TOTAL */}
 
         <div
-          className="
-          bg-white
-          dark:bg-gray-800
-          p-7
-          rounded-3xl
-          shadow-xl
-          "
+          className="bg-white dark:bg-gray-800 p-7 rounded-3xl shadow-xl"
         >
 
           <p className="text-gray-500">
@@ -260,12 +224,7 @@ function Sales() {
           </p>
 
           <h2
-            className="
-            text-5xl
-            font-black
-            mt-4
-            text-green-500
-            "
+            className="m1-section-title mt-4 text-green-500"
           >
             {totalSales}
             {" "}
@@ -277,13 +236,7 @@ function Sales() {
         {/* INVOICES */}
 
         <div
-          className="
-          bg-white
-          dark:bg-gray-800
-          p-7
-          rounded-3xl
-          shadow-xl
-          "
+          className="bg-white dark:bg-gray-800 p-7 rounded-3xl shadow-xl"
         >
 
           <p className="text-gray-500">
@@ -291,12 +244,7 @@ function Sales() {
           </p>
 
           <h2
-            className="
-            text-5xl
-            font-black
-            mt-4
-            text-primary
-            "
+            className="m1-section-title mt-4 text-primary"
           >
             {totalInvoices}
           </h2>
@@ -306,15 +254,7 @@ function Sales() {
         {/* PRODUCTS */}
 
         <div
-          className="
-          bg-gradient-to-r
-          from-purple-500
-          to-primary
-          text-white
-          p-7
-          rounded-3xl
-          shadow-2xl
-          "
+          className="bg-gradient-to-r from-purple-500 to-primary text-white p-7 rounded-3xl shadow-2xl"
         >
 
           <p className="opacity-90">
@@ -322,11 +262,7 @@ function Sales() {
           </p>
 
           <h2
-            className="
-            text-5xl
-            font-black
-            mt-4
-            "
+            className="m1-section-title mt-4"
           >
             {totalProducts}
           </h2>
@@ -338,13 +274,7 @@ function Sales() {
       {/* SEARCH */}
 
       <div
-        className="
-        bg-white
-        dark:bg-gray-800
-        p-6
-        rounded-3xl
-        shadow-xl
-        "
+        className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-xl"
       >
 
         <input
@@ -360,17 +290,7 @@ function Sales() {
             )
           }
 
-          className="
-          w-full
-          border
-          border-gray-200
-          dark:border-gray-700
-          dark:bg-gray-900
-          dark:text-white
-          p-5
-          rounded-2xl
-          outline-none
-          "
+          className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-5 rounded-2xl outline-none"
         />
 
       </div>
@@ -378,33 +298,17 @@ function Sales() {
       {/* CREATE */}
 
       <div
-        className="
-        bg-white
-        dark:bg-gray-800
-        p-8
-        rounded-3xl
-        shadow-2xl
-        "
+        className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl"
       >
 
         <h2
-          className="
-          text-3xl
-          font-black
-          mb-6
-          dark:text-white
-          "
+          className="m1-section-title mb-6 dark:text-white"
         >
           Create Invoice
         </h2>
 
         <div
-          className="
-          grid
-          md:grid-cols-2
-          xl:grid-cols-4
-          gap-5
-          "
+          className="grid md:grid-cols-2 xl:grid-cols-4 gap-5"
         >
 
           <input
@@ -420,15 +324,7 @@ function Sales() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            p-4
-            rounded-2xl
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
           />
 
           <input
@@ -444,15 +340,7 @@ function Sales() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            p-4
-            rounded-2xl
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
           />
 
           <input
@@ -468,15 +356,7 @@ function Sales() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            p-4
-            rounded-2xl
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
           />
 
           <input
@@ -492,15 +372,7 @@ function Sales() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            p-4
-            rounded-2xl
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white p-4 rounded-2xl"
           />
 
         </div>
@@ -508,17 +380,7 @@ function Sales() {
         <button
           onClick={addSale}
 
-          className="
-          mt-6
-          bg-black
-          hover:bg-gray-800
-          text-white
-          px-8
-          py-4
-          rounded-2xl
-          font-black
-          transition
-          "
+          className="mt-6 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-2xl font-black transition"
         >
           Add Invoice
         </button>
@@ -528,13 +390,7 @@ function Sales() {
       {/* TABLE */}
 
       <div
-        className="
-        bg-white
-        dark:bg-gray-800
-        rounded-3xl
-        shadow-2xl
-        overflow-hidden
-        "
+        className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden"
       >
 
         <div className="overflow-x-auto">
@@ -542,10 +398,7 @@ function Sales() {
           <table className="w-full">
 
             <thead
-              className="
-              bg-black
-              text-white
-              "
+              className="bg-black text-white"
             >
 
               <tr>
@@ -595,14 +448,7 @@ function Sales() {
                       <tr
                         key={sale.id}
 
-                        className="
-                        border-b
-                        border-gray-100
-                        dark:border-gray-700
-                        hover:bg-gray-50
-                        dark:hover:bg-gray-700
-                        transition
-                        "
+                        className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
                       >
 
                         {/* PRODUCT */}
@@ -612,21 +458,13 @@ function Sales() {
                           <div className="table-cell-stack">
 
                             <h3
-                              className="
-                              font-black
-                              text-lg
-                              dark:text-white
-                              "
+                              className="m1-section-title dark:text-white"
                             >
                               {sale.product}
                             </h3>
 
                             <p
-                              className="
-                              text-gray-400
-                              text-sm
-                              mt-1
-                              "
+                              className="text-gray-400 text-sm mt-1"
                             >
                               Invoice #
                               {sale.id}
@@ -639,10 +477,7 @@ function Sales() {
                         {/* CUSTOMER */}
 
                         <td
-                          className="
-                          p-5
-                          dark:text-white
-                          "
+                          className="p-5 dark:text-white"
                         >
                           {sale.customer}
                         </td>
@@ -650,10 +485,7 @@ function Sales() {
                         {/* QTY */}
 
                         <td
-                          className="
-                          p-5
-                          dark:text-white
-                          "
+                          className="p-5 dark:text-white"
                         >
                           {sale.quantity}
                         </td>
@@ -661,11 +493,7 @@ function Sales() {
                         {/* PRICE */}
 
                         <td
-                          className="
-                          p-5
-                          text-primary
-                          font-black
-                          "
+                          className="p-5 text-primary font-black"
                         >
                           {sale.price}
                           {" "}
@@ -675,11 +503,7 @@ function Sales() {
                         {/* TOTAL */}
 
                         <td
-                          className="
-                          p-5
-                          text-green-500
-                          font-black
-                          "
+                          className="p-5 text-green-500 font-black"
                         >
                           {
                             sale.quantity *
@@ -694,15 +518,7 @@ function Sales() {
                         <td className="p-5">
 
                           <span
-                            className="
-                            bg-green-100
-                            text-green-600
-                            px-5
-                            py-3
-                            rounded-full
-                            text-sm
-                            font-black
-                            "
+                            className="bg-green-100 text-green-600 px-5 py-3 rounded-full text-sm font-black"
                           >
                             {sale.status}
                           </span>
@@ -720,16 +536,7 @@ function Sales() {
                               )
                             }
 
-                            className="
-                            bg-red-500
-                            hover:bg-red-600
-                            text-white
-                            px-5
-                            py-3
-                            rounded-2xl
-                            font-black
-                            transition
-                            "
+                            className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-2xl font-black transition"
                           >
                             Delete
                           </button>
@@ -748,13 +555,7 @@ function Sales() {
                     <td
                       colSpan="7"
 
-                      className="
-                      text-center
-                      p-14
-                      text-gray-500
-                      font-black
-                      text-xl
-                      "
+                      className="text-center p-14 text-gray-500 font-black text-xl"
                     >
 
                       No Sales Found

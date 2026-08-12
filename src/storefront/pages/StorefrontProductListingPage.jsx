@@ -1536,11 +1536,7 @@ function CatalogSingleSelectFilter({
         <button
           type="button"
           onClick={() => onChange("")}
-          className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${
-            !hasValue
-              ? "border-[#d4af37] bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]"
-              : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
-          }`}
+          className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${ !hasValue ? "border-[#d4af37] bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200" }`}
         >
           {emptyLabel || t("common.all", "الكل")}
         </button>
@@ -1553,11 +1549,7 @@ function CatalogSingleSelectFilter({
               key={option.id || option.value}
               type="button"
               onClick={() => onChange(optionValue)}
-              className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${
-                active
-                  ? "border-[#d4af37]/70 bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]"
-                  : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
-              }`}
+              className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${ active ? "border-[#d4af37]/70 bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200" }`}
             >
               <span className="truncate">{classificationLabel(option, lang)}</span>
               {count !== null ? <span className={active ? "text-white/70" : "text-stone-400 dark:text-stone-500"}>({count})</span> : null}

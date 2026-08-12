@@ -154,7 +154,7 @@ function Login() {
           </div>
         </div>
 
-        <h1 className="mb-2 text-3xl font-bold text-center text-[var(--text)]">
+        <h1 className="m1-page-title mb-2 text-center text-[var(--text)]">
           تسجيل الدخول
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">

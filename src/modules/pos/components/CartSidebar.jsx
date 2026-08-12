@@ -580,11 +580,7 @@ function CartSidebar({
         {invoiceTabs.map((tab, index) => (
           <div
             key={tab.id}
-            className={`group inline-flex h-9 shrink-0 items-center overflow-hidden rounded-xl border transition ${
-              String(tab.id) === String(activeInvoiceTabId)
-                ? "border-amber-300/45 bg-amber-300/15 text-amber-50"
-                : "border-white/10 bg-black/20 text-zinc-400 hover:bg-white/[0.06] hover:text-white"
-            }`}
+            className={`group inline-flex h-9 shrink-0 items-center overflow-hidden rounded-xl border transition ${ String(tab.id) === String(activeInvoiceTabId) ? "border-amber-300/45 bg-amber-300/15 text-amber-50" : "border-white/10 bg-black/20 text-zinc-400 hover:bg-white/[0.06] hover:text-white" }`}
           >
             <button type="button" onClick={() => onSelectInvoiceTab?.(tab.id)} className="flex h-full items-center gap-2 px-3 text-xs font-black">
               <ReceiptText className="h-3.5 w-3.5" />
@@ -872,13 +868,7 @@ function CartSidebar({
             ) : null}
             <div
               data-status={String(paymentSummary.paymentStatus || "pending").toLowerCase()}
-              className={`pos-payment-status rounded-full px-2 py-1 text-[10px] font-black ${
-                paymentSummary.paymentStatus === "Paid"
-                  ? "bg-emerald-500/10 text-emerald-300"
-                  : paymentSummary.paymentStatus === "Partial"
-                    ? "bg-amber-500/10 text-amber-300"
-                    : "bg-white/5 text-zinc-300"
-              }`}
+              className={`pos-payment-status rounded-full px-2 py-1 text-[10px] font-black ${ paymentSummary.paymentStatus === "Paid" ? "bg-emerald-500/10 text-emerald-300" : paymentSummary.paymentStatus === "Partial" ? "bg-amber-500/10 text-amber-300" : "bg-white/5 text-zinc-300" }`}
             >
               {paymentSummary.paymentStatus}
             </div>
@@ -943,11 +933,7 @@ function CartSidebar({
                   <button
                     type="button"
                     onClick={() => setInvoiceDiscountOpen(true)}
-                    className={`inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border px-2 text-[10px] font-black transition ${
-                      Number(invoiceDiscount || 0) > 0
-                        ? "border-amber-300/35 bg-amber-300/10 text-amber-50 hover:bg-amber-300/15"
-                        : "border-white/10 bg-black/20 text-zinc-300 hover:bg-white/[0.08] hover:text-white"
-                    }`}
+                    className={`inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-lg border px-2 text-[10px] font-black transition ${ Number(invoiceDiscount || 0) > 0 ? "border-amber-300/35 bg-amber-300/10 text-amber-50 hover:bg-amber-300/15" : "border-white/10 bg-black/20 text-zinc-300 hover:bg-white/[0.08] hover:text-white" }`}
                   >
                     <Percent className="h-3 w-3" />
                     {posLabel("cart.discount", "Discount")}
@@ -1249,11 +1235,7 @@ function InvoiceDiscountModal({
                 setDraftType(key);
                 setDraftValue(key === "percentage" ? Math.min(100, safeValue) : Math.min(safeSubtotal, safeValue));
               }}
-              className={`min-h-[var(--control-height-md)] rounded-xl border px-3 text-xs font-black transition ${
-                normalizedType === key
-                  ? "border-amber-300/50 bg-amber-300/15 text-amber-50 shadow-[0_0_20px_rgba(251,191,36,0.16)]"
-                  : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white"
-              }`}
+              className={`min-h-[var(--control-height-md)] rounded-xl border px-3 text-xs font-black transition ${ normalizedType === key ? "border-amber-300/50 bg-amber-300/15 text-amber-50 shadow-[0_0_20px_rgba(251,191,36,0.16)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white" }`}
             >
               {label}
             </button>
@@ -2103,11 +2085,7 @@ function InvoiceCustomerPicker({
                     }}
                     onMouseEnter={() => setActiveCustomerIndex(index)}
                     onClick={() => selectCustomerSuggestion(item)}
-                    className={`mb-1 w-full rounded-xl border px-3 py-2 text-left transition ${
-                      active || activeCustomerIndex === index
-                        ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
-                        : "border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
-                    }`}
+                    className={`mb-1 w-full rounded-xl border px-3 py-2 text-left transition ${ active || activeCustomerIndex === index ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]" }`}
                   >
                     <div className="truncate text-xs font-black" dir="auto">{item.name}</div>
                     <div className="mt-0.5 truncate text-[10px] text-zinc-400">{phone}</div>
@@ -2403,13 +2381,7 @@ function CartVariantSelect({ label, value, options = [], onChange, disabled = fa
                   event.preventDefault();
                   handleSelect(option);
                 }}
-                className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-right text-[10px] font-black transition ${
-                  active
-                    ? "bg-[var(--primary-soft)] text-[var(--primary)]"
-                    : option.disabled
-                      ? "cursor-not-allowed text-[var(--muted)] opacity-60"
-                      : "text-[var(--text)] hover:bg-black/20"
-                }`}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-right text-[10px] font-black transition ${ active ? "bg-[var(--primary-soft)] text-[var(--primary)]" : option.disabled ? "cursor-not-allowed text-[var(--muted)] opacity-60" : "text-[var(--text)] hover:bg-black/20" }`}
                 disabled={option.disabled}
               >
                 <span className="min-w-0 flex-1 truncate">{option.suffix ? `${option.label} - ${option.suffix}` : option.label}</span>
@@ -2485,11 +2457,7 @@ function QuickPaymentButton({ icon, label, onClick, accent = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition ${
-        accent
-          ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-50 hover:bg-emerald-400/20"
-          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
-      }`}
+      className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition ${ accent ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-50 hover:bg-emerald-400/20" : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]" }`}
     >
       {icon}
       <span className="min-w-0 truncate">{label}</span>

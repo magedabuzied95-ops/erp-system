@@ -842,7 +842,7 @@ function ProductDetails() {
                 </div>
 
                 <div>
-                  <h1 className="text-4xl font-black tracking-tight text-white">{product.name}</h1>
+                  <h1 className="m1-display text-white">{product.name}</h1>
                   <p className="mt-3 max-w-4xl text-sm leading-7 text-zinc-400">
                     {product.description || t("products.empty.firstDescription", "No description available.")}
                   </p>
@@ -873,7 +873,7 @@ function ProductDetails() {
             <div className="flex items-center gap-3">
               <Package2 className="text-emerald-400" />
               <div>
-                <h2 className="text-2xl font-black text-white">{t("products.details.variantGroups", "Variant groups")}</h2>
+                <h2 className="m1-section-title text-white">{t("products.details.variantGroups", "Variant groups")}</h2>
                 <p className="mt-1 text-sm text-zinc-400">{t("products.details.variantGroupsDescription", "Grouped by color with size-level stock, SKU, article code, barcode, and price details.")}</p>
               </div>
             </div>
@@ -894,7 +894,7 @@ function ProductDetails() {
                       <div className="space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <h3 className="text-xl font-black text-white">{group.color}</h3>
+                            <h3 className="m1-section-title text-white">{group.color}</h3>
                             <p className="mt-1 text-sm text-zinc-400">
                               {t("products.fields.manufacturer", "Manufacturer")}: {group.manufacturer_name || (group.manufacturer_id ? `#${group.manufacturer_id}` : t("products.records.notAvailable", "n/a"))}
                             </p>
@@ -909,9 +909,7 @@ function ProductDetails() {
                             {group.images.slice(0, 6).map((image, imageIndex) => (
                               <div
                                 key={image.id || `${group.color}-${imageIndex}`}
-                                className={`h-14 w-14 overflow-hidden rounded-2xl border ${
-                                  image.is_primary ? "border-emerald-400/60" : "border-white/10"
-                                } bg-zinc-950/70`}
+                                className={`h-14 w-14 overflow-hidden rounded-2xl border ${ image.is_primary ? "border-emerald-400/60" : "border-white/10" } bg-zinc-950/70`}
                               >
                                 <img src={image.image_url || image.preview} alt={image.name || group.color} className="h-full w-full object-cover" />
                               </div>
@@ -987,7 +985,7 @@ function ProductDetails() {
               <div className="flex items-center gap-3">
                 <Clock3 className="text-primary" />
                 <div>
-                  <h2 className="text-2xl font-black text-white">{t("products.stock.historyTitle", "سجل المخزون")}</h2>
+                  <h2 className="m1-section-title text-white">{t("products.stock.historyTitle", "سجل المخزون")}</h2>
                   <p className="mt-1 text-sm text-zinc-400">{t("products.stock.historyDescription", "Recent inventory movements recorded for this product.")}</p>
                 </div>
               </div>
@@ -1108,7 +1106,7 @@ function ProductDetails() {
             <div className="flex items-center gap-3">
               <ImageIcon className="text-primary" />
               <div>
-                <h2 className="text-2xl font-black text-white">{t("products.images.gallery", "Gallery")}</h2>
+                <h2 className="m1-section-title text-white">{t("products.images.gallery", "Gallery")}</h2>
                 <p className="mt-1 text-sm text-zinc-400">{t("products.images.galleryDescription", "Product gallery images available on the product record.")}</p>
               </div>
             </div>

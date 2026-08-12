@@ -450,7 +450,7 @@ function PurchasesDashboard() {
               ) : visiblePurchases.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
                   <PackageSearch className="mx-auto h-12 w-12 text-zinc-500" />
-                  <h3 className="mt-4 text-xl font-black text-white">{t("purchases.empty.title")}</h3>
+                  <h3 className="m1-section-title mt-4 text-white">{t("purchases.empty.title")}</h3>
                   <p className="mt-2 text-sm text-zinc-400">{t("purchases.empty.description")}</p>
                 </div>
               ) : (

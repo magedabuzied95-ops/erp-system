@@ -109,7 +109,7 @@ export default function Campaigns() {
                 <Megaphone className="h-3.5 w-3.5" />
                 {t("marketing.campaigns.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.campaigns.title")}</h1>
+              <h1 className="m1-display">{t("marketing.campaigns.title")}</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.campaigns.subtitle")}</p>
             </div>
             <div className="flex gap-3">

@@ -414,7 +414,7 @@ export default function EmployeeAnalyticsWorkspace() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.charts.revenueByEmployee")}</div>
-                  <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.charts.salesCommissionMix")}</h2>
+                  <h2 className="m1-section-title mt-2 text-white">{t("common.employeeHub.analytics.charts.salesCommissionMix")}</h2>
                 </div>
                 <ShieldCheck className="h-5 w-5 text-primary" />
               </div>
@@ -438,7 +438,7 @@ export default function EmployeeAnalyticsWorkspace() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.charts.shiftAnalytics")}</div>
-                  <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.charts.shiftRevenueTrend")}</h2>
+                  <h2 className="m1-section-title mt-2 text-white">{t("common.employeeHub.analytics.charts.shiftRevenueTrend")}</h2>
                 </div>
                 <Clock3 className="h-5 w-5 text-primary" />
               </div>
@@ -505,7 +505,7 @@ export default function EmployeeAnalyticsWorkspace() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.commissions.rules")}</div>
-                <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.commissions.configurableRules")}</h2>
+                <h2 className="m1-section-title mt-2 text-white">{t("common.employeeHub.analytics.commissions.configurableRules")}</h2>
               </div>
             </div>
             <div className="mb-5 grid gap-3 rounded-3xl border border-white/10 bg-white/[0.04] p-4 xl:grid-cols-4">

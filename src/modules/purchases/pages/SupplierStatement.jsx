@@ -142,7 +142,7 @@ function SupplierStatement() {
 
           <div className="mt-4 rounded-3xl border border-white/10 bg-zinc-950/80 shadow-2xl shadow-black/10">
             <div className="border-b border-white/10 px-4 py-4">
-              <h3 className="text-2xl font-black text-white">حركات الحساب</h3>
+              <h3 className="m1-section-title text-white">حركات الحساب</h3>
               <p className="mt-1 text-sm text-zinc-400">
                 الترتيب زمني من الأقدم إلى الأحدث
               </p>

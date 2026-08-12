@@ -42,7 +42,7 @@ function Billing() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">Current subscription</h3>
+          <h3 className="m1-section-title text-white">Current subscription</h3>
           <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
             <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Subscription</div>
             <div className="mt-2 text-3xl font-black text-white">{billing?.plan?.name || "Trial"}</div>
@@ -61,7 +61,7 @@ function Billing() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">Upgrade page</h3>
+          <h3 className="m1-section-title text-white">Upgrade page</h3>
           <div className="mt-4 space-y-3">
             {PLANS.map((plan) => (
               <div key={plan.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">

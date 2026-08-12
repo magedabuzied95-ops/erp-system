@@ -152,7 +152,7 @@ export default function PostTemplates() {
                 <LayoutTemplate className="h-3.5 w-3.5" />
                 {t("marketing.templates.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.templates.title")}</h1>
+              <h1 className="m1-display">{t("marketing.templates.title")}</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.templates.subtitle")}</p>
             </div>
             <div className="flex gap-3">
@@ -174,7 +174,7 @@ export default function PostTemplates() {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">Template Library</div>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Curated cards</h2>
+              <h2 className="m1-section-title mt-2 text-white">Curated cards</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
                 Six organized template cards for common marketing flows. These are presentation-only cards and do not change the AI prompt.
               </p>
@@ -220,7 +220,7 @@ export default function PostTemplates() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Saved templates</div>
-              <h2 className="mt-2 text-xl font-black tracking-tight text-white">Custom templates</h2>
+              <h2 className="m1-section-title mt-2 text-white">Custom templates</h2>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

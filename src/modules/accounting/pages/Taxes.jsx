@@ -46,7 +46,7 @@ function Taxes() {
 function Card({ title, text }) {
   return (
     <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-      <h3 className="text-xl font-black text-white">{title}</h3>
+      <h3 className="m1-section-title text-white">{title}</h3>
       <p className="mt-2 text-sm text-zinc-400">{text}</p>
     </div>
   );

@@ -425,9 +425,7 @@ export default function AiStudioWorkflowEditor() {
           <button
             type="button"
             onClick={() => (totalErrors || totalWarnings) && setIssuesOpen((v) => !v)}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${
-              totalErrors ? "border-rose-400/40 bg-rose-500/10 text-rose-100" : totalWarnings ? "border-amber-300/40 bg-amber-300/10 text-amber-100" : "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
-            } ${totalErrors || totalWarnings ? "cursor-pointer" : "cursor-default"}`}
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${ totalErrors ? "border-rose-400/40 bg-rose-500/10 text-rose-100" : totalWarnings ? "border-amber-300/40 bg-amber-300/10 text-amber-100" : "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" } ${totalErrors || totalWarnings ? "cursor-pointer" : "cursor-default"}`}
           >
             {totalErrors ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {totalErrors ? `Invalid — ${totalErrors} issue${totalErrors > 1 ? "s" : ""}` : totalWarnings ? `Valid · ${totalWarnings} warning${totalWarnings > 1 ? "s" : ""}` : "Valid"}

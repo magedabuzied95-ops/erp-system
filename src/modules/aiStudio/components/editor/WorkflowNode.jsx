@@ -32,9 +32,7 @@ function WorkflowNodeBase({ type, data, selected }) {
 
   return (
     <div
-      className={`w-[248px] rounded-2xl border ${accent.border} bg-slate-950/90 shadow-[0_12px_34px_rgba(0,0,0,0.4)] backdrop-blur transition ${ring} ${
-        selected ? "border-white/40" : ""
-      } ${disconnected && !execState ? "opacity-90" : ""}`}
+      className={`w-[248px] rounded-2xl border ${accent.border} bg-slate-950/90 shadow-[0_12px_34px_rgba(0,0,0,0.4)] backdrop-blur transition ${ring} ${ selected ? "border-white/40" : "" } ${disconnected && !execState ? "opacity-90" : ""}`}
       dir="ltr"
     >
       {type !== "trigger" ? <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-white/50 !bg-slate-700" /> : null}

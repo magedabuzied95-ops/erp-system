@@ -253,7 +253,7 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, langu
     <div className="grid gap-3 border-b border-[var(--border)] px-4 py-4 text-start last:border-b-0 lg:grid-cols-[1fr_auto]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="min-w-0 max-w-full truncate text-sm font-black text-[var(--text)]" dir="auto">{title}</h3>
+          <h3 className="m1-section-title min-w-0 max-w-full truncate text-[var(--text)]" dir="auto">{title}</h3>
           <Pill className={priorityClass[task.priority] || priorityClass.medium}>{priorityLabel(task.priority, language)}</Pill>
           {taskScopeLabel(task, language) ? (
             <Pill className="border-emerald-300/40 bg-emerald-500/10 text-emerald-700">{taskScopeLabel(task, language)}</Pill>
@@ -633,7 +633,7 @@ function StaffTasks() {
     <div className="space-y-5 text-start" dir={isRtl ? "rtl" : "ltr"}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-[var(--text)]">{tr("pageTitle")}</h1>
+          <h1 className="m1-page-title text-[var(--text)]">{tr("pageTitle")}</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">{tr("pageDescription")}</p>
           <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-black text-[var(--muted)]">
             <Activity className={`h-3.5 w-3.5 ${realtime.connected ? "text-emerald-500" : "text-amber-500"}`} />
@@ -704,7 +704,7 @@ function StaffTasks() {
         <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-black text-[var(--text)]">{form.id ? tr("editOperationalTask") : tr("createOperationalTask")}</h2>
+              <h2 className="m1-section-title text-[var(--text)]">{form.id ? tr("editOperationalTask") : tr("createOperationalTask")}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{tr("panelDescription")}</p>
             </div>
             <button type="button" onClick={() => setPanelOpen(false)} className="rounded-xl border border-[var(--border)] p-2 text-[var(--muted)]">
@@ -750,7 +750,7 @@ function StaffTasks() {
             <div className="flex items-start gap-3">
               <Settings2 className="mt-1 h-5 w-5 text-[var(--primary)]" />
               <div>
-                <h2 className="text-base font-black text-[var(--text)]">{tr("employeePortalSettings")}</h2>
+                <h2 className="m1-section-title text-[var(--text)]">{tr("employeePortalSettings")}</h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">{tr("portalDescription")}</p>
               </div>
             </div>
@@ -799,7 +799,7 @@ function StaffTasks() {
         <div className="flex flex-col gap-4 lg:flex-row">
           <div className="min-w-0 flex-1">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-black text-[var(--text)]">{tr("dailyTemplates")}</h2>
+              <h2 className="m1-section-title text-[var(--text)]">{tr("dailyTemplates")}</h2>
               <Pill className="border-emerald-300/40 bg-emerald-500/10 text-emerald-700">{dailyTemplates.length}</Pill>
             </div>
             <div className="grid gap-2">
@@ -844,7 +844,7 @@ function StaffTasks() {
 
           <div className="min-w-0 flex-1">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-black text-[var(--text)]">{tr("weeklyTemplates")}</h2>
+              <h2 className="m1-section-title text-[var(--text)]">{tr("weeklyTemplates")}</h2>
               <Pill className="border-primary/40 bg-primary/10 text-primary">{weeklyTemplates.length}</Pill>
             </div>
             <div className="grid gap-2">
@@ -895,7 +895,7 @@ function StaffTasks() {
             {kanbanStatuses.map((key) => (
               <div key={key} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="truncate text-xs font-black uppercase text-[var(--muted)]">{statusLabel(key, language)}</h3>
+                  <h3 className="m1-section-title truncate uppercase text-[var(--muted)]">{statusLabel(key, language)}</h3>
                   <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-black text-[var(--primary)]">{kanbanGroups[key]?.length || 0}</span>
                 </div>
                 <div className="mt-3 space-y-2">
@@ -910,7 +910,7 @@ function StaffTasks() {
           </div>
           <div className="flex flex-col gap-3 border-b border-[var(--border)] p-4">
             <div>
-              <h2 className="text-base font-black text-[var(--text)]">{tr("todayTasks")}</h2>
+              <h2 className="m1-section-title text-[var(--text)]">{tr("todayTasks")}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{loading ? tr("loadingTasks") : `${filteredTasks.length} ${tr("visibleTasks")}`}</p>
             </div>
             <div className="grid gap-2 md:grid-cols-5">
@@ -960,7 +960,7 @@ function StaffTasks() {
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
             <div className="mb-4 flex items-center gap-2">
               <UserCheck className="h-5 w-5 text-[var(--primary)]" />
-              <h2 className="text-base font-black text-[var(--text)]">{tr("performance")}</h2>
+              <h2 className="m1-section-title text-[var(--text)]">{tr("performance")}</h2>
             </div>
             <div className="space-y-3">
               {byEmployee.slice(0, 8).map((employee) => (
@@ -989,7 +989,7 @@ function StaffTasks() {
           </section>
 
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-            <h2 className="text-base font-black text-[var(--text)]">{tr("auditTrail")}</h2>
+            <h2 className="m1-section-title text-[var(--text)]">{tr("auditTrail")}</h2>
             <div className="mt-4 space-y-3">
               {history.slice(0, 10).map((item) => (
                 <div key={item.id} className="border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">

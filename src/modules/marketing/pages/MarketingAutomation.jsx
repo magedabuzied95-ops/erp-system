@@ -330,7 +330,7 @@ export default function MarketingAutomation() {
                 <Bot className="h-3.5 w-3.5" />
                 {t("marketing.automation.eyebrow")}
               </div>
-              <h1 className="mt-3 text-2xl font-black tracking-tight md:text-3xl">{t("marketing.automation.title")}</h1>
+              <h1 className="m1-page-title mt-3">{t("marketing.automation.title")}</h1>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.automation.subtitle")}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -354,7 +354,7 @@ export default function MarketingAutomation() {
           <aside className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-black">{t("marketing.automation.rules")}</h2>
+                <h2 className="m1-section-title">{t("marketing.automation.rules")}</h2>
                 <p className="text-xs text-slate-400">{t("marketing.automation.playbooks")}</p>
               </div>
               <button type="button" onClick={() => applyRule(blankRule)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
@@ -394,7 +394,7 @@ export default function MarketingAutomation() {
           <main className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 className="text-lg font-black">{t("marketing.automation.ruleEditor")}</h2>
+                <h2 className="m1-section-title">{t("marketing.automation.ruleEditor")}</h2>
                 <p className="text-sm text-slate-400">{t("marketing.automation.ruleEditorDescription")}</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -495,7 +495,7 @@ export default function MarketingAutomation() {
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-black">{t("marketing.automation.webhook.title")}</h2>
+                  <h2 className="m1-section-title">{t("marketing.automation.webhook.title")}</h2>
                   <p className="text-xs text-slate-400">{webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? t("marketing.automation.webhook.ready") : t("marketing.automation.webhook.incomplete")}</p>
                 </div>
                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-amber-400/30 bg-amber-400/10 text-amber-100"}`}>
@@ -557,7 +557,7 @@ export default function MarketingAutomation() {
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-black">{t("marketing.automation.preview.title")}</h2>
+                  <h2 className="m1-section-title">{t("marketing.automation.preview.title")}</h2>
                   <p className="text-xs text-slate-400">{t("marketing.automation.preview.subtitle")}</p>
                 </div>
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -597,7 +597,7 @@ export default function MarketingAutomation() {
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-black">{t("marketing.automation.intent.title")}</h2>
+                  <h2 className="m1-section-title">{t("marketing.automation.intent.title")}</h2>
                   <p className="text-xs text-slate-400">{t("marketing.automation.intent.subtitle")}</p>
                 </div>
                 <Zap className="h-4 w-4 text-amber-300" />
@@ -623,7 +623,7 @@ export default function MarketingAutomation() {
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-black">{t("marketing.automation.marketingLeads")}</h2>
+              <h2 className="m1-section-title">{t("marketing.automation.marketingLeads")}</h2>
               {loadingActivity ? <Clock3 className="h-4 w-4 animate-pulse text-slate-400" /> : null}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -659,7 +659,7 @@ export default function MarketingAutomation() {
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-black">{t("marketing.automation.recentComments")}</h2>
+              <h2 className="m1-section-title">{t("marketing.automation.recentComments")}</h2>
               <button type="button" onClick={loadActivity} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">{t("marketing.automation.reload")}</button>
             </div>
             <div className="space-y-2">

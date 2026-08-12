@@ -284,7 +284,7 @@ export function PageHeader({ title, description, breadcrumbs, actions, className
       {breadcrumbs ? <div className="m1-page-header__breadcrumbs">{breadcrumbs}</div> : null}
       <div className="m1-page-header__row">
         <div className="m1-page-header__titles">
-          <h1 className="m1-page-header__title">{title}</h1>
+          <h1 className="m1-page-title m1-page-header__title">{title}</h1>
           {description ? <p className="m1-page-header__description">{description}</p> : null}
         </div>
         {actions ? <div className="m1-page-header__actions">{actions}</div> : null}
@@ -404,8 +404,7 @@ export function Drawer({ open, title, description, children, footer, onClose, pl
 /*                          data model: grouped ledgers, colspan totals,       */
 /*                          per-row editors.                                   */
 /*                                                                             */
-/* The visual truth lives in m1-table.css, so a plain <table className="m1-    */
-/* table"> is equally canonical. That is what makes broad migration possible   */
+/* The visual truth lives in m1-table.css, so a plain <table className="m1- */ /* table"> is equally canonical. That is what makes broad migration possible   */
 /* without touching any query, handler or calculation.                         */
 /*                                                                             */
 /* Re-audit of the two historical defects (both real, both now gone):          */

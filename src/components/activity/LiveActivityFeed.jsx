@@ -100,11 +100,7 @@ function FilterButton({ active, onClick, children, compact = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 rounded-full border px-3 font-black transition focus:outline-none focus:ring-2 focus:ring-emerald-300/35 ${compact ? "py-1 text-[11px]" : "py-1.5 text-xs"} ${
-        active
-          ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100 shadow-lg shadow-emerald-950/20"
-          : "border-white/[0.08] bg-white/[0.035] text-zinc-400 hover:bg-white/[0.065] hover:text-zinc-100"
-      }`}
+      className={`shrink-0 rounded-full border px-3 font-black transition focus:outline-none focus:ring-2 focus:ring-emerald-300/35 ${compact ? "py-1 text-[11px]" : "py-1.5 text-xs"} ${ active ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100 shadow-lg shadow-emerald-950/20" : "border-white/[0.08] bg-white/[0.035] text-zinc-400 hover:bg-white/[0.065] hover:text-zinc-100" }`}
     >
       {children}
     </button>

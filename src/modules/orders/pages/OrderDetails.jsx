@@ -984,7 +984,7 @@ function OrderDetails() {
                     {shippingSetupOpen ? "إعداد شحن للفاتورة" : orderExperience.label}
                   </span>
                 </div>
-                <h2 className="mt-3 text-2xl font-black text-white">{order.customer_name}</h2>
+                <h2 className="m1-section-title mt-3 text-white">{order.customer_name}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span dir="ltr" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-zinc-200">
                     {customerPhone || t("orders.fallback.noPhoneRecorded")}
@@ -1085,7 +1085,7 @@ function OrderDetails() {
 
           {requiresShipping && (order.customer_address || order.governorate || order.city_area) ? (
             <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-              <h3 className="text-lg font-black text-white">{t("orders.details.shippingData")}</h3>
+              <h3 className="m1-section-title text-white">{t("orders.details.shippingData")}</h3>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <Info label={t("orders.details.governorate")} value={order.governorate || t("orders.fallback.notAvailable")} />
                 <Info label={t("orders.details.cityArea")} value={order.city_area || t("orders.fallback.notAvailable")} />
@@ -1137,7 +1137,7 @@ function OrderDetails() {
           </div> : null}
 
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <h3 className="text-lg font-black text-white">{t("orders.drawer.items")}</h3>
+            <h3 className="m1-section-title text-white">{t("orders.drawer.items")}</h3>
             <div className="mt-4 space-y-3">
               {previewItems.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
@@ -1197,7 +1197,7 @@ function OrderDetails() {
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <h3 className="text-lg font-black text-white">{t("orders.drawer.notes")}</h3>
+            <h3 className="m1-section-title text-white">{t("orders.drawer.notes")}</h3>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -1224,7 +1224,7 @@ function OrderDetails() {
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.packing")}</div>
-                <h3 className="mt-1 truncate text-base font-black text-white">{t("orders.details.staffChecklist")}</h3>
+                <h3 className="m1-section-title mt-1 truncate text-white">{t("orders.details.staffChecklist")}</h3>
               </div>
               <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
                 {packingCompleteCount}/{PACKING_CHECKLIST_ITEMS.length}
@@ -1236,16 +1236,10 @@ function OrderDetails() {
                   key={item.key}
                   type="button"
                   onClick={() => handleTogglePackingItem(item.key)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                    packingChecklist[item.key]
-                      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
-                      : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
-                  }`}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${ packingChecklist[item.key] ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10" }`}
                 >
                   <span>{t(item.labelKey)}</span>
-                  <span className={`grid h-6 w-6 place-items-center rounded-full border ${
-                    packingChecklist[item.key] ? "border-emerald-300/50 bg-emerald-400/20" : "border-white/15 bg-black/20"
-                  }`}>
+                  <span className={`grid h-6 w-6 place-items-center rounded-full border ${ packingChecklist[item.key] ? "border-emerald-300/50 bg-emerald-400/20" : "border-white/15 bg-black/20" }`}>
                     {packingChecklist[item.key] ? <Check className="h-4 w-4" /> : null}
                   </span>
                 </button>
@@ -1271,7 +1265,7 @@ function OrderDetails() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.2em] text-amber-300">{t("orders.payment.proof")}</div>
-                  <h3 className="mt-2 text-lg font-black text-white">{t("orders.details.reviewTransferProof")}</h3>
+                  <h3 className="m1-section-title mt-2 text-white">{t("orders.details.reviewTransferProof")}</h3>
                 </div>
                 <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${paymentBadge.className}`}>
                   {paymentBadge.label}
@@ -1362,11 +1356,7 @@ function OrderDetails() {
                   </button>
                 </div>
               ) : (
-                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-black ${
-                  isShippingPaid
-                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-                    : "border-rose-500/20 bg-rose-500/10 text-rose-200"
-                }`}>
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-black ${ isShippingPaid ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-rose-500/20 bg-rose-500/10 text-rose-200" }`}>
                   {isShippingPaid ? t("orders.payment.confirmed") : t("orders.details.transferProofRejected")}
                 </div>
               )}
@@ -1375,7 +1365,7 @@ function OrderDetails() {
 
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">{t("orders.details.paymentSummary")}</h3>
+              <h3 className="m1-section-title text-white">{t("orders.details.paymentSummary")}</h3>
               <div className="flex items-center gap-2 text-sm text-zinc-400">
                 {financials.shippingPaidSeparately ? <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs font-black text-emerald-200">{t("orders.details.shippingPaid")}</span> : null}
                 {hasCodRemaining ? <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-xs font-black text-amber-200">{t("orders.details.codRemaining")}</span> : null}
@@ -1386,18 +1376,14 @@ function OrderDetails() {
               <button
                 type="button"
                 onClick={() => setPdfFormat("a4")}
-                className={`rounded-xl px-3 py-2 transition ${
-                  pdfFormat === "a4" ? "bg-primary text-black" : "hover:bg-white/10"
-                }`}
+                className={`rounded-xl px-3 py-2 transition ${ pdfFormat === "a4" ? "bg-primary text-black" : "hover:bg-white/10" }`}
               >
                 {t("orders.details.a4Pdf")}
               </button>
               <button
                 type="button"
                 onClick={() => setPdfFormat("thermal")}
-                className={`rounded-xl px-3 py-2 transition ${
-                  pdfFormat === "thermal" ? "bg-primary text-black" : "hover:bg-white/10"
-                }`}
+                className={`rounded-xl px-3 py-2 transition ${ pdfFormat === "thermal" ? "bg-primary text-black" : "hover:bg-white/10" }`}
               >
                 {t("orders.details.thermalPdf")}
               </button>
@@ -1432,7 +1418,7 @@ function OrderDetails() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.invoicePreview")}</div>
-                <h3 className="mt-2 text-lg font-black text-white">{order.invoice_number}</h3>
+                <h3 className="m1-section-title mt-2 text-white">{order.invoice_number}</h3>
                 <p className="mt-1 text-sm text-zinc-400">{pdfFormat === "thermal" ? t("orders.details.thermalPdf") : t("orders.details.a4Pdf")}</p>
               </div>
               <button
@@ -1462,7 +1448,7 @@ function OrderDetails() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.fulfillment")}</div>
-                <h3 className="mt-2 text-lg font-black text-white">{t("orders.drawer.shipping")}</h3>
+                <h3 className="m1-section-title mt-2 text-white">{t("orders.drawer.shipping")}</h3>
               </div>
               <button
                 type="button"
@@ -1490,9 +1476,7 @@ function OrderDetails() {
                   key={key}
                   type="button"
                   onClick={() => setShippingTab(key)}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                    shippingTab === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-zinc-300 hover:bg-white/10"
-                  }`}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${ shippingTab === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-zinc-300 hover:bg-white/10" }`}
                 >
                   {label}
                 </button>
@@ -1606,17 +1590,9 @@ function OrderDetails() {
                         <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
                       ) : null}
                       {bostaActionError ? (
-                        <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${
-                          bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE
-                            ? "border-amber-300/35 bg-amber-400/10 text-amber-100"
-                            : "border-rose-300/30 bg-rose-400/10 text-rose-100"
-                        }`}>
+                        <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${ bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "border-amber-300/35 bg-amber-400/10 text-amber-100" : "border-rose-300/30 bg-rose-400/10 text-rose-100" }`}>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${
-                              bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE
-                                ? "bg-amber-300/20 text-amber-100"
-                                : "bg-rose-300/20 text-rose-100"
-                            }`}>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${ bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "bg-amber-300/20 text-amber-100" : "bg-rose-300/20 text-rose-100" }`}>
                               {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "الاشتراك مطلوب" : "خطأ Bosta"}
                             </span>
                             <span>{bostaActionError.message}</span>
@@ -1911,7 +1887,7 @@ function ModalShell({ title, onClose, children, closeLabel = "Close" }) {
     <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="w-full max-w-6xl rounded-2xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black/50">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 className="text-lg font-black text-white">{title}</h3>
+          <h3 className="m1-section-title text-white">{title}</h3>
           <button
             type="button"
             onClick={onClose}
@@ -1932,11 +1908,7 @@ function ActionButton({ onClick, icon, label, danger = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-        danger
-          ? "border-rose-500/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
-          : "border-white/10 bg-white/5 text-white hover:bg-white/10"
-      }`}
+      className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${ danger ? "border-rose-500/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15" : "border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
     >
       {icon}
       {label}

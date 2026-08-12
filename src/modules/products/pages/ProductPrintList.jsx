@@ -164,7 +164,7 @@ export default function ProductPrintList() {
       {!products.length ? (
         <div className="mt-6 rounded-[30px] border border-dashed border-white/10 bg-zinc-950/70 p-12 text-center">
           <PackageOpen className="mx-auto text-zinc-500" size={42} />
-          <h2 className="mt-4 text-xl font-black text-white">قائمة الطباعة فارغة</h2>
+          <h2 className="m1-section-title mt-4 text-white">قائمة الطباعة فارغة</h2>
           <p className="mt-2 text-sm text-zinc-400">حدد منتجًا أو أكثر من صفحة المنتجات ثم اضغط «إضافة إلى قائمة الطباعة».</p>
         </div>
       ) : visibleProducts.length === 0 ? (
@@ -173,7 +173,7 @@ export default function ProductPrintList() {
         <div className="mt-6 grid gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] border border-emerald-300/20 bg-emerald-400/10 p-4">
             <div>
-              <h2 className="flex items-center gap-2 text-lg font-black text-white">
+              <h2 className="m1-section-title flex items-center gap-2 text-white">
                 <Combine size={20} className="text-emerald-300" />
                 دمج منتجات القسم
               </h2>
@@ -216,7 +216,7 @@ export default function ProductPrintList() {
                     {imageFor(product) ? <img src={resolveProductImageUrl(imageFor(product))} alt={product.name || ""} className="h-full w-full object-contain" /> : null}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-xl font-black text-white">{product.name}</h3>
+                    <h3 className="m1-section-title text-white">{product.name}</h3>
                     <div className="mt-2 flex flex-wrap gap-2 text-sm text-zinc-300">
                       <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">ART: {articleFor(product)}</span>
                       <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">المخزون: {stockCount(printableProduct)}</span>

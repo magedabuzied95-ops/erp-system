@@ -42,7 +42,7 @@ function CategoryNode({ item, level = 0, onDelete, items = [], t }) {
             <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
               {levelLabel}
             </p>
-            <h3 className="mt-1 text-xl font-black text-white">{item.name}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{item.name}</h3>
             <p className="mt-2 text-sm text-zinc-400">{item.status}</p>
           </div>
         </div>
@@ -125,7 +125,7 @@ function Categories() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
           <div className="flex items-center gap-3">
             <Layers3 className="text-emerald-400" />
-            <h2 className="text-2xl font-black text-white">{t("products.categories.editor")}</h2>
+            <h2 className="m1-section-title text-white">{t("products.categories.editor")}</h2>
           </div>
 
           <div className="mt-5 space-y-4">
@@ -190,7 +190,7 @@ function Categories() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-black text-white">{t("products.categories.nestedCatalog")}</h2>
+              <h2 className="m1-section-title text-white">{t("products.categories.nestedCatalog")}</h2>
               <p className="mt-1 text-sm text-zinc-500">
                 {t("products.categories.nestedCatalogDescription")}
               </p>

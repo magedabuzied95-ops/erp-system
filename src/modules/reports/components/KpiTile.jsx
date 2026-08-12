@@ -71,19 +71,11 @@ export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
 
   return (
     <div
-      className={`flex min-w-0 flex-col justify-between rounded-2xl border bg-[var(--card)] ${paddingClass} ${
-        level === 1
-          ? "border-[var(--border-strong)] shadow-[var(--shadow-card)]"
-          : "border-[var(--border)]"
-      }`}
+      className={`flex min-w-0 flex-col justify-between rounded-2xl border bg-[var(--card)] ${paddingClass} ${ level === 1 ? "border-[var(--border-strong)] shadow-[var(--shadow-card)]" : "border-[var(--border)]" }`}
     >
       <div className="flex items-start justify-between gap-2">
         <span
-          className={`min-w-0 truncate font-semibold ${
-            level === 1
-              ? "text-[13px] text-[var(--text-secondary)] 2xl:text-[14px]"
-              : "text-[12px] text-[var(--text-tertiary)] 2xl:text-[13px]"
-          }`}
+          className={`min-w-0 truncate font-semibold ${ level === 1 ? "text-[13px] text-[var(--text-secondary)] 2xl:text-[14px]" : "text-[12px] text-[var(--text-tertiary)] 2xl:text-[13px]" }`}
           title={label}
         >
           {label}

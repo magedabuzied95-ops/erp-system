@@ -234,7 +234,7 @@ function CostFixCenter() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
         <div className="flex flex-col gap-3 border-b border-white/10 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-black text-white">{t("accounting.costFix.catalogTitle")}</h2>
+            <h2 className="m1-section-title text-white">{t("accounting.costFix.catalogTitle")}</h2>
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.costFix.catalogSubtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -314,7 +314,7 @@ function CostFixCenter() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
         <div className="flex flex-col gap-3 border-b border-white/10 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-black text-white">{t("accounting.costFix.historicalTitle")}</h2>
+            <h2 className="m1-section-title text-white">{t("accounting.costFix.historicalTitle")}</h2>
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.costFix.historicalSubtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">

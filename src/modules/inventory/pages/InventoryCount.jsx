@@ -1384,7 +1384,7 @@ function InventoryCountPage() {
                         {SESSION_STATUS_LABELS[session?.status || "draft"] || "مسودة"}
                       </span>
                     </div>
-                    <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{newSessionForm.title || "جرد جديد"}</h1>
+                    <h1 className="m1-page-title mt-3 text-white">{newSessionForm.title || "جرد جديد"}</h1>
                     <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
                       <span>الفرع: {session?.branch_name || selectedBranchName || "غير محدد"}</span>
                       <span>المخزن: {session?.warehouse_name || selectedWarehouseName || "غير محدد"}</span>
@@ -1479,7 +1479,7 @@ function InventoryCountPage() {
               <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <h2 className="text-xl font-black text-white">البحث ومسح الباركود</h2>
+                    <h2 className="m1-section-title text-white">البحث ومسح الباركود</h2>
                     <div className="mt-2 inline-flex max-w-full rounded-2xl border border-primary/15 bg-primary/10 px-3 py-2 text-[11px] font-bold leading-5 text-primary">
                       Inventory counts are submitted for review before final approval.
                     </div>
@@ -1516,11 +1516,7 @@ function InventoryCountPage() {
                     type="button"
                     onClick={() => setFiltersOpen(true)}
                     aria-expanded={filtersOpen}
-                    className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border transition ${
-                      filtersOpen || activeFilterCount > 0
-                        ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
-                        : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
-                    }`}
+                    className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-2xl border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
                     aria-label="الفلتر"
                     title="الفلتر"
                   >
@@ -1680,7 +1676,7 @@ function InventoryCountPage() {
                   ) : visibleGroupedItems.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                       <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
-                      <h3 className="mt-4 text-xl font-black text-white">لا توجد أصناف بعد</h3>
+                      <h3 className="m1-section-title mt-4 text-white">لا توجد أصناف بعد</h3>
                       <p className="mt-2 text-sm text-zinc-400">ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.</p>
                     </div>
                   ) : (
@@ -1710,7 +1706,7 @@ function InventoryCountPage() {
 
             <div className="space-y-4">
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-                <h3 className="text-xl font-black text-white">بيانات الجلسة</h3>
+                <h3 className="m1-section-title text-white">بيانات الجلسة</h3>
                 <div className="mt-3 grid gap-2">
                   <Field label="اسم الجلسة" value={newSessionForm.title} onChange={(value) => setNewSessionForm((current) => ({ ...current, title: value }))} />
                   <SelectField
@@ -1751,7 +1747,7 @@ function InventoryCountPage() {
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-                <h3 className="text-xl font-black text-white">إرشادات</h3>
+                <h3 className="m1-section-title text-white">إرشادات</h3>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
                   <li>• استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.</li>
                   <li>• البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.</li>
@@ -1776,7 +1772,7 @@ function InventoryCountPage() {
             <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-white">جلسات الجرد</h2>
+                  <h2 className="m1-section-title text-white">جلسات الجرد</h2>
                   <p className="mt-1 text-sm text-zinc-400">راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.</p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1792,11 +1788,7 @@ function InventoryCountPage() {
                       key={item.key}
                       type="button"
                       onClick={() => setSessionStatusFilter(item.key)}
-                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
-                        sessionStatusFilter === item.key
-                          ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100"
-                          : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
-                      }`}
+                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${ sessionStatusFilter === item.key ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10" }`}
                     >
                       {item.label}
                     </button>
@@ -1845,7 +1837,7 @@ function InventoryCountPage() {
                 ) : filteredSessions.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                     <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
-                    <h3 className="mt-4 text-xl font-black text-white">لا توجد جلسات جرد بعد</h3>
+                    <h3 className="m1-section-title mt-4 text-white">لا توجد جلسات جرد بعد</h3>
                     <p className="mt-2 text-sm text-zinc-400">ابدأ جردًا جديدًا ثم افتحه للمسح أو الاعتماد.</p>
                   </div>
                 ) : (
@@ -2234,7 +2226,7 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">بدء جرد جديد</div>
-            <h3 className="mt-1 text-xl font-black text-white">حدد نطاق الجرد</h3>
+            <h3 className="m1-section-title mt-1 text-white">حدد نطاق الجرد</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-400">اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
@@ -2315,7 +2307,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">ماسح الباركود</div>
-            <h3 className="mt-1 text-xl font-black text-white">امسح الباركود أو رمز QR</h3>
+            <h3 className="m1-section-title mt-1 text-white">امسح الباركود أو رمز QR</h3>
           </div>
           <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
             <ArrowRight className="h-4 w-4" />

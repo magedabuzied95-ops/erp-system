@@ -182,7 +182,7 @@ function Manufacturers() {
               <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
                 {t("products.manufacturers.editor")}
               </p>
-              <h2 className="mt-1 text-2xl font-black text-white">
+              <h2 className="m1-section-title mt-1 text-white">
                 {editingId ? t("products.manufacturers.editManufacturer") : t("products.manufacturers.addManufacturer")}
               </h2>
             </div>
@@ -242,7 +242,7 @@ function Manufacturers() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.manufacturers.registry")}</p>
-              <h2 className="mt-1 text-2xl font-black text-white">{t("products.manufacturers.liveManufacturers")}</h2>
+              <h2 className="m1-section-title mt-1 text-white">{t("products.manufacturers.liveManufacturers")}</h2>
               <p className="mt-2 text-sm text-zinc-400">
                 {t("products.manufacturers.registryDescription")}
               </p>

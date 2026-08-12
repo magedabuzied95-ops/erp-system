@@ -66,7 +66,7 @@ const ContentCard = ({ icon: Icon, tone, title, description, meta }) => (
         {meta}
       </span>
     </div>
-    <h3 className="mt-4 text-base font-black text-white">{title}</h3>
+    <h3 className="m1-section-title mt-4 text-white">{title}</h3>
     <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
   </article>
 );
@@ -210,7 +210,7 @@ export default function SocialCalendar() {
                 {t("marketing.socialCalendar.eyebrow")}
               </div>
               <div className="space-y-2">
-                <h1 className="text-3xl font-black tracking-tight md:text-5xl">{t("marketing.socialCalendar.title")}</h1>
+                <h1 className="m1-display">{t("marketing.socialCalendar.title")}</h1>
                 <p className="max-w-3xl text-sm leading-6 text-slate-300 md:text-base">{t("marketing.socialCalendar.subtitle")}</p>
               </div>
             </div>
@@ -227,7 +227,7 @@ export default function SocialCalendar() {
           <article className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.month.title")}</h2>
+                <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.month.title")}</h2>
                 <p className="text-sm text-slate-400">{t("marketing.socialCalendar.month.subtitle")}</p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -283,7 +283,7 @@ export default function SocialCalendar() {
           <article className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.week.title")}</h2>
+                <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.week.title")}</h2>
                 <p className="text-sm text-slate-400">{t("marketing.socialCalendar.week.subtitle")}</p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -344,7 +344,7 @@ export default function SocialCalendar() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.draft.title")}</h2>
+              <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.draft.title")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.socialCalendar.draft.subtitle")}</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-100">
@@ -415,7 +415,7 @@ export default function SocialCalendar() {
 
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5">
-            <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.cards.title")}</h2>
+            <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.cards.title")}</h2>
             <p className="text-sm text-slate-400">{t("marketing.socialCalendar.cards.subtitle")}</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -428,7 +428,7 @@ export default function SocialCalendar() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.scheduled.title")}</h2>
+              <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.scheduled.title")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.socialCalendar.scheduled.subtitle")}</p>
             </div>
             <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -444,7 +444,7 @@ export default function SocialCalendar() {
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-black text-white">{post.title}</h3>
+                      <h3 className="m1-section-title text-white">{post.title}</h3>
                       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] ${badgeToneClass[post.status]}`}>
                         {post.status}
                       </span>
@@ -464,7 +464,7 @@ export default function SocialCalendar() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">{t("marketing.socialCalendar.history.title")}</h2>
+              <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.history.title")}</h2>
               <p className="text-sm text-slate-400">{t("marketing.socialCalendar.history.subtitle")}</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">

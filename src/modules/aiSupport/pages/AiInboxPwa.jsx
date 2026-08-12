@@ -2242,13 +2242,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
     <button
       type="button"
       onClick={() => onSelect(conversation)}
-      className={`flex w-full items-start gap-3 rounded-2xl px-2 py-2 text-left transition ${
-        active
-          ? "bg-slate-900 text-white"
-          : unread
-            ? "bg-white text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50"
-            : "bg-transparent text-slate-900 hover:bg-white"
-      }`}
+      className={`flex w-full items-start gap-3 rounded-2xl px-2 py-2 text-left transition ${ active ? "bg-slate-900 text-white" : unread ? "bg-white text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50" : "bg-transparent text-slate-900 hover:bg-white" }`}
     >
       {avatar ? (
         <div className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl ${unread && !active ? "ring-2 ring-emerald-200" : "ring-1 ring-slate-200"}`}>
@@ -2902,9 +2896,7 @@ function ProductSheet({
                           setSelectedSize("");
                           setView("detail");
                         }}
-                        className={`ai-pwa-product-sheet__product-row flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                          active ? "is-active border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
-                        }`}
+                        className={`ai-pwa-product-sheet__product-row flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${ active ? "is-active border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900" }`}
                       >
                         {previewImage ? (
                           <img src={previewImage} alt={product.name || "Product"} className="h-14 w-14 rounded-xl object-cover" loading="lazy" />
@@ -2991,11 +2983,7 @@ function ProductSheet({
                                 setSelectedColor(option.color);
                                 setSelectedSize("");
                               }}
-                              className={`ai-pwa-product-sheet__color-option group relative aspect-square min-w-0 overflow-hidden rounded-2xl border bg-slate-50 p-1 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/60 ${
-                                active
-                                  ? "is-active border-emerald-500 ring-2 ring-emerald-500/30"
-                                  : "border-slate-200 hover:border-slate-400"
-                              }`}
+                              className={`ai-pwa-product-sheet__color-option group relative aspect-square min-w-0 overflow-hidden rounded-2xl border bg-slate-50 p-1 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/60 ${ active ? "is-active border-emerald-500 ring-2 ring-emerald-500/30" : "border-slate-200 hover:border-slate-400" }`}
                             >
                               {option.imageUrl ? (
                                 <img
@@ -3044,13 +3032,7 @@ function ProductSheet({
                               onClick={() => setSelectedSize(size)}
                               aria-label={`${size} - ${available ? `${stock} in stock` : "out of stock"}`}
                               title={available ? `${stock} in stock` : "Out of stock"}
-                              className={`ai-pwa-product-sheet__size-option relative min-w-11 rounded-full border px-3 py-2 text-sm font-medium transition ${
-                                active
-                                  ? "is-active border-slate-900 bg-slate-900 text-white shadow-sm"
-                                  : available
-                                    ? "border-slate-200 bg-slate-100 text-slate-700 hover:border-slate-400 hover:bg-slate-200"
-                                    : "is-unavailable cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 line-through decoration-rose-500 decoration-2 opacity-70"
-                              }`}
+                              className={`ai-pwa-product-sheet__size-option relative min-w-11 rounded-full border px-3 py-2 text-sm font-medium transition ${ active ? "is-active border-slate-900 bg-slate-900 text-white shadow-sm" : available ? "border-slate-200 bg-slate-100 text-slate-700 hover:border-slate-400 hover:bg-slate-200" : "is-unavailable cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 line-through decoration-rose-500 decoration-2 opacity-70" }`}
                             >
                               {size}
                             </button>
@@ -3148,9 +3130,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
               key={status}
               type="button"
               onClick={() => onLeadFilterChange(status)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-[12px] font-semibold ${
-                active ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"
-              }`}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-[12px] font-semibold ${ active ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200" }`}
             >
               {leadStatusLabel(status)}
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>
@@ -6615,13 +6595,7 @@ export default function AiInboxPwa() {
               <div className="ai-pwa-conversation-toolbar mt-2">
                 <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      leadStatusTone(currentLeadStatus) === "amber"
-                        ? "bg-amber-400"
-                        : leadStatusTone(currentLeadStatus) === "emerald"
-                          ? "bg-emerald-400"
-                          : "bg-blue-400"
-                    }`} />
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${ leadStatusTone(currentLeadStatus) === "amber" ? "bg-amber-400" : leadStatusTone(currentLeadStatus) === "emerald" ? "bg-emerald-400" : "bg-blue-400" }`} />
                     <div className="min-w-0">
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Lead status</div>
                       <div className="truncate text-[12px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus)}</div>
@@ -6906,9 +6880,7 @@ export default function AiInboxPwa() {
                     if (item.key === "social_comments") setSocialMobileDetailOpen(false);
                     updateUrlState({ nextConversationId: item.key === "conversations" ? conversationParam : "", nextTab: item.key });
                   }}
-                  className={`flex flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[10px] font-medium ${
-                    active ? "bg-slate-900 text-white" : "text-slate-500"
-                  }`}
+                  className={`flex flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[10px] font-medium ${ active ? "bg-slate-900 text-white" : "text-slate-500" }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   <span>{item.label}</span>

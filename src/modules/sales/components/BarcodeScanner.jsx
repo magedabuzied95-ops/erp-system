@@ -8,11 +8,7 @@ function Scanner({
   return (
 
     <div
-      className="
-      rounded-3xl
-      overflow-hidden
-      shadow-2xl
-      "
+      className="rounded-3xl overflow-hidden shadow-2xl"
     >
 
       <BarcodeScanner

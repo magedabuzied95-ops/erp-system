@@ -243,7 +243,7 @@ function CashRegisters() {
 
       <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">{t("accounting.cashDrawer.currentShift")}</h3>
+          <h3 className="m1-section-title text-white">{t("accounting.cashDrawer.currentShift")}</h3>
           {currentShift ? (
             <div className="mt-4 space-y-3 text-sm text-zinc-300">
               <Info label={t("accounting.cashDrawer.labels.cashier")} value={currentShift.cashier_name || t("accounting.auditTrail.fallbacks.userNumber", { id: currentShift.opened_by })} />
@@ -282,7 +282,7 @@ function CashRegisters() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-black text-white">{t("accounting.cashDrawer.shiftEvents")}</h3>
+              <h3 className="m1-section-title text-white">{t("accounting.cashDrawer.shiftEvents")}</h3>
               <p className="mt-1 text-sm text-zinc-500">{t("accounting.cashDrawer.eventsCount", { count: events.length })}</p>
             </div>
           </div>
@@ -454,7 +454,7 @@ function Modal({ title, children, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
         <div className="mb-5 flex items-center justify-between gap-3">
-          <h3 className="text-xl font-black text-white">{title}</h3>
+          <h3 className="m1-section-title text-white">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>

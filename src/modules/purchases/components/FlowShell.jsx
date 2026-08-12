@@ -15,7 +15,7 @@ function FlowShell({ title, subtitle, actions, tabs = [], children, compact = fa
                 <PackageSearch className={compact ? "h-4 w-4" : "h-5 w-5"} />
                 <span className={`font-semibold uppercase tracking-[0.18em] ${compact ? "text-[10px] text-emerald-300" : "text-xs"}`}>{t("purchases.moduleEyebrow")}</span>
               </div>
-              <h1 className={`font-black tracking-tight ${compact ? "mt-1 text-xl text-white" : "mt-2 text-3xl text-[var(--text)]"}`}>{title}</h1>
+              <h1 className={`m1-page-title ${compact ? "mt-1 text-white" : "mt-2 text-[var(--text)]"}`}>{title}</h1>
               {subtitle ? <p className={`max-w-3xl ${compact ? "mt-0.5 text-xs text-zinc-400" : "mt-1 text-sm text-[var(--muted)]"}`}>{subtitle}</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">{actions}</div>

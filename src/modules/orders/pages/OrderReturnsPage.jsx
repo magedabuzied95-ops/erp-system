@@ -419,7 +419,7 @@ function OrderReturnsPage() {
             <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Customer Returns</div>
-                <h2 className="mt-1 text-lg font-black text-white">مرتجعات العملاء</h2>
+                <h2 className="m1-section-title mt-1 text-white">مرتجعات العملاء</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <MiniStat label="النتائج" value={filteredReturns.length} />
@@ -482,7 +482,7 @@ function PageHeader({ onCreate }) {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">Orders module</div>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--text)]">مرتجعات الطلبات</h1>
+          <h1 className="m1-page-title mt-2 text-[var(--text)]">مرتجعات الطلبات</h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -611,7 +611,7 @@ function SupplierReturnsPanel({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Supplier Returns</div>
-            <h2 className="mt-1 text-lg font-black text-white">مرتجعات الموردين</h2>
+            <h2 className="m1-section-title mt-1 text-white">مرتجعات الموردين</h2>
             <p className="mt-1 text-xs text-zinc-400">النتائج الحالية {items.length} من إجمالي {allItems.length} بند</p>
           </div>
           <button type="button" onClick={resetFilters} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">مسح الفلاتر</button>
@@ -683,7 +683,7 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Supplier Returns</div>
-          <h2 className="mt-1 text-lg font-black text-white">قطع عيوب الصناعة المطلوب إرجاعها للموردين</h2>
+          <h2 className="m1-section-title mt-1 text-white">قطع عيوب الصناعة المطلوب إرجاعها للموردين</h2>
         </div>
         <MiniStat label="إجمالي القطع" value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />
       </div>
@@ -925,7 +925,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{mode === "edit" ? "Edit return" : "Create return"}</div>
-            <h2 className="mt-1 text-2xl font-black">{mode === "edit" ? "تعديل المرتجع" : "إنشاء مرتجع"}</h2>
+            <h2 className="m1-section-title mt-1">{mode === "edit" ? "تعديل المرتجع" : "إنشاء مرتجع"}</h2>
             <p className="mt-1 text-sm text-zinc-400">نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة.</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
@@ -1031,7 +1031,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
 
           <section className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-black text-white">{t("orders.returns.returnedItems")}</h3>
+              <h3 className="m1-section-title text-white">{t("orders.returns.returnedItems")}</h3>
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-200">
                 <input type="checkbox" checked={form.restock} disabled={form.disposition !== "restock"} onChange={(event) => setForm((current) => ({ ...current, restock: event.target.checked }))} />
                 {t("orders.returns.restockReturnedItems")}
@@ -1144,7 +1144,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
         <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div className="min-w-0">
             <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black">{record.returnNumber}</div>
-            <h2 className="mt-2 truncate text-2xl font-black">{record.customerName || "عميل غير محدد"}</h2>
+            <h2 className="m1-section-title mt-2 truncate">{record.customerName || "عميل غير محدد"}</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               <StatusBadge value={record.returnStatus} />
               <StatusBadge value={record.refundStatusLabel} />
@@ -1279,7 +1279,7 @@ function Field({ label, children }) {
 function DrawerSection({ title, children }) {
   return (
     <section className="mt-4">
-      <h3 className="mb-3 text-lg font-black text-white">{title}</h3>
+      <h3 className="m1-section-title mb-3 text-white">{title}</h3>
       {children}
     </section>
   );

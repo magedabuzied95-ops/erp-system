@@ -187,7 +187,7 @@ export default function Treasury() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-black text-white">أرصدة الحسابات</h2>
+              <h2 className="m1-section-title text-white">أرصدة الحسابات</h2>
               <p className="mt-1 text-sm text-zinc-400">الحسابات النقدية والتشغيلية المستخدمة في نقاط البيع والمشتريات والمصروفات والاستردادات والرواتب.</p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold text-zinc-300">{accounts.length} حساب</span>
@@ -247,7 +247,7 @@ export default function Treasury() {
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-xl font-black text-white">حركات النقدية</h2>
+            <h2 className="m1-section-title text-white">حركات النقدية</h2>
             <p className="mt-1 text-sm text-zinc-400">حركات حسابات غير قابلة للتعديل من المبيعات والمشتريات والمصروفات والسلف والاستردادات والتحويلات والتسويات.</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">

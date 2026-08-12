@@ -128,14 +128,7 @@ export default function ProductVariants({
   return (
 
     <div
-      className="
-      bg-[#0f172a]
-      border
-      border-white/10
-      rounded-3xl
-      p-6
-      shadow-2xl
-      "
+      className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 shadow-2xl"
     >
 
       {/* HEADER */}
@@ -143,11 +136,7 @@ export default function ProductVariants({
       <div className="mb-8">
 
         <h2
-          className="
-          text-3xl
-          font-black
-          text-white
-          "
+          className="m1-section-title text-white"
         >
 
           Product Variants
@@ -169,14 +158,7 @@ export default function ProductVariants({
         variants.length === 0 && (
 
           <div
-            className="
-            bg-[#1e293b]
-            border
-            border-white/10
-            rounded-2xl
-            p-10
-            text-center
-            "
+            className="bg-[#1e293b] border border-white/10 rounded-2xl p-10 text-center"
           >
 
             <p className="text-gray-400 text-lg">
@@ -198,11 +180,7 @@ export default function ProductVariants({
           <div className="overflow-x-auto">
 
             <table
-              className="
-              w-full
-              border-separate
-              border-spacing-y-3
-              "
+              className="w-full border-separate border-spacing-y-3"
             >
 
               <thead>
@@ -261,9 +239,7 @@ export default function ProductVariants({
 
                   <tr
                     key={`${variant.id || productName || "product"}-${variant.size || "size"}-${variant.color || "color"}-${index}`}
-                    className="
-                    bg-[#1e293b]
-                    "
+                    className="bg-[#1e293b]"
                   >
 
                     {/* SIZE */}
@@ -271,15 +247,7 @@ export default function ProductVariants({
                     <td className="p-4 rounded-l-2xl">
 
                       <div
-                        className="
-                        bg-blue-500/20
-                        text-blue-400
-                        px-4
-                        py-2
-                        rounded-xl
-                        font-black
-                        w-fit
-                        "
+                        className="bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl font-black w-fit"
                       >
 
                         {variant.size}
@@ -308,17 +276,7 @@ export default function ProductVariants({
                           )
                         }
 
-                        className="
-                        bg-[#0f172a]
-                        border
-                        border-white/10
-                        rounded-xl
-                        px-4
-                        py-3
-                        text-white
-                        w-full
-                        focus:outline-none
-                        "
+                        className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-white w-full focus:outline-none"
                       />
 
                     </td>
@@ -341,17 +299,7 @@ export default function ProductVariants({
                           )
                         }
 
-                        className="
-                        bg-[#0f172a]
-                        border
-                        border-white/10
-                        rounded-xl
-                        px-4
-                        py-3
-                        text-white
-                        w-[100px]
-                        focus:outline-none
-                        "
+                        className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-white w-[100px] focus:outline-none"
                       />
 
                     </td>
@@ -374,17 +322,7 @@ export default function ProductVariants({
                           )
                         }
 
-                        className="
-                        bg-[#0f172a]
-                        border
-                        border-white/10
-                        rounded-xl
-                        px-4
-                        py-3
-                        text-white
-                        w-[130px]
-                        focus:outline-none
-                        "
+                        className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-white w-[130px] focus:outline-none"
                       />
 
                     </td>
@@ -394,10 +332,7 @@ export default function ProductVariants({
                     <td className="p-4">
 
                       <div
-                        className="
-                        text-green-400
-                        font-bold
-                        "
+                        className="text-green-400 font-bold"
                       >
 
                         {variant.sku}
@@ -411,11 +346,7 @@ export default function ProductVariants({
                     <td className="p-4">
 
                       <div
-                        className="
-                        text-yellow-400
-                        font-bold
-                        text-sm
-                        "
+                        className="text-yellow-400 font-bold text-sm"
                       >
 
                         {variant.barcode}
@@ -434,17 +365,7 @@ export default function ProductVariants({
                           removeVariant(index)
                         }
 
-                        className="
-                        bg-red-500/20
-                        hover:bg-red-500
-                        text-red-400
-                        hover:text-white
-                        px-4
-                        py-3
-                        rounded-xl
-                        transition-all
-                        font-bold
-                        "
+                        className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white px-4 py-3 rounded-xl transition-all font-bold"
 
                       >
 

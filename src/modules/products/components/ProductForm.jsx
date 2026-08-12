@@ -81,7 +81,7 @@ function ProductForm({
         <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/8 pb-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">01 · بيانات البيع</p>
-            <h3 className="mt-1 text-base font-black text-white">العلامة والوحدة</h3>
+            <h3 className="m1-section-title mt-1 text-white">العلامة والوحدة</h3>
           </div>
           <div className="h-9 w-1 rounded-full bg-amber-400/70" />
         </div>
@@ -122,9 +122,7 @@ function ProductForm({
                           setBrandQuery(item.name);
                           setBrandOpen(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-white/8 ${
-                          String(brand || "").trim() === String(item.name || "").trim() ? "bg-white/8 text-white" : "text-zinc-300"
-                        }`}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-white/8 ${ String(brand || "").trim() === String(item.name || "").trim() ? "bg-white/8 text-white" : "text-zinc-300" }`}
                       >
                         <span>{item.name}</span>
                         {String(brand || "").trim() === String(item.name || "").trim() ? (
@@ -188,7 +186,7 @@ function ProductForm({
       <section className="rounded-[22px] border border-emerald-400/20 bg-[#20201e] p-5 xl:col-start-2 xl:row-start-1 xl:rounded-none xl:border-x-0">
         <div className="mb-5 border-b border-white/8 pb-4">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">02 · التصنيف الذكي</p>
-            <h3 className="mt-1 text-base font-black text-white">{t("products.form.smartPosFilters")}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{t("products.form.smartPosFilters")}</h3>
             <p className="mt-1 text-xs leading-5 text-zinc-500">{t("products.form.smartPosHelp")}</p>
         </div>
 
@@ -253,7 +251,7 @@ function ProductForm({
       <section className="rounded-[22px] border border-violet-400/20 bg-[#20201e] p-5 xl:col-start-3 xl:row-start-1 xl:rounded-s-none">
         <div className="mb-5 border-b border-white/8 pb-4">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-300">03 · التسعير التسويقي</p>
-          <h3 className="mt-1 text-base font-black text-white">{t("products.fields.originalPrice", "السعر قبل الخصم")}</h3>
+          <h3 className="m1-section-title mt-1 text-white">{t("products.fields.originalPrice", "السعر قبل الخصم")}</h3>
           <p className="mt-1 text-xs leading-5 text-zinc-500">{t("products.form.originalPriceHelp", "اختياري، ويظهر مشطوبًا فقط عندما يكون أكبر من سعر البيع الحالي.")}</p>
         </div>
         <label className="flex items-start gap-3 rounded-[20px] border border-white/8 bg-zinc-950/60 px-4 py-3">
@@ -435,11 +433,7 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-3xl border p-4 text-left transition ${
-        active
-          ? "border-primary/40 bg-primary/15 text-white shadow-lg shadow-primary/10"
-          : "border-white/8 bg-zinc-950/70 text-zinc-300 hover:border-white/16 hover:bg-zinc-950"
-      }`}
+      className={`rounded-3xl border p-4 text-left transition ${ active ? "border-primary/40 bg-primary/15 text-white shadow-lg shadow-primary/10" : "border-white/8 bg-zinc-950/70 text-zinc-300 hover:border-white/16 hover:bg-zinc-950" }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div>

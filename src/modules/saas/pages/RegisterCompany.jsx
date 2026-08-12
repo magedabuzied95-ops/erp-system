@@ -99,7 +99,7 @@ function RegisterCompany() {
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">بيانات الشركة</h3>
+          <h3 className="m1-section-title text-white">بيانات الشركة</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <Field label="اسم الشركة" value={companyName} onChange={setCompanyName} placeholder="Acme Retail" />
             <Field label="اسم المالك" value={ownerName} onChange={setOwnerName} placeholder="الاسم الكامل للمالك" />
@@ -144,7 +144,7 @@ function RegisterCompany() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Owner and staff accounts</h3>
+            <h3 className="m1-section-title text-white">Owner and staff accounts</h3>
             <div className="mt-4 space-y-3">
               <Card icon={<Crown className="h-4 w-4" />} title="Owner account" text="Full tenant access, billing ownership, subscription upgrades, and admin operations." />
               <Card icon={<Building2 className="h-4 w-4" />} title="Staff accounts" text="Assignable later through the users module and permission matrix." />

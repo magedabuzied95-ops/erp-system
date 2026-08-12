@@ -125,7 +125,7 @@ function Branches() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-5xl font-black text-gray-900 dark:text-white">
+          <h1 className="m1-display text-gray-900 dark:text-white">
             Branches
           </h1>
           <p className="mt-3 text-lg text-gray-500">
@@ -161,7 +161,7 @@ function Branches() {
 
       <div className="rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-800">
         <div className="mb-8">
-          <h2 className="text-3xl font-black dark:text-white">Create New Branch</h2>
+          <h2 className="m1-section-title dark:text-white">Create New Branch</h2>
           <p className="mt-2 text-gray-500">
             Saved branches are returned by GET /api/branches and used by employee forms.
           </p>
@@ -277,7 +277,7 @@ function Kpi({ label, value }) {
   return (
     <div className="rounded-2xl bg-white p-7 shadow-lg dark:bg-gray-800">
       <p className="text-gray-500">{label}</p>
-      <h2 className="mt-4 text-5xl font-black dark:text-white">{value}</h2>
+      <h2 className="m1-section-title mt-4 dark:text-white">{value}</h2>
     </div>
   );
 }

@@ -34,7 +34,7 @@ export function OverviewEmpty() {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-14 text-center">
       <Inbox className="h-8 w-8 text-[var(--text-tertiary)]" aria-hidden="true" />
-      <h2 className="mt-3 text-[15px] font-bold text-[var(--text)]">{t("overview.states.emptyTitle")}</h2>
+      <h2 className="m1-section-title mt-3 text-[15px] text-[var(--text)]">{t("overview.states.emptyTitle")}</h2>
       <p className="mt-1.5 max-w-sm text-[13px] leading-5 text-[var(--text-secondary)]">{t("overview.states.emptyBody")}</p>
     </div>
   );
@@ -48,7 +48,7 @@ export function OverviewError({ error, onRetry }) {
       className="flex flex-col items-center justify-center rounded-2xl border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-6 py-12 text-center"
     >
       <TriangleAlert className="h-8 w-8 text-[var(--danger)]" aria-hidden="true" />
-      <h2 className="mt-3 text-[15px] font-bold text-[var(--text)]">{t("overview.states.errorTitle")}</h2>
+      <h2 className="m1-section-title mt-3 text-[15px] text-[var(--text)]">{t("overview.states.errorTitle")}</h2>
       <p className="mt-1.5 max-w-md text-[13px] leading-5 text-[var(--text-secondary)]">{t("overview.states.errorBody")}</p>
       {error?.message ? (
         <p className="mt-2 max-w-md truncate text-[11px] text-[var(--text-tertiary)]" title={error.message}>
@@ -73,7 +73,7 @@ export function OverviewForbidden() {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-14 text-center">
       <Lock className="h-8 w-8 text-[var(--text-tertiary)]" aria-hidden="true" />
-      <h2 className="mt-3 text-[15px] font-bold text-[var(--text)]">{t("overview.states.restricted")}</h2>
+      <h2 className="m1-section-title mt-3 text-[15px] text-[var(--text)]">{t("overview.states.restricted")}</h2>
     </div>
   );
 }
@@ -115,11 +115,7 @@ export function OverviewWarnings({ warnings = [] }) {
   return (
     <section
       aria-label={t("overview.warnings.title")}
-      className={`rounded-xl border ${
-        severe
-          ? "border-[var(--warning)]/35 bg-[var(--warning-soft)]"
-          : "border-[var(--border)] bg-[var(--surface-soft)]"
-      }`}
+      className={`rounded-xl border ${ severe ? "border-[var(--warning)]/35 bg-[var(--warning-soft)]" : "border-[var(--border)] bg-[var(--surface-soft)]" }`}
     >
       <button
         type="button"
@@ -145,9 +141,7 @@ export function OverviewWarnings({ warnings = [] }) {
           {warnings.map((warning) => (
             <li
               key={warning.code}
-              className={`flex gap-2 text-[12px] leading-5 ${
-                CRITICAL_WARNINGS.has(warning.code) ? "text-[var(--text)]" : "text-[var(--text-secondary)]"
-              }`}
+              className={`flex gap-2 text-[12px] leading-5 ${ CRITICAL_WARNINGS.has(warning.code) ? "text-[var(--text)]" : "text-[var(--text-secondary)]" }`}
             >
               <span aria-hidden="true" className="text-[var(--text-tertiary)]">•</span>
               <span className="min-w-0">{message(warning)}</span>

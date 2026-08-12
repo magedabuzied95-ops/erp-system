@@ -550,7 +550,7 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
     <div className="flex items-start justify-between gap-2">
       <div>
         <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{subtitle}</div>
-        <h2 className="mt-1 text-base font-black leading-6 text-text">{title}</h2>
+        <h2 className="m1-section-title mt-1 text-text">{title}</h2>
       </div>
       {Icon ? <div className="manager-portal-card-icon rounded-2xl border border-border bg-surface-soft p-2 text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
     </div>
@@ -625,11 +625,7 @@ const Toggle = ({ label, checked, onChange }) => (
   <button
     type="button"
     onClick={() => onChange(!checked)}
-    className={`manager-portal-toggle flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${
-      checked
-        ? "border-emerald-200 bg-surface text-emerald-900 shadow-[var(--shadow-card)] dark:border-emerald-400/20 dark:text-emerald-100"
-        : "border-border bg-surface text-text"
-    }`}
+    className={`manager-portal-toggle flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${ checked ? "border-emerald-200 bg-surface text-emerald-900 shadow-[var(--shadow-card)] dark:border-emerald-400/20 dark:text-emerald-100" : "border-border bg-surface text-text" }`}
   >
     <span className="text-sm font-black leading-6">{label}</span>
     {/* The ON pill keeps its solid emerald status fill; only the OFF pill was a
@@ -1999,9 +1995,7 @@ export default function ManagerPortal() {
                 type="button"
                 data-testid={`sidebar-tab-${tab}`}
                 onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)}
-                className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition ${
-                  activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700"
-                }`}
+                className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition ${ activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700" }`}
               >
                 <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : tab === "inventory" ? "الجرد" : tab === "notifications" ? "إعدادات التنبيه" : "المزيد"}</span>
                 <ChevronRight className="h-4 w-4" />
@@ -2016,7 +2010,7 @@ export default function ManagerPortal() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-6 w-6 text-amber-600" />
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-black text-slate-950 dark:text-white">تعذر تحميل بعض البيانات</h2>
+                  <h2 className="m1-section-title text-slate-950 dark:text-white">تعذر تحميل بعض البيانات</h2>
                   <p className="mt-1 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{error}</p>
                   <button type="button" onClick={() => void loadAll()} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     <RefreshCw className="h-4 w-4" />
@@ -2049,7 +2043,7 @@ export default function ManagerPortal() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">بوابة المدير</div>
-                  <h1 className="mt-1 truncate text-lg font-black leading-6 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
+                  <h1 className="m1-page-title mt-1 truncate text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
                   <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 truncate">{portalText(me?.branch_name || "كل الفروع")}</span>
@@ -2076,7 +2070,7 @@ export default function ManagerPortal() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">بوابة المدير</div>
-                  <h1 className="mt-1 text-2xl font-black leading-8 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
+                  <h1 className="m1-page-title mt-1 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-300">
                     <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "كل الفروع")}</span>
                     <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "مدير")}</span>
@@ -2132,7 +2126,7 @@ export default function ManagerPortal() {
                   <Smartphone className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-black">بوابة المدير كتطبيق</h3>
+                  <h3 className="m1-section-title">بوابة المدير كتطبيق</h3>
                   <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
                     {isIosDevice()
                       ? "على iPhone: اضغط مشاركة ثم أضف إلى الشاشة الرئيسية، ثم افتح بوابة المدير من الأيقونة."
@@ -2171,7 +2165,7 @@ export default function ManagerPortal() {
                         <Bell className="h-3.5 w-3.5" />
                         مباشر
                       </div>
-                      <h2 id="manager-notifications-title" className="mt-3 text-2xl font-black tracking-tight text-white">
+                      <h2 id="manager-notifications-title" className="m1-section-title mt-3 text-white">
                         مركز الإشعارات
                       </h2>
                       <p className="mt-1 text-sm leading-6 text-slate-300">
@@ -2226,11 +2220,7 @@ export default function ManagerPortal() {
                           key={item.key}
                           type="button"
                           onClick={() => setNotificationCategory(item.key)}
-                          className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${
-                            active
-                              ? "border-slate-950 bg-slate-950 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950"
-                          }`}
+                          className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${ active ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950" }`}
                         >
                           <Icon className="h-3.5 w-3.5" />
                           <span>{item.label}</span>
@@ -2254,11 +2244,7 @@ export default function ManagerPortal() {
                         return (
                           <article
                             key={item.id}
-                            className={`overflow-hidden rounded-3xl border p-4 shadow-sm transition ${
-                              unread
-                              ? "border-primary bg-[linear-gradient(180deg,#ffffff,#f8fafc)] ring-1 ring-primary dark:border-primary/20 dark:bg-white/[0.03] dark:ring-primary/10"
-                                : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] dark:border-white/10 dark:bg-white/[0.02]"
-                            }`}
+                            className={`overflow-hidden rounded-3xl border p-4 shadow-sm transition ${ unread ? "border-primary bg-[linear-gradient(180deg,#ffffff,#f8fafc)] ring-1 ring-primary dark:border-primary/20 dark:bg-white/[0.03] dark:ring-primary/10" : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] dark:border-white/10 dark:bg-white/[0.02]" }`}
                           >
                             <button
                               type="button"
@@ -2271,7 +2257,7 @@ export default function ManagerPortal() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <h3 className="truncate text-sm font-black text-slate-950 dark:text-white">{item.title || "إشعار"}</h3>
+                                    <h3 className="m1-section-title truncate text-slate-950 dark:text-white">{item.title || "إشعار"}</h3>
                                     <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                                       {item.message || item.body || "لا توجد تفاصيل إضافية."}
                                     </p>
@@ -2320,7 +2306,7 @@ export default function ManagerPortal() {
                       <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-slate-500 ring-1 ring-slate-200 dark:bg-white/[0.03] dark:text-slate-300 dark:ring-white/10">
                         <Bell className="h-8 w-8" />
                       </div>
-                      <h3 className="mt-5 text-lg font-black text-slate-950 dark:text-white">لا توجد إشعارات</h3>
+                      <h3 className="m1-section-title mt-5 text-slate-950 dark:text-white">لا توجد إشعارات</h3>
                       <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
                         ستظهر رسائل الشات وتحديثات المهام والمبيعات وتنبيهات المخزون فور وصولها.
                       </p>
@@ -2487,15 +2473,7 @@ export default function ManagerPortal() {
                         </div>
                         <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-800">
                           <span
-                            className={`h-2 w-2 rounded-full ${
-                              employee.attendance_status === "checked_in"
-                                ? "bg-emerald-500"
-                                : employee.attendance_status === "online"
-                                  ? "bg-primary"
-                                  : employee.attendance_status === "late"
-                                    ? "bg-amber-500"
-                                    : "bg-slate-400"
-                            }`}
+                            className={`h-2 w-2 rounded-full ${ employee.attendance_status === "checked_in" ? "bg-emerald-500" : employee.attendance_status === "online" ? "bg-primary" : employee.attendance_status === "late" ? "bg-amber-500" : "bg-slate-400" }`}
                           />
                           {portalText(employee.attendance_status || "absent")}
                         </div>
@@ -3319,7 +3297,7 @@ export default function ManagerPortal() {
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-950 px-4 py-4 text-white">
               <div>
                 <div className="text-xs font-black text-slate-300">تفاصيل الفاتورة</div>
-                <h2 className="mt-1 text-xl font-black text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
+                <h2 className="m1-section-title mt-1 text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
               </div>
               <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white">
                 <X className="h-5 w-5" />

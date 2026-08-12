@@ -470,7 +470,7 @@ function InventoryDashboard() {
           <div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-amber-200" />
-              <h3 className="text-xl font-black text-white">{t("inventory.purchaseAlerts.title")}</h3>
+              <h3 className="m1-section-title text-white">{t("inventory.purchaseAlerts.title")}</h3>
             </div>
             <p className="mt-1 text-sm text-zinc-400">{t("inventory.purchaseAlerts.subtitle")}</p>
           </div>
@@ -592,9 +592,7 @@ function InventoryDashboard() {
                     return (
                       <div
                         key={String(alert.scope_key)}
-                        className={`relative rounded-2xl border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${
-                          selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
-                        }`}
+                        className={`relative rounded-2xl border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]" }`}
                       >
                         <button
                           type="button"
@@ -710,7 +708,7 @@ function InventoryDashboard() {
                 ) : filtered.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
                     <ShoppingBag className="mx-auto h-12 w-12 text-zinc-500" />
-                    <h3 className="mt-4 text-xl font-black text-white">{t("inventory.empty.rowsTitle")}</h3>
+                    <h3 className="m1-section-title mt-4 text-white">{t("inventory.empty.rowsTitle")}</h3>
                     <p className="mt-2 text-sm text-zinc-400">{t("inventory.empty.rowsSubtitle")}</p>
                   </div>
                 ) : (
@@ -743,7 +741,7 @@ function InventoryDashboard() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">{t("inventory.empty.warehouseTitle")}</h3>
+            <h3 className="m1-section-title text-white">{t("inventory.empty.warehouseTitle")}</h3>
             <div className="mt-4 space-y-3">
               {warehouses.map((warehouse) => (
                 <div key={String(warehouse.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -760,7 +758,7 @@ function InventoryDashboard() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">{t("inventory.empty.timelineTitle")}</h3>
+            <h3 className="m1-section-title text-white">{t("inventory.empty.timelineTitle")}</h3>
             <div className="mt-4 space-y-3">
               {[...movements].slice(0, 5).map((movement, index) => (
                 <div key={`${movement.id || index}`} className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -779,7 +777,7 @@ function InventoryDashboard() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-xl font-black text-white">{t("inventory.alerts.title")}</h3>
+                <h3 className="m1-section-title text-white">{t("inventory.alerts.title")}</h3>
                 <p className="mt-1 text-sm text-zinc-400">{t("inventory.alerts.subtitle")}</p>
               </div>
               {lowStockAlertCards.length > 0 ? (
@@ -871,9 +869,7 @@ function InventoryDashboard() {
                                   <div className="font-bold text-zinc-200"><InlineLtrValue>{formatCurrency(Number(row.stock || 0) * Number(row.price || 0))}</InlineLtrValue></div>
                                   <div>
                                     <span
-                                      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${
-                                        lowStockStatusPillClasses[rowStatus.tone] || lowStockStatusPillClasses.warning
-                                      }`}
+                                      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${ lowStockStatusPillClasses[rowStatus.tone] || lowStockStatusPillClasses.warning }`}
                                     >
                                       {rowStatus.label}
                                     </span>

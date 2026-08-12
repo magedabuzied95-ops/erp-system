@@ -38,11 +38,7 @@ export default function ProductRankings({ rankings, active, onChange, showProfit
             type="button"
             onClick={() => onChange(key)}
             aria-pressed={current === key}
-            className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${
-              current === key
-                ? "bg-[var(--primary)] text-white"
-                : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ current === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
           >
             {t(`salesAnalytics.rankings.${key}`)}
           </button>
@@ -71,11 +67,7 @@ export default function ProductRankings({ rankings, active, onChange, showProfit
                   {/* The leader gets a filled badge; the rest keep a plain numeral, so
                       rank reads at a glance without turning the list into a podium. */}
                   <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[12px] font-extrabold tabular-nums ${
-                      index === 0
-                        ? "bg-[var(--primary)] text-white"
-                        : "bg-[var(--surface-soft)] text-[var(--text-tertiary)]"
-                    }`}
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[12px] font-extrabold tabular-nums ${ index === 0 ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-soft)] text-[var(--text-tertiary)]" }`}
                   >
                     {index + 1}
                   </span>

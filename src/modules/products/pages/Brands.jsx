@@ -207,7 +207,7 @@ function Brands() {
             <BadgeCheck className="text-primary" />
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.brands.editor")}</p>
-              <h2 className="mt-1 text-2xl font-black text-white">{editingId ? t("products.brands.editBrand") : t("products.brands.addBrand")}</h2>
+              <h2 className="m1-section-title mt-1 text-white">{editingId ? t("products.brands.editBrand") : t("products.brands.addBrand")}</h2>
             </div>
           </div>
 
@@ -309,7 +309,7 @@ function Brands() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-black text-white">{t("products.brands.registry")}</h2>
+              <h2 className="m1-section-title text-white">{t("products.brands.registry")}</h2>
               <p className="mt-1 text-sm text-zinc-500">{t("products.brands.registryDescription")}</p>
             </div>
             <div className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
@@ -330,9 +330,7 @@ function Brands() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") handleEdit(item);
                   }}
-                  className={`rounded-[30px] border p-5 text-left transition hover:bg-white/8 ${
-                    isEditing ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/8 bg-white/5"
-                  }`}
+                  className={`rounded-[30px] border p-5 text-left transition hover:bg-white/8 ${ isEditing ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/8 bg-white/5" }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-4">
@@ -345,7 +343,7 @@ function Brands() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.selected.brand")}</p>
-                        <h3 className="mt-1 truncate text-xl font-black text-white">{item.name}</h3>
+                        <h3 className="m1-section-title mt-1 truncate text-white">{item.name}</h3>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -364,9 +362,7 @@ function Brands() {
 
                   <div className="mt-4 flex items-center justify-between">
                     <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                        item.status === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-500/15 text-zinc-300"
-                      }`}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${ item.status === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-500/15 text-zinc-300" }`}
                     >
                       {item.status}
                     </span>

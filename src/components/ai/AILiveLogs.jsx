@@ -71,7 +71,7 @@ export default function AILiveLogs({ tenantId, headers, enabled = true }) {
     <section className="rounded-2xl border border-emerald-300/15 bg-slate-950/80 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-[0.14em] text-emerald-100">Live AI Logs</h2>
+          <h2 className="m1-section-title uppercase tracking-[0.14em] text-emerald-100">Live AI Logs</h2>
           <p className="text-xs font-bold text-slate-500">Operational event stream, kept in memory only.</p>
         </div>
         <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${enabled ? "border-emerald-300/15 bg-emerald-300/10 text-emerald-100" : "border-white/10 bg-white/[0.055] text-slate-400"}`}>

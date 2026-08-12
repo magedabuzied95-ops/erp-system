@@ -152,9 +152,7 @@ export default function SizeIntelligence({ data, productTypes, selectedType, onS
                       <span className="text-[11px] text-[var(--text-tertiary)]">—</span>
                     ) : (
                       <span
-                        className={`inline-block rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums 2xl:text-[12px] ${
-                          strong ? "bg-[var(--success-soft)] text-[var(--success)]" : "text-[var(--text-tertiary)]"
-                        }`}
+                        className={`inline-block rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums 2xl:text-[12px] ${ strong ? "bg-[var(--success-soft)] text-[var(--success)]" : "text-[var(--text-tertiary)]" }`}
                         title={t("salesAnalytics.sizes.ratioHint")}
                       >
                         {`${Math.round(ratio * 100)}%`}
@@ -188,11 +186,7 @@ function TypePicker({ types = [], selected, onSelect, language }) {
           // The stored value drives the selection; only the caption is translated.
           onClick={() => onSelect(type === selected ? "" : type)}
           aria-pressed={selected === type}
-          className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${
-            selected === type
-              ? "bg-[var(--primary)] text-white"
-              : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-          }`}
+          className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ selected === type ? "bg-[var(--primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
         >
           {dimensionLabel("product_type", type, language)}
         </button>

@@ -3572,7 +3572,7 @@ function ProductEdit() {
           <section className="rounded-[30px] border border-white/8 bg-zinc-950/80 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex items-center gap-3">
               <Sparkles className="h-5 w-5 text-emerald-400" />
-              <h2 className="text-xl font-black text-white">{t("products.editor.basicInformation", "Basic information")}</h2>
+              <h2 className="m1-section-title text-white">{t("products.editor.basicInformation", "Basic information")}</h2>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4">
@@ -4155,7 +4155,7 @@ function ProductEdit() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkTools", "Bulk Tools")}</p>
-                <h2 className="mt-1 text-xl font-black text-white">{t("products.editor.bulkToolsHelp", "Add sizes and setup stock faster")}</h2>
+                <h2 className="m1-section-title mt-1 text-white">{t("products.editor.bulkToolsHelp", "Add sizes and setup stock faster")}</h2>
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-zinc-400">
                   Enter comma-separated sizes, ranges, and planning stock shortcuts. Existing saved variants keep their IDs.
                 </p>
@@ -4243,7 +4243,7 @@ function ProductEdit() {
           <section className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-white">{t("products.editor.variantColorGroups", "Variant color groups")}</h2>
+                <h2 className="m1-section-title text-white">{t("products.editor.variantColorGroups", "Variant color groups")}</h2>
                 <p className="mt-1 text-sm text-zinc-400">
                   Each color owns one image. Every size row under that color becomes one variant.
                 </p>
@@ -4313,11 +4313,7 @@ function ProductEdit() {
                 const isMissingImageHighlight = highlightMissingColorKeys.has(normalizeColorKey(group.color));
 
                 return (
-                <div key={group.id} className={`overflow-visible rounded-[14px] border bg-white/5 transition ${
-                  isMissingImageHighlight
-                    ? "border-red-300/60 shadow-[0_0_0_1px_rgba(252,165,165,0.25),0_0_28px_rgba(239,68,68,0.18)]"
-                    : "border-white/8"
-                }`}>
+                <div key={group.id} className={`overflow-visible rounded-[14px] border bg-white/5 transition ${ isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_rgba(252,165,165,0.25),0_0_28px_rgba(239,68,68,0.18)]" : "border-white/8" }`}>
                   <div
                     role="button"
                     tabIndex={0}
@@ -4345,7 +4341,7 @@ function ProductEdit() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <h3 className="truncate text-base font-black text-white">{group.color || `Color group ${groupIndex + 1}`}</h3>
+                        <h3 className="m1-section-title truncate text-white">{group.color || `Color group ${groupIndex + 1}`}</h3>
                         {getGroupManufacturerSummary(group) ? (
                           <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
                             المصنع: {getGroupManufacturerSummary(group)}

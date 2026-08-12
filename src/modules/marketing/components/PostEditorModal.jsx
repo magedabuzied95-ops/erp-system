@@ -945,9 +945,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
                 tabIndex={0}
                 onClick={() => selectStorySlide(index)}
                 onKeyDown={(event) => handleSlideKeyDown(event, index)}
-                className={`group overflow-hidden rounded-2xl border p-1 text-left transition ${
-                  index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25"
-                }`}
+                className={`group overflow-hidden rounded-2xl border p-1 text-left transition ${ index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25" }`}
               >
                 <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} compact />
                 <div className="mt-2 truncate px-1 pb-1 text-[11px] font-black text-slate-200">Slide {index + 1}</div>
@@ -1189,7 +1187,7 @@ export default function PostEditorModal({
               <Megaphone className="h-4 w-4" />
               {title || t("marketing.social.editorTitle")}
             </div>
-            <h3 className="mt-1 truncate text-xl font-black text-white md:text-2xl">{form.title || t("marketing.posts.untitled")}</h3>
+            <h3 className="m1-section-title mt-1 truncate text-white">{form.title || t("marketing.posts.untitled")}</h3>
           </div>
           <button
             type="button"
@@ -1309,9 +1307,7 @@ export default function PostEditorModal({
                       key={url}
                       type="button"
                       onClick={() => selectMainImage(url)}
-                      className={`group relative aspect-square overflow-hidden rounded-2xl border transition ${
-                        form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]"
-                      }`}
+                      className={`group relative aspect-square overflow-hidden rounded-2xl border transition ${ form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]" }`}
                     >
                       <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
                     </button>
@@ -1407,9 +1403,7 @@ export default function PostEditorModal({
                   key={tab.id}
                   type="button"
                   onClick={() => setActivePreview(tab.id)}
-                  className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition ${
-                    activePreview === tab.id ? "bg-[var(--primary)] text-[var(--primary-contrast)] shadow-lg" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
-                  }`}
+                  className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition ${ activePreview === tab.id ? "bg-[var(--primary)] text-[var(--primary-contrast)] shadow-lg" : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]" }`}
                 >
                   {t(tab.labelKey)}
                 </button>

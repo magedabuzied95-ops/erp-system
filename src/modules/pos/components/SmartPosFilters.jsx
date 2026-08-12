@@ -12,15 +12,7 @@ function CategoryPill({ active, onClick, name, count, icon, color }) {
       onClick={onClick}
       disabled={disabled}
       style={!active && !disabled && color ? { borderColor: `${color}66`, color } : undefined}
-      className={`m1-smart-filter-pill inline-flex min-h-8 max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold leading-normal transition duration-200 sm:text-xs ${
-        active ? "is-active" : ""
-      } ${disabled ? "is-disabled" : ""} ${
-        active
-          ? "border-emerald-200/60 bg-gradient-to-r from-emerald-300 via-emerald-400 to-lime-300 text-emerald-950 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
-          : disabled
-            ? "cursor-not-allowed border-white/5 bg-white/[0.02] text-zinc-600"
-            : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
-      }`}
+      className={`m1-smart-filter-pill inline-flex min-h-8 max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold leading-normal transition duration-200 sm:text-xs ${ active ? "is-active" : "" } ${disabled ? "is-disabled" : ""} ${ active ? "border-emerald-200/60 bg-gradient-to-r from-emerald-300 via-emerald-400 to-lime-300 text-emerald-950 shadow-[0_0_10px_rgba(16,185,129,0.16)]" : disabled ? "cursor-not-allowed border-white/5 bg-white/[0.02] text-zinc-600" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white" }`}
     >
       {icon ? <span className="m1-smart-filter-icon shrink-0 text-[10px] leading-none sm:text-[11px]">{icon}</span> : null}
       <span className="m1-smart-filter-pill-name min-w-0 truncate">{name}</span>
@@ -253,11 +245,7 @@ function SmartPosFilters({
             <button
               type="button"
               onClick={onReset}
-              className={`inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-bold transition ${
-                activeSmartFilterCount > 0
-                  ? "border-amber-200/30 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]"
-                  : "border-white/10 bg-white/[0.03] text-zinc-500"
-              }`}
+              className={`inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-bold transition ${ activeSmartFilterCount > 0 ? "border-amber-200/30 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]" : "border-white/10 bg-white/[0.03] text-zinc-500" }`}
             >
               {copy.reset}
             </button>

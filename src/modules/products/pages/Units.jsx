@@ -58,7 +58,7 @@ function Units() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
           <div className="flex items-center gap-3">
             <Boxes className="text-amber-400" />
-            <h2 className="text-2xl font-black text-white">{t("products.units.editor")}</h2>
+            <h2 className="m1-section-title text-white">{t("products.units.editor")}</h2>
           </div>
 
           <div className="mt-5 space-y-4">
@@ -108,7 +108,7 @@ function Units() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-black text-white">{t("products.units.management")}</h2>
+              <h2 className="m1-section-title text-white">{t("products.units.management")}</h2>
               <p className="mt-1 text-sm text-zinc-500">{t("products.units.managementDescription")}</p>
             </div>
             <div className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
@@ -117,7 +117,7 @@ function Units() {
           </div>
 
           <div className="m1-table-container mt-6 overflow-x-auto">
-            <table className="m1-table m1-table--compact m1-table--separate min-w-full border-separate ">
+            <table className="m1-table m1-table--compact m1-table--separate min-w-full border-separate">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.22em] text-zinc-500">
                   <th className="px-4 py-2">{t("products.units.unit")}</th>
@@ -133,10 +133,7 @@ function Units() {
                     <td className="px-4 py-4 text-zinc-300">{item.symbol}</td>
                     <td className="px-4 py-4">
                       <span
-                        className={`
-                          inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
-                          ${item.status === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-500/15 text-zinc-300"}
-                        `}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${item.status === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-500/15 text-zinc-300"}`}
                       >
                         {item.status}
                       </span>

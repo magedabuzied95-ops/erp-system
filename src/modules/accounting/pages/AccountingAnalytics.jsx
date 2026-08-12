@@ -63,7 +63,7 @@ export default function AccountingAnalytics() {
                 <BarChart3 className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="font-black text-[var(--text)]">{isArabic ? "مركز ذكاء الأعمال" : "Business intelligence center"}</h2>
+                <h2 className="m1-section-title text-[var(--text)]">{isArabic ? "مركز ذكاء الأعمال" : "Business intelligence center"}</h2>
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   {isArabic ? "اتصال للقراءة فقط · فلترة آمنة حسب الشركة" : "Read-only connection · securely filtered by tenant"}
                 </p>
@@ -99,7 +99,7 @@ export default function AccountingAnalytics() {
             <div className="grid min-h-[520px] place-items-center p-6">
               <div className="max-w-xl rounded-3xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
                 <BarChart3 className="mx-auto h-12 w-12 text-[var(--primary)]" />
-                <h3 className="mt-4 text-xl font-black text-[var(--text)]">
+                <h3 className="m1-section-title mt-4 text-[var(--text)]">
                   {isArabic ? "التقارير الأساسية جاهزة الآن" : "Core reports are ready now"}
                 </h3>
                 <p className="mt-3 text-sm leading-7 text-[var(--muted)]">

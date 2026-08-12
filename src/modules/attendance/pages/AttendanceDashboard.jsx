@@ -116,7 +116,7 @@ export default function AttendanceDashboard() {
                 <CalendarDays className="h-3.5 w-3.5" />
                 لوحة الحضور والانصراف
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">ملخص حضور اليوم</h1>
+              <h1 className="m1-display">ملخص حضور اليوم</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
                 متابعة مباشرة للحضور والانصراف، والحالة الحالية، وعمليات تسجيل الحضور المفتوحة، والتأخرات في مكان واحد.
               </p>
@@ -149,7 +149,7 @@ export default function AttendanceDashboard() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">جدول الموظفين المباشر</h2>
+              <h2 className="m1-section-title text-white">جدول الموظفين المباشر</h2>
               <p className="text-sm text-slate-400">آخر القراءات ليوم {payload?.date || new Date().toISOString().slice(0, 10)}</p>
             </div>
             <div className="text-sm text-slate-400">{summary.totalWorkedHours ? `ساعات العمل ${summary.totalWorkedHours}` : ""}</div>

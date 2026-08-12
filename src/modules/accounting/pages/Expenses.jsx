@@ -775,9 +775,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
                         key={`${item.type}-${item.category || item.en}`}
                         type="button"
                         onClick={() => selectQuickExpenseCategory(item)}
-                        className={`inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-black transition ${
-                          active ? "border-emerald-300/50 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-white/20 hover:bg-white/[0.07]"
-                        }`}
+                        className={`inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-black transition ${ active ? "border-emerald-300/50 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-white/20 hover:bg-white/[0.07]" }`}
                       >
                         <Icon className="h-4 w-4" />
                         {language === "ar" ? item.ar : item.en}
@@ -1157,13 +1155,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder, emptyT
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => commitOption(option)}
-                  className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm transition ${
-                    selectedOption
-                      ? "border border-emerald-300/25 bg-emerald-400/15 text-emerald-50 shadow-[0_0_18px_rgba(52,211,153,0.10)]"
-                      : activeOption
-                        ? "bg-emerald-400/10 text-white"
-                        : "text-zinc-200 hover:bg-emerald-400/10 hover:text-white"
-                  } ${rtl ? "flex-row-reverse text-right" : "text-left"}`}
+                  className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm transition ${ selectedOption ? "border border-emerald-300/25 bg-emerald-400/15 text-emerald-50 shadow-[0_0_18px_rgba(52,211,153,0.10)]" : activeOption ? "bg-emerald-400/10 text-white" : "text-zinc-200 hover:bg-emerald-400/10 hover:text-white" } ${rtl ? "flex-row-reverse text-right" : "text-left"}`}
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-emerald-300/20 bg-emerald-300/10 text-[11px] font-black text-emerald-100">
                     {option.initials || employeeInitials(option.label)}
@@ -1195,7 +1187,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder, emptyT
 function Panel({ title, children }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-      <h3 className="text-lg font-black text-white">{title}</h3>
+      <h3 className="m1-section-title text-white">{title}</h3>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -1352,7 +1344,7 @@ function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100"><AlertTriangle className="h-5 w-5" /></span>
           <div>
-            <h3 className="text-lg font-black text-white">تأكيد الإجراء</h3>
+            <h3 className="m1-section-title text-white">تأكيد الإجراء</h3>
             <p className="mt-1 text-sm text-zinc-400">This will {statusLabel(t, language, action.type === "paid" ? "paid" : action.type)} expense #{action.id}.</p>
           </div>
         </div>

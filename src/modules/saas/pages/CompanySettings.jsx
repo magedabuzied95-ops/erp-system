@@ -59,7 +59,7 @@ function CompanySettings() {
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">Profile settings</h3>
+          <h3 className="m1-section-title text-white">Profile settings</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <Field label="Company name" value={companyName} onChange={setCompanyName} icon={<Building2 className="h-4 w-4" />} />
             <Field label="Currency" value={currency} onChange={setCurrency} icon={<FileText className="h-4 w-4" />} />
@@ -84,7 +84,7 @@ function CompanySettings() {
           <Section title="Branch settings" icon={<Warehouse className="h-4 w-4" />} value={branchNames} onChange={setBranchNames} placeholder="Main, North, Warehouse..." />
           <Section title="POS settings" icon={<ShipWheel className="h-4 w-4" />} value={posReceipt} onChange={setPosReceipt} placeholder="Receipt footer / POS note" />
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Company logo placeholder</h3>
+            <h3 className="m1-section-title text-white">Company logo placeholder</h3>
             <div className="mt-4 flex h-44 items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/5 text-zinc-500">
               Upload logo placeholder
             </div>
@@ -110,7 +110,7 @@ function Field({ label, value, onChange, icon }) {
 function Section({ title, icon, value, onChange, placeholder }) {
   return (
     <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-      <h3 className="flex items-center gap-2 text-xl font-black text-white">
+      <h3 className="m1-section-title flex items-center gap-2 text-white">
         {icon}
         {title}
       </h3>

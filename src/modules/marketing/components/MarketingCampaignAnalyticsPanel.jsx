@@ -251,7 +251,7 @@ export default function MarketingCampaignAnalyticsPanel({
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-white md:text-2xl">Campaign Analytics</h2>
+            <h2 className="m1-section-title text-white">Campaign Analytics</h2>
             <p className="text-base text-slate-300">Overview, timeline, history, and top posts.</p>
           </div>
         </div>
@@ -390,7 +390,7 @@ export default function MarketingCampaignAnalyticsPanel({
               <ImageIcon className="h-3.5 w-3.5" />
               Published content
             </div>
-            <h3 className="text-2xl font-black text-white">Post History</h3>
+            <h3 className="m1-section-title text-white">Post History</h3>
             <p className="mt-1 text-sm leading-6 text-slate-400">Creative, caption, first comment, and publishing status in one place.</p>
           </div>
           <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-300">{visiblePosts.length} posts</div>
@@ -464,7 +464,7 @@ export default function MarketingCampaignAnalyticsPanel({
             </div>
 
             <div className="m1-table-container hidden overflow-x-auto md:block">
-              <table className="m1-table m1-table--compact m1-table--separate min-w-[1280px] table-fixed border-separate ">
+              <table className="m1-table m1-table--compact m1-table--separate min-w-[1280px] table-fixed border-separate">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
                     <th className="w-[14%] px-3">Creative</th>

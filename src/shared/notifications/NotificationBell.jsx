@@ -149,7 +149,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-black tracking-tight">{safeNotification.title || "إشعار"}</h3>
+              <h3 className="m1-section-title truncate">{safeNotification.title || "إشعار"}</h3>
               <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 {safeNotification.message || "لا توجد تفاصيل إضافية متاحة."}
               </p>
@@ -293,7 +293,7 @@ export default function NotificationBell() {
                     <Sparkles className="h-3.5 w-3.5" />
                     مباشر
                   </div>
-                  <h2 id="notifications-drawer-title" className="mt-3 text-2xl font-black tracking-tight">
+                  <h2 id="notifications-drawer-title" className="m1-section-title mt-3">
                     الإشعارات
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -335,7 +335,7 @@ export default function NotificationBell() {
               {error ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-center dark:border-rose-400/25 dark:bg-rose-500/10">
                   <AlertTriangle className="mx-auto h-8 w-8 text-rose-600 dark:text-rose-200" />
-                  <h3 className="mt-3 text-sm font-black">تعذر تحميل الإشعارات</h3>
+                  <h3 className="m1-section-title mt-3">تعذر تحميل الإشعارات</h3>
                   <p className="mt-2 text-sm text-rose-700 dark:text-rose-100">{error}</p>
                   <button
                     type="button"
@@ -355,7 +355,7 @@ export default function NotificationBell() {
                     return (
                       <section key={group} className="space-y-3">
                         <div className="sticky top-0 z-10 -mx-1 flex items-center justify-between bg-slate-50/92 px-1 py-1 backdrop-blur dark:bg-[#07111f]/92">
-                          <h3 className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{group}</h3>
+                          <h3 className="m1-section-title uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{group}</h3>
                           <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">
                             {items.length}
                           </span>
@@ -372,7 +372,7 @@ export default function NotificationBell() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                     <Inbox className="h-8 w-8" />
                   </div>
-                  <h3 className="mt-5 text-lg font-black">لا توجد إشعارات</h3>
+                  <h3 className="m1-section-title mt-5">لا توجد إشعارات</h3>
                   <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
                     ستظهر هنا مهام الفريق والتنبيهات التشغيلية فور وصولها.
                   </p>

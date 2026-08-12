@@ -150,7 +150,7 @@ function StockTransfers() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">سجل التحويلات</h3>
+            <h3 className="m1-section-title text-white">سجل التحويلات</h3>
             <div className="mt-4 space-y-3">
               {loading ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">جارٍ تحميل المخازن...</div>
@@ -176,7 +176,7 @@ function StockTransfers() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">تحويل المخزون بين المخازن</h3>
+            <h3 className="m1-section-title text-white">تحويل المخزون بين المخازن</h3>
             <p className="mt-3 text-sm text-zinc-400">
               تحافظ هذه الصفحة على سير العمل حتى عندما تكون بيانات التحويل في الخلفية غير مكتملة. يتم حفظ السجل محليًا، ويُستخدم مسار التحويل المباشر عندما يكون متاحًا.
             </p>

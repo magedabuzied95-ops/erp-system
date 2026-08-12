@@ -87,9 +87,7 @@ function PublisherPlatformCard({ platform }) {
   const disabled = Boolean(platform.disabled);
   return (
     <div
-      className={`rounded-3xl border p-4 shadow-lg shadow-black/10 ${
-        disabled ? "cursor-not-allowed border-white/10 bg-white/[0.03] opacity-70" : "border-white/10 bg-white/[0.05]"
-      }`}
+      className={`rounded-3xl border p-4 shadow-lg shadow-black/10 ${ disabled ? "cursor-not-allowed border-white/10 bg-white/[0.03] opacity-70" : "border-white/10 bg-white/[0.05]" }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -237,7 +235,7 @@ export default function SocialPosts() {
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("marketing.socialHistory.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.socialHistory.title")}</h1>
+              <h1 className="m1-display">{t("marketing.socialHistory.title")}</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.socialHistory.subtitle")}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">

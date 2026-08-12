@@ -182,7 +182,7 @@ export default function AiAgentSettings() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Agent Control Center</div>
-              <h1 className="mt-3 text-3xl font-black md:text-4xl">Sales Agent Settings</h1>
+              <h1 className="m1-display mt-3">Sales Agent Settings</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Tenant-scoped controls for tone, sales rules, follow-ups, handoff triggers, and staff suggested replies.</p>
             </div>
             <div className="flex flex-wrap gap-2">

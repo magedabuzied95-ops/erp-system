@@ -53,7 +53,7 @@ export const CommandCenterDashboard = memo(function CommandCenterDashboard({
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">Command Center</div>
-            <h2 className="mt-1 text-2xl font-black text-white">Live operations cockpit</h2>
+            <h2 className="m1-section-title mt-1 text-white">Live operations cockpit</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-400">
               Realtime sales, storefront, AI, inventory, staff, branch, and alert awareness in one monitor-ready control surface.
             </p>

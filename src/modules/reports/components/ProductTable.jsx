@@ -76,9 +76,7 @@ export default function ProductTable({ data, pagination, sort, showProfit, showC
                         type="button"
                         onClick={() => onSort(column.key, sort.key === column.key && sort.direction === "desc" ? "asc" : "desc")}
                         aria-label={column.label}
-                        className={`inline-flex items-center gap-1 rounded transition hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${
-                          sort.key === column.key ? "text-[var(--primary)]" : ""
-                        }`}
+                        className={`inline-flex items-center gap-1 rounded transition hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${ sort.key === column.key ? "text-[var(--primary)]" : "" }`}
                       >
                         {column.label}
                         {sort.key === column.key ? (

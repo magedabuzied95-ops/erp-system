@@ -324,9 +324,7 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
           </div>
         ) : null}
 
-        <div className={`pos-product-price mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${
-          hasPrice ? "border-emerald-300/20 bg-emerald-950/20" : "border-amber-300/30 bg-amber-500/10"
-        }`}>
+        <div className={`pos-product-price mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${ hasPrice ? "border-emerald-300/20 bg-emerald-950/20" : "border-amber-300/30 bg-amber-500/10" }`}>
           <div className={`pos-product-price-label truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-emerald-200/80" : "text-amber-200"}`}>
             {saleBadge || t("pos.productGrid.price")}
           </div>

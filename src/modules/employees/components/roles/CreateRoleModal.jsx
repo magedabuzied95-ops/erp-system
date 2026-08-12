@@ -41,7 +41,7 @@ export default function CreateRoleModal({
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md">
 
-        <h2 className="text-2xl font-bold text-white mb-6">
+        <h2 className="m1-section-title text-white mb-6">
 
           Create Role
 

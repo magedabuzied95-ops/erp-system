@@ -25,7 +25,7 @@ export default function Sidebar() {
     <aside className="flex h-screen w-[clamp(260px,18vw,340px)] flex-col border-r border-[var(--border)] bg-[var(--bg)] p-5 shadow-2xl shadow-[var(--shadow)]">
       <div>
         <div className="theme-card mb-6 bg-[var(--surface)] p-5">
-          <h1 className="text-3xl font-black tracking-tight text-[var(--text)]">ERP PRO</h1>
+          <h1 className="m1-page-title text-[var(--text)]">ERP PRO</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">{t("common.enterpriseDashboard")}</p>
         </div>
 

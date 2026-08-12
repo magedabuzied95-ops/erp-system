@@ -1266,7 +1266,7 @@ function AttendancePanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
-          <h3 className="mt-1 text-xl font-black leading-7 md:text-2xl">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
+          <h3 className="m1-section-title mt-1">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
       </div>
@@ -3416,15 +3416,7 @@ export default function EmployeePayrollPortal() {
                     key={key}
                     type="button"
                     onClick={() => setActiveTab(key)}
-                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-2xl border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${
-                      tone === "emerald"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : tone === "amber"
-                          ? "border-amber-200 bg-amber-50 text-amber-700"
-                          : tone === "sky"
-                            ? "border-primary/30 bg-primary-subtle text-primary"
-                            : "border-orange-200 bg-orange-50 text-orange-700"
-                    }`}
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-2xl border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${ tone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-700" : tone === "sky" ? "border-primary/30 bg-primary-subtle text-primary" : "border-orange-200 bg-orange-50 text-orange-700" }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{label}</span>
@@ -3460,7 +3452,7 @@ export default function EmployeePayrollPortal() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">Sales Opportunities</div>
-                    <h2 className="mt-1 text-lg font-black leading-7">فرص البيع اليوم</h2>
+                    <h2 className="m1-section-title mt-1">فرص البيع اليوم</h2>
                     <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.</p>
                   </div>
                   <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
@@ -3559,7 +3551,7 @@ export default function EmployeePayrollPortal() {
                     <Smartphone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black">بوابة الموظف كتطبيق</h3>
+                    <h3 className="m1-section-title">بوابة الموظف كتطبيق</h3>
                     <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">
                       {isIosDevice()
                         ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
@@ -3599,7 +3591,7 @@ export default function EmployeePayrollPortal() {
             {activeTab === "notifications" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-sm font-black text-slate-950">
+                  <h3 className="m1-section-title text-slate-950">
                     {notificationsReady ? "الإشعارات مفعلة" : "فعّل الإشعارات لاستقبال رسائل الإدارة والتنبيهات"}
                   </h3>
                   <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
@@ -3626,7 +3618,7 @@ export default function EmployeePayrollPortal() {
             {activeTab === "notifications" ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-base font-black">{ui("notificationsTab")}</h3>
+                  <h3 className="m1-section-title">{ui("notificationsTab")}</h3>
                   <button
                     type="button"
                     onClick={() => {
@@ -3681,7 +3673,7 @@ export default function EmployeePayrollPortal() {
               <div className="rounded-3xl border border-amber-200 bg-white p-3.5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-base font-black text-slate-950">نواقص العرض</h3>
+                    <h3 className="m1-section-title text-slate-950">نواقص العرض</h3>
                     <p className="mt-1 text-xs font-bold text-slate-500">المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.</p>
                   </div>
                   <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-xl bg-slate-100 px-3 text-[11px] font-black text-slate-700">
@@ -3861,7 +3853,7 @@ export default function EmployeePayrollPortal() {
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="text-base font-black text-slate-950">{ui("payrollSummary")}</h3>
+                      <h3 className="m1-section-title text-slate-950">{ui("payrollSummary")}</h3>
                       <div className="mt-1 text-xs font-bold text-slate-500">
                         {ui("employeeName")}: <span className="text-slate-950" dir="auto">{portal?.payslip?.employee_name || profile.name || portal?.employee_name || "-"}</span>
                       </div>
@@ -3999,7 +3991,7 @@ export default function EmployeePayrollPortal() {
             {activeTab === "performance" ? <div className="rounded-3xl border border-emerald-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-black">{text.performance}</h3>
+                  <h3 className="m1-section-title">{text.performance}</h3>
                   <div className="mt-1 text-xs font-bold text-slate-500">{text.rewardPoints}: <span dir="ltr">{rewardPoints.points_balance || 0}</span></div>
                 </div>
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-xl font-black text-white" dir="ltr">
@@ -4030,7 +4022,7 @@ export default function EmployeePayrollPortal() {
             </div> : null}
 
             {activeTab === "performance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{text.leaderboard}</h3>
+              <h3 className="m1-section-title">{text.leaderboard}</h3>
               <div className="mt-3 grid gap-2">
                 {optionalLoading && leaderboardLazy ? (
                   <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-sm font-bold text-slate-500">
@@ -4071,7 +4063,7 @@ export default function EmployeePayrollPortal() {
                 />
 
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-base font-black">{text.attendanceSummary}</h3>
+                  <h3 className="m1-section-title">{text.attendanceSummary}</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
                     <div className="rounded-2xl bg-slate-50 p-3">
                       <div className="text-slate-500">{text.presentDays}</div>
@@ -4104,7 +4096,7 @@ export default function EmployeePayrollPortal() {
 
             {activeTab === "attendance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-base font-black">{text.attendanceTimeline}</h3>
+                <h3 className="m1-section-title">{text.attendanceTimeline}</h3>
                 <CalendarDays className="h-5 w-5 text-slate-400" />
               </div>
               <div className="mt-3 grid gap-2">
@@ -4131,7 +4123,7 @@ export default function EmployeePayrollPortal() {
 
             {activeTab === "tasks" ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="text-base font-black">{text.tasks}</h3>
+                <h3 className="m1-section-title">{text.tasks}</h3>
                 {!tasks.length ? (
                   <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-6 text-center">
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm">
@@ -4218,7 +4210,7 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{text.requests}</h3>
+              <h3 className="m1-section-title">{text.requests}</h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {[
                   ["advance", ui("advanceRequest")],
@@ -4304,13 +4296,7 @@ export default function EmployeePayrollPortal() {
         <button
           type="button"
           onClick={clearPortalToast}
-          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-2xl border px-4 py-3 text-center text-sm font-black text-white shadow-2xl transition ${
-            activeToast.type === "error"
-              ? "border-red-300/50 bg-red-600"
-              : activeToast.type === "warning"
-                ? "border-amber-300/50 bg-amber-500 text-amber-950"
-                : "border-emerald-300/40 bg-emerald-600"
-          }`}
+          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-2xl border px-4 py-3 text-center text-sm font-black text-white shadow-2xl transition ${ activeToast.type === "error" ? "border-red-300/50 bg-red-600" : activeToast.type === "warning" ? "border-amber-300/50 bg-amber-500 text-amber-950" : "border-emerald-300/40 bg-emerald-600" }`}
           dir="auto"
         >
           {activeToast.message}
@@ -4332,7 +4318,7 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
                 <button type="button" onClick={() => setChatContactInfoOpen(true)} className="min-w-0 flex-1 text-start" aria-label="معلومات M1 Store">
-                  <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
+                  <h2 className="m1-section-title truncate text-[16px]">M1 Store</h2>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </button>
                 <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label="بحث في الرسائل">
@@ -4444,7 +4430,7 @@ export default function EmployeePayrollPortal() {
       {earlyCheckoutOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
-            <h2 className="text-xl font-black text-slate-950">{ui("earlyCheckoutTitle")}</h2>
+            <h2 className="m1-section-title text-slate-950">{ui("earlyCheckoutTitle")}</h2>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{ui("earlyCheckoutMessage")}</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-[var(--control-height-lg)] rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-700">
@@ -4462,7 +4448,7 @@ export default function EmployeePayrollPortal() {
           <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-slate-950">إعدادات الملف الشخصي</h2>
+                <h2 className="m1-section-title text-slate-950">إعدادات الملف الشخصي</h2>
                 <p className="mt-1 text-xs font-bold text-slate-500">حدّث صورتك ورقم الموبايل</p>
               </div>
               <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label="إغلاق">

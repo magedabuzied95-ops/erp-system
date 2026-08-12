@@ -46,14 +46,7 @@ export default function BarcodeLabels() {
   return (
 
     <div
-      className="
-      min-h-screen
-      bg-gradient-to-br
-      from-gray-100
-      via-white
-      to-gray-200
-      p-10
-      "
+      className="min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-200 p-10"
     >
 
       <div className="max-w-7xl mx-auto">
@@ -61,34 +54,19 @@ export default function BarcodeLabels() {
         {/* HEADER */}
 
         <div
-          className="
-          flex
-          items-center
-          justify-between
-          flex-wrap
-          gap-6
-          mb-10
-          "
+          className="flex items-center justify-between flex-wrap gap-6 mb-10"
         >
 
           <div>
 
             <h1
-              className="
-              text-6xl
-              font-black
-              text-gray-900
-              "
+              className="text-6xl font-black text-gray-900"
             >
               Barcode Label Studio 🔥
             </h1>
 
             <p
-              className="
-              text-gray-500
-              mt-4
-              text-xl
-              "
+              className="text-gray-500 mt-4 text-xl"
             >
               Enterprise barcode labels for shoes & fashion products
             </p>
@@ -101,20 +79,7 @@ export default function BarcodeLabels() {
               window.print()
             }
 
-            className="
-            bg-black
-            hover:bg-gray-800
-            text-white
-            px-8
-            py-5
-            rounded-3xl
-            font-black
-            text-lg
-            shadow-2xl
-            transition-all
-            duration-300
-            hover:scale-105
-            "
+            className="bg-black hover:bg-gray-800 text-white px-8 py-5 rounded-3xl font-black text-lg shadow-2xl transition-all duration-300 hover:scale-105"
           >
             Print Labels 🖨️
           </button>
@@ -124,13 +89,7 @@ export default function BarcodeLabels() {
         {/* LABELS */}
 
         <div
-          className="
-          grid
-          grid-cols-1
-          md:grid-cols-2
-          xl:grid-cols-3
-          gap-8
-          "
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
         >
 
           {products.map((product) => (
@@ -139,28 +98,13 @@ export default function BarcodeLabels() {
 
               key={product.id}
 
-              className="
-              bg-white
-              rounded-[36px]
-              overflow-hidden
-              shadow-2xl
-              border
-              border-gray-200
-              hover:-translate-y-2
-              hover:shadow-[0_20px_60px_rgba(0,0,0,0.2)]
-              transition-all
-              duration-500
-              "
+              className="bg-white rounded-[36px] overflow-hidden shadow-2xl border border-gray-200 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(0,0,0,0.2)] transition-all duration-500"
             >
 
               {/* IMAGE */}
 
               <div
-                className="
-                relative
-                h-80
-                overflow-hidden
-                "
+                className="relative h-80 overflow-hidden"
               >
 
                 <img
@@ -169,34 +113,13 @@ export default function BarcodeLabels() {
 
                   alt={product.name}
 
-                  className="
-                  w-full
-                  h-full
-                  object-cover
-                  hover:scale-110
-                  transition-all
-                  duration-700
-                  "
+                  className="w-full h-full object-cover hover:scale-110 transition-all duration-700"
                 />
 
                 {/* BRAND */}
 
                 <div
-                  className="
-                  absolute
-                  top-5
-                  left-5
-                  bg-black/80
-                  backdrop-blur-lg
-                  text-white
-                  px-5
-                  py-3
-                  rounded-full
-                  text-sm
-                  font-black
-                  tracking-[4px]
-                  shadow-xl
-                  "
+                  className="absolute top-5 left-5 bg-black/80 backdrop-blur-lg text-white px-5 py-3 rounded-full text-sm font-black tracking-[4px] shadow-xl"
                 >
                   {product.brand}
                 </div>
@@ -204,19 +127,7 @@ export default function BarcodeLabels() {
                 {/* PRICE */}
 
                 <div
-                  className="
-                  absolute
-                  bottom-5
-                  right-5
-                  bg-white
-                  text-black
-                  px-5
-                  py-3
-                  rounded-full
-                  font-black
-                  shadow-2xl
-                  text-lg
-                  "
+                  className="absolute bottom-5 right-5 bg-white text-black px-5 py-3 rounded-full font-black shadow-2xl text-lg"
                 >
                   {product.price}
                 </div>
@@ -230,32 +141,19 @@ export default function BarcodeLabels() {
                 {/* TITLE */}
 
                 <div
-                  className="
-                  flex
-                  items-start
-                  justify-between
-                  gap-5
-                  "
+                  className="flex items-start justify-between gap-5"
                 >
 
                   <div>
 
                     <h2
-                      className="
-                      text-3xl
-                      font-black
-                      text-gray-900
-                      "
+                      className="text-3xl font-black text-gray-900"
                     >
                       {product.name}
                     </h2>
 
                     <p
-                      className="
-                      text-gray-500
-                      mt-3
-                      text-lg
-                      "
+                      className="text-gray-500 mt-3 text-lg"
                     >
                       {product.color}
                     </p>
@@ -265,15 +163,7 @@ export default function BarcodeLabels() {
                   {/* SIZE */}
 
                   <div
-                    className="
-                    bg-gray-100
-                    px-5
-                    py-3
-                    rounded-3xl
-                    font-black
-                    text-2xl
-                    shadow-inner
-                    "
+                    className="bg-gray-100 px-5 py-3 rounded-3xl font-black text-2xl shadow-inner"
                   >
                     {product.size}
                   </div>
@@ -283,48 +173,23 @@ export default function BarcodeLabels() {
                 {/* SKU */}
 
                 <div
-                  className="
-                  mt-7
-                  border
-                  border-dashed
-                  border-gray-300
-                  rounded-[30px]
-                  p-6
-                  bg-gradient-to-br
-                  from-gray-50
-                  to-white
-                  "
+                  className="mt-7 border border-dashed border-gray-300 rounded-[30px] p-6 bg-gradient-to-br from-gray-50 to-white"
                 >
 
                   <div
-                    className="
-                    flex
-                    items-center
-                    justify-between
-                    mb-5
-                    "
+                    className="flex items-center justify-between mb-5"
                   >
 
                     <div>
 
                       <p
-                        className="
-                        text-xs
-                        uppercase
-                        tracking-[5px]
-                        text-gray-400
-                        font-black
-                        "
+                        className="text-xs uppercase tracking-[5px] text-gray-400 font-black"
                       >
                         SKU
                       </p>
 
                       <h3
-                        className="
-                        font-black
-                        text-xl
-                        mt-2
-                        "
+                        className="font-black text-xl mt-2"
                       >
                         {product.id}
                       </h3>
@@ -332,19 +197,7 @@ export default function BarcodeLabels() {
                     </div>
 
                     <div
-                      className="
-                      w-16
-                      h-16
-                      rounded-3xl
-                      bg-black
-                      text-white
-                      flex
-                      items-center
-                      justify-center
-                      font-black
-                      text-2xl
-                      shadow-xl
-                      "
+                      className="w-16 h-16 rounded-3xl bg-black text-white flex items-center justify-center font-black text-2xl shadow-xl"
                     >
                       {
                         product.brand[0]
@@ -356,25 +209,11 @@ export default function BarcodeLabels() {
                   {/* BARCODE */}
 
                   <div
-                    className="
-                    bg-white
-                    rounded-3xl
-                    p-5
-                    border
-                    border-gray-200
-                    overflow-hidden
-                    shadow-inner
-                    "
+                    className="bg-white rounded-3xl p-5 border border-gray-200 overflow-hidden shadow-inner"
                   >
 
                     <div
-                      className="
-                      flex
-                      items-end
-                      gap-[2px]
-                      h-28
-                      justify-center
-                      "
+                      className="flex items-end gap-[2px] h-28 justify-center"
                     >
 
                       {product.barcode
@@ -388,34 +227,14 @@ export default function BarcodeLabels() {
 
                             key={index}
 
-                            className={`
-
-                            bg-black
-                            rounded-sm
-
-                            ${
-                              index % 2 === 0
-
-                              ? "w-[3px] h-full"
-
-                              : "w-[2px] h-[85%]"
-                            }
-
-                            `}
+                            className={`bg-black rounded-sm ${ index % 2 === 0 ? "w-[3px] h-full" : "w-[2px] h-[85%]" }`}
                           />
                         ))}
 
                     </div>
 
                     <div
-                      className="
-                      text-center
-                      mt-4
-                      tracking-[8px]
-                      font-mono
-                      text-sm
-                      font-black
-                      "
+                      className="text-center mt-4 tracking-[8px] font-mono text-sm font-black"
                     >
                       {product.barcode}
                     </div>
@@ -427,40 +246,21 @@ export default function BarcodeLabels() {
                 {/* INFO */}
 
                 <div
-                  className="
-                  mt-7
-                  grid
-                  grid-cols-2
-                  gap-4
-                  "
+                  className="mt-7 grid grid-cols-2 gap-4"
                 >
 
                   <div
-                    className="
-                    bg-gray-100
-                    rounded-3xl
-                    p-5
-                    "
+                    className="bg-gray-100 rounded-3xl p-5"
                   >
 
                     <p
-                      className="
-                      text-xs
-                      text-gray-400
-                      font-black
-                      uppercase
-                      tracking-[4px]
-                      "
+                      className="text-xs text-gray-400 font-black uppercase tracking-[4px]"
                     >
                       Brand
                     </p>
 
                     <h3
-                      className="
-                      font-black
-                      mt-3
-                      text-xl
-                      "
+                      className="font-black mt-3 text-xl"
                     >
                       {product.brand}
                     </h3>
@@ -468,31 +268,17 @@ export default function BarcodeLabels() {
                   </div>
 
                   <div
-                    className="
-                    bg-gray-100
-                    rounded-3xl
-                    p-5
-                    "
+                    className="bg-gray-100 rounded-3xl p-5"
                   >
 
                     <p
-                      className="
-                      text-xs
-                      text-gray-400
-                      font-black
-                      uppercase
-                      tracking-[4px]
-                      "
+                      className="text-xs text-gray-400 font-black uppercase tracking-[4px]"
                     >
                       Category
                     </p>
 
                     <h3
-                      className="
-                      font-black
-                      mt-3
-                      text-xl
-                      "
+                      className="font-black mt-3 text-xl"
                     >
                       Sneakers
                     </h3>
@@ -512,50 +298,25 @@ export default function BarcodeLabels() {
         {/* FEATURES */}
 
         <div
-          className="
-          mt-14
-          bg-black
-          text-white
-          rounded-[40px]
-          p-10
-          shadow-2xl
-          "
+          className="mt-14 bg-black text-white rounded-[40px] p-10 shadow-2xl"
         >
 
           <h2
-            className="
-            text-4xl
-            font-black
-            "
+            className="text-4xl font-black"
           >
             ERP Barcode Features 🚀
           </h2>
 
           <div
-            className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-            xl:grid-cols-4
-            gap-6
-            mt-10
-            "
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mt-10"
           >
 
             <div
-              className="
-              bg-white/10
-              rounded-3xl
-              p-7
-              backdrop-blur-lg
-              "
+              className="bg-white/10 rounded-3xl p-7 backdrop-blur-lg"
             >
 
               <h3
-                className="
-                font-black
-                text-2xl
-                "
+                className="font-black text-2xl"
               >
                 Barcode Scanner
               </h3>
@@ -567,19 +328,11 @@ export default function BarcodeLabels() {
             </div>
 
             <div
-              className="
-              bg-white/10
-              rounded-3xl
-              p-7
-              backdrop-blur-lg
-              "
+              className="bg-white/10 rounded-3xl p-7 backdrop-blur-lg"
             >
 
               <h3
-                className="
-                font-black
-                text-2xl
-                "
+                className="font-black text-2xl"
               >
                 Print Labels
               </h3>
@@ -591,19 +344,11 @@ export default function BarcodeLabels() {
             </div>
 
             <div
-              className="
-              bg-white/10
-              rounded-3xl
-              p-7
-              backdrop-blur-lg
-              "
+              className="bg-white/10 rounded-3xl p-7 backdrop-blur-lg"
             >
 
               <h3
-                className="
-                font-black
-                text-2xl
-                "
+                className="font-black text-2xl"
               >
                 Smart SKU
               </h3>
@@ -615,19 +360,11 @@ export default function BarcodeLabels() {
             </div>
 
             <div
-              className="
-              bg-white/10
-              rounded-3xl
-              p-7
-              backdrop-blur-lg
-              "
+              className="bg-white/10 rounded-3xl p-7 backdrop-blur-lg"
             >
 
               <h3
-                className="
-                font-black
-                text-2xl
-                "
+                className="font-black text-2xl"
               >
                 QR + Barcode
               </h3>

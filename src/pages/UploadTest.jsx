@@ -94,46 +94,25 @@ function UploadTest() {
   return (
 
     <div
-      className="
-      min-h-screen
-      bg-gray-100
-      dark:bg-gray-900
-      p-8
-      "
+      className="min-h-screen bg-gray-100 dark:bg-gray-900 p-8"
     >
 
       {/* HEADER */}
 
       <div
-        className="
-        flex
-        items-center
-        justify-between
-        flex-wrap
-        gap-5
-        mb-8
-        "
+        className="flex items-center justify-between flex-wrap gap-5 mb-8"
       >
 
         <div>
 
           <h1
-            className="
-            text-5xl
-            font-black
-            text-gray-800
-            dark:text-white
-            "
+            className="m1-display text-gray-800 dark:text-white"
           >
             Upload Center 🚀
           </h1>
 
           <p
-            className="
-            text-gray-500
-            mt-3
-            text-lg
-            "
+            className="text-gray-500 mt-3 text-lg"
           >
             Enterprise image upload system
           </p>
@@ -141,17 +120,7 @@ function UploadTest() {
         </div>
 
         <div
-          className="
-          bg-gradient-to-r
-          from-green-500
-          to-emerald-600
-          text-white
-          px-8
-          py-5
-          rounded-3xl
-          shadow-2xl
-          font-black
-          "
+          className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-5 rounded-3xl shadow-2xl font-black"
         >
           Smart Upload
         </div>
@@ -161,36 +130,13 @@ function UploadTest() {
       {/* CARD */}
 
       <div
-        className="
-        max-w-3xl
-        mx-auto
-        bg-white
-        dark:bg-gray-800
-        rounded-[35px]
-        shadow-2xl
-        p-10
-        "
+        className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-[35px] shadow-2xl p-10"
       >
 
         {/* DROP AREA */}
 
         <label
-          className="
-          border-2
-          border-dashed
-          border-gray-300
-          dark:border-gray-600
-          rounded-3xl
-          h-[350px]
-          flex
-          flex-col
-          items-center
-          justify-center
-          cursor-pointer
-          hover:border-green-500
-          transition-all
-          overflow-hidden
-          "
+          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-3xl h-[350px] flex flex-col items-center justify-center cursor-pointer hover:border-green-500 transition-all overflow-hidden"
         >
 
           {
@@ -203,11 +149,7 @@ function UploadTest() {
 
                 alt="preview"
 
-                className="
-                w-full
-                h-full
-                object-cover
-                "
+                className="w-full h-full object-cover"
               />
 
             ) : (
@@ -215,29 +157,19 @@ function UploadTest() {
               <div className="text-center">
 
                 <div
-                  className="
-                  text-7xl
-                  mb-5
-                  "
+                  className="text-7xl mb-5"
                 >
                   📸
                 </div>
 
                 <h2
-                  className="
-                  text-3xl
-                  font-black
-                  dark:text-white
-                  "
+                  className="m1-section-title dark:text-white"
                 >
                   Upload Product Image
                 </h2>
 
                 <p
-                  className="
-                  text-gray-500
-                  mt-4
-                  "
+                  className="text-gray-500 mt-4"
                 >
                   Drag & Drop or Click Here
                 </p>
@@ -263,35 +195,19 @@ function UploadTest() {
           image && (
 
             <div
-              className="
-              mt-6
-              bg-gray-100
-              dark:bg-gray-700
-              p-5
-              rounded-2xl
-              flex
-              items-center
-              justify-between
-              "
+              className="mt-6 bg-gray-100 dark:bg-gray-700 p-5 rounded-2xl flex items-center justify-between"
             >
 
               <div>
 
                 <h3
-                  className="
-                  font-black
-                  dark:text-white
-                  "
+                  className="m1-section-title dark:text-white"
                 >
                   {image.name}
                 </h3>
 
                 <p
-                  className="
-                  text-gray-500
-                  text-sm
-                  mt-1
-                  "
+                  className="text-gray-500 text-sm mt-1"
                 >
 
                   {(
@@ -305,14 +221,7 @@ function UploadTest() {
               </div>
 
               <div
-                className="
-                bg-green-100
-                text-green-600
-                px-5
-                py-3
-                rounded-2xl
-                font-black
-                "
+                className="bg-green-100 text-green-600 px-5 py-3 rounded-2xl font-black"
               >
                 Ready
               </div>
@@ -328,24 +237,7 @@ function UploadTest() {
 
           disabled={loading}
 
-          className="
-          mt-8
-          w-full
-          bg-gradient-to-r
-          from-green-500
-          to-emerald-600
-          hover:from-green-600
-          hover:to-emerald-700
-          text-white
-          py-5
-          rounded-3xl
-          font-black
-          text-xl
-          shadow-2xl
-          transition-all
-          duration-300
-          disabled:opacity-70
-          "
+          className="mt-8 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-5 rounded-3xl font-black text-xl shadow-2xl transition-all duration-300 disabled:opacity-70"
         >
 
           {

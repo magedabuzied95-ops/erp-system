@@ -130,7 +130,7 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
             {isArabic ? "وصول بوابة المدير" : "Manager Portal Access"}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h3 className="text-2xl font-black text-white">{isArabic ? "إدارة بوابة المدير" : "Manager portal settings"}</h3>
+            <h3 className="m1-section-title text-white">{isArabic ? "إدارة بوابة المدير" : "Manager portal settings"}</h3>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${hasAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-100"}`}>
               {hasAccess ? (isArabic ? "مفعّل" : "Enabled") : (isArabic ? "بدون صلاحية" : "No access")}
             </span>
@@ -185,11 +185,7 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
           type="button"
           onClick={regeneratePortalLink}
           disabled={portalTokenBusy}
-          className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-            showGenerateAction
-              ? "border border-amber-300/30 bg-amber-500 px-4 text-sm font-black text-black hover:bg-amber-400"
-              : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-          }`}
+          className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${ showGenerateAction ? "border border-amber-300/30 bg-amber-500 px-4 text-sm font-black text-black hover:bg-amber-400" : "border border-white/10 bg-white/5 text-white hover:bg-white/10" }`}
         >
           <RefreshCw className={`h-4 w-4 ${portalTokenBusy ? "animate-spin" : ""}`} />
           {actionLabel}

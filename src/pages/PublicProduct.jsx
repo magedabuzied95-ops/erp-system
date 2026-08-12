@@ -211,7 +211,7 @@ export default function PublicProduct() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Tracked product
               </div>
-              <h1 className="mt-4 text-3xl font-black tracking-tight md:text-5xl">{product.name}</h1>
+              <h1 className="m1-display mt-4">{product.name}</h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">{product.description || "Product details loaded from the tracked link."}</p>
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Source: {attribution.marketing_source || "other"}</span>

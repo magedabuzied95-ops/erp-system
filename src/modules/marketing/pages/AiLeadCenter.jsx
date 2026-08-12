@@ -409,7 +409,7 @@ export default function AiLeadCenter() {
                 <Bot className="h-4 w-4" />
                 AI Lead Center
               </div>
-              <h1 className="mt-3 text-3xl font-black md:text-4xl">Social leads in one command view</h1>
+              <h1 className="m1-display mt-3">Social leads in one command view</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
                 Monitor new leads from Facebook, Instagram, Messenger, and Web Chat without changing the existing AI or order flow.
               </p>
@@ -456,11 +456,7 @@ export default function AiLeadCenter() {
                     key={option.key}
                     type="button"
                     onClick={() => setPlatformFilter(option.key)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
-                      platformFilter === option.key
-                        ? statusToneClass[option.tone]
-                        : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${ platformFilter === option.key ? statusToneClass[option.tone] : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]" }`}
                   >
                     {option.label}
                   </button>
@@ -474,11 +470,7 @@ export default function AiLeadCenter() {
                   key={option.key}
                   type="button"
                   onClick={() => setStageFilter(option.key)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
-                    stageFilter === option.key
-                      ? statusToneClass[option.tone]
-                      : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-                  }`}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${ stageFilter === option.key ? statusToneClass[option.tone] : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]" }`}
                 >
                   {option.label}
                 </button>

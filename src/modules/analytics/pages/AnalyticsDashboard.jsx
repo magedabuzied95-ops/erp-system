@@ -493,7 +493,7 @@ function AnalyticsDashboard() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs uppercase tracking-[0.32em] text-primary">{t("analytics.eyebrow")}</p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight text-white xl:text-5xl">
+            <h1 className="m1-display mt-3 text-white">
               {t("analytics.title")}
             </h1>
             <p className="mt-4 text-sm leading-7 text-zinc-400 xl:text-base">
@@ -1002,7 +1002,7 @@ function AnalyticsDashboard() {
                 <div key={item.id} className="rounded-[26px] border border-white/10 bg-white/5 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-black text-white">{item.name}</h3>
+                      <h3 className="m1-section-title text-white">{item.name}</h3>
                       <p className="mt-1 text-sm text-zinc-400">{item.sku}</p>
                     </div>
                     <div className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
@@ -1094,7 +1094,7 @@ function Panel({ title, subtitle, children }) {
     <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.2)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-white">{title}</h2>
+          <h2 className="m1-section-title text-white">{title}</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">{subtitle}</p>
         </div>
       </div>

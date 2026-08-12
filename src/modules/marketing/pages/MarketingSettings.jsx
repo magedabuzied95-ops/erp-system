@@ -1006,7 +1006,7 @@ export default function MarketingSettings() {
               <Settings2 className="h-4 w-4" />
               {t("marketing.settings.eyebrow")}
             </div>
-            <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.settings.title")}</h1>
+            <h1 className="m1-display">{t("marketing.settings.title")}</h1>
             <p className="max-w-3xl text-base leading-7 text-slate-300">{t("marketing.settings.subtitle")}</p>
           </div>
           <div className="sticky top-3 z-20 mt-5 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#111411]/95 p-2.5 shadow-xl shadow-black/20 backdrop-blur">
@@ -1054,7 +1054,7 @@ export default function MarketingSettings() {
                 <ShieldCheck className="h-4 w-4" />
                 الإعدادات التقنية المتقدمة
               </div>
-              <h2 className="mt-3 text-xl font-black tracking-tight md:text-2xl">جاهزية ربط Meta وبيانات المطور</h2>
+              <h2 className="m1-section-title mt-3">جاهزية ربط Meta وبيانات المطور</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">اضغط لعرض روابط OAuth وWebhook والصلاحيات المطلوبة. القيم السرية لا تظهر هنا.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -1125,7 +1125,7 @@ export default function MarketingSettings() {
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className={`text-xs font-black uppercase tracking-[0.18em] ${oauthResult.status === "partially_connected" ? "text-amber-200" : "text-emerald-200"}`}>Post-OAuth result</div>
-                <h2 className="mt-2 text-xl font-black text-white">{oauthResult.message}</h2>
+                <h2 className="m1-section-title mt-2 text-white">{oauthResult.message}</h2>
               </div>
               <StatusBadge status={oauthResult.status || "connected"} />
             </div>
@@ -1158,7 +1158,7 @@ export default function MarketingSettings() {
                   <Workflow className="h-4 w-4" />
                   مركز ربط Meta
                 </div>
-                <h2 className="mt-3 text-2xl font-black tracking-tight md:text-3xl">ربط حساب Meta</h2>
+                <h2 className="m1-section-title mt-3">ربط حساب Meta</h2>
                 <p className="mt-2 max-w-2xl text-base leading-7 text-slate-300">
                   يستخدم الإعداد الموجّه تسجيل الدخول عبر فيسبوك واختيار الصفحة واكتشاف حساب إنستجرام والتحقق من الصلاحيات وفحوصات Webhook. وتبقى المعرّفات اليدوية متاحة في الوضع المتقدم.
                 </p>
@@ -1276,7 +1276,7 @@ export default function MarketingSettings() {
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Connection</div>
-              <h2 className="mt-1 text-xl font-black text-white">صفحة فيسبوك وحساب إنستجرام</h2>
+              <h2 className="m1-section-title mt-1 text-white">صفحة فيسبوك وحساب إنستجرام</h2>
             </div>
             <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
               {advancedMode ? "Guided mode" : "Advanced mode"}
@@ -1478,7 +1478,7 @@ export default function MarketingSettings() {
                 <MessageCircle className="h-4 w-4" />
                 {t("marketing.settings.capabilities.messaging", "Messaging")}
               </div>
-            <h2 className="mt-3 text-2xl font-black tracking-tight">{t("marketing.settings.capabilities.messagingTitle", "Meta messaging capabilities")}</h2>
+            <h2 className="m1-section-title mt-3">{t("marketing.settings.capabilities.messagingTitle", "Meta messaging capabilities")}</h2>
             </div>
             <div className="text-sm text-slate-400">{t("marketing.settings.capabilities.webhook", "Webhook")}: {metaConfig.webhook_enabled ? t("marketing.settings.status.enabled", "Enabled") : t("marketing.settings.status.disabled", "Disabled")}</div>
           </div>
@@ -1542,7 +1542,7 @@ export default function MarketingSettings() {
             <FileText className="h-4 w-4" />
             {t("marketing.settings.capabilities.publishing", "النشر")}
           </div>
-          <h2 className="mt-3 text-2xl font-black tracking-tight">{t("marketing.settings.capabilities.publishingTitle", "قدرات النشر في ميتا")}</h2>
+          <h2 className="m1-section-title mt-3">{t("marketing.settings.capabilities.publishingTitle", "قدرات النشر في ميتا")}</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <CapabilityCard
               icon={FileText}
@@ -1598,7 +1598,7 @@ export default function MarketingSettings() {
                 <Zap className="h-4 w-4" />
                 تشخيص Webhook
               </div>
-              <h2 className="mt-3 text-2xl font-black tracking-tight">حالة استقبال الأحداث</h2>
+              <h2 className="m1-section-title mt-3">حالة استقبال الأحداث</h2>
             </div>
             <StatusBadge status={liveWebhook.webhook_verified ? "connected" : "webhook_issue"} />
           </div>
@@ -1663,7 +1663,7 @@ export default function MarketingSettings() {
                 <MessageCircle className="h-4 w-4" />
                 {t("marketing.automation.commentDm.eyebrow")}
               </div>
-              <h2 className="mt-3 text-2xl font-black tracking-tight">{t("marketing.automation.commentDm.title")}</h2>
+              <h2 className="m1-section-title mt-3">{t("marketing.automation.commentDm.title")}</h2>
               <p className="mt-2 text-base leading-7 text-slate-400">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
             </div>
             <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">

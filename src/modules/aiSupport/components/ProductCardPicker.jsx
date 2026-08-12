@@ -1300,9 +1300,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           key={card.key}
                           type="button"
                           onClick={() => toggleSizeCardSelection(card)}
-                          className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
-                            isSelected ? "border-cyan-300/40 bg-cyan-300/10" : inlineFullscreenMode ? "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
-                          }`}
+                          className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${ isSelected ? "border-cyan-300/40 bg-cyan-300/10" : inlineFullscreenMode ? "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]" }`}
                         >
                           <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}>
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
@@ -1365,9 +1363,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         key={`${product.product_id || product.id}`}
                         type="button"
                         onClick={() => toggleProductSelection(product)}
-                        className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
-                          isActive ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
-                        }`}
+                        className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${ isActive ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]" }`}
                       >
                         {allowMultiple ? (
                           <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}>
@@ -1536,9 +1532,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                                 setSelectedSize("");
                               }
                             }}
-                            className={`min-h-10 rounded-full border px-4 py-2 text-sm font-black transition ${
-                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
-                            }`}
+                            className={`min-h-10 rounded-full border px-4 py-2 text-sm font-black transition ${ active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10" }`}
                           >
                             {color}
                           </button>
@@ -1564,9 +1558,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             key={size}
                             type="button"
                             onClick={() => setSelectedSize(size)}
-                            className={`min-h-12 rounded-2xl border px-3 py-2 text-right transition ${
-                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
-                            }`}
+                            className={`min-h-12 rounded-2xl border px-3 py-2 text-right transition ${ active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10" }`}
                           >
                             <div className="text-xl font-black leading-none">{size}</div>
                           </button>

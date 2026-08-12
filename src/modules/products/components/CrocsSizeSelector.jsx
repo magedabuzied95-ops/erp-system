@@ -83,13 +83,7 @@ export default function CrocsSizeSelector({ existingSizes = [], onApply, onClose
                     disabled={existing}
                     aria-pressed={existing || selected}
                     onClick={() => toggleSize(size)}
-                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1 rounded-xl border px-3 text-xs font-black transition ${
-                      existing
-                        ? "cursor-not-allowed border-emerald-400/25 bg-emerald-400/10 text-emerald-200 opacity-70"
-                        : selected
-                          ? "border-amber-300 bg-amber-300 text-zinc-950"
-                          : "border-white/10 bg-white/5 text-zinc-100 hover:border-amber-300/40 hover:bg-amber-400/10"
-                    }`}
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1 rounded-xl border px-3 text-xs font-black transition ${ existing ? "cursor-not-allowed border-emerald-400/25 bg-emerald-400/10 text-emerald-200 opacity-70" : selected ? "border-amber-300 bg-amber-300 text-zinc-950" : "border-white/10 bg-white/5 text-zinc-100 hover:border-amber-300/40 hover:bg-amber-400/10" }`}
                   >
                     {(existing || selected) ? <Check size={13} /> : null}
                     {size}

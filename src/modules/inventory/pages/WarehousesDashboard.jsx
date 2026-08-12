@@ -214,7 +214,7 @@ function WarehousesDashboard() {
           ) : filtered.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
               <Warehouse className="mx-auto h-12 w-12 text-zinc-500" />
-              <h3 className="mt-4 text-xl font-black text-white">{t("warehouses.empty.title")}</h3>
+              <h3 className="m1-section-title mt-4 text-white">{t("warehouses.empty.title")}</h3>
               <p className="mt-2 text-sm text-zinc-400">{t("warehouses.empty.subtitle")}</p>
             </div>
           ) : (
@@ -319,7 +319,7 @@ function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, 
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{labels.edit}</div>
-            <h3 className="mt-1 text-xl font-black text-white">{labels.editWarehouse}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{labels.editWarehouse}</h3>
             {isProtected ? (
               <p className="mt-2 text-sm leading-6 text-amber-100">هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط.</p>
             ) : null}
@@ -404,7 +404,7 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-300">حذف المخزن</div>
-            <h3 className="mt-1 text-xl font-black text-white">{warehouse.name}</h3>
+            <h3 className="m1-section-title mt-1 text-white">{warehouse.name}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
               راجع استخدام المخزن قبل الحذف. يمكن حذف المخازن المكررة الفارغة بأمان.
             </p>

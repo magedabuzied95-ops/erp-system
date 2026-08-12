@@ -103,7 +103,7 @@ function NotificationsCenter() {
                 <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_14px_34px_rgba(16,185,129,0.12)]">
                   <Bell className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <h1 className="text-2xl font-black text-slate-50 sm:text-3xl">الإشعارات</h1>
+                <h1 className="m1-page-title text-slate-50">الإشعارات</h1>
                 {unreadCount > 0 ? (
                   <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">
                     {unreadCount > 99 ? "99+" : unreadCount} غير مقروء
@@ -196,7 +196,7 @@ function NotificationsCenter() {
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-700 bg-slate-950/80 text-slate-300">
               <Bell className="h-8 w-8" />
             </div>
-            <h2 className="mt-4 text-xl font-black text-slate-50">لا توجد إشعارات</h2>
+            <h2 className="m1-section-title mt-4 text-slate-50">لا توجد إشعارات</h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">لا توجد نتائج مطابقة للفلاتر الحالية. غيّر الفلاتر أو جرّب التحديث لاحقا.</p>
           </div>
         )}

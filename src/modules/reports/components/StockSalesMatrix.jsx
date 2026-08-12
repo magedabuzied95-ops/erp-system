@@ -81,7 +81,7 @@ export default function StockSalesMatrix({ matrix, showValue, onSelectProduct })
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <h3 className={`text-[13px] font-bold 2xl:text-[14px] ${quadrant.tone}`}>
+                  <h3 className={`m1-section-title text-[13px] 2xl:text-[14px] ${quadrant.tone}`}>
                     {t(`inventory.matrix.${quadrant.key}`)}
                   </h3>
                   <p className="mt-0.5 text-[11px] leading-4 text-[var(--text-tertiary)] 2xl:text-[12px]">

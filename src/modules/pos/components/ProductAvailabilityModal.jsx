@@ -261,11 +261,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                         const nextSize = color.sizes?.find((size) => size.available) || color.sizes?.[0] || null;
                         setSelectedVariantId(nextSize?.variant_id || null);
                       }}
-                      className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-1.5 text-left text-xs font-black transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${
-                        active
-                          ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-50"
-                          : "border-white/10 bg-black/20 text-white hover:bg-white/10"
-                      }`}
+                      className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-1.5 text-left text-xs font-black transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm ${ active ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-50" : "border-white/10 bg-black/20 text-white hover:bg-white/10" }`}
                     >
                       <div className="font-bold">{color.color || t("pos.labels.default")}</div>
                       <div className="hidden sm:mt-1 sm:block sm:text-xs sm:text-zinc-400">{t("pos.variantSelector.availableSizes", { count: availableCount, defaultValue: "{{count}} available size(s)" })}</div>
@@ -293,13 +289,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                           type="button"
                           disabled={!size.available}
                           onClick={() => setSelectedVariantId(size.variant_id)}
-                          className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-1.5 text-left transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 ${
-                            active
-                              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-50"
-                              : !size.available
-                                ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600"
-                                : "border-white/10 bg-black/20 text-white hover:bg-white/10"
-                          }`}
+                          className={`min-h-[var(--control-height-md)] rounded-full border px-3 py-1.5 text-left transition sm:min-h-0 sm:rounded-2xl sm:px-4 sm:py-3 ${ active ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-50" : !size.available ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/20 text-white hover:bg-white/10" }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-sm font-black sm:text-lg">{getAvailabilitySizeDisplayLabel(product, size.size) || t("pos.labels.oneSize")}</span>

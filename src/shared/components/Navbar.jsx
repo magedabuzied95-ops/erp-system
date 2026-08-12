@@ -13,7 +13,7 @@ export default function Navbar({ title, subtitle }) {
     <div className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_84%,transparent)] backdrop-blur-2xl">
       <div className="flex items-center justify-between px-6 py-5 xl:px-8">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">{resolvedTitle}</h2>
+          <h2 className="m1-section-title text-[var(--text)]">{resolvedTitle}</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
             {resolvedSubtitle}, {user?.name}
           </p>

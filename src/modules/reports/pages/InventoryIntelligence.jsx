@@ -101,11 +101,7 @@ export default function InventoryIntelligence() {
               type="button"
               onClick={() => setShowFilters((value) => !value)}
               aria-expanded={showFilters}
-              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition ${
-                filters.activeFilterCount
-                  ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--text)]"
-                  : "border-[var(--border)] bg-[var(--card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
-              }`}
+              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition ${ filters.activeFilterCount ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--text)]" : "border-[var(--border)] bg-[var(--card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]" }`}
             >
               <Filter className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="hidden sm:inline">{showFilters ? t("inventory.filters.less") : t("inventory.filters.more")}</span>

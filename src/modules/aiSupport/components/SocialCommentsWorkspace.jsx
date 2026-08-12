@@ -2769,19 +2769,7 @@ function SocialCommentsWorkspace({
         {tags.map((tag) => (
           <span
             key={tag}
-            className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
-              tag === "Price"
-                ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-                : tag === "Size"
-                  ? "border-violet-300/20 bg-violet-400/10 text-violet-100"
-                  : tag === "Shipping"
-                    ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-                    : tag === "Lead"
-                      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                      : tag === "Review"
-                        ? "border-sky-300/20 bg-sky-400/10 text-sky-100"
-                        : "border-white/10 bg-white/[0.04] text-slate-300"
-            }`}
+            className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${ tag === "Price" ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100" : tag === "Size" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : tag === "Shipping" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : tag === "Lead" ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : tag === "Review" ? "border-sky-300/20 bg-sky-400/10 text-sky-100" : "border-white/10 bg-white/[0.04] text-slate-300" }`}
           >
             {tag}
           </span>
@@ -2903,9 +2891,7 @@ function SocialCommentsWorkspace({
                               }
                             : undefined
                         }
-                        className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${
-                          active ? "border-cyan-300/30 bg-white/[0.08] ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20"
-                        }`}
+                        className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${ active ? "border-cyan-300/30 bg-white/[0.08] ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20" }`}
                         style={{ minHeight: "176px" }}
                       >
                         <div className="flex gap-3">
@@ -3062,9 +3048,7 @@ function SocialCommentsWorkspace({
                             }
                           : undefined
                       }
-                      className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${
-                        active ? "border-cyan-300/30 bg-white/[0.08] ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20"
-                      }`}
+                      className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${ active ? "border-cyan-300/30 bg-white/[0.08] ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20" }`}
                     >
                       <div className="flex gap-3">
                         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
@@ -3656,9 +3640,7 @@ function SocialCommentsWorkspace({
                         {activeAutomationRuntime.step_results.slice(0, 6).map((step, index) => (
                           <span
                             key={`${step?.step || step?.name || "step"}:${index}`}
-                            className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(
-                              normalizeAutomationRuntimeTone(step?.status || step?.result || step?.outcome || "")
-                            )}`}
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass( normalizeAutomationRuntimeTone(step?.status || step?.result || step?.outcome || "") )}`}
                           >
                             {clean(step?.step || step?.name || `step_${index + 1}`)}: {clean(step?.status || step?.result || step?.outcome || "") || dash}
                           </span>
@@ -3924,9 +3906,7 @@ function TogglePill({ label, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-        active ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20"
-      }`}
+      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${ active ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20" }`}
     >
       {label}
     </button>

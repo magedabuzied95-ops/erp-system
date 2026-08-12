@@ -414,21 +414,11 @@ function Products() {
     return (
 
       <div
-        className="
-        flex
-        items-center
-        justify-center
-        h-[70vh]
-        "
+        className="flex items-center justify-center h-[70vh]"
       >
 
         <div
-          className="
-          text-4xl
-          font-black
-          text-green-500
-          animate-pulse
-          "
+          className="text-4xl font-black text-green-500 animate-pulse"
         >
           {t("products.loading")}
         </div>
@@ -444,34 +434,19 @@ function Products() {
       {/* HEADER */}
 
       <div
-        className="
-        flex
-        items-center
-        justify-between
-        flex-wrap
-        gap-5
-        "
+        className="flex items-center justify-between flex-wrap gap-5"
       >
 
         <div>
 
           <h1
-            className="
-            text-5xl
-            font-black
-            text-gray-800
-            dark:text-white
-            "
+            className="m1-display text-gray-800 dark:text-white"
           >
             {t("products.legacy.title")}
           </h1>
 
           <p
-            className="
-            text-gray-500
-            mt-3
-            text-lg
-            "
+            className="text-gray-500 mt-3 text-lg"
           >
             {t("products.legacy.description")}
           </p>
@@ -483,13 +458,7 @@ function Products() {
       {/* KPI */}
 
       <div
-        className="
-        grid
-        grid-cols-1
-        md:grid-cols-2
-        xl:grid-cols-4
-        gap-6
-        "
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6"
       >
 
         <KPI
@@ -510,15 +479,7 @@ function Products() {
         />
 
         <div
-          className="
-          bg-gradient-to-r
-          from-green-500
-          to-emerald-600
-          text-white
-          p-7
-          rounded-3xl
-          shadow-2xl
-          "
+          className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-7 rounded-3xl shadow-2xl"
         >
 
           <p className="opacity-90">
@@ -526,11 +487,7 @@ function Products() {
           </p>
 
           <h2
-            className="
-            text-5xl
-            font-black
-            mt-4
-            "
+            className="m1-section-title mt-4"
           >
             {inStock}
           </h2>
@@ -542,13 +499,7 @@ function Products() {
       {/* SEARCH */}
 
       <div
-        className="
-        bg-white
-        dark:bg-gray-800
-        p-6
-        rounded-3xl
-        shadow-lg
-        "
+        className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-lg"
       >
 
         <input
@@ -564,17 +515,7 @@ function Products() {
             )
           }
 
-          className="
-          w-full
-          border
-          border-gray-200
-          dark:border-gray-700
-          dark:bg-gray-900
-          dark:text-white
-          rounded-2xl
-          p-5
-          outline-none
-          "
+          className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-5 outline-none"
         />
 
       </div>
@@ -582,32 +523,17 @@ function Products() {
       {/* CREATE PRODUCT */}
 
       <div
-        className="
-        bg-white
-        dark:bg-gray-800
-        p-8
-        rounded-3xl
-        shadow-xl
-        "
+        className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl"
       >
 
         <h2
-          className="
-          text-3xl
-          font-black
-          mb-6
-          dark:text-white
-          "
+          className="m1-section-title mb-6 dark:text-white"
         >
           {t("products.legacy.createProduct")}
         </h2>
 
         <div
-          className="
-          grid
-          md:grid-cols-2
-          gap-5
-          "
+          className="grid md:grid-cols-2 gap-5"
         >
 
           <input
@@ -623,15 +549,7 @@ function Products() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            rounded-2xl
-            p-4
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
           />
 
           <input
@@ -647,15 +565,7 @@ function Products() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            rounded-2xl
-            p-4
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
           />
 
         </div>
@@ -663,17 +573,7 @@ function Products() {
         <button
           onClick={handleAddProduct}
 
-          className="
-          mt-6
-          bg-black
-          hover:bg-gray-800
-          text-white
-          px-8
-          py-4
-          rounded-2xl
-          font-black
-          transition
-          "
+          className="mt-6 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-2xl font-black transition"
         >
           {t("products.legacy.addProduct")}
         </button>
@@ -683,22 +583,11 @@ function Products() {
       {/* CREATE VARIANT */}
 
       <div
-        className="
-        bg-white
-        dark:bg-gray-800
-        p-8
-        rounded-3xl
-        shadow-xl
-        "
+        className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl"
       >
 
         <h2
-          className="
-          text-3xl
-          font-black
-          mb-6
-          dark:text-white
-          "
+          className="m1-section-title mb-6 dark:text-white"
         >
           {t("products.legacy.createVariant")}
         </h2>
@@ -716,13 +605,7 @@ function Products() {
         {/* FORM */}
 
         <div
-          className="
-          grid
-          md:grid-cols-2
-          xl:grid-cols-4
-          gap-5
-          mt-8
-          "
+          className="grid md:grid-cols-2 xl:grid-cols-4 gap-5 mt-8"
         >
 
           <select
@@ -734,15 +617,7 @@ function Products() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            rounded-2xl
-            p-4
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
           >
 
             <option value="">
@@ -776,15 +651,7 @@ function Products() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            rounded-2xl
-            p-4
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
           />
 
           <input
@@ -800,15 +667,7 @@ function Products() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            rounded-2xl
-            p-4
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
           />
 
           <input
@@ -824,15 +683,7 @@ function Products() {
               )
             }
 
-            className="
-            border
-            border-gray-200
-            dark:border-gray-700
-            dark:bg-gray-900
-            dark:text-white
-            rounded-2xl
-            p-4
-            "
+            className="border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-2xl p-4"
           />
 
         </div>
@@ -840,17 +691,7 @@ function Products() {
         <button
           onClick={handleAddVariant}
 
-          className="
-          mt-6
-          bg-green-500
-          hover:bg-green-600
-          text-white
-          px-8
-          py-4
-          rounded-2xl
-          font-black
-          transition
-          "
+          className="mt-6 bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-2xl font-black transition"
         >
           {t("products.legacy.createVariants")}
         </button>
@@ -876,13 +717,7 @@ function KPI({
   return (
 
     <div
-      className="
-      bg-white
-      dark:bg-gray-800
-      p-7
-      rounded-3xl
-      shadow-lg
-      "
+      className="bg-white dark:bg-gray-800 p-7 rounded-3xl shadow-lg"
     >
 
       <p className="text-gray-500">
@@ -890,13 +725,7 @@ function KPI({
       </p>
 
       <h2
-        className={`
-        text-5xl
-        font-black
-        mt-4
-        dark:text-white
-        ${color}
-        `}
+        className={`m1-section-title mt-4 dark:text-white ${color}`}
       >
         {value}
       </h2>

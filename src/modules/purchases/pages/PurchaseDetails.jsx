@@ -316,7 +316,7 @@ function PurchaseDetails() {
         <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
           <div className="flex items-center gap-3">
             <ReceiptText className="h-5 w-5 text-emerald-300" />
-            <h2 className="text-lg font-black text-white">{t("purchases.details.invoiceOverview")}</h2>
+            <h2 className="m1-section-title text-white">{t("purchases.details.invoiceOverview")}</h2>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Info label={t("purchases.table.supplier")} value={purchase.supplier_name} />
@@ -331,7 +331,7 @@ function PurchaseDetails() {
         <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
           <div className="flex items-center gap-3">
             <PackageCheck className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-black text-white">{t("purchases.details.timelineTitle")}</h2>
+            <h2 className="m1-section-title text-white">{t("purchases.details.timelineTitle")}</h2>
           </div>
           <div className="mt-5 space-y-3">
             {timeline.map((item) => (
@@ -346,7 +346,7 @@ function PurchaseDetails() {
       </div>
 
       <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
-        <h2 className="text-lg font-black text-white">{t("purchases.details.products")}</h2>
+        <h2 className="m1-section-title text-white">{t("purchases.details.products")}</h2>
         <div className="m1-table-container mt-4 overflow-x-auto">
           <table className="m1-table m1-table--compact min-w-[980px] w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-[0.16em] text-zinc-500">
@@ -383,11 +383,11 @@ function PurchaseDetails() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
-          <h2 className="text-lg font-black text-white">{t("purchases.details.notes")}</h2>
+          <h2 className="m1-section-title text-white">{t("purchases.details.notes")}</h2>
           <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{purchase.notes || t("purchases.details.noNotes")}</p>
         </section>
         <section className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5">
-          <h2 className="text-lg font-black text-white">{t("purchases.details.attachments")}</h2>
+          <h2 className="m1-section-title text-white">{t("purchases.details.attachments")}</h2>
           <div className="mt-3 space-y-2">
             {attachments.length ? attachments.map((file, index) => (
               <div key={`${file.name}-${index}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-200">
@@ -779,7 +779,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
       <div className={`${isPage ? "w-full" : "max-h-[90vh] w-full max-w-6xl overflow-y-auto shadow-2xl"} rounded-3xl border border-white/10 bg-zinc-950 p-5`}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-black text-white">{t("purchases.details.editPurchaseTitle")}</h2>
+            <h2 className="m1-section-title text-white">{t("purchases.details.editPurchaseTitle")}</h2>
             {locked ? <p className="mt-1 text-sm text-amber-300">{t("purchases.details.receivedSaveWarning")}</p> : null}
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white disabled:opacity-50"><X className="h-5 w-5" /></button>
@@ -894,7 +894,7 @@ function EditPurchaseModal({ purchase, locked, onClose, onSave, mode = "modal" }
         {confirmReceivedSave ? (
           <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4">
             <div className="w-full max-w-md rounded-3xl border border-amber-400/20 bg-zinc-950 p-5 shadow-2xl">
-              <h3 className="text-xl font-black text-white">{t("purchases.details.confirmReceivedEdit")}</h3>
+              <h3 className="m1-section-title text-white">{t("purchases.details.confirmReceivedEdit")}</h3>
               <p className="mt-3 text-sm font-semibold leading-6 text-amber-100">
                 {t("purchases.details.receivedSaveWarning")}
               </p>
@@ -992,7 +992,7 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
       <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-black text-white">{t("purchases.details.addAdjustmentTitle")}</h2>
+            <h2 className="m1-section-title text-white">{t("purchases.details.addAdjustmentTitle")}</h2>
             <p className="mt-1 text-sm text-zinc-400">{t("purchases.details.addAdjustmentSubtitle")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/5 p-2 text-white"><X className="h-5 w-5" /></button>
