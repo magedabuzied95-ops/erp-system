@@ -2759,6 +2759,60 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
+function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, removed = false, deliveryFormat = "", onRemove, onChange, onChoose }) {
+  const hasCard = Boolean(card && (card.product_id || card.id));
+  const showChoices = ambiguous && !hasCard && !removed && Array.isArray(choices) && choices.length > 0;
+  if (removed) {
+    return (
+      <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/40 p-2 text-[11px] font-bold text-slate-300">
+        تم حذف كارت المنتج — هيتبعت الرد بس.
+        <button type="button" onClick={onChange} className="mr-2 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-black text-cyan-100">➕ إضافة منتج</button>
+      </div>
+    );
+  }
+  if (showChoices) {
+    return (
+      <div className="mt-2 rounded-xl border border-amber-300/25 bg-amber-400/10 p-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">فيه أكتر من منتج مطابق — اختر المنتج</div>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {choices.map((c) => (
+            <button key={c.product_id || c.id} type="button" onClick={() => onChoose?.(c)} className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
+              {clean(c.name || c.product_name)}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (!hasCard) return null;
+  const name = clean(card.name || card.product_name);
+  const img = card.image_url || card.image || card.thumbnail_url || "";
+  const price = card.display_price ?? card.price ?? null;
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.07] p-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">المنتج اللي هيتبعت</div>
+        {deliveryFormat ? <span className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-black text-slate-200">{deliveryFormat}</span> : null}
+      </div>
+      <div className="mt-1.5 flex items-start gap-2">
+        {img ? <img src={img} alt={name} className="h-14 w-14 shrink-0 rounded-lg border border-white/10 object-cover" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-white/10 bg-slate-800 text-[9px] text-slate-400">لا صورة</div>}
+        <div className="min-w-0 flex-1 text-[11px] leading-5 text-slate-100">
+          <div className="truncate font-black">{name}</div>
+          {card.color ? <div className="text-slate-300">اللون: {clean(card.color)}</div> : null}
+          {card.size ? <div className="text-slate-300">المقاس: {clean(card.size)}</div> : null}
+          {price != null && price !== "" ? <div className="text-emerald-200 font-bold">{price} جنيه</div> : null}
+          <div className={`font-bold ${card.in_stock === false ? "text-rose-300" : "text-emerald-300"}`}>{card.in_stock === false ? "غير متاح" : "متاح"}</div>
+          {(card.storefront_url || card.product_url) ? <a href={card.storefront_url || card.product_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-cyan-200 underline">عرض المنتج ↗</a> : null}
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button type="button" onClick={onRemove} className="rounded-lg border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-black text-slate-200 hover:bg-white/[0.08]">🗑️ حذف المنتج</button>
+        <button type="button" onClick={onChange} className="rounded-lg border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100 hover:bg-violet-400/15">🔁 تغيير المنتج</button>
+      </div>
+    </div>
+  );
+}
+
 function AiSuggestionCard({
   text = "",
   onEdit,
@@ -2766,6 +2820,14 @@ function AiSuggestionCard({
   onDismiss,
   editing = false,
   facts = null,
+  productCard = null,
+  productChoices = [],
+  productAmbiguous = false,
+  productRemoved = false,
+  deliveryFormat = "",
+  onRemoveProduct,
+  onChangeProduct,
+  onChooseProduct,
 }) {
   const value = clean(text);
   if (!value) return null;
@@ -2812,6 +2874,16 @@ function AiSuggestionCard({
         </div>
         {editing ? <Pill tone="violet" className="shrink-0 px-2 py-0.5 text-[10px] font-black">Editing</Pill> : null}
       </div>
+      <SuggestionProductToSend
+        card={productCard}
+        choices={productChoices}
+        ambiguous={productAmbiguous}
+        removed={productRemoved}
+        deliveryFormat={deliveryFormat}
+        onRemove={onRemoveProduct}
+        onChange={onChangeProduct}
+        onChoose={onChooseProduct}
+      />
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
@@ -2858,6 +2930,14 @@ function ManualReplyComposer({
   aiSuggestionVisible = false,
   aiSuggestionEditing = false,
   aiSuggestionFacts = null,
+  aiSuggestionProductCard = null,
+  aiSuggestionProductChoices = [],
+  aiSuggestionProductAmbiguous = false,
+  aiSuggestionProductRemoved = false,
+  aiSuggestionDeliveryFormat = "",
+  onRemoveSuggestionProduct,
+  onChangeSuggestionProduct,
+  onChooseSuggestionProduct,
   onEditAiSuggestion,
   onApproveAiSuggestion,
   onDismissAiSuggestion,
@@ -2937,6 +3017,14 @@ function ManualReplyComposer({
           text={aiSuggestionText}
           editing={aiSuggestionEditing}
           facts={aiSuggestionFacts}
+          productCard={aiSuggestionProductCard}
+          productChoices={aiSuggestionProductChoices}
+          productAmbiguous={aiSuggestionProductAmbiguous}
+          productRemoved={aiSuggestionProductRemoved}
+          deliveryFormat={aiSuggestionDeliveryFormat}
+          onRemoveProduct={onRemoveSuggestionProduct}
+          onChangeProduct={onChangeSuggestionProduct}
+          onChooseProduct={onChooseSuggestionProduct}
           onEdit={onEditAiSuggestion}
           onApprove={onApproveAiSuggestion}
           onDismiss={onDismissAiSuggestion}
@@ -4506,8 +4594,11 @@ export default function AiInbox() {
   }, []);
   const [editingAiDraft, setEditingAiDraft] = useState(false);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
+  // Phase 11.2 — employee control over the grounded product attachment on the suggestion.
+  const [suggestionProductRemoved, setSuggestionProductRemoved] = useState(false);
+  const [suggestionChosenCard, setSuggestionChosenCard] = useState(null);
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
-  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false });
+  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false, selectMode: false });
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [leadAssignEmployeeId, setLeadAssignEmployeeId] = useState("");
@@ -5979,6 +6070,26 @@ export default function AiInbox() {
     if (!g && !cards.length) return null;
     return { grounding: g, products: cards.slice(0, 4).map((c) => ({ id: c?.id || c?.product_id || "", name: clean(c?.name || c?.product_name || "") })) };
   }, [activeAiReplyDraft]);
+  // Phase 11.2 — send-ready product attachment on the suggestion. The single enriched card (unambiguous) is the
+  // draft's first product_card; ambiguous choices + delivery format come from metadata.send_package.
+  const suggestionDraftCard = useMemo(() => {
+    const cards = asArray(activeAiReplyDraft?.product_cards);
+    return cards.length ? cards[0] : null;
+  }, [activeAiReplyDraft]);
+  const suggestionSendPackage = activeAiReplyDraft?.metadata?.send_package || null;
+  const effectiveSuggestionCard = suggestionProductRemoved ? null : (suggestionChosenCard || suggestionDraftCard);
+  const suggestionDeliveryFormat = useMemo(() => {
+    const ch = String(selectedConversation?.channel || selectedConversation?.source || "").toLowerCase();
+    if (ch.includes("messenger") || ch === "facebook") return { label: "كارت منتج (Messenger)", kind: "rich_card" };
+    if (ch.includes("whatsapp")) return { label: "صورة + لينك", kind: "image_link" };
+    if (ch.includes("instagram")) return { label: "لينك المنتج", kind: "text_link" };
+    return { label: "لينك المنتج", kind: "text_link" };
+  }, [selectedConversation?.channel, selectedConversation?.source]);
+  // Reset employee product edits whenever a fresh suggestion appears.
+  useEffect(() => {
+    setSuggestionProductRemoved(false);
+    setSuggestionChosenCard(null);
+  }, [activeAiSuggestionKey]);
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
       aiReply.validation ||
@@ -6148,11 +6259,31 @@ export default function AiInbox() {
       open: true,
       sizeMode: Boolean(options.sizeMode),
       allowMultiple: Boolean(options.allowMultiple),
+      selectMode: Boolean(options.selectMode),
     });
   }, []);
   const closeProductCardPicker = useCallback(() => {
-    setProductCardPickerConfig({ open: false, sizeMode: false, allowMultiple: false });
+    setProductCardPickerConfig({ open: false, sizeMode: false, allowMultiple: false, selectMode: false });
   }, []);
+  // Phase 11.2 — "Change Product": pick a real catalog product to attach to the suggestion (does NOT send).
+  const normalizeChosenSuggestionCard = (c = {}) => ({
+    product_id: c.product_id || c.id || null, id: c.product_id || c.id || null, variant_id: c.variant_id || null,
+    product_name: c.product_name || c.name || "", name: c.product_name || c.name || "",
+    image_url: c.image_url || c.image || c.thumbnail_url || "",
+    storefront_url: c.storefront_url || c.product_url || c.url || "", product_url: c.storefront_url || c.product_url || c.url || "",
+    color: c.color || "", size: c.size || "",
+    price: c.price ?? c.display_price ?? null, display_price: c.display_price ?? c.price ?? null,
+    available_sizes: c.available_sizes || c.sizes || [], grounded: false, in_stock: true,
+  });
+  const handleProductCardPickerSubmit = (cards = []) => {
+    if (productCardPickerConfig.selectMode) {
+      const first = asArray(cards)[0];
+      if (first) { setSuggestionChosenCard(normalizeChosenSuggestionCard(first)); setSuggestionProductRemoved(false); }
+      closeProductCardPicker();
+      return Promise.resolve();
+    }
+    return sendProductCards(cards);
+  };
   const openReplyCorrection = useCallback((message = {}) => {
     if (!selectedConversation?.session_id) return;
     setCorrectionModal({
@@ -6726,7 +6857,7 @@ export default function AiInbox() {
 
   const sendManualReply = async (overrideText = "", options = {}) => {
     const message = clean(overrideText || replyText);
-    if (!selectedConversation?.session_id || !message) return;
+    if (!selectedConversation?.session_id || !message) return { ok: false };
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const clientRequestId = buildClientRequestId();
@@ -6771,7 +6902,7 @@ export default function AiInbox() {
     });
     if (warningCount > 0) {
       const confirmed = window.confirm(sendWarnings.join("\n"));
-      if (!confirmed) return;
+      if (!confirmed) return { ok: false };
     }
     const now = new Date().toISOString();
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
@@ -6781,7 +6912,7 @@ export default function AiInbox() {
     // disabled state renders. Placed after the (synchronous) confirm prompt and
     // before the optimistic bubble, so a blocked second click neither sends a
     // duplicate request nor leaves a stray "sending" bubble behind.
-    if (sendingReplyRef.current) return;
+    if (sendingReplyRef.current) return { ok: false };
     sendingReplyRef.current = true;
     const optimistic = {
       id: `sending-${Date.now()}`,
@@ -6857,8 +6988,10 @@ export default function AiInbox() {
       } else {
         setToast({ tone: "emerald", text: "Message sent" });
       }
+      return { ok: true, message: payload?.message || null };
     } catch (err) {
       const failedMessage = err?.responseBody?.failed_message || null;
+      const stale = err?.responseBody?.code === "STALE_SUGGESTION";
       const friendlyError = err?.responseBody?.delivery_error || err?.responseBody?.message || err?.message || "فشل الإرسال";
       setToast({ tone: "rose", text: friendlyError });
       setError(friendlyError);
@@ -6871,6 +7004,7 @@ export default function AiInbox() {
             ])
           : asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: friendlyError } : item),
       }));
+      return { ok: false, stale, error: friendlyError };
     } finally {
       sendingReplyRef.current = false;
       setReplySending(false);
@@ -6891,24 +7025,48 @@ export default function AiInbox() {
     setReplyText(activeAiSuggestionText);
   }, [activeAiSuggestionText]);
 
-  const handleApproveAiSuggestion = useCallback(() => {
+  // Phase 11.2 — PACKAGE Approve & Send: send the (approved/edited) TEXT first (stale-guarded), then the approved
+  // grounded PRODUCT CARD via the canonical product-card sender. One employee action. If the text send is stale
+  // or fails, the card is NOT sent (whole package blocked). Plain async fn (not useCallback) so it always closes
+  // over the current sendProductCards, which is defined later in this component.
+  const handleApproveAiSuggestion = async () => {
     if (!activeAiSuggestionText) return;
+    if (suggestionSendPackage?.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved) {
+      setToast({ tone: "amber", text: "فيه أكتر من منتج مطابق — اختر المنتج المطلوب أو احذفه قبل الإرسال" });
+      return;
+    }
+    const card = effectiveSuggestionCard;
+    const disposition = suggestionProductRemoved ? "removed" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none"));
     setReplyText(activeAiSuggestionText);
-    void sendCurrentReply(activeAiSuggestionText, {
+    const result = await sendCurrentReply(activeAiSuggestionText, {
       allowSameTextCorrection: true,
       flow: "approve",
       correctionMetadata: {
         source: "ai_suggestion_approved",
         approved_ai_reply: true,
+        product_disposition: disposition,
+        product_id: card?.product_id || card?.id || null,
+        variant_id: card?.variant_id || null,
       },
     });
-  }, [activeAiSuggestionText, sendCurrentReply]);
+    if (result?.ok && card) {
+      try {
+        await sendProductCards([card]);
+      } catch {
+        setToast({ tone: "amber", text: "تم إرسال الرد، لكن فشل إرسال كارت المنتج" });
+      }
+    }
+  };
 
   const handleDismissAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionKey) return;
     setEditingAiDraft(false);
     setDismissedAiSuggestionKey(activeAiSuggestionKey);
   }, [activeAiSuggestionKey]);
+  // Phase 11.2 — product-attachment controls on the suggestion.
+  const handleRemoveSuggestionProduct = useCallback(() => { setSuggestionProductRemoved(true); setSuggestionChosenCard(null); }, []);
+  const handleChangeSuggestionProduct = useCallback(() => { openProductCardPicker({ selectMode: true }); }, [openProductCardPicker]);
+  const handleChooseSuggestionProduct = useCallback((choice) => { if (choice) { setSuggestionChosenCard(choice); setSuggestionProductRemoved(false); } }, []);
 
   const createLeadCustomer = async () => {
     if (!selectedConversation?.session_id) return;
@@ -7939,7 +8097,7 @@ export default function AiInbox() {
         key={selectedConversation?.session_id || selectedConversation?.conversation_key || "product-picker"}
         open={productCardPickerConfig.open}
         onClose={closeProductCardPicker}
-        onSubmit={sendProductCards}
+        onSubmit={handleProductCardPickerSubmit}
         onSubmitLink={sendAvailableBySizeLink}
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
@@ -8327,6 +8485,14 @@ export default function AiInbox() {
                         aiSuggestionVisible={aiSuggestionVisible}
                         aiSuggestionEditing={editingAiDraft}
                         aiSuggestionFacts={activeAiSuggestionFacts}
+                        aiSuggestionProductCard={effectiveSuggestionCard}
+                        aiSuggestionProductChoices={suggestionSendPackage?.card_choices || []}
+                        aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
+                        aiSuggestionProductRemoved={suggestionProductRemoved}
+                        aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
+                        onRemoveSuggestionProduct={handleRemoveSuggestionProduct}
+                        onChangeSuggestionProduct={handleChangeSuggestionProduct}
+                        onChooseSuggestionProduct={handleChooseSuggestionProduct}
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
@@ -9173,6 +9339,14 @@ export default function AiInbox() {
                         aiSuggestionVisible={aiSuggestionVisible}
                         aiSuggestionEditing={editingAiDraft}
                         aiSuggestionFacts={activeAiSuggestionFacts}
+                        aiSuggestionProductCard={effectiveSuggestionCard}
+                        aiSuggestionProductChoices={suggestionSendPackage?.card_choices || []}
+                        aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
+                        aiSuggestionProductRemoved={suggestionProductRemoved}
+                        aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
+                        onRemoveSuggestionProduct={handleRemoveSuggestionProduct}
+                        onChangeSuggestionProduct={handleChangeSuggestionProduct}
+                        onChooseSuggestionProduct={handleChooseSuggestionProduct}
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
