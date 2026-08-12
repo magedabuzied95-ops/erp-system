@@ -4631,46 +4631,25 @@
     }
   }
 
-  /* Shopify Admin route treatment — scoped to Dashboard mount only. */
-  body.dashboard-shopify-route {
-    --bg: #f1f1f1;
-    --surface: #ebebeb;
-    --surface-soft: #f7f7f7;
-    --card: #ffffff;
-    --text: #303030;
-    --muted: #616161;
-    --border: #d4d4d4;
-    --primary: #8a6508;
-    --primary-soft: #fff3cd;
-    background: #f1f1f1;
-  }
+  /* Dashboard route — STRUCTURE ONLY.
+     This was the "Shopify Admin route treatment": 33 rules and 38 !important
+     that redefined --bg/--surface/--card/--border/--primary and painted a
+     literal Shopify-admin palette over them. It is why four phases of theme
+     work were invisible on this screen — the canonical tokens resolved
+     correctly and were then overpainted.
 
-  body.dashboard-shopify-route aside.sidebar-scroll {
-    background: #ebebeb !important;
-    box-shadow: none !important;
-  }
-
-  body.dashboard-shopify-route aside.sidebar-scroll :where(.rounded-2xl, .rounded-xl) {
-    border-radius: 8px !important;
-  }
-
+     Every visual declaration is retired; themes.js is the source of truth.
+     What remains is layout the Dashboard genuinely depends on, and it no
+     longer needs !important because nothing is fighting the design system. */
   body.dashboard-shopify-route main > div > div.sticky {
-    --text: #ffffff;
-    --muted: #b5b5b5;
-    --border: #3d3d3d;
-    --card: #303030;
-    --surface: #1a1a1a;
-    background: #1a1a1a !important;
     min-height: 56px;
   }
 
   body.dashboard-shopify-route main > div > div.sticky > div:last-child {
-    padding-block: 8px !important;
+    padding-block: 8px;
   }
 
   body.dashboard-shopify-route .dashboard-premium {
-    background: #f1f1f1;
-    border-radius: 0 !important;
     padding-top: 0.75rem;
   }
 
@@ -4678,81 +4657,30 @@
     position: relative;
     top: auto;
     margin-inline: 0;
-    border: 0 !important;
-    border-radius: 0;
-    background: transparent !important;
-    box-shadow: none;
     padding-inline: 0;
   }
 
   body.dashboard-shopify-route .dashboard-toolbar > :first-child {
-    border: 0 !important;
-    background: transparent !important;
     padding: 0;
   }
 
-  body.dashboard-shopify-route .dashboard-premium button,
-  body.dashboard-shopify-route .dashboard-premium a[class*="inline-flex"] {
-    border-radius: 8px !important;
-    box-shadow: none !important;
-  }
-
-  body.dashboard-shopify-route .dashboard-premium :where(article, section.rounded-3xl, aside > section) {
-    border: 1px solid #d4d4d4 !important;
-    border-radius: 12px !important;
-    background: #ffffff !important;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04) !important;
-  }
-
+  /* The KPI cells were fused into one bordered slab with gap:0 and per-cell
+     borders stripped. They are cards again, separated by the canonical
+     spacing step, so each one can carry the canonical card treatment. */
   body.dashboard-shopify-route .dashboard-kpi-grid {
-    gap: 0;
-    overflow: hidden;
-    border: 1px solid #d4d4d4;
-    border-radius: 12px;
-    background: #ffffff;
+    gap: var(--space-3);
   }
 
   body.dashboard-shopify-route .dashboard-kpi-grid article {
     min-height: 116px;
-    border: 0 !important;
-    border-inline-end: 1px solid #e3e3e3 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
   }
 
-  body.dashboard-shopify-route .dashboard-kpi-grid article:first-child {
-    box-shadow: inset 0 3px 0 var(--dashboard-gold) !important;
-  }
-
-  body.dashboard-shopify-route .dashboard-workspace > main > section,
-  body.dashboard-shopify-route .dashboard-operations-grid > section {
-    border-color: #d4d4d4 !important;
-    border-radius: 12px !important;
-  }
-
-  body.dashboard-shopify-route .dashboard-premium [class*="rounded-3xl"] { border-radius: 12px !important; }
-  body.dashboard-shopify-route .dashboard-premium [class*="rounded-2xl"] { border-radius: 8px !important; }
-
-  html[data-theme="dark"] body.dashboard-shopify-route {
-    --bg:#171715;--surface:#1d1d1b;--surface-soft:#2a2a27;--card:#232321;--text:#efeee9;--muted:#a19e96;--border:#393936;
-    background:#171715;
-  }
-  html[data-theme="dark"] body.dashboard-shopify-route aside.sidebar-scroll{background:#1d1d1b!important}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium{--dashboard-ink:#efeee9;--dashboard-muted:#a19e96;--dashboard-line:#393936;--dashboard-cream:#171715;background:#171715!important}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium :where([class*="bg-slate-9"],[class*="bg-slate-8"],[class*="bg-slate-950"],[class*="bg-white/["],[class*="bg-zinc-950"]){background-color:#232321!important}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium :where(article,section.rounded-3xl,aside>section),
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-workspace>main>section,
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-operations-grid>section{background:#232321!important;border-color:#393936!important;box-shadow:none!important}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-kpi-grid{background:#232321;border-color:#393936}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-kpi-grid article{background:#232321!important;border-color:#393936!important}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium select,
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium input{background:#2a2a27!important;border-color:#484843!important;color:#efeee9!important}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium .recharts-cartesian-grid line{stroke:#393936}
-  html[data-theme="dark"] body.dashboard-shopify-route .dashboard-premium .recharts-text{fill:#a19e96}
+  /* Chart chrome follows the theme instead of pinned greys. */
+  body.dashboard-shopify-route .dashboard-premium .recharts-cartesian-grid line { stroke: var(--border); }
+  body.dashboard-shopify-route .dashboard-premium .recharts-text { fill: var(--muted); }
 
   @media (max-width: 1023px) {
-    body.dashboard-shopify-route .dashboard-kpi-grid { gap: 1px; background: #d4d4d4; }
-    body.dashboard-shopify-route .dashboard-kpi-grid article { border: 0 !important; }
+    body.dashboard-shopify-route .dashboard-kpi-grid { gap: var(--space-2); }
   }
 }
 
