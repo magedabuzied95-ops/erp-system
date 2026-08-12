@@ -2767,9 +2767,25 @@ function AiSuggestionCard({
   onApprove,
   onDismiss,
   editing = false,
+  facts = null,
 }) {
   const value = clean(text);
   if (!value) return null;
+
+  const grounding = facts?.grounding || null;
+  const resolved = grounding?.resolved || null;
+  const requested = grounding?.requested || null;
+  const groundingAction = clean(grounding?.action || "");
+  const factProducts = Array.isArray(facts?.products) ? facts.products.filter((p) => clean(p?.name)) : [];
+  const actionLabel = { available: "متوفر", unavailable: "غير متوفر", soft_match: "مطابقة", clarify_size: "توضيح المقاس", clarify_color: "توضيح اللون", clarify_product: "توضيح المنتج", no_match: "لا يوجد", restock_suggestion: "إشعار توفر" }[groundingAction] || groundingAction;
+  const factChips = [
+    resolved?.productId ? `#${resolved.productId}` : "",
+    clean(requested?.productTerm || ""),
+    (resolved?.displaySize || requested?.size) ? `مقاس ${resolved?.displaySize || requested?.size}` : "",
+    clean(resolved?.color || requested?.color || ""),
+    resolved && (resolved.stock !== null && resolved.stock !== undefined) ? `مخزون ${resolved.stock}` : "",
+    resolved?.matchType ? clean(resolved.matchType) : "",
+  ].filter(Boolean);
 
   return (
     <div className={`mb-2 rounded-2xl border p-3 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
@@ -2779,6 +2795,22 @@ function AiSuggestionCard({
           <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
             {value}
           </div>
+          {grounding || factProducts.length ? (
+            <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/50 p-2">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200/80">
+                <span>حقائق الاستناد</span>
+                {actionLabel ? <Pill tone={groundingAction === "available" ? "emerald" : groundingAction === "unavailable" || groundingAction === "no_match" ? "amber" : "zinc"} className="px-2 py-0.5 text-[9px] font-black">{actionLabel}</Pill> : null}
+              </div>
+              {factChips.length ? (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {factChips.map((chip) => <span key={chip} className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-bold text-slate-200">{chip}</span>)}
+                </div>
+              ) : null}
+              {factProducts.length ? (
+                <div className="mt-1.5 truncate text-[10px] font-bold text-slate-300">{factProducts.map((p) => p.name).join(" · ")}</div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {editing ? <Pill tone="violet" className="shrink-0 px-2 py-0.5 text-[10px] font-black">Editing</Pill> : null}
       </div>
@@ -2827,6 +2859,7 @@ function ManualReplyComposer({
   aiSuggestionText = "",
   aiSuggestionVisible = false,
   aiSuggestionEditing = false,
+  aiSuggestionFacts = null,
   onEditAiSuggestion,
   onApproveAiSuggestion,
   onDismissAiSuggestion,
@@ -2905,6 +2938,7 @@ function ManualReplyComposer({
         <AiSuggestionCard
           text={aiSuggestionText}
           editing={aiSuggestionEditing}
+          facts={aiSuggestionFacts}
           onEdit={onEditAiSuggestion}
           onApprove={onApproveAiSuggestion}
           onDismiss={onDismissAiSuggestion}
@@ -5958,6 +5992,14 @@ export default function AiInbox() {
     return `${selectedConversation.session_id}:${stamp || activeAiSuggestionText.length}`;
   }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id]);
   const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey;
+  // Grounding facts for the suggestion card (product/size/color/stock/action) so the operator reviews WHY the
+  // AI answered as it did before approving. Derived from the persisted draft; null when absent.
+  const activeAiSuggestionFacts = useMemo(() => {
+    const g = activeAiReplyDraft?.metadata?.grounding || activeAiReplyDraft?.grounding || null;
+    const cards = Array.isArray(activeAiReplyDraft?.product_cards) ? activeAiReplyDraft.product_cards : [];
+    if (!g && !cards.length) return null;
+    return { grounding: g, products: cards.slice(0, 4).map((c) => ({ id: c?.id || c?.product_id || "", name: clean(c?.name || c?.product_name || "") })) };
+  }, [activeAiReplyDraft]);
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
       aiReply.validation ||
@@ -8307,6 +8349,7 @@ export default function AiInbox() {
                         aiSuggestionText={activeAiSuggestionText}
                         aiSuggestionVisible={aiSuggestionVisible}
                         aiSuggestionEditing={editingAiDraft}
+                        aiSuggestionFacts={activeAiSuggestionFacts}
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
@@ -9154,6 +9197,7 @@ export default function AiInbox() {
                         aiSuggestionText={activeAiSuggestionText}
                         aiSuggestionVisible={aiSuggestionVisible}
                         aiSuggestionEditing={editingAiDraft}
+                        aiSuggestionFacts={activeAiSuggestionFacts}
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
