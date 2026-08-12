@@ -9,7 +9,8 @@ Started from `origin/main` @ `3ca9c07`.
 | # | Scope | Rollback ref | Released | Production | Suite |
 |---|---|---|---|---|---|
 | 1 | FlowShell fixed-dark retirement | `pre-visual-convergence-cp1-20260812` -> `b91cec6` | `e037562` | `e037562` verified | 1850 tests, 25 fail, identical to baseline |
-| 2 | Marketing core fixed-dark retirement (5 files / 4 routes) | `pre-visual-convergence-cp2-20260812` -> `98110df` | see below | see below | build green |
+| 2 | Marketing core fixed-dark retirement (5 files / 4 routes) | `pre-visual-convergence-cp2-20260812` -> `98110df` | `aec6497` | `aec6497` verified Light + Dark | build green |
+| 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | see below | see below | build green |
 
 ## Method
 
@@ -212,6 +213,44 @@ Residual `bg-[#0…]`, `from-slate-9xx`, `text-white`, `text-slate-[1-6]00`,
 
 Diff is 140 insertions / 140 deletions, class strings only — no copy, no `t()`,
 no props, no logic (business freeze respected).
+
+**Checkpoint 2 production verification (Production `aec6497`):**
+
+| Route | Light | Dark |
+|---|---|---|
+| `/marketing` | 0 offenders, 0 dark gradients | 0 offenders |
+| `/marketing/attribution` | 0 | 0 |
+| `/marketing/campaigns` | 0 | 0 |
+| `/marketing/posts` | 0 | 0 |
+
+Shell in Dark: `rgb(19,18,17)` = `--bg`, text `rgb(243,241,236)` = `--text`,
+identical to the checkpoint-1 recorded values. Frozen reference `/products`
+re-checked in Dark after the change: **0 offenders**, no regression.
+State for those four routes: **FIXED_VERIFIED (light + dark, RTL)**.
+
+### 3. Marketing remainder — fixed-dark surfaces (checkpoint 3)
+
+**Measured before the fix:** `/marketing/settings` 43 offenders (cards
+292 × 134 at `rgb(23,26,24)`, luminance 0.01), `/marketing/analytics` 20
+offenders (including a 1105 × 176 section at `rgb(23,24,21)`, luminance 0.009),
+`/marketing/templates` 1 offender 1121 × 148 at `rgb(23,24,21)` plus 6 dark
+gradients.
+
+**Owners repaired:** `MarketingAnalytics.jsx`, `PostTemplates.jsx`,
+`MarketingSettings.jsx`, `MarketingCampaignAnalyticsPanel.jsx`.
+
+The transform now also retires any near-black surface hex — defined as all three
+channel pairs `<= 0x2x` (`#101310`, `#171a18`, `#171815`, `#0c0d0c`, `#20211e`, …)
+— to `--card`. Brand colours are preserved by that rule: `#1877f2` (Facebook)
+has a bright channel pair and is deliberately kept.
+
+**Contrast regression caught during this checkpoint:** the blanket
+`text-white -> --text` rewrite also hit the Meta OAuth button, which sits on a
+fixed `#1877f2` brand fill; in Light that would have rendered near-black text on
+brand blue. Restored to `text-white`, which is the correct fixed contrast colour
+for a fixed brand fill. This is the same defect class as the gold-contrast issue
+found in checkpoint 1, in the opposite direction. A repo-wide check for
+`brand fill + --text` found no other instance.
 
 ## RESUME MARKER
 
