@@ -252,6 +252,33 @@ test("11.1 END-TO-END: fragmented Jordan turn grounds correctly (was Jordan+bags
   assert.doesNotMatch(r.answer, /bag|شنط|حقيب/i);
 });
 
+// ---- Phase 11.1b — isolated bare size/color fragment clarifies instead of leaking raw output ----
+
+test("11.1b isolated 'او مقاس ٤٣' (explicit size, no product) → clarify_product, not a raw leak", async () => {
+  const r = await G.applyInboxGroundingGate({
+    tenantId: 1, message: "او مقاس ٤٣",
+    deps: { resolveByBrandModel: async () => [], queryProducts: async () => [], inventoryFacts: async () => ({}) },
+  });
+  assert.equal(r.action, "clarify_product"); // explicit مقاس ⇒ ask which product
+  assert.equal(r.suggested_products.length, 0);
+});
+
+test("11.1b bare color 'اسود' (no product) → clarify_product", async () => {
+  const r = await G.applyInboxGroundingGate({
+    tenantId: 1, message: "اسود",
+    deps: { resolveByBrandModel: async () => [], queryProducts: async () => [], inventoryFacts: async () => ({}) },
+  });
+  assert.equal(r.action, "clarify_product");
+});
+
+test("11.1b stray number 'خصم ٣٠' (no explicit size marker, no availability) → NO false clarify", async () => {
+  const r = await G.applyInboxGroundingGate({
+    tenantId: 1, message: "خصم ٣٠",
+    deps: { resolveByBrandModel: async () => [], queryProducts: async () => [], inventoryFacts: async () => ({}) },
+  });
+  assert.equal(r.changed, false); // must not treat a discount number as a size → no clarify
+});
+
 test("SAFETY: gate never throws, never sends, never writes stock/orders/restock intents", async () => {
   const bad = await G.applyInboxGroundingGate({ tenantId: 1, message: LIVE, reply: {}, deps: { queryProducts: async () => { throw new Error("boom"); } } });
   assert.equal(bad.changed, false); // failure-isolated

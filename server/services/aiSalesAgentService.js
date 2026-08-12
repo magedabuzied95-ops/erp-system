@@ -4230,7 +4230,7 @@ const latestCustomerMessage = (messages = []) =>
 // assisted drafts are never sent, there are no outbound rows between fragments, so the recency gap is the real
 // boundary that keeps this from swallowing older, already-addressed turns. Returned oldest→newest.
 const OUTBOUND_SENDERS = new Set(["staff", "agent", "human", "assistant", "ai", "bot", "system"]);
-const currentCustomerTurnTexts = (messages = [], { maxMessages = 8, turnGapMs = 120000 } = {}) => {
+const currentCustomerTurnTexts = (messages = [], { maxMessages = 8, turnGapMs = 180000 } = {}) => {
   const rows = asArray(messages);
   const cluster = [];
   let newerTs = null;
