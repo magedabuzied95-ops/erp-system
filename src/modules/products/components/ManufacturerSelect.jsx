@@ -41,50 +41,64 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
       menuPosition="fixed"
       menuPortalTarget={typeof document !== "undefined" ? document.body : null}
       className="text-sm"
+      /* react-select cannot be styled by Tailwind utilities, so its palette is
+         supplied here. It used to be a hardcoded dark ramp — a near-black
+         control, a charcoal menu and white text — which rendered as a black
+         select on the light theme whatever mode was active. Every value is a
+         token now, so
+         this control follows the theme like the native ones beside it. */
       styles={{
         control: (base, state) => ({
           ...base,
-          minHeight: 40,
-          height: isMulti ? "auto" : 40,
-          borderRadius: 14,
-          borderColor: state.isFocused ? "#a38220" : "rgba(255,255,255,.08)",
-          backgroundColor: "#09090b",
-          boxShadow: state.isFocused ? "0 0 0 2px rgba(218,165,32,.18)" : "none",
+          minHeight: "var(--control-height-md, 40px)",
+          height: isMulti ? "auto" : "var(--control-height-md, 40px)",
+          borderRadius: "var(--radius-control)",
+          borderColor: state.isFocused ? "var(--primary)" : "var(--border)",
+          backgroundColor: "var(--surface)",
+          boxShadow: state.isFocused ? "0 0 0 3px var(--primary-soft)" : "none",
           cursor: "pointer",
-          ":hover": { borderColor: "#a38220" },
+          ":hover": { borderColor: "var(--border-strong)" },
         }),
         valueContainer: (base) => ({ ...base, padding: "0 12px" }),
-        singleValue: (base) => ({ ...base, color: "#fff", fontWeight: 700 }),
-        multiValue: (base) => ({ ...base, borderRadius: 8, backgroundColor: "rgba(163,130,32,.24)" }),
-        multiValueLabel: (base) => ({ ...base, color: "#fff", fontWeight: 700 }),
-        multiValueRemove: (base) => ({ ...base, color: "#d4d4d8", ":hover": { color: "#fff", backgroundColor: "#806719" } }),
-        placeholder: (base) => ({ ...base, color: "#f4f4f5", fontWeight: 700 }),
-        input: (base) => ({ ...base, color: "#fff" }),
+        singleValue: (base) => ({ ...base, color: "var(--text)", fontWeight: 700 }),
+        multiValue: (base) => ({ ...base, borderRadius: 8, backgroundColor: "var(--primary-soft)" }),
+        multiValueLabel: (base) => ({ ...base, color: "var(--primary)", fontWeight: 700 }),
+        multiValueRemove: (base) => ({
+          ...base,
+          color: "var(--muted)",
+          ":hover": { color: "var(--primary-contrast)", backgroundColor: "var(--primary)" },
+        }),
+        placeholder: (base) => ({ ...base, color: "var(--muted)", fontWeight: 700 }),
+        input: (base) => ({ ...base, color: "var(--text)" }),
         indicatorsContainer: (base) => ({ ...base, minHeight: 38, height: isMulti ? "auto" : 38 }),
         indicatorSeparator: () => ({ display: "none" }),
-        dropdownIndicator: (base) => ({ ...base, color: "#d4d4d8", padding: 8 }),
-        clearIndicator: (base) => ({ ...base, color: "#a1a1aa", padding: 6 }),
+        dropdownIndicator: (base) => ({ ...base, color: "var(--muted)", padding: 8 }),
+        clearIndicator: (base) => ({ ...base, color: "var(--muted)", padding: 6 }),
         menuPortal: (base) => ({ ...base, zIndex: 10000 }),
         menu: (base) => ({
           ...base,
           overflow: "hidden",
           marginTop: 6,
-          border: "1px solid rgba(255,255,255,.16)",
-          borderRadius: 12,
-          backgroundColor: "#18181b",
-          boxShadow: "0 18px 50px rgba(0,0,0,.55)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-card)",
+          backgroundColor: "var(--card)",
+          boxShadow: "var(--shadow-overlay)",
         }),
-        menuList: (base) => ({ ...base, padding: 6, backgroundColor: "#18181b" }),
+        menuList: (base) => ({ ...base, padding: 6, backgroundColor: "var(--card)" }),
         option: (base, state) => ({
           ...base,
           borderRadius: 8,
-          backgroundColor: state.isSelected ? "#a38220" : state.isFocused ? "#3f3f46" : "#18181b",
-          color: "#fff",
+          backgroundColor: state.isSelected
+            ? "var(--primary)"
+            : state.isFocused
+              ? "var(--surface-hover)"
+              : "transparent",
+          color: state.isSelected ? "var(--primary-contrast)" : "var(--text)",
           fontWeight: 700,
           cursor: "pointer",
-          ":active": { backgroundColor: "#806719" },
+          ":active": { backgroundColor: "var(--primary-hover)" },
         }),
-        noOptionsMessage: (base) => ({ ...base, color: "#a1a1aa" }),
+        noOptionsMessage: (base) => ({ ...base, color: "var(--muted)" }),
       }}
     />
   );

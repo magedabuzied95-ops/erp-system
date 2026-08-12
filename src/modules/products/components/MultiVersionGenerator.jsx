@@ -117,17 +117,17 @@ const MultiVersionGenerator = ({
   };
 
   return (
-    <div className={`rounded-[18px] border border-white/8 bg-white/[0.035] p-4 ${className}`}>
+    <div className={`rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-white">{titles.title}</p>
-          <p className="mt-1 text-xs leading-5 text-zinc-400">{titles.help}</p>
+          <p className="text-sm font-black text-text">{titles.title}</p>
+          <p className="mt-1 text-xs leading-5 text-text-muted">{titles.help}</p>
         </div>
         <button
           type="button"
           onClick={generateVersions}
           disabled={generating}
-          className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[12px] border border-emerald-300/25 bg-emerald-300/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-300/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {generating ? titles.regenerate : versions.length ? titles.regenerate : titles.button}
@@ -135,13 +135,13 @@ const MultiVersionGenerator = ({
       </div>
 
       {error ? (
-        <div className="mt-3 rounded-[14px] border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100">
+        <div className="mt-3 rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100">
           {error}
         </div>
       ) : null}
 
       {!versions.length && !generating && !error ? (
-        <div className="mt-3 rounded-[14px] border border-dashed border-white/10 bg-zinc-950/40 px-3 py-4 text-sm text-zinc-500">
+        <div className="mt-3 rounded-[var(--radius-control)] border border-dashed border-border bg-surface-soft px-3 py-4 text-sm text-text-muted">
           {titles.empty}
         </div>
       ) : null}
@@ -151,17 +151,17 @@ const MultiVersionGenerator = ({
           {versions.map((version) => {
             const previewText = joinPreviewText(version);
             return (
-              <div key={version.tone} className="rounded-[16px] border border-white/10 bg-zinc-950/65 p-3">
+              <div key={version.tone} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{version.label}</p>
-                    <p className="mt-1 text-xs text-zinc-400">{version.badge}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-muted">{version.label}</p>
+                    <p className="mt-1 text-xs text-text-muted">{version.badge}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => handleCopy(version)}
-                      className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[10px] border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-semibold text-zinc-100 transition hover:border-white/20 hover:bg-white/[0.06]"
+                      className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 text-[11px] font-semibold text-text transition hover:border-border-strong hover:bg-surface-hover"
                     >
                       {copiedTone === version.tone ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       {copiedTone === version.tone ? titles.copied : titles.copyVersion}
@@ -169,7 +169,7 @@ const MultiVersionGenerator = ({
                     <button
                       type="button"
                       onClick={() => onApplyVersion?.(version)}
-                      className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[10px] border border-emerald-300/25 bg-emerald-300/10 px-2.5 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+                      className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-300/10 px-2.5 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
                       {titles.apply}
@@ -178,28 +178,28 @@ const MultiVersionGenerator = ({
                 </div>
 
                 <div className="mt-3 space-y-2">
-                  <div className="rounded-[12px] border border-white/8 bg-white/[0.03] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Arabic</div>
-                    <p className="mt-2 text-sm leading-6 text-zinc-100" dir="rtl">
+                  <div className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">Arabic</div>
+                    <p className="mt-2 text-sm leading-6 text-text" dir="rtl">
                       {version.arabic_description || version.error || "No Arabic description generated"}
                     </p>
                   </div>
-                  <div className="rounded-[12px] border border-white/8 bg-white/[0.03] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">English</div>
-                    <p className="mt-2 text-sm leading-6 text-zinc-100">
+                  <div className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">English</div>
+                    <p className="mt-2 text-sm leading-6 text-text">
                       {version.english_description || version.error || "No English description generated"}
                     </p>
                   </div>
                 </div>
 
                 {previewText ? (
-                  <p className="mt-3 line-clamp-3 text-[11px] leading-5 text-zinc-500">
+                  <p className="mt-3 line-clamp-3 text-[11px] leading-5 text-text-muted">
                     {previewText}
                   </p>
                 ) : null}
 
                 {version.source ? (
-                  <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-zinc-600">
+                  <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-text-muted">
                     Source: {version.source}
                   </p>
                 ) : null}

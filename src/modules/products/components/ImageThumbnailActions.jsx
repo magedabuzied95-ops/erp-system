@@ -43,12 +43,12 @@ function ImageThumbnailActions({
 
   return (
     <div
-      className={`group relative h-24 w-24 overflow-hidden rounded-xl border bg-zinc-950/80 shadow-lg shadow-black/10 ${ isPrimary ? "border-emerald-400/70" : "border-white/10" } ${className}`}
+      className={`group relative h-24 w-24 overflow-hidden rounded-[var(--radius-control)] border bg-surface-soft shadow-[var(--shadow-card)] ${ isPrimary ? "border-primary" : "border-border" } ${className}`}
     >
       {src ? (
         <img src={src} alt={alt} className={`h-full w-full transition duration-200 group-hover:scale-[1.03] ${imageClassName}`} />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs font-bold text-zinc-500">
+        <div className="flex h-full w-full items-center justify-center bg-surface-soft text-xs font-bold text-text-muted">
           {t("products.images.noImage", "No image")}
         </div>
       )}
@@ -56,7 +56,7 @@ function ImageThumbnailActions({
       <div className="pointer-events-none absolute inset-0 bg-black/0 transition duration-200 group-hover:bg-black/20" />
 
       {isPrimary ? (
-        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-emerald-400 px-1.5 py-0.5 text-[9px] font-black leading-none text-black shadow-lg">
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-black leading-none text-[var(--primary-contrast)] shadow-lg">
           {t("products.images.main", "Main")}
         </span>
       ) : null}
@@ -68,7 +68,7 @@ function ImageThumbnailActions({
             if (!deleteDisabled) setConfirming(true);
           }}
           disabled={deleteDisabled}
-          className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-200/35 bg-red-500/95 text-white shadow-lg shadow-black/35 backdrop-blur-md transition duration-200 hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200/70 disabled:cursor-not-allowed disabled:bg-zinc-700/85 disabled:text-zinc-300"
+          className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-200/35 bg-red-500/95 text-white shadow-lg shadow-black/35 backdrop-blur-md transition duration-200 hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200/70 disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-text-muted"
           aria-label={deleteDisabled ? deleteDisabledReason || t("products.images.deleteDisabled", "Delete disabled") : t("products.images.deleteImage", "Delete image")}
           title={deleteDisabled ? deleteDisabledReason || t("products.images.deleteDisabled", "Delete disabled") : t("products.actionsMenu.delete", "Delete")}
         >
@@ -101,7 +101,7 @@ function ImageThumbnailActions({
       {actions ? <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">{actions}</div> : null}
 
       {confirming ? (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/86 p-2 text-center backdrop-blur-sm">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] bg-black/86 p-2 text-center backdrop-blur-sm">
           <button
             type="button"
             onClick={() => setConfirming(false)}
