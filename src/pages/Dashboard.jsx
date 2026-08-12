@@ -266,6 +266,7 @@ function Dashboard() {
   const user = getCurrentUser();
   const tenant = getCurrentTenant();
   const role = roleKey(getRole(user));
+  const isCashier = role === "cashier";
   const [data, setData] = React.useState(emptyDashboard);
   const [loading, setLoading] = React.useState(true);
   const [lastUpdated, setLastUpdated] = React.useState(null);
@@ -327,14 +328,15 @@ function Dashboard() {
 
   const queryString = React.useMemo(() => {
     const params = new URLSearchParams();
-    params.set("range", filters.range);
-    if (filters.range === "custom") {
+    const effectiveRange = isCashier ? "today" : filters.range;
+    params.set("range", effectiveRange);
+    if (effectiveRange === "custom") {
       if (filters.date_from) params.set("date_from", filters.date_from);
       if (filters.date_to) params.set("date_to", filters.date_to);
     }
     if (filters.branch_id && filters.branch_id !== "all") params.set("branch_id", filters.branch_id);
     return `?${params.toString()}`;
-  }, [filters]);
+  }, [filters, isCashier]);
 
   const loadDashboard = React.useCallback(async ({ silent = false } = {}) => {
     const requestId = dashboardRequestRef.current + 1;
@@ -555,14 +557,20 @@ function Dashboard() {
                 <QuickAction key={action.to} {...action} />
               ))}
             </div>
-            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong">
-              <option value="today">{copy.today}</option>
-              <option value="yesterday">{copy.yesterday}</option>
-              <option value="7d">{copy.last7Days}</option>
-              <option value="month">{copy.thisMonth}</option>
-              <option value="custom">{copy.customRange}</option>
-            </select>
-            {filters.range === "custom" ? (
+            {isCashier ? (
+              <span aria-label={copy.today} className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text">
+                {copy.today}
+              </span>
+            ) : (
+              <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong">
+                <option value="today">{copy.today}</option>
+                <option value="yesterday">{copy.yesterday}</option>
+                <option value="7d">{copy.last7Days}</option>
+                <option value="month">{copy.thisMonth}</option>
+                <option value="custom">{copy.customRange}</option>
+              </select>
+            )}
+            {!isCashier && filters.range === "custom" ? (
               <>
                 <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none" />
                 <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none" />

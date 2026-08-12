@@ -15,12 +15,21 @@ import {
 } from "../services/dashboardAnalyticsService.js";
 
 const resolveTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
-const filters = (req) => ({
-  range: req.query.range || "today",
-  dateFrom: req.query.date_from || req.query.dateFrom || "",
-  dateTo: req.query.date_to || req.query.dateTo || "",
-  branchId: req.query.branch_id || req.query.branchId || "",
-});
+const normalizedRole = (user = {}) =>
+  String(user.role_name || user.role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+const isCashier = (user) => normalizedRole(user).includes("cashier");
+export const dashboardFilters = (req) => {
+  const cashierOnlyToday = isCashier(req.user);
+  return {
+    range: cashierOnlyToday ? "today" : req.query.range || "today",
+    dateFrom: cashierOnlyToday ? "" : req.query.date_from || req.query.dateFrom || "",
+    dateTo: cashierOnlyToday ? "" : req.query.date_to || req.query.dateTo || "",
+    branchId: req.query.branch_id || req.query.branchId || "",
+  };
+};
 
 const send = (res, data) => res.status(200).json({ success: true, data });
 const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
@@ -73,15 +82,15 @@ const route = (name, handler) => async (req, res) => {
 };
 
 export const overview = route("overview", (req) =>
-  getDashboardOverview({ tenantId: resolveTenantId(req), filters: filters(req) })
+  getDashboardOverview({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
 );
 
 export const salesTrend = route("salesTrend", (req) =>
-  getSalesTrend({ tenantId: resolveTenantId(req), days: req.query.days, filters: filters(req) })
+  getSalesTrend({ tenantId: resolveTenantId(req), days: isCashier(req.user) ? 1 : req.query.days, filters: dashboardFilters(req) })
 );
 
 export const topProducts = route("topProducts", (req) =>
-  getTopProducts({ tenantId: resolveTenantId(req), limit: req.query.limit, filters: filters(req) })
+  getTopProducts({ tenantId: resolveTenantId(req), limit: req.query.limit, filters: dashboardFilters(req) })
 );
 
 export const lowStock = route("lowStock", (req) =>
@@ -93,19 +102,19 @@ export const liveActivity = route("liveActivity", (req) =>
 );
 
 export const branchPerformance = route("branchPerformance", (req) =>
-  getBranchPerformance({ tenantId: resolveTenantId(req), filters: filters(req) })
+  getBranchPerformance({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
 );
 
 export const paymentAnalytics = route("paymentAnalytics", (req) =>
-  getPaymentAnalytics({ tenantId: resolveTenantId(req), filters: filters(req) })
+  getPaymentAnalytics({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
 );
 
 export const hourlySales = route("hourlySales", (req) =>
-  getHourlySales({ tenantId: resolveTenantId(req), filters: filters(req) })
+  getHourlySales({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
 );
 
 export const marketing = route("marketing", (req) =>
-  getMarketingAnalytics({ tenantId: resolveTenantId(req), filters: filters(req) })
+  getMarketingAnalytics({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
 );
 
 export const posLive = route("posLive", (req) => getPosLive({ tenantId: resolveTenantId(req) }));
