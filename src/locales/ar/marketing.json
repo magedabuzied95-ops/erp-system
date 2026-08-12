@@ -1183,5 +1183,67 @@
       "fallbackReply": "رد بديل",
       "simulator": "محاكي المعاينة"
     }
+  },
+  "videos": {
+    "scenes": {
+      "hookStopScroll": "الجذب / إيقاف التمرير",
+      "scene1": "المشهد 1",
+      "productHero": "واجهة المنتج",
+      "scene2": "المشهد 2",
+      "detailVariant": "التفاصيل / المتغير",
+      "scene3": "المشهد 3",
+      "pricePop": "إبراز السعر",
+      "scene4": "المشهد 4",
+      "scene5": "المشهد 5",
+      "stockSizePush": "دفع المخزون / المقاس",
+      "ctaClose": "خاتمة الدعوة لاتخاذ إجراء",
+      "scene6": "المشهد 6"
+    },
+    "page": {
+      "videos": "الفيديوهات",
+      "videoQueue": "طابور الفيديو",
+      "readyApproved": "جاهز / معتمد",
+      "failed": "فشل",
+      "contentLanes": "مسارات المحتوى",
+      "videoTemplates": "قوالب الفيديو",
+      "dailyVolume": "حجم الفيديو اليومي",
+      "videosPerDay": "فيديوهات في اليوم"
+    },
+    "queue": {
+      "tiktokLater": "TikTok لاحقًا",
+      "preview": "معاينة",
+      "viewPost": "عرض المنشور",
+      "approve": "موافقة",
+      "publish": "نشر",
+      "published": "منشور"
+    },
+    "preview": {
+      "variantDetails": "تفاصيل المتغير",
+      "priceFocus": "التركيز على السعر",
+      "limitedAvailability": "توافر محدود",
+      "title": "معاينة الفيديو",
+      "subtitle": "عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.",
+      "status": "الحالة",
+      "scheduled": "مجدول",
+      "playback": "التشغيل",
+      "preset": "الإعداد المسبق",
+      "qualityScore": "درجة الجودة",
+      "aspectRatio": "نسبة العرض إلى الارتفاع",
+      "estimatedEngagement": "التفاعل المتوقع",
+      "motionStyle": "أسلوب الحركة",
+      "reelEnergy": "طاقة الريل",
+      "hookStrength": "قوة الجذب",
+      "pacing": "الإيقاع",
+      "ctaStrength": "قوة الدعوة لاتخاذ إجراء",
+      "trendFit": "ملاءمة الترند",
+      "reelType": "نوع الريل",
+      "transitionStyle": "أسلوب الانتقال",
+      "readiness": "جاهزية الفيديو",
+      "capcutTimeline": "خط زمني بأسلوب CapCut",
+      "sceneTimeline": "الخط الزمني للمشاهد",
+      "captionTimeline": "خط زمني للنصوص / التعليقات",
+      "generatedScript": "النص / التعليق المُولّد",
+      "technicalDiagnostics": "تشخيص تقني"
+    }
   }
 }

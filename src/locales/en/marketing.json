@@ -1183,5 +1183,67 @@
       "fallbackReply": "Fallback reply",
       "simulator": "Preview simulator"
     }
+  },
+  "videos": {
+    "scenes": {
+      "hookStopScroll": "Hook / Stop Scroll",
+      "scene1": "Scene 1",
+      "productHero": "Product Hero",
+      "scene2": "Scene 2",
+      "detailVariant": "Detail / Variant",
+      "scene3": "Scene 3",
+      "pricePop": "Price Pop",
+      "scene4": "Scene 4",
+      "scene5": "Scene 5",
+      "stockSizePush": "Stock / Size Push",
+      "ctaClose": "CTA Close",
+      "scene6": "Scene 6"
+    },
+    "page": {
+      "videos": "Videos",
+      "videoQueue": "Video Queue",
+      "readyApproved": "Ready / approved",
+      "failed": "Failed",
+      "contentLanes": "Content Lanes",
+      "videoTemplates": "Video templates",
+      "dailyVolume": "Daily Video Volume",
+      "videosPerDay": "Videos per day"
+    },
+    "queue": {
+      "tiktokLater": "TikTok later",
+      "preview": "Preview",
+      "viewPost": "View post",
+      "approve": "Approve",
+      "publish": "Publish",
+      "published": "Published"
+    },
+    "preview": {
+      "variantDetails": "Variant details",
+      "priceFocus": "Price focus",
+      "limitedAvailability": "Limited availability",
+      "title": "Video preview",
+      "subtitle": "A video queue item ready to preview. MP4 generation and Reels publishing come later.",
+      "status": "Status",
+      "scheduled": "Scheduled",
+      "playback": "Playback",
+      "preset": "Preset",
+      "qualityScore": "Quality score",
+      "aspectRatio": "Aspect ratio",
+      "estimatedEngagement": "Estimated engagement",
+      "motionStyle": "Motion style",
+      "reelEnergy": "Reel energy",
+      "hookStrength": "Hook strength",
+      "pacing": "Pacing",
+      "ctaStrength": "CTA strength",
+      "trendFit": "Trend fit",
+      "reelType": "Reel type",
+      "transitionStyle": "Transition style",
+      "readiness": "Video readiness",
+      "capcutTimeline": "CapCut-style timeline",
+      "sceneTimeline": "Scene timeline",
+      "captionTimeline": "Script / caption timeline",
+      "generatedScript": "Generated script / caption",
+      "technicalDiagnostics": "Technical diagnostics"
+    }
   }
 }

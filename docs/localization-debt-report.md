@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 168
-- Hardcoded Arabic UI strings: 1779
-- Hardcoded English UI strings: 2057
-- Total hardcoded UI strings: 3836
-- Mixed-language files (both scripts hardcoded): 47
+- Hardcoded Arabic UI strings: 1765
+- Hardcoded English UI strings: 2017
+- Total hardcoded UI strings: 3782
+- Mixed-language files (both scripts hardcoded): 46
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 91 | 1217 | 1521 | 2738 | 32 |
+| main-erp | 91 | 1203 | 1481 | 2684 | 31 |
 | shared | 61 | 196 | 453 | 649 | 10 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -40,7 +40,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 62 | 2 | 64 |
 | src/modules/aiStudio/pages/AiStudio.jsx | main-erp | 1 | 61 | 62 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
-| src/modules/marketing/pages/AiMarketingVideos.jsx | main-erp | 14 | 45 | 59 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
 | src/modules/aiSupport/pages/AiSettings.jsx | main-erp | 7 | 48 | 55 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 8 | 52 |
@@ -738,50 +737,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 31 [attribute/ar] مقاسات ثابتة وحالات واضحة للنماذج كثيفة البيانات.
 - 31 [attribute/en] SKU-000
 - ... 20 more
-
-### src/modules/marketing/pages/AiMarketingVideos.jsx (main-erp — ar:14 en:45)
-
-- 104 [object-key/en] Hook / Stop Scroll
-- 104 [object-key/en] Scene 1
-- 105 [object-key/en] Product Hero
-- 105 [object-key/en] Scene 2
-- 106 [object-key/en] Detail / Variant
-- 106 [object-key/en] Scene 3
-- 107 [object-key/en] Price Pop
-- 107 [object-key/en] Scene 4
-- 108 [object-key/en] Available now
-- 108 [object-key/en] Scene 5
-- 108 [object-key/en] Stock / Size Push
-- 109 [object-key/en] CTA Close
-- 109 [object-key/en] Scene 6
-- 142 [object-key/en] Last Piece Fast Beat
-- 151 [object-key/en] Soft Luxury Arabic
-- 160 [object-key/en] Arabic Remix Reel Trend
-- 168 [object-key/en] Energetic Sneakers Beat
-- 312 [jsx-text/en] Videos
-- 324 [attribute/en] Video Queue
-- 325 [attribute/ar] جاهز / معتمد
-- 326 [attribute/ar] فشل
-- 332 [attribute/en] Content Lanes
-- 344 [attribute/ar] قوالب الفيديو
-- 356 [attribute/en] Daily Video Volume
-- 358 [jsx-text/en] Videos per day
-- 382 [attribute/en] Video Queue
-- 439 [jsx-text/en] TikTok later
-- 446 [jsx-text/en] Preview
-- 447 [jsx-text/ar] عرض المنشور
-- 448 [jsx-text/ar] موافقة
-- 449 [jsx-text/ar] نشر
-- 631 [jsx-text/en] Variant details
-- 641 [jsx-text/en] Price focus
-- 651 [jsx-text/en] Limited availability
-- 677 [jsx-text/en] Video preview
-- 678 [jsx-text/ar] عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.
-- 686 [attribute/en] Status
-- 687 [attribute/en] Scheduled
-- 688 [attribute/en] Playback
-- 689 [attribute/en] Preset
-- ... 19 more
 
 ### src/modules/smartWarehouse/pages/SmartWarehouse.jsx (main-erp — ar:0 en:59)
 
@@ -2949,6 +2904,14 @@ of scope. The scanner is conservative and can still contain false positives.
 - 193 [object-key/en] Sport
 - 215 [object-key/en] Friendly
 - 237 [object-key/en] Sales
+
+### src/modules/marketing/pages/AiMarketingVideos.jsx (main-erp — ar:0 en:5)
+
+- 113 [object-key/en] Available now
+- 147 [object-key/en] Last Piece Fast Beat
+- 156 [object-key/en] Soft Luxury Arabic
+- 165 [object-key/en] Arabic Remix Reel Trend
+- 173 [object-key/en] Energetic Sneakers Beat
 
 ### src/modules/products/lib/productClassifications.js (main-erp — ar:1 en:4)
 
