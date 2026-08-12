@@ -11,10 +11,10 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 608
 - Files with debt: 206
-- Hardcoded Arabic UI strings: 2009
-- Hardcoded English UI strings: 2635
-- Total hardcoded UI strings: 4644
-- Mixed-language files (both scripts hardcoded): 55
+- Hardcoded Arabic UI strings: 2002
+- Hardcoded English UI strings: 2634
+- Total hardcoded UI strings: 4636
+- Mixed-language files (both scripts hardcoded): 54
 
 ### By surface
 
@@ -22,7 +22,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 106 | 1428 | 1882 | 3310 | 37 |
 | shared | 70 | 199 | 467 | 666 | 11 |
-| employee-portal | 24 | 198 | 158 | 356 | 4 |
+| employee-portal | 24 | 191 | 157 | 348 | 3 |
 | pos | 5 | 182 | 128 | 310 | 3 |
 | manager-portal | 1 | 2 | 0 | 2 | 0 |
 
@@ -74,7 +74,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/products/pages/CreateProduct.jsx | main-erp | 7 | 4 | 11 |
 | src/modules/employees/pages/EmployeePortalInventory.jsx | employee-portal | 3 | 7 | 10 |
 | src/modules/sales/pages/Customers.jsx | main-erp | 7 | 3 | 10 |
-| src/modules/employees/pages/StaffTasks.jsx | employee-portal | 7 | 2 | 9 |
 | src/modules/notifications/pages/NotificationsCenter.jsx | main-erp | 7 | 1 | 8 |
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
 | src/modules/marketing/components/MarketingStudioHeader.jsx | shared | 4 | 2 | 6 |
@@ -3175,18 +3174,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 115 [attribute/en] Write a manual reply
 - 116 [attribute/en] Send
 
-### src/modules/employees/pages/StaffTasks.jsx (employee-portal — ar:7 en:2)
-
-- 38 [object-key/ar] الأحد
-- 39 [object-key/ar] الاثنين
-- 40 [object-key/ar] الثلاثاء
-- 41 [object-key/ar] الأربعاء
-- 42 [object-key/ar] الخميس
-- 43 [object-key/ar] الجمعة
-- 44 [object-key/ar] السبت
-- 68 [inline-ternary/en] language) ? "ar-EG" : "en-US"
-- 998 [jsx-text/en] Task #
-
 ### src/modules/loyalty/pages/LoyaltyRules.jsx (main-erp — ar:0 en:9)
 
 - 49 [notification/en] Using loyalty rules fallback
@@ -3715,6 +3702,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/employees/pages/ActivityLogs.jsx (employee-portal — ar:0 en:1)
 
 - 227 [attribute/en] Search logs...
+
+### src/modules/employees/pages/StaffTasks.jsx (employee-portal — ar:0 en:1)
+
+- 59 [inline-ternary/en] language) ? "ar-EG" : "en-US"
 
 ### src/modules/inventory/pages/StockTransfers.jsx (main-erp — ar:1 en:0)
 
