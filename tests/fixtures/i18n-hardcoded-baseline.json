@@ -2,9 +2,9 @@
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
     "arabic": 2000,
-    "english": 2634,
-    "total": 4634,
-    "mixedFiles": 54
+    "english": 2627,
+    "total": 4627,
+    "mixedFiles": 53
   },
   "files": {
     "src/App.jsx": {
@@ -99,8 +99,8 @@
     },
     "src/modules/accounting/pages/FinancialReports.jsx": {
       "arabic": 140,
-      "english": 3,
-      "total": 143
+      "english": 0,
+      "total": 140
     },
     "src/modules/accounting/pages/Treasury.jsx": {
       "arabic": 1,
@@ -482,11 +482,6 @@
       "english": 18,
       "total": 18
     },
-    "src/modules/employees/pages/StaffTasks.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/inventory/pages/InventoryCount.jsx": {
       "arabic": 16,
       "english": 3,
@@ -777,16 +772,6 @@
       "english": 0,
       "total": 29
     },
-    "src/modules/reports/components/InventoryTable.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
-    "src/modules/reports/components/OverviewStates.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/reports/components/OverviewTrendChart.jsx": {
       "arabic": 0,
       "english": 1,
@@ -1016,11 +1001,6 @@
       "arabic": 23,
       "english": 0,
       "total": 23
-    },
-    "src/shared/utils/printLocalization.js": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
     },
     "src/shared/utils/whatsapp.js": {
       "arabic": 1,

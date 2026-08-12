@@ -10,19 +10,19 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 205
+- Files with debt: 201
 - Hardcoded Arabic UI strings: 2000
-- Hardcoded English UI strings: 2634
-- Total hardcoded UI strings: 4634
-- Mixed-language files (both scripts hardcoded): 54
+- Hardcoded English UI strings: 2627
+- Total hardcoded UI strings: 4627
+- Mixed-language files (both scripts hardcoded): 53
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 106 | 1428 | 1882 | 3310 | 37 |
-| shared | 70 | 199 | 467 | 666 | 11 |
-| employee-portal | 24 | 191 | 157 | 348 | 3 |
+| main-erp | 106 | 1428 | 1879 | 3307 | 36 |
+| shared | 67 | 199 | 464 | 663 | 11 |
+| employee-portal | 23 | 191 | 156 | 347 | 3 |
 | pos | 5 | 182 | 128 | 310 | 3 |
 
 ## Mixed-language files (ranked by density)
@@ -33,7 +33,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 112 | 185 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 106 | 164 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 12 | 152 |
-| src/modules/accounting/pages/FinancialReports.jsx | main-erp | 140 | 3 | 143 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 38 | 65 | 103 |
 | src/modules/orders/pages/OrderReturnsPage.jsx | main-erp | 96 | 4 | 100 |
@@ -262,7 +261,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 151 [inline-ternary/ar] isArabic ? "منتج" : "Product"
 - ... 112 more
 
-### src/modules/accounting/pages/FinancialReports.jsx (main-erp — ar:140 en:3)
+### src/modules/accounting/pages/FinancialReports.jsx (main-erp — ar:140 en:0)
 
 - 47 [inline-ternary/ar] isArabic ? "الملخص المالي" : "Financial Dashboard"
 - 47 [inline-ternary/ar] isArabic ? "نظرة مركزة على الأداء المالي والسيولة والمخزون." : "Focused view of profitability, liquidity, and inventory.
@@ -304,7 +303,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 322 [inline-ternary/ar] isArabic ? "قيمة المخزون" : "Inventory Value"
 - 327 [inline-ternary/ar] isArabic ? "أعلى العملاء مديونية" : "Top customer receivables"
 - 330 [inline-ternary/ar] isArabic ? "العميل" : "Customer"
-- ... 103 more
+- ... 100 more
 
 ### src/modules/aiSupport/pages/AiInboxPwa.jsx (main-erp — ar:60 en:69)
 
@@ -3697,10 +3696,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 227 [attribute/en] Search logs...
 
-### src/modules/employees/pages/StaffTasks.jsx (employee-portal — ar:0 en:1)
-
-- 59 [inline-ternary/en] language) ? "ar-EG" : "en-US"
-
 ### src/modules/inventory/pages/StockTransfers.jsx (main-erp — ar:1 en:0)
 
 - 173 [jsx-text/ar] الاختيار
@@ -3745,14 +3740,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 45 [inline-ternary/en] language || "").toLowerCase().startsWith("ar") ? "ar-EG" : "en-US"
 
-### src/modules/reports/components/InventoryTable.jsx (shared — ar:0 en:1)
-
-- 54 [inline-ternary/en] language.startsWith("ar") ? "ar-EG" : "en-GB"
-
-### src/modules/reports/components/OverviewStates.jsx (shared — ar:0 en:1)
-
-- 160 [inline-ternary/en] language).startsWith("ar") ? "ar-EG" : "en-US"
-
 ### src/modules/reports/components/OverviewTrendChart.jsx (shared — ar:0 en:1)
 
 - 241 [inline-ternary/en] language || "").toLowerCase().startsWith("ar") ? "ar-EG" : "en-GB"
@@ -3784,10 +3771,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/shared/lib/locale.js (shared — ar:0 en:1)
 
 - 42 [inline-ternary/en] language) === "ar" ? "ar-EG" : "en-GB"
-
-### src/shared/utils/printLocalization.js (shared — ar:0 en:1)
-
-- 29 [inline-ternary/en] language) === "ar" ? "ar-EG" : "en-US"
 
 ### src/shared/utils/whatsapp.js (shared — ar:1 en:0)
 
