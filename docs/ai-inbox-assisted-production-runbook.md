@@ -223,6 +223,17 @@ differences from Messenger:
 Incident cases A–E apply per-conversation and per-channel exactly as for Messenger; case C
 ("misbehaving across many conversations") pauses the affected channel via its own toggle.
 
+## 8c. WhatsApp (Stage C)
+
+WhatsApp uses the **same** assisted pipeline via the **Evolution** provider (see
+[ai-inbox-whatsapp-assisted-rollout.md](ai-inbox-whatsapp-assisted-rollout.md)). Delivery = **image +
+caption + canonical link**. Independent kill switch `inbound_ai_channels.whatsapp`. Two autonomous
+kill switches, both always on: **`WHATSAPP_AI_AUTO_REPLY=false`** (hard, first-line block in
+`triggerWhatsappAiAutoReply`) and channel `suggest_only`. Identity is `whatsapp:<phone>`, never merged
+with Messenger/Instagram. History-sync never generates suggestions (only the live Evolution webhook
+does). All A/B, stale, grounding, multi-colour, durable-context, and style behavior is identical and
+channel-agnostic.
+
 ## 9. Durable grounded product context (Phase 12.1)
 
 A continuation that omits the product ("طب مقاس 44؟", "والاسود؟", "بكام؟") reuses the most recent
