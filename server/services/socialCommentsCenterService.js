@@ -4222,6 +4222,10 @@ const normalizeSocialCommentFastListRow = (row = {}) => {
     automation_status: automationStatus,
     product_id: row.product_id_text ? row.product_id_text : row.product_id ?? row.resolved_product_id ?? null,
     product_name: text(row.product_name || ""),
+    thumbnail_url: text(row.post_image_url || row.thumbnail_url || ""),
+    post_thumbnail: text(row.post_image_url || row.thumbnail_url || ""),
+    post_full_picture: text(row.post_image_url || row.thumbnail_url || ""),
+    post_caption: text(row.post_caption || row.message_preview || ""),
     unread,
   };
 };
@@ -4291,6 +4295,8 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->>'post_created_time', ''), NULLIF(raw_payload->'value'->'post'->>'created_time', ''), NULLIF(raw_payload->'metadata'->>'post_created_time', ''))" : "NULL::text"} AS post_created_time,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'value'->'from'->>'name', ''), NULLIF(raw_payload->'from'->>'name', ''), NULLIF(raw_payload->'comment'->'from'->>'name', ''), NULLIF(raw_payload->'value'->'comment'->'from'->>'name', ''), '')" : "''"} AS raw_commenter_name,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'value'->'from'->'picture'->'data'->>'url', ''), NULLIF(raw_payload->'value'->'from'->>'picture', ''), NULLIF(raw_payload->'from'->'picture'->'data'->>'url', ''), NULLIF(raw_payload->'from'->>'picture', ''), NULLIF(raw_payload->'comment'->'from'->>'profile_pic_url', ''), '')" : "''"} AS raw_commenter_picture,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'post'->>'full_picture', ''), NULLIF(raw_payload->'post'->>'picture', ''), NULLIF(raw_payload->'value'->'post'->>'full_picture', ''), NULLIF(raw_payload->'value'->'post'->>'picture', ''), NULLIF(raw_payload->>'post_image_url', ''), NULLIF(raw_payload->>'media_url', ''), NULLIF(raw_payload->>'full_picture', ''), NULLIF(raw_payload->>'image_url', ''), NULLIF(raw_payload->>'thumbnail_url', ''), '')" : "''"} AS post_image_url,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'post'->>'caption', ''), NULLIF(raw_payload->'post'->>'message', ''), NULLIF(raw_payload->'value'->'post'->>'caption', ''), NULLIF(raw_payload->'value'->'post'->>'message', ''), '')" : "''"} AS post_caption,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_id', ''), NULLIF(resolved_product_id::text, ''))" : "NULLIF(resolved_product_id::text, '')"} AS product_id_text,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_name', ''), '')" : "''"} AS product_name,
         COALESCE(updated_at, processed_at, created_at) AS last_activity_at
@@ -4306,6 +4312,8 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
       COALESCE(NULLIF(source_rows.commenter_profile_picture_url, ''), NULLIF(source_rows.raw_commenter_picture, ''), '') AS customer_avatar_url,
       source_rows.raw_commenter_name,
       source_rows.raw_commenter_picture,
+      source_rows.post_image_url,
+      source_rows.post_caption,
       source_rows.message_preview,
       source_rows.last_activity_at,
       source_rows.post_created_time,

@@ -172,7 +172,48 @@ const mergeFastSocialCommentItem = (current = {}, patch = {}) =>
     last_comment_text: patch.last_comment_text || patch.message_preview || current.last_comment_text || current.post_caption || "",
     last_comment_at: patch.last_comment_at || patch.last_activity_at || current.last_comment_at || current.last_activity_at || "",
     last_activity_at: patch.last_activity_at || current.last_activity_at || "",
+    thumbnail_url: patch.thumbnail_url || current.thumbnail_url || "",
+    post_thumbnail: patch.post_thumbnail || current.post_thumbnail || "",
+    post_full_picture: patch.post_full_picture || current.post_full_picture || "",
+    customer_avatar_url: patch.customer_avatar_url || current.customer_avatar_url || "",
   });
+
+const socialPostIdCandidates = (item = {}) => [
+  item?.canonical_post_id,
+  item?.canonicalPostId,
+  item?.final_canonical_post_id,
+  item?.finalCanonicalPostId,
+  item?.platform_post_id,
+  item?.platformPostId,
+  item?.source_post_id,
+  item?.sourcePostId,
+  item?.post_id,
+  item?.postId,
+  item?.conversation_id,
+  item?.conversationId,
+  item?.id,
+].map((value) => clean(value)).filter(Boolean);
+
+const hydrateFastSocialCommentMedia = (current = {}, hydratedPosts = []) => {
+  const currentIds = new Set(socialPostIdCandidates(current));
+  const matched = hydratedPosts.find((post) => socialPostIdCandidates(post).some((id) => currentIds.has(id)));
+  if (!matched) return current;
+  const hydrated = normalizeSocialPostDisplay(matched);
+  const displayImage = clean(hydrated?.displayImage || matched?.cover_image_url || matched?.thumbnail_url || matched?.post_thumbnail || "");
+  const displayPermalink = clean(hydrated?.displayPermalink || matched?.permalink_url || matched?.post_permalink_url || "");
+  return normalizeFastSocialCommentItem({
+    ...current,
+    thumbnail_url: displayImage || current.thumbnail_url,
+    post_thumbnail: displayImage || current.post_thumbnail,
+    post_full_picture: displayImage || current.post_full_picture,
+    post_caption: clean(hydrated?.displayText || matched?.post_caption || matched?.caption || current.post_caption),
+    post_message: clean(hydrated?.displayText || matched?.post_message || matched?.message || current.post_message),
+    permalink_url: displayPermalink || current.permalink_url,
+    post_permalink_url: displayPermalink || current.post_permalink_url,
+    product_id: clean(matched?.product_id || hydrated?.primaryProduct?.id || current.product_id),
+    product_name: clean(matched?.product_name || hydrated?.primaryProduct?.name || current.product_name),
+  });
+};
 
 const findPostFromParams = (items = [], { postId = "", commentId = "", platform = "", pageId = "" } = {}) => {
   const normalizedPlatform = clean(platform).toLowerCase();
@@ -291,6 +332,9 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.external_comment_id) === clean(right.external_comment_id) &&
   clean(left.customer_name) === clean(right.customer_name) &&
   clean(left.customer_avatar_url) === clean(right.customer_avatar_url) &&
+  clean(left.thumbnail_url) === clean(right.thumbnail_url) &&
+  clean(left.post_thumbnail) === clean(right.post_thumbnail) &&
+  clean(left.post_full_picture) === clean(right.post_full_picture) &&
   clean(left.message_preview) === clean(right.message_preview) &&
   clean(left.last_activity_at) === clean(right.last_activity_at) &&
   clean(left.status) === clean(right.status) &&
@@ -362,6 +406,28 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
         : responseItems;
       setItems((current) => (append ? [...current, ...nextItems] : nextItems));
       setNextCursor(clean(payload?.next_cursor || payload?.data?.next_cursor || ""));
+      if (ENABLE_SOCIAL_FAST_CENTER && Array.isArray(payload?.items) && !cursor) {
+        // Keep the list fast, then refresh short-lived Meta CDN URLs in the
+        // background. This also restores post images whose old URLs expired.
+        void api.get("/social-comments/posts", {
+          params: { tenant_id: tenantId, limit: 50 },
+          perfComponent: "SocialCommentsCenter.mediaHydration",
+        }).then((mediaPayload) => {
+          const hydratedPosts = Array.isArray(mediaPayload?.posts)
+            ? mediaPayload.posts
+            : Array.isArray(mediaPayload?.data?.posts)
+              ? mediaPayload.data.posts
+              : Array.isArray(mediaPayload)
+                ? mediaPayload
+                : [];
+          if (!hydratedPosts.length) return;
+          setItems((current) => current.map((item) => hydrateFastSocialCommentMedia(item, hydratedPosts)));
+          setSelectedPost((current) => current ? hydrateFastSocialCommentMedia(current, hydratedPosts) : current);
+          setResolvedPostByUrl((current) => current ? hydrateFastSocialCommentMedia(current, hydratedPosts) : current);
+        }).catch((mediaError) => {
+          logDebug("[SocialCommentsCenter][media-hydration-failed]", { message: mediaError?.message || "" });
+        });
+      }
     } catch (loadError) {
       setError(loadError?.message || "Failed to load social comments");
       if (!silent) {
