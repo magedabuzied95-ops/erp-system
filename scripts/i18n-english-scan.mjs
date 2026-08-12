@@ -437,7 +437,21 @@ export function scanEnglish() {
 
   for (const file of walkSourceFiles()) {
     const relative = path.relative(REPO_ROOT, file).split(path.sep).join("/");
-    let hits = scanFile(file).filter((hit) => hit.script === "en" && looksLikeProse(hit.value));
+    const sourceLines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+    let hits = scanFile(file).filter((hit) => {
+      if (hit.script !== "en" || !looksLikeProse(hit.value)) return false;
+      /*
+       * `{ label: "Revenue", labelKey: "analytics.kpis.revenue" }`
+       *
+       * When an object carries BOTH label and labelKey, the display string comes
+       * from labelKey and the sibling literal is an INTERNAL identifier - here it
+       * is the icon-lookup key and the React key. Translating it would break the
+       * lookup, so it is not chrome.
+       */
+      const line = sourceLines[hit.line - 1] || "";
+      if (hit.type === "object-key" && /\blabelKey\s*:/.test(line)) return false;
+      return true;
+    });
     if (!hits.length) continue;
 
     // Reclassify per HIT before the file-level bucketing below: a file can hold

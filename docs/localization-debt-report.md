@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 610
-- Files with debt: 174
+- Files with debt: 172
 - Hardcoded Arabic UI strings: 1883
-- Hardcoded English UI strings: 2213
-- Total hardcoded UI strings: 4096
+- Hardcoded English UI strings: 2167
+- Total hardcoded UI strings: 4050
 - Mixed-language files (both scripts hardcoded): 50
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 94 | 1317 | 1669 | 2986 | 34 |
-| shared | 64 | 200 | 461 | 661 | 11 |
+| main-erp | 94 | 1317 | 1629 | 2946 | 34 |
+| shared | 62 | 200 | 455 | 655 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
 
@@ -1268,50 +1268,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 314 [jsx-text/en] Customer insights
 - 323 [jsx-text/en] AI customer intelligence
 - 325 [jsx-text/en] Action
-- ... 7 more
-
-### src/modules/analytics/pages/AnalyticsDashboard.jsx (main-erp — ar:0 en:47)
-
-- 155 [object-key/en] Revenue
-- 156 [object-key/en] Profit
-- 157 [object-key/en] Orders
-- 158 [object-key/en] Customers
-- 159 [object-key/en] Low Stock
-- 160 [object-key/en] Best Seller
-- 748 [attribute/en] AI insights
-- 748 [attribute/en] Narrative intelligence generated from the latest ERP signals.
-- 768 [attribute/en] Forecasted demand with confidence scoring.
-- 768 [attribute/en] Predicted sales
-- 788 [jsx-text/en] Confidence:
-- 893 [jsx-text/en] Product
-- 894 [jsx-text/en] Variant
-- 895 [jsx-text/en] Stock
-- 896 [jsx-text/en] Avg daily sales
-- 897 [jsx-text/en] Days remaining
-- 898 [jsx-text/en] Reorder qty
-- 899 [jsx-text/en] Risk
-- 932 [attribute/en] AI Dead Stock Intelligence
-- 932 [attribute/en] Identify slow-moving inventory with blocked capital and clear action recommendations.
-- 936 [attribute/en] Items flagged
-- 938 [attribute/en] Blocked capital
-- 942 [attribute/en] Critical risks
-- 946 [attribute/en] Clearance targets
-- 955 [jsx-text/en] Product
-- 956 [jsx-text/en] Variant
-- 957 [jsx-text/en] Stock
-- 958 [jsx-text/en] Last sold
-- 959 [jsx-text/en] Days without sales
-- 960 [jsx-text/en] Blocked capital
-- 961 [jsx-text/en] Risk
-- 962 [jsx-text/en] Recommendation
-- 998 [attribute/en] Dead stock detection
-- 998 [attribute/en] Items that are moving slowly and are tying up working capital.
-- 1014 [attribute/en] Color
-- 1015 [attribute/en] Size
-- 1016 [attribute/en] Stock
-- 1017 [attribute/en] Reason
-- 1029 [attribute/en] Inventory risk snapshot
-- 1034 [attribute/en] Items at or below reorder thresholds.
 - ... 7 more
 
 ### src/modules/aiSupport/pages/AiSupportConsole.jsx (main-erp — ar:10 en:35)
@@ -2944,6 +2900,16 @@ of scope. The scanner is conservative and can still contain false positives.
 - 9 [object-key/en] Route payment assistance
 - 10 [object-key/en] Schedule follow-up
 
+### src/modules/analytics/pages/AnalyticsDashboard.jsx (main-erp — ar:0 en:7)
+
+- 155 [object-key/en] Revenue
+- 156 [object-key/en] Profit
+- 157 [object-key/en] Orders
+- 158 [object-key/en] Customers
+- 159 [object-key/en] Low Stock
+- 160 [object-key/en] Best Seller
+- 788 [jsx-text/en] Confidence:
+
 ### src/modules/employees/pages/EmployeeHub.jsx (employee-portal — ar:7 en:0)
 
 - 64 [jsx-text/ar] مساحة العمل غير متاحة.
@@ -3096,14 +3062,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 6 [object-key/en] Resolve the primary objection
 - 7 [object-key/en] Clarify value and price
 - 8 [object-key/en] Advance discovery
-
-### src/modules/analytics/components/AnalyticsCharts.jsx (shared — ar:0 en:5)
-
-- 57 [attribute/en] Order movement and sales velocity using backend chart data.
-- 57 [attribute/en] Sales trend
-- 77 [attribute/en] Channel mix
-- 77 [attribute/en] Sales distribution across commerce channels.
-- 90 [attribute/en] No sales channel data available.
 
 ### src/modules/marketing/components/socialAiCopy.js (shared — ar:0 en:5)
 
@@ -3306,10 +3264,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/aiSupport/decision/strategies/AutomationStrategy.ts (main-erp — ar:0 en:1)
 
 - 11 [object-key/en] Human review
-
-### src/modules/analytics/components/AiInsightCard.jsx (shared — ar:0 en:1)
-
-- 17 [jsx-text/en] AI insight
 
 ### src/modules/marketing/services/marketingApi.js (main-erp — ar:0 en:1)
 

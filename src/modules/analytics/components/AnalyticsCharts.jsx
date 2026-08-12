@@ -54,7 +54,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
           </div>
         </Panel>
 
-        <Panel title="Sales trend" subtitle="Order movement and sales velocity using backend chart data.">
+        <Panel title={t("analytics.charts.salesTrend")} subtitle={t("analytics.charts.salesTrendSubtitle")}>
           <div className="h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
               {data.salesTrendSeries.length > 0 ? (
@@ -74,7 +74,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
         </Panel>
       </div>
 
-      <Panel title="Channel mix" subtitle="Sales distribution across commerce channels.">
+      <Panel title={t("analytics.charts.channelMix")} subtitle={t("analytics.charts.channelMixSubtitle")}>
         <div className="h-[340px]">
           <ResponsiveContainer width="100%" height="100%">
             {data.channelSeries.length > 0 ? (
@@ -87,7 +87,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
                 <Tooltip contentStyle={{ background: "#020617", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", color: "#fff" }} />
               </PieChart>
             ) : (
-              <EmptyChartState label="No sales channel data available." />
+              <EmptyChartState label={t("analytics.charts.noChannelData")} />
             )}
           </ResponsiveContainer>
         </div>
