@@ -75,6 +75,7 @@ import {
 import {
   normalizeProductCards,
   productCardReplyText,
+  instagramProductShareText,
   resolvePublicProductImageUrl,
 } from "./aiProductCards.js";
 import { understandProductImageForSearch } from "./openaiSupportService.js";
@@ -22841,7 +22842,11 @@ export const sendMetaInboxOutboundMessage = async ({
             });
           }
         }
-        const cardReplyText = productCardReplyText(product);
+        // Instagram uses the concise share formatter (name + customer price + canonical URL); Messenger's text
+        // fallback and every other channel keep the canonical productCardReplyText — channel-isolated.
+        const cardReplyText = normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM
+          ? instagramProductShareText(product)
+          : productCardReplyText(product);
         if (cardReplyText && (normalizedChannel !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? true : !messengerTemplateSucceeded)) {
           meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: cardReplyText, sendContext });
           if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
