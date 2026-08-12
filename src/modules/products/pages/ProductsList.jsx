@@ -230,18 +230,18 @@ const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
         <span
           key={articleCode}
           dir="ltr"
-          className="inline-flex max-w-[7rem] items-center rounded-md border border-amber-300/20 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-amber-200"
+          className="inline-flex max-w-[7rem] items-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-amber-200"
         >
           <span className="truncate">{articleCode}</span>
         </span>
       ))}
       {remainingCount ? (
-        <span className="inline-flex items-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-black leading-4 text-zinc-400">
+        <span className="inline-flex items-center rounded-[var(--radius-card)] border border-border bg-surface-soft px-1.5 py-0.5 text-[10px] font-black leading-4 text-text-muted">
           +{remainingCount}
         </span>
       ) : null}
       {schoolBagSizeLabel ? (
-        <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-primary">
+        <span className="inline-flex items-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-primary">
           مقاس {schoolBagSizeLabel}
         </span>
       ) : null}
@@ -254,7 +254,7 @@ const ProductAudienceBadges = ({ row = {}, language = "ar" }) => {
   const isArabic = String(language || "").toLowerCase().startsWith("ar");
   if (!audiences.length) {
     return (
-      <span className="inline-flex items-center rounded-full border border-zinc-400/15 bg-zinc-500/10 px-2.5 py-1 text-[10px] font-black text-zinc-400">
+      <span className="inline-flex items-center rounded-full border border-border bg-border-strong px-2.5 py-1 text-[10px] font-black text-text-muted">
         {isArabic ? "غير محدد" : "Not specified"}
       </span>
     );
@@ -296,7 +296,7 @@ const ProductColorImageBadge = ({ row = {}, onClick }) => {
       type="button"
       onClick={onClick}
       title={title}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black transition ${ isComplete ? "border-emerald-300/25 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/20" : isIncomplete ? "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20" : "border-zinc-400/20 bg-zinc-500/10 text-zinc-300 hover:bg-zinc-500/15" }`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black transition ${ isComplete ? "border-emerald-300/25 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/20" : isIncomplete ? "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20" : "border-border bg-border-strong text-text-muted hover:bg-surface-hover" }`}
     >
       {isComplete ? <CheckCircle size={12} /> : isIncomplete ? <AlertTriangle size={12} /> : <Package2 size={12} />}
       <span>{isComplete ? "✓ الصور مكتملة" : isIncomplete ? `⚠ صور ناقصة (${missingColors}/${totalColors})` : "لا توجد ألوان"}</span>
@@ -338,7 +338,7 @@ const ProductThermalLevelBadge = ({ row = {} }) => {
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${ hasProductThermal && hasColorThermal ? "border-violet-300/30 bg-violet-500/15 text-violet-200" : hasColorThermal ? "border-primary/30 bg-primary/15 text-primary" : hasProductThermal ? "border-amber-300/30 bg-amber-500/15 text-amber-200" : "border-zinc-400/20 bg-zinc-500/10 text-zinc-400" }`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${ hasProductThermal && hasColorThermal ? "border-violet-300/30 bg-violet-500/15 text-violet-200" : hasColorThermal ? "border-primary/30 bg-primary/15 text-primary" : hasProductThermal ? "border-amber-300/30 bg-amber-500/15 text-amber-200" : "border-border bg-border-strong text-text-muted" }`}
     >
       <Zap size={11} />
       {label}
@@ -946,11 +946,11 @@ function PriceLine({
       ? "text-emerald-200"
       : tone === "sale"
         ? "text-amber-200"
-        : "text-zinc-300";
+        : "text-text-muted";
 
   return (
     <div className="flex items-baseline justify-center gap-2">
-      <span className="shrink-0 font-bold text-zinc-500">{label}:</span>
+      <span className="shrink-0 font-bold text-text-muted">{label}:</span>
       {concealed ? (
         <button
           type="button"
@@ -958,17 +958,17 @@ function PriceLine({
           aria-label={revealed ? hideLabel : revealLabel}
           aria-pressed={revealed}
           title={revealed ? hideLabel : revealLabel}
-          className={`group/cost inline-flex min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-0.5 text-right font-black tabular-nums transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 ${toneClass}`}
+          className={`group/cost inline-flex min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-0.5 text-right font-black tabular-nums transition hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 ${toneClass}`}
         >
           <span className="min-w-0 truncate">
-            {revealed && varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
+            {revealed && varies ? <span className="me-1 text-[10px] font-bold text-text-muted">{variesLabel}</span> : null}
             {revealed ? value : "••••••"}
           </span>
-          {revealed ? <EyeOff size={13} className="shrink-0 text-zinc-500" /> : <Eye size={13} className="shrink-0 text-zinc-500 transition group-hover/cost:text-zinc-300" />}
+          {revealed ? <EyeOff size={13} className="shrink-0 text-text-muted" /> : <Eye size={13} className="shrink-0 text-text-muted transition group-hover/cost:text-text-muted" />}
         </button>
       ) : (
         <span className={`min-w-0 truncate text-right font-black tabular-nums ${toneClass}`} title={`${label}: ${value}`}>
-          {varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
+          {varies ? <span className="me-1 text-[10px] font-bold text-text-muted">{variesLabel}</span> : null}
           {value}
         </span>
       )}
@@ -1041,7 +1041,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
 
   if (!src) {
     return (
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
         <Package2 size={20} />
       </div>
     );
@@ -1056,15 +1056,15 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         loading="lazy"
         onMouseEnter={showColorPreviews}
         onMouseLeave={hideColorPreviews}
-        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-white/10 bg-white/5 object-cover"
+        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
       />
       {previewPosition && typeof document !== "undefined" ? createPortal(
         <div
           role="tooltip"
-          className="pointer-events-none fixed z-[300] rounded-2xl border border-white/15 bg-zinc-950/95 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl"
+          className="pointer-events-none fixed z-[300] rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-2xl shadow-black/60 backdrop-blur-xl"
           style={{ left: previewPosition.left, top: previewPosition.top, width: previewPosition.width }}
         >
-          <p className="mb-2 text-right text-[11px] font-black text-zinc-300">
+          <p className="mb-2 text-right text-[11px] font-black text-text-muted">
             {previewLoading ? "جاري تحميل صور الألوان..." : colorPreviews.length ? "صور ألوان المنتج" : "لا توجد صور ألوان"}
           </p>
           {colorPreviews.length ? <div
@@ -1077,16 +1077,16 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
                 <img
                   src={preview.imageUrl}
                   alt={`${row?.name || "Product"} - ${preview.color}`}
-                  className="h-16 w-full rounded-[var(--radius-card)] border border-white/10 bg-white object-contain"
+                  className="h-16 w-full rounded-[var(--radius-card)] border border-border bg-surface object-contain"
                 />
-                <p className="mt-1 truncate text-center text-[10px] font-bold text-zinc-300" title={preview.color}>{preview.color}</p>
+                <p className="mt-1 truncate text-center text-[10px] font-bold text-text-muted" title={preview.color}>{preview.color}</p>
                 <p className={`mt-0.5 text-center text-[10px] font-black ${preview.stock <= 0 ? "text-red-300" : preview.stock <= 2 ? "text-amber-300" : "text-emerald-300"}`}>
                   {preview.stock <= 0 ? "لم تُحدد كمية" : `${preview.stock} قبل الشراء`}
                 </p>
                 {preview.sizes?.length ? (
                   <div className="mt-1 flex flex-wrap justify-center gap-1">
                     {preview.sizes.map((size) => (
-                      <span key={size.size} className={`rounded-md px-1 py-0.5 text-[8px] font-black ${size.stock > 0 ? "bg-white/10 text-zinc-200" : "bg-red-500/10 text-red-300"}`}>
+                      <span key={size.size} className={`rounded-[var(--radius-control)] px-1 py-0.5 text-[8px] font-black ${size.stock > 0 ? "bg-surface-soft text-text" : "bg-red-500/10 text-red-300"}`}>
                         {size.size}×{size.stock}
                       </span>
                     ))}
@@ -1166,28 +1166,28 @@ function PriceEditorModal({ product, onClose, onSave }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100001] grid place-items-center bg-black/70 p-4 backdrop-blur">
-      <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "تحديث الأسعار فقط")}</p>
-            <h2 className="m1-section-title mt-1 truncate text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
-            <p className="mt-1 truncate text-sm text-zinc-400">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
+            <h2 className="m1-section-title mt-1 truncate text-text">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
+            <p className="mt-1 truncate text-sm text-text-muted">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
           </div>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-border bg-surface-soft p-2 text-text disabled:opacity-50">
             ×
           </button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto p-5">
-          {error ? <div className="mb-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
+          {error ? <div className="mb-4 rounded-[var(--radius-card)] border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
           {form.variants.length ? (
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-              <div className="mb-3 text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+              <div className="mb-3 text-sm font-black text-text">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
               <div className="space-y-2">
                 {form.variants.map((variant, index) => (
-                  <div key={variant.id || index} className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[minmax(0,1fr)_9rem_9rem]">
+                  <div key={variant.id || index} className="grid gap-2 rounded-[var(--radius-card)] border border-border bg-black/20 p-3 md:grid-cols-[minmax(0,1fr)_9rem_9rem]">
                     <div className="min-w-0 self-center">
-                      <div className="truncate text-sm font-black text-white">{variant.name}</div>
-                      <div className="mt-1 text-xs text-zinc-500">
+                      <div className="truncate text-sm font-black text-text">{variant.name}</div>
+                      <div className="mt-1 text-xs text-text-muted">
                         {t("products.priceEditor.current", "الحالي")}: {formatPrice(variant.current_sale_price)}
                         {variant.current_discount_price !== "" ? ` / ${formatPrice(variant.current_discount_price)}` : ""}
                       </div>
@@ -1200,9 +1200,9 @@ function PriceEditorModal({ product, onClose, onSave }) {
             </div>
           ) : null}
         </div>
-        <div className="flex justify-end gap-2 border-t border-white/10 p-4">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
-          <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-60">
+        <div className="flex justify-end gap-2 border-t border-border p-4">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold text-text disabled:opacity-50">{t("common.cancel")}</button>
+          <button type="button" onClick={submit} disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">
             {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
           </button>
         </div>
@@ -1221,8 +1221,8 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
   return (
     <label className="block">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</span>
-        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">الحالي: {current}</span> : null}
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</span>
+        {current !== undefined ? <span className="text-[10px] font-semibold text-text-muted">الحالي: {current}</span> : null}
       </div>
       <input
         type="number"
@@ -1231,7 +1231,7 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/40 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-lg)]"}`}
+        className={`w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text outline-none placeholder:text-text-muted focus:border-emerald-300/40 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-lg)]"}`}
       />
     </label>
   );
@@ -1249,8 +1249,8 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
   return (
     <label className="block">
       <div className={compact ? "sr-only" : "mb-1 flex items-center justify-between gap-2"}>
-        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</span>
-        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">الحالي: {current}</span> : null}
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</span>
+        {current !== undefined ? <span className="text-[10px] font-semibold text-text-muted">الحالي: {current}</span> : null}
       </div>
       <input
         type="number"
@@ -1261,7 +1261,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
         aria-label={label}
-        className={`w-full rounded-[var(--radius-control)] border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${ changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950" } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
+        className={`w-full rounded-[var(--radius-control)] border px-3 text-sm font-semibold text-text outline-none placeholder:text-text-muted ${ changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-border bg-surface" } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-[var(--control-height-md)]" : "h-[var(--control-height-md)]"}`}
       />
     </label>
   );
@@ -1564,20 +1564,20 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
         }
       }}
     >
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "Price-only update")}</p>
-            <h2 className="m1-section-title mt-0.5 truncate text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
-            <p className="truncate text-sm text-zinc-400">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
+            <h2 className="m1-section-title mt-0.5 truncate text-text">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
+            <p className="truncate text-sm text-text-muted">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
           </div>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white outline-none transition hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-border bg-surface-soft p-2 text-text outline-none transition hover:bg-surface-hover focus:border-emerald-300/50 disabled:opacity-50">
             <X size={18} />
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {error ? <div className="mb-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
-          <div className="mb-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
+          {error ? <div className="mb-3 rounded-[var(--radius-control)] border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
+          <div className="mb-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
             <div className={`grid gap-2 md:items-end ${canEditPurchasePrice ? "md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]" : "md:grid-cols-[1fr_1fr_auto_auto_auto]"}`}>
               {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء الجماعي" value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
               <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
@@ -1585,21 +1585,21 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
               <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
                 {isSimpleProduct ? t("products.priceEditor.applyToProduct", "Apply to product") : t("products.priceEditor.applyToAllVariants", "Apply to all variants")}
               </button>
-              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-black text-text outline-none hover:bg-surface-hover focus:border-emerald-300/50 disabled:opacity-50">
                 {t("products.priceEditor.copyFirstVariant", "Copy first variant price to all")}
               </button>
-              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-black text-text outline-none hover:bg-surface-hover focus:border-emerald-300/50 disabled:opacity-50">
                 {t("products.priceEditor.clearDiscounts", "Clear all discount prices")}
               </button>
             </div>
           </div>
           {isSimpleProduct ? (
-            <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
+            <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-sm font-black text-white">{t("products.priceEditor.productPrices", "Product prices")}</div>
-                <div className="text-xs font-semibold text-zinc-500">{productPriceChanged ? t("products.priceEditor.changed", "changed") : t("products.priceEditor.noChanges", "No price changes")}</div>
+                <div className="text-sm font-black text-text">{t("products.priceEditor.productPrices", "Product prices")}</div>
+                <div className="text-xs font-semibold text-text-muted">{productPriceChanged ? t("products.priceEditor.changed", "changed") : t("products.priceEditor.noChanges", "No price changes")}</div>
               </div>
-              <div className={productPriceChanged ? "grid gap-3 rounded-xl border border-emerald-300/30 bg-emerald-400/[0.06] p-3 md:grid-cols-3" : "grid gap-3 rounded-xl border border-white/10 bg-black/10 p-3 md:grid-cols-3"}>
+              <div className={productPriceChanged ? "grid gap-3 rounded-[var(--radius-control)] border border-emerald-300/30 bg-emerald-400/[0.06] p-3 md:grid-cols-3" : "grid gap-3 rounded-[var(--radius-control)] border border-border bg-black/10 p-3 md:grid-cols-3"}>
                 {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء" value={form.product.purchase_price} changed={productPriceChanged} current={formatPrice(form.product.current_purchase_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ purchase_price: value })} /> : null}
                 <AdvancedPriceField label={t("products.priceEditor.salePrice", "سعر البيع")} value={form.product.sale_price} changed={productPriceChanged} current={formatPrice(form.product.current_sale_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ sale_price: value })} />
                 <AdvancedPriceField label={t("products.priceEditor.discountPrice", "سعر السيل")} value={form.product.discount_price} changed={productPriceChanged} current={form.product.current_discount_price === "" ? t("products.priceEditor.empty", "Empty") : formatPrice(form.product.current_discount_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
@@ -1607,13 +1607,13 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
             </div>
           ) : null}
           {form.variants.length ? (
-            <div className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
-              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                <div className="text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
-                <div className="text-xs font-semibold text-zinc-500">{changedVariantIds.size} {t("products.priceEditor.changed", "changed")}</div>
+            <div className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <div className="text-sm font-black text-text">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
+                <div className="text-xs font-semibold text-text-muted">{changedVariantIds.size} {t("products.priceEditor.changed", "changed")}</div>
               </div>
               <div className="max-h-[46vh] space-y-2 overflow-auto p-2">
-                <div className={`hidden items-center gap-2 px-2 pb-1 text-[11px] font-black text-zinc-400 md:grid ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
+                <div className={`hidden items-center gap-2 px-2 pb-1 text-[11px] font-black text-text-muted md:grid ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
                   <span>اللون</span>
                   {canEditPurchasePrice ? <span className="text-center">سعر الشراء</span> : null}
                   <span className="text-center">سعر البيع</span>
@@ -1623,25 +1623,25 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                 {colorGroups.map((group) => {
                   const expanded = expandedColorKeys.has(group.key);
                   return (
-                    <section key={group.key} className={`overflow-hidden rounded-2xl border ${group.changed ? "border-emerald-300/35 bg-emerald-400/[0.05]" : "border-white/10 bg-black/15"}`}>
+                    <section key={group.key} className={`overflow-hidden rounded-[var(--radius-card)] border ${group.changed ? "border-emerald-300/35 bg-emerald-400/[0.05]" : "border-border bg-black/15"}`}>
                       <div className={`grid items-center gap-2 p-2 ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
-                        <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-[var(--radius-control)] p-1 text-start outline-none hover:bg-white/5">
-                          {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[var(--radius-card)] border border-white/10 bg-white/5 text-zinc-500"><Package2 size={20} /></span>}
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} className="flex min-w-0 items-center gap-3 rounded-[var(--radius-control)] p-1 text-start outline-none hover:bg-surface-hover">
+                          {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-[var(--radius-card)] border border-border bg-surface object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted"><Package2 size={20} /></span>}
                           <span className="min-w-0">
-                            <span className="block truncate text-sm font-black text-white">{group.label}</span>
-                            <span className="mt-1 block text-xs font-semibold text-zinc-500">{group.variants.length} مقاس</span>
+                            <span className="block truncate text-sm font-black text-text">{group.label}</span>
+                            <span className="mt-1 block text-xs font-semibold text-text-muted">{group.variants.length} مقاس</span>
                           </span>
                         </button>
                         {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={group.purchasePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { purchase_price: value })} placeholder={group.hasMixedPurchasePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} /> : null}
                         <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
                         <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
-                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10">
+                        <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover">
                           <ChevronDown size={18} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
                         </button>
                       </div>
                       {expanded ? (
-                        <div className="border-t border-white/10 bg-black/20 p-2">
-                          <div className={`mb-2 grid gap-2 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"}`}>
+                        <div className="border-t border-border bg-black/20 p-2">
+                          <div className={`mb-2 grid gap-2 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-text-muted ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"}`}>
                             <span>{t("products.fields.size", "Size")}</span>
                             {canEditPurchasePrice ? <span>سعر الشراء</span> : null}
                             <span>{t("products.priceEditor.salePrice", "سعر البيع")}</span>
@@ -1651,8 +1651,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                             {group.variants.map(({ variant, index }) => {
                               const changed = changedVariantIds.has(String(variant.id));
                               return (
-                                <div key={variant.id || index} className={`grid items-center gap-2 rounded-xl p-2 ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"} ${changed ? "bg-emerald-400/[0.06]" : "bg-white/[0.025]"}`}>
-                                  <span className="font-black text-zinc-200">{variant.size}</span>
+                                <div key={variant.id || index} className={`grid items-center gap-2 rounded-[var(--radius-control)] p-2 ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"} ${changed ? "bg-emerald-400/[0.06]" : "bg-surface-soft"}`}>
+                                  <span className="font-black text-text">{variant.size}</span>
                                   {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={variant.purchase_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { purchase_price: value })} /> : null}
                                   <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { sale_price: value })} />
                                   <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
@@ -1668,7 +1668,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
               </div>
               <div className="hidden">
                 <table className="m1-table m1-table--compact min-w-full table-fixed text-left text-sm">
-                  <thead className="sticky top-0 z-10 bg-zinc-950/95 text-[10px] uppercase tracking-[0.14em] text-zinc-500 backdrop-blur">
+                  <thead className="sticky top-0 z-10 bg-surface text-[10px] uppercase tracking-[0.14em] text-text-muted backdrop-blur">
                     <tr>
                       <th className="w-28 px-3 py-2">{t("products.fields.color", "Color")}</th>
                       <th className="w-24 px-3 py-2">{t("products.fields.size", "Size")}</th>
@@ -1681,8 +1681,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                       const changed = changedVariantIds.has(String(variant.id));
                       return (
                         <tr key={variant.id || index} className={changed ? "bg-emerald-400/[0.06]" : "bg-black/10"}>
-                          <td className="px-3 py-2 font-semibold text-white" title={variant.name}>{variant.color}</td>
-                          <td className="px-3 py-2 font-semibold text-zinc-300">{variant.size}</td>
+                          <td className="px-3 py-2 font-semibold text-text" title={variant.name}>{variant.color}</td>
+                          <td className="px-3 py-2 font-semibold text-text-muted">{variant.size}</td>
                           <td className="px-3 py-2">
                             <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { sale_price: value })} />
                           </td>
@@ -1698,14 +1698,14 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
             </div>
           ) : null}
         </div>
-        <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-white/10 bg-zinc-950/95 px-4 py-3 backdrop-blur">
-          <div className="text-xs font-semibold text-zinc-500">
+        <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3 backdrop-blur">
+          <div className="text-xs font-semibold text-text-muted">
             {changedCount ? `${changedCount} ${t("products.priceEditor.changedRows", "changed price rows")}` : t("products.priceEditor.noChanges", "No price changes")}
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={clearManualOverrides} disabled={saving} className="rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-100 outline-none hover:bg-amber-400/15 disabled:opacity-50">{t("products.priceEditor.clearManualOverride", "إلغاء التعديل اليدوي")}</button>
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
-            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black outline-none hover:bg-primary focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold text-text outline-none hover:bg-surface-hover focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
+            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] outline-none hover:bg-primary focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
               {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
             </button>
           </div>
@@ -2820,15 +2820,15 @@ function ProductsList() {
         </>
       }
     >
-      <div className="m1-products-catalog w-full min-w-0 max-w-none rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:p-5 xl:p-6">
-        <div className="mb-4 flex items-center gap-2 rounded-[var(--radius-card)] border border-white/8 bg-white/[0.03] p-1">
+      <div className="m1-products-catalog w-full min-w-0 max-w-none rounded-[var(--radius-card)] border border-border bg-surface p-3 sm:p-5 xl:p-6">
+        <div className="mb-4 flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft p-1">
           <button
             type="button"
             onClick={() => {
               setCatalogTab("products");
               setPage(1);
             }}
-            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-primary text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-[var(--primary-contrast)]" }`}
+            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "products" ? "bg-primary text-[var(--primary-contrast)]" : "text-text-muted hover:bg-surface-hover hover:text-[var(--primary-contrast)]" }`}
           >
             {t("products.tabs.products", "المنتجات")}
           </button>
@@ -2838,14 +2838,14 @@ function ProductsList() {
               setCatalogTab("offers");
               setPage(1);
             }}
-            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-primary text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]" : "text-zinc-300 hover:bg-white/5 hover:text-[var(--primary-contrast)]" }`}
+            className={`flex-1 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${ catalogTab === "offers" ? "bg-primary text-[var(--primary-contrast)]" : "text-text-muted hover:bg-surface-hover hover:text-[var(--primary-contrast)]" }`}
           >
             {t("products.tabs.offers", "العروض")}
           </button>
         </div>
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
             <input
               value={search}
               onChange={(e) => {
@@ -2853,7 +2853,7 @@ function ProductsList() {
                 setPage(1);
               }}
               placeholder={t("products.searchPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pl-11 pr-4 text-text outline-none placeholder:text-text-muted"
             />
           </div>
 
@@ -2863,7 +2863,7 @@ function ProductsList() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none"
           >
             <option value="all">{t("products.filters.allStatus")}</option>
             <option value="active">{t("products.filters.active")}</option>
@@ -2877,7 +2877,7 @@ function ProductsList() {
               setBrandFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none"
           >
             {brandOptions.map((brand) => (
               <option key={brand} value={brand}>
@@ -2892,7 +2892,7 @@ function ProductsList() {
               setStorefrontVisibilityFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none"
           >
             <option value="all">{t("products.filters.storefrontVisibilityAll", "حالة الظهور على الموقع: الكل")}</option>
             <option value="visible">{t("products.filters.storefrontVisibilityVisible", "ظاهر بالموقع")}</option>
@@ -2905,7 +2905,7 @@ function ProductsList() {
               setColorImageFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-[var(--radius-control)] border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+            className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none"
           >
             <option value="all">الكل</option>
             <option value="complete">الصور مكتملة</option>
@@ -2920,7 +2920,7 @@ function ProductsList() {
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 disabled={!classificationFilterGroups.length}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeClassificationCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]" : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8" }`}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeClassificationCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text hover:border-border-strong hover:bg-surface-hover" }`}
                 aria-expanded={filtersOpen}
               >
                 <Filter size={16} />
@@ -2941,12 +2941,12 @@ function ProductsList() {
             </div>
 
             {filtersOpen && classificationFilterGroups.length ? (
-              <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(38rem,calc(100vw-2rem))]">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-4 py-3">
-                  <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+              <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(38rem,calc(100vw-2rem))]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-soft px-4 py-3">
+                  <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
                     <Filter size={14} />
                     {t("products.filters.classifications", "Product filters")}
-                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${ activeClassificationCount ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : "border-white/10 bg-white/[0.04] text-zinc-500" }`}>
+                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${ activeClassificationCount ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : "border-border bg-surface-soft text-text-muted" }`}>
                       {activeClassificationCount}
                     </span>
                   </div>
@@ -2955,7 +2955,7 @@ function ProductsList() {
                       <button
                         type="button"
                         onClick={clearClassificationFilters}
-                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-black text-zinc-300 transition hover:border-red-300/25 hover:bg-red-500/10 hover:text-red-100"
+                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-1.5 text-xs font-black text-text-muted transition hover:border-red-300/25 hover:bg-red-500/10 hover:text-red-100"
                       >
                         <X size={13} />
                         {t("products.filters.clearClassifications", "Clear")}
@@ -2964,7 +2964,7 @@ function ProductsList() {
                     <button
                       type="button"
                       onClick={() => setFiltersOpen(false)}
-                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:text-white"
+                      className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:text-text"
                       aria-label={t("common.close", "Close")}
                     >
                       <X size={14} />
@@ -2975,14 +2975,14 @@ function ProductsList() {
                 <div className="max-h-[min(28rem,70vh)] space-y-3 overflow-auto p-4">
                   {classificationFilterGroups.map((group) => (
                     <div key={group.key} className="grid min-w-0 gap-2 lg:grid-cols-[8.5rem_minmax(0,1fr)] lg:items-start">
-                      <div className="pt-1 text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">
+                      <div className="pt-1 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">
                         {group.label}
                       </div>
                       <div className="flex min-w-0 flex-wrap gap-1.5">
                         <button
                           type="button"
                           onClick={() => setClassificationGroupFilter(group.key, "all")}
-                          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ classificationFilters[group.key] === "all" ? "border-white/15 bg-white/10 text-white" : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-200" }`}
+                          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ classificationFilters[group.key] === "all" ? "border-border bg-surface-soft text-text" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:text-text" }`}
                         >
                           {t("products.filters.allClassifications", "All")}
                         </button>
@@ -2993,7 +2993,7 @@ function ProductsList() {
                               key={`${group.key}-${option.value}`}
                               type="button"
                               onClick={() => setClassificationGroupFilter(group.key, option.value)}
-                              className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-primary text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-[var(--primary-contrast)]" }`}
+                              className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:bg-surface-hover hover:text-[var(--primary-contrast)]" }`}
                             >
                               {option.label}
                             </button>
@@ -3009,7 +3009,7 @@ function ProductsList() {
         </div>
 
         {selectedCount > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
             <span className="text-sm font-semibold text-emerald-300">
               {selectedCount} {t("products.bulk.selected")}
             </span>
@@ -3036,13 +3036,13 @@ function ProductsList() {
             </button>
             <button
               onClick={() => handleBulkStatus(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text"
             >
               {t("products.bulk.markActive")}
             </button>
             <button
               onClick={() => handleBulkStatus(false)}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text"
             >
               {t("products.bulk.markInactive")}
             </button>
@@ -3054,7 +3054,7 @@ function ProductsList() {
             </button>
             <button
               onClick={() => handleBulkStorefrontVisibility(false)}
-              className="inline-flex items-center gap-2 rounded-full border border-zinc-500/20 bg-zinc-500/10 px-4 py-2 text-sm font-semibold text-zinc-200"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-border-strong px-4 py-2 text-sm font-semibold text-text"
             >
               {t("products.bulk.hideFromStorefront", "إخفاء من الموقع")}
             </button>
@@ -3062,7 +3062,7 @@ function ProductsList() {
         )}
 
         {error ? (
-          <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-5 text-red-200">
+          <div className="mt-6 rounded-[var(--radius-card)] border border-red-500/20 bg-red-500/10 p-5 text-red-200">
             {error}
           </div>
         ) : null}
@@ -3070,14 +3070,14 @@ function ProductsList() {
         <div className="relative mt-6 w-full min-w-0 max-w-none overflow-visible">
           <div className="grid gap-3 lg:hidden">
             {loading ? (
-              <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-6 text-center text-sm font-semibold text-zinc-400">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 text-center text-sm font-semibold text-text-muted">
                 {t("products.loading")}
               </div>
             ) : visibleRows.length === 0 ? (
-              <div className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-6 text-center">
-                <Package2 className="mx-auto text-zinc-500" size={36} />
-                <h3 className="m1-section-title mt-3 text-white">{t("products.empty.title")}</h3>
-                <p className="mt-2 text-sm text-zinc-400">{t("products.empty.description")}</p>
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 text-center">
+                <Package2 className="mx-auto text-text-muted" size={36} />
+                <h3 className="m1-section-title mt-3 text-text">{t("products.empty.title")}</h3>
+                <p className="mt-2 text-sm text-text-muted">{t("products.empty.description")}</p>
               </div>
             ) : (
               visibleRows.map((row) => {
@@ -3147,7 +3147,7 @@ function ProductsList() {
                 <col className={PRODUCT_TABLE_COLUMNS.actions} />
               </colgroup>
               <thead>
-                <tr className="text-center text-xs uppercase tracking-[0.22em] text-zinc-500">
+                <tr className="text-center text-xs uppercase tracking-[0.22em] text-text-muted">
                   <th className="px-4 py-2">
                     <input
                       type="checkbox"
@@ -3166,17 +3166,17 @@ function ProductsList() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" className="px-4 py-12 text-center text-zinc-400">
+                    <td colSpan="7" className="px-4 py-12 text-center text-text-muted">
                       {t("products.loading")}
                     </td>
                   </tr>
                 ) : visibleRows.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 py-12 text-center">
-                      <div className="w-full rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-8">
-                        <Package2 className="mx-auto text-zinc-500" size={42} />
-                        <h3 className="m1-section-title mt-4 text-white">{t("products.empty.title")}</h3>
-                        <p className="mt-2 text-sm text-zinc-400">
+                      <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface-soft p-8">
+                        <Package2 className="mx-auto text-text-muted" size={42} />
+                        <h3 className="m1-section-title mt-4 text-text">{t("products.empty.title")}</h3>
+                        <p className="mt-2 text-sm text-text-muted">
                           {t("products.empty.description")}
                         </p>
                       </div>
@@ -3217,7 +3217,7 @@ function ProductsList() {
                     return (
                       <tr
                         key={row.id}
-                        className={`group/product-row relative rounded-[var(--radius-card)] border border-white/8 bg-white/5 text-center ${openActionId === row.id ? "z-[100]" : "z-0"}`}
+                        className={`group/product-row relative rounded-[var(--radius-card)] border border-border bg-surface-soft text-center ${openActionId === row.id ? "z-[100]" : "z-0"}`}
                       >
                         <td className="px-4 py-4 align-middle">
                           <input
@@ -3234,9 +3234,9 @@ function ProductsList() {
                           >
                             <ProductThumbnail row={row} />
                             <div className="min-w-0 self-center">
-                              <p className="truncate text-sm font-semibold leading-5 text-white">{row.name}</p>
+                              <p className="truncate text-sm font-semibold leading-5 text-text">{row.name}</p>
                               {displaySku ? (
-                                <p className="truncate text-xs font-semibold leading-4 text-zinc-500" title={barcodeTitle || displaySku}>
+                                <p className="truncate text-xs font-semibold leading-4 text-text-muted" title={barcodeTitle || displaySku}>
                                   {displaySku}
                                 </p>
                               ) : null}
@@ -3251,20 +3251,20 @@ function ProductsList() {
                           </button>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <p className="truncate font-semibold text-white">
+                          <p className="truncate font-semibold text-text">
                             {productType || category || t("products.selected.category")}
                           </p>
                           {productType && category && category.toLowerCase() !== productType.toLowerCase() ? (
                             <p className="truncate text-xs font-semibold text-primary">{category}</p>
                           ) : null}
-                          <p className="truncate text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
+                          <p className="truncate text-sm text-text-muted">{row.brand || t("products.selected.brand")}</p>
                           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
                             <ProductAudienceBadges row={row} language={i18n.language} />
                           </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <p className="font-semibold text-white">{totalStock}</p>
-                          <p className="text-sm text-zinc-400">{t("products.stock.lowAlert")} {lowStockAlert}</p>
+                          <p className="font-semibold text-text">{totalStock}</p>
+                          <p className="text-sm text-text-muted">{t("products.stock.lowAlert")} {lowStockAlert}</p>
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <div className="grid gap-1.5 text-xs leading-5">
@@ -3283,12 +3283,12 @@ function ProductsList() {
                         <td className="px-4 py-4 align-middle">
                           <div className="flex flex-col items-center gap-2">
                             <span
-                              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${ statusKey === "active" ? "bg-emerald-500/15 text-emerald-300" : statusKey === "low" ? "bg-amber-500/15 text-amber-300" : statusKey === "out" ? "bg-red-500/15 text-red-300" : "bg-zinc-500/15 text-zinc-300" }`}
+                              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${ statusKey === "active" ? "bg-emerald-500/15 text-emerald-300" : statusKey === "low" ? "bg-amber-500/15 text-amber-300" : statusKey === "out" ? "bg-red-500/15 text-red-300" : "bg-border-strong text-text-muted" }`}
                             >
                               {status}
                             </span>
                             <span
-                              className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${ storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300" }`}
+                              className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${ storefrontVisible ? "bg-primary/15 text-primary" : "bg-border-strong text-text-muted" }`}
                             >
                               {storefrontVisible
                                 ? t("products.storefront.visible", "ظاهر بالموقع")
@@ -3329,12 +3329,12 @@ function ProductsList() {
                                   return next;
                                 });
                               }}
-                              className="group/action relative ml-1 inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
+                              className="group/action relative ml-1 inline-flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
                               title={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                               aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                             >
                               <MoreHorizontal size={15} />
-                              <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
+                              <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1 text-[10px] font-bold text-text opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
                                 {t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                               </span>
                             </button>
@@ -3342,7 +3342,7 @@ function ProductsList() {
                             {openActionId === row.id && actionMenuPosition && typeof document !== "undefined" ? createPortal((
                               <div
                                 ref={actionMenuRef}
-                                className="fixed z-[100000] overflow-y-auto rounded-2xl border border-white/8 bg-zinc-950 shadow-2xl shadow-black/50 transition duration-100 ease-out animate-in fade-in-0 zoom-in-95"
+                                className="fixed z-[100000] overflow-y-auto rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/50 transition duration-100 ease-out animate-in fade-in-0 zoom-in-95"
                                 style={{
                                   top: `${actionMenuPosition.top}px`,
                                   left: `${actionMenuPosition.left}px`,
@@ -3357,7 +3357,7 @@ function ProductsList() {
                                   const itemClassName = `flex w-full items-center gap-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
                                     action.tone === "danger"
                                       ? "text-red-300 hover:bg-red-500/10"
-                                      : "text-white hover:bg-white/5"
+                                      : "text-text hover:bg-surface-hover"
                                   }`;
                                   if (action.href && !action.disabled) {
                                     return (
@@ -3399,7 +3399,7 @@ function ProductsList() {
         </div>
 
         <Pagination
-          className="mt-6 border-t border-white/8 pt-5"
+          className="mt-6 border-t border-border pt-5"
           page={currentPage}
           pages={totalPages}
           total={Number(pagination.total || 0)}
@@ -3417,30 +3417,30 @@ function ProductsList() {
 
       {statusActionProduct && typeof document !== "undefined" ? createPortal((
         <div className="fixed inset-0 z-[100100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/50">
+          <div className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-2xl shadow-black/50">
             <div className="flex items-start gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-400/10 text-amber-200">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[var(--radius-card)] border border-amber-300/20 bg-amber-400/10 text-amber-200">
                 <Power size={20} />
               </span>
               <div className="min-w-0">
-                <h2 className="m1-section-title text-white">
+                <h2 className="m1-section-title text-text">
                   {isInactiveProduct(statusActionProduct)
                     ? t("products.statusModal.activateTitle", "Activate product?")
                     : t("products.statusModal.deactivateTitle", "Deactivate product?")}
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                <p className="mt-2 text-sm leading-6 text-text-muted">
                   {isInactiveProduct(statusActionProduct)
                     ? t("products.statusModal.activateDescription", "سيظهر هذا المنتج مرة أخرى في المتجر ونقاط البيع.")
                     : t("products.statusModal.deactivateDescription", "تظل المنتجات غير النشطة مرئية في الإدارة، لكنها تُخفى من المتجر والبحث ونتائج البيع في نقاط البيع.")}
                 </p>
-                <p className="mt-3 truncate text-sm font-semibold text-zinc-200">{statusActionProduct.name}</p>
+                <p className="mt-3 truncate text-sm font-semibold text-text">{statusActionProduct.name}</p>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setStatusActionProduct(null)}
-                className="rounded-[var(--radius-control)] border border-white/10 px-4 py-2.5 text-sm font-bold text-zinc-200 hover:bg-white/5"
+                className="rounded-[var(--radius-control)] border border-border px-4 py-2.5 text-sm font-bold text-text hover:bg-surface-hover"
               >
                 {t("common.cancel", "Cancel")}
               </button>
@@ -3459,16 +3459,16 @@ function ProductsList() {
       ), document.body) : null}
 
       {selectedProduct ? (
-        <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6">
+        <div className="rounded-[34px] border border-border bg-surface p-6">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl">
-              <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{t("products.selected.title")}</p>
-              <h2 className="m1-section-title mt-3 text-white">{selectedProduct.name}</h2>
-              <p className="mt-3 text-zinc-400">{selectedProduct.description || t("products.empty.firstDescription")}</p>
+              <p className="text-xs uppercase tracking-[0.28em] text-text-muted">{t("products.selected.title")}</p>
+              <h2 className="m1-section-title mt-3 text-text">{selectedProduct.name}</h2>
+              <p className="mt-3 text-text-muted">{selectedProduct.description || t("products.empty.firstDescription")}</p>
             </div>
             <Link
               to="/products/add"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-5 py-3 font-semibold text-text"
             >
               <Plus size={18} />
               {t("products.selected.createSimilar")}
@@ -3482,9 +3482,9 @@ function ProductsList() {
               [t("products.selected.brand"), selectedProduct.brand || t("products.records.unbranded")],
               [t("products.selected.category"), selectedProduct.category || t("products.records.uncategorized")],
             ].filter(([, value]) => value).map(([label, value]) => (
-              <div key={label} className="rounded-[var(--radius-card)] border border-white/8 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{label}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{value}</p>
+              <div key={label} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+                <p className="text-xs uppercase tracking-[0.28em] text-text-muted">{label}</p>
+                <p className="mt-2 text-lg font-semibold text-text">{value}</p>
               </div>
             ))}
           </div>
@@ -3492,10 +3492,10 @@ function ProductsList() {
       ) : null}
 
       {!loading && !error && rows.length === 0 ? (
-        <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-12 text-center">
+        <div className="rounded-[34px] border border-border bg-surface p-12 text-center">
           <AlertTriangle className="mx-auto text-amber-400" size={40} />
-          <h3 className="m1-section-title mt-4 text-white">{t("products.empty.catalogTitle")}</h3>
-          <p className="mt-2 text-zinc-400">{t("products.empty.catalogDescription")}</p>
+          <h3 className="m1-section-title mt-4 text-text">{t("products.empty.catalogTitle")}</h3>
+          <p className="mt-2 text-text-muted">{t("products.empty.catalogDescription")}</p>
           <button
             onClick={() => navigate("/products/add")}
             className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-[var(--primary-contrast)]"
@@ -3597,16 +3597,16 @@ function BarcodeQueueBulkModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm" dir="ltr">
-      <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
-        <div className="flex items-start justify-between gap-4 border-b border-white/8 px-6 py-5">
+      <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-border bg-surface shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
               {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
             </p>
-            <h2 className="m1-section-title mt-2 text-white">
+            <h2 className="m1-section-title mt-2 text-text">
               {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
+            <p className="mt-2 text-sm leading-6 text-text-muted">
               {t(
                 "products.bulk.addToBarcodePrintQueueDescription",
                 "Choose whether to queue every color or only specific colors. Existing items are skipped unless regeneration is enabled."
@@ -3616,7 +3616,7 @@ function BarcodeQueueBulkModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover hover:text-text"
             aria-label={t("common.close", "Close")}
           >
             <X size={18} />
@@ -3625,50 +3625,50 @@ function BarcodeQueueBulkModal({
 
         <div className="grid gap-6 px-6 py-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="space-y-4">
-            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
               <input
                 type="radio"
                 name="barcode-queue-mode"
                 checked={mode === "all"}
                 onChange={() => onModeChange("all")}
-                className="mt-1 h-4 w-4 border-white/30 bg-transparent text-emerald-400"
+                className="mt-1 h-4 w-4 border-border bg-transparent text-emerald-400"
               />
               <span>
-                <span className="block text-sm font-black text-white">{t("products.bulk.allColors", "All colors")}</span>
-                <span className="mt-1 block text-xs leading-5 text-zinc-400">
+                <span className="block text-sm font-black text-text">{t("products.bulk.allColors", "All colors")}</span>
+                <span className="mt-1 block text-xs leading-5 text-text-muted">
                   {t("products.bulk.allColorsDescription", "Queue every color group for the selected products.")}
                 </span>
               </span>
             </label>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
               <input
                 type="radio"
                 name="barcode-queue-mode"
                 checked={mode === "selected"}
                 onChange={() => onModeChange("selected")}
-                className="mt-1 h-4 w-4 border-white/30 bg-transparent text-emerald-400"
+                className="mt-1 h-4 w-4 border-border bg-transparent text-emerald-400"
               />
               <span>
-                <span className="block text-sm font-black text-white">{t("products.bulk.selectedColorsOnly", "Selected colors only")}</span>
-                <span className="mt-1 block text-xs leading-5 text-zinc-400">
+                <span className="block text-sm font-black text-text">{t("products.bulk.selectedColorsOnly", "Selected colors only")}</span>
+                <span className="mt-1 block text-xs leading-5 text-text-muted">
                   {t("products.bulk.selectedColorsOnlyDescription", "Pick only the colors you want to add to the queue.")}
                 </span>
               </span>
             </label>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
               <input
                 type="checkbox"
                 checked={regenerateExisting}
                 onChange={(event) => onRegenerateExistingChange(event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-white/30 bg-transparent text-emerald-400"
+                className="mt-1 h-4 w-4 rounded border-border bg-transparent text-emerald-400"
               />
               <span>
-                <span className="block text-sm font-black text-white">
+                <span className="block text-sm font-black text-text">
                   {t("products.bulk.regenerateExisting", "Regenerate existing items")}
                 </span>
-                <span className="mt-1 block text-xs leading-5 text-zinc-400">
+                <span className="mt-1 block text-xs leading-5 text-text-muted">
                   {t("products.bulk.regenerateExistingDescription", "Create a fresh thermal job for colors already in the queue.")}
                 </span>
               </span>
@@ -3676,12 +3676,12 @@ function BarcodeQueueBulkModal({
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="m1-section-title uppercase tracking-[0.18em] text-zinc-400">
+                <h3 className="m1-section-title uppercase tracking-[0.18em] text-text-muted">
                   {t("products.bulk.selectionSummary", "Selection")}
                 </h3>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
+                <span className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-semibold text-text-muted">
                   {mode === "selected" ? `${totalSelectedColors}/${totalAvailableColors}` : totalAvailableColors}
                 </span>
               </div>
@@ -3692,11 +3692,11 @@ function BarcodeQueueBulkModal({
                   const selectedForProduct = Array.isArray(selection?.[productKey]) ? selection[productKey] : [];
                   const normalizedSelected = new Set(selectedForProduct.map(normalizeQueueColorKey));
                   return (
-                    <div key={productKey} className="rounded-2xl border border-white/10 bg-zinc-950/70 p-4">
+                    <div key={productKey} className="rounded-[var(--radius-card)] border border-border bg-surface p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-black text-white">{row.name || `Product #${row.id}`}</div>
-                          <div className="mt-1 text-xs text-zinc-500">
+                          <div className="truncate text-sm font-black text-text">{row.name || `Product #${row.id}`}</div>
+                          <div className="mt-1 text-xs text-text-muted">
                             {groups.length} {t("products.bulk.colors", "colors")}
                           </div>
                         </div>
@@ -3704,7 +3704,7 @@ function BarcodeQueueBulkModal({
                           <button
                             type="button"
                             onClick={() => setAllForProduct(row.id, groups, normalizedSelected.size !== groups.length)}
-                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                            className="rounded-full border border-border bg-surface-soft px-3 py-1.5 text-xs font-semibold text-text transition hover:bg-surface-hover"
                           >
                             {normalizedSelected.size === groups.length
                               ? t("products.bulk.clearSelection", "Clear")
@@ -3720,20 +3720,20 @@ function BarcodeQueueBulkModal({
                           return (
                             <label
                               key={`${productKey}-${colorKey || group.color || "color"}`}
-                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${ isChecked ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10" }`}
+                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${ isChecked ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100" : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover" }`}
                             >
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 disabled={mode !== "selected"}
                                 onChange={() => toggleGroupSelection(row.id, colorKey)}
-                                className="h-4 w-4 rounded border-white/30 bg-transparent text-emerald-400"
+                                className="h-4 w-4 rounded border-border bg-transparent text-emerald-400"
                               />
                               <span className="truncate">{group.color || t("products.bulk.defaultColor", "Default")}</span>
                             </label>
                           );
                         }) : (
-                          <div className="text-sm text-zinc-500">{t("products.bulk.noColors", "No colors found")}</div>
+                          <div className="text-sm text-text-muted">{t("products.bulk.noColors", "No colors found")}</div>
                         )}
                       </div>
                     </div>
@@ -3744,8 +3744,8 @@ function BarcodeQueueBulkModal({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-white/8 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-zinc-400">
+        <div className="flex flex-col gap-3 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-text-muted">
             {mode === "selected"
               ? t("products.bulk.selectedColorsCount", { count: totalSelectedColors, defaultValue: `${totalSelectedColors} colors selected` })
               : t("products.bulk.allColorsCount", { count: totalAvailableColors, defaultValue: `${totalAvailableColors} colors will be queued` })}
@@ -3754,7 +3754,7 @@ function BarcodeQueueBulkModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2.5 text-sm font-semibold text-text transition hover:bg-surface-hover"
               disabled={submitting}
             >
               {t("common.cancel", "Cancel")}
@@ -3763,7 +3763,7 @@ function BarcodeQueueBulkModal({
               type="button"
               onClick={onSubmit}
               disabled={submitting || !selectedRows.length || (mode === "selected" && totalSelectedColors === 0)}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2.5 text-sm font-black text-black transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2.5 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Barcode size={16} />
               {submitting
@@ -3786,7 +3786,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
   const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
 
   return (
-    <article className="rounded-[var(--radius-card)] border border-white/8 bg-white/[0.045] p-3 shadow-xl shadow-black/10">
+    <article className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl shadow-black/10">
       <div className="flex items-start gap-3">
         <input
           type="checkbox"
@@ -3798,17 +3798,17 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
         <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-start gap-3 text-start">
           <ProductThumbnail row={row} />
           <div className="min-w-0 flex-1">
-            <div className="line-clamp-2 text-sm font-black leading-5 text-white">{row.name}</div>
-            {displaySku ? <div className="mt-1 truncate text-xs font-semibold text-zinc-500">SKU {displaySku}</div> : null}
+            <div className="line-clamp-2 text-sm font-black leading-5 text-text">{row.name}</div>
+            {displaySku ? <div className="mt-1 truncate text-xs font-semibold text-text-muted">SKU {displaySku}</div> : null}
             <ProductArticleBadges row={row} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${ statusKey === "active" ? "bg-emerald-500/15 text-emerald-300" : statusKey === "low" ? "bg-amber-500/15 text-amber-300" : statusKey === "out" ? "bg-red-500/15 text-red-300" : "bg-zinc-500/15 text-zinc-300" }`}
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${ statusKey === "active" ? "bg-emerald-500/15 text-emerald-300" : statusKey === "low" ? "bg-amber-500/15 text-amber-300" : statusKey === "out" ? "bg-red-500/15 text-red-300" : "bg-border-strong text-text-muted" }`}
               >
                 {status}
               </span>
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${ storefrontVisible ? "bg-primary/15 text-primary" : "bg-zinc-500/15 text-zinc-300" }`}
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${ storefrontVisible ? "bg-primary/15 text-primary" : "bg-border-strong text-text-muted" }`}
               >
                 {storefrontVisible
                   ? t("products.storefront.visible", "ظاهر بالموقع")
@@ -3822,22 +3822,22 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-white/8 bg-black/15 p-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.stock")}</div>
-          <div className="mt-1 text-sm font-black text-white">{totalStock}</div>
-          <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{t("products.stock.lowAlert")} {lowStockAlert}</div>
+        <div className="rounded-[var(--radius-control)] border border-border bg-black/15 p-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-text-muted">{t("products.table.stock")}</div>
+          <div className="mt-1 text-sm font-black text-text">{totalStock}</div>
+          <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{t("products.stock.lowAlert")} {lowStockAlert}</div>
         </div>
-        <div className="rounded-xl border border-white/8 bg-black/15 p-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.typeCategoryBrand")}</div>
-          <div className="mt-1 truncate text-sm font-black text-white">{productType || category || t("products.selected.category")}</div>
+        <div className="rounded-[var(--radius-control)] border border-border bg-black/15 p-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-text-muted">{t("products.table.typeCategoryBrand")}</div>
+          <div className="mt-1 truncate text-sm font-black text-text">{productType || category || t("products.selected.category")}</div>
           {productType && category && category.toLowerCase() !== productType.toLowerCase() ? (
             <div className="mt-0.5 truncate text-[11px] font-semibold text-primary">{category}</div>
           ) : null}
-          <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{row.brand || t("products.selected.brand")}</div>
+          <div className="mt-0.5 truncate text-[11px] font-semibold text-text-muted">{row.brand || t("products.selected.brand")}</div>
         </div>
       </div>
 
-      <div className="mt-3 rounded-xl border border-white/8 bg-black/15 p-2">
+      <div className="mt-3 rounded-[var(--radius-control)] border border-border bg-black/15 p-2">
         <div className="grid grid-cols-3 gap-2 text-xs">
           <PriceLine
             label={t("products.priceLabels.cost", "Cost")}
@@ -3855,10 +3855,10 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
       <div className="mt-3 grid grid-cols-2 gap-2">
         {visibleActions.map((action) => {
           const Icon = action.icon;
-          const actionClassName = `inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          const actionClassName = `inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
             action.tone === "danger"
               ? "border-red-300/20 bg-red-500/10 text-red-200"
-              : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
+              : "border-border bg-surface-soft text-text hover:bg-surface-hover"
           }`;
           const actionContent = (
             <>
@@ -3894,7 +3894,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <button
             type="button"
             onClick={() => setMoreOpen((current) => !current)}
-            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ moreOpen ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8" }`}
+            className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ moreOpen ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-100" : "border-border bg-surface-soft text-text hover:bg-surface-hover" }`}
             aria-expanded={moreOpen}
             aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
           >
@@ -3903,13 +3903,13 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
         ) : null}
       </div>
       {moreOpen && overflowActions.length ? (
-        <div className="mt-2 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/20 p-2">
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-[var(--radius-card)] border border-border bg-black/20 p-2">
           {overflowActions.map((action) => {
             const Icon = action.icon;
-            const actionClassName = `inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
+            const actionClassName = `inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
               action.tone === "danger"
                 ? "border-red-300/20 bg-red-500/10 text-red-200"
-                : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
+                : "border-border bg-surface-soft text-text hover:bg-surface-hover"
             }`;
             const actionContent = <><Icon size={14} /><span className="truncate">{action.inlineLabel || action.label}</span></>;
             if (action.href && !action.disabled) {
@@ -3949,11 +3949,11 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
 });
 
 function QuickRowAction({ icon: Icon, label, href = "", onClick, disabled = false, className = "" }) {
-  const sharedClassName = `group/action relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100 hover:shadow-[0_0_18px_rgba(16,185,129,0.12)] disabled:cursor-not-allowed disabled:opacity-30 ${className}`;
+  const sharedClassName = `group/action relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100 hover: disabled:cursor-not-allowed disabled:opacity-30 ${className}`;
   const content = (
     <>
       <Icon size={14} />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1 text-[10px] font-bold text-text opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
         {label}
       </span>
     </>
