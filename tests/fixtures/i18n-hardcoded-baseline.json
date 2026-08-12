@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1882,
+    "arabic": 1883,
     "english": 2311,
-    "total": 4193,
-    "mixedFiles": 49
+    "total": 4194,
+    "mixedFiles": 50
   },
   "files": {
     "src/App.jsx": {
@@ -138,9 +138,9 @@
       "total": 33
     },
     "src/modules/aiStudio/pages/AiStudio.jsx": {
-      "arabic": 0,
+      "arabic": 1,
       "english": 61,
-      "total": 61
+      "total": 62
     },
     "src/modules/aiStudio/pages/AiStudioApprovals.jsx": {
       "arabic": 0,

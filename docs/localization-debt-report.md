@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 180
-- Hardcoded Arabic UI strings: 1882
+- Hardcoded Arabic UI strings: 1883
 - Hardcoded English UI strings: 2311
-- Total hardcoded UI strings: 4193
-- Mixed-language files (both scripts hardcoded): 49
+- Total hardcoded UI strings: 4194
+- Mixed-language files (both scripts hardcoded): 50
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 98 | 1316 | 1765 | 3081 | 33 |
+| main-erp | 98 | 1317 | 1765 | 3082 | 34 |
 | shared | 66 | 200 | 463 | 663 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -40,6 +40,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx | main-erp | 1 | 69 | 70 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 62 | 2 | 64 |
+| src/modules/aiStudio/pages/AiStudio.jsx | main-erp | 1 | 61 | 62 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/modules/marketing/pages/AiMarketingVideos.jsx | main-erp | 14 | 45 | 59 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
@@ -741,7 +742,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 936 [notification/ar] اختر المنتجات المراد إرجاعها
 - ... 24 more
 
-### src/modules/aiStudio/pages/AiStudio.jsx (main-erp — ar:0 en:61)
+### src/modules/aiStudio/pages/AiStudio.jsx (main-erp — ar:1 en:61)
 
 - 57 [jsx-text/en] Inbound Assisted Replies
 - 60 [jsx-text/en] grounded reply suggestion
@@ -759,31 +760,31 @@ of scope. The scanner is conservative and can still contain false positives.
 - 109 [jsx-text/en] Stable
 - 109 [jsx-text/en] stock, price, size, product, or policy facts. A preference becomes
 - 109 [jsx-text/en] to phrase (brevity, stock-count omission, emoji) from repeated approved edits —
-- 111 [jsx-text/en] No stable style preference yet — evidence accumulating (
-- 153 [object-key/en] Conversations
-- 154 [object-key/en] Operational AI conversation surfaces
-- 156 [object-key/en] AI Inbox
-- 156 [object-key/en] Desktop omni-channel support inbox with AI drafts.
-- 157 [object-key/en] Inbox (mobile / PWA)
-- 157 [object-key/en] Mobile-optimized conversation inbox.
-- 158 [object-key/en] AI Follow-ups
-- 158 [object-key/en] Scheduled follow-up queue and takeovers.
-- 162 [object-key/en] Agents & Behaviour
-- 163 [object-key/en] Configure how the AI agent replies
-- 165 [object-key/en] Agent tone, phrases, follow-up templates.
-- 165 [object-key/en] AI Agent Settings
-- 166 [object-key/en] AI Reply Settings
-- 166 [object-key/en] Reply mode, tone and AI feature toggles.
-- 167 [object-key/en] AI Knowledge Base
-- 167 [object-key/en] Store info the AI uses to answer questions.
-- 171 [object-key/en] Channels & Automation
-- 172 [object-key/en] Where the AI operates and its triggers
-- 174 [object-key/en] AI Channels
-- 174 [object-key/en] Messenger / Instagram / WhatsApp connection status.
-- 175 [object-key/en] Comment → DM automation rules.
-- 175 [object-key/en] Marketing Automation
-- 176 [object-key/en] Moderate and reply to social comments.
-- ... 21 more
+- 110 [jsx-text/ar] يتعلم أسلوب الصياغة فقط — السعر والمخزون والمقاسات تظل من بيانات النظام.
+- 112 [jsx-text/en] No stable style preference yet — evidence accumulating (
+- 154 [object-key/en] Conversations
+- 155 [object-key/en] Operational AI conversation surfaces
+- 157 [object-key/en] AI Inbox
+- 157 [object-key/en] Desktop omni-channel support inbox with AI drafts.
+- 158 [object-key/en] Inbox (mobile / PWA)
+- 158 [object-key/en] Mobile-optimized conversation inbox.
+- 159 [object-key/en] AI Follow-ups
+- 159 [object-key/en] Scheduled follow-up queue and takeovers.
+- 163 [object-key/en] Agents & Behaviour
+- 164 [object-key/en] Configure how the AI agent replies
+- 166 [object-key/en] Agent tone, phrases, follow-up templates.
+- 166 [object-key/en] AI Agent Settings
+- 167 [object-key/en] AI Reply Settings
+- 167 [object-key/en] Reply mode, tone and AI feature toggles.
+- 168 [object-key/en] AI Knowledge Base
+- 168 [object-key/en] Store info the AI uses to answer questions.
+- 172 [object-key/en] Channels & Automation
+- 173 [object-key/en] Where the AI operates and its triggers
+- 175 [object-key/en] AI Channels
+- 175 [object-key/en] Messenger / Instagram / WhatsApp connection status.
+- 176 [object-key/en] Comment → DM automation rules.
+- 176 [object-key/en] Marketing Automation
+- ... 22 more
 
 ### src/pages/ComponentsPreview.jsx (main-erp — ar:58 en:2)
 
