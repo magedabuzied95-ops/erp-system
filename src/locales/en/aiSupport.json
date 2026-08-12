@@ -257,5 +257,63 @@
       "showLogs": "Show live AI logs",
       "showMemory": "Show conversation memory debug"
     }
+  },
+  "console": {
+    "confidence": "Confidence level",
+    "notProducedByRoute": "The route did not produce this.",
+    "noSources": "no sources",
+    "noDataYet": "No data yet.",
+    "title": "AI Support Console",
+    "internalOnly": "Internal testing only - not visible to customers",
+    "subtitle": "Test customer-style product and store policy questions, then review saved answers before public release.",
+    "tenantDebug": "Tenant debug",
+    "resolvedTenantId": "Resolved tenant id",
+    "authSourceUsed": "Auth source used",
+    "authUserSource": "Auth user source",
+    "authSnapshot": "Current auth user snapshot",
+    "customerLikeQuestion": "Customer-style question",
+    "questionPlaceholder": "Type a customer question...",
+    "runSupportTest": "Run support test",
+    "quickTests": "Quick tests",
+    "sourcesUsed": "Sources used",
+    "suggestedActions": "Suggested actions",
+    "none": "none",
+    "noTestRun": "No test run yet",
+    "noTestRunHint": "Run a quick test or type a custom question.",
+    "suggestedProducts": "Suggested products",
+    "noProducts": "No products returned.",
+    "detectedIntent": "Detected intent",
+    "contextSources": "Context sources",
+    "fallbackReason": "Fallback reason",
+    "sourcePreview": "Source preview sent to AI",
+    "fullResponse": "Full endpoint response",
+    "orderDrafts": {
+      "subtitle": "Customer orders started from AI chat, WhatsApp, Instagram, or the Facebook inbox.",
+      "loading": "Loading AI order drafts...",
+      "customer": "Customer:",
+      "product": "Product:",
+      "notAvailable": "Not available",
+      "empty": "No AI order drafts yet."
+    },
+    "insights": {
+      "subtitle": "Tenant-scoped customer chat patterns, product demand signals, and handoff volume.",
+      "handoffs": "Human handoffs",
+      "topQuestions": "Top AI questions",
+      "topProductTerms": "Top product terms",
+      "topSizes": "Top requested sizes",
+      "topColors": "Top requested colors",
+      "mostSuggested": "Most suggested products",
+      "mostClicked": "Most clicked AI products",
+      "pendingAliases": "Pending aliases",
+      "fallbackQuestions": "Fallback / no-answer questions",
+      "noFallback": "No fallback questions logged."
+    },
+    "history": {
+      "all": "All results",
+      "needsHuman": "Needs human support",
+      "answeredByAi": "Answered by AI",
+      "loading": "Loading history...",
+      "empty": "No AI support test history yet."
+    }
   }
 }

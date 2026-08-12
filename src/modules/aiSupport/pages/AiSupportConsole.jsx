@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   Bot,
@@ -179,11 +180,12 @@ const formatDateTime = (value) => {
 };
 
 function ConfidenceBar({ value }) {
+  const { t } = useTranslation();
   const confidence = Math.max(0, Math.min(1, Number(value || 0)));
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-        <span>مستوى الثقة</span>
+        <span>{t("aiSupport.console.confidence")}</span>
         <span>{Math.round(confidence * 100)}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -212,8 +214,9 @@ function Pill({ children, tone = "slate" }) {
 }
 
 function JsonBlock({ value }) {
+  const { t } = useTranslation();
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
-    return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">لم يُعدّه المسار.</div>;
+    return <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">{t("aiSupport.console.notProducedByRoute")}</div>;
   }
   return (
     <pre className="max-h-72 overflow-auto rounded-2xl border border-white/10 bg-slate-950/80 p-4 text-xs leading-5 text-slate-200">
@@ -246,6 +249,7 @@ function ProductCard({ product }) {
 }
 
 function HistoryRow({ item }) {
+  const { t } = useTranslation();
   return (
     <article className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -261,14 +265,16 @@ function HistoryRow({ item }) {
       </div>
       <p className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300">{item.ai_answer || "No answer logged."}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {asArray(item.sources_used).length ? asArray(item.sources_used).map((source) => <Pill key={source} tone="cyan">{source}</Pill>) : <Pill>no sources</Pill>}
+        {asArray(item.sources_used).length ? asArray(item.sources_used).map((source) => <Pill key={source} tone="cyan">{source}</Pill>) : <Pill>{t("aiSupport.console.noSources")}</Pill>}
         {item.fallback_reason ? <Pill tone="amber">{item.fallback_reason}</Pill> : null}
       </div>
     </article>
   );
 }
 
-function InsightList({ title, items, labelKey = "label", empty = "No data yet." }) {
+function InsightList({ title, items, labelKey = "label", empty = "" }) {
+  const { t } = useTranslation();
+  const emptyText = empty || t("aiSupport.console.noDataYet");
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
       <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{title}</div>
@@ -291,7 +297,7 @@ function InsightList({ title, items, labelKey = "label", empty = "No data yet." 
             </div>
           );
         }) : (
-          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-slate-500">{empty}</div>
+          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-slate-500">{emptyText}</div>
         )}
       </div>
     </div>
@@ -299,6 +305,7 @@ function InsightList({ title, items, labelKey = "label", empty = "No data yet." 
 }
 
 export default function AiSupportConsole() {
+  const { t } = useTranslation();
   const tenantApi = useTenant();
   const contextTenant = tenantApi?.currentTenant || null;
   const [tenantContext, setTenantContext] = useState(() => resolveTenantContext());
@@ -541,11 +548,11 @@ export default function AiSupportConsole() {
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-amber-100">
                   <ShieldAlert className="h-4 w-4" />
-                  Internal testing only - not visible to customers
+                  {t("aiSupport.console.internalOnly")}
                 </div>
-                <h1 className="m1-display mt-4">وحدة دعم الذكاء الاصطناعي</h1>
+                <h1 className="m1-display mt-4">{t("aiSupport.console.title")}</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                  Test customer-style product and store policy questions, then review saved answers before public release.
+                  {t("aiSupport.console.subtitle")}
                 </p>
               </div>
               <div className="rounded-2xl border border-primary/15 bg-primary/10 px-4 py-3 text-sm font-black text-primary">
@@ -560,24 +567,24 @@ export default function AiSupportConsole() {
           <section className="rounded-3xl border border-primary/15 bg-primary/10 p-5 shadow-2xl shadow-black/20">
             <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary/80">
               <ShieldAlert className="h-4 w-4" />
-              Tenant debug
+              {t("aiSupport.console.tenantDebug")}
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Resolved tenant id</div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.resolvedTenantId")}</div>
                 <div className="mt-2 text-sm font-black text-white">{authHydrated ? tenantId || "not resolved" : "loading..."}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Auth source used</div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.authSourceUsed")}</div>
                 <div className="mt-2 truncate text-sm font-black text-white">{authHydrated ? tenantContext.source : "hydrating auth context"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Auth user source</div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.authUserSource")}</div>
                 <div className="mt-2 truncate text-sm font-black text-white">{tenantContext.authUserSource}</div>
               </div>
             </div>
             <div className="mt-4">
-              <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Current auth user snapshot</div>
+              <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.authSnapshot")}</div>
               <JsonBlock value={authDebugSnapshot} />
             </div>
           </section>
@@ -587,13 +594,13 @@ export default function AiSupportConsole() {
               <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <MessageSquareText className="h-4 w-4" />
-                  سؤال يشبه سؤال العميل
+                  {t("aiSupport.console.customerLikeQuestion")}
                 </div>
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   className="min-h-40 w-full resize-none rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 p-4 text-base leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
-                  placeholder="Type a customer question..."
+                  placeholder={t("aiSupport.console.questionPlaceholder")}
                 />
                 {authHydrated && !isValidTenantId(tenantId) ? (
                   <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold text-amber-100">
@@ -607,14 +614,14 @@ export default function AiSupportConsole() {
                   className="mt-4 inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-slate-950 shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  Run support test
+                  {t("aiSupport.console.runSupportTest")}
                 </button>
               </div>
 
               <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <Sparkles className="h-4 w-4" />
-                  Quick tests
+                  {t("aiSupport.console.quickTests")}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {quickTests.map((test) => (
@@ -660,15 +667,15 @@ export default function AiSupportConsole() {
                     <ConfidenceBar value={response.confidence} />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
-                        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Sources used</div>
+                        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.sourcesUsed")}</div>
                         <div className="flex flex-wrap gap-2">
-                          {sourcesUsed.length ? sourcesUsed.map((source) => <Pill key={source} tone="cyan">{source}</Pill>) : <Pill>none</Pill>}
+                          {sourcesUsed.length ? sourcesUsed.map((source) => <Pill key={source} tone="cyan">{source}</Pill>) : <Pill>{t("aiSupport.console.none")}</Pill>}
                         </div>
                       </div>
                       <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
-                        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Suggested actions</div>
+                        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.suggestedActions")}</div>
                         <div className="flex flex-wrap gap-2">
-                          {suggestedActions.length ? suggestedActions.map((action) => <Pill key={action} tone="emerald">{action}</Pill>) : <Pill>none</Pill>}
+                          {suggestedActions.length ? suggestedActions.map((action) => <Pill key={action} tone="emerald">{action}</Pill>) : <Pill>{t("aiSupport.console.none")}</Pill>}
                         </div>
                       </div>
                     </div>
@@ -676,8 +683,8 @@ export default function AiSupportConsole() {
                 ) : (
                   <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
                     <Bot className="mx-auto h-10 w-10 text-slate-500" />
-                    <div className="mt-3 text-sm font-black text-white">No test run yet</div>
-                    <p className="mt-1 text-sm text-slate-500">Run a quick test or type a custom question.</p>
+                    <div className="mt-3 text-sm font-black text-white">{t("aiSupport.console.noTestRun")}</div>
+                    <p className="mt-1 text-sm text-slate-500">{t("aiSupport.console.noTestRunHint")}</p>
                   </div>
                 )}
               </div>
@@ -685,13 +692,13 @@ export default function AiSupportConsole() {
               <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <PackageSearch className="h-4 w-4" />
-                  Suggested products
+                  {t("aiSupport.console.suggestedProducts")}
                 </div>
                 <div className="grid gap-3">
                   {suggestedProducts.length ? suggestedProducts.map((product) => (
                     <ProductCard key={`${product.id}-${product.sku}`} product={product} />
                   )) : (
-                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">No products returned.</div>
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">{t("aiSupport.console.noProducts")}</div>
                   )}
                 </div>
               </div>
@@ -703,24 +710,24 @@ export default function AiSupportConsole() {
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">النية المكتشفة</div>
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.detectedIntent")}</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.detected_intent || "-"}</div>
                   </div>
                   <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Context sources</div>
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.contextSources")}</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.context_source_count ?? "-"}</div>
                   </div>
                   <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Fallback reason</div>
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.fallbackReason")}</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.fallback_reason || "-"}</div>
                   </div>
                 </div>
                 <div className="mt-4">
-                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Source preview sent to AI</div>
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.sourcePreview")}</div>
                   <JsonBlock value={sourcePreviews} />
                 </div>
                 <div className="mt-4">
-                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Full endpoint response</div>
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.console.fullResponse")}</div>
                   <JsonBlock value={response} />
                 </div>
               </div>
@@ -746,7 +753,7 @@ export default function AiSupportConsole() {
                   <ShoppingCart className="h-4 w-4" />
                   AI Order Drafts
                 </div>
-                <p className="mt-2 text-sm text-slate-400">طلبات العملاء التي بدأت عبر دردشة الذكاء الاصطناعي أو واتساب أو إنستجرام أو صندوق وارد فيسبوك.</p>
+                <p className="mt-2 text-sm text-slate-400">{t("aiSupport.console.orderDrafts.subtitle")}</p>
               </div>
               <button
                 type="button"
@@ -765,7 +772,7 @@ export default function AiSupportConsole() {
 
             <div className="mt-5 grid gap-3">
               {orderDraftsLoading && !orderDrafts.length ? (
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading AI order drafts...</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">{t("aiSupport.console.orderDrafts.loading")}</div>
               ) : orderDrafts.length ? orderDrafts.map((draft) => {
                 const items = asArray(draft.items);
                 const metadata = draft.ai_agent_metadata || {};
@@ -782,9 +789,9 @@ export default function AiSupportConsole() {
                           <Pill tone="cyan">{Number(draft.ai_agent_confidence || 0).toFixed(2)}</Pill>
                         </div>
                         <div className="mt-2 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
-                          <span><b className="text-white">العميل:</b> {draft.customer_name || "غير متاح"} - {draft.customer_phone || "غير متاح"}</span>
+                          <span><b className="text-white">{t("aiSupport.console.orderDrafts.customer")}</b> {draft.customer_name || t("aiSupport.console.orderDrafts.notAvailable")} - {draft.customer_phone || t("aiSupport.console.orderDrafts.notAvailable")}</span>
                           <span><b className="text-white">Area:</b> {[draft.governorate, draft.city_area].filter(Boolean).join(" / ") || "n/a"}</span>
-                          <span><b className="text-white">المنتج:</b> {firstItem.product_name || metadata.matched_product_id || "غير متاح"}</span>
+                          <span><b className="text-white">{t("aiSupport.console.orderDrafts.product")}</b> {firstItem.product_name || metadata.matched_product_id || t("aiSupport.console.orderDrafts.notAvailable")}</span>
                           <span><b className="text-white">Variant:</b> {firstItem.variant_name || metadata.matched_variant_id || "n/a"} x {firstItem.quantity || 1}</span>
                           <span><b className="text-white">Total:</b> {draft.total_amount || draft.total || firstItem.total_amount || 0}</span>
                           <span><b className="text-white">Conversation:</b> {draft.ai_agent_conversation_id || "n/a"}</span>
@@ -813,7 +820,7 @@ export default function AiSupportConsole() {
                   </div>
                 );
               }) : (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI order drafts yet.</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">{t("aiSupport.console.orderDrafts.empty")}</div>
               )}
             </div>
           </section>
@@ -825,7 +832,7 @@ export default function AiSupportConsole() {
                   <PackageSearch className="h-4 w-4" />
                   AI support insights
                 </div>
-                <p className="mt-2 text-sm text-slate-400">Tenant-scoped customer chat patterns, product demand signals, and handoff volume.</p>
+                <p className="mt-2 text-sm text-slate-400">{t("aiSupport.console.insights.subtitle")}</p>
               </div>
               <button
                 type="button"
@@ -844,20 +851,20 @@ export default function AiSupportConsole() {
 
             <div className="mt-5 grid gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/70">Human handoffs</div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/70">{t("aiSupport.console.insights.handoffs")}</div>
                 <div className="mt-2 text-3xl font-black text-white">{insights?.handoff_count ?? 0}</div>
               </div>
-              <InsightList title="Top AI questions" items={insights?.top_questions} labelKey="question" />
-              <InsightList title="Top product terms" items={insights?.top_product_terms} labelKey="term" />
-              <InsightList title="Top requested sizes" items={insights?.top_requested_sizes} labelKey="size" />
-              <InsightList title="Top requested colors" items={insights?.top_requested_colors} labelKey="color" />
-              <InsightList title="Most suggested products" items={insights?.most_suggested_products} labelKey="name" />
-              <InsightList title="Most clicked AI products" items={insights?.most_clicked_products} labelKey="name" />
-              <InsightList title="Pending aliases" items={insights?.pending_aliases} labelKey="alias" />
+              <InsightList title={t("aiSupport.console.insights.topQuestions")} items={insights?.top_questions} labelKey="question" />
+              <InsightList title={t("aiSupport.console.insights.topProductTerms")} items={insights?.top_product_terms} labelKey="term" />
+              <InsightList title={t("aiSupport.console.insights.topSizes")} items={insights?.top_requested_sizes} labelKey="size" />
+              <InsightList title={t("aiSupport.console.insights.topColors")} items={insights?.top_requested_colors} labelKey="color" />
+              <InsightList title={t("aiSupport.console.insights.mostSuggested")} items={insights?.most_suggested_products} labelKey="name" />
+              <InsightList title={t("aiSupport.console.insights.mostClicked")} items={insights?.most_clicked_products} labelKey="name" />
+              <InsightList title={t("aiSupport.console.insights.pendingAliases")} items={insights?.pending_aliases} labelKey="alias" />
             </div>
 
             <div className="mt-3">
-              <InsightList title="Fallback / no-answer questions" items={insights?.fallback_questions} labelKey="question" empty="No fallback questions logged." />
+              <InsightList title={t("aiSupport.console.insights.fallbackQuestions")} items={insights?.fallback_questions} labelKey="question" empty={t("aiSupport.console.insights.noFallback")} />
             </div>
           </section>
 
@@ -876,9 +883,9 @@ export default function AiSupportConsole() {
                   onChange={(event) => setHistoryFilters((current) => ({ ...current, needs_human_support: event.target.value }))}
                   className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none"
                 >
-                  <option value="all">كل النتائج</option>
-                  <option value="true">يحتاج تدخلًا بشريًا</option>
-                  <option value="false">تمت الإجابة بالذكاء الاصطناعي</option>
+                  <option value="all">{t("aiSupport.console.history.all")}</option>
+                  <option value="true">{t("aiSupport.console.history.needsHuman")}</option>
+                  <option value="false">{t("aiSupport.console.history.answeredByAi")}</option>
                 </select>
                 <label className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-slate-200">
                   <input
@@ -916,11 +923,11 @@ export default function AiSupportConsole() {
 
             <div className="mt-5 space-y-3">
               {historyLoading && history.length === 0 ? (
-                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading history...</div>
+                <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">{t("aiSupport.console.history.loading")}</div>
               ) : history.length ? history.map((item) => (
                 <HistoryRow key={item.id} item={item} />
               )) : (
-                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI support test history yet.</div>
+                <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">{t("aiSupport.console.history.empty")}</div>
               )}
             </div>
           </section>

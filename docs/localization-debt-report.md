@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 611
 - Files with debt: 150
-- Hardcoded Arabic UI strings: 1743
-- Hardcoded English UI strings: 1445
-- Total hardcoded UI strings: 3188
-- Mixed-language files (both scripts hardcoded): 41
+- Hardcoded Arabic UI strings: 1733
+- Hardcoded English UI strings: 1414
+- Total hardcoded UI strings: 3147
+- Mixed-language files (both scripts hardcoded): 40
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 80 | 1187 | 1048 | 2235 | 27 |
+| main-erp | 80 | 1177 | 1017 | 2194 | 26 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -41,7 +41,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 8 | 52 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
-| src/modules/aiSupport/pages/AiSupportConsole.jsx | main-erp | 10 | 35 | 45 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 39 | 5 | 44 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
@@ -820,50 +819,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 323 [jsx-text/en] AI customer intelligence
 - 325 [jsx-text/en] Action
 - ... 7 more
-
-### src/modules/aiSupport/pages/AiSupportConsole.jsx (main-erp — ar:10 en:35)
-
-- 186 [jsx-text/ar] مستوى الثقة
-- 216 [jsx-text/ar] لم يُعدّه المسار.
-- 264 [jsx-text/en] no sources
-- 271 [attribute/en] No data yet.
-- 546 [jsx-text/ar] وحدة دعم الذكاء الاصطناعي
-- 567 [jsx-text/en] Resolved tenant id
-- 571 [jsx-text/en] Auth source used
-- 575 [jsx-text/en] Auth user source
-- 580 [jsx-text/en] Current auth user snapshot
-- 596 [attribute/en] Type a customer question...
-- 663 [jsx-text/en] Sources used
-- 669 [jsx-text/en] Suggested actions
-- 679 [jsx-text/en] No test run yet
-- 680 [jsx-text/en] Run a quick test or type a custom question.
-- 694 [jsx-text/en] No products returned.
-- 706 [jsx-text/ar] النية المكتشفة
-- 710 [jsx-text/en] Context sources
-- 714 [jsx-text/en] Fallback reason
-- 719 [jsx-text/en] Source preview sent to AI
-- 723 [jsx-text/en] Full endpoint response
-- 749 [jsx-text/ar] طلبات العملاء التي بدأت عبر دردشة الذكاء الاصطناعي أو واتساب أو إنستجرام أو صندوق وارد فيسبوك.
-- 768 [jsx-text/en] Loading AI order drafts...
-- 785 [jsx-text/ar] العميل:
-- 786 [jsx-text/en] Area:
-- 787 [jsx-text/ar] المنتج:
-- 788 [jsx-text/en] Variant:
-- 789 [jsx-text/en] Total:
-- 790 [jsx-text/en] Conversation:
-- 816 [jsx-text/en] No AI order drafts yet.
-- 828 [jsx-text/en] Tenant-scoped customer chat patterns, product demand signals, and handoff volume.
-- 847 [jsx-text/en] Human handoffs
-- 850 [attribute/en] Top AI questions
-- 851 [attribute/en] Top product terms
-- 852 [attribute/en] Top requested sizes
-- 853 [attribute/en] Top requested colors
-- 854 [attribute/en] Most suggested products
-- 855 [attribute/en] Most clicked AI products
-- 856 [attribute/en] Pending aliases
-- 860 [attribute/en] Fallback / no-answer questions
-- 860 [attribute/en] No fallback questions logged.
-- ... 5 more
 
 ### src/modules/employees/pages/EmployeePayrollPortal.jsx (employee-portal — ar:39 en:5)
 
@@ -2417,6 +2372,13 @@ of scope. The scanner is conservative and can still contain false positives.
 - 5 [jsx-text/en] Editable replies and AI opening prompt
 - 26 [attribute/ar] أهلًا بحضرتك...
 - 37 [attribute/ar] أنت مساعد مبيعات داخل AI Social Media Center...
+
+### src/modules/aiSupport/pages/AiSupportConsole.jsx (main-erp — ar:0 en:4)
+
+- 793 [jsx-text/en] Area:
+- 795 [jsx-text/en] Variant:
+- 796 [jsx-text/en] Total:
+- 797 [jsx-text/en] Conversation:
 
 ### src/modules/loyalty/lib/loyaltyMockData.js (main-erp — ar:0 en:4)
 
