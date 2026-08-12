@@ -71,6 +71,7 @@ import {
   removeStoredProductsListFilters,
   writeProductsListFilters,
 } from "../lib/productListFilters";
+import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
 
 import PostEditorModal from "../../marketing/components/PostEditorModal";
 import {
@@ -113,6 +114,106 @@ const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "women", label_en: "Women", label_ar: "حريمي", tone: "border-rose-400/20 bg-rose-500/15 text-rose-300" },
   { value: "kids", label_en: "Kids", label_ar: "أطفال", tone: "border-amber-400/20 bg-amber-500/15 text-amber-300" },
 ];
+
+function BrandFilterCombobox({ value = "all", options = [], onChange, allLabel, searchPlaceholder }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef(null);
+  const triggerRef = useRef(null);
+  const searchRef = useRef(null);
+  const brands = useMemo(
+    () => [...new Set((Array.isArray(options) ? options : []).filter((brand) => brand && brand !== "all"))],
+    [options]
+  );
+  const filteredBrands = useMemo(
+    () => brands.filter((brand) => keyboardLayoutIncludes(brand, query)),
+    [brands, query]
+  );
+
+  useDismissableLayer({
+    enabled: open,
+    refs: [wrapRef, triggerRef],
+    onDismiss: () => setOpen(false),
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => searchRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
+  const selectBrand = (brand) => {
+    onChange?.(brand);
+    setQuery("");
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative min-w-0">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          setQuery("");
+          setOpen((current) => !current);
+        }}
+        className="flex h-full min-h-[46px] w-full min-w-0 items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none transition hover:border-border-strong"
+      >
+        <span className="truncate">{value === "all" ? allLabel : value}</span>
+        <ChevronDown size={16} className={`shrink-0 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute inset-x-0 top-full z-[90] mt-2 min-w-[16rem] overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/40">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <Search size={16} className="shrink-0 text-text-muted" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setOpen(false);
+                if (event.key === "Enter" && filteredBrands.length) selectBrand(filteredBrands[0]);
+              }}
+              placeholder={searchPlaceholder}
+              className="w-full min-w-0 bg-transparent py-1.5 text-sm text-text outline-none placeholder:text-text-muted"
+            />
+          </div>
+          <div role="listbox" className="max-h-72 overflow-y-auto p-1">
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === "all"}
+              onClick={() => selectBrand("all")}
+              className={`flex w-full rounded-[var(--radius-control)] px-3 py-2 text-start text-sm transition hover:bg-surface-hover ${value === "all" ? "bg-primary/15 text-primary" : "text-text"}`}
+            >
+              {allLabel}
+            </button>
+            {filteredBrands.map((brand) => (
+              <button
+                key={brand}
+                type="button"
+                role="option"
+                aria-selected={value === brand}
+                onClick={() => selectBrand(brand)}
+                className={`flex w-full rounded-[var(--radius-control)] px-3 py-2 text-start text-sm transition hover:bg-surface-hover ${value === brand ? "bg-primary/15 text-primary" : "text-text"}`}
+              >
+                {brand}
+              </button>
+            ))}
+            {!filteredBrands.length ? (
+              <div className="px-3 py-4 text-center text-sm text-text-muted">
+                {searchPlaceholder}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const productStatusValue = (row = {}) => String(row.status || "").trim().toLowerCase();
 const isOfferStoryValue = (row = {}) => row?.is_offer_story === true || String(row?.is_offer_story || "").trim().toLowerCase() === "true";
@@ -2871,20 +2972,16 @@ function ProductsList() {
             <option value="inactive">{t("products.filters.inactive")}</option>
           </select>
 
-          <select
+          <BrandFilterCombobox
             value={brandFilter}
-            onChange={(e) => {
-              setBrandFilter(e.target.value);
+            options={brandOptions}
+            allLabel={t("products.filters.allBrands")}
+            searchPlaceholder={t("products.form.searchBrand", "Search brands")}
+            onChange={(nextBrand) => {
+              setBrandFilter(nextBrand);
               setPage(1);
             }}
-            className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none"
-          >
-            {brandOptions.map((brand) => (
-              <option key={brand} value={brand}>
-                {brand === "all" ? t("products.filters.allBrands") : brand}
-              </option>
-            ))}
-          </select>
+          />
 
           <select
             value={storefrontVisibilityFilter}

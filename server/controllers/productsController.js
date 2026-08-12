@@ -34,6 +34,7 @@ import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/produc
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.js";
 import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterValues } from "../lib/productFilterValues.js";
+import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSearch.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -1618,10 +1619,12 @@ const buildProductSearchClause = ({ values, search }) => {
   const rawSearch = String(search ?? "").trim();
   if (!rawSearch) return "";
 
-  values.push(rawSearch);
-  const exactParam = `$${values.length}`;
-  values.push(`%${rawSearch}%`);
-  const partialParam = `$${values.length}`;
+  const searchParams = getKeyboardLayoutSearchVariants(rawSearch).map((searchVariant) => {
+    values.push(searchVariant);
+    const exactParam = `$${values.length}`;
+    values.push(`%${searchVariant}%`);
+    return { exactParam, partialParam: `$${values.length}` };
+  });
 
   const productFields = [
     "p.name",
@@ -1640,10 +1643,20 @@ const buildProductSearchClause = ({ values, search }) => {
     "sv.size",
     "sv.article_code",
   ];
-  const fieldMatch = (field) => `
+  const fieldMatch = (field) => searchParams.map(({ exactParam, partialParam }) => `
     LOWER(TRIM(COALESCE(${field}, ''))) = LOWER(TRIM(${exactParam}))
     OR COALESCE(${field}, '') ILIKE ${partialParam}
-  `;
+  `).map((clause) => `(${clause})`).join(" OR ");
+
+  const articleCodeMatch = searchParams.map(({ exactParam, partialParam }) => `
+    LOWER(TRIM(COALESCE(pcg.color_article_code, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(pcg.color_article_code, '') ILIKE ${partialParam}
+    OR EXISTS (
+      SELECT 1 FROM unnest(COALESCE(pcg.article_codes, '{}'::text[])) AS article_code
+      WHERE LOWER(TRIM(article_code)) = LOWER(TRIM(${exactParam}))
+         OR article_code ILIKE ${partialParam}
+    )
+  `).map((clause) => `(${clause})`).join(" OR ");
 
   return `
     (
@@ -1663,13 +1676,7 @@ const buildProductSearchClause = ({ values, search }) => {
         FROM product_color_groups pcg
         WHERE pcg.product_id = p.id
           AND (
-            LOWER(TRIM(COALESCE(pcg.color_article_code, ''))) = LOWER(TRIM(${exactParam}))
-            OR COALESCE(pcg.color_article_code, '') ILIKE ${partialParam}
-            OR EXISTS (
-              SELECT 1 FROM unnest(COALESCE(pcg.article_codes, '{}'::text[])) AS article_code
-              WHERE LOWER(TRIM(article_code)) = LOWER(TRIM(${exactParam}))
-                 OR article_code ILIKE ${partialParam}
-            )
+            ${articleCodeMatch}
           )
       )
       OR EXISTS (
@@ -1677,8 +1684,7 @@ const buildProductSearchClause = ({ values, search }) => {
         FROM product_audiences pa
         WHERE pa.product_id = p.id
           AND (
-            LOWER(TRIM(COALESCE(pa.audience, ''))) = LOWER(TRIM(${exactParam}))
-            OR COALESCE(pa.audience, '') ILIKE ${partialParam}
+            ${fieldMatch("pa.audience")}
           )
       )
     )
