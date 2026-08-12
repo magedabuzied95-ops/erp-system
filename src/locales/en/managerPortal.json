@@ -20,7 +20,9 @@
     "liveAlerts": "Live alerts",
     "unread": "Unread",
     "unreadConversation": "Unread conversation",
-    "day": "Day"
+    "day": "Day",
+    "items": "Items",
+    "totalDifferences": "Total differences"
   },
   "conversions": {
     "title": "Conversion indicators",

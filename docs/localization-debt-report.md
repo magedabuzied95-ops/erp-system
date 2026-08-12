@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 608
-- Files with debt: 206
-- Hardcoded Arabic UI strings: 2002
+- Files with debt: 205
+- Hardcoded Arabic UI strings: 2000
 - Hardcoded English UI strings: 2634
-- Total hardcoded UI strings: 4636
+- Total hardcoded UI strings: 4634
 - Mixed-language files (both scripts hardcoded): 54
 
 ### By surface
@@ -24,7 +24,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | shared | 70 | 199 | 467 | 666 | 11 |
 | employee-portal | 24 | 191 | 157 | 348 | 3 |
 | pos | 5 | 182 | 128 | 310 | 3 |
-| manager-portal | 1 | 2 | 0 | 2 | 0 |
 
 ## Mixed-language files (ranked by density)
 
@@ -3630,11 +3629,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 207 [jsx-text/ar] الموعد:
 - 209 [jsx-text/ar] ملاحظات:
-
-### src/modules/managerPortal/pages/InventoryApprovals.jsx (manager-portal — ar:2 en:0)
-
-- 374 [jsx-text/ar] الأصناف:
-- 375 [jsx-text/ar] إجمالي الفروقات:
 
 ### src/shared/components/Table.jsx (shared — ar:0 en:2)
 
