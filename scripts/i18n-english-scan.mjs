@@ -198,7 +198,7 @@ const LANGUAGE_CONDITION =
  *     keys and >= 60% key overlap.
  * Anything less is left as debt.
  */
-export const bilingualTernaryRanges = (text) => {
+export const bilingualTernaryRanges = (text, half = "en") => {
   const ranges = [];
   // Candidates are located with a regex rather than by walking every character:
   // a char walk has to guess whether a quote opens a string, and JSX prose is
@@ -236,7 +236,8 @@ export const bilingualTernaryRanges = (text) => {
     const widest = Math.max(aKeys.size, bKeys.size);
     if (shared < 2 || !widest || shared / widest < 0.6) continue;
 
-    const [from, to] = aAr ? [b, bEnd] : [a, aEnd];
+    const wantArabic = half === "ar";
+    const [from, to] = aAr === wantArabic ? [a, aEnd] : [b, bEnd];
     ranges.push([lineAt(text, from), lineAt(text, to)]);
     CANDIDATE.lastIndex = bEnd;
   }
@@ -256,11 +257,13 @@ export const bilingualTernaryRanges = (text) => {
  * inside the SAME enclosing block. A file that merely happens to contain Arabic
  * somewhere is not excluded.
  */
-const bilingualEnglishRanges = (text) => {
+export const bilingualHalfRanges = (text, half = "en") => {
   const lines = text.split("\n");
   const ranges = [];
-  const KEY = /^(\s*)(?:"|')?(en|english)(?:"|')?\s*:\s*\{/;
-  const SIBLING = /^(\s*)(?:"|')?(ar|arabic)(?:"|')?\s*:\s*\{/;
+  const EN_KEY = /^(\s*)(?:"|')?(en|english)(?:"|')?\s*:\s*\{/;
+  const AR_KEY = /^(\s*)(?:"|')?(ar|arabic)(?:"|')?\s*:\s*\{/;
+  const KEY = half === "ar" ? AR_KEY : EN_KEY;
+  const SIBLING = half === "ar" ? EN_KEY : AR_KEY;
 
   for (let i = 0; i < lines.length; i += 1) {
     const open = KEY.exec(lines[i]);
@@ -311,7 +314,7 @@ const bilingualEnglishRanges = (text) => {
   });
   for (const { ar, en } of bases.values()) {
     if (!ar.length || !en.length) continue; // only a genuine pair counts
-    for (const start of en) {
+    for (const start of half === "ar" ? ar : en) {
       let depth = 0;
       let end = start;
       for (let j = start; j < lines.length; j += 1) {
@@ -335,7 +338,7 @@ const bilingualEnglishRanges = (text) => {
  */
 const DEV_GATE = /\bisDevBuild\b|\bimport\s*\.\s*meta\s*\.\s*env\s*\.\s*DEV\b|process\s*\.\s*env\s*\.\s*NODE_ENV\s*!==\s*["']production["']/;
 
-const devGatedRanges = (text) => {
+export const devGatedRanges = (text) => {
   const lines = text.split("\n");
   const ranges = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -367,7 +370,7 @@ const devGatedRanges = (text) => {
  *
  * Narrow: the opener must be a document.write( that starts a template literal.
  */
-const printDocumentRanges = (text) => {
+export const printDocumentRanges = (text) => {
   const lines = text.split("\n");
   const ranges = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -395,7 +398,7 @@ const printDocumentRanges = (text) => {
  * Scoped to the function, not the file: real chrome elsewhere in the same
  * module is still reported.
  */
-const seedDataRanges = (text) => {
+export const seedDataRanges = (text) => {
   const lines = text.split("\n");
   const ranges = [];
   const OPEN = /^\s*(?:export\s+)?(?:const|function)\s+seed[A-Z]\w*\s*(?:=\s*\([^)]*\)\s*=>\s*)?[[{(]/;
@@ -438,7 +441,7 @@ export function scanEnglish() {
     // Reclassify per HIT before the file-level bucketing below: a file can hold
     // a working bilingual table, a dev-only panel AND genuine broken chrome.
     const text = fs.readFileSync(file, "utf8");
-    const bilingualRanges = [...bilingualEnglishRanges(text), ...bilingualTernaryRanges(text)];
+    const bilingualRanges = [...bilingualHalfRanges(text), ...bilingualTernaryRanges(text)];
     const devRanges = devGatedRanges(text);
     const printRanges = printDocumentRanges(text);
     const seedRanges = seedDataRanges(text);

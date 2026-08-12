@@ -18,6 +18,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { scanRepository } from "./i18n-scan.mjs";
+import {
+  bilingualHalfRanges,
+  bilingualTernaryRanges,
+  devGatedRanges,
+  printDocumentRanges,
+  seedDataRanges,
+} from "./i18n-english-scan.mjs";
 
 /**
  * A file is "already bilingual" when it carries parallel copy for both locales.
@@ -79,13 +86,53 @@ export function classify() {
       buckets.prototype.push({ ...entry, reason: PROTOTYPE.get(entry.file) });
       continue;
     }
+    /*
+     * Bilingual is decided PER HIT, not per file.
+     *
+     * The previous rule bucketed a whole file as bilingual if it contained a
+     * single bilingual marker anywhere. That hid genuinely single-language
+     * chrome sitting next to bilingual code - the Expenses confirm heading was
+     * found that way, and a probe showed ~516 such hits across 33 files,
+     * including domains previously reported closed.
+     *
+     * A hit is bilingual only when it is itself part of a parallel structure:
+     * inside the `ar` half of a sibling table / Object.assign pair / language
+     * ternary, or on a line that carries a bilingual marker of its own.
+     */
     const text = fs.readFileSync(path.resolve(entry.file), "utf8");
-    const markers = (text.match(BILINGUAL_MARKERS) || []).length;
-    if (markers > 0) {
-      buckets.bilingual.push({ ...entry, reason: `Carries parallel ar/en copy (${markers} markers).` });
-      continue;
+    const lines = text.split(/\r?\n/);
+    const ranges = [
+      ...bilingualHalfRanges(text, "ar"),
+      ...bilingualTernaryRanges(text, "ar"),
+      ...devGatedRanges(text),
+      ...printDocumentRanges(text),
+      ...seedDataRanges(text),
+    ];
+    const inRange = (line) => ranges.some(([from, to]) => line >= from && line <= to);
+    const isBilingual = (hit) => {
+      if (inRange(hit.line)) return true;
+      const line = lines[hit.line - 1] || "";
+      BILINGUAL_MARKERS.lastIndex = 0;
+      return BILINGUAL_MARKERS.test(line);
+    };
+
+    const bilingualHits = entry.hits.filter(isBilingual);
+    const brokenHits = entry.hits.filter((hit) => !isBilingual(hit));
+    const tally = (hits) => ({
+      hits,
+      total: hits.length,
+      arabic: hits.filter((h) => h.script === "ar").length,
+      english: hits.filter((h) => h.script === "en").length,
+    });
+
+    if (bilingualHits.length) {
+      buckets.bilingual.push({
+        ...entry,
+        ...tally(bilingualHits),
+        reason: "Hits that sit inside a parallel ar/en structure.",
+      });
     }
-    buckets.broken.push(entry);
+    if (brokenHits.length) buckets.broken.push({ ...entry, ...tally(brokenHits) });
   }
 
   return buckets;
