@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=m1-mark-20260716" />
     <link rel="preconnect" href="https://api.m1store-egy.com" crossorigin />
     <link rel="dns-prefetch" href="//api.m1store-egy.com" />
-    <meta name="theme-color" content="#f3f3f1" />
+    <meta name="theme-color" content="#eae7e0" />
     <meta name="application-name" content="M1 Store" />
     <meta name="description" content="M1 Store للأحذية والشنط والكروكس والسليبر للرجال والنساء والأطفال." />
     <meta property="og:type" content="website" />
@@ -43,23 +43,30 @@
           root.dataset.themeSource = isStorefrontHost ? "storefront" : "erp";
           root.classList.toggle("dark", dark);
           root.style.colorScheme = theme;
-          root.style.setProperty("--bg", dark ? "#171715" : "#f3f3f1");
-          root.style.setProperty("--surface", dark ? "#232321" : "#ffffff");
-          root.style.setProperty("--card", dark ? "#232321" : "#ffffff");
-          root.style.setProperty("--surface-soft", dark ? "#2a2a27" : "#f7f7f5");
-          root.style.setProperty("--text", dark ? "#efeee9" : "#25231f");
-          root.style.setProperty("--muted", dark ? "#a19e96" : "#716e67");
-          root.style.setProperty("--border", dark ? "#393936" : "#dedbd3");
-          root.style.backgroundColor = dark ? "#171715" : "#f3f3f1";
+          // Anti-FOUC seeds. These MUST track src/theme/themes.js: they paint
+          // before React mounts, and ThemeProvider then rewrites the same custom
+          // properties with the real theme.
+          root.style.setProperty("--bg", dark ? "#131211" : "#eae7e0");
+          root.style.setProperty("--surface", dark ? "#1d1c1a" : "#ffffff");
+          root.style.setProperty("--card", dark ? "#232220" : "#ffffff");
+          root.style.setProperty("--surface-soft", dark ? "#191817" : "#f4f1ea");
+          root.style.setProperty("--text", dark ? "#f3f1ec" : "#1b1915");
+          root.style.setProperty("--muted", dark ? "#a8a399" : "#6a665e");
+          root.style.setProperty("--border", dark ? "#33312d" : "#d5cfc2");
+          // Track the token instead of freezing a literal. A literal here becomes
+          // an INLINE background on <html>, which outranks every stylesheet rule
+          // and which ThemeProvider never clears — that is why the canvas kept
+          // painting the pre-refresh #f3f3f1 long after the theme changed.
+          root.style.background = "var(--bg)";
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", dark ? "#171715" : "#f3f3f1");
+          if (meta) meta.setAttribute("content", dark ? "#131211" : "#eae7e0");
         } catch (error) {
-          document.documentElement.style.backgroundColor = "#f3f3f1";
+          document.documentElement.style.background = "var(--bg, #eae7e0)";
         }
       })();
     </script>
     <style>
-      html,body,#root{min-height:100%;background:var(--bg,#f3f3f1);color:var(--text,#25231f)}
+      html,body,#root{min-height:100%;background:var(--bg,#eae7e0);color:var(--text,#1b1915)}
       body{margin:0}
     </style>
     <script>
