@@ -453,6 +453,52 @@ export const seedDataRanges = (text) => {
 
 const inRanges = (line, ranges) => ranges.some(([from, to]) => line >= from && line <= to);
 
+/*
+ * AI/customer CONTENT, decided PER HIT.
+ *
+ * AI_CONTENT_MARKERS used to bucket an entire file as "customer/AI content"
+ * purely because it lived under aiSupport/ or aiStudio/. That is a file-level
+ * exclusion of exactly the kind the Arabic classifier already had removed: it
+ * hid 1106 English strings across 45 files, nearly all of them ordinary page
+ * chrome (AI Studio headings, settings labels, analytics column headers),
+ * because the two directories also happen to contain prompts and replies.
+ *
+ * A hit in those trees is content only when the hit ITSELF is content: it sits
+ * on a prompt/message/reply-style field, or inside a const whose name says it
+ * holds sample copy. Everything else is chrome and stays measurable.
+ */
+/*
+ * Deliberately NOT `message:` / `content:` / `summary:`: those name validation
+ * errors and ordinary UI copy at least as often as they name AI output, and
+ * including them re-hid chrome (workflowGraph's "Version must be a positive
+ * integer." landed in the content bucket). Only fields that can only hold
+ * model input/output qualify.
+ */
+const AI_CONTENT_FIELD =
+  /\b(prompt|prompts|system_prompt|systemPrompt|user_prompt|userPrompt|assistant_message|generated_\w+|ai_reply|aiReply|correction|corrections|fallback_message|fallbackMessage)\s*:/;
+
+/** const quickTests = [...], SAMPLE_REPLIES, DEFAULT_PROMPTS, suggestedQuestions... */
+export const aiSampleCopyRanges = (text) => {
+  const lines = text.split("\n");
+  const ranges = [];
+  const OPEN =
+    /^\s*(?:export\s+)?const\s+(?:[A-Z][A-Z0-9_]*(?:_PROMPTS?|_REPLIES|_MESSAGES|_QUESTIONS|_EXAMPLES|_SAMPLES)|[a-z]\w*(?:Prompts?|Replies|Messages|Questions|Examples|Samples|Tests))\s*=\s*[[{]/;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!OPEN.test(lines[i])) continue;
+    let depth = 0;
+    let end = i;
+    for (let j = i; j < lines.length; j += 1) {
+      for (const ch of lines[j]) {
+        if (ch === "[" || ch === "{") depth += 1;
+        else if (ch === "]" || ch === "}") depth -= 1;
+      }
+      if (depth <= 0) { end = j; break; }
+    }
+    ranges.push([i + 1, end + 1]);
+  }
+  return ranges;
+};
+
 export function scanEnglish() {
   const buckets = {
     brokenEnglish: [],
@@ -521,11 +567,24 @@ export function scanEnglish() {
       if (!hits.length) continue;
     }
 
+    /*
+     * AI/customer content is split off PER HIT, not by path. See
+     * aiSampleCopyRanges above for why the old file-level rule was wrong.
+     */
+    if (AI_CONTENT_MARKERS.test(relative)) {
+      const sampleRanges = aiSampleCopyRanges(text);
+      const isAiContent = (hit) =>
+        inRanges(hit.line, sampleRanges) || AI_CONTENT_FIELD.test(sourceLines[hit.line - 1] || "");
+      const contentHits = hits.filter(isAiContent);
+      if (contentHits.length) buckets.aiContent.push({ file: relative, total: contentHits.length, hits: contentHits });
+      hits = hits.filter((hit) => !isAiContent(hit));
+      if (!hits.length) continue;
+    }
+
     const target =
       IDENTIFIER_FILES.has(relative) ? "identifiers"
       : PRINT_MARKERS.test(relative) ? "print"
       : PROTOTYPE_MARKERS.test(relative) ? "prototype"
-      : AI_CONTENT_MARKERS.test(relative) ? "aiContent"
       : "brokenEnglish";
 
     const kept = hits.filter((hit) => !(hit.type === "attribute" && NON_UI_ATTRIBUTES.test(hit.attr || "")));

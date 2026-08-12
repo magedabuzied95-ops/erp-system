@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 164
-- Hardcoded Arabic UI strings: 1749
+- Hardcoded Arabic UI strings: 1750
 - Hardcoded English UI strings: 1872
-- Total hardcoded UI strings: 3621
+- Total hardcoded UI strings: 3622
 - Mixed-language files (both scripts hardcoded): 44
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 89 | 1193 | 1406 | 2599 | 30 |
+| main-erp | 89 | 1194 | 1406 | 2600 | 30 |
 | shared | 59 | 190 | 383 | 573 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 158 | 260 | 418 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 159 | 260 | 419 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
@@ -76,7 +76,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:158 en:260)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:159 en:260)
 
 - 564 [object-key/en] All
 - 565 [object-key/en] Messages
@@ -96,29 +96,29 @@ of scope. The scanner is conservative and can still contain false positives.
 - 601 [object-key/ar] دافئ
 - 602 [object-key/ar] ساخن
 - 603 [object-key/ar] جاهز للشراء
-- 1211 [object-key/en] New
-- 1212 [object-key/en] Contacted
-- 1213 [object-key/en] Interested
-- 1214 [object-key/en] Negotiation
-- 1215 [object-key/en] Won
-- 1534 [attribute/en] Not set yet
-- 1645 [object-key/en] Like
-- 1646 [object-key/en] Public reply
-- 1647 [object-key/en] Private message
-- 1854 [jsx-text/en] Needs Human
-- 1914 [jsx-text/ar] غير مقروء
-- 2017 [attribute/en] Social Comments
-- 2018 [attribute/en] Social Comments
-- 2138 [jsx-text/en] Needs Human
-- 2181 [jsx-text/en] Unread
-- 2219 [attribute/en] Conversation Labels
-- 2221 [jsx-text/ar] أضف أكثر من Label للعميل
-- 2221 [jsx-text/en] Conversation Labels
-- 2222 [attribute/en] Close labels
-- 2228 [attribute/ar] ابحث أو اكتب Label جديد...
-- 2232 [jsx-text/en] Current labels (
-- 2240 [jsx-text/ar] لا توجد Labels مختارة
-- ... 378 more
+- 1228 [object-key/en] New
+- 1229 [object-key/en] Contacted
+- 1230 [object-key/en] Interested
+- 1231 [object-key/en] Negotiation
+- 1232 [object-key/en] Won
+- 1551 [attribute/en] Not set yet
+- 1662 [object-key/en] Like
+- 1663 [object-key/en] Public reply
+- 1664 [object-key/en] Private message
+- 1871 [jsx-text/en] Needs Human
+- 1931 [jsx-text/ar] غير مقروء
+- 2034 [attribute/en] Social Comments
+- 2035 [attribute/en] Social Comments
+- 2155 [jsx-text/en] Needs Human
+- 2198 [jsx-text/en] Unread
+- 2236 [attribute/en] Conversation Labels
+- 2238 [jsx-text/ar] أضف أكثر من Label للعميل
+- 2238 [jsx-text/en] Conversation Labels
+- 2239 [attribute/en] Close labels
+- 2245 [attribute/ar] ابحث أو اكتب Label جديد...
+- 2249 [jsx-text/en] Current labels (
+- 2257 [jsx-text/ar] لا توجد Labels مختارة
+- ... 379 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
@@ -2083,8 +2083,8 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2610 [notification/en] No eligible colors were queued
 - 2774 [notification/ar] المقاس موجود بالفعل في هذا اللون
 - 3026 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
-- 3818 [attribute/en] Open Graph preview
-- 3944 [attribute/en] Product cover
+- 3812 [attribute/en] Open Graph preview
+- 3938 [attribute/en] Product cover
 
 ### src/shared/lib/categorySeo.js (shared — ar:16 en:0)
 
@@ -2395,9 +2395,9 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1883 [notification/en] Save the product first, then generate AI Thermal Artwork per color from Edit Product.
 - 2047 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
 - 2112 [notification/ar] تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.
-- 3581 [attribute/ar] ترتيب اللون
-- 3591 [attribute/ar] تحريك لأعلى
-- 3604 [attribute/ar] تحريك لأسفل
+- 3574 [attribute/ar] ترتيب اللون
+- 3584 [attribute/ar] تحريك لأعلى
+- 3597 [attribute/ar] تحريك لأسفل
 
 ### src/config/activityFeedConfig.js (main-erp — ar:0 en:10)
 
