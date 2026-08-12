@@ -502,7 +502,8 @@
       "costSaved": "تم حفظ {{count}} تحديث تكلفة.",
       "overrideSaved": "تم حفظ {{count}} تجاوز تكلفة تاريخي.",
       "suggestedApplied": "تم تطبيق التكاليف المقترحة على الحقول القابلة للتعديل."
-    }
+    },
+    "lineNumber": "بند #"
   },
   "journal": {
     "title": "قيود اليومية",
@@ -741,7 +742,8 @@
     "cashMovements": "حركات النقدية",
     "cashMovementsHint": "حركات حسابات غير قابلة للتعديل من المبيعات والمشتريات والمصروفات والسلف والاستردادات والتحويلات والتسويات.",
     "loadingMovements": "جارٍ تحميل حركات النقدية...",
-    "noMovements": "لا توجد حركات نقدية."
+    "noMovements": "لا توجد حركات نقدية.",
+    "recorded": "المسجل"
   },
   "accounts": {
     "loading": "جارٍ تحميل الحسابات...",
@@ -790,5 +792,9 @@
     "supplierPayables": "مستحقات الموردين",
     "grossMargin": "هامش مجمل الربح",
     "executiveReports": "التقارير التنفيذية"
+  },
+  "expenses": {
+    "noEmployeeFound": "لا يوجد موظف",
+    "confirmAction": "سيؤدي هذا إلى {{action}} المصروف رقم #{{id}}."
   }
 }

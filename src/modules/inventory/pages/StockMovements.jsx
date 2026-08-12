@@ -599,7 +599,7 @@ function StockMovements() {
                         {group.category_name ? <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{group.category_name}</span> : null}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-text-muted">
-                        {group.product_code ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">كود المنتج: {group.product_code}</span> : null}
+                        {group.product_code ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{tt("inventory.labels.productCode")}: {group.product_code}</span> : null}
                         {group.manufacturer_name ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{group.manufacturer_name}</span> : null}
                         <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{summarizeLocations(group.movements)}</span>
                       </div>
@@ -896,8 +896,8 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-text-muted">
               {movement.color ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{movement.color}</span> : null}
               {movement.size ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{movement.size}</span> : null}
-              {movement.sku ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">رمز الصنف: {movement.sku}</span> : null}
-              {movement.barcode ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">الباركود: {movement.barcode}</span> : null}
+              {movement.sku ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{tt("inventory.labels.sku")}: {movement.sku}</span> : null}
+              {movement.barcode ? <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{tt("inventory.labels.barcode")}: {movement.barcode}</span> : null}
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">

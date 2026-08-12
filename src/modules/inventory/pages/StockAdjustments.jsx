@@ -768,10 +768,10 @@ function StockAdjustments() {
                           </div>
                         </div>
                         <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
-                          <div>رمز الصنف: {variant.sku || tt("inventory.labels.notAvailable")}</div>
-                          <div>الباركود: {variant.barcode || tt("inventory.labels.notAvailable")}</div>
-                          <div>الرصيد: {asNumber(variant.stock, 0).toLocaleString()}</div>
-                          <div>المخزن: {getWarehouseName(variant, warehouses) || tt("inventory.labels.notAvailable")}</div>
+                          <div>{tt("inventory.labels.sku")}: {variant.sku || tt("inventory.labels.notAvailable")}</div>
+                          <div>{tt("inventory.labels.barcode")}: {variant.barcode || tt("inventory.labels.notAvailable")}</div>
+                          <div>{tt("inventory.labels.balance")}: {asNumber(variant.stock, 0).toLocaleString()}</div>
+                          <div>{tt("inventory.labels.warehouse")}: {getWarehouseName(variant, warehouses) || tt("inventory.labels.notAvailable")}</div>
                         </div>
                       </div>
                     </button>
@@ -981,10 +981,10 @@ function StockAdjustments() {
                           </div>
 
                           <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
-                            <div>النوع: {adjustment.adjustment_type === "decrease" ? tt("inventory.adjustments.decrease") : tt("inventory.adjustments.increase")}</div>
-                            <div>المستخدم: {adjustment.user_name || tt("inventory.labels.notAvailable")}</div>
-                            <div>الوقت: {formatDateTime(adjustment.created_at)}</div>
-                            <div>المخزن: {adjustment.warehouse_name || tt("inventory.labels.notAvailable")}</div>
+                            <div>{tt("inventory.labels.type")}: {adjustment.adjustment_type === "decrease" ? tt("inventory.adjustments.decrease") : tt("inventory.adjustments.increase")}</div>
+                            <div>{tt("inventory.movements.userLabel")} {adjustment.user_name || tt("inventory.labels.notAvailable")}</div>
+                            <div>{tt("inventory.labels.time")}: {formatDateTime(adjustment.created_at)}</div>
+                            <div>{tt("inventory.labels.warehouse")}: {adjustment.warehouse_name || tt("inventory.labels.notAvailable")}</div>
                           </div>
 
                           <div className="mt-3 text-sm text-text-muted">{adjustment.reason || tt("inventory.adjustments.noReason")}</div>
@@ -1347,12 +1347,12 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                   </div>
 
                   <div className="mt-4 grid gap-2 text-sm text-text-muted sm:grid-cols-2">
-                    <div>قبل: {before.toLocaleString()}</div>
-                    <div>بعد: {after.toLocaleString()}</div>
-                    <div>المستخدم: {movement.created_by_name || movement.user_name || tt("inventory.labels.notAvailable")}</div>
-                    <div>المخزن: {movement.warehouse_name || tt("inventory.labels.notAvailable")}</div>
-                    <div className="sm:col-span-2">السبب: {movement.reason || movement.notes || tt("inventory.labels.notAvailable")}</div>
-                    <div className="sm:col-span-2">المرجع: {movement.reference_type || tt("inventory.labels.notAvailable")} #{movement.reference_id || tt("inventory.labels.notAvailable")}</div>
+                    <div>{tt("inventory.labels.before")}: {before.toLocaleString()}</div>
+                    <div>{tt("inventory.labels.after")}: {after.toLocaleString()}</div>
+                    <div>{tt("inventory.movements.userLabel")} {movement.created_by_name || movement.user_name || tt("inventory.labels.notAvailable")}</div>
+                    <div>{tt("inventory.labels.warehouse")}: {movement.warehouse_name || tt("inventory.labels.notAvailable")}</div>
+                    <div className="sm:col-span-2">{tt("inventory.adjustments.reasonLabel")} {movement.reason || movement.notes || tt("inventory.labels.notAvailable")}</div>
+                    <div className="sm:col-span-2">{tt("inventory.movements.referenceLabel")} {movement.reference_type || tt("inventory.labels.notAvailable")} #{movement.reference_id || tt("inventory.labels.notAvailable")}</div>
                   </div>
                 </div>
               );

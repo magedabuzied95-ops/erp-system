@@ -112,7 +112,8 @@
     "items": "الأصناف",
     "paidAmount": "المبلغ المدفوع",
     "paymentStatus": "حالة الدفع",
-    "seller": "البائع"
+    "seller": "البائع",
+    "due": "المستحق"
   },
   "empty": {
     "title": "لا توجد طلبات",
@@ -222,7 +223,9 @@
     "checkItemCondition": "العميل أكد حالة المنتج",
     "checkRefundReviewed": "تمت مراجعة مبلغ الاسترداد",
     "checkRestockApplied": "تم تطبيق سياسة إعادة التخزين",
-    "checkShippingCaptured": "تم تسجيل ملاحظات الشحن والتسليم"
+    "checkShippingCaptured": "تم تسجيل ملاحظات الشحن والتسليم",
+    "customerReturns": "مرتجعات العملاء",
+    "supplierReturns": "مرتجعات الموردين"
   },
   "fallback": {
     "customer": "عميل",

@@ -112,7 +112,8 @@
     "items": "Items",
     "paidAmount": "Paid amount",
     "paymentStatus": "Payment status",
-    "seller": "Seller"
+    "seller": "Seller",
+    "due": "Due"
   },
   "empty": {
     "title": "No orders found",
@@ -222,7 +223,9 @@
     "checkItemCondition": "Customer confirms item condition",
     "checkRefundReviewed": "Refund amount reviewed",
     "checkRestockApplied": "Restock policy applied",
-    "checkShippingCaptured": "Shipping and delivery notes captured"
+    "checkShippingCaptured": "Shipping and delivery notes captured",
+    "customerReturns": "Customer Returns",
+    "supplierReturns": "Supplier Returns"
   },
   "fallback": {
     "customer": "Customer",

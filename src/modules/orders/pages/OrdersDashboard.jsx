@@ -316,7 +316,7 @@ const getAttributionLabel = (order = {}) => {
 };
 
 const isGuestCustomerName = (value = "") => /^guest[:#-]?\d*$/i.test(text(value)) || lower(value) === "guest";
-const getCustomerDisplayName = (order = {}, fallback = "Customer") =>
+const getCustomerDisplayName = (order = {}, fallback = "") =>
   [order.customer_name, order.customer?.name, order.customer_full_name, order.customer_record_name, order.customer_phone]
     .map((value) => text(value))
     .find((value) => value && !isGuestCustomerName(value)) || fallback;
@@ -1144,13 +1144,13 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.invoice")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.date")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customer")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customerPhone", isArabicLanguage(language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.items", isArabicLanguage(language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paymentStatus", isArabicLanguage(language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customerPhone")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.items")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paymentStatus")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.total")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paidAmount", isArabicLanguage(language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{isArabicLanguage(language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.seller", isArabicLanguage(language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paidAmount")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.due")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.seller")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.branch")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{isArabicLanguage(language) ? "\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064a\u0639" : "POS"}</div>
         </div>

@@ -170,7 +170,7 @@ function StockTransfers() {
                   <div key={String(transfer.id)} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-text">الاختيار {transfer.variant_id}</div>
+                        <div className="font-semibold text-text">{tt("inventory.labels.selection")} {transfer.variant_id}</div>
                         <div className="mt-1 text-xs text-text-muted">{formatDateTime(transfer.created_at)}</div>
                       </div>
                       <StatusBadge value={transfer.status || tt("inventory.count.status.draft")} />

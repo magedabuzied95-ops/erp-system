@@ -140,13 +140,34 @@
     "warehouse": "Warehouse",
     "selected": "Selected",
     "to": "To",
-    "from": "From"
+    "from": "From",
+    "lastUpdated": "Last updated",
+    "itemCount": "Item count",
+    "totalDifference": "Total difference",
+    "sizeCount": "Size count",
+    "articleCode": "Article code",
+    "variantId": "Variant ID",
+    "productId": "Product ID",
+    "productCode": "Product code",
+    "balance": "Balance",
+    "time": "Time",
+    "before": "Before",
+    "after": "After",
+    "status": "Status",
+    "size": "Size",
+    "value": "Value",
+    "totalValue": "Total value",
+    "activeSizes": "Active sizes",
+    "minActiveSizes": "Minimum active sizes",
+    "selection": "Selection"
   },
   "status": {
     "active": "Active",
     "low": "Low",
     "inbound": "Inbound",
-    "out": "Outbound"
+    "out": "Outbound",
+    "outOfStock": "Out of stock",
+    "available": "Available"
   },
   "tableHeaders": {
     "product": "Product",
@@ -342,7 +363,10 @@
     "selectScope": "Choose the stock count scope",
     "selectScopeHint": "Pick a branch or warehouse if available, then start the session.",
     "generalNotes": "General notes",
-    "start": "Start the count"
+    "start": "Start the count",
+    "productsCounted": "Products Counted",
+    "totalQuantityCounted": "Total Quantity Counted",
+    "varianceCount": "Variance Count"
   },
   "table": {
     "stock": "Stock",

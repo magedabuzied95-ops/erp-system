@@ -140,13 +140,34 @@
     "warehouse": "المخزن",
     "selected": "محدد",
     "to": "إلى",
-    "from": "من"
+    "from": "من",
+    "lastUpdated": "آخر تحديث",
+    "itemCount": "عدد الأصناف",
+    "totalDifference": "إجمالي الفرق",
+    "sizeCount": "عدد المقاسات",
+    "articleCode": "رقم الصنف",
+    "variantId": "معرّف المتغير",
+    "productId": "معرّف المنتج",
+    "productCode": "كود المنتج",
+    "balance": "الرصيد",
+    "time": "الوقت",
+    "before": "قبل",
+    "after": "بعد",
+    "status": "الحالة",
+    "size": "المقاس",
+    "value": "القيمة",
+    "totalValue": "إجمالي القيمة",
+    "activeSizes": "المقاسات النشطة",
+    "minActiveSizes": "الحد الأدنى للمقاسات النشطة",
+    "selection": "الاختيار"
   },
   "status": {
     "active": "نشط",
     "low": "منخفض",
     "inbound": "وارد",
-    "out": "صادر"
+    "out": "صادر",
+    "outOfStock": "نفد",
+    "available": "متاح"
   },
   "tableHeaders": {
     "product": "المنتج",
@@ -342,7 +363,10 @@
     "selectScope": "حدد نطاق الجرد",
     "selectScopeHint": "اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.",
     "generalNotes": "ملاحظات عامة",
-    "start": "بدء الجرد"
+    "start": "بدء الجرد",
+    "productsCounted": "المنتجات التي تم جردها",
+    "totalQuantityCounted": "إجمالي الكمية المجرودة",
+    "varianceCount": "عدد الفروقات"
   },
   "table": {
     "stock": "المخزون",

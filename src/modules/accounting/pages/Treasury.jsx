@@ -185,7 +185,7 @@ export default function Treasury() {
               {reconciliation.accounts.filter((account) => !account.balanced).map((account) => (
                 <div key={account.id} className="rounded-2xl border border-white/10 bg-black/15 p-3">
                   <div className="font-bold text-white">{account.name}</div>
-                  <div className="mt-1 text-xs opacity-80">المسجل {formatCurrency(account.current_balance)} · المحسوب {formatCurrency(account.calculated_balance)} · الفرق {formatCurrency(account.difference)}</div>
+                  <div className="mt-1 text-xs opacity-80">{tt("accounting.treasury.recorded")} {formatCurrency(account.current_balance)} · المحسوب {formatCurrency(account.calculated_balance)} · الفرق {formatCurrency(account.difference)}</div>
                 </div>
               ))}
             </div>

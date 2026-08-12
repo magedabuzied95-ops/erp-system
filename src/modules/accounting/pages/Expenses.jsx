@@ -1036,7 +1036,8 @@ function employeeInitials(name = "") {
     .toUpperCase();
 }
 
-function SearchableSelect({ label, value, onChange, options, placeholder, emptyText = "No employee found", isRtl }) {
+function SearchableSelect({ label, value, onChange, options, placeholder, emptyText = "", isRtl }) {
+  const { t } = useTranslation();
   const generatedId = useId();
   const rootRef = useRef(null);
   const inputRef = useRef(null);
@@ -1174,7 +1175,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder, emptyT
               );
             })}
             {!filteredOptions.length ? (
-              <div className={`px-3 py-4 text-sm font-semibold text-zinc-500 ${rtl ? "text-right" : "text-left"}`}>{emptyText}</div>
+              <div className={`px-3 py-4 text-sm font-semibold text-zinc-500 ${rtl ? "text-right" : "text-left"}`}>{emptyText || t("accounting.expenses.noEmployeeFound")}</div>
             ) : null}
           </div>
         ) : null}
@@ -1345,7 +1346,7 @@ function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100"><AlertTriangle className="h-5 w-5" /></span>
           <div>
             <h3 className="m1-section-title text-white">تأكيد الإجراء</h3>
-            <p className="mt-1 text-sm text-zinc-400">This will {statusLabel(t, language, action.type === "paid" ? "paid" : action.type)} expense #{action.id}.</p>
+            <p className="mt-1 text-sm text-zinc-400">{t("accounting.expenses.confirmAction", { action: statusLabel(t, language, action.type === "paid" ? "paid" : action.type), id: action.id })}</p>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">

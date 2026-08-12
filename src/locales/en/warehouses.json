@@ -30,5 +30,18 @@
     "transfer": "Transfer"
   },
   "fallbackError": "The warehouses endpoint is unavailable. Showing a fallback overview.",
-  "fallbackToast": "Using fallback warehouse data"
+  "fallbackToast": "Using fallback warehouse data",
+  "toasts": {
+    "deleted": "Warehouse deleted"
+  },
+  "deleteWarehouse": "Delete warehouse",
+  "protectedNotice": "This is a default or protected warehouse and cannot be set inactive.",
+  "defaultReferences": "Default references",
+  "metrics": {
+    "products": "Products",
+    "balance": "Balance",
+    "transfers": "Transfers",
+    "stockQuantity": "Stock quantity",
+    "active": "Active"
+  }
 }

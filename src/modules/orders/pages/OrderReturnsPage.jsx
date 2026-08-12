@@ -418,7 +418,7 @@ function OrderReturnsPage() {
           <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
             <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Customer Returns</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{t("orders.returns.customerReturns")}</div>
                 <h2 className="m1-section-title mt-1 text-white">مرتجعات العملاء</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -477,11 +477,12 @@ function OrderReturnsPage() {
 }
 
 function PageHeader({ onCreate }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">Orders module</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">{t("orders.moduleEyebrow")}</div>
           <h1 className="m1-page-title mt-2 text-[var(--text)]">مرتجعات الطلبات</h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.</p>
         </div>
@@ -570,6 +571,7 @@ function SupplierReturnsPanel({
   onMarkReturned,
   showPurchaseCost = true,
 }) {
+  const { t } = useTranslation();
   const groups = useMemo(() => {
     const map = new Map();
     items.forEach((item) => {
@@ -610,7 +612,7 @@ function SupplierReturnsPanel({
       <section className="rounded-2xl border border-amber-400/20 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Supplier Returns</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">{t("orders.returns.supplierReturns")}</div>
             <h2 className="m1-section-title mt-1 text-white">مرتجعات الموردين</h2>
             <p className="mt-1 text-xs text-zinc-400">النتائج الحالية {items.length} من إجمالي {allItems.length} بند</p>
           </div>
@@ -678,11 +680,12 @@ function SupplierReturnStatus({ status }) {
 }
 
 function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }) {
+  const { t } = useTranslation();
   return (
     <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Supplier Returns</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">{t("orders.returns.supplierReturns")}</div>
           <h2 className="m1-section-title mt-1 text-white">قطع عيوب الصناعة المطلوب إرجاعها للموردين</h2>
         </div>
         <MiniStat label="إجمالي القطع" value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />

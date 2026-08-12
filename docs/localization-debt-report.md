@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 609
-- Files with debt: 188
-- Hardcoded Arabic UI strings: 1994
-- Hardcoded English UI strings: 2419
-- Total hardcoded UI strings: 4413
-- Mixed-language files (both scripts hardcoded): 52
+- Files with debt: 180
+- Hardcoded Arabic UI strings: 1924
+- Hardcoded English UI strings: 2402
+- Total hardcoded UI strings: 4326
+- Mixed-language files (both scripts hardcoded): 49
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 106 | 1428 | 1873 | 3301 | 36 |
+| main-erp | 98 | 1358 | 1856 | 3214 | 33 |
 | shared | 66 | 200 | 463 | 663 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -35,7 +35,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
 | src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 38 | 65 | 103 |
-| src/modules/orders/pages/OrderReturnsPage.jsx | main-erp | 96 | 4 | 100 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/marketing/pages/MarketingSettings.jsx | main-erp | 63 | 23 | 86 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -53,17 +52,15 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/marketing/pages/SocialMediaPublisher.jsx | main-erp | 10 | 30 | 40 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 31 | 40 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
-| src/modules/orders/pages/OrdersDashboard.jsx | main-erp | 30 | 7 | 37 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
-| src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 4 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
+| src/modules/accounting/pages/Expenses.jsx | main-erp | 23 | 2 | 25 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
 | src/modules/aiSupport/pages/AiChannels.jsx | main-erp | 1 | 22 | 23 |
 | src/modules/marketing/components/PostEditorModal.jsx | shared | 6 | 15 | 21 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
 | src/modules/saas/pages/RegisterCompany.jsx | main-erp | 15 | 5 | 20 |
-| src/modules/inventory/pages/InventoryCount.jsx | main-erp | 16 | 3 | 19 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
 | src/modules/products/pages/ProductPrintList.jsx | main-erp | 15 | 2 | 17 |
 | src/modules/products/pages/ProductEdit.jsx | main-erp | 3 | 13 | 16 |
@@ -392,7 +389,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1108 [jsx-text/en] Last synced at
 - ... 63 more
 
-### src/modules/orders/pages/OrderReturnsPage.jsx (main-erp — ar:96 en:4)
+### src/modules/orders/pages/OrderReturnsPage.jsx (main-erp — ar:96 en:0)
 
 - 42 [object-key/ar] سليم — إعادة للمخزون
 - 43 [object-key/ar] عيب صناعة — حجز لمرتجع المورد
@@ -408,33 +405,33 @@ of scope. The scanner is conservative and can still contain false positives.
 - 413 [attribute/ar] مرتجعات اليوم
 - 414 [attribute/ar] قيمة رد الأموال
 - 415 [attribute/ar] تمت إعادتها للمخزون
-- 421 [jsx-text/en] Customer Returns
 - 422 [jsx-text/ar] مرتجعات العملاء
 - 425 [attribute/ar] النتائج
 - 426 [jsx-text/ar] اليوم
-- 484 [jsx-text/en] Orders module
-- 485 [jsx-text/ar] مرتجعات الطلبات
-- 486 [jsx-text/ar] إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.
-- 535 [object-key/ar] مرتجعات العملاء
-- 536 [object-key/ar] مرتجعات الموردين
-- 604 [attribute/ar] إجمالي قطع الموردين
-- 605 [attribute/ar] إجمالي سعر الشراء
-- 606 [attribute/ar] قطع بانتظار التسليم
-- 607 [attribute/ar] عدد الموردين
-- 613 [jsx-text/en] Supplier Returns
-- 614 [jsx-text/ar] مرتجعات الموردين
-- 615 [jsx-text/ar] النتائج الحالية
-- 617 [jsx-text/ar] مسح الفلاتر
-- 622 [jsx-text/ar] البحث
-- 625 [attribute/ar] المنتج، المورد، رقم المرتجع أو فاتورة الشراء
-- 629 [jsx-text/ar] المورد
-- 631 [jsx-text/ar] كل الموردين
-- 635 [attribute/ar] الحالة
-- 636 [jsx-text/ar] من تاريخ
-- 637 [jsx-text/ar] إلى تاريخ
-- 645 [jsx-text/ar] الإجراء
-- 645 [jsx-text/ar] الإجمالي
-- ... 60 more
+- 486 [jsx-text/ar] مرتجعات الطلبات
+- 487 [jsx-text/ar] إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.
+- 536 [object-key/ar] مرتجعات العملاء
+- 537 [object-key/ar] مرتجعات الموردين
+- 606 [attribute/ar] إجمالي قطع الموردين
+- 607 [attribute/ar] إجمالي سعر الشراء
+- 608 [attribute/ar] قطع بانتظار التسليم
+- 609 [attribute/ar] عدد الموردين
+- 616 [jsx-text/ar] مرتجعات الموردين
+- 617 [jsx-text/ar] النتائج الحالية
+- 619 [jsx-text/ar] مسح الفلاتر
+- 624 [jsx-text/ar] البحث
+- 627 [attribute/ar] المنتج، المورد، رقم المرتجع أو فاتورة الشراء
+- 631 [jsx-text/ar] المورد
+- 633 [jsx-text/ar] كل الموردين
+- 637 [attribute/ar] الحالة
+- 638 [jsx-text/ar] من تاريخ
+- 639 [jsx-text/ar] إلى تاريخ
+- 647 [jsx-text/ar] الإجراء
+- 647 [jsx-text/ar] الإجمالي
+- 647 [jsx-text/ar] التاريخ
+- 647 [jsx-text/ar] الحالة
+- 647 [jsx-text/ar] الكمية
+- ... 56 more
 
 ### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
 
@@ -1663,46 +1660,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1556 [jsx-text/ar] المقاسات المتاحة فقط
 - 1576 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
 
-### src/modules/orders/pages/OrdersDashboard.jsx (main-erp — ar:30 en:7)
-
-- 319 [attribute/en] Customer
-- 502 [object-key/ar] حرج
-- 503 [object-key/ar] تعديل مطلوب
-- 504 [object-key/ar] مرتجع/ملغى
-- 505 [object-key/ar] مراجعة
-- 506 [object-key/ar] متأخر
-- 507 [object-key/ar] قيمة مرتفعة
-- 509 [object-key/ar] عادي
-- 513 [object-key/ar] تم التأكيد من العميل
-- 514 [object-key/ar] العميل طلب تعديل
-- 515 [object-key/ar] ألغاه العميل
-- 538 [object-key/ar] تم إنشاء الطلب
-- 541 [object-key/ar] تم رفع إثبات الدفع
-- 551 [object-key/ar] تم تأكيد الطلب
-- 554 [object-key/ar] العميل طلب تعديل
-- 558 [object-key/ar] جاهز للشحن
-- 561 [object-key/ar] تم إنشاء الشحنة
-- 564 [object-key/ar] تم التسليم
-- 577 [object-key/ar] ألغاه العميل
-- 1097 [jsx-text/ar] البحث
-- 1108 [attribute/ar] حالة الطلب
-- 1109 [attribute/ar] حالة الدفع
-- 1110 [attribute/ar] المصدر
-- 1112 [jsx-text/ar] التاريخ
-- 1147 [inline-ternary/en] language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone"
-- 1148 [inline-ternary/en] language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items"
-- 1149 [inline-ternary/en] language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status"
-- 1151 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid"
-- 1152 [inline-ternary/en] language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"
-- 1153 [inline-ternary/en] language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller"
-- 1435 [attribute/ar] البائع
-- 1436 [attribute/ar] الدفع
-- 1438 [attribute/ar] الشحن
-- 1440 [attribute/ar] دفع تعديل الفاتورة
-- 1531 [attribute/ar] البائع
-- 1532 [attribute/ar] الدفع
-- 1535 [attribute/ar] دفع تعديل الفاتورة
-
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 
 - 15 [object-key/en] not equals
@@ -1843,6 +1800,39 @@ of scope. The scanner is conservative and can still contain false positives.
 - 299 [jsx-text/en] Export CSV
 - 334 [jsx-text/en] No shipments match the current filters.
 
+### src/modules/orders/pages/OrdersDashboard.jsx (main-erp — ar:30 en:0)
+
+- 502 [object-key/ar] حرج
+- 503 [object-key/ar] تعديل مطلوب
+- 504 [object-key/ar] مرتجع/ملغى
+- 505 [object-key/ar] مراجعة
+- 506 [object-key/ar] متأخر
+- 507 [object-key/ar] قيمة مرتفعة
+- 509 [object-key/ar] عادي
+- 513 [object-key/ar] تم التأكيد من العميل
+- 514 [object-key/ar] العميل طلب تعديل
+- 515 [object-key/ar] ألغاه العميل
+- 538 [object-key/ar] تم إنشاء الطلب
+- 541 [object-key/ar] تم رفع إثبات الدفع
+- 551 [object-key/ar] تم تأكيد الطلب
+- 554 [object-key/ar] العميل طلب تعديل
+- 558 [object-key/ar] جاهز للشحن
+- 561 [object-key/ar] تم إنشاء الشحنة
+- 564 [object-key/ar] تم التسليم
+- 577 [object-key/ar] ألغاه العميل
+- 1097 [jsx-text/ar] البحث
+- 1108 [attribute/ar] حالة الطلب
+- 1109 [attribute/ar] حالة الدفع
+- 1110 [attribute/ar] المصدر
+- 1112 [jsx-text/ar] التاريخ
+- 1435 [attribute/ar] البائع
+- 1436 [attribute/ar] الدفع
+- 1438 [attribute/ar] الشحن
+- 1440 [attribute/ar] دفع تعديل الفاتورة
+- 1531 [attribute/ar] البائع
+- 1532 [attribute/ar] الدفع
+- 1535 [attribute/ar] دفع تعديل الفاتورة
+
 ### src/modules/aiSupport/pages/AiSupportKnowledgeBase.jsx (main-erp — ar:29 en:0)
 
 - 23 [object-key/ar] اسم المتجر الظاهر
@@ -1938,36 +1928,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 939 [jsx-text/en] Price
 - 956 [jsx-text/en] Primary
 
-### src/modules/accounting/pages/Expenses.jsx (main-erp — ar:23 en:4)
-
-- 116 [object-key/en] Operational expenses, approvals, recurring liabilities, employee advances, and profit impact.
-- 139 [object-key/en] Title
-- 184 [object-key/ar] المصاريف التشغيلية والاعتمادات والمصاريف المتكررة وسلف الموظفين وتأثير الربح.
-- 207 [object-key/ar] العنوان
-- 604 [notification/ar] مطلوب عنوان المصروف والمبلغ
-- 608 [inline-ternary/ar] language === "ar" ? "اختر الموظف لسلفة الموظف" : "Select an employee for the employee advance"
-- 666 [notification/ar] تم تنفيذ الإجراء
-- 675 [notification/ar] اسم الفئة مطلوب
-- 678 [notification/ar] تم إنشاء الفئة
-- 683 [notification/ar] الموظف والمبلغ مطلوبان
-- 686 [notification/ar] تم إنشاء سلفة الموظف
-- 697 [notification/ar] عنوان المصروف المتكرر والمبلغ مطلوبان
-- 700 [notification/ar] تم إنشاء المصروف المتكرر
-- 722 [object-key/ar] درج النقدية
-- 723 [object-key/ar] الحسابات
-- 724 [object-key/ar] القيود اليومية
-- 799 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
-- 855 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
-- 871 [jsx-text/ar] إلغاء
-- 907 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
-- 1039 [attribute/en] No employee found
-- 1233 [attribute/ar] تعديل
-- 1268 [attribute/ar] الاتجاه الشهري للمصروفات
-- 1276 [jsx-text/ar] لا توجد بيانات للاتجاه
-- 1347 [jsx-text/ar] تأكيد الإجراء
-- 1348 [jsx-text/en] This will
-- 1352 [jsx-text/ar] إلغاء
-
 ### src/modules/aiSupport/pages/AiFollowups.jsx (main-erp — ar:0 en:27)
 
 - 72 [object-key/en] High
@@ -2056,6 +2016,34 @@ of scope. The scanner is conservative and can still contain false positives.
 - 247 [attribute/en] No permissions assigned yet.
 - 259 [jsx-text/en] Preset roles
 - 270 [attribute/en] Select a role to view its summary.
+
+### src/modules/accounting/pages/Expenses.jsx (main-erp — ar:23 en:2)
+
+- 116 [object-key/en] Operational expenses, approvals, recurring liabilities, employee advances, and profit impact.
+- 139 [object-key/en] Title
+- 184 [object-key/ar] المصاريف التشغيلية والاعتمادات والمصاريف المتكررة وسلف الموظفين وتأثير الربح.
+- 207 [object-key/ar] العنوان
+- 604 [notification/ar] مطلوب عنوان المصروف والمبلغ
+- 608 [inline-ternary/ar] language === "ar" ? "اختر الموظف لسلفة الموظف" : "Select an employee for the employee advance"
+- 666 [notification/ar] تم تنفيذ الإجراء
+- 675 [notification/ar] اسم الفئة مطلوب
+- 678 [notification/ar] تم إنشاء الفئة
+- 683 [notification/ar] الموظف والمبلغ مطلوبان
+- 686 [notification/ar] تم إنشاء سلفة الموظف
+- 697 [notification/ar] عنوان المصروف المتكرر والمبلغ مطلوبان
+- 700 [notification/ar] تم إنشاء المصروف المتكرر
+- 722 [object-key/ar] درج النقدية
+- 723 [object-key/ar] الحسابات
+- 724 [object-key/ar] القيود اليومية
+- 799 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
+- 855 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
+- 871 [jsx-text/ar] إلغاء
+- 907 [inline-ternary/ar] language === "ar" ? "ابحث عن موظف" : "Search employee"
+- 1234 [attribute/ar] تعديل
+- 1269 [attribute/ar] الاتجاه الشهري للمصروفات
+- 1277 [jsx-text/ar] لا توجد بيانات للاتجاه
+- 1348 [jsx-text/ar] تأكيد الإجراء
+- 1353 [jsx-text/ar] إلغاء
 
 ### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:13 en:12)
 
@@ -2313,29 +2301,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 113 [attribute/ar] علامة مميزة
 - 115 [attribute/ar] ملاحظات الطلب أو التوصيل
 
-### src/modules/inventory/pages/InventoryDashboard.jsx (main-erp — ar:20 en:0)
-
-- 74 [object-key/ar] نفد
-- 75 [object-key/ar] منخفض
-- 76 [object-key/ar] متاح
-- 298 [object-key/ar] منخفض
-- 298 [object-key/ar] نفد
-- 446 [object-key/ar] المخزون
-- 447 [object-key/ar] الحركات
-- 448 [object-key/ar] التسويات
-- 450 [object-key/ar] التحويلات
-- 451 [object-key/ar] المخازن
-- 830 [jsx-text/ar] إجمالي المخزون
-- 834 [jsx-text/ar] إجمالي القيمة
-- 838 [jsx-text/ar] الحالة
-- 856 [jsx-text/ar] المقاس
-- 858 [jsx-text/ar] المخزون
-- 859 [jsx-text/ar] القيمة
-- 860 [jsx-text/ar] الحالة
-- 946 [jsx-text/ar] إجمالي المخزون
-- 956 [jsx-text/ar] المقاسات النشطة
-- 960 [jsx-text/ar] الحد الأدنى للمقاسات النشطة
-
 ### src/modules/pos/components/SmartPosFilters.jsx (pos — ar:20 en:0)
 
 - 145 [inline-ternary/ar] isArabic ? "فلاتر POS الذكية" : "SMART POS FILTERS"
@@ -2426,28 +2391,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 174 [inline-ternary/ar] isArabic ? "فتح الرابط" : "Open Link"
 - 178 [inline-ternary/ar] isArabic ? "مشاركة واتساب" : "WhatsApp Share"
 - 182 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
-
-### src/modules/inventory/pages/InventoryCount.jsx (main-erp — ar:16 en:3)
-
-- 1397 [jsx-text/ar] الفرع:
-- 1398 [jsx-text/ar] المخزن:
-- 1399 [jsx-text/ar] آخر تحديث:
-- 1587 [jsx-text/en] Products Counted
-- 1591 [jsx-text/en] Total Quantity Counted
-- 1595 [jsx-text/en] Variance Count
-- 1874 [jsx-text/ar] الفرع:
-- 1875 [jsx-text/ar] المخزن:
-- 1876 [jsx-text/ar] عدد الأصناف:
-- 1877 [jsx-text/ar] إجمالي الفرق:
-- 1878 [jsx-text/ar] آخر تحديث:
-- 2018 [jsx-text/ar] عدد المقاسات:
-- 2032 [jsx-text/ar] السيستم:
-- 2113 [jsx-text/ar] رمز الصنف:
-- 2182 [jsx-text/ar] الباركود:
-- 2182 [jsx-text/ar] رقم الصنف:
-- 2182 [jsx-text/ar] رمز الصنف:
-- 2182 [jsx-text/ar] معرّف المتغير:
-- 2182 [jsx-text/ar] معرّف المنتج:
 
 ### src/modules/aiStudio/pages/AiStudioWorkflows.jsx (main-erp — ar:0 en:18)
 
@@ -2646,24 +2589,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 140 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 - 144 [inline-ternary/ar] isArabic ? "إعادة إنشاء الرابط" : "Regenerate Link"
 
-### src/modules/inventory/pages/WarehousesDashboard.jsx (main-erp — ar:15 en:0)
-
-- 102 [notification/ar] تم حذف المخزن
-- 181 [object-key/ar] الجرد
-- 233 [attribute/ar] المنتجات
-- 234 [attribute/ar] الرصيد
-- 235 [attribute/ar] التحويلات
-- 317 [attribute/ar] إغلاق
-- 324 [jsx-text/ar] هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط.
-- 402 [attribute/ar] إغلاق
-- 406 [jsx-text/ar] حذف المخزن
-- 418 [attribute/ar] المنتجات
-- 419 [attribute/ar] كمية المخزون
-- 420 [attribute/ar] التحويلات
-- 421 [attribute/ar] النشطة
-- 426 [jsx-text/ar] معرّف المخزن
-- 430 [jsx-text/ar] المرجعيات الافتراضية
-
 ### src/modules/website/pages/WebsiteSettings.jsx (main-erp — ar:2 en:13)
 
 - 87 [object-key/en] Website Settings
@@ -2681,23 +2606,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 635 [attribute/en] Fake compare percent
 - 637 [jsx-text/en] Rounding mode
 - 649 [jsx-text/en] Existing Sale Prices
-
-### src/modules/inventory/pages/StockAdjustments.jsx (main-erp — ar:14 en:0)
-
-- 771 [jsx-text/ar] رمز الصنف:
-- 772 [jsx-text/ar] الباركود:
-- 773 [jsx-text/ar] الرصيد:
-- 774 [jsx-text/ar] المخزن:
-- 984 [jsx-text/ar] النوع:
-- 985 [jsx-text/ar] المستخدم:
-- 986 [jsx-text/ar] الوقت:
-- 987 [jsx-text/ar] المخزن:
-- 1350 [jsx-text/ar] قبل:
-- 1351 [jsx-text/ar] بعد:
-- 1352 [jsx-text/ar] المستخدم:
-- 1353 [jsx-text/ar] المخزن:
-- 1354 [jsx-text/ar] السبب:
-- 1355 [jsx-text/ar] المرجع:
 
 ### src/shared/chat/PortalChatContactInfo.jsx (shared — ar:14 en:0)
 
@@ -3389,12 +3297,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 33 [object-key/en] Writes data
 - 34 [object-key/en] Human approval required
 
-### src/modules/inventory/pages/StockMovements.jsx (main-erp — ar:3 en:0)
-
-- 602 [jsx-text/ar] كود المنتج:
-- 899 [jsx-text/ar] رمز الصنف:
-- 900 [jsx-text/ar] الباركود:
-
 ### src/modules/marketing/pages/SocialPosts.jsx (main-erp — ar:0 en:3)
 
 - 81 [object-key/en] Ready
@@ -3517,14 +3419,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 21 [inline-ternary/ar] isArabic ? "أقسام الحسابات" : "Accounting sections"
 
-### src/modules/accounting/pages/CostFixCenter.jsx (main-erp — ar:0 en:1)
-
-- 357 [jsx-text/en] Line #
-
-### src/modules/accounting/pages/Treasury.jsx (main-erp — ar:1 en:0)
-
-- 188 [jsx-text/ar] المسجل
-
 ### src/modules/aiSupport/copilot/SuggestionEngine.ts (main-erp — ar:0 en:1)
 
 - 12 [object-key/en] Send invoice
@@ -3536,10 +3430,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/analytics/components/AiInsightCard.jsx (shared — ar:0 en:1)
 
 - 17 [jsx-text/en] AI insight
-
-### src/modules/inventory/pages/StockTransfers.jsx (main-erp — ar:1 en:0)
-
-- 173 [jsx-text/ar] الاختيار
 
 ### src/modules/marketing/services/marketingApi.js (main-erp — ar:0 en:1)
 

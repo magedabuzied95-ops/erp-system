@@ -502,7 +502,8 @@
       "costSaved": "Saved {{count}} cost update(s).",
       "overrideSaved": "Saved {{count}} historical cost override(s).",
       "suggestedApplied": "Suggested costs applied to editable inputs."
-    }
+    },
+    "lineNumber": "Line #"
   },
   "journal": {
     "title": "Journal Entries",
@@ -741,7 +742,8 @@
     "cashMovements": "Cash movements",
     "cashMovementsHint": "Immutable account movements from sales, purchases, expenses, advances, refunds, transfers, and settlements.",
     "loadingMovements": "Loading cash movements...",
-    "noMovements": "There are no cash movements."
+    "noMovements": "There are no cash movements.",
+    "recorded": "Recorded"
   },
   "accounts": {
     "loading": "Loading accounts...",
@@ -790,5 +792,9 @@
     "supplierPayables": "Supplier payables",
     "grossMargin": "Gross profit margin",
     "executiveReports": "Executive reports"
+  },
+  "expenses": {
+    "noEmployeeFound": "No employee found",
+    "confirmAction": "This will {{action}} expense #{{id}}."
   }
 }
