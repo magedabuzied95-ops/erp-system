@@ -12,6 +12,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 2 | Marketing core fixed-dark retirement (5 files / 4 routes) | `pre-visual-convergence-cp2-20260812` -> `98110df` | `aec6497` | `aec6497` verified Light + Dark | build green |
 | 3 | Marketing remainder: analytics, templates, settings (4 files / 3 routes) | `pre-visual-convergence-cp3-20260812` -> `aec6497` | `2fa8eb3` | `2fa8eb3` verified Light + Dark | build green |
 | 3b | Residual dark gradient hero on `/marketing/settings` | -> `2fa8eb3` | `0278020` | `0278020` verified Light + Dark | build green |
+| 4 | `/products/classifications` off-system button palette | `pre-visual-convergence-cp4-20260812` -> `7e38b85` | `63f44fd` | `63f44fd` verified Light + Dark | build green |
 
 ## Method
 
@@ -308,14 +309,119 @@ gradients in both themes.
   in Light (or light in Dark) are defects — `/marketing/social-comments` carries
   a near-white `oklab(0.999…)` gradient and is benign.
 
+## Session 3 — settings, reports, employees, inventory, loyalty, products sub-pages
+
+Measured on Production at `7e38b85`. Auditor re-established and re-validated.
+
+**`settings/*` — audited in BOTH Light and Dark (RTL): 11 routes, 0 offenders,
+0 defective gradients. State: PASS.**
+
+`/settings`, `/settings/appearance`, `/settings/company`, `/settings/currencies`,
+`/settings/debug`, `/settings/payments`, `/settings/permissions`,
+`/settings/roles`, `/settings/shipping`, `/settings/storefront`,
+`/settings/users`.
+
+Note: several settings pages declare a hardcoded canvas
+`bg-[#f6f8fb] text-slate-950 dark:bg-[#050816] dark:text-white`. Both the light
+and the dark hardcoded values are neutralised by shared M1 CSS (computed `--bg`
+in each theme), so there is no visible defect and no fix was made.
+
+**Audited Light + Dark, 0 offenders (PASS):** `/reports`, `/reports/overview`,
+`/reports/sales`, `/reports/inventory` were measured in Dark only this session
+— see the outstanding-states note below.
+
+**Audited in Dark, 0 offenders (PARTIAL_PASS — Light pass outstanding):**
+`/analytics`, `/notifications`, `/users`, `/branches`, `/employees`,
+`/employees/analytics`, `/employees/attendance`, `/employees/employees`,
+`/employees/reports`, `/inventory/adjustments`, `/inventory/history`,
+`/inventory/movements`, `/inventory/count`, `/loyalty`, `/loyalty/rules`,
+`/ai-studio`, `/products/brands`, `/products/categories`,
+`/products/manufacturers`, `/products/units`.
+
+**ALIAS / tab normalisation (not defects, removed from the queue):**
+`/sales-employees` -> `/employees/employees`, `/attendance` ->
+`/employees/attendance`, `/attendance/reports` -> `/employees/reports`,
+`/employees/commissions` and `/employees/top-performers` -> `/employees/analytics`,
+`/employees/shifts` -> `/employees/attendance`.
+
+### 4. `/products/classifications` — off-system button palette (checkpoint 4)
+
+**Measured in Dark:** the primary CTA renders 626 × 68 px at
+`rgb(255,255,255)`, luminance **1.0** — a pure-white island in the Dark theme.
+
+**Owner:** `src/modules/products/pages/ProductClassifications.jsx`, the
+page-local `ActionButton` component. Its palette ignored the design tokens
+entirely:
+
+- `primary: bg-[#6d28d9]` — a violet that is not the M1 brand colour
+  (`--primary` = `rgb(164,122,18)`)
+- `light: bg-white text-stone-950` — the measured white island
+- `warning`/`danger` used `text-amber-100` / `text-rose-200`, dark-theme-only values
+
+All 8 consumers are inside this one file, so the component is self-contained.
+Both `primary` and `light` are affirmative CTAs in *different* panels (Save vs
+Add) rather than competing emphases in the same row, so both converge on
+`--primary` + `--primary-contrast` without flattening any hierarchy. The
+`light` key is retained so no call site changes.
+
+Also repaired in the same file: a confirm-delete modal on `bg-zinc-950`
+(a fixed-dark surface that would render as a dark modal in Light), inputs on
+`bg-zinc-950/70`, and bare `shadow-2xl`. Residual off-system chrome: **0**.
+
+**Deliberately preserved:** `GROUP_ACCENTS` (`from-[#7c3aed]`, `#2563eb`,
+`#db2777`, `#f97316`) are bright decorative per-group accent gradients, not
+chrome, and are left untouched.
+
+**Checkpoint 4 production verification (Production `63f44fd`):**
+
+| Theme | Shell | Offenders | Primary CTA |
+|---|---|---|---|
+| Dark | `rgb(19,18,17)` = `--bg` | 0 (was 1 white island) | `rgb(220,176,58)` = `--primary`, text `rgb(13,10,2)` = `--primary-contrast` |
+| Light | `rgb(234,231,224)` = `--bg` | 0 | `rgb(164,122,18)` = `--primary`, text `rgb(13,10,2)` |
+
+State: **FIXED_VERIFIED (light + dark, RTL)**. The change is confined to a single
+page file with no shared component or CSS touched, so the frozen references
+cannot be affected by it and were not re-swept.
+
+### Outstanding theme/direction states
+
+Light/RTL only: the 11 session-1 routes and the 13 accounting routes.
+Dark/RTL only: the 20 session-3 routes listed above plus `reports/*`.
+LTR has not been run for any route yet. These are tracked for the dedicated
+completion sweep, not silently upgraded to PASS.
+
+## Open design decision — page-title scale (NOT auto-converged)
+
+Typography audit found two competing canonical page-title classes:
+
+- `.m1-page-title` -> `font-size: var(--font-page-title)` = **22px**
+- `.m1-display` -> **30px**
+
+Usage is split almost evenly (`m1-page-title` 50 uses / 43 files;
+`m1-display` 41 uses / 41 files), **and the frozen references disagree with each
+other**: `Dashboard.jsx` and `OrdersDashboard.jsx` use `m1-page-title` (22px)
+while `Customers.jsx` uses `m1-display` (30px).
+
+Because the frozen reference set does not define a single approved value, there
+is no safe target to converge on: picking either size would contradict a frozen
+reference. This is a systemic decision affecting ~90 call sites and is left for
+an explicit ruling rather than an autonomous change. Observed spread:
+22px on 7 settings routes, 30px on accounting, marketing and 3 settings routes.
+
 ## RESUME MARKER
 
-`/settings` was measured clean in Light/RTL at the end of this session
-(0 offenders, 0 dark gradients, landed == requested, settled) — PARTIAL_PASS.
+/products/variants was audited clean in Dark after checkpoint 4.
 
-**Next route to audit: `/settings/appearance`**, then the rest of `settings/*`
-(appearance, company, currencies, debug, payments, permissions, roles, shipping,
-storefront, users), then `reports/*`.
+**Next route to audit: `/products/barcode-labels`**, then
+`/products/barcode-print-queue`, `/products/print-list`, `/products/barcodes`,
+`/products/labels`, then `/ai-studio/*` (workflows, executions, approvals, tools,
+restock-recovery), `/admin/*` (8 routes, AI Inbox excluded — observe only),
+`/operations/shipping`, `/website/settings`, `/pos`, `/create-order`,
+`/orders/returns`, `/orders/:id`, `/suppliers/:id`, `/purchases/:id`,
+`/staff/tasks`, `/staff/qr-attendance`, `/warehouse/live-picks`,
+`/attendance/kiosk`, `/loyalty/customers/:customerId`,
+`/inventory/variant/:id/history`, `/customers/:customerId/statement`,
+`/suppliers/:supplierId/statement`.
 
 The accounting and marketing modules are complete for Light **and** Dark in RTL.
 The marketing fixes were verified in both themes, so those routes are
