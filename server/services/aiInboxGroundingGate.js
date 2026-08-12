@@ -127,10 +127,9 @@ export const extractRequestedEntities = (message = "") => {
   return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
 };
 
-// ---- Pure: substantive business intent beats a leading greeting ----
-export const resolveRequestedIntent = (message = "") => {
-  const e = extractRequestedEntities(message);
-  const t = e.normalized;
+// ---- Pure: substantive business intent beats a leading greeting (operates on entities — single or merged turn) ----
+export const resolveIntentFromEntities = (e = {}) => {
+  const t = e.normalized || "";
   const hasOrder = /(اوردر|أوردر|order|طلبي|طلبيتي|شحنتي|تراكينج|tracking|وصل\s*فين|فين\s*طلب)/.test(t);
   const hasReturn = /(استبدال|استرجاع|ارجاع|return|refund|ريفند)/.test(t);
   const hasPrice = /(بكام|السعر|كام|price|سعر)/.test(t);
@@ -141,6 +140,32 @@ export const resolveRequestedIntent = (message = "") => {
   if (hasPrice) return "PRICE_INQUIRY";
   if (e.hasGreeting) return "GREETING";
   return "GENERAL";
+};
+export const resolveRequestedIntent = (message = "") => resolveIntentFromEntities(extractRequestedEntities(message));
+
+// ---- Pure: merge the entities of a fragmented customer turn (oldest→newest) into one composite request.
+// Latest message wins per dimension; a dimension the latest message omits is backfilled from the most-recent
+// prior fragment that has it (so "عندكم جوردن فور" → "احمر" → "مقاس ٤١" reconstructs Jordan 4 / red / 41).
+// Intent-signal flags are OR'd across the turn. Single-message input is returned unchanged (backward-compatible).
+export const mergeTurnEntities = (entitiesList = []) => {
+  const list = (entitiesList || []).filter(Boolean);
+  if (list.length <= 1) return list[0] || extractRequestedEntities("");
+  const merged = { ...list[list.length - 1] };
+  const priorNewestFirst = list.slice(0, -1).reverse();
+  // product identity is a group: keep productType+productTerm+typeLabel together, else a brandModelTerm.
+  if (!merged.productType && !merged.brandModelTerm) {
+    for (const e of priorNewestFirst) {
+      if (e.productType) { merged.productType = e.productType; merged.productTerm = e.productTerm; merged.typeLabel = e.typeLabel; break; }
+      if (e.brandModelTerm) { merged.brandModelTerm = e.brandModelTerm; break; }
+    }
+  }
+  if (!merged.color) { const p = priorNewestFirst.find((e) => e.color); if (p) { merged.color = p.color; merged.colorLabel = p.colorLabel; } }
+  if (!merged.size) { const p = priorNewestFirst.find((e) => e.size); if (p) merged.size = p.size; }
+  merged.wantsAvailability = list.some((e) => e.wantsAvailability);
+  merged.wantsRestock = list.some((e) => e.wantsRestock);
+  merged.hasGreeting = list.some((e) => e.hasGreeting);
+  merged.normalized = list.map((e) => e.normalized).filter(Boolean).join(" ");
+  return merged;
 };
 
 // ---- Pure: compatibility + variant matching ----
@@ -217,10 +242,14 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
 const CANONICAL_LABELS = { PRODUCT_AVAILABILITY: "PRODUCT_AVAILABILITY", RESTOCK_REQUEST: "RESTOCK_REQUEST", ORDER_STATUS: "ORDER_STATUS", RETURN_POLICY: "RETURN_POLICY", PRICE_INQUIRY: "PRICE_INQUIRY", GREETING: "GREETING", GENERAL: "GENERAL" };
 
 // ---- Impure orchestrator: resolve compatible catalog products + exact variant, then decide. Failure-isolated. ----
-export const applyInboxGroundingGate = async ({ tenantId, message, deps = {} } = {}) => {
+export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, deps = {} } = {}) => {
   try {
-    const entities = extractRequestedEntities(message);
-    const requestedIntent = resolveRequestedIntent(message);
+    // Phase 11.1 — ground on the current unanswered customer TURN, not just the latest message. A fragmented
+    // request ("عندكم جوردن فور" / "احمر" / "مقاس ٤١") merges to one composite (latest wins, missing dims
+    // backfilled). Single-message callers/tests pass no contextMessages → identical single-message behavior.
+    const contextTexts = Array.isArray(contextMessages) && contextMessages.length ? contextMessages : [message];
+    const entities = mergeTurnEntities(contextTexts.map((m) => extractRequestedEntities(m)));
+    const requestedIntent = resolveIntentFromEntities(entities);
 
     // Phase 10.8 — brand/model grounding. If NO product-category term matched but the customer named a
     // brand/model ("جوردن فور", "Jordan 4", "نايك Air Max"), resolve it to REAL catalog rows by name via the

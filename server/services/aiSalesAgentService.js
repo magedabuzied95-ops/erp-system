@@ -4225,6 +4225,31 @@ export const loadAiShadowAnalytics = async ({ tenantId, fromDate: rawFromDate = 
 const latestCustomerMessage = (messages = []) =>
   [...asArray(messages)].reverse().find((message) => text(message.customer_message))?.customer_message || "";
 
+// Phase 11.1 — the customer's current unanswered TURN: the trailing run of consecutive customer messages,
+// bounded by a silence gap (a pause > TURN_GAP_MS starts a new turn) and by an outbound/staff reply. Because
+// assisted drafts are never sent, there are no outbound rows between fragments, so the recency gap is the real
+// boundary that keeps this from swallowing older, already-addressed turns. Returned oldest→newest.
+const OUTBOUND_SENDERS = new Set(["staff", "agent", "human", "assistant", "ai", "bot", "system"]);
+const currentCustomerTurnTexts = (messages = [], { maxMessages = 8, turnGapMs = 120000 } = {}) => {
+  const rows = asArray(messages);
+  const cluster = [];
+  let newerTs = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    const sender = text(row.sender_type).toLowerCase();
+    const isOutbound = OUTBOUND_SENDERS.has(sender) || text(row.ai_answer) || text(row.staff_message);
+    if (isOutbound) break; // a prior AI/staff reply closes this turn
+    const cm = text(row.customer_message || row.message_text);
+    if (!cm) continue;
+    const ts = row.created_at ? new Date(row.created_at).getTime() : null;
+    if (newerTs !== null && ts !== null && newerTs - ts > turnGapMs) break; // silence gap → separate turn
+    cluster.push(cm);
+    if (ts !== null) newerTs = ts;
+    if (cluster.length >= maxMessages) break;
+  }
+  return cluster.reverse();
+};
+
 const latestAiAnswer = (messages = []) =>
   [...asArray(messages)].reverse().find((message) => text(message.ai_answer))?.ai_answer || "";
 
@@ -5628,7 +5653,8 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   let effectiveIntent = intent;
   try {
     const { applyInboxGroundingGate } = await import("./aiInboxGroundingGate.js");
-    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, reply, intent });
+    const currentTurn = currentCustomerTurnTexts(conversation.messages);
+    groundingResult = await applyInboxGroundingGate({ tenantId, message: lastMessage, contextMessages: currentTurn, reply, intent });
     if (groundingResult?.requestedIntent) effectiveIntent = groundingResult.requestedIntent;
     if (groundingResult?.changed) {
       reply.answer = groundingResult.answer;
