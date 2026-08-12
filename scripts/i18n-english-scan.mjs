@@ -30,7 +30,9 @@ const TECHNICAL = new Set([
 ]);
 
 const BRANDS = new Set([
-  "whatsapp", "facebook", "messenger", "instagram", "meta", "google", "tiktok", "bosta", "cloudinary", "vercel",
+  "whatsapp", "facebook", "messenger", "instagram", "meta", "google", "tiktok", "cloudinary", "vercel",
+  // shipping carriers, same class as one another
+  "bosta", "mylerz", "shipblu",
   "paymob", "fawry", "instapay", "visa", "mastercard", "shopify", "gmail", "youtube", "twitter", "snapchat",
   "nike", "adidas", "crocs", "puma", "new balance", "air jordan", "jordan", "m1", "m1 store", "mirror",
   "vodafone", "vodafone cash", "etisalat", "orange", "telegram", "render", "postgres", "redis", "node",

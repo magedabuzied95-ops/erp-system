@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 610
 - Files with debt: 180
-- Hardcoded Arabic UI strings: 1923
-- Hardcoded English UI strings: 2402
-- Total hardcoded UI strings: 4325
+- Hardcoded Arabic UI strings: 1882
+- Hardcoded English UI strings: 2311
+- Total hardcoded UI strings: 4193
 - Mixed-language files (both scripts hardcoded): 49
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 98 | 1357 | 1856 | 3213 | 33 |
+| main-erp | 98 | 1316 | 1765 | 3081 | 33 |
 | shared | 66 | 200 | 463 | 663 | 11 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -30,7 +30,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 157 | 260 | 417 |
-| src/modules/settings/pages/SettingsCenter.jsx | main-erp | 58 | 106 | 164 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
@@ -57,6 +56,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 22 | 2 | 24 |
+| src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
 | src/modules/aiSupport/pages/AiChannels.jsx | main-erp | 1 | 22 | 23 |
 | src/modules/marketing/components/PostEditorModal.jsx | shared | 6 | 15 | 21 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
@@ -124,50 +124,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2232 [jsx-text/en] Current labels (
 - 2240 [jsx-text/ar] لا توجد Labels مختارة
 - ... 377 more
-
-### src/modules/settings/pages/SettingsCenter.jsx (main-erp — ar:58 en:106)
-
-- 75 [object-key/en] Settings Center
-- 76 [object-key/en] Manage your entire ERP from one place.
-- 77 [object-key/en] Manage company, operations, orders, AI and security settings.
-- 122 [object-key/ar] مركز الإعدادات
-- 123 [object-key/ar] إدارة إعدادات النظام بالكامل من شاشة واحدة.
-- 124 [object-key/ar] تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.
-- 430 [jsx-text/en] Settings Center error
-- 432 [jsx-text/en] Retry
-- 699 [inline-ternary/ar] language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults"
-- 740 [inline-ternary/ar] language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved"
-- 753 [inline-ternary/ar] language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded"
-- 773 [notification/ar] رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://
-- 888 [notification/en] Copied
-- 891 [notification/en] Shipping settings ready
-- 977 [inline-ternary/ar] language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"
-- 977 [inline-ternary/ar] language === "ar" ? "محفوظ" : "Saved"
-- 978 [inline-ternary/ar] language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
-- 1014 [jsx-text/en] Settings debug is unavailable
-- 1015 [jsx-text/en] Developer settings are only available to super admin or developer users, or when debug settings are explicitly enabled.
-- 1180 [inline-ternary/ar] language === "ar" ? "إعادة الافتراضي" : "Reset defaults"
-- 1192 [jsx-text/ar] تنطبق هذه الإعدادات فقط على أتمتة تعليقات السوشيال داخل صندوق الوارد.
-- 1219 [jsx-text/ar] تفعيل لايك تلقائي
-- 1229 [jsx-text/ar] تفعيل رد عام تلقائي
-- 1239 [jsx-text/ar] تفعيل رسالة خاصة تلقائية
-- 1245 [jsx-text/ar] أقل نسبة ثقة للتشغيل
-- 1262 [jsx-text/ar] تدوير بدايات الرد تلقائيًا
-- 1263 [jsx-text/ar] يتم اختيار بداية ثابتة لكل تعليق لمنع تكرار نفس الصيغة.
-- 1270 [jsx-text/ar] بدايات الرد المتنوعة — بداية واحدة في كل سطر
-- 1279 [attribute/ar] أهلاً وسهلاً يا {{customer_name}} ❤️
-- 1281 [jsx-text/ar] استخدم
-- 1281 [jsx-text/ar] ليظهر اسم العميل تلقائيًا. الحد الأقصى 10 بدايات.
-- 1284 [jsx-text/ar] نص الرد الثابت بعد التحية
-- 1293 [jsx-text/ar] قالب الرسالة الخاصة
-- 1299 [attribute/ar] اختياري
-- 1357 [notification/en] PNG, JPG, or WEBP only
-- 1361 [notification/en] Image must be 5MB or smaller
-- 1433 [jsx-text/en] Site Settings
-- 1434 [jsx-text/en] Company identity used by sidebar, login, invoices, and storefront fallbacks.
-- 1452 [jsx-text/en] Live preview
-- 1459 [jsx-text/en] Company name
-- ... 124 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
@@ -785,6 +741,50 @@ of scope. The scanner is conservative and can still contain false positives.
 - 936 [notification/ar] اختر المنتجات المراد إرجاعها
 - ... 24 more
 
+### src/modules/aiStudio/pages/AiStudio.jsx (main-erp — ar:0 en:61)
+
+- 57 [jsx-text/en] Inbound Assisted Replies
+- 60 [jsx-text/en] grounded reply suggestion
+- 60 [jsx-text/en] It never sends autonomously.
+- 60 [jsx-text/en] On an inbound customer text, AI drafts a
+- 60 [jsx-text/en] that a human approves, edits, or rejects in the AI Inbox.
+- 62 [jsx-text/en] Mode
+- 69 [jsx-text/en] Channels (staged)
+- 81 [jsx-text/en] Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).
+- 82 [jsx-text/en] Last 24h — generated
+- 103 [jsx-text/en] Reply Style Learning
+- 106 [jsx-text/en] Reset learned style
+- 109 [jsx-text/en] after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.
+- 109 [jsx-text/en] Learns only
+- 109 [jsx-text/en] Stable
+- 109 [jsx-text/en] stock, price, size, product, or policy facts. A preference becomes
+- 109 [jsx-text/en] to phrase (brevity, stock-count omission, emoji) from repeated approved edits —
+- 111 [jsx-text/en] No stable style preference yet — evidence accumulating (
+- 153 [object-key/en] Conversations
+- 154 [object-key/en] Operational AI conversation surfaces
+- 156 [object-key/en] AI Inbox
+- 156 [object-key/en] Desktop omni-channel support inbox with AI drafts.
+- 157 [object-key/en] Inbox (mobile / PWA)
+- 157 [object-key/en] Mobile-optimized conversation inbox.
+- 158 [object-key/en] AI Follow-ups
+- 158 [object-key/en] Scheduled follow-up queue and takeovers.
+- 162 [object-key/en] Agents & Behaviour
+- 163 [object-key/en] Configure how the AI agent replies
+- 165 [object-key/en] Agent tone, phrases, follow-up templates.
+- 165 [object-key/en] AI Agent Settings
+- 166 [object-key/en] AI Reply Settings
+- 166 [object-key/en] Reply mode, tone and AI feature toggles.
+- 167 [object-key/en] AI Knowledge Base
+- 167 [object-key/en] Store info the AI uses to answer questions.
+- 171 [object-key/en] Channels & Automation
+- 172 [object-key/en] Where the AI operates and its triggers
+- 174 [object-key/en] AI Channels
+- 174 [object-key/en] Messenger / Instagram / WhatsApp connection status.
+- 175 [object-key/en] Comment → DM automation rules.
+- 175 [object-key/en] Marketing Automation
+- 176 [object-key/en] Moderate and reply to social comments.
+- ... 21 more
+
 ### src/pages/ComponentsPreview.jsx (main-erp — ar:58 en:2)
 
 - 14 [jsx-text/ar] بانتظار الدفع
@@ -1048,50 +1048,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 580 [jsx-text/en] Best performing posts from analytics
 - 587 [jsx-text/en] Post
 - ... 14 more
-
-### src/modules/aiStudio/pages/AiStudio.jsx (main-erp — ar:0 en:53)
-
-- 57 [jsx-text/en] Inbound Assisted Replies
-- 60 [jsx-text/en] grounded reply suggestion
-- 60 [jsx-text/en] It never sends autonomously.
-- 60 [jsx-text/en] On an inbound customer text, AI drafts a
-- 60 [jsx-text/en] that a human approves, edits, or rejects in the AI Inbox.
-- 62 [jsx-text/en] Mode
-- 69 [jsx-text/en] Channels (staged)
-- 81 [jsx-text/en] Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).
-- 82 [jsx-text/en] Last 24h — generated
-- 108 [object-key/en] Conversations
-- 109 [object-key/en] Operational AI conversation surfaces
-- 111 [object-key/en] AI Inbox
-- 111 [object-key/en] Desktop omni-channel support inbox with AI drafts.
-- 112 [object-key/en] Inbox (mobile / PWA)
-- 112 [object-key/en] Mobile-optimized conversation inbox.
-- 113 [object-key/en] AI Follow-ups
-- 113 [object-key/en] Scheduled follow-up queue and takeovers.
-- 117 [object-key/en] Agents & Behaviour
-- 118 [object-key/en] Configure how the AI agent replies
-- 120 [object-key/en] Agent tone, phrases, follow-up templates.
-- 120 [object-key/en] AI Agent Settings
-- 121 [object-key/en] AI Reply Settings
-- 121 [object-key/en] Reply mode, tone and AI feature toggles.
-- 122 [object-key/en] AI Knowledge Base
-- 122 [object-key/en] Store info the AI uses to answer questions.
-- 126 [object-key/en] Channels & Automation
-- 127 [object-key/en] Where the AI operates and its triggers
-- 129 [object-key/en] AI Channels
-- 129 [object-key/en] Messenger / Instagram / WhatsApp connection status.
-- 130 [object-key/en] Comment → DM automation rules.
-- 130 [object-key/en] Marketing Automation
-- 131 [object-key/en] Moderate and reply to social comments.
-- 131 [object-key/en] Social Comments
-- 135 [object-key/en] Observability & Approvals
-- 136 [object-key/en] Understand and govern AI actions
-- 138 [object-key/en] AI Agent Analytics
-- 138 [object-key/en] Replies, takeovers, intents and shadow analytics.
-- 142 [object-key/en] Marketing AI
-- 143 [object-key/en] Autonomous content and lead intelligence
-- 145 [object-key/en] AI Marketing Center
-- ... 13 more
 
 ### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:44 en:8)
 
@@ -2126,6 +2082,33 @@ of scope. The scanner is conservative and can still contain false positives.
 - 224 [jsx-text/en] Redeem value:
 - 225 [jsx-text/en] Silver:
 - 226 [jsx-text/en] Platinum:
+
+### src/modules/settings/pages/SettingsCenter.jsx (main-erp — ar:17 en:7)
+
+- 79 [object-key/en] Settings Center
+- 80 [object-key/en] Manage your entire ERP from one place.
+- 81 [object-key/en] Manage company, operations, orders, AI and security settings.
+- 126 [object-key/ar] مركز الإعدادات
+- 127 [object-key/ar] إدارة إعدادات النظام بالكامل من شاشة واحدة.
+- 128 [object-key/ar] تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.
+- 703 [inline-ternary/ar] language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults"
+- 744 [inline-ternary/ar] language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved"
+- 757 [inline-ternary/ar] language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded"
+- 981 [inline-ternary/ar] language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"
+- 981 [inline-ternary/ar] language === "ar" ? "محفوظ" : "Saved"
+- 982 [inline-ternary/ar] language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
+- 1184 [inline-ternary/ar] language === "ar" ? "إعادة الافتراضي" : "Reset defaults"
+- 1627 [jsx-text/en] InstaPay
+- 1780 [inline-ternary/ar] language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"
+- 1792 [inline-ternary/ar] language === "ar" ? "الحد الأدنى لمدة التجهيز بالأيام" : "Minimum handling days"
+- 1807 [inline-ternary/ar] language === "ar" ? "الحد الأقصى لمدة التجهيز بالأيام" : "Maximum handling days"
+- 1827 [inline-ternary/ar] language === "ar" ? "تُطبّق هذه القيمة تلقائيًا على كل مناطق الشحن الفعالة ما لم يتم تفعيل مدة خاصة لمنطقة محددة." : "Ap
+- 2506 [object-key/en] Mylerz
+- 2507 [object-key/en] ShipBlu
+- 3293 [jsx-text/en] Provider:
+- 3550 [inline-ternary/ar] language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"
+- 3560 [inline-ternary/ar] language === "ar" ? "أقل مدة تجهيز" : "Handling min days"
+- 3561 [inline-ternary/ar] language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"
 
 ### src/shared/utils/invoicePdf.js (shared — ar:24 en:0)
 
