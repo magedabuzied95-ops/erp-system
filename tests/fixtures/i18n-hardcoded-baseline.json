@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1748,
-    "english": 1658,
-    "total": 3406,
+    "arabic": 1749,
+    "english": 1611,
+    "total": 3360,
     "mixedFiles": 42
   },
   "files": {
@@ -111,26 +111,6 @@
       "arabic": 0,
       "english": 33,
       "total": 33
-    },
-    "src/modules/aiStudio/pages/AiStudioApprovals.jsx": {
-      "arabic": 0,
-      "english": 9,
-      "total": 9
-    },
-    "src/modules/aiStudio/pages/AiStudioExecutions.jsx": {
-      "arabic": 0,
-      "english": 11,
-      "total": 11
-    },
-    "src/modules/aiStudio/pages/AiStudioTools.jsx": {
-      "arabic": 0,
-      "english": 9,
-      "total": 9
-    },
-    "src/modules/aiStudio/pages/AiStudioWorkflows.jsx": {
-      "arabic": 0,
-      "english": 18,
-      "total": 18
     },
     "src/modules/aiSupport/components/AIInboxAnalysisPanel.jsx": {
       "arabic": 0,
@@ -258,9 +238,9 @@
       "total": 27
     },
     "src/modules/aiSupport/pages/AiInbox.jsx": {
-      "arabic": 159,
+      "arabic": 160,
       "english": 260,
-      "total": 419
+      "total": 420
     },
     "src/modules/aiSupport/pages/AiInboxPwa.jsx": {
       "arabic": 60,

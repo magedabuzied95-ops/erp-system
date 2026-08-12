@@ -543,5 +543,128 @@
       "runPanel": "Run panel",
       "noIssues": "No issues."
     }
+  },
+  "pages": {
+    "eyebrow": "AI Studio",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "failed": "Failed",
+    "triggers": {
+      "manual": "Manual",
+      "followupDue": "Follow-up Due",
+      "inventoryRestocked": "Inventory Restocked",
+      "scheduleInterval": "Scheduled",
+      "channelMessage": "Channel"
+    },
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "running": "Running",
+      "awaiting_approval": "Awaiting approval",
+      "rejected": "Rejected",
+      "pending": "Pending",
+      "approved": "Approved",
+      "ok": "OK",
+      "skipped": "Skipped"
+    },
+    "workflows": {
+      "title": "Workflows",
+      "subtitle": "Design workflows in the visual builder, run them manually, or let ERP events trigger them automatically.",
+      "fromTemplate": "From template",
+      "newWorkflow": "New workflow",
+      "automation": "Automation",
+      "on": "ON",
+      "off": "OFF",
+      "automationLive": "Automatic triggers are live for this store. {{count}} automatic workflow(s) active.",
+      "automationOff": "Automatic triggers are off.",
+      "globalTenant": "Global: {{global}} · Tenant: {{tenant}}",
+      "on_": "on",
+      "off_": "off",
+      "timezoneTitle": "Change automation timezone (scheduled workflows run at this local time)",
+      "globalDisabled": "Global automation is disabled on the server",
+      "toggleTenant": "Toggle automation for this store",
+      "count": "{{count}} workflow",
+      "count_plural": "{{count}} workflows",
+      "showArchived": "Show archived",
+      "empty": "No workflows yet. Use “New workflow” for a blank canvas, or “From template” for a safe read-only example.",
+      "columns": {
+        "name": "Name",
+        "trigger": "Trigger",
+        "lastRun": "Last run",
+        "lastAuto": "Last auto",
+        "enabled": "Enabled",
+        "actions": "Actions"
+      },
+      "archived": "Archived",
+      "automatic": "Automatic",
+      "manual": "Manual",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "edit": "Edit",
+      "run": "Run",
+      "archive": "Archive",
+      "restore": "Restore",
+      "confirmArchive": "Archive this workflow? It will stop running and be hidden from the default list (history is kept).",
+      "timezonePrompt": "Automation timezone — enter an IANA name (e.g. Africa/Cairo, America/New_York). Scheduled workflows run at this local time.",
+      "invalidTimezone": "Invalid timezone"
+    },
+    "executions": {
+      "title": "Executions",
+      "subtitle": "Real workflow runs and their steps. Secrets are redacted server-side.",
+      "empty": "No runs yet. Run a workflow from the Workflows tab.",
+      "selectRun": "Select a run to inspect its steps.",
+      "loadingRun": "Loading run…",
+      "run": "Run #{{id}}",
+      "workflowNumber": "Workflow #{{id}}",
+      "trigger": "Trigger:",
+      "automatic": "Automatic",
+      "manual": "Manual",
+      "event": "Event:"
+    },
+    "approvals": {
+      "title": "Approvals",
+      "subtitle": "Human approval for sensitive AI actions. Approval never bypasses RBAC — permissions are re-checked before execution.",
+      "filters": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "all": "All"
+      },
+      "emptyAll": "No approvals.",
+      "emptyFiltered": "No {{status}} approvals.",
+      "workflowNumber": "Workflow #{{id}}",
+      "meta": "run #{{run}} · node {{node}}",
+      "requested": "Requested {{at}}",
+      "decided": "decided {{at}}",
+      "approve": "Approve",
+      "reject": "Reject",
+      "confirmApprove": "Approve this AI action? It will execute after an RBAC re-check.",
+      "confirmReject": "Reject this AI action? It will be cancelled.",
+      "resultApprove": "Approve → {{result}}",
+      "resultReject": "Reject → {{result}}",
+      "done": "done",
+      "failedApprove": "Approve failed",
+      "failedReject": "Reject failed"
+    },
+    "tools": {
+      "title": "Tools",
+      "subtitle": "Read-only view of the server-side tool registry. The server registry is authoritative — tools cannot be pointed at arbitrary code from the browser.",
+      "groups": {
+        "READ": "Read",
+        "WRITE": "Write",
+        "SENSITIVE": "Sensitive"
+      },
+      "notes": {
+        "READ": "Safe reads — may run automatically.",
+        "WRITE": "Non-destructive writes — require approval.",
+        "SENSITIVE": "Destructive / customer-facing / financial — always require human approval."
+      },
+      "permission": "perm: {{value}}",
+      "executable": "executable",
+      "describedOnly": "described only",
+      "approvalRequired": "approval required",
+      "auto": "auto",
+      "none": "None."
+    }
   }
 }

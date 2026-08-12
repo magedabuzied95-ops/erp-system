@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 611
-- Files with debt: 156
-- Hardcoded Arabic UI strings: 1748
-- Hardcoded English UI strings: 1658
-- Total hardcoded UI strings: 3406
+- Files with debt: 152
+- Hardcoded Arabic UI strings: 1749
+- Hardcoded English UI strings: 1611
+- Total hardcoded UI strings: 3360
 - Mixed-language files (both scripts hardcoded): 42
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 86 | 1192 | 1261 | 2453 | 28 |
+| main-erp | 82 | 1193 | 1214 | 2407 | 28 |
 | shared | 54 | 190 | 314 | 504 | 9 |
 | pos | 5 | 183 | 42 | 225 | 3 |
 | employee-portal | 11 | 183 | 41 | 224 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 159 | 260 | 419 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 160 | 260 | 420 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/modules/pos/pages/POSPro.jsx | pos | 73 | 36 | 109 |
@@ -74,7 +74,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:159 en:260)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:160 en:260)
 
 - 564 [object-key/en] All
 - 565 [object-key/en] Messages
@@ -116,7 +116,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2245 [attribute/ar] ابحث أو اكتب Label جديد...
 - 2249 [jsx-text/en] Current labels (
 - 2257 [jsx-text/ar] لا توجد Labels مختارة
-- ... 379 more
+- ... 380 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
@@ -1831,27 +1831,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 178 [inline-ternary/ar] isArabic ? "مشاركة واتساب" : "WhatsApp Share"
 - 182 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 
-### src/modules/aiStudio/pages/AiStudioWorkflows.jsx (main-erp — ar:0 en:18)
-
-- 59 [dialog/en] Archive this workflow? It will stop running and be hidden from the default list (history is kept).
-- 72 [dialog/en] Automation timezone — enter an IANA name (e.g. Africa/Cairo, America/New_York). Scheduled workflows run at this local time.
-- 100 [jsx-text/en] AI Studio
-- 101 [jsx-text/en] Workflows
-- 123 [jsx-text/en] Automation
-- 129 [jsx-text/en] Global:
-- 130 [attribute/en] Change automation timezone (scheduled workflows run at this local time)
-- 152 [jsx-text/en] Loading…
-- 160 [jsx-text/en] Actions
-- 160 [jsx-text/en] Enabled
-- 160 [jsx-text/en] Last auto
-- 160 [jsx-text/en] Last run
-- 160 [jsx-text/en] Name
-- 160 [jsx-text/en] Trigger
-- 170 [jsx-text/en] Archived
-- 190 [jsx-text/en] Edit
-- 194 [attribute/en] Archive
-- 197 [jsx-text/en] Restore
-
 ### src/modules/products/pages/ProductsList.jsx (main-erp — ar:18 en:0)
 
 - 258 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
@@ -2177,20 +2156,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 55 [jsx-text/en] Command Center
 - 56 [jsx-text/en] Live operations cockpit
 
-### src/modules/aiStudio/pages/AiStudioExecutions.jsx (main-erp — ar:0 en:11)
-
-- 38 [jsx-text/en] AI Studio
-- 39 [jsx-text/en] Executions
-- 40 [jsx-text/en] Real workflow runs and their steps. Secrets are redacted server-side.
-- 42 [jsx-text/en] Refresh
-- 50 [jsx-text/en] Loading…
-- 52 [jsx-text/en] No runs yet. Run a workflow from the Workflows tab.
-- 73 [jsx-text/en] Select a run to inspect its steps.
-- 75 [jsx-text/en] Loading run…
-- 79 [jsx-text/en] Run #
-- 83 [jsx-text/en] Trigger:
-- 86 [jsx-text/en] Event:
-
 ### src/modules/aiSupport/utils/crm/crmIntelligence.ts (main-erp — ar:0 en:11)
 
 - 36 [attribute/en] Not enough data
@@ -2284,30 +2249,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1771 [jsx-text/en] Vodafone Cash
 - 1934 [jsx-text/ar] حركة #
 - 1988 [jsx-text/ar] الرصيد الافتتاحي:
-
-### src/modules/aiStudio/pages/AiStudioApprovals.jsx (main-erp — ar:0 en:9)
-
-- 42 [jsx-text/en] AI Studio
-- 43 [jsx-text/en] Approvals
-- 48 [jsx-text/en] All
-- 48 [jsx-text/en] Approved
-- 48 [jsx-text/en] Pending
-- 48 [jsx-text/en] Rejected
-- 50 [jsx-text/en] Refresh
-- 60 [jsx-text/en] Loading…
-- 74 [jsx-text/en] Requested
-
-### src/modules/aiStudio/pages/AiStudioTools.jsx (main-erp — ar:0 en:9)
-
-- 8 [object-key/en] Read
-- 9 [object-key/en] Write
-- 10 [object-key/en] Sensitive
-- 31 [jsx-text/en] AI Studio
-- 32 [jsx-text/en] Tools
-- 33 [jsx-text/en] Read-only view of the server-side tool registry. The server registry is authoritative — tools cannot be pointed at arbitrary code from the browser.
-- 35 [jsx-text/en] Refresh
-- 41 [jsx-text/en] Loading…
-- 65 [jsx-text/en] None.
 
 ### src/modules/aiSupport/pages/MetaReviewerInbox.jsx (main-erp — ar:0 en:9)
 
