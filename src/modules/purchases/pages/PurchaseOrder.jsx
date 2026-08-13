@@ -2769,7 +2769,7 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
             />
           </div>
-          <div role="listbox" tabIndex={-1} onKeyDown={handleListKey} className="max-h-72 overflow-y-auto p-2">
+          <div role="listbox" tabIndex={-1} onKeyDown={handleListKey} className="m1-dropdown-menu max-h-72 overflow-y-auto p-2">
             {filteredOptions.length ? (
               filteredOptions.map((option, index) => {
                 const selected = String(option.value ?? option.color) === String(value);
@@ -2782,7 +2782,7 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
                     aria-selected={selected}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => chooseOption(option)}
-                    className={`mb-2 w-full rounded-[var(--radius-control)] text-left transition last:mb-0 ${selected ? "ring-1 ring-emerald-400/70" : ""} ${active ? "bg-white/10" : "hover:bg-white/5"}`}
+                    className={`m1-dropdown-option mb-2 w-full rounded-[var(--radius-control)] text-left transition last:mb-0 ${selected ? "ring-1 ring-primary/70" : ""} ${active ? "bg-surface-hover" : "hover:bg-surface-hover"}`}
                   >
                     <ColorIdentity color={option.color} variant={option.variant} productName={productName} sizes={option.count} compact />
                   </button>

@@ -2385,7 +2385,7 @@ function CartVariantSelect({ label, value, options = [], onChange, disabled = fa
         role="listbox"
         aria-label={label}
         style={menuStyle}
-        className="z-[9999] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-2xl shadow-black/45 backdrop-blur-xl"
+        className="m1-dropdown-menu z-[9999] overflow-hidden border bg-[var(--surface)] text-[var(--text)] backdrop-blur-xl"
       >
         <div className="max-h-72 overflow-auto p-1.5">
           {options.map((option) => {
@@ -2400,7 +2400,7 @@ function CartVariantSelect({ label, value, options = [], onChange, disabled = fa
                   event.preventDefault();
                   handleSelect(option);
                 }}
-                className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-right text-[10px] font-black transition ${ active ? "bg-[var(--primary-soft)] text-[var(--primary)]" : option.disabled ? "cursor-not-allowed text-[var(--muted)] opacity-60" : "text-[var(--text)] hover:bg-black/20" }`}
+                className={`m1-dropdown-option m1-dropdown-option--compact flex w-full items-center justify-between gap-2 rounded-[var(--radius-control)] px-2.5 py-2 font-black transition ${ active ? "bg-[var(--primary-soft)] text-[var(--primary)]" : option.disabled ? "cursor-not-allowed text-[var(--muted)] opacity-60" : "text-[var(--text)] hover:bg-[var(--surface-hover)]" }`}
                 disabled={option.disabled}
               >
                 <span className="min-w-0 flex-1 truncate">{option.suffix ? `${option.label} - ${option.suffix}` : option.label}</span>

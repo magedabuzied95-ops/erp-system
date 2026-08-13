@@ -37,6 +37,10 @@
       "destination": "https://api.m1store-egy.com/api/storefront/seo/product/:identifier"
     },
     {
+      "source": "/shop/product/:identifier",
+      "destination": "https://api.m1store-egy.com/api/storefront/seo/product/:identifier"
+    },
+    {
       "source": "/men/large-sizes",
       "destination": "https://api.m1store-egy.com/api/storefront/seo/category/men-large-sizes"
     },

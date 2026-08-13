@@ -18,6 +18,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
 | 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | `c950a77` | `c950a77` verified Light + Dark (5 routes) | build green |
 | 8 | `/analytics` fixed-dark dashboard (1 file / 1 route) | `pre-visual-convergence-cp8-20260813` -> `8909fc4` | `907cf92` | `907cf92` verified Light + Dark | build green |
+| 9 | `GLOBAL_DROPDOWN_TYPOGRAPHY` (native inheritance + custom/listbox/portal owners) | `pre-visual-convergence-cp9-dropdown-20260813` -> `25a6dac` | `11cb40b` | PENDING RELEASE VERIFICATION | 1944 tests, 24 existing unrelated failures; targeted 10/10; build green |
 
 ## Method
 
@@ -647,6 +648,81 @@ the 500-level tints, matching checkpoints 3 and 4.
 `rgb(234,231,224)`. Dark — 0 offenders, hero `rgb(35,34,32)` = `--card`, shell
 `rgb(19,18,17)`. State **FIXED_VERIFIED (light + dark, RTL)**.
 
+### Phase 3 — Light pass COMPLETE for all session-3 (Dark-only) routes
+
+Measured on Production at `51efbef`, Light / Arabic RTL. Every route below was
+previously Dark-only; running the missing Light state upgrades it to **PASS
+(both themes)**. All 0 offenders, 0 dark gradients, no horizontal overflow.
+
+`/branches` · `/employees` · `/employees/analytics` · `/employees/attendance` ·
+`/employees/employees` · `/employees/reports` · `/inventory/adjustments` ·
+`/inventory/history` · `/inventory/movements` · `/inventory/count` ·
+`/products/variants` · `/products/brands` · `/products/categories` ·
+`/products/manufacturers` · `/products/units` · `/reports` ·
+`/reports/overview` · `/reports/sales` · `/reports/inventory` · `/ai-studio` ·
+`/notifications` · `/users`
+
+`/analytics` was the only defect found in this pass -> checkpoint 8 (above).
+
+`/inventory/movements` initially reported `NOSET` (never settled). Per protocol
+it was **not** recorded as a pass on that reading; it was re-measured after a
+longer settle window (2326 nodes, stable) and only then recorded clean.
+
+### PENDING route closed — `/inventory/count/:id`
+
+The count list page renders session identifiers directly in its cards
+(`#6`, `#5`, 6 sessions total). Harvested **read-only from rendered text** — no
+record created or mutated. **`/inventory/count/6` audited: 0 offenders, title
+22px, no overflow (Light).** State: PARTIAL_PASS (light/rtl); Dark outstanding.
+
+`/inventory/variant/:id/history` remains **PENDING_NO_READONLY_ID** — no variant
+id is exposed in the DOM and `/api/products/:id`, `/api/product-variants` and
+`/api/variants` all return 404.
+
+### Phase 3 — Dark pass for the accounting block (started)
+
+| Route | Dark result |
+|---|---|
+| `/accounting` | 0 offenders, title 30px — **PASS (both themes)** |
+| `/accounting/journal-entries` | 0 offenders — **PASS (both themes)** |
+
+### Phase 3 — Dark pass COMPLETE for accounting + session-1
+
+Measured on Production at `f1eab49`, Dark / Arabic RTL. Each route below had
+only ever been measured in Light; running the missing Dark state upgrades it to
+**PASS (both themes)**. All 0 offenders, 0 opaque dark gradients, no overflow.
+
+**Accounting (13/13):** `/accounting` · `journal-entries` · `treasury` ·
+`general-ledger` · `trial-balance` · `profit-loss` · `cashbox` · `reports` ·
+`accounts` · `income` · `cost-fix` · `audit-trail` · `financial-accounts` ·
+`payment-method-mappings`
+
+**Session-1 (10/10):** `/workspace` · `/suppliers` · `/warehouses` ·
+`/stock-transfers` · `/smart-warehouse` · `/expenses` · `/billing` · `/roles` ·
+`/purchases` · `/purchases/reorder-suggestions`
+
+#### NOSET discipline held three times
+
+`/accounting/audit-trail`, `/suppliers` and `/purchases/reorder-suggestions` each
+first reported **NOSET**. None was recorded as a pass on that reading. Each was
+re-measured with a longer settle window and only then recorded clean.
+`/accounting/audit-trail` needed a full session re-establishment first — its
+NOSET was caused by the **degraded automation session**, not by the page, which
+is exactly why an unsettled reading must never be promoted.
+
+#### Auditor correction — translucent gradient false positive
+
+`/warehouses` and `/stock-transfers` flagged `DKGRAD` in Dark. Investigation
+showed the element is
+`radial-gradient(circle at 50% 0%, color(srgb 0.86 0.69 0.23 / 0.1), rgba(0,0,0,0))`
+— a **gold decorative wash at 0.1 alpha fading to transparent**, not an opaque
+dark surface. The old rule matched the transparent `rgba(0, 0,` stop.
+
+The gradient rule now ignores gradients containing an alpha stop or
+`transparent`, counting only **opaque** dark gradients. Re-measured under the
+corrected rule both routes report **0**. No source change was made — this was a
+detector defect, not a product defect.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -759,34 +835,131 @@ confined to the automation session and cp7 can simply be re-applied. If it does
 not render, investigate the SPA bootstrap (why `#root` stays empty with a
 healthy API and no thrown error) before any further visual work.
 
+## Checkpoint 9 — GLOBAL_DROPDOWN_TYPOGRAPHY
+
+**Starting Production/main:** `25a6dac`. **Implementation checkpoint:**
+`11cb40b`. This is shared visual-system convergence, not a redesign. Option
+values, selected values, query parameters, API payloads, validation and
+persisted settings are unchanged.
+
+### Production-first open-menu measurements
+
+Authenticated Production was inspected before source changes. Representative
+routes: `/orders`, `/products`, `/inventory`, `/customers`, `/accounting`,
+`/employees`, `/settings`, `/operations/shipping`, and `/pos`. Orders was also
+measured in Arabic/Light and English/Dark with its native status popup open.
+
+| State / owner | Control typography | Open option typography | Surface evidence |
+|---|---|---|---|
+| Orders, Light/RTL | Cairo stack, 14px/700, `normal`, 0.4px; `rgb(244,241,234)`; 10px radius; 44.8px control | same family/14px but **400**; native option reports 0px box height and 0px radius | Windows/Chrome popup is white and OS-shaped |
+| Orders, Dark/LTR | Inter stack, 14px/700, `normal`, 0.4px; `rgb(25,24,23)` | same family/14px but **400**; `rgb(29,28,26)` option surface | direction is LTR; native geometry remains OS-owned |
+| Products / Inventory / Customers | native controls; 12–14px/400 depending on the owning form | browser popup options previously fell back to their own computed weight | no page-local typography owner |
+| Settings / Shipping | native controls 14px/600–700 | options measured 14px/400 | same mismatch in Dark |
+
+Root cause: closed native controls inherited the application stack, while
+`option` did not inherit the owning control's weight. Portal/custom menus also
+sat outside normal page inheritance or used fixed-dark page-local colors.
+
+### Implementation inventory and canonical owners
+
+- Native: **198 `select` tags / 448 `option` tags across 85 source files**.
+  Canonical owner is the authenticated-surface scope in
+  `src/theme/foundation.css`; the shared M1UI native control remains native.
+- Searchable custom listbox: Products brand filter —
+  `src/modules/products/pages/ProductsList.jsx`.
+- Combobox/listbox: Accounting employee picker —
+  `src/modules/accounting/pages/Expenses.jsx`.
+- Custom listbox: Purchase-order color picker —
+  `src/modules/purchases/pages/PurchaseOrder.jsx`.
+- Portal listbox: POS product filter —
+  `src/modules/pos/components/CartSidebar.jsx`.
+- Portal menu: language picker — `src/shared/components/LanguageSwitcher.jsx`.
+- Portal `react-select`: active Add/Edit Product manufacturer picker —
+  `src/modules/products/components/ManufacturerSelect.jsx`, with shared style
+  owner `src/shared/ui/selectTypography.js`.
+- Legacy ProductColors/ProductSizes `react-select` files were inventoried but
+  are not imported by the active Add/Edit Product routes, so frozen forms were
+  not migrated to dead code.
+
+### Canonical contract
+
+`foundation.css` now exposes explicit `m1-dropdown-trigger`,
+`m1-dropdown-menu`, `m1-dropdown-option` and compact-option presentation
+owners. They use `--app-font`, `--font-body`, `--font-body-lh`, semantic
+text/surface/border/shadow tokens and direction-aware alignment. The contract
+is scoped to authenticated M1 surfaces; Storefront typography is not repainted.
+No new visual `!important` was added.
+
+Native `option` / `optgroup` text inherits its owning select's family, size,
+weight, line-height, letter spacing and direction. `react-select` receives the
+same contract through `createM1SelectTypographyStyles`, including its
+body-level menu portal, so theme and RTL/LTR do not depend on page ancestry.
+
+### Chrome/Windows native limitation (explicit)
+
+Native popup geometry remains partly browser/OS-owned. Chrome honors the DOM
+font family, size, color/background and now inheritable weight, but the app
+cannot reliably own popup row height, menu padding, radius, shadow, hover or
+selected rendering. Computed option boxes report height/radius `0`, matching
+the Windows-rendered popup seen in the open-menu audit. No CSS hack and no
+blanket native-to-custom migration was attempted. Important native surfaces
+remain accessible native controls until full behaviour parity is proven.
+
+### Behaviour and accessibility freeze
+
+Raw/display separation and every existing change handler remain intact.
+Products brand search now has complete listbox keyboard handling (Arrow Up,
+Arrow Down, Enter, Escape and Tab), active-descendant semantics, selection
+state and focus restoration. React-select retains its built-in keyboard and
+screen-reader semantics; native controls retain browser semantics, required and
+disabled behaviour. AI Inbox was observed only and not modified.
+
+### Verification record before release
+
+- Targeted dropdown/keyboard tests: **10/10 passed**.
+- ESLint on every changed JS/JSX owner: **0 errors**; 44 pre-existing warnings.
+- Production build: **green**.
+- Full production suite: **1944 tests, 1920 pass, 24 existing unrelated
+  failures**; no failure belongs to dropdown convergence.
+- Frozen-reference recheck after release: Dashboard, Orders, Products,
+  Customers, Inventory, Add Product and Edit Product; AI Inbox observe-only.
+- Required post-release open-menu matrix: Light/RTL native Orders + custom
+  Products, Dark/LTR native Orders + portal/custom owner, then frozen-reference
+  mount/overflow checks.
+
 ## RESUME MARKER
 
-**Phase 2 is COMPLETE** — typography debt cleared, all five header consumers
-verified at 22px in Light + Dark, frozen references unchanged.
+**Phase 3 Light pass: COMPLETE** for all session-3 routes (22 routes upgraded to
+PASS). **Phase 3 Dark pass: IN PROGRESS.**
 
-**Phase 3 is IN PROGRESS.** Continue the Light pass for the remaining Dark-only
-routes, in this order:
+**NEXT ROUTE/STATE: `/accounting/treasury`, DARK.**
 
-`/branches`, `/employees`, `/employees/analytics`, `/employees/attendance`,
-`/employees/employees`, `/employees/reports`, `/inventory/adjustments`,
-`/inventory/history`, `/inventory/movements`, `/inventory/count`,
-`/ai-studio` + its 5 subroutes, `/products/brands`, `/products/categories`,
-`/products/manufacturers`, `/products/units`, `/products/variants`,
-`/reports`, `/reports/overview`, `/reports/sales`, `/reports/inventory`,
-and the session-4 routes (barcode pages, `/operations/shipping`,
-`/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`).
+Then the rest of the accounting Dark pass: `general-ledger`, `trial-balance`,
+`profit-loss`, `cashbox`, `reports`, `accounts`, `income`, `cost-fix`,
+`audit-trail`, `financial-accounts`, `payment-method-mappings`.
 
-Then the Dark pass for the 13 accounting routes and the session-1 routes, which
-are Light-only. Then Phase 4 (`/products/labels` -> PASS_BOUNDED) and Phase 5
-(frozen-reference sweep).
+Then the Dark pass for the session-1 routes (`/workspace`, `/suppliers`,
+`/warehouses`, `/stock-transfers`, `/smart-warehouse`, `/expenses`, `/billing`,
+`/roles`, `/purchases`, `/purchases/reorder-suggestions`) and the session-4
+routes, which were measured in Light only (barcode pages, `/operations/shipping`,
+`/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`,
+`/ai-studio` subroutes, and the ID-bound detail routes incl.
+`/inventory/count/6`).
 
-**Treat every single-theme row as genuinely unverified.** Two Light-specific
-defects (loyalty, `/analytics`) have now been caught this way, both invisible to
-a Dark-only sweep.
+Then Phase 4 (`/products/labels` -> PASS_BOUNDED) and Phase 5 (frozen-reference
+sweep).
 
-Unchanged records: `/ai-studio/workflows/:id/edit` BLOCKED_FUNCTIONAL;
-`/inventory/count/:id` and `/inventory/variant/:id/history`
-PENDING_NO_READONLY_ID; `/products/labels` bounded verification.
+**Treat every single-theme row as genuinely unverified** — two Light-specific
+defects (loyalty, `/analytics`) were caught exactly this way.
+
+Standing records: `/ai-studio/workflows/:id/edit` BLOCKED_FUNCTIONAL;
+`/inventory/variant/:id/history` PENDING_NO_READONLY_ID; `/products/labels`
+PASS_BOUNDED (327k nodes, bounded verification only).
+
+**Automation-session rule (permanent):** an empty `#root` in the automation
+browser while Production is healthy is an AUTOMATION SESSION FAILURE — close the
+tab group, re-establish the session, re-validate the auditor against `/products`.
+Never roll back healthy Production code for it.
 
 ### Remaining queue (PENDING)
 

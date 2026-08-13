@@ -70,8 +70,10 @@ export const resolveConversationProductSubject = async ({ tenantId, sessionId, m
 // or "والاسود؟" is recognised as continuation, not as a new/unresolvable product). Colour words are handled
 // separately via the alias vocabulary below.
 const CONTEXT_CONTINUATION_FILLERS = new Set([
-  "طب", "طيب", "ماشي", "تمام", "اوك", "ok", "اه", "ايوه", "اها", "بردو", "كمان", "وكمان", "مقاس", "مقاسي",
+  "طب", "طيب", "ماشي", "تمام", "اوك", "اوكي", "ok", "اه", "ايوه", "اها", "بردو", "كمان", "وكمان", "مقاس", "مقاسي",
   "size", "متاح", "متوفر", "موجود", "فيه", "بكام", "بكم", "السعر", "سعره", "كام", "وفيه", "هو", "هي", "ده", "دي",
+  // conversational-only tokens (thanks / closing / farewell) — never a product name
+  "شكرا", "شكرًا", "مشكور", "العفو", "خلاص", "حاضر", "سلامه", "سلامة", "السلامه", "وداعا", "باي", "bye", "مرحبا", "اهلا", "اهلين", "هلا",
 ]);
 
 // True when the NEW message names a substantive product/brand term (so context must NOT override it). A bare
@@ -362,7 +364,7 @@ export const decideGrounding = ({ entities, compatibleProducts = [], variantGrou
 const CANONICAL_LABELS = { PRODUCT_AVAILABILITY: "PRODUCT_AVAILABILITY", RESTOCK_REQUEST: "RESTOCK_REQUEST", ORDER_STATUS: "ORDER_STATUS", RETURN_POLICY: "RETURN_POLICY", PRICE_INQUIRY: "PRICE_INQUIRY", GREETING: "GREETING", GENERAL: "GENERAL" };
 
 // ---- Impure orchestrator: resolve compatible catalog products + exact variant, then decide. Failure-isolated. ----
-export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, sessionId = "", styleProfile = null, deps = {} } = {}) => {
+export const applyInboxGroundingGate = async ({ tenantId, message, contextMessages = null, sessionId = "", styleProfile = null, reply = null, deps = {} } = {}) => {
   let productContextResolution = null;
   try {
     // Phase 11.1 — ground on the current unanswered customer TURN, not just the latest message. A fragmented
@@ -371,6 +373,33 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     const contextTexts = Array.isArray(contextMessages) && contextMessages.length ? contextMessages : [message];
     const entities = mergeTurnEntities(contextTexts.map((m) => extractRequestedEntities(m)));
     const requestedIntent = resolveIntentFromEntities(entities);
+
+    // Phase 13.1 — CONVERSATIONAL-ONLY guard. A greeting / acknowledgement / thanks / closing with NO
+    // product-dependent request AND NO explicit product mention must never carry product facts or cards, and must
+    // NEVER consult durable context (that is only a fallback for an ELLIPTICAL product follow-up). The raw brain
+    // sometimes answers a greeting with a product listing from its own history; neutralise that leak
+    // deterministically. A product request in the SAME active turn makes this false (productDependentRequest),
+    // so "السلام عليكم + عندكم جوردن" still grounds normally.
+    // A product-dependent REQUEST = a size/colour/availability/price/restock ask (an elliptical follow-up). A bare
+    // residual brandModelTerm is NOT a request — whether it is a real product NAME is decided by
+    // hasExplicitProductMention (which ignores fillers/greetings/farewells), so a conversational word like "ماشي"
+    // is not mistaken for a product here.
+    const priceAsk = /بكام|بكم|السعر|سعره|كام\s*سعر|price/i.test(String(message || ""));
+    const productDependentRequest = Boolean(entities.productType || entities.size || entities.color || entities.wantsAvailability || entities.wantsRestock || priceAsk);
+    if (!hasExplicitProductMention(entities) && !productDependentRequest) {
+      const rp = reply || {};
+      const rawLeak = (Array.isArray(rp.suggested_products) && rp.suggested_products.length > 0)
+        || (Array.isArray(rp.product_cards) && rp.product_cards.length > 0)
+        || /\d[\d,]*\s*جنيه|المقاسات المتاحة|الألوان\s*:/.test(String(rp.answer || ""));
+      if (rawLeak) {
+        const answer = entities.hasGreeting
+          ? "وعليكم السلام ورحمة الله 🌹 أهلاً بيك، تحب أساعدك في إيه؟"
+          : "تحت أمرك 🌹 لو محتاج أي حاجة قولّي.";
+        return { changed: true, entities, requestedIntent, action: "conversational", answer,
+          suggested_products: [], send_ready_card: null, card_choices: [], color_choices: [], product_ambiguous: false, color_choice_required: false,
+          grounding: { requested: {}, resolved: { note: "conversational_only_no_product" }, action: "conversational", product_resolution: { source: "none" } } };
+      }
+    }
 
     // Phase 10.8 — brand/model grounding. If NO product-category term matched but the customer named a
     // brand/model ("جوردن فور", "Jordan 4", "نايك Air Max"), resolve it to REAL catalog rows by name via the
@@ -412,8 +441,10 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // re-read from current ERP, never inherited from the remembered turn. Ambiguous/rejected/stale prior turns
     // never produce a subject (only approved selections / sent cards qualify).
     if (!entities.productType && !hasExplicitProductMention(entities) && sessionId) {
-      const priceAsk = /بكام|بكم|السعر|سعره|كام\s*سعر|price/i.test(String(message || ""));
-      const continuationShaped = Boolean(entities.color || (entities.size && (entities.sizeIsExplicit || entities.wantsAvailability)) || entities.wantsAvailability || priceAsk);
+      // Phase 13.1 — durable context is a FALLBACK for an elliptical PRODUCT follow-up only (size/colour/price/
+      // availability). needsProductContext excludes greeting/ack-only messages (already neutralised above).
+      const needsProductContext = Boolean(entities.color || (entities.size && (entities.sizeIsExplicit || entities.wantsAvailability)) || entities.wantsAvailability || priceAsk);
+      const continuationShaped = needsProductContext;
       if (continuationShaped) {
         const resolveSubject = deps.resolveProductSubject || resolveConversationProductSubject;
         const subject = await resolveSubject({ tenantId, sessionId, maxAgeMs: DURABLE_PRODUCT_CONTEXT_MAX_AGE_MS }).catch(() => null);

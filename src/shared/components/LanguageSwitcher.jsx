@@ -111,7 +111,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
           ref={menuRef}
           role="menu"
           style={menuStyle}
-          className="z-[9999] overflow-hidden rounded-xl border border-[var(--border)] bg-zinc-950 p-1 text-[var(--text)] shadow-2xl shadow-black/40 pointer-events-auto"
+          className="m1-dropdown-menu z-[9999] overflow-hidden border p-1 text-[var(--text)] pointer-events-auto"
         >
           <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
             {t("language.label")}
@@ -125,7 +125,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
                 role="menuitemradio"
                 aria-checked={active}
                 onClick={handleLanguageClick(language.key)}
-                className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-control)] px-2.5 py-2 text-sm font-semibold transition ${ active ? "bg-[var(--primary)] text-white" : "text-zinc-300 hover:bg-white/[0.06] hover:text-white" }`}
+                className={`m1-dropdown-option flex w-full items-center justify-between gap-2 rounded-[var(--radius-control)] px-2.5 py-2 transition ${ active ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-[var(--text)] hover:bg-[var(--surface-hover)]" }`}
               >
                 <span>{language.label}</span>
                 {active ? <Check className="h-4 w-4" /> : null}
