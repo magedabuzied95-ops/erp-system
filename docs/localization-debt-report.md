@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 109
+- Files with debt: 107
 - Hardcoded Arabic UI strings: 935
-- Hardcoded English UI strings: 596
-- Total hardcoded UI strings: 1531
+- Hardcoded English UI strings: 580
+- Total hardcoded UI strings: 1515
 - Mixed-language files (both scripts hardcoded): 25
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 57 | 665 | 377 | 1042 | 17 |
-| shared | 36 | 70 | 136 | 206 | 4 |
+| main-erp | 56 | 665 | 366 | 1031 | 17 |
+| shared | 35 | 70 | 131 | 201 | 4 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1024,20 +1024,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 438 [inline-ternary/ar] isArabic ? "المبيعات حسب الفرع" : "Sales by Branch"
 - 441 [inline-ternary/ar] isArabic ? "اتجاه الحضور" : "Attendance Trend"
 
-### src/modules/aiSupport/utils/crm/crmIntelligence.ts (main-erp — ar:0 en:11)
-
-- 36 [attribute/en] Not enough data
-- 81 [object-key/en] Lost
-- 82 [object-key/en] At Risk
-- 83 [object-key/en] Dormant
-- 84 [object-key/en] Returning
-- 85 [object-key/en] New
-- 129 [object-key/en] Follow up on open invoice
-- 130 [object-key/en] Review active order
-- 131 [object-key/en] Follow up on saved products
-- 132 [object-key/en] Recommend related products
-- 133 [object-key/en] Re-engage customer
-
 ### src/modules/products/pages/BarcodeLabels.jsx (main-erp — ar:4 en:7)
 
 - 584 [object-key/ar] مخصص
@@ -1256,14 +1242,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 92 [jsx-text/en] Safety:
 - 98 [jsx-text/ar] المحادثة دي محتاجة تدخل بشري. اقتراحات الذكاء الاصطناعي للمراجعة فقط.
 - 99 [jsx-text/en] Keyword:
-
-### src/modules/aiSupport/components/AIInboxAnalysisPanel.jsx (shared — ar:0 en:5)
-
-- 22 [attribute/en] AI conversation intelligence
-- 27 [jsx-text/en] Lead
-- 30 [jsx-text/en] Objection:
-- 35 [jsx-text/en] Copilot
-- 47 [jsx-text/en] AI DEBUG
 
 ### src/modules/aiSupport/intelligence/recommendReply.ts (main-erp — ar:0 en:5)
 

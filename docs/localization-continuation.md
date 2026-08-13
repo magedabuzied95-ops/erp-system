@@ -107,9 +107,11 @@ checkpoint deployed and verified in both AR/RTL and EN/LTR before the next owner
 | 9 | `SocialCommentsWorkspace.jsx` | COMPLETE (`5604bc7`, runtime correction in current checkpoint); scanner 77 → 0; direct JSX/attribute AST check 57 → 0 |
 | 10 | `SocialCommentsPanel.jsx` | COMPLETE (`e5b095c`); scanner 11 → 0; direct JSX/attribute AST check 11 → 0 |
 | 11 | `socialCommentTimeline.jsx` | COMPLETE (`1ae4a87`); scanner 6 → 0; direct JSX/attribute AST check 3 → 0 |
-| 12 | `Customer360Drawer.jsx` | COMPLETE in the current checkpoint; scanner 45 → 0; direct JSX/attribute AST check 45 → 0 |
+| 12 | `Customer360Drawer.jsx` | COMPLETE (`ab64d6e`); scanner 45 → 0; direct JSX/attribute AST check 45 → 0 |
+| 13 | `AIInboxAnalysisPanel.jsx` | COMPLETE in the current checkpoint; scanner 4 → 0; direct JSX/attribute AST check 5 → 0 |
+| 14 | `crmIntelligence.ts` | COMPLETE in the current checkpoint; scanner 11 → 0; generated CRM output localized at source |
 
-**RESUME MARKER:** owner 13 — `AIInboxAnalysisPanel.jsx`. Do not restart owners 1–12.
+**RESUME MARKER:** owner 15 — `recommendAction`. Do not restart owners 1–14.
 The final zero gate still requires a deployed bidirectional runtime sweep and a
 separate multi-line JSX check, because the legacy scanner only counts same-line
 JSX text.

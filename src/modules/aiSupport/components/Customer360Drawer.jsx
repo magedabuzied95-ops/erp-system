@@ -690,7 +690,7 @@ export default function Customer360Drawer({
                   <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.customer360.purchaseProbability")}</div>
                     <div className="mt-1 text-lg font-black text-slate-900">{crmIntelligence.purchase.probability}%</div>
-                    <div className="text-[11px] text-slate-500">{t("aiSupport.inbox.customer360.confidence", { value: crmIntelligence.purchase.confidence })}</div>
+                    <div className="text-[11px] text-slate-500">{t("aiSupport.inbox.customer360.confidence", { value: t(`aiSupport.inbox.customer360.${clean(crmIntelligence.purchase.confidence).toLowerCase()}`) })}</div>
                     <ul className="mt-2 space-y-1 text-xs text-slate-700">
                       {crmIntelligence.purchase.reasons.map((reason) => <li key={reason}>✓ {reason}</li>)}
                     </ul>
@@ -699,7 +699,7 @@ export default function Customer360Drawer({
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.customer360.recommendedAction")}</div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <div className="text-sm font-black text-slate-900">{crmIntelligence.nextAction.title}</div>
-                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2 py-1 text-[10px] font-black uppercase text-slate-600">{crmIntelligence.nextAction.priority}</span>
+                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2 py-1 text-[10px] font-black uppercase text-slate-600">{t(`aiSupport.inbox.customer360.${clean(crmIntelligence.nextAction.priority).toLowerCase()}`)}</span>
                     </div>
                     <div className="mt-1 text-xs text-slate-500">{crmIntelligence.nextAction.reason}</div>
                   </div>

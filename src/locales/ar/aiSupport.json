@@ -1003,6 +1003,20 @@
       "likeState": "إعجاب {{state}}", "replyState": "رد {{state}}", "on": "مفعّل", "off": "متوقف",
       "noTemplateText": "لا يوجد نص للقالب بعد."
     },
+    "crm": {
+      "notEnoughData": "لا توجد بيانات كافية", "vip": "مميز", "lost": "مفقود", "atRisk": "معرّض للخطر", "dormant": "خامل", "returning": "عائد", "new": "جديد",
+      "silentCustomer": "عميل صامت", "supportHeavy": "يحتاج دعمًا مكثفًا", "negotiator": "مفاوض", "priceSensitive": "حساس للسعر", "fastBuyer": "مشتري سريع", "researcher": "باحث",
+      "morning": "صباحًا", "afternoon": "بعد الظهر", "evening": "مساءً", "followOpenInvoice": "متابعة الفاتورة المفتوحة", "paymentPending": "الدفع ما زال معلقًا.",
+      "reviewActiveOrder": "مراجعة الطلب النشط", "orderInProgress": "لدى العميل طلب قيد التنفيذ.", "followSavedProducts": "متابعة المنتجات المحفوظة",
+      "savedItemsIntent": "يشير حفظ {{count}} منتجات إلى نية شراء.", "recommendRelated": "اقتراح منتجات مرتبطة", "recentViewsInterest": "تشير مشاهدات المنتجات الأخيرة إلى اهتمام نشط.",
+      "reengageCustomer": "إعادة التواصل مع العميل", "noCommercialSignal": "لا توجد إشارة تجارية نشطة.", "summaryOpenInvoice": "توجد فاتورة مفتوحة بانتظار الدفع.",
+      "summaryActiveOrder": "يوجد طلب نشط يحتاج إلى المتابعة.", "summaryPurchaseIntent": "تم اكتشاف نية شراء من {{source}}.", "summaryPurchases": "{{count}} عمليات شراء ناجحة بمتوسط {{average}} ج.م.",
+      "summaryInactive": "العميل {{health}} بعد {{days}} يومًا دون نشاط.", "summaryRecommended": "الإجراء الموصى به: {{action}}.", "savedItems": "المنتجات المحفوظة", "recentProductViews": "مشاهدات المنتجات الأخيرة", "conversation": "المحادثة"
+    },
+    "analysis": {
+      "intelligence": "ذكاء تحليل المحادثة", "leadScore": "تقييم العميل المحتمل {{score}}",
+      "objection": "الاعتراض: {{objection}}", "copilot": "المساعد الذكي", "debug": "تصحيح الذكاء"
+    },
     "customer360": {
       "title": "ملف العميل 360", "summary": "الملخص", "activity": "النشاط", "timeline": "الخط الزمني", "orders": "الطلبات",
       "products": "المنتجات", "aiInsights": "رؤى الذكاء", "cancelRestockConfirm": "هل تريد إلغاء طلب التوفر؟ لن يستعيده توفر لاحق.",
@@ -1020,7 +1034,7 @@
       "noRestockRequests": "لا توجد طلبات توفر لهذا العميل.", "restockNotice": "إنشاء الطلب أو الاحتفاظ به لا يُخطر العميل؛ التواصل إجراء يدوي.",
       "customerHealth": "صحة العميل", "customerScore": "درجة العميل", "grade": "التقدير {{grade}}",
       "purchaseProbability": "احتمال الشراء", "confidence": "الثقة {{value}}", "recommendedAction": "الإجراء الموصى به",
-      "currencyValue": "{{value}} ج.م", "openOrder": "فتح الطلب", "openProduct": "فتح المنتج"
+      "currencyValue": "{{value}} ج.م", "openOrder": "فتح الطلب", "openProduct": "فتح المنتج", "high": "مرتفع", "medium": "متوسط", "low": "منخفض"
     },
     "commentTimeline": {
       "customer": "عميل", "openCustomerDetails": "فتح بيانات العميل {{name}}",

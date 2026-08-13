@@ -1003,6 +1003,20 @@
       "likeState": "Like {{state}}", "replyState": "Reply {{state}}", "on": "ON", "off": "OFF",
       "noTemplateText": "No template text yet."
     },
+    "crm": {
+      "notEnoughData": "Not enough data", "vip": "VIP", "lost": "Lost", "atRisk": "At risk", "dormant": "Dormant", "returning": "Returning", "new": "New",
+      "silentCustomer": "Silent customer", "supportHeavy": "Support-heavy", "negotiator": "Negotiator", "priceSensitive": "Price-sensitive", "fastBuyer": "Fast buyer", "researcher": "Researcher",
+      "morning": "Morning", "afternoon": "Afternoon", "evening": "Evening", "followOpenInvoice": "Follow up on open invoice", "paymentPending": "Payment is still pending.",
+      "reviewActiveOrder": "Review active order", "orderInProgress": "The customer has an order in progress.", "followSavedProducts": "Follow up on saved products",
+      "savedItemsIntent": "{{count}} saved items indicate purchase intent.", "recommendRelated": "Recommend related products", "recentViewsInterest": "Recent product views indicate active interest.",
+      "reengageCustomer": "Re-engage customer", "noCommercialSignal": "No active commercial signal is available.", "summaryOpenInvoice": "An invoice is open and awaiting payment.",
+      "summaryActiveOrder": "An active order requires monitoring.", "summaryPurchaseIntent": "Purchase intent detected from {{source}}.", "summaryPurchases": "{{count}} successful purchases, averaging {{average}} EGP.",
+      "summaryInactive": "Customer is {{health}} after {{days}} inactive days.", "summaryRecommended": "Recommended action: {{action}}.", "savedItems": "saved items", "recentProductViews": "recent product views", "conversation": "the conversation"
+    },
+    "analysis": {
+      "intelligence": "AI conversation intelligence", "leadScore": "Lead {{score}}",
+      "objection": "Objection: {{objection}}", "copilot": "Copilot", "debug": "AI DEBUG"
+    },
     "customer360": {
       "title": "Customer 360", "summary": "Summary", "activity": "Activity", "timeline": "Timeline", "orders": "Orders",
       "products": "Products", "aiInsights": "AI insights", "cancelRestockConfirm": "Cancel this restock request? A future restock will not recover it.",
@@ -1020,7 +1034,7 @@
       "noRestockRequests": "No restock requests for this customer.", "restockNotice": "Creating or holding a request does not notify the customer; outreach is a manual action.",
       "customerHealth": "Customer health", "customerScore": "Customer score", "grade": "Grade {{grade}}",
       "purchaseProbability": "Purchase probability", "confidence": "{{value}} confidence", "recommendedAction": "Recommended action",
-      "currencyValue": "{{value}} EGP", "openOrder": "Open order", "openProduct": "Open product"
+      "currencyValue": "{{value}} EGP", "openOrder": "Open order", "openProduct": "Open product", "high": "High", "medium": "Medium", "low": "Low"
     },
     "commentTimeline": {
       "customer": "Customer", "openCustomerDetails": "Open customer details for {{name}}",
