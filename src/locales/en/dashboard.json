@@ -111,5 +111,50 @@
       "activeCheckouts": "Active checkouts",
       "abandonedCarts": "Abandoned carts"
     }
+  },
+  "commandCenter": {
+    "eyebrow": "Command Center",
+    "title": "Live operations cockpit",
+    "subtitle": "Realtime sales, storefront, AI, inventory, staff, branch, and alert awareness in one monitor-ready control surface.",
+    "connected": "Realtime connected",
+    "reconnecting": "Realtime reconnecting",
+    "tvMode": "TV Mode",
+    "exitTvMode": "Exit TV Mode",
+    "kpis": {
+      "revenueToday": "Revenue Today",
+      "ordersToday": "Orders Today",
+      "customersOnline": "Customers Online",
+      "aiConversations": "AI Conversations",
+      "lowStock": "Low Stock",
+      "checkedInStaff": "Checked-in Staff",
+      "abandonedCarts": "Abandoned Carts",
+      "conversionRate": "Conversion Rate",
+      "avgOrderValue": "Avg Order Value"
+    }
+  },
+  "activity": {
+    "live": "Live Activity",
+    "paused": "Paused",
+    "description": "Compact realtime stream for orders, POS, AI, inventory, attendance, and system events.",
+    "loading": "Loading activity",
+    "noneInRange": "No activity in this range",
+    "trendSparkline": "Trend sparkline",
+    "searchLogs": "Search logs...",
+    "filters": {
+      "all": "All",
+      "orders": "Orders",
+      "pos": "POS",
+      "ai": "AI",
+      "inventory": "Inventory",
+      "attendance": "Attendance",
+      "staffTasks": "Staff Tasks",
+      "system": "System"
+    },
+    "priority": {
+      "all": "All",
+      "critical": "Critical",
+      "high": "High",
+      "normal": "Normal"
+    }
   }
 }

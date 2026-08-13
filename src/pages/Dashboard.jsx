@@ -69,14 +69,14 @@ const emptyDashboard = {
 };
 
 const widgetDefinitions = [
-  { id: "sales", title: "Live Sales Analytics", roles: ["owner", "admin", "manager", "sales", "cashier"], size: "wide" },
-  { id: "activity", title: "Activity Feed", roles: ["owner", "admin", "manager", "sales", "cashier", "warehouse"], size: "medium" },
-  { id: "inventory", title: "Inventory Intelligence", roles: ["owner", "admin", "manager", "warehouse"], size: "medium" },
-  { id: "pos", title: "POS Live Monitor", roles: ["owner", "admin", "manager", "cashier", "sales"], size: "medium" },
-  { id: "ai", title: "AI Insights", roles: ["owner", "admin", "manager", "sales", "warehouse"], size: "medium" },
-  { id: "branches", title: "Branch Performance", roles: ["owner", "admin", "manager"], size: "medium" },
-  { id: "marketing", title: "Marketing Analytics", roles: ["owner", "admin", "manager"], size: "medium" },
-  { id: "products", title: "Best Selling Products", roles: ["owner", "admin", "manager", "sales", "warehouse"], size: "medium" },
+  { id: "sales", roles: ["owner", "admin", "manager", "sales", "cashier"], size: "wide" },
+  { id: "activity", roles: ["owner", "admin", "manager", "sales", "cashier", "warehouse"], size: "medium" },
+  { id: "inventory", roles: ["owner", "admin", "manager", "warehouse"], size: "medium" },
+  { id: "pos", roles: ["owner", "admin", "manager", "cashier", "sales"], size: "medium" },
+  { id: "ai", roles: ["owner", "admin", "manager", "sales", "warehouse"], size: "medium" },
+  { id: "branches", roles: ["owner", "admin", "manager"], size: "medium" },
+  { id: "marketing", roles: ["owner", "admin", "manager"], size: "medium" },
+  { id: "products", roles: ["owner", "admin", "manager", "sales", "warehouse"], size: "medium" },
 ];
 
 const paymentColors = ["#b8860b", "#111111", "#71717a", "#a1a1aa", "#10b981"];
@@ -310,7 +310,7 @@ function Dashboard() {
       : allowed;
     return ordered.map((widget) => ({
       ...widget,
-      title: copy.widgetTitles[widget.id] || widget.title,
+      title: copy.widgetTitles[widget.id] || widget.id,
       size: sizes[widget.id] || widget.size,
     }));
   }, [copy.widgetTitles, order, role, sizes]);
@@ -1031,9 +1031,10 @@ const KpiCard = memo(function KpiCard({ label, value, growth, icon: Icon, tone, 
 });
 
 function MiniSparkline({ path, stroke }) {
+  const { t } = useTranslation();
   if (!path) return <div className="h-[34px] w-28 rounded-[var(--radius-control)] bg-surface-soft" />;
   return (
-    <svg viewBox="0 0 112 34" className="h-[34px] w-28 overflow-visible" role="img" aria-label="Trend sparkline">
+    <svg viewBox="0 0 112 34" className="h-[34px] w-28 overflow-visible" role="img" aria-label={t("dashboard.activity.trendSparkline")}>
       <path d={`${path} L 112 34 L 0 34 Z`} fill={stroke} opacity="0.1" />
       <path d={path} fill="none" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -1162,8 +1163,12 @@ function EmptyChart({ title, message }) {
 // Kept only as a dashboard fallback during phased rollout of the premium feed.
 // eslint-disable-next-line no-unused-vars
 function LegacyDashboardActivityFeed({ rows }) {
+  // Unreachable today, but it still carried the only two English literals left in
+  // this file; the bilingual copy for both already existed a few lines up.
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   if (!(rows || []).length) {
-    return <PremiumEmpty icon={Activity} title="No activity in this range" message="Orders, refunds, stock moves, customers, and shift events will appear here live." />;
+    return <PremiumEmpty icon={Activity} title={copy.noActivityInRange} message={copy.activityAppears} />;
   }
   return (
     <div className="max-h-[420px] overflow-auto pr-1">

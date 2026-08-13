@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 129
+- Files with debt: 125
 - Hardcoded Arabic UI strings: 1249
-- Hardcoded English UI strings: 1130
-- Total hardcoded UI strings: 2379
-- Mixed-language files (both scripts hardcoded): 35
+- Hardcoded English UI strings: 1096
+- Total hardcoded UI strings: 2345
+- Mixed-language files (both scripts hardcoded): 34
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 63 | 886 | 734 | 1620 | 22 |
-| shared | 50 | 163 | 313 | 476 | 9 |
+| main-erp | 61 | 886 | 713 | 1599 | 21 |
+| shared | 48 | 163 | 300 | 463 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -30,7 +30,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 161 | 261 | 422 |
-| src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -111,16 +110,8 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2294 [attribute/en] Close labels
 - ... 382 more
 
-### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
+### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 
-- 72 [object-key/en] Live Sales Analytics
-- 73 [object-key/en] Activity Feed
-- 74 [object-key/en] Inventory Intelligence
-- 75 [object-key/en] POS Live Monitor
-- 76 [object-key/en] AI Insights
-- 77 [object-key/en] Branch Performance
-- 78 [object-key/en] Marketing Analytics
-- 79 [object-key/en] Best Selling Products
 - 117 [inline-ternary/ar] isArabic ? "تحليلات المبيعات المباشرة" : "Live Sales Analytics"
 - 118 [inline-ternary/ar] isArabic ? "سجل النشاط" : "Activity Feed"
 - 119 [inline-ternary/ar] isArabic ? "ذكاء المخزون" : "Inventory Intelligence"
@@ -153,7 +144,15 @@ of scope. The scanner is conservative and can still contain false positives.
 - 150 [inline-ternary/ar] isArabic ? "الطلبات" : "Orders"
 - 151 [inline-ternary/ar] isArabic ? "منتج" : "Product"
 - 152 [inline-ternary/ar] isArabic ? "المنتجات" : "Products"
-- ... 110 more
+- 153 [inline-ternary/ar] isArabic ? "مركز الذكاء الاصطناعي" : "AI Center"
+- 154 [inline-ternary/ar] isArabic ? "منتج منخفض المخزون" : "Low stock product"
+- 155 [inline-ternary/ar] isArabic ? "متبقٍ" : "remaining"
+- 156 [inline-ternary/ar] isArabic ? "آخر نشاط" : "Latest activity"
+- 157 [inline-ternary/ar] isArabic ? "لا توجد تنبيهات حرجة" : "No critical alerts"
+- 158 [inline-ternary/ar] isArabic ? "العمليات مستقرة" : "Operations are calm"
+- 159 [inline-ternary/ar] isArabic ? "إيراد اليوم" : "Revenue today"
+- 160 [inline-ternary/ar] isArabic ? "طلبات اليوم" : "Orders today"
+- ... 100 more
 
 ### src/modules/accounting/pages/FinancialReports.jsx (main-erp — ar:139 en:0)
 
@@ -1315,20 +1314,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 438 [inline-ternary/ar] isArabic ? "المبيعات حسب الفرع" : "Sales by Branch"
 - 441 [inline-ternary/ar] isArabic ? "اتجاه الحضور" : "Attendance Trend"
 
-### src/components/dashboard/CommandCenterDashboard.jsx (shared — ar:0 en:11)
-
-- 39 [object-key/en] Revenue Today
-- 40 [object-key/en] Orders Today
-- 41 [object-key/en] Customers Online
-- 42 [object-key/en] AI Conversations
-- 43 [object-key/en] Low Stock
-- 44 [object-key/en] Checked-in Staff
-- 45 [object-key/en] Abandoned Carts
-- 46 [object-key/en] Conversion Rate
-- 47 [object-key/en] Avg Order Value
-- 55 [jsx-text/en] Command Center
-- 56 [jsx-text/en] Live operations cockpit
-
 ### src/modules/aiSupport/utils/crm/crmIntelligence.ts (main-erp — ar:0 en:11)
 
 - 36 [attribute/en] Not enough data
@@ -1370,19 +1355,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3574 [attribute/ar] ترتيب اللون
 - 3584 [attribute/ar] تحريك لأعلى
 - 3597 [attribute/ar] تحريك لأسفل
-
-### src/config/activityFeedConfig.js (main-erp — ar:0 en:10)
-
-- 7 [object-key/en] All
-- 8 [object-key/en] Orders
-- 11 [object-key/en] Inventory
-- 12 [object-key/en] Attendance
-- 13 [object-key/en] Staff Tasks
-- 14 [object-key/en] System
-- 18 [object-key/en] All
-- 19 [object-key/en] Critical
-- 20 [object-key/en] High
-- 21 [object-key/en] Normal
 
 ### src/modules/products/components/MultiVersionGenerator.jsx (shared — ar:0 en:10)
 
@@ -1775,11 +1747,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 407 [object-key/ar] جارٍ إعادة الاتصال
 - 810 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
 
-### src/components/activity/LiveActivityFeed.jsx (shared — ar:0 en:2)
-
-- 37 [jsx-text/en] Paused
-- 112 [attribute/en] Loading activity
-
 ### src/components/ProductCard.jsx (shared — ar:0 en:2)
 
 - 10 [jsx-text/en] Nike Air Max
@@ -1915,10 +1882,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/warehouse/pages/WarehouseLivePicks.jsx (main-erp — ar:0 en:1)
 
 - 19 [inline-ternary/en] language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB"
-
-### src/pages/ActivityLogs.jsx (main-erp — ar:0 en:1)
-
-- 227 [attribute/en] Search logs...
 
 ### src/shared/api/api.js (shared — ar:0 en:1)
 

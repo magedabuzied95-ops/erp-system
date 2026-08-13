@@ -4,19 +4,19 @@ export const ACTIVITY_HIGHLIGHT_MS = 4500;
 export const ACTIVITY_DEDUPE_WINDOW_MS = 2200;
 
 export const ACTIVITY_FILTERS = Object.freeze([
-  { id: "all", label: "All" },
-  { id: "orders", label: "Orders" },
-  { id: "pos", label: "POS" },
-  { id: "ai", label: "AI" },
-  { id: "inventory", label: "Inventory" },
-  { id: "attendance", label: "Attendance" },
-  { id: "staff_tasks", label: "Staff Tasks" },
-  { id: "system", label: "System" },
+  { id: "all", labelKey: "dashboard.activity.filters.all" },
+  { id: "orders", labelKey: "dashboard.activity.filters.orders" },
+  { id: "pos", labelKey: "dashboard.activity.filters.pos" },
+  { id: "ai", labelKey: "dashboard.activity.filters.ai" },
+  { id: "inventory", labelKey: "dashboard.activity.filters.inventory" },
+  { id: "attendance", labelKey: "dashboard.activity.filters.attendance" },
+  { id: "staff_tasks", labelKey: "dashboard.activity.filters.staffTasks" },
+  { id: "system", labelKey: "dashboard.activity.filters.system" },
 ]);
 
 export const ACTIVITY_PRIORITY_FILTERS = Object.freeze([
-  { id: "all", label: "All" },
-  { id: "critical", label: "Critical" },
-  { id: "high", label: "High" },
-  { id: "normal", label: "Normal" },
+  { id: "all", labelKey: "dashboard.activity.priority.all" },
+  { id: "critical", labelKey: "dashboard.activity.priority.critical" },
+  { id: "high", labelKey: "dashboard.activity.priority.high" },
+  { id: "normal", labelKey: "dashboard.activity.priority.normal" },
 ]);

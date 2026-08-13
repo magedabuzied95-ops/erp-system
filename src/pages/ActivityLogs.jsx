@@ -3,6 +3,8 @@ import {
   useState
 } from "react";
 
+import { useTranslation } from "react-i18next";
+
 import {
 
   Activity,
@@ -27,6 +29,7 @@ import { api }
 from "../shared/api/api";
 
 function ActivityLogs() {
+  const { t } = useTranslation();
 
   /* ======================================================
      STATES
@@ -224,7 +227,7 @@ function ActivityLogs() {
           <input
             type="text"
 
-            placeholder="Search logs..."
+            placeholder={t("dashboard.activity.searchLogs")}
 
             value={search}
 

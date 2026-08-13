@@ -140,6 +140,10 @@ export const PRODUCT_FORM_HOLD = new Map([
  * rewrite a catalogue value that products are matched against.
  */
 export const CATALOGUE_VALUES = new Map([
+  [
+    "src/config/realtimeSoundThemes.js",
+    "Theme `name`/`description` are config metadata: the only consumer is realtimeFeedbackService.js, which reads sounds and intensities, never the copy. No JSX renders either field.",
+  ],
   ["src/modules/products/lib/productClassifications.js", "Canonical product-type values; the Arabic labels are deliberately Latin."],
   ["src/shared/lib/crocsSizes.js", "Footwear size tables matched against catalogue data."],
   ["src/shared/lib/categorySeo.js", "SEO slugs and category copy stored as catalogue data."],

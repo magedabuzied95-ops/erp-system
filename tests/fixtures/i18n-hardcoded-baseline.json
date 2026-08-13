@@ -2,20 +2,15 @@
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
     "arabic": 1249,
-    "english": 1130,
-    "total": 2379,
-    "mixedFiles": 35
+    "english": 1096,
+    "total": 2345,
+    "mixedFiles": 34
   },
   "files": {
     "src/App.jsx": {
       "arabic": 0,
       "english": 1,
       "total": 1
-    },
-    "src/components/activity/LiveActivityFeed.jsx": {
-      "arabic": 0,
-      "english": 2,
-      "total": 2
     },
     "src/components/ai/AILiveLogs.jsx": {
       "arabic": 0,
@@ -26,11 +21,6 @@
       "arabic": 1,
       "english": 4,
       "total": 5
-    },
-    "src/components/dashboard/CommandCenterDashboard.jsx": {
-      "arabic": 0,
-      "english": 11,
-      "total": 11
     },
     "src/components/ProductCard.jsx": {
       "arabic": 0,
@@ -56,11 +46,6 @@
       "arabic": 0,
       "english": 2,
       "total": 2
-    },
-    "src/config/activityFeedConfig.js": {
-      "arabic": 0,
-      "english": 10,
-      "total": 10
     },
     "src/config/realtimeSoundThemes.js": {
       "arabic": 0,
@@ -512,11 +497,6 @@
       "english": 13,
       "total": 15
     },
-    "src/pages/ActivityLogs.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/pages/AppShellPreview.jsx": {
       "arabic": 25,
       "english": 2,
@@ -544,8 +524,8 @@
     },
     "src/pages/Dashboard.jsx": {
       "arabic": 140,
-      "english": 10,
-      "total": 150
+      "english": 0,
+      "total": 140
     },
     "src/pages/DashboardPrototype.jsx": {
       "arabic": 57,
