@@ -11,12 +11,16 @@ export default function FinanceMetricCard({ label, value, hint, tone = "zinc", i
   return (
     <div className={`theme-card rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
       <div className="flex items-start justify-between gap-3">
-        <div>
+        {/* min-w-0: flex items default to min-width:auto, so a long currency value
+            (e.g. -2,848,153.00) could not shrink and pushed the icon box outside
+            the card in the 6-up KPI grid. shrink-0 keeps the icon its own size so
+            the value wraps instead of the icon being squeezed. */}
+        <div className="min-w-0">
           <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
           <div className="mt-2 text-2xl font-black text-[var(--text)]">{value}</div>
           {hint ? <div className="mt-1 text-xs text-[var(--muted)]">{hint}</div> : null}
         </div>
-        {icon ? <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text)]">{icon}</div> : null}
+        {icon ? <div className="shrink-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text)]">{icon}</div> : null}
       </div>
     </div>
   );
