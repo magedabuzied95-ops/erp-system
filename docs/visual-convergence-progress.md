@@ -18,7 +18,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
 | 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | `c950a77` | `c950a77` verified Light + Dark (5 routes) | build green |
 | 8 | `/analytics` fixed-dark dashboard (1 file / 1 route) | `pre-visual-convergence-cp8-20260813` -> `8909fc4` | `907cf92` | `907cf92` verified Light + Dark | build green |
-| 9 | `GLOBAL_DROPDOWN_TYPOGRAPHY` (native inheritance + custom/listbox/portal owners) | `pre-visual-convergence-cp9-dropdown-20260813` -> `25a6dac` | `11cb40b` | PENDING RELEASE VERIFICATION | 1944 tests, 24 existing unrelated failures; targeted 10/10; build green |
+| 9 | `GLOBAL_DROPDOWN_TYPOGRAPHY` (native inheritance + custom/listbox/portal owners) | `pre-visual-convergence-cp9-dropdown-20260813` -> `25a6dac` | `6683536` | `6683536` verified Light/RTL + Dark/LTR | 1944 tests, 24 existing unrelated failures; targeted 10/10; build green |
 
 ## Method
 
@@ -927,7 +927,39 @@ disabled behaviour. AI Inbox was observed only and not modified.
   Products, Dark/LTR native Orders + portal/custom owner, then frozen-reference
   mount/overflow checks.
 
+### Checkpoint 9 Production verification (`6683536`)
+
+Vercel deployment `dpl_3AChJsqmFfqTXeSMVtzB5mZf5iTw` reached READY and the
+custom ERP domain served the new build marker `178657969451`.
+
+- Orders native open popup, **Dark/LTR/English**: control and option both
+  Inter stack, 14px/700; control `rgb(25,24,23)`, option
+  `rgb(29,28,26)`, LTR.
+- Orders native open popup, **Light/RTL/Arabic**: control and option both Cairo
+  stack, 14px/700; control `rgb(244,241,234)`, option white, RTL.
+- Products brand custom menu, **Dark/LTR**: Inter, 13px/20.15px, semantic dark
+  card, 14px radius; selected option 700 and 38px minimum row height. ArrowDown
+  moved active descendant from option 0 to 1; Escape closed the menu and
+  restored the collapsed trigger.
+- Language portal, **Dark/LTR**: Inter, 13px/20.15px, semantic card, 14px
+  radius; options 600 / 38px. No fixed-light portal surface.
+- Add Product manufacturer `react-select` portal, **Light/RTL**: Cairo stack,
+  13px/20.15px, RTL; semantic white card/border, 14px radius; option 700 / 38px.
+  The Product Form was not edited and no form value was changed.
+- Frozen references `/dashboard`, `/orders`, `/products`, `/customers`,
+  `/inventory`, `/products/add`, `/products/726/edit` all landed on the intended
+  route, mounted their M1 shell, reported no screen crash and no document-level
+  horizontal overflow. `/admin/ai-inbox` passed the same observe-only check and
+  was not modified.
+
+State: **FIXED_VERIFIED (Light + Dark, RTL + LTR, native + custom + portal)**.
+Only the explicitly documented Windows/Chrome native popup geometry remains
+outside application ownership.
+
 ## RESUME MARKER
+
+**GLOBAL_DROPDOWN_TYPOGRAPHY: COMPLETE — checkpoint 9 Production-verified at
+`6683536`. NEXT ROUTE/STATE: `/accounting/treasury`, DARK.**
 
 **Phase 3 Light pass: COMPLETE** for all session-3 routes (22 routes upgraded to
 PASS). **Phase 3 Dark pass: IN PROGRESS.**
