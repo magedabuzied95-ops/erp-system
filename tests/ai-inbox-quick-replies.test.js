@@ -52,3 +52,20 @@ test("reply management supports drag, arrows, editing and safe insert-before-sen
   assert.match(components, /onUse\?\.\(resolveQuickReplyMessage/);
   assert.doesNotMatch(components, /sendManualReply/);
 });
+
+test("quick replies open from slash in both composers without a permanent button", () => {
+  assert.match(components, /match\(\/\^\\s\*\\\/\(\[\^\\n\]\*\)\$\/\)/);
+  assert.match(components, /!activeReplies\.length \|\| !slashMatch/);
+  assert.doesNotMatch(components, /aria-expanded=\{open\}/);
+  assert.match(desktop, /customerName=\{quickReplyCustomerName\}[\s\S]*value=\{value\}/);
+  assert.match(pwa, /customerName=\{conversationName\(selectedConversation \|\| \{\}\)\}[\s\S]*value=\{composerText\}/);
+  assert.match(desktop, /slashCommandActive/);
+  assert.match(pwa, /!text\.trim\(\) \|\| \/\^\\s\*\\\//);
+});
+
+test("quick replies inherit the unified light and dark palettes", () => {
+  assert.match(components, /useTheme\(\)/);
+  assert.match(components, /#f8f4eb/);
+  assert.match(components, /#b98508/);
+  assert.match(components, /#181a18/);
+});

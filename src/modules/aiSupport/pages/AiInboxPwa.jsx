@@ -2160,7 +2160,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "Type a 
     event.preventDefault();
     if (disabled) return;
     const text = String(event.currentTarget.innerText || "").replace(/\u00a0/g, " ");
-    if (!text.trim()) return;
+    if (!text.trim() || /^\s*\//.test(text)) return;
     onChange?.(text);
     onSubmit?.(text);
   };
@@ -6866,7 +6866,8 @@ export default function AiInboxPwa() {
               ) : null}
               <QuickRepliesPicker
                 replies={quickRepliesStore.quickReplies}
-                customerName={getConversationDisplayName(selectedConversation || {})}
+                customerName={conversationName(selectedConversation || {})}
+                value={composerText}
                 onUse={(message) => setComposerText(message)}
                 light={!isDarkTheme}
               />
@@ -6906,7 +6907,7 @@ export default function AiInboxPwa() {
                 <button
                   type="button"
                   onClick={() => void sendManualReply()}
-                  disabled={!clean(composerText) || sending}
+                  disabled={!clean(composerText) || /^\s*\//.test(composerText) || sending}
                   className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "bg-amber-500" : "bg-sky-600"}`}
                   aria-label={composerMode === "note" ? "Save note" : "Send reply"}
                 >

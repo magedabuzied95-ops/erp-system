@@ -3103,13 +3103,14 @@ function ManualReplyComposer({
   const textareaRef = useRef(null);
   const normalizedValidation = normalizeValidationSummary(validationSummary || {});
   const normalizedConfidence = normalizeConfidenceEngineSummary(confidenceEngineSummary || {});
+  const slashCommandActive = /^\s*\//.test(String(value || ""));
   // Phase 13.3 — PRESENTATION ONLY. The large validation + confidence panels are removed from the normal
   // operator view; their state is condensed into ONE compact "⚠ يحتاج مراجعة" badge shown only when the EXISTING
   // logic materially recommends review (a real validation violation or a high-risk confidence decision). No
   // decision logic, thresholds, or telemetry change — the full detail stays in the draft/schema for AI Studio.
   const reviewNeeded = normalizedValidation.violationsCount > 0 || normalizedConfidence.decision === "high_risk" || normalizedConfidence.tone === "rose";
   const submit = () => {
-    if (clean(value)) onSend();
+    if (clean(value) && !slashCommandActive) onSend();
   };
   const resizeTextarea = () => {
     const element = textareaRef.current;
@@ -3168,6 +3169,7 @@ function ManualReplyComposer({
       <QuickRepliesPicker
         replies={quickReplies}
         customerName={quickReplyCustomerName}
+        value={value}
         onUse={(message) => onChange(message)}
       />
       <div dir="ltr" className="flex min-w-0 items-end gap-2">
@@ -3195,6 +3197,7 @@ function ManualReplyComposer({
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
+                if (slashCommandActive) return;
                 submit();
               }
             }}
@@ -3219,7 +3222,7 @@ function ManualReplyComposer({
         <button
           type="button"
           onClick={submit}
-          disabled={loading || !clean(value) || !canSendLive}
+          disabled={loading || !clean(value) || slashCommandActive || !canSendLive}
           title={submitTitle}
           aria-label={submitLabel}
           className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-white shadow-[0_6px_16px_rgba(3,105,161,0.28)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-500 hover:bg-amber-600" : "bg-sky-700 hover:bg-sky-800"}`}
