@@ -30,7 +30,7 @@ import {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
-const SHARE_AVAILABLE_OG_VERSION = "V5";
+const SHARE_AVAILABLE_OG_VERSION = "V6";
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -981,7 +981,7 @@ export const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, produc
 
 const buildShareAvailableFallbackSvg = (options = {}) => buildShareAvailablePreviewSvg(options);
 
-const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
+export const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
   const firstProduct = products[0] || null;
   const title = escapeHtml(firstText(firstProduct?.name, "M1 Store"));
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
@@ -1003,13 +1003,13 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
     <link rel="canonical" href="${fallbackTarget}" />
-    <meta http-equiv="refresh" content="0;url=${fallbackTarget}" />
     <style>
       html, body { margin: 0; min-height: 100%; background: #0c1220; }
     </style>
   </head>
   <body>
     <script>window.location.replace(${JSON.stringify(String(targetUrl || fallbackTarget))});</script>
+    <noscript><a href="${fallbackTarget}">Open products</a></noscript>
   </body>
 </html>`;
 };

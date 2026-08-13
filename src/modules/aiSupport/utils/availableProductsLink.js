@@ -60,7 +60,7 @@ export const buildAvailableProductsUrl = ({
   if (clean(minPrice)) params.set("min_price", clean(minPrice));
   if (clean(maxPrice)) params.set("max_price", clean(maxPrice));
   params.set("inStock", "1");
-  params.set("v", "5");
+  params.set("v", "6");
   const query = params.toString();
   const path = `/share/available${query ? `?${query}` : ""}`;
   return `${resolvePublicStorefrontOrigin()}${path}`;
