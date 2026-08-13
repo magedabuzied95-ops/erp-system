@@ -427,7 +427,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const data = resolveCommentTimelineData(comment, fallbackPlatform);
   const [expanded, setExpanded] = useState(false);
-  const canCollapse = compact && data.text.length > 180;
+  const canCollapse = compact && data.text.length > 120;
   const hasAvatar = Boolean(data.customerAvatarUrl);
   const interactive = typeof onSelect === "function";
   const handleKeyDown =
@@ -543,7 +543,12 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
           </div>
 
           <div className={`rounded-xl border border-white/10 bg-white/[0.04] text-slate-100 ${compact ? "mt-1.5 p-2 text-[13px] leading-6" : "mt-2 p-3 text-[14px] leading-7"}`}>
-            <div className={`whitespace-pre-wrap ${canCollapse && !expanded ? "line-clamp-3" : ""}`}>{data.text || t("aiSupport.inbox.commentTimeline.noCommentText")}</div>
+            <div
+              className="whitespace-pre-wrap"
+              style={canCollapse && !expanded ? { maxHeight: "4.5rem", overflow: "hidden" } : undefined}
+            >
+              {data.text || t("aiSupport.inbox.commentTimeline.noCommentText")}
+            </div>
             {canCollapse ? (
               <button
                 type="button"
