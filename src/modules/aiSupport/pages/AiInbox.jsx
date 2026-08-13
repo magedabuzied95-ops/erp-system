@@ -3933,6 +3933,7 @@ const confirmationStatusMeta = (status = "") => {
 };
 
 function CustomerContextCard({ conversation = {} }) {
+  const { t } = useTranslation();
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
@@ -3987,18 +3988,18 @@ function CustomerContextCard({ conversation = {} }) {
         </div>
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        <Info label="Matched CRM customer" value={profile.id ? `Profile #${profile.id}` : "No CRM match yet"} />
-        <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
-        <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
-        <Info label="المقاس المفضل" value={profile.preferred_size || channelMemory.last_selected_size || "غير محدد بعد"} />
-        <Info label="آخر منتج" value={lastProductLabel} />
-        <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
+        <Info label={t("aiSupport.inbox.field.matchedCrmCustomer")} value={profile.id ? `Profile #${profile.id}` : "No CRM match yet"} />
+        <Info label={t("aiSupport.inbox.field.phoneExternalId")} value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
+        <Info label={t("aiSupport.inbox.field.channel")} value={channelLabel(conversation?.channel || conversation?.source)} />
+        <Info label={t("aiSupport.inbox.field.preferredSize")} value={profile.preferred_size || channelMemory.last_selected_size || "غير محدد بعد"} />
+        <Info label={t("aiSupport.inbox.field.lastProduct")} value={lastProductLabel} />
+        <Info label={t("aiSupport.inbox.field.lastIntent")} value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-4">
-        <Info label="Sentiment" value={profile.customer_sentiment || "neutral"} />
-        <Info label="درجة الذاكرة" value={Number(memoryScore || 0).toFixed(0)} />
-        <Info label="Last order" value={lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id || "No order yet"} />
-        <Info label="Last size" value={lastSize || "Not set yet"} />
+        <Info label={t("aiSupport.inbox.field.sentiment")} value={profile.customer_sentiment || "neutral"} />
+        <Info label={t("aiSupport.inbox.field.memoryScore")} value={Number(memoryScore || 0).toFixed(0)} />
+        <Info label={t("aiSupport.inbox.field.lastOrder")} value={lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id || "No order yet"} />
+        <Info label={t("aiSupport.inbox.field.lastSize")} value={lastSize || "Not set yet"} />
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
@@ -4060,6 +4061,7 @@ function DebugStatusBadge({ type = "neutral", children }) {
 }
 
 function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
+  const { t } = useTranslation();
   const [showRaw, setShowRaw] = useState(false);
   const memory = data?.memory || {};
   const events = asArray(data?.debug_events);
@@ -4101,8 +4103,8 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
         <div className="flex items-center gap-2">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-300/10 text-violet-100 ring-1 ring-violet-300/20"><Brain className="h-4 w-4" /></span>
           <div>
-            <div className="text-sm font-black text-white">AI Debug</div>
-            <div className="text-xs text-slate-500">Intent, route, memory, and recent decisions</div>
+            <div className="text-sm font-black text-white">{t("aiSupport.inbox.debug.title")}</div>
+            <div className="text-xs text-slate-500">{t("aiSupport.inbox.debug.subtitle")}</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -4130,36 +4132,36 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <DebugStatusBadge type={latestEvent.graph_api_called ? "called" : "none"}>{latestEvent.graph_api_called ? "تم استدعاء Graph API" : "لا يوجد استدعاء Graph"}</DebugStatusBadge>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                <DebugField label="Intent" value={data.current_intent} />
-                <DebugField label="Confidence" value={confidence} />
-                <DebugField label="Route / brain" value={data.route} />
-                <DebugField label="Outbound status" value={outboundStatus} />
-                <DebugField label="Outbound decision" value={outboundDecision} />
-                <DebugField label="Skip reason" value={skipReason} />
-                <DebugField label="Meta send result" value={metaSendResult || (data.tokenPresent === true ? "Token present" : data.tokenPresent === false ? "Token missing" : "")} />
-                <DebugField label="Active product" value={memory.activeProductId} />
-                <DebugField label="Active size" value={memory.activeSize} />
-                <DebugField label="Active color" value={memory.activeColor} />
-                <DebugField label="Buying stage" value={memory.buyingStage} />
-                <DebugField label="Last reply preview" value={lastReplyPreview} />
-                <DebugField label="Unified reply preview" value={data.unified_reply_preview || lastReplyPreview} />
-                <DebugField label="Unified intent" value={unifiedReply.intent || data.current_intent || ""} />
-                <DebugField label="المنتجات الموحّدة" value={`${unifiedProducts.length} بطاقة`} />
-                <DebugField label="بطاقات الصور الموحّدة" value={`${unifiedImageCards.length} بطاقة`} />
-                <DebugField label="Unified quick replies" value={`${unifiedQuickReplies.length} items`} />
-                <DebugField label="Unified actions" value={`${unifiedActions.length} items`} />
-                <DebugField label="Handoff state" value={unifiedHandoff?.needs_human_support ? `handoff / ${unifiedHandoff.reason || "human_review"}` : unifiedHandoff?.conversation_status || "ai_active"} />
-                <DebugField label="Visual confidence" value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
-                <DebugField label="Brand guess" value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
-                <DebugField label="Model guess" value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
-                <DebugField label="الألوان" value={visualColors} />
-                <DebugField label="Correction used" value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
-                <DebugField label="Top rank reason" value={visualPro.reason_why_candidate_ranked_first || ""} />
-                <DebugField label="درجة تفضيل العميل" value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
-                <DebugField label="المقاسات المفضلة" value={preferredSizes} />
-                <DebugField label="Preferred brands" value={preferredBrands} />
-                <DebugField label="الألوان المفضلة" value={preferredColors} />
-                <DebugField label="Boost reason" value={visualPro.why_candidate_was_boosted || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.intent")} value={data.current_intent} />
+                <DebugField label={t("aiSupport.inbox.debug.confidence")} value={confidence} />
+                <DebugField label={t("aiSupport.inbox.debug.routeBrain")} value={data.route} />
+                <DebugField label={t("aiSupport.inbox.debug.outboundStatus")} value={outboundStatus} />
+                <DebugField label={t("aiSupport.inbox.debug.outboundDecision")} value={outboundDecision} />
+                <DebugField label={t("aiSupport.inbox.debug.skipReason")} value={skipReason} />
+                <DebugField label={t("aiSupport.inbox.debug.metaSendResult")} value={metaSendResult || (data.tokenPresent === true ? "Token present" : data.tokenPresent === false ? "Token missing" : "")} />
+                <DebugField label={t("aiSupport.inbox.debug.activeProduct")} value={memory.activeProductId} />
+                <DebugField label={t("aiSupport.inbox.debug.activeSize")} value={memory.activeSize} />
+                <DebugField label={t("aiSupport.inbox.debug.activeColor")} value={memory.activeColor} />
+                <DebugField label={t("aiSupport.inbox.debug.buyingStage")} value={memory.buyingStage} />
+                <DebugField label={t("aiSupport.inbox.debug.lastReplyPreview")} value={lastReplyPreview} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedReplyPreview")} value={data.unified_reply_preview || lastReplyPreview} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedIntent")} value={unifiedReply.intent || data.current_intent || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedProducts")} value={`${unifiedProducts.length} بطاقة`} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedImageCards")} value={`${unifiedImageCards.length} بطاقة`} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedQuickReplies")} value={`${unifiedQuickReplies.length} items`} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedActions")} value={`${unifiedActions.length} items`} />
+                <DebugField label={t("aiSupport.inbox.debug.handoffState")} value={unifiedHandoff?.needs_human_support ? `handoff / ${unifiedHandoff.reason || "human_review"}` : unifiedHandoff?.conversation_status || "ai_active"} />
+                <DebugField label={t("aiSupport.inbox.debug.visualConfidence")} value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
+                <DebugField label={t("aiSupport.inbox.debug.brandGuess")} value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.modelGuess")} value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.colors")} value={visualColors} />
+                <DebugField label={t("aiSupport.inbox.debug.correctionUsed")} value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
+                <DebugField label={t("aiSupport.inbox.debug.topRankReason")} value={visualPro.reason_why_candidate_ranked_first || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.customerPreferenceScore")} value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
+                <DebugField label={t("aiSupport.inbox.debug.preferredSizes")} value={preferredSizes} />
+                <DebugField label={t("aiSupport.inbox.debug.preferredBrands")} value={preferredBrands} />
+                <DebugField label={t("aiSupport.inbox.debug.preferredColors")} value={preferredColors} />
+                <DebugField label={t("aiSupport.inbox.debug.boostReason")} value={visualPro.why_candidate_was_boosted || ""} />
               </div>
 
               {visualTopCandidates.length ? (
@@ -4175,16 +4177,16 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                             <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[11px] font-black text-cyan-100">{Number(candidate?.score || candidate?.finalScore || breakdown.finalScore || 0).toFixed(2)}</span>
                           </div>
                           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            <DebugField label="Variant" value={candidate?.variant_id || candidate?.variantId || ""} />
-                            <DebugField label="Color" value={candidate?.color || ""} />
-                            <DebugField label="Source image product" value={candidate?.sourceImageProductId || candidate?.source_image_product_id || candidate?.product_id || candidate?.productId || ""} />
-                            <DebugField label="Source title" value={candidate?.sourceTitle || candidate?.source_title || ""} />
-                            <DebugField label="Final title" value={candidate?.finalTitle || candidate?.final_title || ""} />
-                            <DebugField label="Final URL" value={candidate?.finalUrl || candidate?.final_url || ""} />
-                            <DebugField label="Score breakdown" value={shortText(JSON.stringify(breakdown), 220)} />
-                            <DebugField label="Rank reason" value={breakdown.reasonWhyRankedFirst || candidate?.reasonWhyRankedFirst || ""} />
-                            <DebugField label="Preference score" value={breakdown.customerPreferenceScore !== undefined ? Number(breakdown.customerPreferenceScore || 0).toFixed(2) : ""} />
-                            <DebugField label="Boosted by" value={breakdown.whyCandidateWasBoosted || candidate?.whyCandidateWasBoosted || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.variant")} value={candidate?.variant_id || candidate?.variantId || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.color")} value={candidate?.color || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.sourceImageProduct")} value={candidate?.sourceImageProductId || candidate?.source_image_product_id || candidate?.product_id || candidate?.productId || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.sourceTitle")} value={candidate?.sourceTitle || candidate?.source_title || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.finalTitle")} value={candidate?.finalTitle || candidate?.final_title || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.finalUrl")} value={candidate?.finalUrl || candidate?.final_url || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.scoreBreakdown")} value={shortText(JSON.stringify(breakdown), 220)} />
+                            <DebugField label={t("aiSupport.inbox.debug.rankReason")} value={breakdown.reasonWhyRankedFirst || candidate?.reasonWhyRankedFirst || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.preferenceScore")} value={breakdown.customerPreferenceScore !== undefined ? Number(breakdown.customerPreferenceScore || 0).toFixed(2) : ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.boostedBy")} value={breakdown.whyCandidateWasBoosted || candidate?.whyCandidateWasBoosted || ""} />
                           </div>
                         </div>
                       );
@@ -4197,10 +4199,10 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                   <SectionTitle icon={MessageSquareText} title="Unified reply payload" />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {unifiedProducts.length ? <DebugField label="بطاقات المنتجات" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} بطاقة`} /> : null}
-                    {unifiedImageCards.length ? <DebugField label="بطاقات الصور" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} بطاقة`} /> : null}
-                    {unifiedQuickReplies.length ? <DebugField label="Quick replies" value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" آ· ") || `${unifiedQuickReplies.length} items`} /> : null}
-                    {unifiedActions.length ? <DebugField label="Actions" value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" آ· ") || `${unifiedActions.length} items`} /> : null}
+                    {unifiedProducts.length ? <DebugField label={t("aiSupport.inbox.debug.productCards")} value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} بطاقة`} /> : null}
+                    {unifiedImageCards.length ? <DebugField label={t("aiSupport.inbox.debug.imageCards")} value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} بطاقة`} /> : null}
+                    {unifiedQuickReplies.length ? <DebugField label={t("aiSupport.inbox.debug.quickReplies")} value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" آ· ") || `${unifiedQuickReplies.length} items`} /> : null}
+                    {unifiedActions.length ? <DebugField label={t("aiSupport.inbox.debug.actions")} value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" آ· ") || `${unifiedActions.length} items`} /> : null}
                   </div>
                 </div>
               ) : null}
@@ -4219,13 +4221,13 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                           {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">متخطى</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">تم الإرسال</DebugStatusBadge> : null}
                         </div>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                          <DebugField label="Intent" value={event.classified_intent} />
-                          <DebugField label="Route" value={event.selected_route} />
-                          <DebugField label="Confidence" value={event.confidence !== null && event.confidence !== undefined ? Number(event.confidence).toFixed(2) : ""} />
+                          <DebugField label={t("aiSupport.inbox.debug.intent")} value={event.classified_intent} />
+                          <DebugField label={t("aiSupport.inbox.debug.route")} value={event.selected_route} />
+                          <DebugField label={t("aiSupport.inbox.debug.confidence")} value={event.confidence !== null && event.confidence !== undefined ? Number(event.confidence).toFixed(2) : ""} />
                         </div>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                          <DebugField label="حالة الإرسال" value={eventStatus === "neutral" ? "لا يوجد استدعاء Graph" : eventStatus} />
-                          <DebugField label="Outbound decision" value={eventDecision} />
+                          <DebugField label={t("aiSupport.inbox.debug.sendStatus")} value={eventStatus === "neutral" ? "لا يوجد استدعاء Graph" : eventStatus} />
+                          <DebugField label={t("aiSupport.inbox.debug.outboundDecision")} value={eventDecision} />
                         </div>
                         {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{shortText(event.reply_preview, 180)}</p> : null}
                       </div>
@@ -4262,6 +4264,7 @@ function TraceJsonBlock({ value }) {
 }
 
 function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
+  const { t } = useTranslation();
   if (!open) return null;
   const latestTrace = data?.latestTrace || asArray(data?.traces)[0] || null;
   const steps = asArray(latestTrace?.trace?.steps);
@@ -4297,9 +4300,9 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
           {latestTrace ? (
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-3">
-                <DebugField label="Trace ID" value={latestTrace.id} />
-                <DebugField label="External message" value={latestTrace.external_message_id} />
-                <DebugField label="Summary" value={shortText(JSON.stringify(summary), 180)} />
+                <DebugField label={t("aiSupport.inbox.debug.traceId")} value={latestTrace.id} />
+                <DebugField label={t("aiSupport.inbox.debug.externalMessage")} value={latestTrace.external_message_id} />
+                <DebugField label={t("aiSupport.inbox.debug.summary")} value={shortText(JSON.stringify(summary), 180)} />
               </div>
               {latestTrace.error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3">
@@ -4340,6 +4343,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
 }
 
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
+  const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const identityName = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
@@ -4414,9 +4418,9 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المقاس المفضل</div>
             <div className="mt-1 text-sm font-black text-white">{profile.preferred_size || "غير معروف"}</div>
           </div>
-          <TagRow label="الألوان" values={profile.preferred_colors} />
-          <TagRow label="Models" values={profile.preferred_models} />
-          <Info label="Memory score" value={profile.memory_score ?? conversation?.lead_score ?? 0} />
+          <TagRow label={t("aiSupport.inbox.field.colours")} values={profile.preferred_colors} />
+          <TagRow label={t("aiSupport.inbox.field.models")} values={profile.preferred_models} />
+          <Info label={t("aiSupport.inbox.field.memoryScore")} value={profile.memory_score ?? conversation?.lead_score ?? 0} />
           <MiniList title="Viewed products" items={asArray(profile.viewed_products)} empty="No viewed products." />
           <MiniList title="Abandoned products" items={asArray(profile.abandoned_products)} empty="No abandoned products." />
           <MiniList title="Previous orders" items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
@@ -4488,6 +4492,7 @@ function OrderDraftPanel({ conversation, drafts, onAction, busy }) {
 }
 
 function DraftCard({ draft, onAction, busy }) {
+  const { t } = useTranslation();
   const item = asArray(draft.items)[0] || {};
   const metadata = draft.ai_agent_metadata || {};
   const stockStatus = item.stock_status || metadata.stock_status || "unknown";
@@ -4502,14 +4507,14 @@ function DraftCard({ draft, onAction, busy }) {
         <Pill tone={draft.ai_agent_status === "confirmed" ? "emerald" : draft.ai_agent_status === "cancelled" ? "rose" : draft.ai_agent_status === "human_handoff" ? "amber" : "cyan"}>{draft.ai_agent_status || draft.status}</Pill>
       </div>
       <div className="mt-3 grid gap-2 text-sm text-slate-300">
-        <Info label="المنتج" value={item.product_name || metadata.product_name || "غير معروف"} />
+        <Info label={t("aiSupport.inbox.field.product")} value={item.product_name || metadata.product_name || "غير معروف"} />
         <div className="grid gap-2 sm:grid-cols-2">
-          <Info label="المتغير / المقاس / اللون" value={item.variant_name || [metadata.size, metadata.color].filter(Boolean).join(" / ") || "غير معروف"} />
-          <Info label="Quantity" value={item.quantity || metadata.quantity || 1} />
-          <Info label="Price" value={money(item.price || draft.total_amount || draft.total || item.total_amount)} />
-          <Info label="Stock" value={stockStatus} />
-          <Info label="Confidence" value={confidence ? confidence.toFixed(2) : "n/a"} />
-          <Info label="Customer data" value={[draft.customer_name, draft.customer_phone, draft.city_area || draft.governorate].filter(Boolean).join(" / ") || "Incomplete"} />
+          <Info label={t("aiSupport.inbox.field.variantSizeColour")} value={item.variant_name || [metadata.size, metadata.color].filter(Boolean).join(" / ") || "غير معروف"} />
+          <Info label={t("aiSupport.inbox.field.quantity")} value={item.quantity || metadata.quantity || 1} />
+          <Info label={t("aiSupport.inbox.field.price")} value={money(item.price || draft.total_amount || draft.total || item.total_amount)} />
+          <Info label={t("aiSupport.inbox.field.stock")} value={stockStatus} />
+          <Info label={t("aiSupport.inbox.field.confidence")} value={confidence ? confidence.toFixed(2) : "n/a"} />
+          <Info label={t("aiSupport.inbox.field.customerData")} value={[draft.customer_name, draft.customer_phone, draft.city_area || draft.governorate].filter(Boolean).join(" / ") || "Incomplete"} />
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -9622,9 +9627,9 @@ export default function AiInbox({ reviewerMode = false }) {
                   </div>
 
                   <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/65 p-2 lg:grid-cols-4">
-                    <Info label="درجة العميل المحتمل" value={conversationLeadScore(safeConversation)} />
-                    <Info label="حرارة العميل" value={conversationLeadTemperature(safeConversation)} />
-                    <Info label="الإجراء المقترح" value={conversationRecommendedSalesAction(safeConversation)} />
+                    <Info label={t("aiSupport.inbox.field.leadScore")} value={conversationLeadScore(safeConversation)} />
+                    <Info label={t("aiSupport.inbox.field.leadTemperature")} value={conversationLeadTemperature(safeConversation)} />
+                    <Info label={t("aiSupport.inbox.field.suggestedAction")} value={conversationRecommendedSalesAction(safeConversation)} />
                     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
                       <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب التقييم</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">

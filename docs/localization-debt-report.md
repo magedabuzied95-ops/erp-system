@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1226
-- Hardcoded English UI strings: 1054
-- Total hardcoded UI strings: 2280
+- Hardcoded Arabic UI strings: 1208
+- Hardcoded English UI strings: 995
+- Total hardcoded UI strings: 2203
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 878 | 672 | 1550 | 19 |
+| main-erp | 58 | 860 | 613 | 1473 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 153 | 231 | 384 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 135 | 172 | 307 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -64,7 +64,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:153 en:231)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:135 en:172)
 
 - 654 [object-key/ar] بارد
 - 655 [object-key/ar] دافئ
@@ -106,7 +106,7 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3026 [jsx-text/ar] لا صورة
 - 3029 [jsx-text/ar] اللون:
 - 3030 [jsx-text/ar] المقاس:
-- ... 344 more
+- ... 267 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 
