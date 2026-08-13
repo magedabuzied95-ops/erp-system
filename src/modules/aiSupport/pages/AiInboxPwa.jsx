@@ -23,6 +23,7 @@ import {
   Search,
   Send,
   Settings,
+  Smile,
   ShieldBan,
   ShoppingBag,
   ShoppingCart,
@@ -63,6 +64,7 @@ import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCache
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import "./AiInboxPwa.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -2152,8 +2154,9 @@ function MessageText({ text = "" }) {
   );
 }
 
-function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "Type a reply", disabled = false }) {
-  const editorRef = useRef(null);
+function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "Type a reply", disabled = false, editorRef: externalEditorRef = null }) {
+  const internalEditorRef = useRef(null);
+  const editorRef = externalEditorRef || internalEditorRef;
   const allowLineBreakRef = useRef(false);
 
   const submitCurrentText = (event) => {
@@ -3372,6 +3375,7 @@ export default function AiInboxPwa() {
   const [editingAiDraft, setEditingAiDraft] = useState(false);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
   const [sending, setSending] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [aiToggling, setAiToggling] = useState(false);
   const [leadActionLoading, setLeadActionLoading] = useState("");
@@ -3417,6 +3421,8 @@ export default function AiInboxPwa() {
   const conversationHeaderRef = useRef(null);
   const menuButtonRef = useRef(null);
   const imageInputRef = useRef(null);
+  const emojiButtonRef = useRef(null);
+  const composerEditorRef = useRef(null);
   const pollRef = useRef(null);
   const restoreScrollStateRef = useRef(null);
   const isLoadingOlderRef = useRef(false);
@@ -5439,6 +5445,28 @@ export default function AiInboxPwa() {
     imageInputRef.current.click();
   }, []);
 
+  const insertComposerEmoji = useCallback((emoji) => {
+    const editor = composerEditorRef.current;
+    const selection = window.getSelection?.();
+    const hasEditorSelection = selection?.rangeCount && editor?.contains(selection.anchorNode);
+    if (editor && hasEditorSelection) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const node = document.createTextNode(emoji);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const nextText = String(editor.innerText || "").replace(/\u00a0/g, " ");
+      setComposerText(nextText);
+      editor.focus();
+      return;
+    }
+    setComposerText((current) => `${current || ""}${emoji}`);
+    window.requestAnimationFrame(() => editor?.focus());
+  }, []);
+
   const handleImageAttachmentChange = useCallback((event) => {
     const file = event.target.files?.[0] || null;
     event.target.value = "";
@@ -6898,11 +6926,29 @@ export default function AiInboxPwa() {
                   aria-hidden="true"
                 />
                 <PwaReplyEditor
+                  editorRef={composerEditorRef}
                   value={composerText}
                   onChange={setComposerText}
                   onSubmit={sendManualReply}
                   disabled={sending}
                   placeholder={composerMode === "note" ? "Write an internal note" : "Type a reply"}
+                />
+                <button
+                  ref={emojiButtonRef}
+                  type="button"
+                  onClick={() => setEmojiPickerOpen((current) => !current)}
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-300/20" : "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-white/[0.06] dark:text-slate-200 dark:ring-white/10"}`}
+                  aria-label="Emoji"
+                  aria-expanded={emojiPickerOpen}
+                >
+                  <Smile className="h-5 w-5" />
+                </button>
+                <AppleEmojiPicker
+                  open={emojiPickerOpen}
+                  anchorRef={emojiButtonRef}
+                  onClose={() => setEmojiPickerOpen(false)}
+                  onSelect={insertComposerEmoji}
+                  title="Choose emoji"
                 />
                 <button
                   type="button"

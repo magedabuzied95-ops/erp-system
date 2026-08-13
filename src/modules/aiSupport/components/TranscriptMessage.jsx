@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
 
 import ProductCardMessage from "./ProductCardMessage";
+import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const reactionEmoji = (value = "") => clean(value) === "❤" ? "❤️" : clean(value);
 const QUICK_MESSAGE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
-const MORE_MESSAGE_REACTIONS = ["👏", "🔥", "🎉", "😍", "🤔", "✅"];
 const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
@@ -244,6 +244,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const [pinned, setPinned] = useState(() => readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
+  const reactionPickerAnchorRef = useRef(null);
   const text = messageBodyText(message);
   const reactions = asArray(row?.reactions).filter((reaction) => reactionEmoji(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
   const ownReaction = reactions.find((reaction) => reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff") || null;
@@ -400,20 +401,27 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
       {reactionPickerOpen ? (
         <div data-ai-message-reaction-picker="true" className={`relative z-50 mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <div className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-xl ${variant === "pwa" ? "border-slate-200 bg-white" : "border-white/10 bg-[#f8fafc]"}`}>
-            {[...QUICK_MESSAGE_REACTIONS, ...(reactionPickerExpanded ? MORE_MESSAGE_REACTIONS : [])].map((emoji) => (
-              <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-8 w-8 place-items-center rounded-full text-lg transition hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}>{emoji}</button>
+            {QUICK_MESSAGE_REACTIONS.map((emoji) => (
+              <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-9 w-9 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}><AppleEmoji emoji={emoji} size={25} /></button>
             ))}
-            <button type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-8 w-8 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label={reactionPickerExpanded ? "تفاعلات أقل" : "تفاعلات أكثر"}>{reactionPickerExpanded ? "−" : "+"}</button>
+            <button ref={reactionPickerAnchorRef} type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-9 w-9 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label="عرض كل الإيموجي">+</button>
           </div>
         </div>
       ) : null}
+      <AppleEmojiPicker
+        open={reactionPickerExpanded}
+        anchorRef={reactionPickerAnchorRef}
+        onClose={() => setReactionPickerExpanded(false)}
+        onSelect={(emoji) => void submitReaction(emoji)}
+        title="اختيار تفاعل"
+      />
       {displayedReactions.length ? (
         <div data-ai-message-reactions="true" className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <div className={`inline-flex min-h-7 items-center gap-1 rounded-full border px-2 py-0.5 shadow-sm ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#252824] text-white"}`}>
             {displayedReactions.map((reaction) => {
               const emoji = reactionEmoji(reaction.message_text || reaction.text || reaction.customer_message || reaction.staff_message);
               const reactor = reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff" ? "أنت" : "العميل";
-              return <span key={messageIdentity({ kind: "reaction" }, reaction)} title={`${reactor}: ${emoji}`} className="text-base leading-none">{emoji}</span>;
+              return <AppleEmoji key={messageIdentity({ kind: "reaction" }, reaction)} emoji={emoji} size={20} className="drop-shadow-sm" title={`${reactor}: ${emoji}`} />;
             })}
           </div>
         </div>

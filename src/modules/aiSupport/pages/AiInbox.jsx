@@ -91,6 +91,7 @@ import { channelWindow, channelsForFilter, mergeConversationPages } from "../ser
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
@@ -3101,6 +3102,8 @@ function ManualReplyComposer({
   const submitLabel = isCommentConversation ? "إرسال الرد" : "إرسال الآن";
   const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
   const textareaRef = useRef(null);
+  const emojiButtonRef = useRef(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const normalizedValidation = normalizeValidationSummary(validationSummary || {});
   const normalizedConfidence = normalizeConfidenceEngineSummary(confidenceEngineSummary || {});
   const slashCommandActive = /^\s*\//.test(String(value || ""));
@@ -3110,7 +3113,23 @@ function ManualReplyComposer({
   // decision logic, thresholds, or telemetry change — the full detail stays in the draft/schema for AI Studio.
   const reviewNeeded = normalizedValidation.violationsCount > 0 || normalizedConfidence.decision === "high_risk" || normalizedConfidence.tone === "rose";
   const submit = () => {
-    if (clean(value) && !slashCommandActive) onSend();
+    if (clean(value) && !slashCommandActive) {
+      setEmojiPickerOpen(false);
+      onSend();
+    }
+  };
+  const insertEmoji = (emoji) => {
+    const textarea = textareaRef.current;
+    const currentValue = String(value || "");
+    const start = Number.isInteger(textarea?.selectionStart) ? textarea.selectionStart : currentValue.length;
+    const end = Number.isInteger(textarea?.selectionEnd) ? textarea.selectionEnd : start;
+    const nextValue = `${currentValue.slice(0, start)}${emoji}${currentValue.slice(end)}`;
+    onChange(nextValue);
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(start + emoji.length, start + emoji.length);
+      resizeTextarea();
+    });
   };
   const resizeTextarea = () => {
     const element = textareaRef.current;
@@ -3209,9 +3228,16 @@ function ManualReplyComposer({
             placeholder={canSendLive ? "Type your message..." : "Write an internal note. It will not be sent yet."}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
-          <button type="button" title="Emoji" aria-label="Emoji" className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100">
+          <button ref={emojiButtonRef} type="button" onClick={() => setEmojiPickerOpen((current) => !current)} title="Emoji" aria-label="Emoji" aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
             <Smile className="h-5 w-5" />
           </button>
+          <AppleEmojiPicker
+            open={emojiPickerOpen}
+            anchorRef={emojiButtonRef}
+            onClose={() => setEmojiPickerOpen(false)}
+            onSelect={insertEmoji}
+            title="Choose emoji"
+          />
           <button
             type="button"
             onClick={() => onOpenAvailableBySizePicker?.()}
