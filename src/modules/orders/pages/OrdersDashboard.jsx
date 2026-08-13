@@ -598,7 +598,7 @@ function OrdersDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [workspace, setWorkspace] = useState("table");
+  const [workspace] = useState("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -923,8 +923,6 @@ function OrdersDashboard() {
         <h1 className="m1-page-title">{t("orders.dashboard.operationsWorkspace")}</h1>
       </header>
 
-      <WorkspaceTabs t={t} value={workspace} onChange={(value) => { setWorkspace(value); setPage(1); }} counts={{ table: orders.length, verification: verificationOrders.length, fulfillment: fulfillmentOrders.length, returns: returnsOrders.length }} />
-
       <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
         <main className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-2xl shadow-black/10">
           <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1029,27 +1027,6 @@ function OrdersDashboard() {
       />
       </div>
     </OrdersShell>
-  );
-}
-
-function WorkspaceTabs({ t, value, onChange, counts }) {
-  return (
-    <div className="m1-orders-views grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {WORKSPACES.map(({ key, labelKey, icon: Icon }) => (
-        <button data-active={value === key}
-          key={key}
-          type="button"
-          onClick={() => onChange(key)}
-          className={`flex items-center justify-between gap-3 rounded-[var(--radius-control)] border px-3 py-2.5 text-left transition ${value === key ? "border-primary/30 bg-surface-soft text-text shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-text-muted hover:bg-surface-hover hover:text-text"}`}
-        >
-          <span className="flex min-w-0 items-center gap-2">
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="truncate text-sm font-black">{t(labelKey)}</span>
-          </span>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${value === key ? "bg-primary/15 text-primary" : "bg-surface-soft text-text"}`}>{counts[key] || 0}</span>
-        </button>
-      ))}
-    </div>
   );
 }
 
