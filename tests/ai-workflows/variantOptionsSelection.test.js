@@ -33,10 +33,14 @@ const FOUR_COLORS = [
   { variant_id: 903, size: "43", color: "black", stock: 1 },
   { variant_id: 904, size: "43", color: "Navy", stock: 4 },
 ];
+// `variants` may be an array (same stock for every matched product) or a fn (productId) => variants.
 const ground = (message, variants, products = [JORDAN]) =>
   G.applyInboxGroundingGate({
     tenantId: 1, sessionId: "instagram:owner-test", message,
-    deps: { resolveByBrandModel: async () => products, inventoryFacts: async () => ({ variant_stock: variants }) },
+    deps: {
+      resolveByBrandModel: async () => products,
+      inventoryFacts: async (productId) => ({ variant_stock: typeof variants === "function" ? variants(productId) : variants }),
+    },
   });
 
 // ================= 1 — SEMANTICS =================
@@ -78,15 +82,41 @@ test("17: ZERO in-stock colours at the requested size → unavailable, no select
   assert.equal(r.selection_semantics, null);
 });
 
-test("18: product IDENTITY ambiguity outranks options — stays single_disambiguation", async () => {
-  const r = await ground("عندكم جوردن فور مقاس 43؟", FOUR_COLORS, [JORDAN, { id: 208, name: "Air Jordan 4 Retro", product_type: "sneakers" }]);
+const JORDAN_208 = { id: 208, name: "Air Jordan 4 Retro", product_type: "sneakers" };
+
+test("18: colour options SPANNING two products stay single_disambiguation (identity genuinely unresolved)", async () => {
+  // BOTH catalog rows stock the requested size in different colours → the operator must resolve WHICH product
+  const r = await ground(
+    "عندكم جوردن فور مقاس 43؟",
+    (pid) => (String(pid) === "39"
+      ? [{ variant_id: 901, size: "43", color: "Navy", stock: 2 }]
+      : [{ variant_id: 801, size: "43", color: "white&green", stock: 2 }]),
+    [JORDAN, JORDAN_208],
+  );
   assert.equal(r.product_ambiguous, true);
+  assert.equal(new Set(r.color_choices.map((c) => String(c.product_id))).size, 2);
   assert.notEqual(r.selection_semantics, "multi_variant_options");
   assert.equal(selectionModeFromSemantics(r.selection_semantics), SELECTION_MODES.DISAMBIGUATION);
 });
 
+// PRODUCTION SHAPE (verified read-only against tenant 1, 2026-08-13): "جوردن فور" matches TWO catalog rows, but
+// only product 39 stocks size 43 — every colour option is canonically ONE product, so the options UI is correct.
+// Identity is grounded by the VARIANT evidence, which is stronger than the name query.
+test("1b: name matches >1 row yet all in-stock size-43 colours are ONE product → multi_variant_options", async () => {
+  const r = await ground(
+    "فيه جوردن فور مقاس 43؟",
+    (pid) => (String(pid) === "39" ? FOUR_COLORS : [{ variant_id: 801, size: "41", color: "Red", stock: 3 }]),
+    [JORDAN, JORDAN_208],
+  );
+  assert.equal(r.action, "color_choice_required");
+  assert.equal(r.product_ambiguous, true, "the NAME query is ambiguous…");
+  assert.equal(new Set(r.color_choices.map((c) => String(c.product_id))).size, 1, "…but the variant evidence is not");
+  assert.equal(r.selection_semantics, "multi_variant_options");
+  assert.equal(r.color_choices.length, 4);
+});
+
 test("19: Phase 13.4 product recommendation multi-select is NOT regressed", async () => {
-  const r = await ground("عندكم ايه موديلات سنيكرز؟", [], [JORDAN, { id: 208, name: "Air Jordan 4 Retro", product_type: "sneakers" }]);
+  const r = await ground("عندكم ايه موديلات سنيكرز؟", [], [JORDAN, JORDAN_208]);
   assert.equal(r.product_ambiguous, true);
   assert.equal(selectionModeFromSemantics(r.selection_semantics), SELECTION_MODES.RECOMMENDATION);
 });
@@ -243,6 +273,7 @@ test("27/28/29: completion clears the selection; tombstone + new source_message_
 });
 
 test("30: nothing autonomous — the gate only labels semantics; every send needs the operator's approval", () => {
-  assert.match(gateSrc, /\? "multi_variant_options"/);
+  assert.match(gateSrc, /const variantOptionsMode = decision\.action === "color_choice_required"/);
+  assert.match(gateSrc, /colorChoiceProductIds\.length === 1/);
   assert.doesNotMatch(gateSrc, /sendProductCards|autoSend|auto_send/);
 });

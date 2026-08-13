@@ -18,8 +18,10 @@ const salesSrc = read("server/services/aiSalesAgentService.js");
 // ---------------- Backend: selection_semantics flag (additive, deterministic, safe default) ----------------
 test("gate emits selection_semantics only when ambiguous; defaults to identity_disambiguation (single-select)", () => {
   // Phase 13.4.1 added a third value (multi_variant_options) for grounded colour options of ONE product; the
-  // ambiguous-product branch and its identity_disambiguation default are unchanged.
-  assert.match(gateSrc, /selection_semantics: productAmbiguous\s*\n?\s*\?\s*\(\(decision\.action === "soft_match" \|\| detectsRecommendationIntent\(message\)\) \? "recommendation" : "identity_disambiguation"\)/);
+  // ambiguous-product branch, its identity_disambiguation default, and the null-when-unambiguous default are all
+  // unchanged — the variant-options case is simply evaluated first.
+  assert.match(gateSrc, /selection_semantics: variantOptionsMode\s*\n?\s*\?\s*"multi_variant_options"/);
+  assert.match(gateSrc, /\(productAmbiguous\s*\n?\s*\?\s*\(\(decision\.action === "soft_match" \|\| detectsRecommendationIntent\(message\)\) \? "recommendation" : "identity_disambiguation"\)\s*\n?\s*: null\)/);
 });
 test("recommendation intent detector is deterministic and matches show-me-options phrasing", () => {
   assert.match(gateSrc, /const detectsRecommendationIntent = \(text = ""\) =>/);

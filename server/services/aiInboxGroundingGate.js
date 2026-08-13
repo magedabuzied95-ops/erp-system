@@ -653,6 +653,16 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // NOT silently attach one — we surface choices for the employee to pick. Never attach remembered/popular.
     const distinctProductIds = [...new Set(compatibleProducts.map((p) => p.id))];
     const productAmbiguous = distinctProductIds.length > 1;
+    // Phase 13.4.1 — VARIANT OPTIONS mode. Identity counts as GROUNDED when the in-stock colour choices for the
+    // requested size all belong to ONE product — that is the variant evidence resolving identity, which is
+    // stronger than the name query (a term like "جوردن فور" legitimately matches >1 catalog row while only one of
+    // them actually stocks the requested size). If the choices span >1 product, identity is genuinely unresolved
+    // and the operator must pick ONE product first (§15) — never a colour batch across different products.
+    const colorChoiceProductIds = [...new Set((decision.color_choices || []).map((c) => String(c.product_id)))];
+    const variantOptionsMode = decision.action === "color_choice_required"
+      && !entities.color
+      && colorChoiceProductIds.length === 1
+      && (decision.color_choices || []).length > 1;
     const ev = variantGrounding?.exactVariant || null;
     let sendReadyCard = null;
     let cardChoices = [];
@@ -682,15 +692,15 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       product_ambiguous: productAmbiguous,
       // Phase 13.4 — selection semantics for the ambiguous card set. "recommendation" ⇒ operator may multi-select
       // and send several; "identity_disambiguation" ⇒ pick exactly one (safe default); null when not ambiguous.
-      // Phase 13.4.1 — "multi_variant_options": product identity is ALREADY grounded (exactly one catalog product),
-      // the customer requested a size but NO colour, and the size is in stock in >1 canonical colour. That is not a
-      // disambiguation question ("which one do you mean?") — it is an OPTIONS question ("here is what's available"),
-      // so the operator may tick several grounded variants of the SAME product. Any ambiguity about WHICH product
-      // is meant outranks this and stays single-select (§15).
-      selection_semantics: productAmbiguous
-        ? ((decision.action === "soft_match" || detectsRecommendationIntent(message)) ? "recommendation" : "identity_disambiguation")
-        : (decision.action === "color_choice_required" && !entities.color && Array.isArray(decision.color_choices) && decision.color_choices.length > 1
-            ? "multi_variant_options"
+      // Phase 13.4.1 — "multi_variant_options": product identity is ALREADY grounded BY THE VARIANT EVIDENCE (all
+      // in-stock colour choices for the requested size belong to one product), the customer requested a size but
+      // NO colour, and >1 canonical colour is in stock. That is not a disambiguation question ("which one do you
+      // mean?") — it is an OPTIONS question ("here is what's available"), so the operator may tick several grounded
+      // variants of the SAME product. Choices spanning >1 product remain single-select identity resolution (§15).
+      selection_semantics: variantOptionsMode
+        ? "multi_variant_options"
+        : (productAmbiguous
+            ? ((decision.action === "soft_match" || detectsRecommendationIntent(message)) ? "recommendation" : "identity_disambiguation")
             : null),
       color_choices: Array.isArray(decision.color_choices) ? decision.color_choices : [],
       color_choice_required: decision.action === "color_choice_required",
