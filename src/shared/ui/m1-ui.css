@@ -35,7 +35,13 @@
 .m1-icon-button--primary{background:var(--primary);border-color:var(--primary);color:var(--primary-contrast)}
 .m1-icon-button--danger{background:var(--danger);border-color:var(--danger);color:var(--danger-foreground)}
 
-.m1-control{display:grid;gap:7px}
+/* The explicit minmax(0,1fr) track is the shrink floor. Without a template the
+   single implicit track is `auto`, whose base size is the min-content width of
+   the label/input/help stack -- so a control could not shrink below its content
+   and overflowed its column at narrow widths, blowing every ancestor grid with
+   it. For a one-column grid the two are identical whenever the content fits;
+   they differ only in the minimum. */
+.m1-control{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
 .m1-control__label{font-size:12px;font-weight:700;color:var(--text)}
 .m1-control__help{font-size:11px;color:var(--muted)}
 .m1-control--error .m1-control__help{color:var(--danger)}
