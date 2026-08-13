@@ -88,6 +88,23 @@ const hasExplicitProductMention = (entities = {}) => {
     .some((w) => w.length >= 2 && !CONTEXT_CONTINUATION_FILLERS.has(w) && !colorSet.has(w));
 };
 
+// Phase 13.4 — RECOMMENDATION vs IDENTITY DISAMBIGUATION selection semantics. When an ambiguous match set is
+// present (>1 distinct product), the business meaning of the customer's turn decides whether the operator picks
+// ONE (identity question — "which of these two Jordan 4s?") or MAY pick SEVERAL to send (recommendation —
+// "show me options/models"). This is a DETERMINISTIC label on top of existing grounding; it changes no
+// resolution logic. Default is disambiguation (single-select) — recommendation lights up ONLY on explicit
+// show-me-options phrasing, so the safe/current behaviour is preserved when uncertain.
+export const detectsRecommendationIntent = (text = "") => {
+  const t = String(text || "");
+  if (!t) return false;
+  if (/موديلات|اختيارات|تشكيل|كولكشن|collection|options|models/i.test(t)) return true;
+  if (/(كام|كذا|بعض|شوية|شويه)\s*موديل/i.test(t)) return true;
+  if (/(ورّيني|وريني|ورينى|اعرضلي|اعرض\s*لي|هاتلي|هات\s*لي|ابعتلي|ابعت\s*لي)/i.test(t)
+      && /(موديل|اختيار|حاج|كوتشي|شوز|صندل|شبشب)/i.test(t)) return true;
+  if (/عندك(م|و|ن)?\s*(ايه|إيه)|(ايه|إيه)\s*(اللي\s*)?عندك/i.test(t)) return true;
+  return false;
+};
+
 const defaultResolveProductById = async ({ tenantId, productId, dbClient = db } = {}) => {
   if (!tenantId || !productId) return null;
   const r = await dbClient.query(
@@ -613,6 +630,11 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       send_ready_card: sendReadyCard,
       card_choices: cardChoices,
       product_ambiguous: productAmbiguous,
+      // Phase 13.4 — selection semantics for the ambiguous card set. "recommendation" ⇒ operator may multi-select
+      // and send several; "identity_disambiguation" ⇒ pick exactly one (safe default); null when not ambiguous.
+      selection_semantics: productAmbiguous
+        ? ((decision.action === "soft_match" || detectsRecommendationIntent(message)) ? "recommendation" : "identity_disambiguation")
+        : null,
       color_choices: Array.isArray(decision.color_choices) ? decision.color_choices : [],
       color_choice_required: decision.action === "color_choice_required",
       grounding: {

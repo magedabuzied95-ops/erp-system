@@ -5755,6 +5755,10 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
         reply.send_package = {
           product_ambiguous: Boolean(groundingResult.product_ambiguous),
           card_choices: enrichedChoices,
+          // Phase 13.4 — selection semantics for the ambiguous card set (additive; the operator UI reads this to
+          // decide single-select identity resolution vs multi-select recommendation batch). No send behaviour is
+          // autonomous; every product still requires human Approve & Send.
+          selection_semantics: groundingResult.selection_semantics || null,
           color_choice_required: Boolean(groundingResult.color_choice_required),
           color_choices: enrichedColorChoices,
           channel: conversation.channel || conversation.source || "web_chat",

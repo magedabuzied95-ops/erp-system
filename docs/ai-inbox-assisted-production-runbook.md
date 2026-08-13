@@ -269,6 +269,38 @@ durable context, colour disambiguation, stale protection, the monotonic complete
 and all backend data are unchanged (the full detail still lives in the draft/schema for AI Studio). One
 shared card serves all three channels (Messenger / Instagram / WhatsApp); the channel is a prop.
 
+## 9d. Unified multi-product selection & batch send (Phase 13.4)
+
+The operator can now select **up to 5 products** (`MAX_BATCH_PRODUCTS`) and send them together, in BOTH surfaces,
+via ONE shared selection primitive (`src/modules/aiSupport/lib/productSelection.js`, keyed by canonical
+`product_id[:variant_id]`). Three explicit selection semantics — the mode carries the business meaning, never
+inferred from the number of cards:
+
+- **`multi_manual`** — the manual "إرسال منتج" picker. Clicking a card TOGGLES selection (never sends); a compact
+  bar shows "تم تحديد N منتجات" + "إلغاء التحديد" + "إرسال المنتجات المحددة (N)". Selection survives search/filter
+  (retained card snapshots), clears on a fresh open, order preserved. Stays MANUAL ownership (`assisted_approval`
+  **false**).
+- **`multi_recommendation`** — a grounded AI recommendation batch (send_package `selection_semantics ===
+  "recommendation"`). The operator ticks products ("اختار المنتجات اللي هتتبعت"); Approve becomes
+  "اعتماد وإرسال (N منتجات)" and sends the approved reply + selected products as ONE assisted flow
+  (`assisted_approval` **true**, stays `ai_active`). Selection is scoped to the draft `source_message_id` and
+  cleared by the monotonic completed/stale lifecycle — never resurrected.
+- **`single_disambiguation`** — identity resolution (one named model → >1 catalog rows). **Single-select only**,
+  unchanged: pick exactly one product to establish identity. This safety behaviour is preserved.
+
+**Send** is **FE-sequential per card**: each selected product is its own `/product-card/send` request (its own
+idempotency key), reusing the already-live single-card route — **honest per-card partial failure**
+("تم إرسال 4 من 5 منتجات — فشل إرسال منتج واحد") with **zero change to the live provider send loop**. Manual
+partial failure keeps ONLY the failed cards selected; the AI batch keeps the text + sent products completed and
+surfaces the failed ones (never falsely restores the suggestion). Channel delivery is unchanged (Messenger rich
+cards / Instagram concise text+link / WhatsApp image+link), one per selected product.
+
+Backend change is a **single additive field** — `send_package.selection_semantics` (derived deterministically:
+`soft_match` or explicit show-me-options phrasing ⇒ recommendation; otherwise identity disambiguation; the safe
+default when uncertain is single-select). No grounding, durable-context, multi-colour, stale-protection,
+tombstone-lifecycle, learning, or channel-identity change. No new autonomous path; every product still requires
+human Approve & Send.
+
 ## 10. Change log
 
 - Stage A (Messenger, human-approved) declared GO. WA remains OFF.
@@ -280,3 +312,7 @@ shared card serves all three channels (Messenger / Instagram / WhatsApp); the ch
   facts / context chip from the operator card; condensed to one compact `⚠ يحتاج مراجعة` badge. No logic,
   lifecycle, or backend change. Production state unchanged (all live channels suggest-only,
   `WHATSAPP_AI_AUTO_REPLY=false`).
+- Phase 13.4: unified multi-product selection (up to 5) + batch send across the manual picker and AI
+  recommendation batch; one shared selection primitive; FE-sequential per-card send with honest partial
+  failure; additive `send_package.selection_semantics` flag. Identity disambiguation stays single-select. No
+  new autonomous path; production state unchanged.
