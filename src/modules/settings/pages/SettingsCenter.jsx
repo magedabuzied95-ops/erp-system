@@ -1382,7 +1382,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
   return (
     <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <span className={`block text-sm font-black ${headingText}`}>{title}</span>
           <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{helper}</p>
         </div>
@@ -1397,7 +1397,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
           </button>
         ) : null}
       </div>
-      <div className="grid gap-3 sm:grid-cols-[5.5rem_minmax(0,1fr)]">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,5.5rem)_minmax(0,1fr)]">
         <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 dark:border-white/15 dark:bg-slate-950">
           {previewUrl && !failed ? (
             <img src={previewUrl} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />

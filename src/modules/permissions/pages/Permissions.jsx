@@ -132,7 +132,7 @@ function PermissionsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(300px,0.6fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(300px,0.6fr)_minmax(0,1.4fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
