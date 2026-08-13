@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 117
-- Hardcoded Arabic UI strings: 1025
-- Hardcoded English UI strings: 807
-- Total hardcoded UI strings: 1832
-- Mixed-language files (both scripts hardcoded): 29
+- Files with debt: 116
+- Hardcoded Arabic UI strings: 1006
+- Hardcoded English UI strings: 806
+- Total hardcoded UI strings: 1812
+- Mixed-language files (both scripts hardcoded): 28
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 58 | 725 | 446 | 1171 | 18 |
-| shared | 43 | 100 | 278 | 378 | 7 |
+| shared | 42 | 81 | 277 | 358 | 6 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -41,7 +41,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 28 | 3 | 31 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
-| src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
 | src/modules/website/pages/WebsiteSettings.jsx | main-erp | 10 | 9 | 19 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
 | src/modules/products/pages/ProductPrintList.jsx | main-erp | 15 | 2 | 17 |
@@ -915,29 +914,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 50 [object-key/en] Customer message
 - 51 [object-key/en] Notification
 - 52 [object-key/en] Error
-
-### src/modules/aiSupport/components/PwaOrderComposer.jsx (shared — ar:19 en:1)
-
-- 105 [jsx-text/ar] اختَر المنتج وأكمل عنوان Bosta قبل حفظ المسودة.
-- 105 [attribute/ar] إغلاق
-- 105 [jsx-text/ar] إنشاء طلب من المحادثة
-- 105 [jsx-text/en] AI Inbox Order
-- 107 [jsx-text/ar] الإجمالي:
-- 107 [attribute/ar] الكمية
-- 107 [jsx-text/ar] المنتج والمخزون
-- 108 [attribute/ar] اسم العميل *
-- 108 [jsx-text/ar] بيانات العميل
-- 108 [attribute/ar] رقم الهاتف *
-- 109 [jsx-text/ar] المدينة والمنطقة والحي من دليل Bosta لضمان قبول الشحنة.
-- 109 [jsx-text/ar] عنوان شحن Bosta
-- 111 [jsx-text/ar] المنطقة *
-- 112 [jsx-text/ar] الحي *
-- 113 [attribute/ar] اسم الشارع والعنوان بالتفصيل *
-- 113 [attribute/ar] الدور
-- 113 [attribute/ar] الشقة
-- 113 [attribute/ar] رقم المبنى *
-- 113 [attribute/ar] علامة مميزة
-- 115 [attribute/ar] ملاحظات الطلب أو التوصيل
 
 ### src/modules/pos/components/SmartPosFilters.jsx (pos — ar:20 en:0)
 
