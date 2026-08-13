@@ -886,3 +886,149 @@ proposing any correction. Do **not** fix by clipping or hiding.
 4. Keep the **bidirectional** overflow rule, the **in-flow-only** rule (#6) and the
    **scrollport-aware** escape rule (#7) enabled — each one prevented a false
    defect this session.
+
+---
+
+## Session 6 — DEFECT 3 FIXED_VERIFIED (two checkpoints); Marketing cap classified
+
+### The trace corrected a wrong first attribution — recorded honestly
+
+The first hypothesis was that `span.truncate` (3197 px, `nowrap`) was the width
+originator, and cp2 shipped `min-w-0` on it. **Post-deploy measurement disproved
+that**: build `729d979f8450` carried the class (`min-w-0 truncate` present in the
+DOM) yet the span was still 3197 px and utilisation still 175 %. The span was being
+*stretched*, not forcing.
+
+Walking **up** from the card found the real owner:
+
+```
+div.grid.gap-4        width 1174   grid-template-columns: 3388.52px  <-- track blown out
+  article             width 3389   min-width: auto                   <-- the forcing item
+```
+
+The card is a grid item with the default `min-width: auto`, so the track's
+automatic minimum equals the card's **min-content** width — which the `nowrap`
+caption inflates to ~3197 px. The single column therefore resolved to 3388.52 px
+inside a 1173.64 px grid.
+
+**Proven in the live DOM before editing** (toggle test, this browser only):
+
+| State | grid track | article | utilisation | caption |
+|---|---|---|---|---|
+| as deployed | 3388.52 px | 3389 | 175 % | 3197 |
+| `min-w-0` added to article | **1173.64 px** | **1174** | **76.4 %** | **1011 (truncated)** |
+| removed again | 3388.52 px | 3389 | 175 % | — |
+
+cp2 was **necessary but not sufficient**: the caption only truncates because it
+also carries `min-w-0`. Both are required; neither alone fixes it.
+
+### Checkpoints
+
+| # | Change | Rollback ref | Released | Production verified |
+|---|---|---|---|---|
+| cp2 | `min-w-0` on the caption span, `shrink-0` on the `#id` badge (`SocialPosts.jsx:148`) | `rollback/pre-layout-geometry-cp2-20260813` → `2ca5784` | `729d979` | deployed; insufficient alone (recorded above) |
+| cp3 | `min-w-0` on the post card `<article>` (`SocialPosts.jsx:123`) | `rollback/pre-layout-geometry-cp3-20260813` → `729d979` | `6b0dff3` | **FIXED_VERIFIED** |
+
+Validation for both: lint 0 errors, `vite build` green, design/visual/navigation
+guards **58/58** then **54/54** pass, no newly introduced failures.
+
+### DEFECT 3 — post-deploy re-measurement on build `6b0dff35b77e`
+
+| Metric | Before | After |
+|---|---|---|
+| `availableWorkspaceWidth` | 1937 | 1937 |
+| `pageContentWidth` | **3389** | **1480** |
+| `workspaceUtilization` | **175 %** | **76.4 %** |
+| logical gutter start / end | **+382 / −1833** | **229 / 229** |
+| `gutterSymmetric` | false | **true** |
+| `escNotInScrollport` | **124** | **0** |
+| `escInScrollport` | 0 | 0 |
+| overflow boxes | 4 | **0** |
+| page-level horizontal overflow | 0 | 0 |
+| grid track | 3388.52 px | **1173.64 px** |
+| caption widths | 3197 / 2966 / 2956 | **1011 max, truncated** |
+
+Roughly 1400 px per card is no longer clipped-and-unreachable.
+State: **FIXED_VERIFIED**.
+
+Scope discipline: the bare-`truncate` pattern appears **55 times** in `src`, but the
+others sit inside `min-w-0` wrappers and did not reproduce the defect. No blanket
+sweep was made.
+
+### Marketing 1480 px cap — shared owner identified and classified
+
+**Single shared owner:** `src/shared/layouts/AiMarketing.m1.css:2`
+
+```css
+.m1-ai-marketing-scope .m1-shell-content > div { max-width: 1480px; margin-inline: auto; … }
+```
+
+One blanket rule caps **every** direct shell child across the whole marketing
+scope, with no distinction between reading-focused and operational surfaces —
+precisely the "consistent, therefore unexamined" pattern.
+
+**Objective squeeze test** (Dark/RTL @ 2288, 12 marketing routes): for every route,
+detect horizontal scrollports actually overflowing while the 457 px of gutter sits
+unused.
+
+| Route | util | unused | tables | grids/cards | h-scroll squeeze | max squeeze px |
+|---|---|---|---|---|---|---|
+| `/marketing` | 76.4 % | 457 | 1 | 2 | **0** | **0** |
+| `/marketing/analytics` | 76.4 % | 457 | 1 | 6 | **0** | **0** |
+| `/marketing/attribution` | 76.4 % | 457 | 1 | 5 | **0** | **0** |
+| `/marketing/posts` | 76.4 % | 457 | 0 | 13 | **0** | **0** |
+| `/marketing/social-calendar` … `/marketing/ai-center/leads` | 76.4 % | 457 | — | — | **0** | **0** |
+
+**Result: no marketing surface is being squeezed.** No table, grid or card cluster
+overflows; nothing scrolls horizontally; nothing is clipped. The 457 px is
+deliberate whitespace, not a functional constraint.
+
+**Classification: `INTENTIONAL_CAPPED`, with the reason recorded** — a scope-wide
+centred measure cap that, at the measured viewport, costs no functionality on any
+of the 20 routes.
+
+**Deliberately not changed, and why.** Several of these *are* operational
+(dashboard with a table, analytics with 6 grids, attribution with a table plus 5
+grids, posts with 13 cards, the calendar). Widening them would likely be an
+improvement — but there is **no measured defect** behind it: nothing is
+compressed, truncated or unreachable. Editing one CSS rule that governs 20
+production routes on preference rather than evidence is a **design decision, not a
+geometry correction**, and the standing instruction is not to remove the cap
+blindly. It is therefore escalated as an explicit open design question rather than
+shipped unilaterally.
+
+**If it is later approved**, the correct shape is to scope the cap by surface type
+in that one owner (reading-focused surfaces keep 1480 px; operational dashboards,
+tables and card-management surfaces take the full workspace) — **not** to delete
+the rule, which would also un-centre the reading surfaces.
+
+### Programme state
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | **3** (`e7b5745`, `729d979`, `6b0dff3`) |
+| Rollback refs | cp1 → `dc985f6`, cp2 → `2ca5784`, cp3 → `729d979` |
+| Defects: found / FIXED_VERIFIED / dismissed on evidence / open | 3 / **2** / 1 / **0** |
+| `NEEDS_FIX` | **0** |
+| Unexplained width caps | **0** (the 1480 px cap is explained, owner-identified, classified) |
+| Auditor fixes to date | 7 |
+| Production at session end | `6b0dff3` |
+
+### RESUME MARKER (supersedes session 5)
+
+1. **Open design question** (needs a human call, not a measurement): should the
+   operational marketing surfaces keep the 1480 px cap? Owner and proposed shape
+   recorded above.
+2. Responsive rungs — Claude Browser pane (exact emulation; `/dashboard` verified
+   at 1430×900: util 100 %, symmetric gutters, 0 escapes). Run the Fluid Workspace
+   matrix at 1920 / 1440 / 1024 / 768.
+3. Dark/LTR; frozen references `/orders` `/customers` `/inventory`; internal
+   states; 7 pathological surfaces (bounded → `PASS_BOUNDED`); 21 session-1
+   unverified routes; 4 open Dark routes; final regression sweep.
+4. Keep all corrected auditor rules: out-of-flow geometry ignored, scrollport-aware
+   escapes, symmetric full-bleed recognised, RTL overflow measured on both logical
+   edges.
+5. **Lesson recorded:** a wide descendant is not necessarily the originator. Walk
+   *up* to the width-defining ancestor and confirm with a live toggle test before
+   editing — the first attribution here was wrong and only the post-deploy
+   measurement caught it.
