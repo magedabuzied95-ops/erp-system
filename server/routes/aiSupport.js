@@ -55,6 +55,12 @@ import {
 } from "../services/aiSalesReplyComposerService.js";
 import { normalizeProductCards } from "../services/aiProductCards.js";
 import { getWebsiteSettings, updateWebsiteSettings } from "../services/liveActivityService.js";
+import {
+  AI_KB_DEFAULTS,
+  AI_KB_SETTINGS_KEY,
+  normalizeKnowledgeBase,
+  publicKnowledgeBase,
+} from "../services/aiSupportKnowledgeBaseService.js";
 import { generateSupportAnswer, understandProductImageForSearch } from "../services/openaiSupportService.js";
 import { reindexAllProductImages } from "../services/aiVisualProductImageIndexService.js";
 import { buildStorefrontProductUrl } from "../services/storefrontProductUrlService.js";
@@ -1659,76 +1665,9 @@ const cleanupExpiredRateLimitBuckets = () => {
   }
 };
 
-const AI_KB_KEY = "ai_support_knowledge_base";
-const AI_KB_DEFAULTS = Object.freeze({
-  store_name: "",
-  phone: "",
-  whatsapp: "",
-  branch_working_hours: "",
-  payment_methods: "",
-  shipping_policy: "",
-  return_exchange_policy: "",
-  delivery_notes: "",
-  warranty_notes: "",
-  human_support_message: "",
-  brand_tone_instructions: "",
-  personality_settings: "Egyptian Arabic professional sales agent for Tiger Store. Friendly, confident, respectful, concise, and human.",
-  allowed_phrases: "تمام، تحت أمرك، بص، مظبوء خليني أظبطهولك، المقاس ده بيتحرك بسرعة",
-  forbidden_phrases: "أنا مساعد ذكي، يسعدني مساعدتك، برجاء المحاولة لاحقا، لا أملك معلومات كافية",
-  sales_scripts: "افهم احتياج العميل الأول، رشح من المنتجات المتاحة، اذكر السعر والتوفر، وضح القيمة، ثم اسأل سؤال واحد مناسب.",
-  objection_replies: [
-    "السعر غالي: فاهمك، السعر واضح على الموديل والمتاح منه. لو الميزانية أقل أقدر أشوفلك اختيار أرخص.",
-    "فيه خصم؟ الخصومات المتاحة هأكدها من السيستم، ولو محتاج خصم خاص بحولك للإدارة.",
-    "أصلي ولا كوبي؟ هقولك التصنيف المتسجل عندنا بوضوح من غير مبالغة.",
-    "الدفع عند الاستلام: لو متاح في سياسة الدفع هنأكدلك، ولو مش واضح بحولك للدعم."
-  ].join("\n"),
-  tone_strength: "medium",
-  discount_rules: "لا توعد بخصم غير مسجل. الخصم الخاص أو آخر سعر يحتاج تحويل للإدارة.",
-  handoff_rules: "حول للإدارة عند الغضب، خصم خاص، مشكلة دفع أو توصيل، استبدال/استرجاع، تعارض مخزون، منطقة غير مدعومة، أو ثقة منخفضة.",
-  order_draft_approval: "create_after_clear_buying_intent_and_complete_details",
-});
-
-const normalizePhone = (value = "") => toText(value).replace(/[\s().-]/g, "");
-
-const validateOptionalPhone = (value = "", label = "Phone") => {
-  const text = normalizePhone(value);
-  if (!text) return "";
-  if (!/^\+?[0-9]{7,15}$/.test(text)) {
-    const error = new Error(`${label} must be 7-15 digits and may start with +`);
-    error.status = 400;
-    throw error;
-  }
-  return text;
-};
-
-const normalizeKnowledgeBase = (payload = {}) => ({
-  store_name: toText(payload.store_name).slice(0, 160),
-  phone: validateOptionalPhone(payload.phone, "Public phone"),
-  whatsapp: validateOptionalPhone(payload.whatsapp, "WhatsApp number"),
-  branch_working_hours: toText(payload.branch_working_hours).slice(0, 4000),
-  working_hours: toText(payload.branch_working_hours || payload.working_hours).slice(0, 4000),
-  payment_methods: toText(payload.payment_methods).slice(0, 4000),
-  shipping_policy: toText(payload.shipping_policy).slice(0, 6000),
-  return_exchange_policy: toText(payload.return_exchange_policy).slice(0, 6000),
-  delivery_notes: toText(payload.delivery_notes).slice(0, 4000),
-  warranty_notes: toText(payload.warranty_notes).slice(0, 4000),
-  human_support_message: toText(payload.human_support_message).slice(0, 2000),
-  brand_tone_instructions: toText(payload.brand_tone_instructions).slice(0, 3000),
-  personality_settings: toText(payload.personality_settings).slice(0, 3000),
-  allowed_phrases: toText(payload.allowed_phrases).slice(0, 3000),
-  forbidden_phrases: toText(payload.forbidden_phrases).slice(0, 3000),
-  sales_scripts: toText(payload.sales_scripts).slice(0, 6000),
-  objection_replies: toText(payload.objection_replies).slice(0, 6000),
-  tone_strength: ["low", "medium", "high"].includes(toText(payload.tone_strength).toLowerCase()) ? toText(payload.tone_strength).toLowerCase() : "medium",
-  discount_rules: toText(payload.discount_rules).slice(0, 4000),
-  handoff_rules: toText(payload.handoff_rules).slice(0, 4000),
-  order_draft_approval: toText(payload.order_draft_approval || "create_after_clear_buying_intent_and_complete_details").slice(0, 120),
-});
-
-const publicKnowledgeBase = (settings = {}) => ({
-  ...AI_KB_DEFAULTS,
-  ...(settings?.[AI_KB_KEY] && typeof settings[AI_KB_KEY] === "object" ? settings[AI_KB_KEY] : {}),
-});
+// The Smart Support Knowledge Base schema/normalizer lives in ONE place (aiSupportKnowledgeBaseService) so
+// the operator page, this API and the AI support-fact grounding layer can never drift apart.
+const AI_KB_KEY = AI_KB_SETTINGS_KEY;
 
 router.get("/knowledge-base", protect, requireAiSupportAdmin, async (req, res) => {
   try {

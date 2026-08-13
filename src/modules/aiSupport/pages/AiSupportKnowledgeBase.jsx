@@ -9,6 +9,8 @@ const defaultForm = {
   store_name: "",
   phone: "",
   whatsapp: "",
+  store_address: "",
+  maps_url: "",
   branch_working_hours: "",
   payment_methods: "",
   shipping_policy: "",
@@ -23,6 +25,8 @@ const fields = [
   { key: "store_name", label: "اسم المتجر الظاهر", type: "input", placeholder: "مثال: المتجر التجريبي" },
   { key: "phone", label: "رقم الهاتف العام", type: "input", inputMode: "tel", placeholder: "+201000000000" },
   { key: "whatsapp", label: "رقم واتساب", type: "input", inputMode: "tel", placeholder: "+201000000000" },
+  { key: "maps_url", label: "رابط الموقع / Google Maps", type: "input", inputMode: "url", placeholder: "https://maps.app.goo.gl/..." },
+  { key: "store_address", label: "عنوان المتجر", rows: 3, placeholder: "مثال: دمياط الجديدة - شارع ... - بجوار ..." },
   { key: "branch_working_hours", label: "مواعيد عمل الفروع", rows: 4, placeholder: "مثال: السبت - الخميس من 12 ظهرًا إلى 11 مساءً" },
   { key: "payment_methods", label: "طرق الدفع", rows: 4, placeholder: "كاش عند الاستلام، فودافون كاش، إنستاباي..." },
   { key: "shipping_policy", label: "سياسة الشحن", rows: 5, placeholder: "مناطق الشحن، المدة المتوقعة، التكلفة..." },
@@ -46,6 +50,18 @@ const validatePhone = (value = "") => {
   return !normalized || /^\+?[0-9]{7,15}$/.test(normalized);
 };
 
+// The maps link is optional, but a malformed one is rejected here (and on the server) so the AI can never
+// read back a broken "location" and hand it to a customer as a real one.
+const validateUrl = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return true;
+  try {
+    return ["http:", "https:"].includes(new URL(text).protocol);
+  } catch {
+    return false;
+  }
+};
+
 export default function AiSupportKnowledgeBase() {
   const tenantId = useMemo(resolveTenantId, []);
   const [form, setForm] = useState(defaultForm);
@@ -57,6 +73,7 @@ export default function AiSupportKnowledgeBase() {
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
   const phoneValid = validatePhone(form.phone);
   const whatsappValid = validatePhone(form.whatsapp);
+  const mapsUrlValid = validateUrl(form.maps_url);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,8 +109,8 @@ export default function AiSupportKnowledgeBase() {
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   const save = async () => {
-    if (!phoneValid || !whatsappValid) {
-      toast.error("راجع صيغة الهاتف أو واتساب");
+    if (!phoneValid || !whatsappValid || !mapsUrlValid) {
+      toast.error(!mapsUrlValid ? "رابط الموقع لازم يبدأ بـ http أو https" : "راجع صيغة الهاتف أو واتساب");
       return;
     }
     setSaving(true);
@@ -163,7 +180,7 @@ export default function AiSupportKnowledgeBase() {
             <button
               type="button"
               onClick={save}
-              disabled={saving || loading || !isDirty || !phoneValid || !whatsappValid}
+              disabled={saving || loading || !isDirty || !phoneValid || !whatsappValid || !mapsUrlValid}
               className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -192,7 +209,7 @@ export default function AiSupportKnowledgeBase() {
                       inputMode={field.inputMode}
                       onChange={(event) => updateField(field.key, event.target.value)}
                       placeholder={field.placeholder}
-                      className={`h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${ (field.key === "phone" && !phoneValid) || (field.key === "whatsapp" && !whatsappValid) ? "border-rose-400/70 focus:ring-rose-400/10" : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/10" }`}
+                      className={`h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${ (field.key === "phone" && !phoneValid) || (field.key === "whatsapp" && !whatsappValid) || (field.key === "maps_url" && !mapsUrlValid) ? "border-rose-400/70 focus:ring-rose-400/10" : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/10" }`}
                     />
                   ) : (
                     <textarea
@@ -224,6 +241,7 @@ export default function AiSupportKnowledgeBase() {
             <div className="mt-3 grid gap-2 text-sm font-bold text-[var(--muted)]">
               <div>الهاتف: {phoneValid ? "صحيح" : "غير صحيح"}</div>
               <div>واتساب: {whatsappValid ? "صحيح" : "غير صحيح"}</div>
+              <div>رابط الموقع: {mapsUrlValid ? "صحيح" : "غير صحيح"}</div>
               <div>الحالة: {isDirty ? "توجد تغييرات غير محفوظة" : "محفوظ"}</div>
             </div>
           </div>
