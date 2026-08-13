@@ -3126,7 +3126,7 @@ function ManualReplyComposer({
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
   return (
-    <div className="sticky bottom-0 w-full bg-[#eefaf8] p-2 shadow-[0_-1px_10px_rgba(15,23,42,0.08)] dark:bg-[#20231f] dark:shadow-[0_-1px_10px_rgba(0,0,0,0.22)]">
+    <div className="sticky bottom-0 w-full border-t border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#20231f]/95">
       {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="sr-only">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
       {isCommentConversation ? (
         <div className="mb-1.5">
@@ -3172,15 +3172,19 @@ function ManualReplyComposer({
         value={value}
         onUse={(message) => onChange(message)}
       />
-      <div dir="ltr" className="flex min-w-0 items-end gap-2">
-        <div className="flex min-h-12 min-w-0 flex-1 items-end rounded-xl border border-slate-300 bg-white px-2 shadow-[0_1px_3px_rgba(15,23,42,0.18)] transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/15 dark:border-white/15 dark:bg-[#1b1e1b] dark:shadow-none dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10">
+      <div
+        dir="ltr"
+        data-ai-inbox-composer-shell="true"
+        className="flex min-w-0 items-end rounded-2xl border border-slate-300 bg-slate-50 p-1.5 shadow-[0_2px_8px_rgba(15,23,42,0.10)] transition focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-white/15 dark:bg-[#181b18] dark:shadow-none dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10"
+      >
+        <div className="flex min-h-10 min-w-0 flex-1 items-end">
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
             disabled={loading}
             title="Attach product"
             aria-label="Attach product"
-            className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-slate-100"
+            className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
             <Paperclip className="h-5 w-5" />
           </button>
@@ -3203,9 +3207,9 @@ function ManualReplyComposer({
             }}
             rows={1}
             placeholder={canSendLive ? "Type your message..." : "Write an internal note. It will not be sent yet."}
-            className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2.5 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+            className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
-          <button type="button" title="Emoji" aria-label="Emoji" className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100">
+          <button type="button" title="Emoji" aria-label="Emoji" className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100">
             <Smile className="h-5 w-5" />
           </button>
           <button
@@ -3214,7 +3218,7 @@ function ManualReplyComposer({
             disabled={loading}
             title="Available products"
             aria-label="Available products"
-            className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-slate-100"
+            className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
             <FileText className="h-5 w-5" />
           </button>
@@ -3225,7 +3229,7 @@ function ManualReplyComposer({
           disabled={loading || !clean(value) || slashCommandActive || !canSendLive}
           title={submitTitle}
           aria-label={submitLabel}
-          className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-white shadow-[0_6px_16px_rgba(3,105,161,0.28)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-500 hover:bg-amber-600" : "bg-sky-700 hover:bg-sky-800"}`}
+          className="ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-45"
         >
           {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </button>
