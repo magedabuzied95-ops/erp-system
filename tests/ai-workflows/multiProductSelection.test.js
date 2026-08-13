@@ -17,7 +17,11 @@ const salesSrc = read("server/services/aiSalesAgentService.js");
 
 // ---------------- Backend: selection_semantics flag (additive, deterministic, safe default) ----------------
 test("gate emits selection_semantics only when ambiguous; defaults to identity_disambiguation (single-select)", () => {
-  assert.match(gateSrc, /selection_semantics: productAmbiguous\s*\n?\s*\?\s*\(\(decision\.action === "soft_match" \|\| detectsRecommendationIntent\(message\)\) \? "recommendation" : "identity_disambiguation"\)\s*\n?\s*: null/);
+  // Phase 13.4.1 added a third value (multi_variant_options) for grounded colour options of ONE product; the
+  // ambiguous-product branch, its identity_disambiguation default, and the null-when-unambiguous default are all
+  // unchanged — the variant-options case is simply evaluated first.
+  assert.match(gateSrc, /selection_semantics: variantOptionsMode\s*\n?\s*\?\s*"multi_variant_options"/);
+  assert.match(gateSrc, /\(productAmbiguous\s*\n?\s*\?\s*\(\(decision\.action === "soft_match" \|\| detectsRecommendationIntent\(message\)\) \? "recommendation" : "identity_disambiguation"\)\s*\n?\s*: null\)/);
 });
 test("recommendation intent detector is deterministic and matches show-me-options phrasing", () => {
   assert.match(gateSrc, /const detectsRecommendationIntent = \(text = ""\) =>/);
@@ -69,15 +73,18 @@ test("fresh open clears the manual selection (no leak across conversations/sessi
 
 // ---------------- AI recommendation batch (multi) vs identity disambiguation (single) ----------------
 test("recommendation mode is driven by send_package.selection_semantics, not card count", () => {
-  assert.match(inboxSrc, /const isRecommendationSuggestion = suggestionSelectionSemantics === "recommendation"/);
+  assert.match(inboxSrc, /const suggestionSelectionMode = selectionModeFromSemantics\(suggestionSelectionSemantics\)/);
+  assert.match(inboxSrc, /const isRecommendationSuggestion = suggestionSelectionMode === SELECTION_MODES\.RECOMMENDATION/);
 });
 test("recommendation toggle is multi-select, capped at MAX_BATCH_PRODUCTS with the limit message", () => {
   assert.match(inboxSrc, /const \{ list, blocked \} = toggleProductSelection\(current, choice, \{ max: MAX_BATCH_PRODUCTS \}\)/);
-  assert.match(inboxSrc, /if \(blocked\) setToast\(\{ tone: "amber", text: maxBatchReachedText\(\) \}\)/);
+  assert.match(inboxSrc, /if \(blocked\) setToast\(\{ tone: "amber", text: isVariantOptionsSuggestion \? maxVariantBatchReachedText\(\) : maxBatchReachedText\(\) \}\)/);
 });
 test("identity disambiguation stays SINGLE-select and still blocks approve until one is picked", () => {
-  // the ambiguity guard is skipped ONLY in recommendation mode; disambiguation keeps requiring one pick
-  assert.match(inboxSrc, /if \(!isRecommendationSuggestion && suggestionSendPackage\?\.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved\)/);
+  // the ambiguity guard is skipped ONLY in a multi-select mode (recommendation / variant options); identity
+  // disambiguation keeps requiring exactly one pick
+  assert.match(inboxSrc, /if \(!isMultiSelectSuggestion && suggestionSendPackage\?\.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved\)/);
+  assert.match(inboxSrc, /const isMultiSelectSuggestion = isRecommendationSuggestion \|\| isVariantOptionsSuggestion/);
   // the card component renders single-select choices only when NOT recommendation mode
   assert.match(inboxSrc, /const showChoices = !recommendationMode && ambiguous/);
   assert.match(inboxSrc, /const showRecommendation = recommendationMode && !removed/);
