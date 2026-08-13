@@ -47,7 +47,7 @@ import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
-import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
+import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
@@ -6794,8 +6794,8 @@ export default function AiInboxPwa() {
                   olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                   onReplyComment={sendLeadCommentReply}
                   onPrivateMessage={sendLeadPrivateMessage}
-                  onReact={["whatsapp", "instagram"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
-                  reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : undefined}
+                  onReact={["whatsapp", "instagram", "messenger"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
+                  reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : normalizeConversationChannel(selectedConversation || {}) === "messenger" ? MESSENGER_MESSAGE_REACTIONS : undefined}
                 />
               </>
             ) : filteredConversations.length ? (

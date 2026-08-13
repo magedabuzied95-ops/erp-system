@@ -22426,6 +22426,70 @@ export const sendInstagramInboxReaction = async ({
   return { result, emoji: reacting ? "❤️" : "", message_id: safeMessageId };
 };
 
+const MESSENGER_REACTION_NAMES = new Map([
+  ["👍", "like"],
+  ["👎", "dislike"],
+  ["❤️", "love"],
+  ["❤", "love"],
+  ["😂", "smile"],
+  ["😮", "wow"],
+  ["😢", "sad"],
+  ["😡", "angry"],
+]);
+
+export const sendMessengerInboxReaction = async ({
+  tenantId,
+  recipientId = "",
+  messageId = "",
+  emoji = "",
+  facebookPageId = "",
+  preferredConfigId = null,
+} = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeMessageId = text(messageId);
+  if (!scopedTenantId || !text(recipientId) || !safeMessageId) {
+    throw Object.assign(new Error("tenant_id, Messenger recipient id, and message id are required"), {
+      status: 400,
+      code: "MESSENGER_REACTION_INPUT_REQUIRED",
+    });
+  }
+  const { config, token } = await resolveMetaSendConfig({
+    tenantId: scopedTenantId,
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    facebookPageId,
+    preferredConfigId,
+  });
+  const safeRecipientId = resolveMessengerRecipientPsid({
+    recipientId,
+    config,
+    facebookPageId,
+  });
+  const reacting = Boolean(text(emoji));
+  const reaction = MESSENGER_REACTION_NAMES.get(text(emoji)) || "love";
+  const graphVersion = process.env.META_REACTION_GRAPH_VERSION || "v24.0";
+  const response = await fetch(`https://graph.facebook.com/${graphVersion}/me/messages?access_token=${encodeURIComponent(token)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: json({
+      recipient: { id: safeRecipientId },
+      sender_action: reacting ? "react" : "unreact",
+      payload: {
+        message_id: safeMessageId,
+        ...(reacting ? { reaction } : {}),
+      },
+    }),
+  });
+  const result = await parseMetaPayload(response);
+  if (!response.ok) {
+    throw Object.assign(new Error(metaErrorMessage(result)), {
+      status: response.status,
+      meta: result?.error || result,
+    });
+  }
+  return { result, emoji: reacting ? text(emoji) : "", message_id: safeMessageId };
+};
+
 export const sendMetaInboxOutboundMessage = async ({
   tenantId,
   channel = "",

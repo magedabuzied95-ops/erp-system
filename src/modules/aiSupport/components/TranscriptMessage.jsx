@@ -10,6 +10,7 @@ const clean = (value = "") => String(value || "").trim();
 const reactionEmoji = (value = "") => clean(value) === "❤" ? "❤️" : clean(value);
 const QUICK_MESSAGE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 export const INSTAGRAM_MESSAGE_REACTIONS = ["❤️"];
+export const MESSENGER_MESSAGE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡", "👎"];
 const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";

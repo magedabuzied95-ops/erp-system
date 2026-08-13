@@ -97,6 +97,17 @@ test("outbound Instagram reactions use Meta's sender action and persist a love r
   assert.match(transcript, /export const INSTAGRAM_MESSAGE_REACTIONS = \["❤️"\]/);
 });
 
+test("Messenger reactions are visible in both inboxes and use Meta reaction names", () => {
+  assert.match(metaService, /export const sendMessengerInboxReaction/);
+  assert.match(metaService, /\["👍", "like"\]/);
+  assert.match(metaService, /\["❤️", "love"\]/);
+  assert.match(metaService, /META_REACTION_GRAPH_VERSION \|\| "v24\.0"/);
+  assert.match(routes, /await sendMessengerInboxReaction\(\{/);
+  assert.match(transcript, /export const MESSENGER_MESSAGE_REACTIONS = \["👍", "❤️", "😂", "😮", "😢", "😡", "👎"\]/);
+  assert.match(inbox, /MESSENGER_MESSAGE_REACTIONS/);
+  assert.match(pwaInbox, /MESSENGER_MESSAGE_REACTIONS/);
+});
+
 test("ordinary text messages do not show a technical text type badge", () => {
   assert.match(transcript, /!\["text", "conversation"\]\.includes/);
 });

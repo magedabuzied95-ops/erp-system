@@ -70,7 +70,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
-import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
+import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import {
   MAX_BATCH_PRODUCTS, productSelectionKey, toggleProductSelection,
@@ -8742,8 +8742,8 @@ export default function AiInbox() {
                         onOpenCorrection={openReplyCorrection}
                         onReplyComment={sendLeadCommentReplyQuick}
                         onPrivateMessage={sendLeadPrivateMessage}
-                        onReact={(isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) || clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram")) ? reactToMessage : null}
-                        reactionOptions={clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram") ? INSTAGRAM_MESSAGE_REACTIONS : undefined}
+                        onReact={(isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) || isMetaChannel(selectedConversation?.channel || selectedConversation?.source)) ? reactToMessage : null}
+                        reactionOptions={clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram") ? INSTAGRAM_MESSAGE_REACTIONS : clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("messenger") ? MESSENGER_MESSAGE_REACTIONS : undefined}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
