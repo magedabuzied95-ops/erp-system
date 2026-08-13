@@ -1,357 +1,433 @@
-/* POS-specific theme bridge. Keeps the commercial dark palette intact while
-   giving light mode its own readable surfaces instead of recoloring utilities globally. */
+/* ==========================================================================
+   POS — M1 DESIGN-SYSTEM CONVERGENCE
+   --------------------------------------------------------------------------
+   What this file used to be: a private POS palette. Eight `--pos-light-*`
+   variables plus ~80 raw hex literals, all gated behind
+   `html[data-theme="light"]`, repainting every POS surface in a beige/emerald
+   scheme that existed nowhere else in M1.
+
+   Why it existed: POS renders OUTSIDE `.m1-shell-root`, so foundation.css's
+   palette→token normalisation never reached it. Every emerald/amber/rose class
+   in POS stayed raw Tailwind authored for a dark canvas, and Light had to be
+   hand-rebuilt surface by surface.
+
+   What changed: foundation.css now carries `.pos-pro-shell` as a second scope
+   on that normalisation, so status colour is canonical in BOTH themes. This
+   file no longer owns colour VALUES — it maps POS's own structural roles
+   (catalog panel, product card, cart totals, payment method, checkout bar)
+   onto canonical tokens, once, theme-agnostically. Dark and Light now derive
+   from the same declarations instead of Dark being raw Tailwind and Light
+   being a private repaint.
+
+   `!important` is retained deliberately: these rules override Tailwind
+   utilities that live in `@layer utilities`, and the POS markup applies those
+   utilities inline on the same elements.
+
+   DENSITY IS UNCHANGED. Nothing here alters padding, gap, grid tracks, column
+   counts or card sizing. Only colour, border, radius and type-step.
+   ====================================================================== */
+
 @media (min-width: 1280px) {
   .pos-pro-shell .pos-main-layout {
     grid-template-columns: minmax(0, 12fr) minmax(0, 13fr);
   }
 }
 
-html[data-theme="light"] .pos-pro-shell {
-  --pos-light-bg: #f3f1ec;
-  --pos-light-surface: #ffffff;
-  --pos-light-surface-soft: #f8f6f1;
-  --pos-light-border: #d8d3c9;
-  --pos-light-text: #25231f;
-  --pos-light-muted: #6f6a61;
-  --pos-light-emerald: #087a5b;
-  --pos-light-emerald-soft: #eaf7f1;
+/* --------------------------------------------------------------------------
+   1. SHELL CANVAS
+   The accent wash is kept — it is POS's own signature — but it is now derived
+   from --primary instead of being a hardcoded emerald, so it follows the theme.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell {
   background:
-    radial-gradient(circle at 82% 0%, rgb(16 185 129 / 9%), transparent 31%),
-    linear-gradient(180deg, #f8f7f3 0%, var(--pos-light-bg) 100%) !important;
-  color: var(--pos-light-text) !important;
+    radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 31%),
+    var(--bg) !important;
+  color: var(--text) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-session-pill,
-html[data-theme="light"] .pos-pro-shell .pos-catalog-panel,
-html[data-theme="light"] .pos-pro-shell .pos-catalog-toolbar,
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker,
-html[data-theme="light"] .pos-pro-shell .pos-payment-panel {
-  border-color: var(--pos-light-border) !important;
-  background: rgb(255 255 255 / 94%) !important;
-  color: var(--pos-light-text) !important;
-  box-shadow: 0 12px 34px rgb(58 49 36 / 9%) !important;
+/* --------------------------------------------------------------------------
+   2. PANELS AND CHROME
+   One card contract, matching .m1-surface. Previously five separate light-only
+   rules with three different whites and a private shadow.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell :is(.pos-session-pill, .pos-catalog-toolbar, .pos-customer-picker, .pos-payment-panel, .pos-cart-panel) {
+  border-color: var(--border) !important;
+  background: var(--card) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-catalog-panel {
-  background: rgb(255 255 255 / 76%) !important;
+.pos-pro-shell .pos-catalog-panel {
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-catalog-toolbar {
-  box-shadow: 0 8px 22px rgb(58 49 36 / 8%) !important;
+.pos-pro-shell .pos-desktop-toolbar {
+  color: var(--text) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-catalog-search,
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker input {
-  border-color: var(--pos-light-border) !important;
-  background: var(--pos-light-surface) !important;
-  color: var(--pos-light-text) !important;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-catalog-search::placeholder,
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker input::placeholder {
-  color: #8b867d !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-catalog-toolbar button:not([class*="bg-emerald-500"]),
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker button {
-  border-color: var(--pos-light-border) !important;
-  background-color: var(--pos-light-surface-soft) !important;
-  color: #4b4740 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-catalog-toolbar button:hover,
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker button:hover {
-  border-color: #a7d8c5 !important;
-  background-color: var(--pos-light-emerald-soft) !important;
-  color: #075f48 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-card {
-  border-color: #d8d3c9 !important;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfaf7 58%, #f5f2ec 100%) !important;
-  color: var(--pos-light-text) !important;
-  box-shadow: 0 7px 18px rgb(54 48 39 / 10%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-card:hover {
-  border-color: #8bcab1 !important;
-  box-shadow: 0 12px 25px rgb(28 99 73 / 14%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-card-image {
-  border-color: #e1ddd5 !important;
-  background: linear-gradient(145deg, #ffffff 0%, #f2f1ed 100%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-title {
-  color: #292621 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-stock {
-  border-color: #c9e8dc !important;
-  background: rgb(255 255 255 / 94%) !important;
-  color: #087657 !important;
-  box-shadow: 0 2px 8px rgb(36 71 58 / 12%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-stock svg {
-  color: #0a8f69 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-favorite {
-  border-color: #e8cf82 !important;
-  background: #fff9e7 !important;
-  color: #b58100 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-article,
-html[data-theme="light"] .pos-pro-shell .pos-product-meta {
-  border-color: #ddd8cf !important;
-  background: rgb(255 255 255 / 92%) !important;
-  color: #5f5a52 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-size {
-  border-color: #c8e8dc !important;
-  background: var(--pos-light-emerald-soft) !important;
-  color: #087054 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-product-price {
-  border-color: #bfe2d4 !important;
-  background: linear-gradient(180deg, #f1faf6 0%, #eaf6f1 100%) !important;
+/* Inputs take the canonical control contract. */
+.pos-pro-shell :is(.pos-catalog-search, .pos-customer-picker input) {
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
   box-shadow: none !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-product-price-label {
-  color: #367c65 !important;
+.pos-pro-shell :is(.pos-catalog-search, .pos-customer-picker input)::placeholder {
+  color: var(--muted) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-product-price-value {
-  color: #143d31 !important;
+.pos-pro-shell :is(.pos-catalog-search, .pos-customer-picker input):focus {
+  border-color: var(--primary) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-product-original-price {
-  color: #827d74 !important;
-  text-decoration-color: #9b958b !important;
+/* --------------------------------------------------------------------------
+   3. PRODUCT CARD
+   Aspect ratio, image box, grid density and click targets are untouched. Only
+   the surface, border and the price plate change owner.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell .pos-product-card {
+  border-color: var(--border) !important;
+  background: var(--card) !important;
+  background-image: none !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-toolbar-action {
-  box-shadow: 0 5px 14px rgb(53 47 39 / 9%) !important;
+.pos-pro-shell .pos-product-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border)) !important;
+  box-shadow: var(--shadow-overlay) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-action-sale {
-  border-color: #dec56b !important;
-  background: #fff8dc !important;
-  color: #725500 !important;
+.pos-pro-shell .pos-product-card-image {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  background-image: none !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-action-shift {
-  border-color: #8ed1b6 !important;
-  background: #e8f8f1 !important;
-  color: #075f47 !important;
+.pos-pro-shell .pos-product-title {
+  color: var(--text) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-action-exit {
-  border-color: #efabb4 !important;
-  background: #fff0f2 !important;
-  color: #a32237 !important;
+.pos-pro-shell .pos-product-stock {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--border)) !important;
+  background: var(--success-soft) !important;
+  color: var(--success) !important;
+  box-shadow: none !important;
 }
 
-html[data-theme="light"] .pos-pro-shell .pos-cart-totals {
-  border-color: #a9dbc8 !important;
-  background: linear-gradient(180deg, #f3fbf7 0%, #eaf7f1 100%) !important;
-  color: var(--pos-light-text) !important;
-  box-shadow: 0 -8px 22px rgb(33 82 63 / 9%) !important;
-}
+.pos-pro-shell .pos-product-stock svg { color: inherit !important; }
 
-html[data-theme="light"] .pos-pro-shell .pos-cart-totals :is(.text-zinc-200, .text-zinc-400) {
-  color: var(--pos-light-muted) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-cart-totals :is(.text-emerald-300, .text-emerald-100) {
-  color: #087657 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-panel :is(.text-white, .text-zinc-200, .text-zinc-300) {
-  color: var(--pos-light-text) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-status[data-status="paid"] {
-  background: #dff5ea !important;
-  color: #076247 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-status[data-status="partial"] {
-  background: #fff2cf !important;
-  color: #825e00 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-status[data-status="pending"] {
-  background: #ece9e3 !important;
-  color: #59544c !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method {
-  background: #f7f5f0 !important;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="green"] {
-  border-color: #75c9a7 !important;
-  color: #086249 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="blue"] {
-  border-color: #86b9dc !important;
-  color: #155f8e !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="purple"] {
-  border-color: #b9a1d8 !important;
-  color: #664095 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="red"] {
-  border-color: #e397a2 !important;
-  color: #a12639 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="gold"] {
-  border-color: #d7b75a !important;
-  color: #765700 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-active="true"] {
-  background: color-mix(in srgb, currentColor 12%, #fff) !important;
-  box-shadow: inset 0 0 0 1px currentColor, 0 4px 12px rgb(50 44 35 / 9%) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-method span,
-html[data-theme="light"] .pos-pro-shell .pos-payment-method svg {
-  color: inherit !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-payment-panel :is(.text-zinc-400, .text-zinc-500),
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker :is(.text-zinc-400, .text-zinc-500) {
-  color: var(--pos-light-muted) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker > div:last-child {
-  border-color: var(--pos-light-border) !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker :is(.text-emerald-100, .text-emerald-200),
-html[data-theme="light"] .pos-pro-shell .pos-payment-panel :is(.text-emerald-100, .text-emerald-200, .text-emerald-50) {
-  color: #087657 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-customer-picker [class*="text-emerald-"],
-html[data-theme="light"] .pos-pro-shell .pos-payment-panel [class*="text-emerald-"] {
-  color: #087657 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-checkout-actions {
-  border-color: var(--pos-light-border) !important;
-  background: #f3f1ec !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-checkout-actions button:disabled {
-  opacity: .72 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-checkout-primary {
-  background: #0b7a5b !important;
-  color: #ffffff !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-checkout-credit {
-  border-color: #d5b65d !important;
-  background: #fff5d8 !important;
-  color: #725400 !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-checkout-credit span {
-  color: inherit !important;
-}
-
-html[data-theme="light"] .pos-pro-shell .pos-checkout-paymob {
-  border-color: #78b9c6 !important;
-  background: #e8f6f8 !important;
-  color: #155f6c !important;
-}
-
-@media (max-width: 1023px) {
-  html[data-theme="light"] .pos-pro-shell .pos-catalog-toolbar {
-    border-color: var(--pos-light-border) !important;
-    background: rgb(255 255 255 / 97%) !important;
-  }
-}
-
-/* ==========================================================================
-   POST-CLOSURE: status-tint text in Light
-   --------------------------------------------------------------------------
-   POS renders OUTSIDE `.m1-shell-root`, so NONE of foundation.css's
-   palette -> token normalisation reaches it: that whole layer is scoped to
-   `.m1-shell-root .m1-shell-content`. Every emerald/amber/rose/cyan class in
-   POS is therefore raw Tailwind, and the light tint steps (amber-50/100,
-   emerald-100) were authored as text on a dark canvas.
-
-   In Light that puts a near-white tint on a near-white tint. Measured on
-   Production, 10 visible nodes, ALL of them invisible:
-
-     "فاتورة 1" / "0.00 ج.م"   amber-50  on amber tint    1.02
-     "مطلوب"                    amber-100 on amber-500/15  1.02
-     "فاتورة"                   emerald-100 on emerald tint 1.04
-     catalog count badge        emerald-100 on emerald-400/15 1.06
-     "خصم الفاتورة"             amber-100 on amber-300/10  1.07
-     "- 0.00 ج.م"               amber-100 on white         1.11
-     "مصروف"                    amber-100                  1.15
-     "العمليات الأخيرة"         emerald-100                1.16
-     invoice count chip         amber-50 on bg-black/25    1.87
-
-   Light only. Dark measured 0 failures on this route and is deliberately left
-   untouched, so this cannot regress the commercial dark palette.
-
-   Scoped POSITIVELY to the five containers that own those nodes rather than to
-   `.pos-pro-shell` as a whole, because the shared mobile action bar
-   (`ResponsiveMobile.jsx`, `xl:hidden`, `bg-zinc-950/95`) keeps a genuinely dark
-   plate and its light tint text is correct ON that plate. A shell-wide rule
-   would drag it from ~12 down to ~3.6 at mobile widths. That bar is a shared
-   component with consumers outside POS and is reported separately, not changed
-   here.
-   ====================================================================== */
-
-html[data-theme="light"] .pos-pro-shell
-  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
-  :is([class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"]) {
+/* Favourite is a warning-toned toggle, not a private gold. */
+.pos-pro-shell .pos-product-favorite {
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border)) !important;
+  background: var(--warning-soft) !important;
   color: var(--warning) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell
-  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
-  :is([class*="text-emerald-"], [class*="text-green-"]) {
+.pos-pro-shell :is(.pos-product-article, .pos-product-meta) {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  color: var(--text-secondary) !important;
+}
+
+.pos-pro-shell .pos-product-size {
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border)) !important;
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+}
+
+.pos-pro-shell .pos-product-price {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.pos-pro-shell .pos-product-price-label { color: var(--muted) !important; }
+.pos-pro-shell .pos-product-price-value { color: var(--text) !important; }
+
+.pos-pro-shell .pos-product-original-price {
+  color: var(--muted) !important;
+  text-decoration-color: var(--muted) !important;
+}
+
+/* --------------------------------------------------------------------------
+   4. TOOLBAR ACTIONS
+   These three keep DISTINCT semantics — sale mode is a warning-toned state,
+   shift is a success-toned state, exit is destructive. That distinction is
+   real and is preserved; only the colour source moves to tokens.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell .pos-toolbar-action { box-shadow: none !important; }
+
+.pos-pro-shell .pos-action-sale {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--border)) !important;
+  background: var(--warning-soft) !important;
+  color: var(--warning) !important;
+}
+
+.pos-pro-shell .pos-action-shift {
+  border-color: color-mix(in srgb, var(--success) 42%, var(--border)) !important;
+  background: var(--success-soft) !important;
   color: var(--success) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell
-  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
-  :is([class*="text-rose-"], [class*="text-red-"]) {
+.pos-pro-shell .pos-action-exit {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border)) !important;
+  background: var(--danger-soft) !important;
   color: var(--danger) !important;
 }
 
-html[data-theme="light"] .pos-pro-shell
-  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
-  :is([class*="text-cyan-"], [class*="text-sky-"], [class*="text-blue-"], [class*="text-violet-"]) {
+/* --------------------------------------------------------------------------
+   5. CART / TOTALS / PAYMENT
+   -------------------------------------------------------------------------- */
+.pos-pro-shell .pos-cart-totals {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  background-image: none !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+.pos-pro-shell .pos-payment-status[data-status="paid"] {
+  background: var(--success-soft) !important;
+  color: var(--success) !important;
+}
+
+.pos-pro-shell .pos-payment-status[data-status="partial"] {
+  background: var(--warning-soft) !important;
+  color: var(--warning) !important;
+}
+
+.pos-pro-shell .pos-payment-status[data-status="pending"] {
+  background: var(--surface-soft) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* PAYMENT METHODS — PRESENTATION ONLY.
+   data-tone is set by the payment component and is NOT touched here; ids,
+   selection state, allocation and submit behaviour are untouched. The five
+   tones stay visually distinguishable (operators select by colour under time
+   pressure) but now read as M1 semantic families rather than five bespoke
+   pastel palettes. */
+.pos-pro-shell .pos-payment-method {
+  background: var(--surface-soft) !important;
+  box-shadow: none !important;
+}
+
+.pos-pro-shell .pos-payment-method[data-tone="green"] {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border)) !important;
+  color: var(--success) !important;
+}
+
+.pos-pro-shell .pos-payment-method[data-tone="blue"] {
+  border-color: color-mix(in srgb, var(--info) 45%, var(--border)) !important;
   color: var(--info) !important;
 }
 
-/* `bg-black/α` is a dark-canvas trick: it deepens a surface that is already
-   dark. Over a light canvas it composites to mud (measured rgb(191,187,168)),
-   so the small counter chips that use it take the neutral surface step. */
-html[data-theme="light"] .pos-pro-shell
-  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
-  :is([class*="bg-black/"]) {
+.pos-pro-shell .pos-payment-method[data-tone="purple"] {
+  border-color: color-mix(in srgb, var(--info) 45%, var(--border)) !important;
+  color: var(--info) !important;
+}
+
+.pos-pro-shell .pos-payment-method[data-tone="red"] {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border)) !important;
+  color: var(--danger) !important;
+}
+
+.pos-pro-shell .pos-payment-method[data-tone="gold"] {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border)) !important;
+  color: var(--primary) !important;
+}
+
+.pos-pro-shell .pos-payment-method[data-active="true"] {
+  background: color-mix(in srgb, currentColor 12%, var(--surface)) !important;
+  box-shadow: inset 0 0 0 1px currentColor !important;
+}
+
+.pos-pro-shell .pos-payment-method :is(span, svg) { color: inherit !important; }
+
+/* --------------------------------------------------------------------------
+   6. CHECKOUT BAR
+   The primary checkout control is the page's principal action and therefore
+   takes M1 gold, the same as every other primary action in the product. Credit
+   and Paymob stay visually separate because they are genuinely different
+   commitments, not styling variants.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell .pos-checkout-actions {
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+}
+
+.pos-pro-shell .pos-checkout-actions button:disabled { opacity: .72 !important; }
+
+.pos-pro-shell .pos-checkout-primary {
+  border-color: var(--primary-active) !important;
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.pos-pro-shell .pos-checkout-primary:hover:not(:disabled) {
+  background: var(--primary-hover) !important;
+}
+
+.pos-pro-shell .pos-checkout-credit {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border)) !important;
+  background: var(--warning-soft) !important;
+  color: var(--warning) !important;
+}
+
+.pos-pro-shell .pos-checkout-credit span { color: inherit !important; }
+
+.pos-pro-shell .pos-checkout-paymob {
+  border-color: color-mix(in srgb, var(--info) 45%, var(--border)) !important;
+  background: var(--info-soft) !important;
+  color: var(--info) !important;
+}
+
+/* --------------------------------------------------------------------------
+   7. NEUTRAL-CHROME GAPS
+   index.css already normalises the common dark-canvas neutrals globally
+   (bg-white/5, bg-white/10, border-white/10, bg-black/10..80, text-zinc-*).
+   POS uses a handful of alpha steps that list does not cover; without these
+   they stay literal white/black over a light canvas. Same mapping as the
+   global layer, just the missing steps.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell :is([class*="border-white/"]) { border-color: var(--border) !important; }
+.pos-pro-shell :is(.bg-white\/8, .bg-white\/15) { background-color: var(--surface-soft) !important; }
+.pos-pro-shell :is(.bg-black\/15, .bg-black\/18, .bg-black\/25, .bg-black\/35, .bg-black\/45, .bg-black\/65, .bg-black\/75) {
   background-color: var(--surface-soft) !important;
+}
+
+/* --------------------------------------------------------------------------
+   7b. VIOLET / PURPLE — A FAMILY THE CANONICAL LIST DOES NOT COVER
+   foundation.css normalises emerald/green, cyan/sky/blue, amber/yellow/orange
+   and rose/red. Violet and purple are in NO semantic family, so they
+   pass through as raw Tailwind everywhere in the product.
+
+   In POS that is not cosmetic: the salesperson chips are `text-violet-100`,
+   authored as a light tint for a dark canvas. Measured on Production in Light
+   after the rest of this convergence, they were the only two remaining text
+   nodes under 3:1 — "Adham Alsayad" and "ِAyoub" at 1.19, i.e. invisible.
+
+   Mapped to --info, matching the purple payment tone above. Scoped to POS
+   rather than added to foundation.css: violet is unnormalised for every other
+   consumer too, and widening a shared contract to fix a POS defect would change
+   pages this task did not audit. The global gap is reported, not silently
+   patched here.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell :is([class*="text-violet-"], [class*="text-purple-"]),
+body.pos-route :is([class*="text-violet-"], [class*="text-purple-"]) {
+  color: var(--info) !important;
+}
+
+.pos-pro-shell :is([class*="border-violet-"], [class*="border-purple-"]),
+body.pos-route :is([class*="border-violet-"], [class*="border-purple-"]) {
+  border-color: color-mix(in srgb, var(--info) 38%, var(--border)) !important;
+}
+
+.pos-pro-shell :is([class*="bg-violet-500/"], [class*="bg-violet-400/"], [class*="bg-purple-500/"]),
+body.pos-route :is([class*="bg-violet-500/"], [class*="bg-violet-400/"], [class*="bg-purple-500/"]) {
+  background: var(--info-soft) !important;
+}
+
+/* --------------------------------------------------------------------------
+   8. GEOMETRY — RADIUS
+   Measured, not assumed. Tailwind v4 resolves its radius scale through OUR
+   tokens where we define them:
+       rounded      ->  4px  = --radius-xs   canonical
+       rounded-md   -> 10px  = --radius-md   canonical
+       rounded-lg   -> 14px  = --radius-lg   canonical
+       rounded-xl   -> 18px  = --radius-xl   canonical
+       rounded-2xl  -> 16px  = Tailwind default, NO token behind it
+       rounded-3xl  -> 24px  = Tailwind default, NO token behind it
+   So POS's dominant 18px radius (118 nodes) was already canonical and is left
+   alone. The genuine divergence is the 55 nodes at 16px and 2 at 24px, which
+   answer to no token at all. Each snaps to its nearest canonical step.
+
+   The fix is applied at the SOURCE rather than by rewriting class selectors:
+   Tailwind v4 resolves `rounded-2xl`/`rounded-3xl` through `--radius-2xl` and
+   `--radius-3xl`, which this product never defined, so they fell back to
+   Tailwind's own 1rem/1.5rem. Pointing those two variables at canonical steps
+   fixes the whole family at once — responsive variants (`lg:rounded-2xl`), side
+   variants (`rounded-t-3xl`) and any future use all follow, and `rounded-none`
+   still wins where the markup asks for it. Rewriting `.rounded-2xl` directly
+   would have flattened the `rounded-none` -> `lg:rounded-2xl` pair that the
+   catalog panel relies on, giving it a radius at mobile widths it must not have.
+
+   Controls are separated out: the approved reference (Orders, Products) renders
+   buttons at 10px dominant, so POS controls take --radius-md and stop being the
+   only buttons in the product shaped like cards. Scoped to POS throughout, so
+   no other consumer of rounded-2xl/3xl changes.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell,
+body.pos-route {
+  --radius-2xl: var(--radius-lg);
+  --radius-3xl: var(--radius-xl);
+}
+
+.pos-pro-shell :is(button, select, input:not([type="checkbox"]):not([type="radio"])):is(.rounded-xl, .rounded-2xl, .rounded-3xl) {
+  border-radius: var(--radius-md) !important;
+}
+
+/* `.theme-card` (1.5rem) and `.theme-button-soft` (1rem) are SHARED owners —
+   12 and 7 consumers respectively, of which exactly one each sits in POS
+   (CartSidebar). Correcting them at the owner would move Dashboard, Orders,
+   Sidebar and StatCard geometry, which belongs to the separate Layout & Card
+   Geometry programme. The correction is therefore scoped to POS and the global
+   off-token radius is reported rather than changed here. */
+.pos-pro-shell .theme-card { border-radius: var(--radius-xl) !important; }
+.pos-pro-shell .theme-button-soft { border-radius: var(--radius-md) !important; }
+
+/* --------------------------------------------------------------------------
+   9. TYPOGRAPHY — OFF-SCALE STEPS ONLY
+   The POS font FAMILY is already canonical (measured: Cairo on all 1140
+   visible nodes) and its weights are in-system (the reference pages use the
+   same 400–900 range), so neither is touched.
+
+   What is off-system is a set of fractional and sub-floor sizes that appear
+   nowhere in the reference pages: 8px (337 nodes), 9px (2), 0.76rem/12.16px
+   (96) and 0.86rem/13.76px (48). The reference renders integer steps and never
+   goes below 10px.
+
+   Each is snapped to the NEAREST canonical step, and the product card's
+   internal hierarchy is preserved by sending the title DOWN to --font-label
+   and the price to --font-body rather than collapsing both to one size.
+   Nothing grows except the two absolutely-positioned overlay badges, which sit
+   on top of the product image and cannot change card height or the number of
+   products on screen.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell :is(.text-\[8px\], .text-\[9px\]) {
+  font-size: var(--font-caption) !important;
+  line-height: var(--font-caption-lh) !important;
+}
+
+/* SIZE is converged; LEADING is deliberately NOT.
+   Taking the canonical line heights too (1.45 title / 1.55 price) measured +5.5px
+   per product card on Production — same 72 cards, same 3 columns, same widths, but
+   a 2.8% taller card. Density is a hard freeze for this surface, and the freeze
+   outranks matching a line-height, so the card keeps its `leading-tight` and only
+   the step changes. Both values still shrink slightly (12.16->11, 13.76->13), so
+   the card gets marginally denser rather than looser.
+
+   This is a documented POS exception, not an oversight: it is the one place where
+   the canonical typography contract and the density freeze genuinely conflict. */
+.pos-pro-shell .pos-product-title { font-size: var(--font-label) !important; }
+.pos-pro-shell .pos-product-price-value { font-size: var(--font-body) !important; }
+
+/* --------------------------------------------------------------------------
+   10. ICONS
+   Library and stroke are already canonical (measured: 82/82 lucide, stroke-width
+   2 on every one, matching Orders and Products exactly). The only divergence is
+   size: 48 of 82 POS icons render at 10x10, while the reference renders 14x14
+   dominant and never below 11px. 10px is lifted to 12px rather than to the 14px
+   reference default — these are badge and chip glyphs inside dense controls, and
+   14px would force those controls taller and cost catalog rows.
+   -------------------------------------------------------------------------- */
+.pos-pro-shell svg.lucide:is(.h-2\.5, .h-2) {
+  width: 12px !important;
+  height: 12px !important;
 }

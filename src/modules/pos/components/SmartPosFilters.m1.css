@@ -1,6 +1,29 @@
+/* ==========================================================================
+   POS SMART FILTERS — M1 CONVERGENCE
+   --------------------------------------------------------------------------
+   This file looked token-driven and was not. It referenced four variable names
+   that do not exist anywhere in the design system:
+
+       --text-muted      (canonical name is --muted)
+       --surface-subtle  (canonical name is --surface-soft)
+       --on-primary      (canonical name is --primary-contrast)
+       --field-bg        (no such token, in either theme)
+
+   Because every one carried a hex fallback, `var(--text-muted, #716d65)` never
+   resolved to a token — it silently painted the literal, in BOTH themes. The
+   file was a private palette wearing token syntax. The `[data-theme="dark"]`
+   block underneath compounded it by locally REDEFINING --surface, --border,
+   --text and --primary with hand-picked hex, shadowing the canonical values on
+   every descendant of the panel.
+
+   All of it is replaced with the real token names and no fallbacks. Canonical
+   tokens already switch with the theme, so the private dark block is gone
+   rather than rewritten. Structure, sizing and density are untouched.
+   ====================================================================== */
+
 .m1-smart-filter-overlay {
-  background: color-mix(in srgb, #11110f 72%, transparent) !important;
-  font-family: var(--app-font, "Cairo", "Tajawal", "Noto Sans Arabic", "Segoe UI", sans-serif) !important;
+  background: var(--overlay-scrim);
+  font-family: var(--app-font);
   font-size: 14px;
   line-height: 1.55;
   text-rendering: optimizeLegibility;
@@ -8,10 +31,10 @@
 }
 
 .m1-smart-filter-panel {
-  background: var(--surface, #fff) !important;
-  border-color: var(--border, #ddd8cd) !important;
-  color: var(--text, #262522) !important;
-  box-shadow: 0 24px 70px rgb(0 0 0 / 32%) !important;
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-overlay) !important;
   font-family: inherit !important;
   line-height: 1.55;
 }
@@ -27,25 +50,25 @@
 
 .m1-smart-filter-header,
 .m1-smart-filter-footer {
-  background: var(--surface, #fff) !important;
-  border-color: var(--border, #ddd8cd) !important;
+  background: var(--card) !important;
+  border-color: var(--border) !important;
 }
 
-.m1-smart-filter-panel h2 { color: var(--text, #262522) !important; }
+.m1-smart-filter-panel h2 { color: var(--text) !important; }
 .m1-smart-filter-panel p,
 .m1-smart-filter-panel [class*="text-zinc-4"],
-.m1-smart-filter-panel [class*="text-zinc-5"] { color: var(--text-muted, #716d65) !important; }
-.m1-smart-filter-panel [class*="text-emerald-2"] { color: var(--primary, #b8890b) !important; }
+.m1-smart-filter-panel [class*="text-zinc-5"] { color: var(--muted) !important; }
+.m1-smart-filter-panel [class*="text-emerald-2"] { color: var(--primary) !important; }
 
 .m1-smart-filter-group {
-  background: var(--surface-subtle, #f7f5f1) !important;
-  border-color: var(--border, #ddd8cd) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
 }
 
 .m1-smart-filter-pill {
-  background: var(--surface, #fff) !important;
-  border-color: var(--border, #ddd8cd) !important;
-  color: var(--text-secondary, #555149) !important;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
   box-shadow: none !important;
   min-height: 34px !important;
   line-height: 1.4 !important;
@@ -72,62 +95,49 @@
 }
 
 .m1-smart-filter-pill:hover:not(:disabled) {
-  border-color: var(--primary, #b8890b) !important;
-  color: var(--text, #262522) !important;
+  border-color: var(--primary) !important;
+  color: var(--text) !important;
 }
 
 .m1-smart-filter-pill.is-active {
-  background: var(--primary, #b8890b) !important;
-  border-color: var(--primary, #b8890b) !important;
-  color: var(--on-primary, #17130a) !important;
+  background: var(--primary) !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
 }
 
 .m1-smart-filter-pill.is-disabled { opacity: .42; }
 .m1-smart-filter-pill span:last-child { color: inherit !important; }
 
 .m1-smart-filter-select {
-  background: var(--field-bg, var(--surface, #fff)) !important;
-  border-color: var(--border, #ddd8cd) !important;
-  color: var(--text, #262522) !important;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
   color-scheme: light dark;
   min-height: 44px !important;
   line-height: 1.5 !important;
 }
 
-.m1-smart-filter-select:focus { border-color: var(--primary, #b8890b) !important; }
+.m1-smart-filter-select:focus { border-color: var(--primary) !important; }
 
 .m1-smart-filter-close,
 .m1-smart-filter-footer button:not(.m1-smart-filter-apply) {
-  background: var(--surface-subtle, #f7f5f1) !important;
-  border-color: var(--border, #ddd8cd) !important;
-  color: var(--text-secondary, #555149) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
 }
 
 .m1-smart-filter-apply {
-  background: var(--primary, #b8890b) !important;
-  color: var(--on-primary, #17130a) !important;
-  border: 1px solid var(--primary, #b8890b) !important;
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+  border: 1px solid var(--primary-active) !important;
 }
 
-.m1-smart-filter-apply:hover { filter: brightness(1.06); }
+.m1-smart-filter-apply:hover { background: var(--primary-hover) !important; }
 
 .m1-smart-filter-footer button {
   min-height: 44px !important;
   line-height: 1.45 !important;
   letter-spacing: 0 !important;
-}
-
-[data-theme="dark"] .m1-smart-filter-panel,
-.dark .m1-smart-filter-panel {
-  --surface: #20201e;
-  --surface-subtle: #292825;
-  --field-bg: #171715;
-  --border: #403e38;
-  --text: #f4f1e8;
-  --text-secondary: #d2cdc1;
-  --text-muted: #aaa398;
-  --primary: #d8aa2d;
-  --on-primary: #19150b;
 }
 
 @media (max-width: 640px) {

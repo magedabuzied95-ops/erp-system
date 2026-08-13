@@ -188,7 +188,17 @@ const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
 const POS_SERVICE_WORKER_VERSION = 10;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
-const POS_THEME_COLOR = "#07111f";
+// PWA/OS chrome colour for the installed POS app. This was pinned to #07111f, a
+// dark navy that matches neither M1 theme, so an installed POS showed a strip of
+// a third palette above the shell. Read the live canvas token instead; the
+// literal survives only as a boot-time fallback for the one frame before the
+// theme is applied.
+const POS_THEME_COLOR_FALLBACK = "#131211";
+const readPosThemeColor = () => {
+  if (typeof window === "undefined") return POS_THEME_COLOR_FALLBACK;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+  return bg || POS_THEME_COLOR_FALLBACK;
+};
 const POS_STATUS_BAR_STYLE = "black-translucent";
 const POS_TOUCH_ICON_HREF = "/icons/pos-180.png";
 const POS_GLOBAL_BARCODE_MIN_LENGTH = 6;
@@ -1964,6 +1974,18 @@ function POSPro() {
     };
   }, []);
 
+  // Design-system scope hook. POS renders outside `.m1-shell-root`, and six of
+  // its surfaces (cart sheet, recent-operations drawer, customer create, shift
+  // modals) are portaled to <body>, so they sit outside `.pos-pro-shell` too.
+  // A body-level marker is the only hook that reaches BOTH: while this route is
+  // mounted the whole document is POS, so foundation.css can normalise palette
+  // classes to tokens here exactly as it does inside the app shell.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    document.body.classList.add("pos-route");
+    return () => document.body.classList.remove("pos-route");
+  }, []);
+
   useEffect(() => {
     if (!isBrowser() || !location.pathname.startsWith("/pos")) return undefined;
 
@@ -1991,7 +2013,7 @@ function POSPro() {
     setHeadMetaContent("apple-mobile-web-app-capable", "yes");
     setHeadMetaContent("apple-mobile-web-app-title", POS_APP_SHORT_TITLE);
     setHeadMetaContent("apple-mobile-web-app-status-bar-style", POS_STATUS_BAR_STYLE);
-    setHeadMetaContent("theme-color", POS_THEME_COLOR);
+    setHeadMetaContent("theme-color", readPosThemeColor());
     if (appleTouchLink) {
       appleTouchLink.setAttribute("href", POS_TOUCH_ICON_HREF);
     } else {
@@ -7630,10 +7652,13 @@ function POSPro() {
     );
   }
 
+  // The shell canvas is owned by POSPro.m1.css off --bg/--text. It used to be a
+  // fixed #09090b→#111111 gradient with an emerald wash inlined here, which is
+  // what made POS a dark island no theme could reach.
   return (
     <div
       ref={posShellRef}
-      className="pos-pro-shell h-[100dvh] w-full max-w-[100vw] min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
+      className="pos-pro-shell h-[100dvh] w-full max-w-[100vw] min-w-0 overflow-hidden"
     >
       <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:overflow-hidden lg:p-3 xl:pb-3">
         {viewportIsMobile ? (

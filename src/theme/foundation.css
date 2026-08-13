@@ -188,13 +188,22 @@
 
 /* Legacy ERP modules used emerald/cyan as brand colors. Inside the authenticated
    app shell, solid colored controls are actions and therefore use M1 gold.
-   Soft colors remain semantic statuses with accessible contrast. */
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-emerald-400"]:not([class*="bg-emerald-400/"]),
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-emerald-500"]:not([class*="bg-emerald-500/"]),
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-green-500"]:not([class*="bg-green-500/"]),
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-cyan-300"]:not([class*="bg-cyan-300/"]),
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-cyan-400"]:not([class*="bg-cyan-400/"]),
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-sky-400"]:not([class*="bg-sky-400/"]) {
+   Soft colors remain semantic statuses with accessible contrast.
+
+   POS CONVERGENCE: `.pos-pro-shell` is a second scope on every rule below. POS
+   renders outside `.m1-shell-root`, so none of this normalisation reached it and
+   its emerald/amber/rose/cyan classes stayed raw Tailwind in BOTH themes — which
+   is why POS needed a private light palette to look survivable at all. Adding the
+   scope here, rather than restating the contract inside POS, keeps ONE owner for
+   what a status colour means. `:is()` takes the highest specificity of its
+   arguments, so existing `.m1-shell-root .m1-shell-content` consumers keep the
+   exact specificity they had and are unaffected. */
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-emerald-400"]:not([class*="bg-emerald-400/"]),
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-emerald-500"]:not([class*="bg-emerald-500/"]),
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-green-500"]:not([class*="bg-green-500/"]),
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-cyan-300"]:not([class*="bg-cyan-300/"]),
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-cyan-400"]:not([class*="bg-cyan-400/"]),
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-sky-400"]:not([class*="bg-sky-400/"]) {
   background: var(--primary) !important;
   background-image: none !important;
   border-color: var(--primary-active) !important;
@@ -202,38 +211,38 @@
   box-shadow: none !important;
 }
 
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-blue-"][class*="text-blue-"],
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-sky-"][class*="text-sky-"],
-.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-cyan-"][class*="text-cyan-"] {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-blue-"][class*="text-blue-"],
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-sky-"][class*="text-sky-"],
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where(button,a)[class*="bg-cyan-"][class*="text-cyan-"] {
   background: var(--primary-soft) !important;
   border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;
   color: var(--primary) !important;
   box-shadow: none !important;
 }
 
-.m1-shell-root .m1-shell-content :where([class*="text-cyan-"],[class*="text-sky-"],[class*="text-blue-"]) {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="text-cyan-"],[class*="text-sky-"],[class*="text-blue-"]) {
   color: var(--info) !important;
 }
-.m1-shell-root .m1-shell-content :where([class*="bg-cyan-500/"],[class*="bg-cyan-400/"],[class*="bg-cyan-300/"],[class*="bg-sky-500/"],[class*="bg-sky-400/"],[class*="bg-blue-500/"]) {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="bg-cyan-500/"],[class*="bg-cyan-400/"],[class*="bg-cyan-300/"],[class*="bg-sky-500/"],[class*="bg-sky-400/"],[class*="bg-blue-500/"]) {
   background: var(--info-soft) !important;
 }
-.m1-shell-root .m1-shell-content :where([class*="border-cyan-"],[class*="border-sky-"],[class*="border-blue-"]) {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="border-cyan-"],[class*="border-sky-"],[class*="border-blue-"]) {
   border-color: color-mix(in srgb, var(--info) 38%, var(--border)) !important;
 }
 
-.m1-shell-root .m1-shell-content :where([class*="text-emerald-"],[class*="text-green-"]) {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="text-emerald-"],[class*="text-green-"]) {
   color: var(--success) !important;
 }
-.m1-shell-root .m1-shell-content :where([class*="bg-emerald-500/"],[class*="bg-emerald-400/"],[class*="bg-emerald-300/"],[class*="bg-green-500/"],[class*="bg-green-400/"]) {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="bg-emerald-500/"],[class*="bg-emerald-400/"],[class*="bg-emerald-300/"],[class*="bg-green-500/"],[class*="bg-green-400/"]) {
   background: var(--success-soft) !important;
 }
-.m1-shell-root .m1-shell-content :where([class*="border-emerald-"],[class*="border-green-"]) {
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="border-emerald-"],[class*="border-green-"]) {
   border-color: color-mix(in srgb, var(--success) 36%, var(--border)) !important;
 }
 
-.m1-shell-root .m1-shell-content :where([class*="text-amber-"],[class*="text-yellow-"],[class*="text-orange-"]) { color: var(--warning) !important; }
-.m1-shell-root .m1-shell-content :where([class*="bg-amber-500/"],[class*="bg-amber-400/"],[class*="bg-yellow-500/"],[class*="bg-orange-500/"]) { background: var(--warning-soft) !important; }
-.m1-shell-root .m1-shell-content :where([class*="text-rose-"],[class*="text-red-"]) { color: var(--danger) !important; }
-.m1-shell-root .m1-shell-content :where([class*="bg-rose-500/"],[class*="bg-rose-400/"],[class*="bg-red-500/"]) { background: var(--danger-soft) !important; }
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="text-amber-"],[class*="text-yellow-"],[class*="text-orange-"]) { color: var(--warning) !important; }
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="bg-amber-500/"],[class*="bg-amber-400/"],[class*="bg-yellow-500/"],[class*="bg-orange-500/"]) { background: var(--warning-soft) !important; }
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="text-rose-"],[class*="text-red-"]) { color: var(--danger) !important; }
+:is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="bg-rose-500/"],[class*="bg-rose-400/"],[class*="bg-red-500/"]) { background: var(--danger-soft) !important; }
 
-html[data-theme="light"] .m1-shell-root .m1-shell-content :where([class*="opacity-"],button:disabled) { text-shadow: none; }
+html[data-theme="light"] :is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="opacity-"],button:disabled) { text-shadow: none; }
