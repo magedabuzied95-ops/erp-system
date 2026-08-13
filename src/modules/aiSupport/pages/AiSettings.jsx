@@ -167,7 +167,7 @@ export default function AiSettings() {
 
   return (
     <div dir="ltr" className="m1-ai-scope min-h-full p-3 text-white md:p-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
+      <div className="mx-auto flex w-full flex-col gap-5">
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>

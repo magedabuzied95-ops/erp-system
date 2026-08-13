@@ -8,7 +8,7 @@ function InventoryShell({ title, subtitle, actions, tabs = [], children }) {
 
   return (
     <div dir="rtl" className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-right text-[var(--text)]">
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4 lg:px-6">
+      <div className="mx-auto flex w-full flex-col gap-4 px-4 py-4 lg:px-6">
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>

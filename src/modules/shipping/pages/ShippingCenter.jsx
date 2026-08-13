@@ -270,7 +270,7 @@ export default function ShippingCenter() {
 
   return (
     <main className="min-h-screen bg-[#050816] p-4 text-white md:p-6">
-      <div className="mx-auto max-w-[96rem] space-y-5">
+      <div className="mx-auto w-full space-y-5">
         <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">{t("shipping.center.eyebrow")}</div>

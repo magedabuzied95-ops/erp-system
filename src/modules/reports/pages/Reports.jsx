@@ -368,7 +368,7 @@ function Reports() {
 
   return (
     <div className="m1-reports-page min-h-screen bg-[#080b10] px-3 py-4 text-white sm:px-5 lg:px-7" dir={isArabic ? "rtl" : "ltr"}>
-      <div className="mx-auto max-w-[1600px] space-y-5">
+      <div className="mx-auto w-full space-y-5">
         <header className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(6,78,59,0.72))] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>

@@ -502,7 +502,7 @@ export default function AiFollowups() {
 
   return (
     <div dir="ltr" className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
-      <div className="mx-auto flex max-w-[96rem] flex-col gap-4">
+      <div className="mx-auto flex w-full flex-col gap-4">
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-4 md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">

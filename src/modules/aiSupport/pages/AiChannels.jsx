@@ -533,7 +533,7 @@ export default function AiChannels() {
 
   return (
     <div dir={dir} className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] px-4 py-6 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-[96rem] flex-col gap-5">
+      <div className="mx-auto flex w-full flex-col gap-5">
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div>

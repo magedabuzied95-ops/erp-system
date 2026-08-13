@@ -1,5 +1,5 @@
 .m1-settings-center{max-width:none!important;background:var(--bg)!important;color:var(--text)!important;font-family:var(--app-font)}
-.m1-settings-center>div{max-width:1600px!important}
+.m1-settings-center>div{max-width:none!important}
 .m1-settings-center :where(header,section,article,nav,main>div){border-color:var(--border)!important;box-shadow:var(--shadow-card)!important}
 .m1-settings-center header{position:relative!important;top:auto!important;background:transparent!important;border:0!important;backdrop-filter:none!important}
 .m1-settings-center header>div{background:var(--card)!important;border-color:var(--border)!important;box-shadow:var(--shadow-card)!important}

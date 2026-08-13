@@ -1,4 +1,4 @@
-.m1-notifications-center{max-width:1600px;margin-inline:auto;padding:18px;background:var(--bg);color:var(--text);font-family:var(--app-font)}
+.m1-notifications-center{padding:18px;background:var(--bg);color:var(--text);font-family:var(--app-font)}
 .m1-notifications-center>section{background:var(--card)!important;border-color:var(--border)!important;border-radius:var(--radius-lg)!important;box-shadow:var(--shadow-card)!important}
 .m1-notifications-center>section>div{background:var(--card)!important;background-image:none!important;border-color:var(--border)!important;padding:18px!important}
 .m1-notifications-center :where(h1,h2,h3,.text-slate-50,.text-slate-100){color:var(--text)!important}

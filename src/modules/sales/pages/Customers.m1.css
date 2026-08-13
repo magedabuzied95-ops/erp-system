@@ -1,5 +1,5 @@
 .m1-customers-page{background:var(--bg)!important;background-image:none!important;color:var(--text)!important;font-family:var(--app-font);padding:20px!important}
-.m1-customers-page>div{max-width:1600px;margin-inline:auto}
+.m1-customers-page>div{max-width:none}
 .m1-customers-page :where(section,form,.rounded-3xl){border-color:var(--border)!important;background:var(--card)!important;background-image:none!important;box-shadow:var(--shadow-card)!important;backdrop-filter:none!important}
 .m1-customers-page :where(h1,h2,h3,.text-white,.text-slate-100){color:var(--text)!important;letter-spacing:0!important}
 .m1-customers-page :where(.text-zinc-300,.text-zinc-400,.text-zinc-500,.text-slate-300,.text-slate-400,.text-slate-500){color:var(--muted)!important}

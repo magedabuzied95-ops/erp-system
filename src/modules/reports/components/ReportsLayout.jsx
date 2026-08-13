@@ -8,8 +8,10 @@ import { useTranslation } from "react-i18next";
  * 1. Width. The ERP's global --content-max is 1480px, which suits form-and-list
  *    screens but leaves a 1920px monitor with a wide empty margin and squeezes the
  *    trend chart into ~940px. Analytics reads better wide: charts, tables and the
- *    quadrant matrix all gain from it. So these pages opt into more width as the
- *    viewport allows, while keeping the global token for everything else in the ERP.
+ *    quadrant matrix all gain from it. These pages used to step up to 1600/1680px;
+ *    under the fluid-workspace ruling they now take the full workspace the shell
+ *    offers, since every Reporting Center surface is operational rather than a
+ *    reading view. The shell's own --page-inline still provides the page gutters.
  *    Text blocks are never stretched — only the analytical grids.
  *
  * 2. One card definition. Previously each section brought its own border, radius and
@@ -24,9 +26,8 @@ export function ReportsPage({ dir, children }) {
     // --page-inline, and adding it again cost 60px of chart width on a 1920 monitor
     // for no visual gain.
     <div dir={dir} className="min-h-full bg-[var(--bg)] py-5">
-      {/* 1480 keeps parity with the rest of the ERP up to a laptop; beyond that the
-          analytics grids use the room a large monitor actually has. */}
-      <div className="mx-auto w-full max-w-[var(--content-max)] 2xl:max-w-[1600px] min-[1800px]:max-w-[1680px]">
+      {/* Fluid: the analytics grids use the room a large monitor actually has. */}
+      <div className="mx-auto w-full">
         {children}
       </div>
     </div>

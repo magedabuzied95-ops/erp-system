@@ -2244,7 +2244,6 @@ function PurchaseOrder() {
   return (
     <FlowShell
       compact
-      wide={isFullscreen}
       shellRef={purchaseShellRef}
       title={t("purchases.create.title")}
       subtitle={t("purchases.create.subtitle")}

@@ -843,7 +843,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
   return (
     <div dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3">
-      <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-[1800px] flex-col gap-2 overflow-hidden">
+      <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full flex-col gap-2 overflow-hidden">
         <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.breadcrumb")}</div>

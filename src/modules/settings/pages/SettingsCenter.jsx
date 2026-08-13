@@ -1028,7 +1028,7 @@ function SettingsCenterContent({ debugMode = false }) {
 
   return (
     <div dir={direction} className="m1-settings-center min-h-screen w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden bg-[#f6f8fb] text-slate-950 dark:bg-[#050816] dark:text-white lg:max-w-none">
-      <div className="mx-auto w-full max-w-[calc(100vw-3rem)] px-0 py-4 sm:max-w-[96rem] sm:px-5 lg:px-8">
+      <div className="mx-auto w-full max-w-[calc(100vw-3rem)] px-0 py-4 sm:max-w-none sm:px-5 lg:px-8">
         <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#f6f8fb]/90 px-0 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#050816]/90 lg:-mx-8 lg:px-8">
           <div className="flex w-full min-w-0 max-w-full flex-col gap-4 rounded-[1.75rem] border border-white/70 bg-white/85 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/80 dark:shadow-[0_22px_70px_rgba(0,0,0,0.45)] lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
@@ -1329,7 +1329,7 @@ function SettingsCenterContent({ debugMode = false }) {
 
       {isDirty ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-18px_48px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 dark:shadow-[0_-18px_48px_rgba(0,0,0,0.45)]">
-          <div className="mx-auto flex max-w-[96rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mx-auto flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button type="button" onClick={discard} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
