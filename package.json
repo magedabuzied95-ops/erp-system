@@ -47,6 +47,7 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "emoji-picker-react": "^4.19.1",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.39.0",
