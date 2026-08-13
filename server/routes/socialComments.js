@@ -322,7 +322,7 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
       source_post_id: String(post?.source_post_id || post?.post_id || post?.canonical_post_id || post?.id || "").trim(),
       post_link_key: String(post?.post_link_key || post?.postLinkKey || post?.canonical_post_id || post?.post_id || post?.id || post?.permalink_url || "").trim() || null,
       permalink_url: String(post?.permalink_url || post?.post_permalink_url || post?.display_permalink || "").trim() || null,
-      comments_count: Number(post?.comments_count || post?.comment_count || 0) || 0,
+      comments_count: Number(post?.comments_count ?? post?.commentsCount ?? post?.comment_count ?? post?.total_comments ?? 0) || 0,
       linked_products: Array.isArray(post?.linked_products) ? post.linked_products : [],
       linked_products_count: Number(post?.linked_products_count || post?.product_links_count || (Array.isArray(post?.linked_products) ? post.linked_products.length : 0) || 0) || 0,
     }));
