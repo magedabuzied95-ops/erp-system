@@ -15,8 +15,60 @@
  * Every reserved entry carries the reason it is reserved AND, where the file is
  * not itself an obvious owner, the import chain that proves it.
  */
+import fs from "node:fs";
+import path from "node:path";
+
 import { classify } from "./i18n-classify.mjs";
 import { scanEnglish } from "./i18n-english-scan.mjs";
+
+/**
+ * Bucket E, decided PER HIT — a RENDERED receipt component.
+ *
+ * The English scanner's print detector only recognises a generated print
+ * DOCUMENT (`printWindow.document.write(`<html>...`)`). A thermal receipt built
+ * as a React component is the same artwork reached a different way, and it is
+ * named in the print/thermal firewall: `ReceiptPreview` and
+ * `ThermalReceiptFinal` both live inside pos/components/CartSidebar.jsx, whose
+ * 28 Arabic literals are entirely receipt copy — "فاتورة بيع", "شكرًا لزيارتكم",
+ * the returns policy — and none of it is cart chrome.
+ *
+ * Reserving the FILE would be wrong: CartSidebar is 3126 lines and the cart UI
+ * around the receipt is ordinary chrome that must stay measurable. So the rule
+ * is scoped to the component body, which is what the print track owns.
+ */
+const RECEIPT_COMPONENT = /^\s*(?:export\s+)?(?:function|const)\s+(\w*(?:Receipt|Thermal)\w*)\s*[({=]/;
+
+export const receiptArtworkRanges = (text) => {
+  const lines = text.split(/\r?\n/);
+  const ranges = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const open = RECEIPT_COMPONENT.exec(lines[i]);
+    // Only a TOP-LEVEL component owns a whole block; a nested helper does not.
+    if (!open || /^\s/.test(lines[i])) continue;
+    /*
+     * The terminator must be a line that IS the closing brace. Matching any
+     * line that merely STARTS with `}` stops at the `}) {` that ends a
+     * destructured parameter list spread over several lines, which truncated
+     * ThermalReceiptFinal to its signature and left its 27 receipt literals
+     * counted as chrome.
+     */
+    let end = lines.length;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      if (/^\}\s*;?\s*$/.test(lines[j])) { end = j + 1; break; }
+    }
+    ranges.push([i + 1, end, open[1]]);
+  }
+  return ranges;
+};
+
+const artworkCache = new Map();
+const isReceiptArtwork = (file, line) => {
+  if (!artworkCache.has(file)) {
+    const full = path.resolve(file);
+    artworkCache.set(file, fs.existsSync(full) ? receiptArtworkRanges(fs.readFileSync(full, "utf8")) : []);
+  }
+  return artworkCache.get(file).some(([from, to]) => line >= from && line <= to);
+};
 
 /**
  * Bucket H — AI Inbox reserved.
@@ -113,14 +165,25 @@ export function partition() {
   const ar = classify();
   const en = scanEnglish();
   const rows = new Map();
-  const add = (file, key, count) => {
+  const artwork = new Map();
+  const add = (file, key, hits) => {
+    /*
+     * Receipt artwork is split off PER HIT and attributed to the print track,
+     * so a file that holds both a receipt and real chrome keeps the chrome
+     * measurable instead of vanishing behind a file-level exclusion.
+     */
+    const printed = hits.filter((hit) => isReceiptArtwork(file, hit.line)).length;
+    if (printed) artwork.set(file, (artwork.get(file) || 0) + printed);
+    const count = hits.length - printed;
     if (!count) return;
     if (!rows.has(file)) rows.set(file, { file, ar: 0, en: 0, bucket: reservedBucket(file) });
     rows.get(file)[key] += count;
   };
-  for (const row of ar.broken) add(row.file, "ar", row.arabic);
-  for (const row of en.brokenEnglish) add(row.file, "en", row.total);
-  return [...rows.values()].sort((a, b) => b.ar + b.en - (a.ar + a.en));
+  for (const row of ar.broken) add(row.file, "ar", row.hits.filter((hit) => hit.script === "ar"));
+  for (const row of en.brokenEnglish) add(row.file, "en", row.hits);
+  const list = [...rows.values()].sort((a, b) => b.ar + b.en - (a.ar + a.en));
+  list.artwork = artwork;
+  return list;
 }
 
 if (process.argv[1]?.endsWith("i18n-nonreserved.mjs")) {
@@ -146,6 +209,16 @@ if (process.argv[1]?.endsWith("i18n-nonreserved.mjs")) {
     console.log(`${name}  —  AR ${total(rows, "ar")}  EN ${total(rows, "en")}  (${rows.length} files)`);
     for (const row of rows) console.log(`    ${String(row.ar).padStart(4)}  ${String(row.en).padStart(4)}  ${row.file}`);
   }
+  if (all.artwork.size) {
+    console.log("\nE. rendered receipt artwork (split off per hit, owned by the print track)");
+    for (const [file, count] of all.artwork) console.log(`    ${String(count).padStart(4)}        ${file}`);
+  }
+  const artworkTotal = [...all.artwork.values()].reduce((sum, count) => sum + count, 0);
   console.log(`\n  RESERVED AR->EN ${total(held, "ar")}   RESERVED EN->AR ${total(held, "en")}`);
-  console.log(`  GRAND TOTAL AR->EN ${total(all, "ar")}   EN->AR ${total(all, "en")}`);
+  console.log(
+    `  GRAND TOTAL ${total(all, "ar") + total(all, "en") + artworkTotal}` +
+      ` = non-reserved ${total(open, "ar") + total(open, "en")}` +
+      ` + reserved ${total(held, "ar") + total(held, "en")}` +
+      ` + receipt artwork ${artworkTotal}`
+  );
 }
