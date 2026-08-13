@@ -21,7 +21,7 @@ test("available-by-size picker exposes an independent offers chip and scopes bot
   const pickerApi = fs.readFileSync(new URL("../src/modules/aiSupport/services/pickerSizesApi.js", import.meta.url), "utf8");
   const controller = fs.readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
   assert.match(picker, /selectedLinkOffers/);
-  assert.match(picker, />\s*العروض\s*<\/button>/);
+  assert.match(picker, /aiSupport\.inbox\.picker\.offers/);
   assert.match(pickerApi, /params\.offer_story = 1/);
   assert.match(controller, /COALESCE\(p\.is_offer_story, FALSE\) = TRUE/);
 });
