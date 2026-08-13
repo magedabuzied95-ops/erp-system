@@ -591,7 +591,7 @@ function InventoryDashboard() {
               </div>
 
               {group.items.length > 0 ? (
-                <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
                   {group.items.map((alert) => {
                     const imageUrl = resolveImageUrl(alert.image_url);
                     const cardColor = alert.purchase_alert_by_color ? alert.color : "";
@@ -682,7 +682,7 @@ function InventoryDashboard() {
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
           <div className="relative">
             <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />

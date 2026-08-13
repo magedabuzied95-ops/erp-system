@@ -129,7 +129,7 @@ function StockTransfers() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label={tt("inventory.movements.variantId")} value={variantId} onChange={setVariantId} placeholder={tt("inventory.transfers.enterVariantId")} />
