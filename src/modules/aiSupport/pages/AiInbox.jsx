@@ -3440,7 +3440,7 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
                 className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-black text-white outline-none focus:border-cyan-300/40"
               >
                 {replyCorrectionTypes.map((item) => (
-                  <option key={item.value} value={item.value}>{item.label}</option>
+                  <option key={item.value} value={item.value}>{filterLabel(t, item)}</option>
                 ))}
               </select>
             </label>
@@ -3841,26 +3841,26 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
       <SectionTitle
         icon={Brain}
-        title="AI Next Step"
+        title={t("aiSupport.inbox.ui.aiNextStep")}
         action={<button type="button" onClick={onRefresh} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10 disabled:opacity-50">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Analyze</button>}
       />
       <div className="mb-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Recommended next step</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.ui.recommendedNextStep")}</div>
           <Pill tone={leadTone}>{lead.label || "بارد"} / {Number(lead.score || 0).toFixed(0)}%</Pill>
         </div>
         <p className="mt-2 text-sm font-black leading-6 text-white">{recommendedStep}</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-950/50 p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Confidence</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.ui.confidence")}</div>
             <div className="mt-1 text-sm font-black text-white">{Number(lead.score || 0).toFixed(2)}</div>
           </div>
           <div className="rounded-xl bg-slate-950/50 p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Reason</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.ui.reason")}</div>
             <div className="mt-1 line-clamp-2 text-sm font-bold text-slate-200">{clean(plan.reason || plan.explanation || plan.summary || intent.reason || recommendedStep)}</div>
           </div>
           <div className="rounded-xl bg-slate-950/50 p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Suggested action</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.ui.suggestedAction")}</div>
             <div className="mt-1 text-sm font-black text-white">{actions[0]?.label || "Continue conversation"}</div>
           </div>
         </div>
@@ -4182,7 +4182,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
 
               {visualTopCandidates.length ? (
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
-                  <SectionTitle icon={Brain} title="Visual candidates" />
+                  <SectionTitle icon={Brain} title={t("aiSupport.inbox.ui.visualCandidates")} />
                   <div className="mt-3 grid gap-2 lg:grid-cols-2">
                     {visualTopCandidates.map((candidate, index) => {
                       const breakdown = candidate?.score_breakdown || candidate?.breakdown || {};
@@ -4213,7 +4213,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
 
               {unifiedProducts.length || unifiedImageCards.length || unifiedQuickReplies.length || unifiedActions.length ? (
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
-                  <SectionTitle icon={MessageSquareText} title="Unified reply payload" />
+                  <SectionTitle icon={MessageSquareText} title={t("aiSupport.inbox.ui.unifiedReplyPayload")} />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {unifiedProducts.length ? <DebugField label={t("aiSupport.inbox.debug.productCards")} value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} بطاقة`} /> : null}
                     {unifiedImageCards.length ? <DebugField label={t("aiSupport.inbox.debug.imageCards")} value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} بطاقة`} /> : null}
@@ -4224,7 +4224,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
               ) : null}
 
               <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
-                <SectionTitle icon={Clock3} title="Recent AI decisions" />
+                <SectionTitle icon={Clock3} title={t("aiSupport.inbox.ui.recentAiDecisions")} />
                 <div className="mt-3 grid gap-2 lg:grid-cols-2">
                   {events.length ? events.map((event, index) => {
                     const eventStatus = event.skip_reason || event.skipped_duplicate ? "skipped" : event.graph_api_called ? "sent" : "neutral";
@@ -4234,7 +4234,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[11px] font-bold text-slate-500">{absoluteTime(event.timestamp) || "وقت غير معروف"}</span>
                           <DebugStatusBadge type={event.graph_api_called ? "called" : "none"}>{event.graph_api_called ? "تم استدعاء Graph API" : "لا يوجد استدعاء Graph"}</DebugStatusBadge>
-                          {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">متخطى</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">تم الإرسال</DebugStatusBadge> : null}
+                          {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">{t("aiSupport.inbox.ui.skipped")}</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">{t("aiSupport.inbox.ui.sent")}</DebugStatusBadge> : null}
                         </div>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           <DebugField label={t("aiSupport.inbox.debug.intent")} value={event.classified_intent} />
@@ -4322,7 +4322,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
               </div>
               {latestTrace.error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3">
-                  <div className="text-xs font-black uppercase tracking-[0.14em] text-rose-100">Trace error</div>
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-rose-100">{t("aiSupport.inbox.ui.traceError")}</div>
                   <TraceJsonBlock value={latestTrace.error} />
                 </div>
               ) : null}
@@ -4404,7 +4404,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           </div>
           {cityName ? (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-2.5 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Location</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.location")}</div>
               <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{cityName}</div>
             </div>
           ) : null}
@@ -4428,20 +4428,20 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
         </div>
       ) : null}
       <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">مزيد من ذاكرة العميل</summary>
+        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.moreCustomerMemory")}</summary>
         <div className="mt-3 space-y-2">
           <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المقاس المفضل</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.preferredSize")}</div>
             <div className="mt-1 text-sm font-black text-white">{profile.preferred_size || "غير معروف"}</div>
           </div>
           <TagRow label={t("aiSupport.inbox.field.colours")} values={profile.preferred_colors} />
           <TagRow label={t("aiSupport.inbox.field.models")} values={profile.preferred_models} />
           <Info label={t("aiSupport.inbox.field.memoryScore")} value={profile.memory_score ?? conversation?.lead_score ?? 0} />
-          <MiniList title="Viewed products" items={asArray(profile.viewed_products)} empty="No viewed products." />
-          <MiniList title="Abandoned products" items={asArray(profile.abandoned_products)} empty="No abandoned products." />
-          <MiniList title="Previous orders" items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
+          <MiniList title={t("aiSupport.inbox.ui.viewedProducts")} items={asArray(profile.viewed_products)} empty="No viewed products." />
+          <MiniList title={t("aiSupport.inbox.ui.abandonedProducts")} items={asArray(profile.abandoned_products)} empty="No abandoned products." />
+          <MiniList title={t("aiSupport.inbox.ui.previousOrders")} items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
           <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-            <SectionTitle icon={MessageSquareText} title="المشاعر والذاكرة" />
+            <SectionTitle icon={MessageSquareText} title={t("aiSupport.inbox.ui.sentimentMemory")} />
             <div className="mb-3 flex flex-wrap gap-2">
               <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
               {asArray(profile.sentiment_history).length ? <Pill tone="violet">{asArray(profile.sentiment_history).length} history</Pill> : null}
@@ -4496,11 +4496,12 @@ function MiniList({ title, items = [], empty }) {
 }
 
 function OrderDraftPanel({ conversation, drafts, onAction, busy }) {
+  const { t } = useTranslation();
   const conversationDrafts = asArray(conversation?.draft_orders);
   const visibleDrafts = conversationDrafts.length ? conversationDrafts : asArray(drafts).slice(0, 4);
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <SectionTitle icon={ShoppingCart} title="Order draft panel" />
+      <SectionTitle icon={ShoppingCart} title={t("aiSupport.inbox.ui.orderDraftPanel")} />
       <div className="space-y-3">
         {visibleDrafts.length ? visibleDrafts.map((draft) => <DraftCard key={draft.id} draft={draft} onAction={onAction} busy={busy} />) : <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No draft for this conversation.</div>}
       </div>
@@ -4535,11 +4536,11 @@ function DraftCard({ draft, onAction, busy }) {
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => onAction(draft, "confirm")} disabled={busy || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 disabled:opacity-50"><PackageCheck className="h-4 w-4" />Confirm Order</button>
-        <button type="button" onClick={() => { window.location.href = `/orders/${draft.id}`; }} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-white"><ArrowUpRight className="h-4 w-4" />Edit Draft</button>
-        <button type="button" onClick={() => onAction(draft, "cancelled")} disabled={busy || draft.ai_agent_status === "confirmed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"><XCircle className="h-4 w-4" />Reject / Cancel</button>
-        <button type="button" onClick={() => onAction(draft, "human_handoff")} disabled={busy || draft.ai_agent_status === "confirmed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"><Handshake className="h-4 w-4" />Assign to human</button>
-        <button type="button" onClick={() => onAction(draft, "ai_draft")} disabled={busy || draft.ai_agent_status === "confirmed"} className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />Resume AI</button>
+        <button type="button" onClick={() => onAction(draft, "confirm")} disabled={busy || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t("aiSupport.inbox.ui.confirmOrder")}</button>
+        <button type="button" onClick={() => { window.location.href = `/orders/${draft.id}`; }} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-white"><ArrowUpRight className="h-4 w-4" />{t("aiSupport.inbox.ui.editDraft")}</button>
+        <button type="button" onClick={() => onAction(draft, "cancelled")} disabled={busy || draft.ai_agent_status === "confirmed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"><XCircle className="h-4 w-4" />{t("aiSupport.inbox.ui.rejectCancel")}</button>
+        <button type="button" onClick={() => onAction(draft, "human_handoff")} disabled={busy || draft.ai_agent_status === "confirmed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"><Handshake className="h-4 w-4" />{t("aiSupport.inbox.ui.assignToHuman")}</button>
+        <button type="button" onClick={() => onAction(draft, "ai_draft")} disabled={busy || draft.ai_agent_status === "confirmed"} className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />{t("aiSupport.inbox.ui.resumeAi")}</button>
       </div>
     </div>
   );
@@ -4583,7 +4584,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
 
   return (
     <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/5 p-4">
-      <SectionTitle icon={BadgePercent} title="Sales intelligence" />
+      <SectionTitle icon={BadgePercent} title={t("aiSupport.inbox.ui.salesIntelligence")} />
       <div className="flex flex-wrap gap-2">
         <Pill tone={stateBadge.tone || "cyan"}>{stateBadge.label || state.current_state || "DISCOVERY"}</Pill>
         {objectionLabel ? <Pill tone="amber">{objectionLabel}</Pill> : null}
@@ -4594,7 +4595,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-black text-white">Conversion probability</div>
+            <div className="text-sm font-black text-white">{t("aiSupport.inbox.ui.conversionProbability")}</div>
             <Pill tone={score >= 85 ? "emerald" : score >= 65 ? "cyan" : score >= 40 ? "amber" : "rose"}>{score}/100</Pill>
           </div>
           <div className="mt-2 text-2xl font-black text-white">{scoreLevel || "low"}</div>
@@ -5667,10 +5668,10 @@ export default function AiInbox({ reviewerMode = false }) {
       sourceCounts,
       total: conversations.length,
       funnel: [
-        { key: "new", label: "New" },
-        { key: "contacted", label: "Contacted" },
-        { key: "interested", label: "Interested" },
-        { key: "won", label: "Won" },
+        { key: "new", labelKey: "aiSupport.inbox.action.statusNew" },
+        { key: "contacted", labelKey: "aiSupport.inbox.action.contacted" },
+        { key: "interested", labelKey: "aiSupport.inbox.action.interested" },
+        { key: "won", labelKey: "aiSupport.inbox.action.won" },
       ],
       sourceOrder: [
         { key: "facebook_comment", label: "Facebook Comment" },
@@ -8111,7 +8112,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const renderModeTabs = () => reviewerMode ? (
     <div className="mt-3 inline-flex max-w-full flex-wrap gap-2">
       <button type="button" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950">
-        <span>AI Inbox</span>
+        <span>{t("aiSupport.inbox.ui.aiInbox")}</span>
         <span className="rounded-full bg-slate-950/15 px-2 py-0.5">{conversationPanelCount}</span>
       </button>
     </div>
@@ -8132,7 +8133,7 @@ export default function AiInbox({ reviewerMode = false }) {
             : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
         }`}
       >
-        <span>Analytics</span>
+        <span>{t("aiSupport.inbox.ui.analytics")}</span>
       </button>
       <button
         type="button"
@@ -8149,7 +8150,7 @@ export default function AiInbox({ reviewerMode = false }) {
             : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
         }`}
         >
-        <span>AI Inbox</span>
+        <span>{t("aiSupport.inbox.ui.aiInbox")}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isConversationMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
           {conversationPanelCount}
         </span>
@@ -8266,16 +8267,16 @@ export default function AiInbox({ reviewerMode = false }) {
     const performance = analyticsValue("performance.score", "performance_score", "score", "metrics.performance_score");
     const engagement = analyticsValue("engagement_rate", "engagementRate", "performance.engagement_rate", "metrics.engagement_rate");
     const cards = [
-      { label: "Total conversations", value: conversations.length, tone: "cyan" },
-      { label: "Unread / needs support", value: conversations.filter((item) => item.unread || item.needs_human_support).length, tone: "amber" },
-      { label: "Reply rate", value: `${Number.isFinite(replyRate) ? replyRate.toFixed(0) : 0}%`, tone: "emerald" },
-      { label: "Auto reply", value: aiAssistantGlobalEnabled ? "ON" : "OFF", tone: aiAssistantGlobalEnabled ? "emerald" : "rose" },
-      { label: "Comment stats", value: `${totalComments} / ${newComments} new`, tone: "violet" },
-      { label: "Revenue", value: revenue ? money(revenue) : "—", tone: "emerald" },
-      { label: "Needs reply", value: needsReply, tone: "amber" },
-      { label: "Replied", value: replied, tone: "cyan" },
-      { label: "Performance", value: performance ? `${Number(performance).toFixed(0)}%` : "—", tone: "zinc" },
-      { label: "Engagement", value: engagement ? `${Number(engagement).toFixed(0)}%` : "—", tone: "violet" },
+      { labelKey: "aiSupport.inbox.kpi.totalConversations", value: conversations.length, tone: "cyan" },
+      { labelKey: "aiSupport.inbox.kpi.unreadNeedsSupport", value: conversations.filter((item) => item.unread || item.needs_human_support).length, tone: "amber" },
+      { labelKey: "aiSupport.inbox.kpi.replyRate", value: `${Number.isFinite(replyRate) ? replyRate.toFixed(0) : 0}%`, tone: "emerald" },
+      { labelKey: "aiSupport.inbox.kpi.autoReply", value: aiAssistantGlobalEnabled ? "ON" : "OFF", tone: aiAssistantGlobalEnabled ? "emerald" : "rose" },
+      { labelKey: "aiSupport.inbox.kpi.commentStats", value: `${totalComments} / ${newComments} new`, tone: "violet" },
+      { labelKey: "aiSupport.inbox.kpi.revenue", value: revenue ? money(revenue) : "—", tone: "emerald" },
+      { labelKey: "aiSupport.inbox.kpi.needsReply", value: needsReply, tone: "amber" },
+      { labelKey: "aiSupport.inbox.kpi.replied", value: replied, tone: "cyan" },
+      { labelKey: "aiSupport.inbox.kpi.performance", value: performance ? `${Number(performance).toFixed(0)}%` : "—", tone: "zinc" },
+      { labelKey: "aiSupport.inbox.kpi.engagement", value: engagement ? `${Number(engagement).toFixed(0)}%` : "—", tone: "violet" },
     ];
 
     return (
@@ -8284,8 +8285,8 @@ export default function AiInbox({ reviewerMode = false }) {
           <section className="min-h-0 space-y-3 overflow-hidden">
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {cards.map((card) => (
-                <div key={card.label} className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{card.label}</div>
+                <div key={filterLabel(t, card)} className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{filterLabel(t, card)}</div>
                   <div className={`mt-1.5 text-2xl font-black ${card.tone === "emerald" ? "text-emerald-100" : card.tone === "amber" ? "text-amber-100" : card.tone === "rose" ? "text-rose-100" : card.tone === "violet" ? "text-violet-100" : card.tone === "cyan" ? "text-cyan-100" : "text-white"}`}>{card.value}</div>
                 </div>
               ))}
@@ -8296,7 +8297,7 @@ export default function AiInbox({ reviewerMode = false }) {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   {leadPipelineSummary.funnel.map((item) => (
                     <div key={item.key} className={`rounded-2xl border px-3 py-2 ${leadStatusTone(item.key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(item.key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(item.key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{item.label}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{filterLabel(t, item)}</div>
                       <div className="mt-1 text-xl font-black leading-none">{leadPipelineSummary.counts[item.key] || 0}</div>
                     </div>
                   ))}
@@ -8304,7 +8305,7 @@ export default function AiInbox({ reviewerMode = false }) {
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
                   {leadPipelineSummary.sourceOrder.map((item) => (
                     <div key={item.key} className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{filterLabel(t, item)}</div>
                       <div className="mt-1 text-base font-black text-white">{leadPipelineSummary.sourceCounts[item.key] || 0}</div>
                     </div>
                   ))}
@@ -8645,7 +8646,7 @@ export default function AiInbox({ reviewerMode = false }) {
             {leadPipelineSummary.funnel.map((item) => (
               <div key={item.key} className={`rounded-2xl border px-3 py-1.5 ${leadStatusTone(item.key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(item.key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(item.key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
                 <div className="flex items-baseline justify-between gap-3">
-                  <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{item.label}</div>
+                  <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{filterLabel(t, item)}</div>
                   <div className="text-base font-black leading-none">{leadPipelineSummary.counts[item.key] || 0}</div>
                 </div>
               </div>
@@ -8656,7 +8657,7 @@ export default function AiInbox({ reviewerMode = false }) {
               <div className="mt-2 grid gap-2 md:grid-cols-3">
                 {leadPipelineSummary.sourceOrder.map((item) => (
                   <div key={item.key} className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{filterLabel(t, item)}</div>
                     <div className="mt-1 text-base font-black text-white">{leadPipelineSummary.sourceCounts[item.key] || 0}</div>
                   </div>
                 ))}

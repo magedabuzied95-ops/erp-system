@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1103
-- Hardcoded English UI strings: 907
-- Total hardcoded UI strings: 2010
+- Hardcoded Arabic UI strings: 1098
+- Hardcoded English UI strings: 869
+- Total hardcoded UI strings: 1967
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 755 | 525 | 1280 | 19 |
+| main-erp | 58 | 750 | 487 | 1237 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -30,9 +30,9 @@ of scope. The scanner is conservative and can still contain false positives.
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 30 | 84 | 114 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 25 | 46 | 71 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
@@ -196,50 +196,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 892 [object-key/en] Web
 - ... 89 more
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:30 en:84)
-
-- 1635 [attribute/en] Not set yet
-- 2017 [jsx-text/ar] غير مقروء
-- 2303 [jsx-text/en] Unread
-- 3360 [attribute/en] Choose emoji
-- 3579 [object-key/en] Mylerz
-- 3580 [object-key/en] ShipBlu
-- 3844 [attribute/en] AI Next Step
-- 3849 [jsx-text/en] Recommended next step
-- 3855 [jsx-text/en] Confidence
-- 3859 [jsx-text/en] Reason
-- 3863 [jsx-text/en] Suggested action
-- 3875 [jsx-text/en] Purchase intent:
-- 3925 [jsx-text/en] Size
-- 4185 [attribute/en] Visual candidates
-- 4216 [attribute/en] Unified reply payload
-- 4227 [attribute/en] Recent AI decisions
-- 4237 [jsx-text/ar] تم الإرسال
-- 4237 [jsx-text/ar] متخطى
-- 4325 [jsx-text/en] Trace error
-- 4344 [jsx-text/ar] المحدد
-- 4345 [jsx-text/en] Rejected
-- 4407 [jsx-text/en] Location
-- 4431 [jsx-text/ar] مزيد من ذاكرة العميل
-- 4434 [jsx-text/ar] المقاس المفضل
-- 4440 [attribute/en] No viewed products.
-- 4440 [attribute/en] Viewed products
-- 4441 [attribute/en] Abandoned products
-- 4441 [attribute/en] No abandoned products.
-- 4442 [attribute/en] No previous orders in memory.
-- 4442 [attribute/en] Previous orders
-- 4444 [attribute/ar] المشاعر والذاكرة
-- 4459 [attribute/en] Not set yet
-- 4503 [attribute/en] Order draft panel
-- 4538 [jsx-text/en] Confirm Order
-- 4539 [jsx-text/en] Edit Draft
-- 4540 [jsx-text/en] Reject / Cancel
-- 4541 [jsx-text/en] Assign to human
-- 4542 [jsx-text/en] Resume AI
-- 4586 [attribute/en] Sales intelligence
-- 4597 [jsx-text/en] Conversion probability
-- ... 74 more
-
 ### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
 
 - 56 [object-key/en] Dashboard
@@ -371,6 +327,50 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3617 [jsx-text/en] Automation Status
 - 3618 [jsx-text/en] Config and runtime summary
 - ... 41 more
+
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:25 en:46)
+
+- 1635 [attribute/en] Not set yet
+- 2017 [jsx-text/ar] غير مقروء
+- 2303 [jsx-text/en] Unread
+- 3360 [attribute/en] Choose emoji
+- 3579 [object-key/en] Mylerz
+- 3580 [object-key/en] ShipBlu
+- 3875 [jsx-text/en] Purchase intent:
+- 3925 [jsx-text/en] Size
+- 4344 [jsx-text/ar] المحدد
+- 4345 [jsx-text/en] Rejected
+- 4440 [attribute/en] No viewed products.
+- 4441 [attribute/en] No abandoned products.
+- 4442 [attribute/en] No previous orders in memory.
+- 4459 [attribute/en] Not set yet
+- 4609 [jsx-text/ar] الإجراء الموصى به:
+- 4614 [jsx-text/en] Follow-up
+- 4619 [jsx-text/en] Suggested at
+- 5640 [object-key/en] All
+- 5677 [object-key/en] Facebook Comment
+- 5678 [object-key/en] Instagram Comment
+- 6483 [object-key/ar] كارت منتج (Messenger)
+- 6484 [object-key/ar] صورة + لينك
+- 6485 [object-key/ar] نص + لينك المنتج
+- 6486 [object-key/ar] لينك المنتج
+- 8620 [attribute/ar] تحتاج متابعة / رد
+- 8621 [attribute/ar] لوحة قيد التجربة
+- 9114 [jsx-text/en] AI Inbox Pro
+- 9135 [attribute/ar] غير مقروء / يحتاج تدخل
+- 9136 [attribute/ar] لوحة قيد التجربة
+- 9212 [jsx-text/ar] مرحلة العميل المحتمل
+- 9248 [jsx-text/en] New
+- 9249 [jsx-text/en] Needs reply
+- 9250 [jsx-text/en] Replied
+- 9251 [jsx-text/en] Auto Reply
+- 9256 [jsx-text/en] Auto Reply System
+- 9257 [jsx-text/en] Generic Like + Reply
+- 9273 [jsx-text/en] Draft only
+- 9274 [jsx-text/en] Manual Approval
+- 9275 [jsx-text/en] Full Auto
+- 9276 [jsx-text/en] Off
+- ... 31 more
 
 ### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:4)
 
