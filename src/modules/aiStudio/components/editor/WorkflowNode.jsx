@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, ShieldAlert, Check, X } from "lucide-react";
 import { NODE_META } from "../../lib/workflowGraph";
 import { NODE_ICON, ACCENT, RISK_BADGE, EXEC_RING, EXEC_LABEL, EXEC_ICON, EXEC_BADGE, DisconnectedIcon } from "./nodeKit";
@@ -7,6 +8,7 @@ import { NODE_ICON, ACCENT, RISK_BADGE, EXEC_RING, EXEC_LABEL, EXEC_ICON, EXEC_B
 // One custom node renderer for every semantic type (xyflow passes `type`).
 // Purely presentational — reads data prepared by the editor page.
 function WorkflowNodeBase({ type, data, selected }) {
+  const { t } = useTranslation();
   const meta = NODE_META[type] || NODE_META.end;
   const accent = ACCENT[meta.accent] || ACCENT.slate;
   const Icon = NODE_ICON[meta.icon] || NODE_ICON.Flag;
@@ -18,7 +20,8 @@ function WorkflowNodeBase({ type, data, selected }) {
   const errors = data?.errors || [];
   const hasTool = type === "tool" || type === "action";
   const isSensitive = toolMeta?.riskLevel === "SENSITIVE";
-  const displayName = cfg.label || toolMeta?.name || meta.label;
+  // cfg.label is persisted workflow data and always wins; only the type fallback localizes.
+  const displayName = cfg.label || toolMeta?.name || t(meta.labelKey, { defaultValue: meta.label });
 
   const ring = execState
     ? EXEC_RING[execState] || ""
@@ -44,7 +47,7 @@ function WorkflowNodeBase({ type, data, selected }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-black leading-tight text-white">{displayName}</div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{meta.label}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{t(meta.labelKey, { defaultValue: meta.label })}</div>
         </div>
         {execState && ExecIcon ? (
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${EXEC_BADGE[execState] || ""}`}>
@@ -56,21 +59,21 @@ function WorkflowNodeBase({ type, data, selected }) {
 
       {/* body */}
       <div className="space-y-1.5 px-3 py-2.5 text-[11px] text-slate-300">
-        {type === "trigger" ? <div className="text-slate-400">Runs <span className="font-bold text-slate-200">{cfg.triggerType || "manually"}</span></div> : null}
-        {type === "agent" ? <div className="text-slate-400">{cfg.mode === "llm_grounded" ? "LLM grounded" : "Read-only analysis"}</div> : null}
+        {type === "trigger" ? <div className="text-slate-400">{t("aiStudio.workflow.node.runs")} <span className="font-bold text-slate-200">{cfg.triggerType || t("aiStudio.workflow.node.manually")}</span></div> : null}
+        {type === "agent" ? <div className="text-slate-400">{cfg.mode === "llm_grounded" ? t("aiStudio.workflow.node.llmGrounded") : t("aiStudio.workflow.node.readOnlyAnalysis")}</div> : null}
         {type === "condition" ? (
           <div className="truncate font-mono text-[10px] text-slate-200" title={`${cfg.condition?.left || "?"} ${cfg.condition?.op || "?"} ${cfg.condition?.right ?? ""}`}>
             {cfg.condition?.left || "path?"} <span className="text-amber-200">{cfg.condition?.op || "op?"}</span>
           </div>
         ) : null}
-        {type === "approval" ? <div className="text-slate-400">Pauses for human approval</div> : null}
-        {type === "end" ? <div className="text-slate-500">Ends this path</div> : null}
+        {type === "approval" ? <div className="text-slate-400">{t("aiStudio.workflow.node.pausesForApproval")}</div> : null}
+        {type === "end" ? <div className="text-slate-500">{t("aiStudio.workflow.node.endsPath")}</div> : null}
         {hasTool ? (
           <div className="space-y-1.5">
-            {toolMeta ? <div className="text-slate-400">{toolMeta.description ? toolMeta.description.slice(0, 70) : ""}</div> : <div className="text-rose-200">No tool selected</div>}
+            {toolMeta ? <div className="text-slate-400">{toolMeta.description ? toolMeta.description.slice(0, 70) : ""}</div> : <div className="text-rose-200">{t("aiStudio.workflow.node.noToolSelected")}</div>}
             {toolMeta ? (
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${RISK_BADGE[toolMeta.riskLevel] || RISK_BADGE.READ}`}>
-                {toolMeta.riskLevel === "READ" ? "Read only" : toolMeta.riskLevel === "WRITE" ? "Writes data" : "Approval required"}
+                {toolMeta.riskLevel === "READ" ? t("aiStudio.workflow.risk.READ.label") : toolMeta.riskLevel === "WRITE" ? t("aiStudio.workflow.risk.WRITE.label") : t("aiStudio.workflow.risk.approvalRequiredShort")}
               </span>
             ) : null}
           </div>
@@ -112,8 +115,8 @@ function WorkflowNodeBase({ type, data, selected }) {
         <>
           <Handle id="true" type="source" position={Position.Right} style={{ top: "40%" }} className="!h-3 !w-3 !border-2 !border-emerald-300/70 !bg-emerald-500" />
           <Handle id="false" type="source" position={Position.Right} style={{ top: "72%" }} className="!h-3 !w-3 !border-2 !border-rose-300/70 !bg-rose-500" />
-          <span className="pointer-events-none absolute right-2 top-[34%] inline-flex items-center gap-0.5 text-[8px] font-black text-emerald-300"><Check className="h-2.5 w-2.5" />True</span>
-          <span className="pointer-events-none absolute right-2 top-[66%] inline-flex items-center gap-0.5 text-[8px] font-black text-rose-300"><X className="h-2.5 w-2.5" />False</span>
+          <span className="pointer-events-none absolute right-2 top-[34%] inline-flex items-center gap-0.5 text-[8px] font-black text-emerald-300"><Check className="h-2.5 w-2.5" />{t("aiStudio.workflow.node.true")}</span>
+          <span className="pointer-events-none absolute right-2 top-[66%] inline-flex items-center gap-0.5 text-[8px] font-black text-rose-300"><X className="h-2.5 w-2.5" />{t("aiStudio.workflow.node.false")}</span>
         </>
       ) : type !== "end" ? (
         <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-white/50 !bg-slate-500" />

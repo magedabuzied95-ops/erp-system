@@ -14,7 +14,10 @@
   },
   "searchPlaceholder": "ابحث عن المنتجات أو SKU أو الباركود أو اللون أو المقاس أو القسم أو العلامة التجارية...",
   "filters": {
-    "title": "الفلاتر"
+    "title": "الفلاتر",
+    "search": "بحث...",
+    "clearAll": "مسح الكل",
+    "brand": "الماركة"
   },
   "common": {
     "close": "إغلاق"
@@ -82,7 +85,8 @@
     "noAvailableSizes": "لا توجد مقاسات متاحة في المخزون",
     "inStock": "متوفر",
     "lowStock": "مخزون منخفض",
-    "outOfStock": "غير متوفر"
+    "outOfStock": "غير متوفر",
+    "noSizes": "لا توجد مقاسات متاحة في هذه المرحلة"
   },
   "productGrid": {
     "loading": "جاري تحميل المنتجات...",
@@ -96,7 +100,176 @@
     "price": "السعر",
     "favorite": "مفضّل"
   },
+  "treasury": {
+    "adjustment": "تسوية الخزنة",
+    "recharge": "شحن حساب الخزنة",
+    "rechargeOrAdjustment": "شحن / تسوية",
+    "rechargeAmount": "مبلغ الشحن",
+    "auditNote": "ملاحظة المراجعة",
+    "enterPositiveAmount": "أدخل مبلغ شحن موجب",
+    "adjustmentRecorded": "تم تسجيل تسوية الخزنة"
+  },
+  "posPro": {
+    "toasts": {
+      "cartItemsRemoved": "بعض منتجات السلة لم تعد متاحة وتمت إزالتها.",
+      "cartQuantitiesAdjusted": "تم تعديل كميات السلة حسب المخزون الفعلي.",
+      "customerIdMissing": "لا يمكن اختيار هذا العميل لأن رقم التعريف غير موجود.",
+      "invoiceItemsLoadFailed": "تعذر تحميل عناصر الفاتورة إلى السلة.",
+      "invalidExpenseAmount": "أدخل مبلغ مصروف صحيح",
+      "invoiceAmountRequired": "مبلغ الفاتورة مطلوب",
+      "paymentExceedsDue": "إجمالي الدفع لا يمكن أن يتجاوز المبلغ المستحق الآن",
+      "invoicePdfFailed": "تعذر تنزيل ملف الفاتورة PDF",
+      "noInvoiceLink": "لا يوجد رابط فاتورة متاح",
+      "invoiceLinkCopied": "تم نسخ رابط الفاتورة",
+      "invoiceLinkCopyFailed": "تعذر نسخ رابط الفاتورة",
+      "cartCleared": "تم تفريغ السلة",
+      "sessionRestored": "تم استرجاع جلسة البيع المحفوظة",
+      "noSellAsOtherUser": "لا تملك صلاحية البيع باسم مستخدم آخر",
+      "maxOpenInvoices": "الحد الأقصى 5 فواتير مفتوحة",
+      "offlineOpenShift": "لا يمكن فتح شفت جديد بدون اتصال",
+      "noOpenShift": "لا توجد نردية مفتوحة",
+      "offlineCloseShift": "لا يمكن إغلاق الشفت بدون اتصال",
+      "overrideReasonRequired": "اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.",
+      "openShiftBeforeSelling": "يجب فتح نردية قبل البيع",
+      "selectSalespersonFirst": "يجب تحديد البائع قبل إتمام الفاتورة",
+      "selectPaymentMethod": "يجب اختيار طريقة الدفع لهذه الفاتورة",
+      "personalSelectCustomer": "اختر عميلًا أولًا قبل العملية الشخصية.",
+      "personalNotAllowed": "هذا العميل غير مسموح له بالعمليات الشخصية.",
+      "personalSelectType": "اختر نوع العملية الشخصية قبل حفظ الفاتورة.",
+      "creditSelectCustomer": "اختر عميلًا أولًا قبل البيع الآجل.",
+      "customerBalanceNeedsPositive": "رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.",
+      "depositBelowTotal": "أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.",
+      "personalNoTerminal": "العملية الشخصية لا تدعم الدفع عبر التيرمنال.",
+      "invoiceLinkFailed": "تعذر إنشاء رابط الفاتورة",
+      "refreshing": "جاري تحديث المنتجات والمخزون والعملاء...",
+      "refreshed": "تم تحديث الـ POS مع الاحتفاظ بالفواتير المفتوحة",
+      "variantNotFound": "لم يتم العثور على المقاس أو اللون",
+      "outOfStock": "غير متوفر بالمخزون",
+      "confirmCloseInvoiceWithItems": "الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟"
+    },
+    "terminal": {
+      "unconfirmed": "تم إرسال الدفع إلى الجهاز، لكن لم يستلم النظام تأكيدًا. لو ظهر Approved على الجهاز اضغط تأكيد الدفع.",
+      "orderFailed": "تعذر إنشاء الطلب بعد نجاح الدفع على الجهاز.",
+      "paymentCompleted": "تم إتمام الدفع بنجاح.",
+      "noTransaction": "لا توجد عملية Paymob متاحة للتأكيد.",
+      "sending": "جارٍ إرسال الدفع إلى جهاز Paymob...",
+      "requestSent": "تم إرسال طلب الدفع إلى الجهاز. أكمل الدفع على الماكينة.",
+      "amount": "المبلغ",
+      "terminalId": "معرّف الجهاز",
+      "status": "الحالة",
+      "confirmation": "التأكيد"
+    },
+    "shift": {
+      "restoring": "جارٍ استعادة جلسة الشيفت",
+      "restoringHint": "يتم التحقق من الشيفت النشط المحفوظ قبل عرض شاشة فتح الشيفت.",
+      "openingCash": "النقدية الافتتاحية",
+      "duration": "مدة الشيفت"
+    },
+    "shiftClose": {
+      "expected": "المتوقع",
+      "actual": "الفعلي",
+      "variance": "الفرق",
+      "tomorrowOpener": "افتتاحية الغد",
+      "varianceResult": "نتيجة الفرق",
+      "recountIssue": "مشكلة في إعادة عد درج النقدية",
+      "terminalPending": "تسوية معلقة على الجهاز",
+      "topProducts": "أفضل المنتجات",
+      "noProducts": "لا توجد منتجات",
+      "auditTimeline": "سجل المراجعة",
+      "noEvents": "لا توجد أحداث"
+    },
+    "quickCustomer": {
+      "title": "إنشاء عميل سريع",
+      "name": "اسم العميل",
+      "namePlaceholder": "أدخل اسم العميل",
+      "phone": "رقم الموبايل",
+      "phonePlaceholder": "أدخل رقم الموبايل",
+      "selectSource": "اختر المصدر"
+    },
+    "sources": {
+      "story": "ستوري",
+      "other": "أخرى"
+    },
+    "misc": {
+      "salePrices": "أسعار البيع",
+      "fullscreen": "ملء الشاشة",
+      "posScanner": "ماسح نقطة البيع",
+      "posExpense": "مصروف نقطة البيع",
+      "type": "النوع",
+      "amount": "المبلغ",
+      "notes": "ملاحظات",
+      "status": "الحالة"
+    },
+    "quickExpenseCategories": {
+      "delivery": "توصيل",
+      "snacks": "سناكس",
+      "cleaning": "تنظيف",
+      "small_purchases": "مشتريات بسيطة",
+      "water": "مياه",
+      "electricity": "كهرباء",
+      "shipping": "شحن",
+      "maintenance": "صيانة",
+      "other": "أخرى",
+      "employee_advance": "سلفة موظف"
+    },
+    "smartFilters": {
+      "gender": "الجنس",
+      "productType": "نوع المنتج",
+      "grade": "الفئة",
+      "clear": "مسح الفلاتر"
+    },
+    "chrome": {
+      "expense": "مصروف",
+      "allowPersonal": "السماح بالعمليات الشخصية",
+      "openCameraScanner": "فتح ماسح الكاميرا",
+      "refreshTooltip": "تحديث المنتجات والمخزون والعملاء بدون إعادة تحميل الصفحة",
+      "pendingFromCurrentAccount": "متعلق من الحساب الحالي"
+    },
+    "shiftCloseAudit": {
+      "openedAt": "تاريخ الفتح",
+      "eligibleEmployee": "الموظف المؤهل",
+      "overrideReasonPlaceholder": "اكتب سبب التجاوز...",
+      "auditSummary": "ملخص المراجعة",
+      "cashSummary": "ملخص الكاش",
+      "cashSales": "مبيعات نقدية",
+      "cashReturns": "مرتجعات نقدية",
+      "cashExpenses": "مصروفات نقدية",
+      "netExpectedDrawer": "صافي الدرج المتوقع",
+      "paymentMethods": "وسائل الدفع",
+      "cards": "بطاقات",
+      "wallet": "محفظة",
+      "activity": "النشاط",
+      "invoiceCount": "عدد الفواتير",
+      "discounts": "الخصومات",
+      "employeeAdvances": "سلف الموظفين",
+      "shiftDuration": "مدة الشيفت"
+    },
+    "shiftReport": {
+      "eyebrow": "إغلاق وردية",
+      "title": "تم إغلاق الوردية بنجاح",
+      "print": "طباعة التقرير",
+      "close": "إغلاق",
+      "expectedDrawer": "صافي الدرج المتوقع",
+      "actualCount": "العد الفعلي",
+      "difference": "الفرق",
+      "balanced": "✅ متوازن",
+      "over": "✅ زيادة: {{amount}}",
+      "short": "⚠️ عجز: {{amount}}",
+      "invoiceCount": "عدد الفواتير"
+    },
+    "cameraScanner": {
+      "title": "امسح الباركود أو QR بالكاميرا",
+      "subtitle": "وجّه الكاميرا نحو الباركود أو QR الخاص بالمنتج وسيتم التنفيذ مباشرة.",
+      "close": "إغلاق ماسح الكاميرا"
+    }
+  },
   "cart": {
+    "createOrder": "إنشاء طلب",
+    "clearPaymentAmount": "مسح المبلغ",
+    "invoiceTab": "فاتورة {{index}}",
+    "newInvoice": "فاتورة",
+    "editInvoice": "تعديل الفاتورة",
+    "offlinePending": "فواتير بانتظار المزامنة: {{count}}",
     "title": "السلة",
     "items": "العناصر",
     "customer": "العميل",
@@ -157,8 +330,7 @@
     "notSet": "غير محدد",
     "other": "أخرى",
     "processing": "جاري المعالجة...",
-    "savingInvoice": "جارٍ حفظ الفاتورة...",
-    "createOrder": "إنشاء طلب",
+    "savingInvoice": "جارِ حفظ الفاتورة...",
     "saveInvoiceEdit": "حفظ التعديل",
     "thermalPrint": "طباعة حرارية",
     "downloadPdf": "تحميل PDF",
@@ -173,7 +345,12 @@
     "receiptPreview": "معاينة الإيصال",
     "thermal": "حراري",
     "a4": "A4",
-    "couponDiscount": "خصم الكوبون"
+    "couponDiscount": "خصم الكوبون",
+    "unsaved": "غير محفوظة",
+    "closeInvoice": "إغلاق الفاتورة",
+    "note": "ملاحظة",
+    "optional": "اختياري",
+    "invoiceTotal": "إجمالي الفاتورة"
   },
   "saleMode": {
     "existingSalePrices": "أسعار العروض الحالية",
@@ -271,5 +448,148 @@
     "popupBlocked": "تم حظر النافذة المنبثقة",
     "printFailed": "تعذر تجهيز الفاتورة للطباعة",
     "savedOfflineInvoice": "تم حفظ الفاتورة دون اتصال. ستتم المزامنة تلقائيًا عند عودة الاتصال."
+  },
+  "personal": {
+    "noCashImpact": " - لا تؤثر على الكاش",
+    "operation": "عملية شخصية",
+    "gift": "عملية شخصية / هدية",
+    "employeeAdvance": "عملية شخصية / سلفة موظف",
+    "ownerUse": "عملية شخصية / استخدام شخصي",
+    "type": "نوع العملية الشخصية",
+    "selectType": "اختر النوع",
+    "giftOrExpense": "هدية / مصروف",
+    "advance": "سلفة موظف",
+    "ownerPersonalUse": "استخدام شخصي للمالك",
+    "stockNotice": "هذه العملية ستخصم من المخزون ولن تُعامل كتحصيل نقدي عادي."
+  },
+  "payment": {
+    "cashLabel": "كاش",
+    "visaLabel": "فيزا",
+    "instapayLabel": "إنستاباي",
+    "vodafoneCashLabel": "فودافون كاش",
+    "insufficientBalance": "الرصيد غير كاف (العجز: {{amount}})",
+    "fallbackHasBalance": "يوجد رصيد كافٍ في {{account}}",
+    "cash": "نقدًا",
+    "split": "تقسيم",
+    "pay": "دفع",
+    "selectRemainingMethod": "اختر طريقة تحصيل المبلغ المتبقي",
+    "credit": "آجل - لا يتطلب تحصيلاً نقدياً الآن",
+    "previouslyPaid": "المدفوع سابقًا",
+    "previousDetails": "تفاصيل الدفع السابق",
+    "dueNow": "المطلوب تحصيله الآن",
+    "methodHint": "اختر طريقة التحصيل بالأسفل. لو المبلغ كله كاش اضغط «كاش»، ولو أكثر من طريقة اضغط «تقسيم».",
+    "negativeAllowed": "مسموح بالسالب لهذا الحساب."
+  },
+  "credit": {
+    "short": "آجل",
+    "willRecordDebt": "سيُسجل {{amount}} مديونية على العميل",
+    "selectCustomerFirst": "اختر عميلاً أولاً لإنشاء بيع آجل",
+    "saveDepositRest": "حفظ العربون وتسجيل الباقي آجل",
+    "createForCustomer": "إنشاء بيع آجل للعميل المحدد",
+    "depositPlusCredit": "العربون + الباقي آجل",
+    "customerCreditSale": "بيع آجل للعميل",
+    "recordRemainder": "تسجيل الباقي آجل",
+    "selectCustomerForDebt": "اختر العميل أولًا لتسجيل المديونية",
+    "saveDepositAndCredit": "حفظ العربون والباقي آجل"
+  },
+  "audience": {
+    "men": "رجالي",
+    "women": "حريمي",
+    "kids": "أطفال"
+  },
+  "categories": {
+    "sneakers": "اسنيكرز",
+    "crocs": "كروكس",
+    "bags": "شنط",
+    "winter": "شتوي",
+    "special": "خاص",
+    "baby": "بيبي",
+    "medium": "وسط",
+    "boys": "أولادي"
+  },
+  "recentOps": {
+    "title": "العمليات الأخيرة",
+    "subtitle": "عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.",
+    "close": "إغلاق",
+    "searchPlaceholder": "بحث برقم الفاتورة أو العميل أو الهاتف",
+    "refresh": "تحديث",
+    "errorTitle": "حدث خطأ",
+    "retry": "إعادة المحاولة",
+    "emptyTitle": "لا توجد عمليات",
+    "emptyNoMatches": "لا توجد نتائج مطابقة للبحث.",
+    "emptyHint": "ستظهر آخر فواتير POS هنا بعد البيع.",
+    "shownCount": "تم عرض {{shown}} من {{total}}",
+    "status": {
+      "cancelled": "ملغاة",
+      "returned": "مرتجعة",
+      "inReview": "قيد المراجعة",
+      "paid": "مدفوعة"
+    },
+    "lock": {
+      "cancelled": "الفاتورة ملغاة",
+      "returned": "الفاتورة مرتجعة",
+      "noPermission": "لا تملك صلاحية التعديل",
+      "windowExpired": "تجاوزت مهلة التعديل {{hours}} ساعة"
+    },
+    "actions": {
+      "details": "تفاصيل",
+      "print": "طباعة",
+      "return": "مرتجع",
+      "edit": "تعديل",
+      "permanentDelete": "حذف نهائي",
+      "cancel": "إلغاء"
+    },
+    "toasts": {
+      "reprintQueued": "تم تجهيز الفاتورة للطباعة مرة أخرى",
+      "cannotReturn": "لا يمكن عمل مرتجع لهذه الفاتورة",
+      "deleteConfirmRequired": "اكتب DELETE أو حذف للتأكيد",
+      "deleted": "تم حذف الفاتورة نهائيًا",
+      "selectItemsToReturn": "اختر المنتجات المراد إرجاعها"
+    },
+    "deleteModal": {
+      "title": "حذف نهائي",
+      "warning": "سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.",
+      "detail": "سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.",
+      "invoice": "الفاتورة",
+      "total": "الإجمالي",
+      "confirmHint": "اكتب DELETE أو حذف للتأكيد"
+    },
+    "returnModal": {
+      "eyebrow": "مرتجع POS",
+      "title": "إنشاء مرتجع / استبدال",
+      "originalInvoice": "الفاتورة القديمة:",
+      "reasonLabel": "سبب المرتجع",
+      "customReasonPlaceholder": "اكتب السبب",
+      "refundMethodLabel": "طريقة رد المبلغ",
+      "pickItems": "اختيار المنتجات المراد إرجاعها",
+      "returnedQty": "الكمية المرتجعة",
+      "returnTotal": "إجمالي المرتجع"
+    },
+    "returnReasons": {
+      "wrongSize": "مقاس غير مناسب",
+      "defect": "عيب صناعة",
+      "changedMind": "تغيير رأي العميل",
+      "exchange": "استبدال",
+      "other": "أخرى"
+    },
+    "returnModes": {
+      "full": "مرتجع كامل",
+      "partial": "مرتجع جزئي",
+      "exchange": "استبدال"
+    },
+    "refundMethods": {
+      "cash": "نقدي"
+    },
+    "detailsModal": {
+      "eyebrow": "تفاصيل الفاتورة",
+      "product": "المنتج",
+      "quantity": "الكمية",
+      "price": "السعر",
+      "subtotal": "الإجمالي الفرعي",
+      "noItems": "لا توجد منتجات في هذه الفاتورة",
+      "total": "الإجمالي",
+      "history": "سجل الفاتورة",
+      "noHistory": "لا يوجد سجل متاح لهذه الفاتورة"
+    }
   }
 }

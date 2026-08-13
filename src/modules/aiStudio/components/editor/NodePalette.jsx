@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { Search, Plus, Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { RISK_BADGE } from "./nodeKit";
 
 // Left palette. Groups are built by buildPalette() from the REAL server registry, so it
 // stays dynamic as new tools are registered. Items are draggable and click-to-add.
 export default function NodePalette({ palette, onAdd, disabled }) {
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
@@ -31,7 +33,7 @@ export default function NodePalette({ palette, onAdd, disabled }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search nodes & tools…"
+            placeholder={t("aiStudio.workflow.palette.search")}
             dir="ltr"
             className="h-[var(--control-height-sm)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] pl-8 pr-2 text-[12px] text-white placeholder:text-slate-500 focus:border-primary/40 focus:outline-none"
           />
@@ -41,8 +43,8 @@ export default function NodePalette({ palette, onAdd, disabled }) {
       <div className="flex-1 space-y-3 overflow-y-auto p-2.5">
         {filtered.map((group) => (
           <div key={group.group}>
-            <div className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{group.group}</div>
-            {group.subtitle ? <div className="px-1 pb-1 text-[9px] font-semibold text-slate-600">{group.subtitle}</div> : null}
+            <div className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{t(group.groupLabelKey, { defaultValue: group.group })}</div>
+            {group.subtitle ? <div className="px-1 pb-1 text-[9px] font-semibold text-slate-600">{t(group.subtitleKey, { defaultValue: group.subtitle })}</div> : null}
             <div className="mt-1 space-y-1.5">
               {group.items.map((item, i) => (
                 <button
@@ -52,7 +54,7 @@ export default function NodePalette({ palette, onAdd, disabled }) {
                   onDragStart={(e) => startDrag(e, item)}
                   onClick={() => !item.disabled && !disabled && onAdd(item)}
                   disabled={item.disabled || disabled}
-                  title={item.disabled ? item.disabledReason : item.description}
+                  title={item.disabled ? t(item.disabledReasonKey, { defaultValue: item.disabledReason }) : t(item.descriptionKey, { defaultValue: item.description })}
                   className={`group flex w-full items-start gap-2 rounded-[var(--radius-control)] border px-2.5 py-2 text-left transition ${ item.disabled ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-55" : "border-white/10 bg-white/[0.04] hover:border-primary/40 hover:bg-white/[0.07]" }`}
                 >
                   <span className="mt-0.5 shrink-0">
@@ -67,14 +69,14 @@ export default function NodePalette({ palette, onAdd, disabled }) {
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block overflow-hidden text-[10px] leading-snug text-slate-500 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{item.disabled ? item.disabledReason : item.description}</span>
+                    <span className="mt-0.5 block overflow-hidden text-[10px] leading-snug text-slate-500 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{item.disabled ? t(item.disabledReasonKey, { defaultValue: item.disabledReason }) : t(item.descriptionKey, { defaultValue: item.description })}</span>
                   </span>
                 </button>
               ))}
             </div>
           </div>
         ))}
-        {filtered.length === 0 ? <div className="px-1 py-6 text-center text-[12px] text-slate-500">No nodes match “{q}”.</div> : null}
+        {filtered.length === 0 ? <div className="px-1 py-6 text-center text-[12px] text-slate-500">{t("aiStudio.workflow.palette.noMatch", { query: q })}</div> : null}
       </div>
     </div>
   );

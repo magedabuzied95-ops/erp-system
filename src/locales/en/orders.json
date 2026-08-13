@@ -22,7 +22,13 @@
     "whatsapp": "WhatsApp",
     "instagram": "Instagram",
     "manual": "Manual",
-    "onlineOrder": "Online Order"
+    "onlineOrder": "Online Order",
+    "onlineShipping": "Online order · shipping",
+    "shippingOrder": "Shipping order",
+    "directPos": "Direct sale · POS",
+    "directInvoice": "Direct invoice",
+    "directInvoiceHint": "Direct sale invoice — no shipping or transfer-review steps are required",
+    "directInvoiceActions": "You can print the invoice or return items directly, and add shipping only if the customer asks for delivery."
   },
   "statusLabels": {
     "pending": "Pending",
@@ -54,7 +60,10 @@
     "created": "Created",
     "picked_up": "Picked Up",
     "failed": "Failed",
-    "failed_delivery": "Failed Delivery"
+    "failed_delivery": "Failed Delivery",
+    "outForDelivery": "Out for delivery",
+    "partiallyPaid": "Partially paid",
+    "partiallyRefunded": "Partially refunded"
   },
   "kpis": {
     "totalOrders": "Total orders",
@@ -71,7 +80,11 @@
     "source": "Source",
     "branch": "Branch",
     "all": "All",
-    "today": "Today"
+    "today": "Today",
+    "search": "Search",
+    "orderStatus": "Order status",
+    "paymentStatus": "Payment status",
+    "date": "Date"
   },
   "bulk": {
     "markConfirmed": "Mark confirmed",
@@ -103,7 +116,8 @@
     "items": "Items",
     "paidAmount": "Paid amount",
     "paymentStatus": "Payment status",
-    "seller": "Seller"
+    "seller": "Seller",
+    "due": "Due"
   },
   "empty": {
     "title": "No orders found",
@@ -148,7 +162,13 @@
     "highValue": "High value",
     "delayedPending": "Delayed pending",
     "cod": "COD",
-    "pending": "Pending"
+    "pending": "Pending",
+    "critical": "Critical",
+    "editRequested": "Edit requested",
+    "returnedCancelled": "Returned / cancelled",
+    "review": "Review",
+    "late": "Late",
+    "normal": "Normal"
   },
   "payment": {
     "confirmed": "Payment confirmed",
@@ -213,7 +233,200 @@
     "checkItemCondition": "Customer confirms item condition",
     "checkRefundReviewed": "Refund amount reviewed",
     "checkRestockApplied": "Restock policy applied",
-    "checkShippingCaptured": "Shipping and delivery notes captured"
+    "checkShippingCaptured": "Shipping and delivery notes captured",
+    "customerReturns": "Customer Returns",
+    "supplierReturns": "Supplier Returns",
+    "page": {
+      "toastLocalOnly": "Only locally created returns can be edited for now.",
+      "toastPickItem": "Select at least one returned product.",
+      "toastUpdated": "Return updated.",
+      "toastDeleteUnavailable": "This return cannot be deleted from this screen.",
+      "toastDeleted": "Return deleted.",
+      "toastSupplierDelivered": "Supplier delivery recorded.",
+      "toastSupplierDeliveryFailed": "Could not record the supplier delivery.",
+      "confirmDelete": "Delete return {{number}}?",
+      "disposition": {
+        "restock": "Good — return to stock",
+        "manufacturingDefect": "Manufacturing defect — hold for supplier return",
+        "damaged": "Damaged — do not restock"
+      },
+      "stock": {
+        "reservedForSupplier": "Reserved for supplier",
+        "damagedNotReturned": "Damaged — not restocked",
+        "restocked": "Restocked",
+        "notRestocked": "Not restocked"
+      },
+      "unknownSupplier": "Unassigned supplier",
+      "unknownCustomer": "Unknown customer",
+      "noPhone": "No phone",
+      "notAvailable": "Not available",
+      "productFallback": "Product {{index}}",
+      "noReturnedItems": "No returned items",
+      "noReturnedItemsRecorded": "No returned line items recorded.",
+      "itemsSeparator": ", ",
+      "kpi": {
+        "total": "Total customer returns",
+        "today": "Returns today",
+        "refundValue": "Refund value",
+        "restocked": "Restocked"
+      },
+      "results": "Results",
+      "today": "Today",
+      "pageTitle": "Order returns",
+      "pageSubtitle": "Manage returns, refunds and restocking from the same order operations experience — faster and clearer.",
+      "backToOrders": "Back to orders",
+      "createReturn": "Create return",
+      "supplierKpi": {
+        "items": "Total supplier items",
+        "purchaseCost": "Total purchase cost",
+        "pendingDelivery": "Items awaiting delivery",
+        "suppliers": "Suppliers"
+      },
+      "currentResults": "Showing {{shown}} of {{total}} items",
+      "clearFilters": "Clear filters",
+      "search": "Search",
+      "supplierSearchPlaceholder": "Product, supplier, return number or purchase invoice",
+      "supplier": "Supplier",
+      "allSuppliers": "All suppliers",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "dateFrom": "From date",
+      "dateTo": "To date",
+      "col": {
+        "action": "Action",
+        "supplier": "Supplier",
+        "product": "Product",
+        "quantity": "Quantity",
+        "purchasePrice": "Purchase price",
+        "total": "Total",
+        "reference": "Reference",
+        "status": "Status",
+        "date": "Date"
+      },
+      "markDelivered": "Delivered",
+      "markDeliveredToSupplier": "Delivered to supplier",
+      "noSupplierReturns": "No supplier returns match the current filters.",
+      "supplierStatus": {
+        "returned": "Delivered",
+        "cancelled": "Cancelled",
+        "pending": "Awaiting delivery"
+      },
+      "defectQueueTitle": "Manufacturing-defect items to return to suppliers",
+      "totalItems": "Total items",
+      "pieces": "{{count}} pcs",
+      "moreItems": "+ {{count}} more items",
+      "searchPlaceholder": "Search by invoice number, customer, phone or tracking number",
+      "returnStatusFilter": "Return status",
+      "refundStatusFilter": "Refund status",
+      "date": "Date",
+      "loading": "Loading returns...",
+      "emptyTitle": "No matching returns",
+      "emptyHint": "Try adjusting the search or the current filters.",
+      "cols": {
+        "action": "Action",
+        "returnAndOrder": "Return no. / Order no.",
+        "customer": "Customer",
+        "returnedProducts": "Returned products",
+        "returnValue": "Return value",
+        "returnStatus": "Return status",
+        "refundStatus": "Refund status",
+        "restock": "Restock",
+        "date": "Date"
+      },
+      "action": {
+        "view": "View details",
+        "editReturn": "Edit return",
+        "print": "Print / PDF",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit"
+      },
+      "pill": {
+        "refund": "Refund",
+        "stock": "Stock",
+        "refundStatus": "Refund status",
+        "refundMethod": "Refund method",
+        "date": "Date"
+      },
+      "close": "Close",
+      "drawer": {
+        "eyebrowEdit": "Edit return",
+        "eyebrowCreate": "Create return",
+        "editTitle": "Edit return",
+        "createTitle": "Create return",
+        "subtitle": "The same creation flow, inside a drawer instead of a separate screen."
+      },
+      "field": {
+        "customer": "Customer",
+        "refundMethod": "Refund method",
+        "refundStatus": "Refund status",
+        "disposition": "Returned item disposition"
+      },
+      "saveEdits": "Save changes",
+      "restockedBadge": "Returned to stock",
+      "section": {
+        "summary": "Return summary",
+        "originalOrder": "Original order details",
+        "customer": "Customer details",
+        "returnedProducts": "Returned products",
+        "stockMovement": "Stock movement",
+        "refundPayment": "Refund / payment",
+        "notes": "Notes / reason",
+        "timeline": "Timeline"
+      },
+      "info": {
+        "returnNumber": "Return number",
+        "returnValue": "Return value",
+        "returnStatus": "Return status",
+        "refundStatus": "Refund status",
+        "orderNumber": "Order number",
+        "tracking": "Tracking number",
+        "shippingProvider": "Shipping company",
+        "createdAt": "Created at",
+        "customer": "Customer",
+        "phone": "Phone",
+        "restock": "Restock",
+        "movementStatus": "Movement status",
+        "refundMethod": "Refund method",
+        "amount": "Amount"
+      },
+      "movement": {
+        "done": "Returned to stock",
+        "reserved": "Item held for the supplier return",
+        "notDone": "Not returned to stock"
+      },
+      "reasonPrefix": "Reason:",
+      "noNotes": "No additional notes.",
+      "noTimestamp": "No timestamp",
+      "openOriginalOrder": "Open original order",
+      "cancelReturn": "Cancel return",
+      "deleteReturn": "Delete return",
+      "itemsCount": "{{count}} products",
+      "timeline": {
+        "returnCreated": "Return created",
+        "returnStatus": "Return status: {{value}}",
+        "refundStatus": "Refund status: {{value}}",
+        "refundMethod": "Refund method: {{value}}",
+        "orderCreated": "Order created",
+        "returnLogged": "Return recorded",
+        "currentStatus": "Current status: {{value}}"
+      },
+      "humanize": {
+        "cash": "Cash",
+        "card": "Card",
+        "same_payment_method": "Same payment method",
+        "pending": "Pending",
+        "processing": "Processing",
+        "refunded": "Refunded",
+        "partial_refund": "Partial refund",
+        "rejected": "Rejected",
+        "draft": "Draft",
+        "submitted": "Submitted",
+        "approved": "Approved",
+        "returned": "Returned",
+        "unknown": "Not set"
+      }
+    }
   },
   "fallback": {
     "customer": "Customer",
@@ -238,7 +451,11 @@
     "qty": "Qty",
     "noItemData": "No item data",
     "noItemDataText": "This order did not include item rows in the loaded response.",
-    "notes": "Notes"
+    "notes": "Notes",
+    "seller": "Salesperson",
+    "invoiceEditPayment": "Invoice edit payment",
+    "manualShipping": "Manual",
+    "shippingPending": "Pending"
   },
   "edit": {
     "title": "Edit order",
@@ -300,7 +517,51 @@
     "cancelShipment": "Cancel shipment",
     "shipmentUpdated": "Shipment updated",
     "updateFailed": "Failed to update shipment",
-    "timeline": "Shipment timeline"
+    "timeline": "Shipment timeline",
+    "zone": "Zone",
+    "district": "District",
+    "apartment": "Apartment",
+    "landmarkPlaceholder": "Nearby landmark...",
+    "bostaTrackingNumber": "Bosta tracking number",
+    "bostaPlanRequired": "The Bosta account is connected, but a shipping plan must be enabled before shipments can be created.",
+    "completeBostaFields": "Complete the customer phone, Bosta city, zone and district, street name, and building number",
+    "enterPhoneAndAddress": "Enter the customer phone and full address before saving the shipment",
+    "setUpForInvoice": "Set up shipping for the invoice",
+    "addToInvoice": "Add shipping to the invoice",
+    "bostaAddress": "Bosta shipping address",
+    "customerDelivery": "Customer delivery details",
+    "bostaDirectoryHint": "City, zone, and district options come straight from the Bosta directory so the shipment is accepted.",
+    "saveBeforeCreate": "Save the delivery details before creating the shipment.",
+    "customerPhone": "Customer phone number",
+    "bostaCity": "Bosta city",
+    "loadingCities": "Loading Bosta cities...",
+    "selectCity": "Select the city *",
+    "loadingZones": "Loading zones...",
+    "selectZone": "Select the zone *",
+    "loadingDistricts": "Loading districts...",
+    "selectDistrict": "Select the district *",
+    "streetAndAddress": "Street name and full address",
+    "streetPlaceholder": "Example: North 90th Street *",
+    "buildingNumber": "Building number",
+    "buildingNumberRequired": "Building number *",
+    "apartmentNumber": "Apartment number",
+    "cityOrZone": "City or zone",
+    "fullAddress": "Full address",
+    "addressPlaceholder": "Street, building number, floor, and apartment",
+    "createBostaShipment": "Create a Bosta shipment",
+    "refreshStatus": "Refresh status",
+    "city": "City",
+    "street": "Street",
+    "building": "Building",
+    "floor": "Floor",
+    "bostaInternalId": "Internal Bosta ID",
+    "labelLink": "Label link",
+    "subscriptionRequired": "Subscription required",
+    "bostaError": "Bosta error",
+    "providerSettings": "Shipping provider settings",
+    "appearsAfterCreate": "Appears automatically once the shipment is created",
+    "delivered": "Shipment delivered",
+    "delivery": "Delivery"
   },
   "details": {
     "title": "Order Details",
@@ -407,6 +668,60 @@
       "COD amount mismatch": "COD amount mismatch",
       "One or more items are out of stock": "One or more items are out of stock"
     },
-    "currentStatus": "Current status"
-  }
+    "currentStatus": "Current status",
+    "invoice": "Order invoice",
+    "activityLog": "Activity log",
+    "moreActions": "More actions",
+    "enterpriseOps": "Manage enterprise operations and subscriptions"
+  },
+  "channels": {
+    "instagramStory": "Instagram story",
+    "story": "Story",
+    "facebookPost": "Facebook post",
+    "instagramPost": "Instagram post",
+    "whatsappCampaign": "WhatsApp campaign",
+    "tiktokCampaign": "TikTok campaign"
+  },
+  "whatsapp": {
+    "cancelled": "Cancelled via WhatsApp",
+    "confirmed": "Confirmed via WhatsApp",
+    "awaitingConfirmation": "Awaiting WhatsApp confirmation",
+    "paymentReviewSent": "Payment review sent via WhatsApp",
+    "invoiceSent": "Invoice sent via WhatsApp",
+    "shipmentSent": "Shipment sent via WhatsApp",
+    "shippingNotified": "Shipping notified via WhatsApp",
+    "outForDeliveryNotified": "Out-for-delivery notified via WhatsApp",
+    "deliveryNotified": "Delivery notified via WhatsApp"
+  },
+  "links": {
+    "openInstagram": "Open the Instagram conversation",
+    "openMessenger": "Open the Messenger conversation",
+    "openWhatsapp": "Open the WhatsApp conversation",
+    "openAiInbox": "Open the AI Inbox conversation"
+  },
+  "customer": {
+    "walkIn": "Walk-in customer"
+  },
+  "breadcrumb": {
+    "home": "Home"
+  },
+  "toasts": {
+    "created": "Order created",
+    "notesUpdated": "Notes updated",
+    "shippingSet": "Shipping set up"
+  },
+  "timeline": {
+    "customerConfirmed": "Confirmed by the customer",
+    "customerRequestedEdit": "The customer requested an edit",
+    "customerCancelled": "Cancelled by the customer",
+    "created": "Order created",
+    "paymentUploaded": "Payment proof uploaded",
+    "paymentRejected": "Payment rejected",
+    "paymentVerified": "Payment confirmed",
+    "readyToShip": "Ready to ship",
+    "shipmentCreated": "Shipment created",
+    "delivered": "Delivered",
+    "orderConfirmed": "Order confirmed"
+  },
+  "aiInboxLink": "AI Inbox"
 }

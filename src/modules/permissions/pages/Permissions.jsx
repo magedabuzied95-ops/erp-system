@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { AlertTriangle, Save, ShieldCheck } from "lucide-react";
@@ -27,6 +28,7 @@ const roleMatches = (role, value) => {
 const roleRouteId = (role) => String(role?.slug || role?.id || role?.name || "");
 
 function PermissionsPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [roles, setRoles] = useState(getRoleCatalog());
   const [selectedRoleId, setSelectedRoleId] = useState(searchParams.get("role") || roles[0]?.id || "admin");
@@ -57,7 +59,7 @@ function PermissionsPage() {
         if (isBackendUnreachable(err)) {
           setRoles(getRoleCatalog());
           setError("Roles endpoint unavailable. Local roles are shown for reference, but saving requires the backend.");
-          toast.error("Backend unavailable. Permissions are read-only.");
+          toast.error(t("access.permissions.toasts.readOnly"));
         } else {
           setError(err?.message || "Unable to load roles from backend.");
           toast.error(err?.message || "Unable to load roles from backend");
@@ -95,7 +97,7 @@ function PermissionsPage() {
         setAuth({ token: getToken(), user: { ...currentUser, permissions: updatedRole.permissions } });
       }
       setError("");
-      toast.success("Permissions saved and verified");
+      toast.success(t("access.permissions.toasts.saved"));
     } catch (err) {
       console.log(err);
       setError("Permissions were not saved. The backend must confirm every permission change.");
@@ -107,8 +109,8 @@ function PermissionsPage() {
 
   return (
     <PermissionsShell
-      title="Permission Matrix"
-      subtitle="Admin access stays full by default. Select any role, review the entire module/action matrix, and save back to the backend or local fallback catalog."
+      title={t("access.permissions.title")}
+      subtitle={t("access.permissions.subtitle")}
       actions={
         <>
           <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -118,9 +120,9 @@ function PermissionsPage() {
         </>
       }
       tabs={[
-        { to: "/settings/roles", label: "Roles" },
-        { to: "/settings/permissions", label: "Permissions", end: true },
-        { to: "/settings/users", label: "Users" },
+        { to: "/settings/roles", label: t("access.tabs.roles") },
+        { to: "/settings/permissions", label: t("access.tabs.permissions"), end: true },
+        { to: "/settings/users", label: t("access.tabs.users") },
       ]}
     >
       {error ? (
@@ -134,8 +136,8 @@ function PermissionsPage() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="m1-section-title text-white">Roles</h3>
-              <p className="mt-1 text-sm text-zinc-400">Choose a role to edit its permission set.</p>
+              <h3 className="m1-section-title text-white">{t("access.permissions.rolesTitle")}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{t("access.permissions.rolesSubtitle")}</p>
             </div>
             <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
               {roles.length} roles
@@ -146,7 +148,7 @@ function PermissionsPage() {
             {loading ? (
               <Skeleton />
             ) : roles.length === 0 ? (
-              <EmptyState label="No roles available." />
+              <EmptyState label={t("access.permissions.noRoles")} />
             ) : (
               roles.map((role) => {
                 const active = selectedRole?.id === role.id;
@@ -183,7 +185,7 @@ function PermissionsPage() {
             <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="m1-section-title text-white">Export permissions snapshot</h3>
+                  <h3 className="m1-section-title text-white">{t("access.permissions.exportSnapshot")}</h3>
                   <p className="mt-1 text-sm text-zinc-400">Placeholder for CSV/PDF export once the backend exporter is available.</p>
                 </div>
                 <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">

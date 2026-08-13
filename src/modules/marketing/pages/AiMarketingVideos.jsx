@@ -16,6 +16,11 @@ import {
 } from "../services/marketingApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem, normalizeQueueStatus } from "../lib/queueStatus";
+import i18n from "../../../i18n/i18n";
+import { useTranslation } from "react-i18next";
+
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
 const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -101,12 +106,12 @@ const scenesFor = (item = {}) => {
   const sizes = design.sizes_label || (Array.isArray(design.available_sizes) && design.available_sizes.length ? `AVAILABLE SIZES: ${design.available_sizes.join(", ")}` : design.size_name ? `Size ${design.size_name}` : "Available variants");
   const price = design.price ? `${design.price} ${design.currency || "EGP"}` : "Price reveal";
   return [
-    { id: "hook_stop_scroll", role: "hook", label: "Scene 1", title: "Hook / Stop Scroll", caption: hook, image_url: imageFor(item), start: 0, end: 2, duration_seconds: 2, scene_duration: 2, transition: "flash transition", motion: "fast zoom + shake", effect: "shake + flash", visual: `${hook} stop-scroll hook` },
-    { id: "product_hero", role: "product", label: "Scene 2", title: "Product Hero", caption: design.product_name || item.title || "Product hero", image_url: design.media_urls?.[1] || imageFor(item), start: 2, end: 5, duration_seconds: 3, scene_duration: 3, transition: "zoom cut", motion: "slow zoom-in + pan", effect: "glow spotlight", visual: "Product enters with radial spotlight" },
-    { id: "detail_variant", role: "detail", label: "Scene 3", title: "Detail / Variant", caption: sizes, image_url: design.media_urls?.[2] || imageFor(item), start: 5, end: 7.5, duration_seconds: 2.5, scene_duration: 2.5, transition: "swipe transition", motion: "quick slide animation", effect: "blur-to-focus", visual: sizes },
-    { id: "price_pop", role: "price", label: "Scene 4", title: "Price Pop", caption: price, image_url: imageFor(item), start: 7.5, end: 10, duration_seconds: 2.5, scene_duration: 2.5, transition: "zoom cut", motion: "price pop/bounce", effect: "price bounce", visual: price },
-    { id: "stock_urgency", role: "urgency", label: "Scene 5", title: "Stock / Size Push", caption: "Available now", image_url: design.media_urls?.[3] || imageFor(item), start: 10, end: 12.5, duration_seconds: 2.5, scene_duration: 2.5, transition: "glow flash", motion: "beat pulse", effect: "light sweep", visual: "Available now | Tap to view details" },
-    { id: "cta_close", role: "cta", label: "Scene 6", title: "CTA Close", caption: design.cta_text || "View details", image_url: imageFor(item), start: 12.5, end: 15, duration_seconds: 2.5, scene_duration: 2.5, transition: "fade + final pulse", motion: "CTA glow pulse", effect: "CTA glow pulse", visual: design.cta_text || "View details" },
+    { id: "hook_stop_scroll", role: "hook", label: tt("marketing.videos.scenes.scene1"), title: tt("marketing.videos.scenes.hookStopScroll"), caption: hook, image_url: imageFor(item), start: 0, end: 2, duration_seconds: 2, scene_duration: 2, transition: "flash transition", motion: "fast zoom + shake", effect: "shake + flash", visual: `${hook} stop-scroll hook` },
+    { id: "product_hero", role: "product", label: tt("marketing.videos.scenes.scene2"), title: tt("marketing.videos.scenes.productHero"), caption: design.product_name || item.title || "Product hero", image_url: design.media_urls?.[1] || imageFor(item), start: 2, end: 5, duration_seconds: 3, scene_duration: 3, transition: "zoom cut", motion: "slow zoom-in + pan", effect: "glow spotlight", visual: "Product enters with radial spotlight" },
+    { id: "detail_variant", role: "detail", label: tt("marketing.videos.scenes.scene3"), title: tt("marketing.videos.scenes.detailVariant"), caption: sizes, image_url: design.media_urls?.[2] || imageFor(item), start: 5, end: 7.5, duration_seconds: 2.5, scene_duration: 2.5, transition: "swipe transition", motion: "quick slide animation", effect: "blur-to-focus", visual: sizes },
+    { id: "price_pop", role: "price", label: tt("marketing.videos.scenes.scene4"), title: tt("marketing.videos.scenes.pricePop"), caption: price, image_url: imageFor(item), start: 7.5, end: 10, duration_seconds: 2.5, scene_duration: 2.5, transition: "zoom cut", motion: "price pop/bounce", effect: "price bounce", visual: price },
+    { id: "stock_urgency", role: "urgency", label: tt("marketing.videos.scenes.scene5"), title: tt("marketing.videos.scenes.stockSizePush"), caption: "Available now", image_url: design.media_urls?.[3] || imageFor(item), start: 10, end: 12.5, duration_seconds: 2.5, scene_duration: 2.5, transition: "glow flash", motion: "beat pulse", effect: "light sweep", visual: "Available now | Tap to view details" },
+    { id: "cta_close", role: "cta", label: tt("marketing.videos.scenes.scene6"), title: tt("marketing.videos.scenes.ctaClose"), caption: design.cta_text || "View details", image_url: imageFor(item), start: 12.5, end: 15, duration_seconds: 2.5, scene_duration: 2.5, transition: "fade + final pulse", motion: "CTA glow pulse", effect: "CTA glow pulse", visual: design.cta_text || "View details" },
   ];
 };
 
@@ -188,6 +193,7 @@ function SectionTitle({ icon: Icon, title }) {
 }
 
 export default function AiMarketingVideos() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState({});
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -309,7 +315,7 @@ export default function AiMarketingVideos() {
             <Video className="h-4 w-4" />
             AI Video Queue
           </div>
-          <h1 className="m1-display mt-3">Videos</h1>
+          <h1 className="m1-display mt-3">{t("marketing.videos.page.videos")}</h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
             MVP queue for future MP4, Reels, beat-sync, captions, templates, and TikTok publishing.
           </p>
@@ -321,15 +327,15 @@ export default function AiMarketingVideos() {
       </div>
 
       <section className="grid gap-3 md:grid-cols-3">
-        <Kpi label="Video Queue" value={counts.total} />
-        <Kpi label="جاهز / معتمد" value={counts.ready} tone="emerald" />
-        <Kpi label="فشل" value={counts.failed} tone={counts.failed ? "rose" : "slate"} />
+        <Kpi label={t("marketing.videos.page.videoQueue")} value={counts.total} />
+        <Kpi label={t("marketing.videos.page.readyApproved")} value={counts.ready} tone="emerald" />
+        <Kpi label={t("marketing.videos.page.failed")} value={counts.failed} tone={counts.failed ? "rose" : "slate"} />
       </section>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="grid gap-5">
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={Sparkles} title="Content Lanes" />
+            <SectionTitle icon={Sparkles} title={t("marketing.videos.page.contentLanes")} />
             <div className="mt-4 grid gap-3">
               {lanes.map(([id, label]) => (
                 <div key={id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -341,7 +347,7 @@ export default function AiMarketingVideos() {
           </section>
 
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={Zap} title="قوالب الفيديو" />
+            <SectionTitle icon={Zap} title={t("marketing.videos.page.videoTemplates")} />
             <div className="mt-4 grid gap-2">
               {templatePresets.map(([name, description]) => (
                 <div key={name} className="rounded-2xl border border-white/10 bg-black/20 p-3">
@@ -353,9 +359,9 @@ export default function AiMarketingVideos() {
           </section>
 
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={Clock} title="Daily Video Volume" />
+            <SectionTitle icon={Clock} title={t("marketing.videos.page.dailyVolume")} />
             <label className="mt-4 block">
-              <span className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-500">Videos per day</span>
+              <span className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t("marketing.videos.page.videosPerDay")}</span>
               <input className={inputClass} min="1" max="20" type="number" value={videosPerDay} onChange={(event) => setVideosPerDay(Number(event.target.value || 1))} />
             </label>
             <div className="mt-4 grid gap-2">
@@ -379,7 +385,7 @@ export default function AiMarketingVideos() {
 
         <section className={`${cardClass} p-5`}>
           <div className="flex items-center justify-between gap-3">
-            <SectionTitle icon={Film} title="Video Queue" />
+            <SectionTitle icon={Film} title={t("marketing.videos.page.videoQueue")} />
             <Badge>{queue.length} queued</Badge>
           </div>
           <div className="mt-4 grid gap-3">
@@ -409,6 +415,7 @@ function Kpi({ label, value, tone = "cyan" }) {
 }
 
 function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
+  const { t } = useTranslation();
   const statusInfo = getQueueStatusInfo(item, { source: "card", queueType: "videos" });
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
@@ -436,23 +443,24 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
           <Badge>{scheduledLabel(item)}</Badge>
           <Badge>Instagram</Badge>
           <Badge>Facebook</Badge>
-          <Badge>TikTok later</Badge>
+          <Badge>{t("marketing.videos.queue.tiktokLater")}</Badge>
           <Badge tone={statusTone(statusInfo.normalizedStatus)}>{statusInfo.displayStatus}</Badge>
         </div>
         <div className="mt-2 truncate text-sm font-black text-white">{item.title || item.design_json?.product_name || "فيديو في الطابور"}</div>
         <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{item.caption}</div>
       </div>
       <div className="flex flex-wrap gap-2 md:justify-end">
-        <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
-        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
-        {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
-        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>نشر</button> : null}
+        <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>{t("marketing.videos.queue.preview")}</button>
+        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.videos.queue.viewPost")}</a> : null}
+        {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>{t("marketing.videos.queue.approve")}</button> : null}
+        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.videos.queue.publish")}</button> : null}
       </div>
     </div>
   );
 }
 
 function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
+  const { t } = useTranslation();
   const design = item.design_json || {};
   const statusInfo = getQueueStatusInfo(item, { source: "preview-modal", queueType: "videos" });
   const showApprove = canApproveQueueItem(item);
@@ -628,7 +636,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             {showDetailCard ? (
             <div className="absolute left-5 right-5 bottom-[41%] z-30 transition-all duration-500 translate-x-0 opacity-100">
               <div className="rounded-2xl border border-white/10 bg-black/35 p-3 shadow-2xl shadow-black/30 backdrop-blur-md">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary">Variant details</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary">{t("marketing.videos.preview.variantDetails")}</div>
                 <div className="mt-1 line-clamp-2 text-sm font-black text-white">{sceneCaption || design.color_name || "Available variants"}</div>
               </div>
             </div>
@@ -638,7 +646,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
               <div className="rounded-2xl border border-white/10 bg-black/32 p-3 shadow-2xl shadow-black/30 backdrop-blur-md">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-black uppercase tracking-[0.12em] text-white/55">Price focus</div>
+                    <div className="truncate text-xs font-black uppercase tracking-[0.12em] text-white/55">{t("marketing.videos.preview.priceFocus")}</div>
                     {design.price ? <div className="mt-1 text-2xl font-black text-white animate-pulse">{design.price} {design.currency || "EGP"}</div> : null}
                   </div>
                 </div>
@@ -648,7 +656,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             {showUrgencyCard ? (
             <div className="absolute inset-x-5 bottom-[22%] z-30 transition-all duration-500 translate-y-0 opacity-100">
               <div className="rounded-2xl border border-amber-200/20 bg-amber-300/12 p-3 text-center shadow-2xl shadow-black/30 backdrop-blur-md">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">Limited availability</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">{t("marketing.videos.preview.limitedAvailability")}</div>
                 <div className="mt-1 text-lg font-black text-white">{sceneCaption || "Available now"}</div>
               </div>
             </div>
@@ -674,8 +682,8 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="m1-section-title">Video preview</h2>
-              <p className="mt-2 text-sm font-semibold text-slate-400">عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.</p>
+              <h2 className="m1-section-title">{t("marketing.videos.preview.title")}</h2>
+              <p className="mt-2 text-sm font-semibold text-slate-400">{t("marketing.videos.preview.subtitle")}</p>
             </div>
             <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
               <X className="h-4 w-4" />
@@ -683,25 +691,25 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             </button>
           </div>
           <div className="mt-5 grid gap-3 text-sm md:grid-cols-2">
-            <Info label="Status" value={String(item.publish_status || item.status || "pending").replaceAll("_", " ")} />
-            <Info label="Scheduled" value={scheduledLabel(item)} />
-            <Info label="Playback" value={`${elapsedSeconds.toFixed(1)}s / ${playbackDuration}s (${Math.round(progressPercent)}%)`} />
-            <Info label="Preset" value={preset} />
-            <Info label="Quality score" value={`${qualityScore}/100`} />
-            <Info label="Aspect ratio" value={design.aspect_ratio || "9:16"} />
-            <Info label="Estimated engagement" value={design.estimated_engagement || "Medium-high"} />
-            <Info label="Motion style" value={motionStyle} />
-            <Info label="Reel energy" value={design.reel_energy || "premium upbeat"} />
-            <Info label="Hook strength" value={`${design.hook_strength || 84}/100`} />
-            <Info label="Pacing" value={`${design.pacing_score || 86}/100`} />
-            <Info label="CTA strength" value={`${design.cta_strength || 78}/100`} />
-            <Info label="Trend fit" value={`${design.trend_fit_score || 84}/100`} />
-            <Info label="Reel type" value={reelType} />
-            <Info label="Transition style" value={transitionStyle} />
+            <Info label={t("marketing.videos.preview.status")} value={String(item.publish_status || item.status || "pending").replaceAll("_", " ")} />
+            <Info label={t("marketing.videos.preview.scheduled")} value={scheduledLabel(item)} />
+            <Info label={t("marketing.videos.preview.playback")} value={`${elapsedSeconds.toFixed(1)}s / ${playbackDuration}s (${Math.round(progressPercent)}%)`} />
+            <Info label={t("marketing.videos.preview.preset")} value={preset} />
+            <Info label={t("marketing.videos.preview.qualityScore")} value={`${qualityScore}/100`} />
+            <Info label={t("marketing.videos.preview.aspectRatio")} value={design.aspect_ratio || "9:16"} />
+            <Info label={t("marketing.videos.preview.estimatedEngagement")} value={design.estimated_engagement || "Medium-high"} />
+            <Info label={t("marketing.videos.preview.motionStyle")} value={motionStyle} />
+            <Info label={t("marketing.videos.preview.reelEnergy")} value={design.reel_energy || "premium upbeat"} />
+            <Info label={t("marketing.videos.preview.hookStrength")} value={`${design.hook_strength || 84}/100`} />
+            <Info label={t("marketing.videos.preview.pacing")} value={`${design.pacing_score || 86}/100`} />
+            <Info label={t("marketing.videos.preview.ctaStrength")} value={`${design.cta_strength || 78}/100`} />
+            <Info label={t("marketing.videos.preview.trendFit")} value={`${design.trend_fit_score || 84}/100`} />
+            <Info label={t("marketing.videos.preview.reelType")} value={reelType} />
+            <Info label={t("marketing.videos.preview.transitionStyle")} value={transitionStyle} />
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-black text-white">Video readiness</div>
+              <div className="text-sm font-black text-white">{t("marketing.videos.preview.readiness")}</div>
               <Badge tone={qualityScore >= 80 ? "emerald" : "amber"}>{qualityScore}/100</Badge>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -724,7 +732,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-black text-white">خط زمني بأسلوب CapCut</div>
+              <div className="text-sm font-black text-white">{t("marketing.videos.preview.capcutTimeline")}</div>
               <Badge tone="cyan">{formatSeconds(playbackDuration)}ثانية / وضع تلقائي</Badge>
             </div>
             <div className="relative mt-4 h-20 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-2">
@@ -761,7 +769,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-black text-white">الخط الزمني للمشاهد</div>
+              <div className="text-sm font-black text-white">{t("marketing.videos.preview.sceneTimeline")}</div>
               <Badge tone="cyan">{isPlaying ? "قيد التشغيل" : hasEnded ? "انتهى" : "انقر للتنقل"}</Badge>
             </div>
             <div className="mt-3 grid gap-2">
@@ -797,7 +805,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="text-sm font-black text-white">خط زمني للنصوص / التعليقات</div>
+            <div className="text-sm font-black text-white">{t("marketing.videos.preview.captionTimeline")}</div>
             <div className="mt-3 grid gap-2">
               {captionsTimeline.map((caption, index) => (
                 <div key={`${caption.start_second}-${index}`} className="grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
@@ -845,16 +853,16 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             </div>
           ) : null}
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="text-sm font-black text-white">النص / التعليق المُولّد</div>
+            <div className="text-sm font-black text-white">{t("marketing.videos.preview.generatedScript")}</div>
             <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{design.script || item.caption || "سيظهر النص هنا بعد الإنشاء."}</div>
           </div>
           <details className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
-            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">تشخيص تقني</summary>
+            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">{t("marketing.videos.preview.technicalDiagnostics")}</summary>
             <pre className="mt-3 max-h-72 overflow-auto text-xs text-slate-300">{JSON.stringify(design, null, 2)}</pre>
           </details>
           <div className="mt-5 flex flex-wrap gap-2">
-            {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
-            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>عرض المنشور</a> : null}
+            {showPublished ? <Badge tone="emerald">{t("marketing.videos.queue.published")}</Badge> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-primary/20 bg-primary/10 text-primary`}>{t("marketing.videos.queue.viewPost")}</a> : null}
             {showApprove ? (
               <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
                 <Check className="h-4 w-4" />

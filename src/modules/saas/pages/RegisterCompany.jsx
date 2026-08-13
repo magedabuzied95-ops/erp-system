@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Building2, CheckCircle2, Crown, Sparkles } from "lucide-react";
@@ -10,6 +11,7 @@ import SaaSShell from "../components/SaaSShell";
 import { PLANS, createTenant } from "../lib/tenantStore";
 
 function RegisterCompany() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -21,7 +23,7 @@ function RegisterCompany() {
 
   const submit = async () => {
     if (!companyName.trim() || !ownerEmail.trim() || !password.trim()) {
-      toast.error("اسم الشركة والبريد الإلكتروني وكلمة المرور مطلوبة");
+      toast.error(t("saas.register.required"));
       return;
     }
 
@@ -76,7 +78,7 @@ function RegisterCompany() {
           company_name: tenant.companyName,
         },
       });
-      toast.success("تم إنشاء مساحة العمل للشركة");
+      toast.success(t("saas.register.created"));
       navigate("/workspace");
       setLoading(false);
     }
@@ -84,36 +86,36 @@ function RegisterCompany() {
 
   return (
     <SaaSShell
-      title="تسجيل شركة"
-      subtitle="أنشئ مساحة عمل للشركة وحساب المالك وبداية الاشتراك. إذا تعذر الاتصال بالخادم، سيتم حفظ المساحة محليًا وتسجيل الدخول عليها."
+      title={t("saas.register.title")}
+      subtitle={t("saas.register.subtitle")}
       actions={
         <Link to="/login" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
-          تسجيل الدخول
+          {t("saas.register.login")}
         </Link>
       }
       tabs={[
-        { to: "/register-company", label: "تسجيل" , end: true },
-        { to: "/workspace", label: "مساحة العمل" },
-        { to: "/billing", label: "الفوترة" },
+        { to: "/register-company", label: t("saas.register.tabs.register"), end: true },
+        { to: "/workspace", label: t("saas.tabs.workspace") },
+        { to: "/billing", label: t("saas.tabs.billing") },
       ]}
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="m1-section-title text-white">بيانات الشركة</h3>
+          <h3 className="m1-section-title text-white">{t("saas.register.companyData")}</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label="اسم الشركة" value={companyName} onChange={setCompanyName} placeholder="Acme Retail" />
-            <Field label="اسم المالك" value={ownerName} onChange={setOwnerName} placeholder="الاسم الكامل للمالك" />
-            <Field label="بريد المالك" value={ownerEmail} onChange={setOwnerEmail} placeholder="owner@company.com" />
-            <Field label="معرّف مساحة العمل" value={workspaceSlug} onChange={setWorkspaceSlug} placeholder="acme-retail" />
+            <Field label={t("saas.register.fields.companyName")} value={companyName} onChange={setCompanyName} placeholder={t("saas.register.fields.companyNamePlaceholder")} />
+            <Field label={t("saas.register.fields.ownerName")} value={ownerName} onChange={setOwnerName} placeholder={t("saas.register.fields.ownerNamePlaceholder")} />
+            <Field label={t("saas.register.fields.ownerEmail")} value={ownerEmail} onChange={setOwnerEmail} placeholder="owner@company.com" />
+            <Field label={t("saas.register.fields.workspaceId")} value={workspaceSlug} onChange={setWorkspaceSlug} placeholder="acme-retail" />
           </div>
           <label className="mt-4 block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">كلمة المرور</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("saas.register.fields.password")}</div>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
-              placeholder="كلمة مرور المالك"
+              placeholder={t("saas.register.fields.passwordPlaceholder")}
             />
           </label>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -144,11 +146,11 @@ function RegisterCompany() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">Owner and staff accounts</h3>
+            <h3 className="m1-section-title text-white">{t("saas.register.accounts.title")}</h3>
             <div className="mt-4 space-y-3">
-              <Card icon={<Crown className="h-4 w-4" />} title="Owner account" text="Full tenant access, billing ownership, subscription upgrades, and admin operations." />
-              <Card icon={<Building2 className="h-4 w-4" />} title="Staff accounts" text="Assignable later through the users module and permission matrix." />
-              <Card icon={<CheckCircle2 className="h-4 w-4" />} title="Workspace persistence" text="Tenant metadata is stored locally and attached to the authenticated user for session continuity." />
+              <Card icon={<Crown className="h-4 w-4" />} title={t("saas.register.accounts.owner")} text={t("saas.register.accounts.ownerText")} />
+              <Card icon={<Building2 className="h-4 w-4" />} title={t("saas.register.accounts.staff")} text={t("saas.register.accounts.staffText")} />
+              <Card icon={<CheckCircle2 className="h-4 w-4" />} title={t("saas.register.accounts.persistence")} text={t("saas.register.accounts.persistenceText")} />
             </div>
           </div>
         </div>

@@ -52,7 +52,9 @@
         "online": "متصل",
         "offline": "غير متصل",
         "enabled": "مفعل",
-        "disabled": "معطل"
+        "disabled": "معطل",
+        "aiLive": "الذكاء الاصطناعي نشط",
+        "aiOff": "الذكاء الاصطناعي متوقف"
       },
       "health": {
         "status": "حالة دعم الذكاء الاصطناعي",
@@ -81,7 +83,14 @@
         "autoReply": "الرد التلقائي",
         "messagesToday": "رسائل اليوم",
         "lastSync": "آخر مزامنة",
-        "pending": "محادثات معلقة"
+        "pending": "محادثات معلقة",
+        "modeOff": "متوقف",
+        "modeSuggestOnly": "اقتراح فقط",
+        "modeFullyAutomatic": "تلقائي بالكامل",
+        "toneInherit": "اتباع الإعداد العام",
+        "toneCasual": "مصري ودّي",
+        "toneProfessional": "احترافي",
+        "toneLuxury": "بائع فاخر"
       },
       "actions": {
         "manage": "إدارة",
@@ -150,6 +159,26 @@
         "noConversations": "لا توجد محادثات ذكاء اصطناعي بعد. اربط قناة أو فعل دردشة الموقع لبدء استقبال الرسائل.",
         "noAnalytics": "لا توجد بيانات تحليلية بعد.",
         "noSentiment": "لا توجد إشارات انطباع بعد."
+      },
+      "gateway": {
+        "title": "بوابة WhatsApp / Evolution API",
+        "refresh": "تحديث الحالة",
+        "connectionSettings": "إعدادات اتصال البوابة",
+        "provider": "المزوّد",
+        "connectionStatus": "حالة الاتصال",
+        "connected": "متصل / {{state}}",
+        "notConfigured": "غير مهيأ",
+        "unknown": "غير معروف",
+        "apiUrl": "رابط الـ API",
+        "apiUrlMissing": "لم يتم ضبط EVOLUTION_API_URL",
+        "apiKey": "مفتاح الـ API",
+        "apiKeyMissing": "مفتاح EVOLUTION_API_KEY مفقود",
+        "apiKeyConfigured": "مهيأ",
+        "instanceName": "اسم النسخة",
+        "instanceMissing": "لم يتم ضبط EVOLUTION_INSTANCE_NAME",
+        "sendTest": "إرسال رسالة اختبار يدوية",
+        "egyptianPhone": "رقم هاتف مصري",
+        "message": "الرسالة"
       }
     },
     "employeeHub": {
@@ -625,7 +654,10 @@
         "empty": {
           "noAdvances": "لا توجد سلف مسجلة."
         }
-      }
+      },
+      "workspaceUnavailable": "مساحة العمل غير متاحة.",
+      "payrollWorkspaceFailed": "تعذر تحميل مساحة الرواتب. يرجى تحديث الصفحة.",
+      "staffTasksWorkspaceFailed": "تعذر تحميل مهام الموظفين. يرجى تحديث الصفحة."
     },
     "attendanceCenterPage": {
       "eyebrow": "مركز الحضور",
@@ -652,7 +684,35 @@
     "unableToOpenPrint": "تعذر فتح تقرير الطباعة",
     "unbranded": "بدون علامة تجارية",
     "uncategorized": "بدون فئة",
-    "viewAll": "عرض الكل"
+    "viewAll": "عرض الكل",
+    "done": "تم",
+    "realtimeFeedback": {
+      "events": {
+        "newOrder": "طلب جديد",
+        "paymentReceived": "تم استلام الدفع",
+        "paymentConfirmed": "تم تأكيد الدفع",
+        "paymentProofUploaded": "تم رفع إثبات الدفع",
+        "barcodeScanned": "تم مسح الباركود",
+        "productNotFound": "المنتج غير موجود",
+        "posError": "خطأ في نقطة البيع",
+        "lowStock": "مخزون منخفض",
+        "attendanceUpdated": "تم تحديث الحضور",
+        "attendanceCheckIn": "تسجيل حضور",
+        "attendanceCheckOut": "تسجيل انصراف",
+        "aiMessage": "رسالة من الذكاء الاصطناعي",
+        "aiRecommendation": "توصية من الذكاء الاصطناعي",
+        "exactProductFound": "تم العثور على المنتج بالضبط",
+        "noAiResults": "لا توجد نتائج",
+        "aiHandoff": "تحويل من الذكاء الاصطناعي",
+        "customerMessage": "رسالة من عميل",
+        "notification": "إشعار",
+        "error": "خطأ"
+      },
+      "batch": {
+        "title": "{{count}} تحديثات جديدة",
+        "message": "افتح مساحة العمل لمراجعة آخر الأنشطة."
+      }
+    }
   },
   "sidebar": {
     "main": "الرئيسية",
@@ -769,7 +829,17 @@
     "searchModules": "بحث في الوحدات...",
     "executiveOverview": "النظرة التنفيذية",
     "salesIntelligence": "تحليل المبيعات والأرباح",
-    "inventoryIntelligence": "ذكاء المخزون"
+    "inventoryIntelligence": "ذكاء المخزون",
+    "pos": "نقطة البيع",
+    "posExpenses": "مصاريف نقطة البيع",
+    "moneyAccounts": "حسابات الأموال",
+    "moneyTransactions": "حركات الأموال",
+    "moneyTransfers": "تحويلات الأموال",
+    "treasuryDashboard": "لوحة الخزينة",
+    "employeeAdvances": "سلف الموظفين",
+    "attendance": "الحضور",
+    "staffTasks": "مهام الموظفين",
+    "aiStudio": "استوديو الذكاء الاصطناعي"
   },
   "language": {
     "label": "اللغة",

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Bot, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 
@@ -19,18 +20,23 @@ const defaultForm = {
   brand_tone_instructions: "",
 };
 
+/*
+ * `key` is the PERSISTED knowledge field id used to read and write form state;
+ * labelKey/placeholderKey are form chrome resolved at render. The tenant-authored
+ * values themselves are knowledge content and are never touched here.
+ */
 const fields = [
-  { key: "store_name", label: "اسم المتجر الظاهر", type: "input", placeholder: "مثال: المتجر التجريبي" },
-  { key: "phone", label: "رقم الهاتف العام", type: "input", inputMode: "tel", placeholder: "+201000000000" },
-  { key: "whatsapp", label: "رقم واتساب", type: "input", inputMode: "tel", placeholder: "+201000000000" },
-  { key: "branch_working_hours", label: "مواعيد عمل الفروع", rows: 4, placeholder: "مثال: السبت - الخميس من 12 ظهرًا إلى 11 مساءً" },
-  { key: "payment_methods", label: "طرق الدفع", rows: 4, placeholder: "كاش عند الاستلام، فودافون كاش، إنستاباي..." },
-  { key: "shipping_policy", label: "سياسة الشحن", rows: 5, placeholder: "مناطق الشحن، المدة المتوقعة، التكلفة..." },
-  { key: "return_exchange_policy", label: "سياسة الاستبدال والاسترجاع", rows: 5, placeholder: "شروط الاستبدال، المدة، حالة المنتج..." },
-  { key: "delivery_notes", label: "ملاحظات التوصيل", rows: 4, placeholder: "أي تعليمات عامة للعميل قبل التوصيل" },
-  { key: "warranty_notes", label: "ملاحظات الضمان", rows: 4, placeholder: "سياسة الضمان أو عدم وجود ضمان" },
-  { key: "human_support_message", label: "رسالة التحويل للدعم البشري", rows: 3, placeholder: "مثال: ابعتلنا على واتساب وسنرد عليك في أقرب وقت" },
-  { key: "brand_tone_instructions", label: "نبرة البراند في الردود", rows: 4, placeholder: "مثال: ردود عربية ودودة، مختصرة، بدون وعود غير مؤكدة" },
+  { key: "store_name", labelKey: "aiSupport.knowledgeBase.fields.store_name.label", type: "input", placeholderKey: "aiSupport.knowledgeBase.fields.store_name.placeholder" },
+  { key: "phone", labelKey: "aiSupport.knowledgeBase.fields.phone.label", type: "input", inputMode: "tel", placeholder: "+201000000000" },
+  { key: "whatsapp", labelKey: "aiSupport.knowledgeBase.fields.whatsapp.label", type: "input", inputMode: "tel", placeholder: "+201000000000" },
+  { key: "branch_working_hours", labelKey: "aiSupport.knowledgeBase.fields.branch_working_hours.label", rows: 4, placeholderKey: "aiSupport.knowledgeBase.fields.branch_working_hours.placeholder" },
+  { key: "payment_methods", labelKey: "aiSupport.knowledgeBase.fields.payment_methods.label", rows: 4, placeholderKey: "aiSupport.knowledgeBase.fields.payment_methods.placeholder" },
+  { key: "shipping_policy", labelKey: "aiSupport.knowledgeBase.fields.shipping_policy.label", rows: 5, placeholderKey: "aiSupport.knowledgeBase.fields.shipping_policy.placeholder" },
+  { key: "return_exchange_policy", labelKey: "aiSupport.knowledgeBase.fields.return_exchange_policy.label", rows: 5, placeholderKey: "aiSupport.knowledgeBase.fields.return_exchange_policy.placeholder" },
+  { key: "delivery_notes", labelKey: "aiSupport.knowledgeBase.fields.delivery_notes.label", rows: 4, placeholderKey: "aiSupport.knowledgeBase.fields.delivery_notes.placeholder" },
+  { key: "warranty_notes", labelKey: "aiSupport.knowledgeBase.fields.warranty_notes.label", rows: 4, placeholderKey: "aiSupport.knowledgeBase.fields.warranty_notes.placeholder" },
+  { key: "human_support_message", labelKey: "aiSupport.knowledgeBase.fields.human_support_message.label", rows: 3, placeholderKey: "aiSupport.knowledgeBase.fields.human_support_message.placeholder" },
+  { key: "brand_tone_instructions", labelKey: "aiSupport.knowledgeBase.fields.brand_tone_instructions.label", rows: 4, placeholderKey: "aiSupport.knowledgeBase.fields.brand_tone_instructions.placeholder" },
 ];
 
 const resolveTenantId = () => {
@@ -47,6 +53,7 @@ const validatePhone = (value = "") => {
 };
 
 export default function AiSupportKnowledgeBase() {
+  const { t } = useTranslation();
   const tenantId = useMemo(resolveTenantId, []);
   const [form, setForm] = useState(defaultForm);
   const [initialForm, setInitialForm] = useState(defaultForm);
@@ -93,7 +100,7 @@ export default function AiSupportKnowledgeBase() {
 
   const save = async () => {
     if (!phoneValid || !whatsappValid) {
-      toast.error("راجع صيغة الهاتف أو واتساب");
+      toast.error(t("aiSupport.knowledgeBase.toasts.checkPhone"));
       return;
     }
     setSaving(true);
@@ -107,17 +114,17 @@ export default function AiSupportKnowledgeBase() {
       const next = { ...defaultForm, ...(payload?.knowledge_base || form) };
       setForm(next);
       setInitialForm(next);
-      toast.success("تم حفظ قاعدة معرفة الدعم الذكي");
+      toast.success(t("aiSupport.knowledgeBase.toasts.saved"));
     } catch (err) {
       setError(err?.message || "تعذر حفظ الإعدادات");
-      toast.error(err?.message || "تعذر حفظ الإعدادات");
+      toast.error(err?.message || t("aiSupport.knowledgeBase.toasts.saveFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   const reset = async () => {
-    if (!window.confirm("هل تريد إعادة ضبط قاعدة معرفة الدعم الذكي لهذا المستأجر؟")) return;
+    if (!window.confirm(t("aiSupport.knowledgeBase.confirmReset"))) return;
     setSaving(true);
     setError("");
     try {
@@ -127,10 +134,10 @@ export default function AiSupportKnowledgeBase() {
       const next = { ...defaultForm, ...(payload?.knowledge_base || {}) };
       setForm(next);
       setInitialForm(next);
-      toast.success("تم تصفير قاعدة المعرفة");
+      toast.success(t("aiSupport.knowledgeBase.toasts.reset"));
     } catch (err) {
       setError(err?.message || "تعذر تصفير الإعدادات");
-      toast.error(err?.message || "تعذر تصفير الإعدادات");
+      toast.error(err?.message || t("aiSupport.knowledgeBase.toasts.resetFailed"));
     } finally {
       setSaving(false);
     }
@@ -145,7 +152,7 @@ export default function AiSupportKnowledgeBase() {
               <Bot className="h-4 w-4" />
               الدعم الذكي
             </div>
-            <h1 className="m1-page-title mt-4 text-[var(--text)]">قاعدة معرفة الدعم الذكي</h1>
+            <h1 className="m1-page-title mt-4 text-[var(--text)]">{t("aiSupport.knowledgeBase.title")}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               هذه المعلومات عامة ومسموح استخدامها في ردود الدعم الذكي. لا تضف بيانات داخلية أو أسعار غير مؤكدة هنا.
             </p>
@@ -185,13 +192,13 @@ export default function AiSupportKnowledgeBase() {
             <div className="grid gap-4 md:grid-cols-2">
               {fields.map((field) => (
                 <label key={field.key} className={field.type === "input" ? "block" : "block md:col-span-2"}>
-                  <span className="mb-2 block text-sm font-black text-[var(--text)]">{field.label}</span>
+                  <span className="mb-2 block text-sm font-black text-[var(--text)]">{t(field.labelKey)}</span>
                   {field.type === "input" ? (
                     <input
                       value={form[field.key] || ""}
                       inputMode={field.inputMode}
                       onChange={(event) => updateField(field.key, event.target.value)}
-                      placeholder={field.placeholder}
+                      placeholder={field.placeholderKey ? t(field.placeholderKey) : field.placeholder}
                       className={`h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border bg-[var(--card)] px-4 text-right text-sm font-semibold text-[var(--text)] outline-none transition focus:ring-4 ${ (field.key === "phone" && !phoneValid) || (field.key === "whatsapp" && !whatsappValid) ? "border-rose-400/70 focus:ring-rose-400/10" : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/10" }`}
                     />
                   ) : (
@@ -199,7 +206,7 @@ export default function AiSupportKnowledgeBase() {
                       value={form[field.key] || ""}
                       rows={field.rows}
                       onChange={(event) => updateField(field.key, event.target.value)}
-                      placeholder={field.placeholder}
+                      placeholder={field.placeholderKey ? t(field.placeholderKey) : field.placeholder}
                       className="w-full resize-y rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-right text-sm font-semibold leading-7 text-[var(--text)] outline-none transition focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
                     />
                   )}
@@ -220,11 +227,11 @@ export default function AiSupportKnowledgeBase() {
             </p>
           </div>
           <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
-            <div className="text-sm font-black text-[var(--text)]">التحقق</div>
+            <div className="text-sm font-black text-[var(--text)]">{t("aiSupport.knowledgeBase.validation.title")}</div>
             <div className="mt-3 grid gap-2 text-sm font-bold text-[var(--muted)]">
-              <div>الهاتف: {phoneValid ? "صحيح" : "غير صحيح"}</div>
-              <div>واتساب: {whatsappValid ? "صحيح" : "غير صحيح"}</div>
-              <div>الحالة: {isDirty ? "توجد تغييرات غير محفوظة" : "محفوظ"}</div>
+              <div>{t("aiSupport.knowledgeBase.validation.phone")} {phoneValid ? t("aiSupport.knowledgeBase.validation.valid") : t("aiSupport.knowledgeBase.validation.invalid")}</div>
+              <div>{t("aiSupport.knowledgeBase.validation.whatsapp")} {whatsappValid ? t("aiSupport.knowledgeBase.validation.valid") : t("aiSupport.knowledgeBase.validation.invalid")}</div>
+              <div>{t("aiSupport.knowledgeBase.validation.state")} {isDirty ? t("aiSupport.knowledgeBase.validation.unsaved") : t("aiSupport.knowledgeBase.validation.savedState")}</div>
             </div>
           </div>
         </aside>

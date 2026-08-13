@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Loader2, PackageCheck, RefreshCw } from "lucide-react";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 
@@ -16,25 +17,31 @@ const expandModelColors = (products = []) => orderProductsByModelAndColor(produc
   if (!colors.length) return [product];
   return colors.map((color) => ({ ...product, ...color, colors }));
 });
+// Module-scope constants carry translation KEYS, never resolved strings: resolving
+// here would freeze every label in whichever language loaded first.
 const PRODUCT_TABS = [
-  { key: "sneakers", label: "اسنيكرز" },
-  { key: "crocs", label: "كروكس" },
-  { key: "bags", label: "شنط" },
-  { key: "winter", label: "شتوي" },
+  { key: "sneakers", labelKey: "employeePortal.display.groups.sneakers" },
+  { key: "crocs", labelKey: "employeePortal.display.groups.crocs" },
+  { key: "bags", labelKey: "employeePortal.display.groups.bags" },
+  { key: "winter", labelKey: "employeePortal.display.groups.winter" },
 ];
+// `special` is an AUDIENCE here, not a product category - it deliberately does not
+// reuse pos.categories.special, which carries the same word in a different domain.
 const AUDIENCE_TABS = [
-  { key: "men", label: "رجالي" },
-  { key: "women", label: "حريمي" },
-  { key: "kids", label: "أطفال" },
-  { key: "special", label: "خاص" },
+  { key: "men", labelKey: "employeePortal.display.audiences.men" },
+  { key: "women", labelKey: "employeePortal.display.audiences.women" },
+  { key: "kids", labelKey: "employeePortal.display.audiences.kids" },
+  { key: "special", labelKey: "employeePortal.display.audiences.special" },
 ];
 const KIDS_STAGE_PANELS = [
-  { key: "kids-22-26", label: "بيبي", range: "22–26" },
-  { key: "kids-27-31", label: "وسط", range: "27–31" },
-  { key: "kids-32-36", label: "أولادي", range: "32–36" },
+  { key: "kids-22-26", labelKey: "employeePortal.display.stages.baby", range: "22–26" },
+  { key: "kids-27-31", labelKey: "employeePortal.display.stages.middle", range: "27–31" },
+  { key: "kids-32-36", labelKey: "employeePortal.display.stages.boys", range: "32–36" },
 ];
 
 export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, savingId = "", error = "", onRefresh, onMarkDisplayed }) {
+  const { t, i18n } = useTranslation();
+  const dir = i18n.dir ? i18n.dir() : (i18n.language === "ar" ? "rtl" : "ltr");
   const sections = safeArray(data.sections);
   const availableProductTabs = useMemo(() => PRODUCT_TABS.filter((tab) => Number(data.product_group_counts?.[tab.key] || 0) > 0), [data.product_group_counts]);
   const [productGroup, setProductGroup] = useState("sneakers");
@@ -86,25 +93,25 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
     const imageUrl = resolveProductImageUrl(product.image_url || product.product_image_url || product.image);
     return <article key={`${product.product_id}:${colorKey}`} className="grid grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
       <div className="h-[74px] w-[74px] overflow-hidden rounded-xl bg-slate-100">{imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-cover" /> : <PackageCheck className="m-5 h-8 w-8 text-slate-300" />}</div>
-      <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">اللون: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">أصغر مقاس: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">الكمية: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}معروض</button></div>
+      <div className="min-w-0"><h5 className="line-clamp-2 text-sm font-black leading-5 text-slate-950" dir="auto">{product.name}</h5><div className="mt-1 flex flex-wrap gap-1 text-[11px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{t("employeePortal.common.color")}: {product.color || "-"}</span><span className="rounded-full bg-primary-subtle px-2 py-1 text-primary">{t("employeePortal.display.smallestSize")}: {product.size || "-"}</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">{t("employeePortal.display.quantity")}: {product.stock || 0}</span></div><button type="button" onClick={() => onMarkDisplayed?.(product)} disabled={saving} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{t("employeePortal.display.markDisplayed")}</button></div>
     </article>;
   };
 
   return (
-    <div className="grid gap-3" dir="rtl">
+    <div className="grid gap-3" dir={dir}>
       <section className="overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-950 to-slate-950 p-4 text-white shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-xs font-black text-emerald-300"><PackageCheck className="h-4 w-4" />إدارة العرض المستقلة</div>
-            <h2 className="m1-section-title mt-2">تمم على العرض</h2>
-            <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.</p>
+            <div className="flex items-center gap-2 text-xs font-black text-emerald-300"><PackageCheck className="h-4 w-4" />{t("employeePortal.display.independentManagement")}</div>
+            <h2 className="m1-section-title mt-2">{t("employeePortal.display.confirmDisplay")}</h2>
+            <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">{t("employeePortal.display.unconfirmedModels")}</p>
           </div>
-          <button type="button" onClick={onRefresh} disabled={loading} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white/10 text-white disabled:opacity-50" aria-label="تحديث">
+          <button type="button" onClick={onRefresh} disabled={loading} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white/10 text-white disabled:opacity-50" aria-label={t("employeePortal.common.refresh")}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </button>
         </div>
         <div className="mt-4 flex items-end justify-between rounded-[var(--radius-card)] border border-white/10 bg-white/10 px-4 py-3">
-          <span className="text-xs font-bold text-slate-300">إجمالي الموديلات غير المعروضة</span>
+          <span className="text-xs font-bold text-slate-300">{t("employeePortal.display.totalNotDisplayed")}</span>
           <strong className="text-3xl font-black tabular-nums text-emerald-300" dir="ltr">{Number(data.total || 0)}</strong>
         </div>
       </section>
@@ -114,7 +121,7 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
           {PRODUCT_TABS.map((tab) => {
             const count = Number(data.product_group_counts?.[tab.key] || 0);
             const active = productGroup === tab.key;
-            return <button key={tab.key} type="button" onClick={() => count && setProductGroup(tab.key)} disabled={!count} className={`rounded-[var(--radius-control)] px-1 py-2.5 text-xs font-black transition ${active ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"} disabled:opacity-35`}>{tab.label}<span className="mr-1 opacity-75" dir="ltr">({count})</span></button>;
+            return <button key={tab.key} type="button" onClick={() => count && setProductGroup(tab.key)} disabled={!count} className={`rounded-[var(--radius-control)] px-1 py-2.5 text-xs font-black transition ${active ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"} disabled:opacity-35`}>{t(tab.labelKey)}<span className="mr-1 opacity-75" dir="ltr">({count})</span></button>;
           })}
         </div>
 
@@ -126,23 +133,23 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
         </div> : null}
 
         {availableAudiences.length ? <div className={`mt-3 grid gap-1.5 rounded-2xl bg-slate-100 p-1.5 ${availableAudiences.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
-          {availableAudiences.map((audience) => <button key={audience.key} type="button" onClick={() => setAudienceKey(audience.key)} className={`rounded-[var(--radius-control)] px-2 py-2 text-xs font-black ${audienceKey === audience.key ? "bg-primary text-[var(--primary-contrast)] shadow-sm" : "text-slate-600"}`}>{audience.label} <span dir="ltr">({audience.count})</span></button>)}
+          {availableAudiences.map((audience) => <button key={audience.key} type="button" onClick={() => setAudienceKey(audience.key)} className={`rounded-[var(--radius-control)] px-2 py-2 text-xs font-black ${audienceKey === audience.key ? "bg-primary text-[var(--primary-contrast)] shadow-sm" : "text-slate-600"}`}>{t(audience.labelKey)} <span dir="ltr">({audience.count})</span></button>)}
         </div> : null}
       </section>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm font-bold text-red-800">{error}</div> : null}
       {loading && !sections.length ? <div className="flex min-h-40 items-center justify-center rounded-[var(--radius-card)] border border-slate-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-emerald-600" /></div> : null}
-      {!loading && !sections.length ? <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-10 text-center"><Check className="mx-auto h-9 w-9 text-emerald-600" /><div className="mt-2 text-base font-black text-emerald-950">كل الموديلات الموجودة بالمخزن معروضة</div></div> : null}
+      {!loading && !sections.length ? <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-10 text-center"><Check className="mx-auto h-9 w-9 text-emerald-600" /><div className="mt-2 text-base font-black text-emerald-950">{t("employeePortal.display.allDisplayed")}</div></div> : null}
 
       {audienceKey === "kids" ? <div className="grid gap-3">
         {KIDS_STAGE_PANELS.map((stage) => {
           const stageProducts = kidsStageProducts[stage.key] || [];
           return <section key={stage.key} className="overflow-hidden rounded-3xl border border-violet-200 bg-violet-50/60 p-3 shadow-sm">
             <header className="mb-3 flex items-center justify-between rounded-2xl bg-violet-950 px-4 py-3 text-white">
-              <div><h3 className="m1-section-title">{stage.label}</h3><p className="mt-0.5 text-[11px] font-bold text-violet-200">مقاسات العرض من {stage.range}</p></div>
+              <div><h3 className="m1-section-title">{t(stage.labelKey)}</h3><p className="mt-0.5 text-[11px] font-bold text-violet-200">{t("employeePortal.display.stageSizesFrom", { range: stage.range })}</p></div>
               <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black">{stageProducts.length}</span>
             </header>
-            {stageProducts.length ? <div className="grid gap-2 sm:grid-cols-2">{stageProducts.map(renderProductCard)}</div> : <div className="rounded-[var(--radius-card)] border border-dashed border-violet-200 bg-white px-3 py-6 text-center text-xs font-bold text-slate-500">لا توجد مقاسات متاحة في هذه المرحلة</div>}
+            {stageProducts.length ? <div className="grid gap-2 sm:grid-cols-2">{stageProducts.map(renderProductCard)}</div> : <div className="rounded-[var(--radius-card)] border border-dashed border-violet-200 bg-white px-3 py-6 text-center text-xs font-bold text-slate-500">{t("employeePortal.display.noStageSizes")}</div>}
           </section>;
         })}
       </div> : expandedSelectedProducts.length ? <section className="grid gap-2 sm:grid-cols-2">{expandedSelectedProducts.map(renderProductCard)}</section> : null}

@@ -7,6 +7,11 @@ import {
   normalizeShippingLifecycleStatus,
 } from "../../../../shared/orderStatus.js";
 
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const ORDERS_META_KEY = "erp.orders.meta";
 const RETURNS_KEY = "erp.orders.returns";
 
@@ -63,14 +68,14 @@ export const upsertOrderMeta = (orderId, patch) => {
 
 const normalizePaymentStatusLabel = (value) => {
   const normalized = String(value || "").toLowerCase();
-  if (["paid", "shipping_paid", "confirmed", "approved"].includes(normalized)) return "مدفوع";
-  if (["partially_paid", "partially paid", "partial"].includes(normalized)) return "مدفوع جزئياً";
-  if (normalized === "awaiting_verification") return "بانتظار المراجعة";
-  if (["refunded", "refund", "fully_refunded"].includes(normalized)) return "مسترد";
-  if (["partially_refunded", "partially refunded", "partial_refund"].includes(normalized)) return "مسترد جزئياً";
-  if (normalized === "rejected") return "مرفوض";
+  if (["paid", "shipping_paid", "confirmed", "approved"].includes(normalized)) return tt("orders.statusLabels.paid");
+  if (["partially_paid", "partially paid", "partial"].includes(normalized)) return tt("orders.statusLabels.partiallyPaid");
+  if (normalized === "awaiting_verification") return tt("inventory.transfers.pendingReview");
+  if (["refunded", "refund", "fully_refunded"].includes(normalized)) return tt("orders.statusLabels.refunded");
+  if (["partially_refunded", "partially refunded", "partial_refund"].includes(normalized)) return tt("orders.statusLabels.partiallyRefunded");
+  if (normalized === "rejected") return tt("orders.statusLabels.rejected");
   if (normalized === "cod") return "COD";
-  if (normalized === "unpaid") return "غير مدفوع";
+  if (normalized === "unpaid") return tt("orders.statusLabels.unpaid");
   return value;
 };
 
@@ -163,7 +168,7 @@ export const normalizeOrder = (order, details = {}) => {
     total,
     status,
     paymentStatus,
-    customer_name: order.customer_name || details.customer_name || meta.customer_name || "عميل متجول",
+    customer_name: order.customer_name || details.customer_name || meta.customer_name || tt("orders.customer.walkIn"),
     customer_phone: order.customer_phone || order.phone || order.customer?.phone || details.customer_phone || details.phone || meta.customer_phone || "",
     phone: order.phone || order.customer_phone || order.customer?.phone || details.phone || details.customer_phone || "",
     total_quantity: totalQuantity,
@@ -182,8 +187,8 @@ export const normalizeOrder = (order, details = {}) => {
     seller_name: order.seller_name || details.seller_name || "",
     salesperson_name: order.salesperson_name || details.salesperson_name || "",
     assigned_seller_name: order.assigned_seller_name || details.assigned_seller_name || "",
-    channel: meta.channel || order.source || order.channel || "نقطة البيع",
-    source: meta.source || order.source || order.channel || "نقطة البيع",
+    channel: meta.channel || order.source || order.channel || tt("orders.sources.pos"),
+    source: meta.source || order.source || order.channel || tt("orders.sources.pos"),
     customer_type: order.customer_type || meta.customer_type || "",
     customer_address: order.customer_address || "",
     governorate: order.governorate || "",
@@ -197,7 +202,7 @@ export const normalizeOrder = (order, details = {}) => {
     order_notes: order.order_notes || "",
     delivery_fee: Number(order.delivery_fee ?? order.shipping_fee ?? 0),
     cod_amount: Number(order.cod_amount || 0),
-    branch: meta.branch || order.branch || "الرئيسية",
+    branch: meta.branch || order.branch || tt("orders.breadcrumb.home"),
     notes: meta.notes || order.notes || "",
     shipping_provider: meta.shipping_provider || order.shipping_provider || "",
     shipping_provider_id: order.shipping_provider_id || meta.shipping_provider_id || order.shipping_provider || "",
@@ -240,7 +245,7 @@ export const normalizeOrder = (order, details = {}) => {
 export const buildTimeline = (order) => {
   const timeline = [
     {
-      label: "تم إنشاء الطلب",
+      label: tt("orders.toasts.created"),
       at: order.created_at || new Date().toISOString(),
       tone: "emerald",
     },
@@ -248,7 +253,7 @@ export const buildTimeline = (order) => {
 
   if (order.notes) {
     timeline.push({
-      label: "تم تحديث الملاحظات",
+      label: tt("orders.toasts.notesUpdated"),
       at: new Date().toISOString(),
       tone: "blue",
     });
@@ -256,7 +261,7 @@ export const buildTimeline = (order) => {
 
   if (order.shipping_provider || order.tracking_number) {
     timeline.push({
-      label: "تم إعداد الشحن",
+      label: tt("orders.toasts.shippingSet"),
       at: new Date().toISOString(),
       tone: "amber",
     });

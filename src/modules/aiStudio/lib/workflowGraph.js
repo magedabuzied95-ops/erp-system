@@ -10,37 +10,41 @@
 export const NODE_TYPES = ["trigger", "condition", "tool", "agent", "approval", "action", "end"];
 
 // ---- Condition operators (mirror CONDITION_OPS in aiWorkflowSchema.js) ----
+// `id` is SERIALIZED into condition.op and drives CONDITION_OP_IDS — never localize it.
+// `label` stays as the raw English fallback; `labelKey` is resolved by the UI layer.
 export const CONDITION_OPS = [
-  { id: "eq", label: "equals", needsValue: true },
-  { id: "neq", label: "not equals", needsValue: true },
-  { id: "gt", label: "greater than", needsValue: true },
-  { id: "lt", label: "less than", needsValue: true },
-  { id: "gte", label: "greater or equal", needsValue: true },
-  { id: "lte", label: "less or equal", needsValue: true },
-  { id: "contains", label: "contains", needsValue: true },
-  { id: "exists", label: "exists", needsValue: false },
-  { id: "not_exists", label: "does not exist", needsValue: false },
-  { id: "truthy", label: "is truthy", needsValue: false },
-  { id: "falsy", label: "is falsy", needsValue: false },
+  { id: "eq", label: "equals", labelKey: "aiStudio.workflow.ops.eq", needsValue: true },
+  { id: "neq", label: "not equals", labelKey: "aiStudio.workflow.ops.neq", needsValue: true },
+  { id: "gt", label: "greater than", labelKey: "aiStudio.workflow.ops.gt", needsValue: true },
+  { id: "lt", label: "less than", labelKey: "aiStudio.workflow.ops.lt", needsValue: true },
+  { id: "gte", label: "greater or equal", labelKey: "aiStudio.workflow.ops.gte", needsValue: true },
+  { id: "lte", label: "less or equal", labelKey: "aiStudio.workflow.ops.lte", needsValue: true },
+  { id: "contains", label: "contains", labelKey: "aiStudio.workflow.ops.contains", needsValue: true },
+  { id: "exists", label: "exists", labelKey: "aiStudio.workflow.ops.exists", needsValue: false },
+  { id: "not_exists", label: "does not exist", labelKey: "aiStudio.workflow.ops.not_exists", needsValue: false },
+  { id: "truthy", label: "is truthy", labelKey: "aiStudio.workflow.ops.truthy", needsValue: false },
+  { id: "falsy", label: "is falsy", labelKey: "aiStudio.workflow.ops.falsy", needsValue: false },
 ];
 export const CONDITION_OP_IDS = CONDITION_OPS.map((o) => o.id);
 
 // Fallback capabilities if the /tools endpoint is unavailable (kept conservative).
 export const DEFAULT_AGENT_MODES = [
-  { id: "read_only_analysis", label: "Read-only analysis", available: true },
-  { id: "llm_grounded", label: "LLM grounded", available: false },
+  { id: "read_only_analysis", label: "Read-only analysis", labelKey: "aiStudio.workflow.agentModes.read_only_analysis", available: true },
+  { id: "llm_grounded", label: "LLM grounded", labelKey: "aiStudio.workflow.agentModes.llm_grounded", available: false },
 ];
-export const DEFAULT_TRIGGER_TYPES = [{ id: "manual", label: "Manual", available: true }];
+export const DEFAULT_TRIGGER_TYPES = [{ id: "manual", label: "Manual", labelKey: "aiStudio.workflow.triggerTypes.manual", available: true }];
 
 // ---- Per-type metadata for the canvas / palette (icon resolved in the component) ----
+// icon / accent / group / hasTool / branches are INTERNAL. `label` is the raw
+// fallback; `labelKey` is resolved by the UI layer.
 export const NODE_META = {
-  trigger: { label: "Trigger", icon: "Zap", accent: "cyan", group: "TRIGGERS", hasTool: false },
-  agent: { label: "Agent", icon: "Bot", accent: "violet", group: "AGENTS", hasTool: false },
-  condition: { label: "Condition", icon: "GitBranch", accent: "amber", group: "LOGIC", hasTool: false, branches: true },
-  tool: { label: "Tool", icon: "Wrench", accent: "sky", group: "TOOLS", hasTool: true },
-  action: { label: "Action", icon: "Bolt", accent: "orange", group: "ACTIONS", hasTool: true },
-  approval: { label: "Approval", icon: "ShieldCheck", accent: "rose", group: "APPROVAL", hasTool: false },
-  end: { label: "End", icon: "Flag", accent: "slate", group: "LOGIC", hasTool: false },
+  trigger: { label: "Trigger", labelKey: "aiStudio.workflow.nodes.trigger", icon: "Zap", accent: "cyan", group: "TRIGGERS", hasTool: false },
+  agent: { label: "Agent", labelKey: "aiStudio.workflow.nodes.agent", icon: "Bot", accent: "violet", group: "AGENTS", hasTool: false },
+  condition: { label: "Condition", labelKey: "aiStudio.workflow.nodes.condition", icon: "GitBranch", accent: "amber", group: "LOGIC", hasTool: false, branches: true },
+  tool: { label: "Tool", labelKey: "aiStudio.workflow.nodes.tool", icon: "Wrench", accent: "sky", group: "TOOLS", hasTool: true },
+  action: { label: "Action", labelKey: "aiStudio.workflow.nodes.action", icon: "Bolt", accent: "orange", group: "ACTIONS", hasTool: true },
+  approval: { label: "Approval", labelKey: "aiStudio.workflow.nodes.approval", icon: "ShieldCheck", accent: "rose", group: "APPROVAL", hasTool: false },
+  end: { label: "End", labelKey: "aiStudio.workflow.nodes.end", icon: "Flag", accent: "slate", group: "LOGIC", hasTool: false },
 };
 
 export const RISK_META = {
@@ -107,28 +111,33 @@ export const buildPalette = (registry = {}, capabilities = {}) => {
     requiresApproval: t.riskLevel === "SENSITIVE" ? true : Boolean(t.requiresApproval),
     disabled: t.executable === false,
     disabledReason: t.executable === false ? "Described-only in this phase — cannot be added as an executable node." : "",
+    disabledReasonKey: t.executable === false ? "aiStudio.workflow.palette.disabledReason" : "",
   });
 
   return [
-    { group: "TRIGGERS", items: triggerItems },
-    { group: "AGENTS", items: [{ kind: "agent", nodeType: "agent", label: "Agent", description: "Reuse the existing AI (read-only summary by default)." }] },
+    // `group` is the STABLE raw id: NodePalette uses it as the React key and to
+    // build item keys. Display comes from groupLabelKey, never from `group`.
+    { group: "TRIGGERS", groupLabelKey: "aiStudio.workflow.palette.groups.TRIGGERS", items: triggerItems },
+    { group: "AGENTS", groupLabelKey: "aiStudio.workflow.palette.groups.AGENTS", items: [{ kind: "agent", nodeType: "agent", label: "Agent", labelKey: "aiStudio.workflow.palette.items.agent.label", description: "Reuse the existing AI (read-only summary by default).", descriptionKey: "aiStudio.workflow.palette.items.agent.description" }] },
     {
       group: "LOGIC",
+      groupLabelKey: "aiStudio.workflow.palette.groups.LOGIC",
       items: [
-        { kind: "condition", nodeType: "condition", label: "Condition", description: "Branch on a value from earlier steps (true/false)." },
-        { kind: "end", nodeType: "end", label: "End", description: "Terminate this path." },
+        { kind: "condition", nodeType: "condition", label: "Condition", labelKey: "aiStudio.workflow.palette.items.condition.label", description: "Branch on a value from earlier steps (true/false).", descriptionKey: "aiStudio.workflow.palette.items.condition.description" },
+        { kind: "end", nodeType: "end", label: "End", labelKey: "aiStudio.workflow.palette.items.end.label", description: "Terminate this path.", descriptionKey: "aiStudio.workflow.palette.items.end.description" },
       ],
     },
-    { group: "TOOLS", subtitle: "READ — safe, may auto-run", items: tools.filter((t) => t.riskLevel === "READ").map(toolItem) },
+    { group: "TOOLS", groupLabelKey: "aiStudio.workflow.palette.groups.TOOLS", subtitle: "READ — safe, may auto-run", subtitleKey: "aiStudio.workflow.palette.subtitles.TOOLS", items: tools.filter((t) => t.riskLevel === "READ").map(toolItem) },
     {
       group: "ACTIONS",
-      subtitle: "WRITE / SENSITIVE — side effects",
+      groupLabelKey: "aiStudio.workflow.palette.groups.ACTIONS",
+      subtitle: "WRITE / SENSITIVE — side effects", subtitleKey: "aiStudio.workflow.palette.subtitles.ACTIONS",
       items: [
         ...tools.filter((t) => t.riskLevel === "WRITE").map(toolItem),
         ...tools.filter((t) => t.riskLevel === "SENSITIVE").map(toolItem),
       ],
     },
-    { group: "APPROVAL", items: [{ kind: "approval", nodeType: "approval", label: "Approval gate", description: "Explicit human approval before continuing." }] },
+    { group: "APPROVAL", groupLabelKey: "aiStudio.workflow.palette.groups.APPROVAL", items: [{ kind: "approval", nodeType: "approval", label: "Approval gate", labelKey: "aiStudio.workflow.palette.items.approval.label", description: "Explicit human approval before continuing.", descriptionKey: "aiStudio.workflow.palette.items.approval.description" }] },
   ];
 };
 
@@ -241,46 +250,46 @@ export const validateGraphStructure = (definition = {}, registry = {}) => {
   const toolsById = new Map((registry.tools || []).map((t) => [t.id, t]));
   const nodes = Array.isArray(definition.nodes) ? definition.nodes : [];
   const edges = Array.isArray(definition.edges) ? definition.edges : [];
-  if (!Number.isInteger(definition.version) || definition.version < 1) errors.push({ message: "Version must be a positive integer." });
+  if (!Number.isInteger(definition.version) || definition.version < 1) errors.push({ message: "Version must be a positive integer.", messageKey: "aiStudio.workflow.validation.versionPositive" });
 
   const ids = new Set();
   let triggers = 0;
   for (const n of nodes) {
     const id = String(n.id || "");
-    if (!id) { errors.push({ message: "A node is missing an id." }); continue; }
-    if (ids.has(id)) errors.push({ nodeId: id, message: `Duplicate node id: ${id}` });
+    if (!id) { errors.push({ message: "A node is missing an id.", messageKey: "aiStudio.workflow.validation.nodeMissingId" }); continue; }
+    if (ids.has(id)) errors.push({ nodeId: id, message: `Duplicate node id: ${id}`, messageKey: "aiStudio.workflow.validation.duplicateNodeId", messageParams: { id } });
     ids.add(id);
-    if (!NODE_TYPES.includes(n.type)) { errors.push({ nodeId: id, message: `Unknown node type "${n.type}".` }); continue; }
+    if (!NODE_TYPES.includes(n.type)) { errors.push({ nodeId: id, message: `Unknown node type "${n.type}".`, messageKey: "aiStudio.workflow.validation.unknownNodeType", messageParams: { type: n.type } }); continue; }
     const cfg = n.config || {};
     if (n.type === "trigger") triggers += 1;
     if (n.type === "tool" || n.type === "action") {
-      if (!cfg.tool) errors.push({ nodeId: id, message: "Select a tool for this node." });
-      else if (!toolsById.has(cfg.tool)) errors.push({ nodeId: id, message: `Unknown tool "${cfg.tool}".` });
+      if (!cfg.tool) errors.push({ nodeId: id, message: "Select a tool for this node.", messageKey: "aiStudio.workflow.validation.selectTool" });
+      else if (!toolsById.has(cfg.tool)) errors.push({ nodeId: id, message: `Unknown tool "${cfg.tool}".`, messageKey: "aiStudio.workflow.validation.unknownTool", messageParams: { tool: cfg.tool } });
       else {
         const tool = toolsById.get(cfg.tool);
-        if (tool.riskLevel === "SENSITIVE" && cfg.requiresApproval === false) errors.push({ nodeId: id, message: "SENSITIVE tools always require approval." });
-        if (tool.executable === false && n.type === "action") errors.push({ nodeId: id, message: `"${cfg.tool}" is described-only and cannot be executed.` });
+        if (tool.riskLevel === "SENSITIVE" && cfg.requiresApproval === false) errors.push({ nodeId: id, message: "SENSITIVE tools always require approval.", messageKey: "aiStudio.workflow.validation.sensitiveNeedsApproval" });
+        if (tool.executable === false && n.type === "action") errors.push({ nodeId: id, message: `"${cfg.tool}" is described-only and cannot be executed.`, messageKey: "aiStudio.workflow.validation.describedOnly", messageParams: { tool: cfg.tool } });
       }
     }
     if (n.type === "condition") {
       const c = cfg.condition;
-      if (!c || typeof c !== "object") errors.push({ nodeId: id, message: "Condition needs a left path and operator." });
+      if (!c || typeof c !== "object") errors.push({ nodeId: id, message: "Condition needs a left path and operator.", messageKey: "aiStudio.workflow.validation.conditionNeedsLeftOp" });
       else {
-        if (!c.left || typeof c.left !== "string") errors.push({ nodeId: id, message: "Condition source path is required." });
-        if (!CONDITION_OP_IDS.includes(c.op)) errors.push({ nodeId: id, message: `Operator "${c.op}" is not supported.` });
+        if (!c.left || typeof c.left !== "string") errors.push({ nodeId: id, message: "Condition source path is required.", messageKey: "aiStudio.workflow.validation.conditionLeftRequired" });
+        if (!CONDITION_OP_IDS.includes(c.op)) errors.push({ nodeId: id, message: `Operator "${c.op}" is not supported.`, messageKey: "aiStudio.workflow.validation.operatorUnsupported", messageParams: { op: c.op } });
       }
     }
     if (n.type === "agent") {
       const mode = cfg.mode || "read_only_analysis";
-      if (!["read_only_analysis", "llm_grounded"].includes(mode)) errors.push({ nodeId: id, message: `Agent mode "${mode}" is not supported.` });
+      if (!["read_only_analysis", "llm_grounded"].includes(mode)) errors.push({ nodeId: id, message: `Agent mode "${mode}" is not supported.`, messageKey: "aiStudio.workflow.validation.agentModeUnsupported", messageParams: { mode } });
     }
   }
-  if (triggers !== 1) errors.push({ message: `A workflow needs exactly one trigger (found ${triggers}).` });
+  if (triggers !== 1) errors.push({ message: `A workflow needs exactly one trigger (found ${triggers}).`, messageKey: "aiStudio.workflow.validation.exactlyOneTrigger", messageParams: { count: triggers } });
 
   for (const e of edges) {
-    if (!ids.has(String(e.from || ""))) errors.push({ message: `An edge starts from an unknown node "${e.from}".` });
-    if (!ids.has(String(e.to || ""))) errors.push({ message: `An edge points to an unknown node "${e.to}".` });
-    if (e.when !== undefined && !["true", "false"].includes(String(e.when))) errors.push({ message: `Branch label must be true/false.` });
+    if (!ids.has(String(e.from || ""))) errors.push({ message: `An edge starts from an unknown node "${e.from}".`, messageKey: "aiStudio.workflow.validation.edgeFromUnknown", messageParams: { from: e.from } });
+    if (!ids.has(String(e.to || ""))) errors.push({ message: `An edge points to an unknown node "${e.to}".`, messageKey: "aiStudio.workflow.validation.edgeToUnknown", messageParams: { to: e.to } });
+    if (e.when !== undefined && !["true", "false"].includes(String(e.when))) errors.push({ message: `Branch label must be true/false.`, messageKey: "aiStudio.workflow.validation.branchLabel" });
   }
   return { valid: errors.length === 0, errors };
 };
@@ -437,7 +446,7 @@ export const computeEditorWarnings = (definition = {}, registry = {}) => {
   for (const n of nodes) {
     if (n.type === "trigger") continue;
     if (hasTrigger && !reachable.has(n.id)) {
-      warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” is not connected to the Trigger and will not run.` });
+      warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” is not connected to the Trigger and will not run.`, messageKey: "aiStudio.workflow.validation.notConnected", messageParams: { name: nameOf(n) } });
     }
   }
 
@@ -451,7 +460,7 @@ export const computeEditorWarnings = (definition = {}, registry = {}) => {
       if (!spec?.required) continue;
       const v = input[field];
       const empty = v === undefined || v === "" || v === null || (v && typeof v === "object" && "$from" in v && !v.$from);
-      if (empty) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” is missing ${humanizeField(field)}.` });
+      if (empty) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” is missing ${humanizeField(field)}.`, messageKey: "aiStudio.workflow.validation.missingField", messageParams: { name: nameOf(n), field: humanizeField(field) } });
     }
   }
 
@@ -459,8 +468,8 @@ export const computeEditorWarnings = (definition = {}, registry = {}) => {
   for (const n of nodes) {
     if (n.type !== "condition") continue;
     const outs = edges.filter((e) => e.from === n.id);
-    if (!outs.some((e) => String(e.when) === "true")) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” has no True branch connected.` });
-    if (!outs.some((e) => String(e.when) === "false")) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” has no False branch connected.` });
+    if (!outs.some((e) => String(e.when) === "true")) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” has no True branch connected.`, messageKey: "aiStudio.workflow.validation.noTrueBranch", messageParams: { name: nameOf(n) } });
+    if (!outs.some((e) => String(e.when) === "false")) warnings.push({ nodeId: n.id, kind: "warning", message: `“${nameOf(n)}” has no False branch connected.`, messageKey: "aiStudio.workflow.validation.noFalseBranch", messageParams: { name: nameOf(n) } });
   }
 
   return warnings;

@@ -204,9 +204,9 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
       <div className="mt-3 grid gap-1.5 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold text-text">
         <div className="flex items-center gap-2">
           <Clock3 className="h-4 w-4 text-text-muted" />
-          <span>الموعد: {formatTime(task.due_at)}</span>
+          <span>{tt("employeePortal.chrome.appointment")}: {formatTime(task.due_at)}</span>
         </div>
-        <div className="text-sm font-semibold leading-6 text-text-muted">ملاحظات: {notes || tt("employeePortal.tasks.noNotes")}</div>
+        <div className="text-sm font-semibold leading-6 text-text-muted">{tt("employeePortal.common.notes")}: {notes || tt("employeePortal.tasks.noNotes")}</div>
       </div>
 
       {isOpen ? (

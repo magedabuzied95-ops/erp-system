@@ -3,6 +3,13 @@ import { AlertTriangle, CalendarDays, Clock3, LogOut, MapPinOff, RefreshCcw, Use
 
 import { getAttendanceToday } from "../attendanceApi";
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 const safeDate = (value) => {
   if (!value) return null;
   try {
@@ -60,15 +67,17 @@ function StatusPill({ status = "" }) {
   const value = String(status || "").toLowerCase();
   const config =
     value === "checked_out"
-      ? { label: "تم الانصراف", className: "border-primary/20 bg-primary/10 text-primary" }
+      ? { label: tt("employeePortal.attendance.checkedOutState"), className: "border-primary/20 bg-primary/10 text-primary" }
       : value === "checked_in"
-        ? { label: "تم تسجيل الحضور", className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" }
-        : { label: status || "غير معروف", className: "border-white/10 bg-white/5 text-slate-300" };
+        ? { label: tt("employeePortal.attendance.checkedIn"), className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" }
+        : { label: status || tt("managerPortal.common.unknown"), className: "border-white/10 bg-white/5 text-slate-300" };
 
   return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${config.className}`}>{config.label}</span>;
 }
 
 export default function AttendanceDashboard() {
+  // Subscribes this screen to language changes; strings resolve through tt().
+  useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [payload, setPayload] = useState(null);
@@ -85,7 +94,7 @@ export default function AttendanceDashboard() {
         if (active) setPayload(data || null);
       } catch (err) {
         if (active) {
-          setError(err?.message || "تعذر تحميل حضور اليوم");
+          setError(err?.message || tt("employeePortal.attendance.errors.loadToday"));
           setPayload(null);
         }
       } finally {
@@ -114,11 +123,11 @@ export default function AttendanceDashboard() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 <CalendarDays className="h-3.5 w-3.5" />
-                لوحة الحضور والانصراف
+                {tt("employeePortal.attendance.dashboardTitle")}
               </div>
-              <h1 className="m1-display">ملخص حضور اليوم</h1>
+              <h1 className="m1-display">{tt("employeePortal.attendance.todaySummary")}</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                متابعة مباشرة للحضور والانصراف، والحالة الحالية، وعمليات تسجيل الحضور المفتوحة، والتأخرات في مكان واحد.
+                {tt("employeePortal.attendance.dashboardSubtitle")}
               </p>
             </div>
             <button
@@ -127,7 +136,7 @@ export default function AttendanceDashboard() {
               className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              تحديث
+              {tt("employeePortal.common.refresh")}
             </button>
           </div>
         </section>
@@ -139,18 +148,18 @@ export default function AttendanceDashboard() {
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MetricCard label="الحاضرون اليوم" value={loading ? "-" : summary.presentNow ?? 0} hint="الموظفون المسجل حضورهم اليوم" tone="emerald" icon={<UserCheck className="h-5 w-5" />} />
-          <MetricCard label="المتأخرون اليوم" value={loading ? "-" : summary.lateEmployees ?? 0} hint="الوصول بعد فترة السماح" tone="rose" icon={<Clock3 className="h-5 w-5" />} />
-          <MetricCard label="الغائبون اليوم" value={loading ? "-" : summary.absent ?? 0} hint={`إجمالي الموظفين: ${summary.totalEmployees ?? 0}`} tone="amber" icon={<UserX className="h-5 w-5" />} />
-          <MetricCard label="الانصراف المبكر اليوم" value={loading ? "-" : summary.earlyCheckoutToday ?? 0} hint="الانصراف قبل نهاية الوردية" tone="cyan" icon={<LogOut className="h-5 w-5" />} />
-          <MetricCard label="خارج نطاق GPS اليوم" value={loading ? "-" : summary.outsideGpsToday ?? 0} hint="التحقق من GPS خارج النطاق" tone="slate" icon={<MapPinOff className="h-5 w-5" />} />
+          <MetricCard label={tt("common.employeeHub.attendance.metrics.presentToday")} value={loading ? "-" : summary.presentNow ?? 0} hint={tt("employeePortal.attendance.presentToday")} tone="emerald" icon={<UserCheck className="h-5 w-5" />} />
+          <MetricCard label={tt("employeePortal.attendance.lateToday")} value={loading ? "-" : summary.lateEmployees ?? 0} hint={tt("employeePortal.attendance.arrivedAfterGrace")} tone="rose" icon={<Clock3 className="h-5 w-5" />} />
+          <MetricCard label={tt("common.employeeHub.attendance.metrics.absentToday")} value={loading ? "-" : summary.absent ?? 0} hint={`إجمالي الموظفين: ${summary.totalEmployees ?? 0}`} tone="amber" icon={<UserX className="h-5 w-5" />} />
+          <MetricCard label={tt("employeePortal.attendance.earlyLeaveToday")} value={loading ? "-" : summary.earlyCheckoutToday ?? 0} hint={tt("employeePortal.attendance.leftBeforeShiftEnd")} tone="cyan" icon={<LogOut className="h-5 w-5" />} />
+          <MetricCard label={tt("employeePortal.attendance.outsideGpsToday")} value={loading ? "-" : summary.outsideGpsToday ?? 0} hint={tt("employeePortal.attendance.gpsOutOfRange")} tone="slate" icon={<MapPinOff className="h-5 w-5" />} />
         </section>
 
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="m1-section-title text-white">جدول الموظفين المباشر</h2>
-              <p className="text-sm text-slate-400">آخر القراءات ليوم {payload?.date || new Date().toISOString().slice(0, 10)}</p>
+              <h2 className="m1-section-title text-white">{tt("employeePortal.attendance.liveEmployeeTable")}</h2>
+              <p className="text-sm text-slate-400">{tt("attendance.dashboard.latestReadingsFor")} {payload?.date || new Date().toISOString().slice(0, 10)}</p>
             </div>
             <div className="text-sm text-slate-400">{summary.totalWorkedHours ? `ساعات العمل ${summary.totalWorkedHours}` : ""}</div>
           </div>
@@ -159,33 +168,33 @@ export default function AttendanceDashboard() {
             <table className="m1-table m1-table--compact min-w-full">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">الموظف</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">الفرع</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">تسجيل الحضور</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">تسجيل الانصراف</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">الحالة</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">دقائق التأخير</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">دقائق الانصراف المبكر</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("pos.shift.employee")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("employeePortal.common.branch")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("common.employeeHub.attendance.fields.checkIn")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("common.employeeHub.attendance.fields.checkOut")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("employeePortal.common.status")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("employeePortal.attendance.lateMinutes")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{tt("employeePortal.attendance.earlyLeaveMinutes")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
-                      جارٍ تحميل حضور اليوم...
+                      {tt("employeePortal.attendance.loadingToday")}
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
-                      لا توجد سجلات حضور لهذا اليوم.
+                      {tt("employeePortal.attendance.noRecordsToday")}
                     </td>
                   </tr>
                 ) : (
                   rows.map((row) => (
                     <tr key={String(row.id)} className="align-top">
                       <td className="border-b border-white/5 px-3 py-4">
-                        <div className="font-semibold text-white">{row.employee_name || row.full_name || "الموظف"}</div>
+                        <div className="font-semibold text-white">{row.employee_name || row.full_name || tt("pos.shift.employee")}</div>
                         <div className="text-xs text-slate-400">{row.employee_code || `#${row.employee_id}`}</div>
                       </td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.branch_name || "-"}</td>

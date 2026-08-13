@@ -48,7 +48,11 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import i18n from "../../../i18n/i18n";
 import { useTranslation } from "react-i18next";
+
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser, setCurrentTenant } from "../../../shared/auth/authStorage";
@@ -427,9 +431,9 @@ class SettingsCenterErrorBoundary extends Component {
     return (
       <div className="min-h-screen bg-slate-950 p-6 text-white">
         <div className="mx-auto max-w-xl rounded-3xl border border-rose-400/20 bg-rose-500/10 p-6">
-          <h1 className="m1-page-title">Settings Center error</h1>
+          <h1 className="m1-page-title">{tt("settings.shell.error")}</h1>
           <p className="mt-2 text-sm text-rose-100">{this.state.error?.message || "Unable to render settings."}</p>
-          <button type="button" onClick={() => this.setState({ error: null })} className="mt-5 rounded-[var(--radius-control)] bg-white px-4 py-2 text-sm font-black text-slate-950">Retry</button>
+          <button type="button" onClick={() => this.setState({ error: null })} className="mt-5 rounded-[var(--radius-control)] bg-white px-4 py-2 text-sm font-black text-slate-950">{tt("settings.shell.retry")}</button>
         </div>
       </div>
     );
@@ -445,7 +449,7 @@ export default function SettingsCenter({ debugMode = false }) {
 }
 
 function SettingsCenterContent({ debugMode = false }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const language = i18n.language?.startsWith("ar") ? "ar" : "en";
   const ui = copy[language];
   const direction = language === "ar" ? "rtl" : "ltr";
@@ -770,7 +774,7 @@ function SettingsCenterContent({ debugMode = false }) {
       const legacyHandleValue = String(values["storefront.payment_methods.instapay_handle"] || "").trim();
       const paymentUrlValid = paymentUrlValue ? isHttpOrHttpsUrl(paymentUrlValue) : Boolean(legacyHandleValue);
       if (!paymentUrlValid) {
-        toast.error("رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://");
+        toast.error(t("settings.toasts.instapayInvalidLink"));
         return;
       }
     }
@@ -885,10 +889,10 @@ function SettingsCenterContent({ debugMode = false }) {
     storefront: [
       [ui.openStore, ExternalLink, () => window.open(publicStoreUrl, "_blank", "noopener,noreferrer")],
       [ui.previewStore, Eye, () => window.open(publicStoreUrl, "_blank", "noopener,noreferrer")],
-      [ui.copyUrl, Copy, async () => { await navigator.clipboard?.writeText(publicStoreUrl); toast.success("Copied"); }],
+      [ui.copyUrl, Copy, async () => { await navigator.clipboard?.writeText(publicStoreUrl); toast.success(t("settings.toasts.copied")); }],
     ],
     orders: [
-      [ui.testShipping, TestTube2, () => toast.success("Shipping settings ready")],
+      [ui.testShipping, TestTube2, () => toast.success(t("settings.toasts.shippingReady"))],
       [ui.shippingRules, Truck, () => switchCategory("orders")],
     ],
     ai_channels: [
@@ -1011,8 +1015,8 @@ function SettingsCenterContent({ debugMode = false }) {
                 <Lock className="h-6 w-6" />
               </span>
               <div>
-                <h1 className={`m1-page-title ${headingText}`}>Settings debug is unavailable</h1>
-                <p className={`mt-2 text-sm leading-6 ${bodyText}`}>Developer settings are only available to super admin or developer users, or when debug settings are explicitly enabled.</p>
+                <h1 className={`m1-page-title ${headingText}`}>{t("settings.debug.unavailable")}</h1>
+                <p className={`mt-2 text-sm leading-6 ${bodyText}`}>{t("settings.debug.superAdminOnly")}</p>
               </div>
             </div>
           </section>
@@ -1189,7 +1193,7 @@ function SettingsCenterContent({ debugMode = false }) {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h2 className={`m1-section-title ${headingText}`}>{ui.socialAutomation}</h2>
-                        <p className={`mt-1 text-sm leading-6 ${bodyText}`}>تنطبق هذه الإعدادات فقط على أتمتة تعليقات السوشيال داخل صندوق الوارد.</p>
+                        <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{t("settings.social.appliesToInbox")}</p>
                       </div>
                       <button
                         type="button"
@@ -1216,7 +1220,7 @@ function SettingsCenterContent({ debugMode = false }) {
                         onClick={() => updateSocialAutomationValue("auto_like_enabled", !socialAutomationSettings.auto_like_enabled)}
                         className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_like_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
-                        <span className="text-sm font-black text-white">تفعيل لايك تلقائي</span>
+                        <span className="text-sm font-black text-white">{t("settings.social.enableAutoLike")}</span>
                         <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_like_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
                           <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_like_enabled ? "translate-x-5" : ""}`} />
                         </span>
@@ -1226,7 +1230,7 @@ function SettingsCenterContent({ debugMode = false }) {
                         onClick={() => updateSocialAutomationValue("auto_public_reply_enabled", !socialAutomationSettings.auto_public_reply_enabled)}
                         className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_public_reply_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
-                        <span className="text-sm font-black text-white">تفعيل رد عام تلقائي</span>
+                        <span className="text-sm font-black text-white">{t("settings.social.enableAutoPublicReply")}</span>
                         <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_public_reply_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
                           <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_public_reply_enabled ? "translate-x-5" : ""}`} />
                         </span>
@@ -1236,13 +1240,13 @@ function SettingsCenterContent({ debugMode = false }) {
                         onClick={() => updateSocialAutomationValue("auto_private_message_enabled", !socialAutomationSettings.auto_private_message_enabled)}
                         className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_private_message_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
-                        <span className="text-sm font-black text-white">تفعيل رسالة خاصة تلقائية</span>
+                        <span className="text-sm font-black text-white">{t("settings.social.enableAutoDm")}</span>
                         <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_private_message_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
                           <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_private_message_enabled ? "translate-x-5" : ""}`} />
                         </span>
                       </button>
                       <label className="block">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>أقل نسبة ثقة للتشغيل</span>
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.minConfidence")}</span>
                         <input
                           type="number"
                           min="0"
@@ -1259,15 +1263,15 @@ function SettingsCenterContent({ debugMode = false }) {
                         className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.public_reply_rotation_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
                       >
                         <span>
-                          <span className="block text-sm font-black text-white">تدوير بدايات الرد تلقائيًا</span>
-                          <span className={`mt-1 block text-xs ${bodyText}`}>يتم اختيار بداية ثابتة لكل تعليق لمنع تكرار نفس الصيغة.</span>
+                          <span className="block text-sm font-black text-white">{t("settings.social.rotateOpeners")}</span>
+                          <span className={`mt-1 block text-xs ${bodyText}`}>{t("settings.social.rotateOpenersHint")}</span>
                         </span>
                         <span className={`h-6 w-11 shrink-0 rounded-full p-1 transition ${socialAutomationSettings.public_reply_rotation_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
                           <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.public_reply_rotation_enabled ? "translate-x-5" : ""}`} />
                         </span>
                       </button>
                       <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>بدايات الرد المتنوعة — بداية واحدة في كل سطر</span>
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.openersLabel")}</span>
                         <textarea
                           rows={6}
                           value={(socialAutomationSettings.public_reply_openers || []).join("\n")}
@@ -1276,12 +1280,12 @@ function SettingsCenterContent({ debugMode = false }) {
                             event.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
                           )}
                           className={inputClass}
-                          placeholder="أهلاً وسهلاً يا {{customer_name}} ❤️"
+                          placeholder={t("settings.social.openerPlaceholder")}
                         />
-                        <span className={`mt-2 block text-xs ${bodyText}`}>استخدم <bdi>{"{{customer_name}}"}</bdi> ليظهر اسم العميل تلقائيًا. الحد الأقصى 10 بدايات.</span>
+                        <span className={`mt-2 block text-xs ${bodyText}`}>{t("settings.social.use")} <bdi>{"{{customer_name}}"}</bdi> {t("settings.social.useHint")}</span>
                       </label>
                       <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>نص الرد الثابت بعد التحية</span>
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.fixedReplyText")}</span>
                         <textarea
                           rows={4}
                           value={socialAutomationSettings.public_reply_template}
@@ -1290,13 +1294,13 @@ function SettingsCenterContent({ debugMode = false }) {
                         />
                       </label>
                       <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>قالب الرسالة الخاصة</span>
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.dmTemplate")}</span>
                         <textarea
                           rows={4}
                           value={socialAutomationSettings.private_message_template}
                           onChange={(event) => updateSocialAutomationValue("private_message_template", event.target.value)}
                           className={inputClass}
-                          placeholder="اختياري"
+                          placeholder={t("settings.social.optional")}
                         />
                       </label>
                     </div>
@@ -1341,6 +1345,7 @@ function SettingsCenterContent({ debugMode = false }) {
 const MAX_BRANDING_IMAGE_BYTES = 5 * 1024 * 1024;
 
 function BrandingUploadField({ title, value, onChange, helper, clearLabel, accept = "image/png,image/jpeg,image/webp" }) {
+  const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const safeValue = String(value || "").trim();
@@ -1354,11 +1359,11 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
     event.target.value = "";
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/i.test(file.type || "")) {
-      toast.error("PNG, JPG, or WEBP only");
+      toast.error(t("settings.toasts.imageTypeOnly"));
       return;
     }
     if (file.size > MAX_BRANDING_IMAGE_BYTES) {
-      toast.error("Image must be 5MB or smaller");
+      toast.error(t("settings.toasts.imageTooLarge"));
       return;
     }
     setUploading(true);
@@ -1425,13 +1430,14 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
 }
 
 function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, companyNameFallback, loading, saving, error, dirty, onChange, onSave }) {
+  const { t } = useTranslation();
   const displayName = String(companyName || "").trim() || companyNameFallback || "MONE";
   return (
     <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className={`m1-section-title ${headingText}`}>Site Settings</h2>
-          <p className={`mt-1 text-sm leading-6 ${bodyText}`}>Company identity used by sidebar, login, invoices, and storefront fallbacks.</p>
+          <h2 className={`m1-section-title ${headingText}`}>{t("settings.site.title")}</h2>
+          <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{t("settings.site.subtitle")}</p>
         </div>
         <button
           type="button"
@@ -1449,14 +1455,14 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
           <div className="flex items-start gap-3">
             <LogoAvatar src={companyLogoUrl} name={displayName} size="h-16 w-16" />
             <div className="min-w-0">
-              <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>Live preview</div>
+              <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>{t("settings.site.livePreview")}</div>
               <h3 className={`m1-section-title mt-1 truncate ${headingText}`}>{displayName}</h3>
               <p className={`mt-1 text-sm ${bodyText}`}>{companyLogoUrl || faviconUrl ? "Branding assets are active." : "Fallback initials will be used until you upload a logo."}</p>
             </div>
           </div>
           <div className="mt-4 grid gap-4">
             <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-              <span className={`mb-2 block text-sm font-black ${headingText}`}>Company name</span>
+              <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.site.companyName")}</span>
               <input
                 value={companyName}
                 onChange={(event) => onChange("company_name", event.target.value)}
@@ -1466,14 +1472,14 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
             </label>
             <div className="grid gap-4 md:grid-cols-2">
               <BrandingUploadField
-                title="Company logo"
+                title={t("settings.site.companyLogo")}
                 value={companyLogoUrl}
                 onChange={(next) => onChange("company_logo_url", next)}
                 helper="PNG, JPG, or WEBP. Uses the existing upload flow."
                 clearLabel="Clear image"
               />
               <BrandingUploadField
-                title="Favicon"
+                title={t("settings.site.favicon")}
                 value={faviconUrl}
                 onChange={(next) => onChange("favicon_url", next)}
                 helper="Optional browser favicon. Keep it square."
@@ -1483,19 +1489,19 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
           </div>
         </div>
         <div className={`rounded-2xl p-4 ${fieldSurface}`}>
-          <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>Fallbacks</div>
+          <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>{t("settings.site.fallbacks")}</div>
           <div className="mt-3 space-y-3 text-sm leading-6">
             <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
-              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Name fallback</div>
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("settings.site.nameFallback")}</div>
               <div className="mt-1 font-bold text-slate-950 dark:text-white">MONE</div>
             </div>
             <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
-              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Logo fallback</div>
-              <div className="mt-1 font-bold text-slate-950 dark:text-white">Initials placeholder</div>
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("settings.site.logoFallback")}</div>
+              <div className="mt-1 font-bold text-slate-950 dark:text-white">{t("settings.site.initialsPlaceholder")}</div>
             </div>
             <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
-              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Safety</div>
-              <div className="mt-1 text-slate-600 dark:text-slate-300">Only PNG, JPG, and WEBP files are accepted through the existing upload endpoint. Empty values keep the current fallback.</div>
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("settings.site.safety")}</div>
+              <div className="mt-1 text-slate-600 dark:text-slate-300">{t("settings.site.safetyHint")}</div>
             </div>
           </div>
         </div>
@@ -1505,24 +1511,25 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
 }
 
 function StorefrontSettings(props) {
+  const { t } = useTranslation();
   const { ui, setting, value, hero, featuredCollections, collectionDraft, setCollectionDraft, updateValue, updateHero, renderInput, renderField } = props;
   const publicUrl = value("storefront.public_url");
   const hasHeroPreview = Boolean(hero.imageUrl || hero.title || hero.subtitle || hero.buttonText);
   const hasSeoPreview = Boolean(publicUrl || value("storefront.seo_title") || value("storefront.store_name") || value("storefront.seo_description"));
   return (
     <div className="grid gap-5">
-      <VisualSection icon={Store} title="Store Identity" description="Name, URL, logo, and browser identity for the public store.">
+      <VisualSection icon={Store} title={t("settings.storefront.storeIdentity")} description="Name, URL, logo, and browser identity for the public store.">
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.enabled"), true)}
           {renderField(setting("storefront.store_name"), true)}
           {renderField(setting("storefront.store_tagline"), true)}
           {renderField(setting("storefront.public_url"), true)}
-          <VisualUpload title="Logo Upload" value={value("storefront.store_logo_url")} onChange={(next) => updateValue("storefront.store_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
-          <VisualUpload title="Favicon Upload" value={value("storefront.favicon_url")} onChange={(next) => updateValue("storefront.favicon_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+          <VisualUpload title={t("settings.storefront.logoUpload")} value={value("storefront.store_logo_url")} onChange={(next) => updateValue("storefront.store_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+          <VisualUpload title={t("settings.storefront.faviconUpload")} value={value("storefront.favicon_url")} onChange={(next) => updateValue("storefront.favicon_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
         </div>
       </VisualSection>
 
-      <VisualSection icon={Phone} title="Contact & Social" description="Public phone, WhatsApp, social profiles, address, map link, and working hours.">
+      <VisualSection icon={Phone} title={t("settings.storefront.contactSocial")} description={t("settings.storefront.contactSocialHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.contact_phone"), true)}
           {renderField(setting("storefront.whatsapp_phone"), true)}
@@ -1537,19 +1544,19 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
-      <VisualSection icon={Image} title="Homepage" description="Shape the first impression customers see when they land on your store.">
+      <VisualSection icon={Image} title={t("settings.storefront.homepage")} description={t("settings.storefront.homepageHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
-          <PremiumInput label="Hero Title" value={hero.title || ""} onChange={(next) => updateHero({ title: next })} />
-          <PremiumInput label="Hero Subtitle" value={hero.subtitle || ""} onChange={(next) => updateHero({ subtitle: next })} />
-          <PremiumInput label="Hero Button Text" value={hero.buttonText || ""} onChange={(next) => updateHero({ buttonText: next })} />
-          <PremiumInput label="Hero Button URL" value={hero.buttonUrl || ""} onChange={(next) => updateHero({ buttonUrl: next })} />
-          <VisualUpload title="Hero Image Upload" value={hero.imageUrl || ""} onChange={(next) => updateHero({ imageUrl: next })} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} wide />
+          <PremiumInput label={t("settings.storefront.heroTitle")} value={hero.title || ""} onChange={(next) => updateHero({ title: next })} />
+          <PremiumInput label={t("settings.storefront.heroSubtitle")} value={hero.subtitle || ""} onChange={(next) => updateHero({ subtitle: next })} />
+          <PremiumInput label={t("settings.storefront.heroButtonText")} value={hero.buttonText || ""} onChange={(next) => updateHero({ buttonText: next })} />
+          <PremiumInput label={t("settings.storefront.heroButtonUrl")} value={hero.buttonUrl || ""} onChange={(next) => updateHero({ buttonUrl: next })} />
+          <VisualUpload title={t("settings.storefront.heroImageUpload")} value={hero.imageUrl || ""} onChange={(next) => updateHero({ imageUrl: next })} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} wide />
         </div>
         {hasHeroPreview ? (
           <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-white dark:border-white/10">
             <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-56 p-6">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-white/50">Live homepage preview</div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-white/50">{t("settings.storefront.livePreviewHome")}</div>
                 {hero.title ? <h3 className="m1-section-title mt-2">{hero.title}</h3> : null}
                 {hero.subtitle ? <p className="mt-2 max-w-xl text-sm text-white/70">{hero.subtitle}</p> : null}
                 {hero.buttonText ? <button type="button" className="mt-4 rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950">{hero.buttonText}</button> : null}
@@ -1559,7 +1566,7 @@ function StorefrontSettings(props) {
         ) : null}
       </VisualSection>
 
-      <VisualSection icon={Package} title="Catalog" description="Control how customers browse and interact with products.">
+      <VisualSection icon={Package} title={t("settings.storefront.catalog")} description={t("settings.storefront.catalogHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.product_sorting_default"), true)}
           {renderField(setting("storefront.show_sold_out_products"), true)}
@@ -1569,7 +1576,7 @@ function StorefrontSettings(props) {
           {renderField(setting("storefront.enable_product_sharing"), true)}
           {renderField(setting("storefront.enable_size_guide"), true)}
           <article id="setting-storefront.featured_collections" className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
-            <h3 className={`m1-section-title ${headingText}`}>Featured collections</h3>
+            <h3 className={`m1-section-title ${headingText}`}>{t("settings.storefront.featuredCollections")}</h3>
             <p className={`mt-1 text-xs ${bodyText}`}>Searchable collection selector replacement for the old JSON list.</p>
             <div className="mt-3">
               <CollectionSelector collections={featuredCollections} draft={collectionDraft} setDraft={setCollectionDraft} onChange={(next) => updateValue("storefront.featured_collections", next)} hint={ui.collectionHint} />
@@ -1578,11 +1585,11 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
-      <VisualSection icon={Globe2} title="SEO" description="Improve how your store appears in search and link previews.">
+      <VisualSection icon={Globe2} title="SEO" description={t("settings.storefront.seoHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.seo_title"), true)}
           {renderField(setting("storefront.seo_description"), true)}
-          <VisualUpload title="Open Graph Image Upload" value={value("storefront.open_graph_image_url")} onChange={(next) => updateValue("storefront.open_graph_image_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} wide />
+          <VisualUpload title={t("settings.storefront.ogImageUpload")} value={value("storefront.open_graph_image_url")} onChange={(next) => updateValue("storefront.open_graph_image_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} wide />
         </div>
         {hasSeoPreview ? (
           <div className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
@@ -1593,24 +1600,24 @@ function StorefrontSettings(props) {
         ) : null}
       </VisualSection>
 
-      <VisualSection icon={CreditCard} title="إعدادات الدفع والتحويل" description="تحكم في طرق الدفع التي تظهر للعميل أثناء إكمال الطلب.">
+      <VisualSection icon={CreditCard} title={t("settings.payments.title")} description={t("settings.payments.subtitle")}>
         <div className="grid gap-4 xl:grid-cols-2">
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`m1-section-title ${headingText}`}>محفظة Vodafone Cash</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.</p>
+                <h3 className={`m1-section-title ${headingText}`}>{t("settings.payments.vodafoneWallet")}</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.vodafoneHint")}</p>
               </div>
-              <TogglePill label="مفعل" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
+              <TogglePill label={t("settings.payments.enabled")} checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
             </div>
             <div className="mt-4 grid gap-3">
-              <PremiumInput label="اسم طريقة الدفع" value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
-              <PremiumInput label="رقم المحفظة" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
+              <PremiumInput label={t("settings.payments.methodName")} value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
+              <PremiumInput label={t("settings.payments.walletNumber")} value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
-                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.payments.helperText")}</span>
+                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder={t("settings.payments.helperPlaceholder")} />
               </label>
-              <VisualUpload title="رابط الشعار" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+              <VisualUpload title={t("settings.payments.logoUrl")} value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
           </article>
 
@@ -1618,15 +1625,15 @@ function StorefrontSettings(props) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className={`m1-section-title ${headingText}`}>InstaPay</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>أدخل رابط الدفع المباشر وخصص الاسم الظاهر والنص المساعد والشعار.</p>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.instapayHint")}</p>
               </div>
-              <TogglePill label="مفعل" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
+              <TogglePill label={t("settings.payments.enabled")} checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
             </div>
             <div className={`mt-4 rounded-2xl border p-4 ${fieldSurface}`}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
-                  <label className={`block text-sm font-black ${headingText}`}>رابط الدفع InstaPay</label>
-                  <p className={`mt-1 text-xs leading-5 ${bodyText}`}>ضع رابط الدفع المباشر من تطبيق InstaPay</p>
+                  <label className={`block text-sm font-black ${headingText}`}>{t("settings.payments.instapayLink")}</label>
+                  <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.instapayLinkHint")}</p>
                 </div>
                 <button
                   type="button"
@@ -1659,37 +1666,37 @@ function StorefrontSettings(props) {
               </div>
             </div>
             <details className="mt-3 rounded-2xl border border-dashed border-slate-200 p-4 dark:border-white/10">
-              <summary className={`cursor-pointer select-none text-sm font-black ${headingText}`}>إعدادات التوافق القديمة</summary>
-              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>يُستخدم فقط إذا لم يتم إدخال رابط دفع مباشر.</p>
+              <summary className={`cursor-pointer select-none text-sm font-black ${headingText}`}>{t("settings.payments.legacyTitle")}</summary>
+              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.legacyHint")}</p>
               <div className="mt-3">
-                <PremiumInput label="اختصار InstaPay القديم" value={String(value("storefront.payment_methods.instapay_handle") || "").trim()} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
+                <PremiumInput label={t("settings.payments.legacyHandle")} value={String(value("storefront.payment_methods.instapay_handle") || "").trim()} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
               </div>
             </details>
             <div className="mt-3 grid gap-3">
-              <PremiumInput label="اسم طريقة الدفع" value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
+              <PremiumInput label={t("settings.payments.methodName")} value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
-                <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.payments.helperText")}</span>
+                <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder={t("settings.payments.helperPlaceholder")} />
               </label>
-              <VisualUpload title="رابط الشعار" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+              <VisualUpload title={t("settings.payments.logoUrl")} value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
           </article>
 
           <article className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`m1-section-title ${headingText}`}>رسوم تأكيد الشحن</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>اضبط الرسوم الظاهرة في خطوة الدفع داخل صفحة إتمام الطلب.</p>
+                <h3 className={`m1-section-title ${headingText}`}>{t("settings.payments.shippingFeeTitle")}</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.shippingFeeHint")}</p>
               </div>
-              <TogglePill label="تفعيل رسوم تأكيد الشحن" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
+              <TogglePill label={t("settings.payments.enableShippingFee")} checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص الرسوم</span>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.payments.feeText")}</span>
                 <input value={value("storefront.payment_methods.shipping_confirmation_label")} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_label", event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>قيمة الرسوم</span>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.payments.feeValue")}</span>
                 <input type="number" min="0" value={Number(value("storefront.payment_methods.shipping_confirmation_amount") || 0)} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_amount", Number(event.target.value))} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
             </div>
@@ -1697,12 +1704,12 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
-      <VisualSection icon={Layers3} title="Marketing" description="Tracking IDs used by campaigns and catalog integrations.">
+      <VisualSection icon={Layers3} title={t("settings.marketing.title")} description={t("settings.marketing.subtitle")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.meta_pixel_id"), true)}
           {renderField(setting("storefront.facebook_catalog_id"), true)}
-          <PremiumInput label="TikTok Pixel" value={value("storefront.tiktok_pixel_id")} onChange={(next) => updateValue("storefront.tiktok_pixel_id", next)} />
-          <PremiumInput label="Google Analytics" value={value("storefront.google_analytics_id")} onChange={(next) => updateValue("storefront.google_analytics_id", next)} />
+          <PremiumInput label={t("settings.marketing.tiktokPixel")} value={value("storefront.tiktok_pixel_id")} onChange={(next) => updateValue("storefront.tiktok_pixel_id", next)} />
+          <PremiumInput label={t("settings.marketing.googleAnalytics")} value={value("storefront.google_analytics_id")} onChange={(next) => updateValue("storefront.google_analytics_id", next)} />
         </div>
       </VisualSection>
     </div>
@@ -1899,11 +1906,12 @@ function SummaryTile({ icon: Icon, label, value }) {
 }
 
 function ProviderBadgePicker({ value, onChange }) {
+  const { t } = useTranslation();
   const activeProvider = normalizeProviderKey(value);
   return (
     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
-      <h3 className={`m1-section-title ${headingText}`}>Default shipping provider</h3>
-      <p className={`mt-1 text-xs leading-5 ${bodyText}`}>Select the fallback carrier used when a zone has no specific provider.</p>
+      <h3 className={`m1-section-title ${headingText}`}>{t("settings.shipping.defaultProvider")}</h3>
+      <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.shipping.defaultProviderHint")}</p>
       <select value={activeProvider} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-4 max-w-sm`}>
         {shippingProviderOptions.map((provider) => (
           <option key={provider.id} value={provider.id}>{provider.label}</option>
@@ -1914,6 +1922,7 @@ function ProviderBadgePicker({ value, onChange }) {
 }
 
 function BostaIntegrationPanel({ copy }) {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState({ enabled: false, api_base_url: "https://app.bosta.co/api/v2", api_key: "" });
   const [status, setStatus] = useState(null);
   const [syncState, setSyncState] = useState({ loading: false, counts: null, error: "" });
@@ -2020,12 +2029,12 @@ function BostaIntegrationPanel({ copy }) {
             </div>
             <div className="mt-4 grid gap-3">
               <label>
-                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>Base URL</span>
+                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.baseUrl")}</span>
                 <input value={settings.api_base_url} onChange={(event) => setSettings((current) => ({ ...current, api_base_url: event.target.value }))} className={inputClass} />
               </label>
               <label>
-                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>API key</span>
-                <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder="Bosta API key" />
+                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.apiKey")}</span>
+                <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder={t("settings.shipping.apiKeyPlaceholder")} />
               </label>
               <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 dark:bg-white dark:text-[var(--primary-contrast)]">
                 <Save className="h-4 w-4" />
@@ -2038,11 +2047,11 @@ function BostaIntegrationPanel({ copy }) {
             <h3 className={`m1-section-title ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
             <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint || "Imports Bosta City -> Zone -> District master locations. Checkout only shows dropoff-available rows."}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <TesterMetric label="Cities" value={counts.citiesSynced ?? counts.cities ?? 0} />
-              <TesterMetric label="Zones" value={counts.zonesSynced ?? counts.zones ?? 0} />
-              <TesterMetric label="Districts" value={counts.districtsSynced ?? counts.districts ?? 0} />
+              <TesterMetric label={t("settings.shipping.cities")} value={counts.citiesSynced ?? counts.cities ?? 0} />
+              <TesterMetric label={t("settings.shipping.zones")} value={counts.zonesSynced ?? counts.zones ?? 0} />
+              <TesterMetric label={t("settings.shipping.districts")} value={counts.districtsSynced ?? counts.districts ?? 0} />
             </div>
-            {settings.last_locations_sync_at ? <p className={`mt-3 text-xs font-bold ${mutedText}`}>Last sync: {new Date(settings.last_locations_sync_at).toLocaleString()}</p> : null}
+            {settings.last_locations_sync_at ? <p className={`mt-3 text-xs font-bold ${mutedText}`}>{t("settings.shipping.lastSync")} {new Date(settings.last_locations_sync_at).toLocaleString()}</p> : null}
             {syncState.error ? <p className="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200">{syncState.error}</p> : null}
             <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
               {syncState.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -2079,8 +2088,8 @@ function BostaIntegrationPanel({ copy }) {
           {status?.last_webhook_status ? (
             <div className={`mt-3 flex flex-wrap items-center gap-2 text-xs font-bold ${bodyText}`}>
               <Clock3 className="h-4 w-4" />
-              <span>Last webhook status: {status.last_webhook_status}</span>
-              {status.last_webhook_order_id ? <span>Order #{status.last_webhook_order_id}</span> : null}
+              <span>{t("settings.shipping.lastWebhookStatus")} {status.last_webhook_status}</span>
+              {status.last_webhook_order_id ? <span>{t("settings.shipping.order")}{status.last_webhook_order_id}</span> : null}
             </div>
           ) : null}
         </article>
@@ -2090,7 +2099,7 @@ function BostaIntegrationPanel({ copy }) {
         <div className="mb-3 max-w-lg">
           <div className="relative">
             <Search className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${mutedText}`} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Bosta locations" className={`${inputClass} pl-9`} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("settings.shipping.searchLocations")} className={`${inputClass} pl-9`} />
           </div>
         </div>
         <div className="max-h-[28rem] overflow-auto rounded-2xl border border-slate-200 dark:border-white/10">
@@ -2108,8 +2117,8 @@ function BostaIntegrationPanel({ copy }) {
                   <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200"><div className="table-cell-stack"><div>{location.district_name_en}</div><div className="text-xs text-slate-500">{location.district_name_ar}</div></div></td>
                   <td className="px-4 py-3">
                     <div className="table-cell-stack">
-                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300">Dropoff</span>
-                      {location.district_pickup_available ? <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[11px] font-black text-blue-600 dark:text-blue-300">Pickup</span> : null}
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300">{t("settings.shipping.dropoff")}</span>
+                      {location.district_pickup_available ? <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[11px] font-black text-blue-600 dark:text-blue-300">{t("settings.shipping.pickup")}</span> : null}
                     </div>
                   </td>
                 </tr>
@@ -2276,6 +2285,7 @@ function TesterMetric({ label, value }) {
 }
 
 function ZonePolicyList({ zones, allZones, mode, empty, onChange }) {
+  const { t } = useTranslation();
   const patchRow = (id, patch) => onChange(allZones.map((zone) => (zone.id === id ? normalizeShippingZoneRow({ ...zone, ...patch }) : zone)));
   if (!zones.length) return <div className={`rounded-2xl p-4 text-sm font-bold ${fieldSurface} ${bodyText}`}>{empty}</div>;
   return (
@@ -2495,8 +2505,9 @@ const shippingProviderOptions = [
   { id: "bosta", label: "Bosta" },
   { id: "mylerz", label: "Mylerz" },
   { id: "shipblu", label: "ShipBlu" },
-  { id: "manual", label: "Manual" },
-  { id: "in_store_delivery", label: "In Store Delivery" },
+  // getters: module scope, so resolve on ACCESS, never eagerly at import
+  { id: "manual", get label() { return tt("settings.shipping.manual"); } },
+  { id: "in_store_delivery", get label() { return tt("settings.shipping.inStoreDelivery"); } },
 ];
 const normalizeProviderKey = (value = "") => {
   const key = String(value || "in_store_delivery").trim().toLowerCase();
@@ -2834,6 +2845,7 @@ const parseLocationImport = (text = "") => {
 };
 
 function ShippingLocationsCatalog({ value, language, onChange }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [governorateFilter, setGovernorateFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState("");
@@ -2885,7 +2897,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
     if (!file) return;
     const text = await file.text();
     updateRows(parseLocationImport(text));
-    toast.success("Locations imported");
+    toast.success(t("settings.toasts.locationsImported"));
   };
   const exportLocations = () => {
     const blob = new Blob([JSON.stringify(locations, null, 2)], { type: "application/json" });
@@ -2898,7 +2910,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
   };
   const importEgypt = () => {
     updateRows(defaultEgyptShippingLocations);
-    toast.success("Egypt locations imported");
+    toast.success(t("settings.toasts.egyptLocationsImported"));
   };
   return (
     <div className="grid gap-4">
@@ -2906,19 +2918,19 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
         <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(12rem,0.35fr)_minmax(12rem,0.3fr)_auto] xl:items-center">
           <label className="relative min-w-0">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search governorate, city, area" className={`${inputClass} ps-10`} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("settings.locations.searchPlaceholder")} className={`${inputClass} ps-10`} />
           </label>
           <select value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} className={inputClass}>
-            <option value="">All governorates</option>
+            <option value="">{t("settings.locations.allGovernorates")}</option>
             {governorates.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}
           </select>
           <select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className={inputClass}>
-            <option value="">All providers</option>
+            <option value="">{t("settings.locations.allProviders")}</option>
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]"><MapPin className="h-4 w-4" />Import Egypt locations</button>
-            <button type="button" onClick={exportLocations} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />Export</button>
+            <button type="button" onClick={importEgypt} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]"><MapPin className="h-4 w-4" />{t("settings.locations.importEgypt")}</button>
+            <button type="button" onClick={exportLocations} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />{t("settings.locations.export")}</button>
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
               <Upload className="h-4 w-4" />Import Bosta locations CSV
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importLocations(event.target.files?.[0])} />
@@ -2936,7 +2948,7 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
             {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </div>
-        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]"><Plus className="h-4 w-4" />Add location</button>
+        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]"><Plus className="h-4 w-4" />{t("settings.locations.addLocation")}</button>
       </div>
 
       <div className="overflow-auto rounded-[var(--radius-card)] border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
@@ -2953,23 +2965,24 @@ function ShippingLocationsCatalog({ value, language, onChange }) {
                 <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.zone_name_en} onChange={(event) => patchLocation(location.id, { zone_name_en: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /><input value={location.zone_name_ar} onChange={(event) => patchLocation(location.id, { zone_name_ar: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} /></td>
                 <td className="border-b border-slate-100 p-2 dark:border-white/10"><select value={location.provider} onChange={(event) => patchLocation(location.id, { provider: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`}>{shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></td>
                 <td className="border-b border-slate-100 p-2 dark:border-white/10">
-                  <input value={location.provider_city_id} onChange={(event) => patchLocation(location.id, { provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider city id" />
-                  <input value={location.provider_district_id} onChange={(event) => patchLocation(location.id, { provider_district_id: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider district id" />
-                  <input value={location.provider_zone_id} onChange={(event) => patchLocation(location.id, { provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider zone id" />
+                  <input value={location.provider_city_id} onChange={(event) => patchLocation(location.id, { provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder={t("settings.locations.providerCityId")} />
+                  <input value={location.provider_district_id} onChange={(event) => patchLocation(location.id, { provider_district_id: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder={t("settings.locations.providerDistrictId")} />
+                  <input value={location.provider_zone_id} onChange={(event) => patchLocation(location.id, { provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} mt-1 h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder={t("settings.locations.providerZoneId")} />
                 </td>
-                <td className="border-b border-slate-100 p-2 dark:border-white/10"><TogglePill compact label="Active" checked={location.active} onChange={(active) => patchLocation(location.id, { active })} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><TogglePill compact label={t("settings.locations.active")} checked={location.active} onChange={(active) => patchLocation(location.id, { active })} /></td>
                 <td className="border-b border-slate-100 p-2 text-end dark:border-white/10"><button type="button" onClick={() => deleteLocation(location.id)} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-[var(--radius-control)] border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200"><Trash2 className="h-4 w-4" /></button></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {!visible.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>No locations match the current filters.</div> : null}
+        {!visible.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>{t("settings.locations.noMatch")}</div> : null}
       </div>
     </div>
   );
 }
 
 function ShippingZonesEditor({ value, locations = [], language, defaultPrice, onChange }) {
+  const { t } = useTranslation();
   const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
   const [query, setQuery] = useState("");
   const [governorateFilter, setGovernorateFilter] = useState("");
@@ -3227,8 +3240,8 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
           <thead className={`sticky top-0 z-10 text-[11px] font-black uppercase ${fullScreenMode ? "bg-slate-900 text-slate-300" : "bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400"}`}>
             <tr>
               <th className={`${frozen ? "sticky left-0 z-20 bg-inherit" : ""} w-10 px-3 py-3 text-start`}></th>
-              <th className={`${frozen ? "sticky left-10 z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>Governorate</th>
-              <th className={`${frozen ? "sticky left-[11.5rem] z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>City</th>
+              <th className={`${frozen ? "sticky left-10 z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>{t("settings.locations.governorate")}</th>
+              <th className={`${frozen ? "sticky left-[11.5rem] z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>{t("settings.locations.city")}</th>
               {["Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
                 <th key={header} className="px-3 py-3 text-start">{header}</th>
               ))}
@@ -3300,22 +3313,22 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
         </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_7rem_auto] lg:items-center">
           <select value={draft.governorate_id || ""} onChange={(event) => applyDraftLocation("governorate", event.target.value)} className={inputClass}>
-            <option value="">Governorate</option>
+            <option value="">{t("settings.locations.governorate")}</option>
             {catalogGovernorates.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}
           </select>
           <select value={draft.city_id || ""} onChange={(event) => applyDraftLocation("city", event.target.value)} className={inputClass} disabled={!draft.governorate_id}>
-            <option value="">City / Markaz</option>
+            <option value="">{t("settings.locations.cityMarkaz")}</option>
             {catalogCities.map((location) => <option key={location.city_id} value={location.city_id}>{locationName(location, language, "city")}</option>)}
           </select>
           <select value={draft.district_id || ""} onChange={(event) => applyDraftLocation("district", event.target.value)} className={inputClass} disabled={!draft.city_id}>
-            <option value="">District</option>
+            <option value="">{t("settings.locations.district")}</option>
             {catalogDistricts.map((location) => <option key={location.district_id} value={location.district_id}>{locationName(location, language, "district")}</option>)}
           </select>
           <select value={draft.zone_id || ""} onChange={(event) => applyDraftLocation("area", event.target.value)} className={inputClass} disabled={!draft.district_id}>
-            <option value="">Zone</option>
+            <option value="">{t("settings.locations.zone")}</option>
             {catalogZones.map((location) => <option key={location.zone_id} value={location.zone_id}>{locationName(location, language, "zone")}</option>)}
           </select>
-          <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="Price" className={inputClass} />
+          <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder={t("settings.locations.price")} className={inputClass} />
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => addRow("governorate")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] shadow-sm transition hover:bg-[var(--primary-hover)] dark:bg-white dark:text-[var(--primary-contrast)] dark:hover:bg-slate-200">{copy.addZone}</button>
             <button type="button" onClick={() => addRow("city")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createCity}</button>
@@ -3368,12 +3381,12 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
         {!visibleZones.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>{copy.empty}</div> : null}
       </div>
       {isFullScreen ? (
-        <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-950 p-3 text-white md:p-4" role="dialog" aria-modal="true" aria-label="Shipping Zones Fullscreen">
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-950 p-3 text-white md:p-4" role="dialog" aria-modal="true" aria-label={t("settings.zones.fullscreenAria")}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-3 shadow-2xl backdrop-blur">
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-400 text-slate-950"><PanelLeftClose className="h-5 w-5" /></span>
               <div>
-                <h2 className="m1-section-title">Shipping Zones - Fullscreen</h2>
+                <h2 className="m1-section-title">{t("settings.zones.fullscreenTitle")}</h2>
                 <p className="text-xs font-bold text-slate-400">{visibleZones.length} rules / {copy.shortcutHint} / ESC</p>
               </div>
             </div>
@@ -3394,7 +3407,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
                 {copy.import}
                 <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
               </label>
-              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"><Plus className="h-3.5 w-3.5" />Add Rule</button>
+              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"><Plus className="h-3.5 w-3.5" />{t("settings.zones.addRule")}</button>
               <button type="button" onClick={toggleFullScreen} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white px-3 text-xs font-black text-slate-950 transition hover:bg-slate-200"><Minimize2 className="h-3.5 w-3.5" />{copy.exitFullScreen}</button>
             </div>
           </div>
@@ -3408,6 +3421,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
 }
 
 function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, defaultPrice, selected, expanded, duplicate, density, freezeColumns, onSelect, onPatch, onDelete, onExpand }) {
+  const { t } = useTranslation();
   const provider = normalizeProviderKey(zone.provider_id || zone.provider);
   const isUltra = density === "ultra";
   const isCompact = density === "compact" || isUltra;
@@ -3528,10 +3542,10 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Free over" />
-        <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Min COD" />
-        <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Delivery min days" />
-        <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Delivery max days" />
+        <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.freeOver")} />
+        <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.minCod")} />
+        <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.deliveryMinDays")} />
+        <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.deliveryMaxDays")} />
         <label className={`sm:col-span-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black dark:border-white/10 ${bodyText}`}>
           <span>{language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"}</span>
           <input
@@ -3547,13 +3561,13 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
             <input type="number" min="0" step="1" value={zone.handling_max_days} onChange={(event) => onPatch({ handling_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"} />
           </>
         ) : null}
-        <input type="number" min="0" value={zone.transit_min_days} onChange={(event) => onPatch({ transit_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Transit min days" />
-        <input type="number" min="0" value={zone.transit_max_days} onChange={(event) => onPatch({ transit_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder="Transit max days" />
+        <input type="number" min="0" value={zone.transit_min_days} onChange={(event) => onPatch({ transit_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.transitMinDays")} />
+        <input type="number" min="0" value={zone.transit_max_days} onChange={(event) => onPatch({ transit_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.transitMaxDays")} />
         <input type="hidden" value={zone.provider_city_id || ""} readOnly />
         <input type="hidden" value={zone.provider_district_id || ""} readOnly />
         <input type="hidden" value={zone.provider_zone_id || ""} readOnly />
         <details className="sm:col-span-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
-          <summary className={`cursor-pointer text-xs font-black uppercase ${mutedText}`}>Provider mapping IDs</summary>
+          <summary className={`cursor-pointer text-xs font-black uppercase ${mutedText}`}>{t("settings.zones.providerMappingIds")}</summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <input value={zone.provider_city_id || ""} onChange={(event) => onPatch({ provider_city_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider_city_id" />
             <input value={zone.provider_district_id || ""} onChange={(event) => onPatch({ provider_district_id: event.target.value })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-xs`} placeholder="provider_district_id" />
@@ -3587,14 +3601,14 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>{providerSelect}</td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-[var(--radius-control)] text-center ${inputText}`} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="Proof" checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label={t("settings.zones.proof")} checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} ${inputHeight} min-w-36 rounded-[var(--radius-control)] ${inputText}`} placeholder="ETA" /></td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="Active" checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label={t("settings.zones.active")} checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>
           <div className="flex justify-end gap-1">
-            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Edit rule"><Settings2 className="h-4 w-4" /></button>
-            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Expand rule">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
-            <button type="button" onClick={onDelete} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10`} aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label={t("settings.zones.editRule")}><Settings2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label={t("settings.zones.expandRule")}>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
+            <button type="button" onClick={onDelete} className={`grid ${inputHeight} aspect-square place-items-center rounded-[var(--radius-control)] border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10`} aria-label={t("settings.zones.deleteZone")}><Trash2 className="h-4 w-4" /></button>
           </div>
         </td>
       </tr>
@@ -3772,6 +3786,7 @@ function PreviewDrawer({ ui, onClose, children }) {
 }
 
 function PreviewPanel({ storeName, storeUrl, logoUrl, hero }) {
+  const { t } = useTranslation();
   const hasHeroContent = Boolean(hero.imageUrl || hero.title || hero.subtitle);
   const hasIdentityContent = Boolean(storeName || storeUrl || logoUrl);
   if (!hasIdentityContent && !hasHeroContent) return null;
@@ -3794,7 +3809,7 @@ function PreviewPanel({ storeName, storeUrl, logoUrl, hero }) {
           <div className="overflow-hidden rounded-3xl bg-slate-950 text-white">
             <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-44 p-4">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">Homepage</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">{t("settings.preview.homepage")}</div>
                 {hero.title ? <div className="mt-1 text-lg font-black">{hero.title}</div> : null}
                 {hero.subtitle ? <p className="mt-1 line-clamp-2 text-xs text-white/65">{hero.subtitle}</p> : null}
               </div>
@@ -3830,6 +3845,7 @@ function RetryCard({ ui, error, onRetry }) {
 }
 
 function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-[#f6f8fb] p-4 text-slate-950 dark:bg-[#050816] dark:text-white sm:p-6">
       <main className="mx-auto max-w-6xl space-y-5">
@@ -3850,7 +3866,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
         </section>
 
         <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
-          <h2 className={`m1-section-title ${headingText}`}>Registry audit</h2>
+          <h2 className={`m1-section-title ${headingText}`}>{t("settings.debug.registryAudit")}</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {legacyAudit.map(([setting, location, owner]) => (
               <div key={setting} className={`rounded-2xl p-3 ${subtleSurface}`}>
@@ -3863,11 +3879,11 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
         </section>
 
         <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
-          <h2 className={`m1-section-title ${headingText}`}>Runtime metadata</h2>
+          <h2 className={`m1-section-title ${headingText}`}>{t("settings.debug.runtimeMetadata")}</h2>
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-xs text-slate-300 dark:border-white/10 dark:bg-black/30">
-            <div>Loaded settings: {records.length}</div>
-            <div>Edited local values: {Object.keys(values).length}</div>
-            <div>Debug source: /settings/debug</div>
+            <div>{t("settings.debug.loadedSettings")} {records.length}</div>
+            <div>{t("settings.debug.editedLocalValues")} {Object.keys(values).length}</div>
+            <div>{t("settings.debug.source")} /settings/debug</div>
           </div>
         </section>
       </main>

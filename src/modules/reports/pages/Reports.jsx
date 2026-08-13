@@ -40,6 +40,11 @@ import {
 import { Pagination } from "../../../shared/ui";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
+
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
 import "./Reports.m1.css";
 
 import {
@@ -52,13 +57,14 @@ import {
   getSalesReports,
 } from "../services/reportsApi";
 
+/* `key` selects the endpoint and drives activeTab; only the label is display. */
 const REPORT_TABS = [
-  { key: "insights", label: "AI Insights", endpoint: getAiInsights },
-  { key: "sales", label: "Sales", endpoint: getSalesReports },
-  { key: "employees", label: "Employees", endpoint: getEmployeeReports },
-  { key: "inventory", label: "Inventory", endpoint: getInventoryReports },
-  { key: "customers", label: "Customers & Loyalty", endpoint: getCustomerReports },
-  { key: "financial", label: "Financial", endpoint: getFinancialReports },
+  { key: "insights", get label() { return tt("reports.center.tabs.insights"); }, endpoint: getAiInsights },
+  { key: "sales", get label() { return tt("reports.center.tabs.sales"); }, endpoint: getSalesReports },
+  { key: "employees", get label() { return tt("reports.center.tabs.employees"); }, endpoint: getEmployeeReports },
+  { key: "inventory", get label() { return tt("reports.center.tabs.inventory"); }, endpoint: getInventoryReports },
+  { key: "customers", get label() { return tt("reports.center.tabs.customers"); }, endpoint: getCustomerReports },
+  { key: "financial", get label() { return tt("reports.center.tabs.financial"); }, endpoint: getFinancialReports },
 ];
 
 const KPI_META = [
@@ -74,7 +80,6 @@ const KPI_META = [
 ];
 
 const CHART_COLORS = ["#b8860b", "#64748b", "#4f6f8f", "#198754", "#a19e96", "#c47a08"];
-const REPORT_LABELS_AR = { insights: "رؤى ذكية", sales: "المبيعات", employees: "الموظفون", inventory: "المخزون", customers: "العملاء والولاء", financial: "المالية" };
 const KPI_LABELS_AR = { totalSales:"إجمالي المبيعات",netProfit:"صافي الربح",ordersCount:"عدد الطلبات",averageOrderValue:"متوسط قيمة الطلب",expenses:"المصروفات",inventoryValue:"قيمة المخزون",customersCount:"عدد العملاء",employeeProductivity:"إنتاجية الموظفين",loyaltyRedemptions:"استبدالات الولاء" };
 const PRESETS_KEY = "erp.reports.presets.v1";
 
@@ -159,7 +164,7 @@ const rowsToCsv = (rows = []) => {
 };
 
 function Reports() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const [filters, setFilters] = useState(defaultFilters);
   const [activeTab, setActiveTab] = useState("sales");
@@ -181,7 +186,9 @@ function Reports() {
     }
   });
 
-  const reportTabs = useMemo(() => REPORT_TABS.map((tab) => ({ ...tab, label: isArabic ? REPORT_LABELS_AR[tab.key] : tab.label })), [isArabic]);
+  // The tab labels are getters resolved per read; isArabic still drives the
+  // memo so the list re-maps on a language switch.
+  const reportTabs = useMemo(() => REPORT_TABS.map((tab) => ({ ...tab, label: tab.label })), [isArabic]);
   const activeDefinition = reportTabs.find((tab) => tab.key === activeTab) || reportTabs[0];
   const activeReport = reports[activeTab] || {};
   const activeRows = getRowsFromReport(activeReport);
@@ -288,12 +295,12 @@ function Reports() {
   };
 
   const savePreset = () => {
-    const name = window.prompt("Preset name", `${activeDefinition.label} preset`);
+    const name = window.prompt(t("reports.center.presetPrompt"), t("reports.center.presetDefaultName", { report: activeDefinition.label }));
     if (!name) return;
     const next = [{ id: Date.now(), name, activeTab, filters, pinned: false }, ...presets].slice(0, 12);
     setPresets(next);
     localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
-    toast.success("Report preset saved");
+    toast.success(t("reports.center.presetSaved"));
   };
 
   const togglePresetPin = (id) => {
@@ -375,12 +382,12 @@ function Reports() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <ActionButton icon={RefreshCw} label="Refresh" onClick={loadReports} disabled={loading} />
-              <ActionButton icon={Save} label="Save preset" onClick={savePreset} />
+              <ActionButton icon={RefreshCw} label={t("reports.center.actions.refresh")} onClick={loadReports} disabled={loading} />
+              <ActionButton icon={Save} label={t("reports.center.actions.savePreset")} onClick={savePreset} />
               <ActionButton icon={FileText} label="PDF" onClick={exportPdf} />
               <ActionButton icon={FileSpreadsheet} label="Excel" onClick={exportExcel} />
               <ActionButton icon={Download} label="CSV" onClick={exportCsv} />
-              <ActionButton icon={Printer} label="Print" onClick={printReport} />
+              <ActionButton icon={Printer} label={t("reports.center.actions.print")} onClick={printReport} />
             </div>
           </div>
         </header>
@@ -454,7 +461,7 @@ function Reports() {
             <div className="grid gap-2 sm:grid-cols-[1fr_auto] lg:min-w-[460px]">
               <label className="flex h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-zinc-300">
                 <Search className="h-4 w-4" />
-                <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Search report rows" className="min-w-0 flex-1 bg-transparent outline-none" />
+                <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder={t("reports.center.searchRows")} className="min-w-0 flex-1 bg-transparent outline-none" />
               </label>
               <details className="relative">
                 <summary className="flex h-11 cursor-pointer items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-black text-zinc-200">
@@ -493,6 +500,7 @@ function Reports() {
 }
 
 function FiltersBar({ filters, updateFilter, loading }) {
+  const { t } = useTranslation();
   return (
     <section className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-4 shadow-xl shadow-black/20">
       <div className="mb-4 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-zinc-400">
@@ -501,17 +509,17 @@ function FiltersBar({ filters, updateFilter, loading }) {
         {loading ? <RefreshCw className="h-4 w-4 animate-spin text-emerald-300" /> : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
-        <SelectFilter label="Range" value={filters.preset} onChange={(value) => updateFilter("preset", value)} options={[["today", "Today"], ["week", "Week"], ["month", "Month"], ["custom", "Custom"]]} />
-        <TextFilter label="Start" type="date" value={filters.startDate} onChange={(value) => updateFilter("startDate", value)} />
-        <TextFilter label="End" type="date" value={filters.endDate} onChange={(value) => updateFilter("endDate", value)} />
-        <TextFilter label="Warehouse ID" value={filters.warehouseId} onChange={(value) => updateFilter("warehouseId", value)} />
-        <TextFilter label="Employee ID" value={filters.employeeId} onChange={(value) => updateFilter("employeeId", value)} />
-        <TextFilter label="Product ID" value={filters.productId} onChange={(value) => updateFilter("productId", value)} />
-        <TextFilter label="Category ID" value={filters.categoryId} onChange={(value) => updateFilter("categoryId", value)} />
-        <TextFilter label="Payment Method" value={filters.paymentMethod} onChange={(value) => updateFilter("paymentMethod", value)} />
-        <TextFilter label="Customer ID" value={filters.customerId} onChange={(value) => updateFilter("customerId", value)} />
-        <TextFilter label="Shift ID" value={filters.shiftId} onChange={(value) => updateFilter("shiftId", value)} />
-        <TextFilter label="Salesperson ID" value={filters.salespersonId} onChange={(value) => updateFilter("salespersonId", value)} />
+        <SelectFilter label={t("reports.center.filters.range")} value={filters.preset} onChange={(value) => updateFilter("preset", value)} options={[["today", t("reports.center.filters.today")], ["week", t("reports.center.filters.week")], ["month", t("reports.center.filters.month")], ["custom", t("reports.center.filters.custom")]]} />
+        <TextFilter label={t("reports.center.filters.start")} type="date" value={filters.startDate} onChange={(value) => updateFilter("startDate", value)} />
+        <TextFilter label={t("reports.center.filters.end")} type="date" value={filters.endDate} onChange={(value) => updateFilter("endDate", value)} />
+        <TextFilter label={t("reports.center.filters.warehouseId")} value={filters.warehouseId} onChange={(value) => updateFilter("warehouseId", value)} />
+        <TextFilter label={t("reports.center.filters.employeeId")} value={filters.employeeId} onChange={(value) => updateFilter("employeeId", value)} />
+        <TextFilter label={t("reports.center.filters.productId")} value={filters.productId} onChange={(value) => updateFilter("productId", value)} />
+        <TextFilter label={t("reports.center.filters.categoryId")} value={filters.categoryId} onChange={(value) => updateFilter("categoryId", value)} />
+        <TextFilter label={t("reports.center.filters.paymentMethod")} value={filters.paymentMethod} onChange={(value) => updateFilter("paymentMethod", value)} />
+        <TextFilter label={t("reports.center.filters.customerId")} value={filters.customerId} onChange={(value) => updateFilter("customerId", value)} />
+        <TextFilter label={t("reports.center.filters.shiftId")} value={filters.shiftId} onChange={(value) => updateFilter("shiftId", value)} />
+        <TextFilter label={t("reports.center.filters.salespersonId")} value={filters.salespersonId} onChange={(value) => updateFilter("salespersonId", value)} />
       </div>
     </section>
   );
@@ -550,6 +558,7 @@ function ActionButton({ icon: Icon, label, onClick, disabled }) {
 }
 
 function AiInsightsCenter({ insights, loading }) {
+  const { t } = useTranslation();
   const items = Array.isArray(insights?.insights) ? insights.insights : [];
   const recommendations = Array.isArray(insights?.recommendations) ? insights.recommendations : [];
   const restock = Array.isArray(insights?.restock_predictions) ? insights.restock_predictions : [];
@@ -565,7 +574,7 @@ function AiInsightsCenter({ insights, loading }) {
             <Brain className="h-4 w-4" />
             AI Insights Center
           </div>
-          <h2 className="m1-section-title mt-2 text-white">Business Intelligence & Smart Recommendations</h2>
+          <h2 className="m1-section-title mt-2 text-white">{t("reports.center.insights.heading")}</h2>
           <p className="mt-1 max-w-3xl text-sm font-semibold text-zinc-300">
             Automated analysis for sales, stock, people, customers, loyalty, shifts, expenses, and profit movement.
           </p>
@@ -596,7 +605,7 @@ function AiInsightsCenter({ insights, loading }) {
 
       <div className="mt-5 grid gap-4 xl:grid-cols-3">
         <IntelligenceList
-          title="Smart Recommendations"
+          title={t("reports.center.insights.recommendations")}
           icon={Zap}
           rows={recommendations}
           render={(item) => (
@@ -607,7 +616,7 @@ function AiInsightsCenter({ insights, loading }) {
           )}
         />
         <IntelligenceList
-          title="Restock Predictions"
+          title={t("reports.center.insights.restock")}
           icon={Activity}
           rows={restock.slice(0, 6)}
           render={(item) => (
@@ -620,7 +629,7 @@ function AiInsightsCenter({ insights, loading }) {
           )}
         />
         <IntelligenceList
-          title="People & Customers"
+          title={t("reports.center.insights.people")}
           icon={Pin}
           rows={[...employees.slice(0, 3), ...vipCustomers.slice(0, 3)]}
           render={(item) => (
@@ -774,11 +783,12 @@ function PieMetric({ rows }) {
 }
 
 function ReportTable({ columns, rows, sort, setSort, loading }) {
+  const { t } = useTranslation();
   if (loading) {
     return <div className="mt-4 h-80 animate-pulse rounded-2xl bg-white/[0.06]" />;
   }
   if (!rows.length) {
-    return <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm font-semibold text-zinc-400">No report rows match the current filters.</div>;
+    return <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm font-semibold text-zinc-400">{t("reports.center.emptyRows")}</div>;
   }
   return (
     <div className="m1-table-container m1-table-container--plain mt-4 overflow-x-auto rounded-2xl border border-white/10">

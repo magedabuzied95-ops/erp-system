@@ -14,7 +14,18 @@ test("cashier can edit and permanently delete invoices from recent POS operation
   assert.match(drawerSource, /const canEditInvoices = \(user = \{\}\) => isCashierUser\(user\)/);
   assert.match(drawerSource, /const canDeleteInvoices = \(user = \{\}\) => isCashierUser\(user\)/);
   assert.match(drawerSource, /const canEditOldInvoices = \(user = \{\}\) => isCashierUser\(user\)/);
-  assert.match(drawerSource, /label="حذف نهائي"[\s\S]*?disabled=\{deleteLoading \|\| !canDeleteInvoices\(currentUser\)\}/);
+  // The label was localized, so this pins the KEY next to the permission gate
+  // and then proves the key resolves in both dictionaries.
+  assert.match(
+    drawerSource,
+    /label=\{t\("pos\.recentOps\.actions\.permanentDelete"\)\}[\s\S]*?disabled=\{deleteLoading \|\| !canDeleteInvoices\(currentUser\)\}/
+  );
+  for (const locale of ["en", "ar"]) {
+    const bundle = JSON.parse(read(`../src/locales/${locale}/pos.json`));
+    const label = bundle?.recentOps?.actions?.permanentDelete;
+    assert.equal(typeof label, "string", `pos.recentOps.actions.permanentDelete missing in ${locale}`);
+    assert.ok(label.trim().length > 0, `pos.recentOps.actions.permanentDelete empty in ${locale}`);
+  }
 });
 
 test("cashier role definitions include invoice edit and delete permissions", () => {

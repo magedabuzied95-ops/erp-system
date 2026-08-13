@@ -25,12 +25,18 @@ import transfersAr from "../locales/ar/transfers.json";
 import settingsAr from "../locales/ar/settings.json";
 import managerPortalAr from "../locales/ar/managerPortal.json";
 import employeePortalAr from "../locales/ar/employeePortal.json";
+import attendanceAr from "../locales/ar/attendance.json";
+import accessAr from "../locales/ar/access.json";
 import authAr from "../locales/ar/auth.json";
 import marketingAr from "../locales/ar/marketing.json";
+import aiStudioAr from "../locales/ar/aiStudio.json";
+import aiSupportAr from "../locales/ar/aiSupport.json";
+import shippingAr from "../locales/ar/shipping.json";
+import loyaltyAr from "../locales/ar/loyalty.json";
+import saasAr from "../locales/ar/saas.json";
 import storefrontAr from "../locales/ar/storefront.json";
 import printAr from "../locales/ar/print.json";
 import salesAr from "../locales/ar/sales.json";
-import aiSupportAr from "../locales/ar/aiSupport.json";
 
 import commonEn from "../locales/en/common.json";
 import dashboardEn from "../locales/en/dashboard.json";
@@ -54,12 +60,18 @@ import transfersEn from "../locales/en/transfers.json";
 import settingsEn from "../locales/en/settings.json";
 import managerPortalEn from "../locales/en/managerPortal.json";
 import employeePortalEn from "../locales/en/employeePortal.json";
+import attendanceEn from "../locales/en/attendance.json";
+import accessEn from "../locales/en/access.json";
 import authEn from "../locales/en/auth.json";
 import marketingEn from "../locales/en/marketing.json";
+import aiStudioEn from "../locales/en/aiStudio.json";
+import aiSupportEn from "../locales/en/aiSupport.json";
+import shippingEn from "../locales/en/shipping.json";
+import loyaltyEn from "../locales/en/loyalty.json";
+import saasEn from "../locales/en/saas.json";
 import storefrontEn from "../locales/en/storefront.json";
 import printEn from "../locales/en/print.json";
 import salesEn from "../locales/en/sales.json";
-import aiSupportEn from "../locales/en/aiSupport.json";
 
 export const DEFAULT_LANGUAGE = "en";
 export const LANGUAGE_STORAGE_KEY = "app_language";
@@ -163,12 +175,18 @@ const resources = buildResources({
     settings: settingsAr,
     managerPortal: managerPortalAr,
     employeePortal: employeePortalAr,
+    attendance: attendanceAr,
+    access: accessAr,
     auth: authAr,
     marketing: marketingAr,
+    aiStudio: aiStudioAr,
+    aiSupport: aiSupportAr,
+    shipping: shippingAr,
+    loyalty: loyaltyAr,
+    saas: saasAr,
     storefront: storefrontAr,
     print: printAr,
     sales: salesAr,
-    aiSupport: aiSupportAr,
   },
   en: {
     common: commonEn,
@@ -193,12 +211,18 @@ const resources = buildResources({
     settings: settingsEn,
     managerPortal: managerPortalEn,
     employeePortal: employeePortalEn,
+    attendance: attendanceEn,
+    access: accessEn,
     auth: authEn,
     marketing: marketingEn,
+    aiStudio: aiStudioEn,
+    aiSupport: aiSupportEn,
+    shipping: shippingEn,
+    loyalty: loyaltyEn,
+    saas: saasEn,
     storefront: storefrontEn,
     print: printEn,
     sales: salesEn,
-    aiSupport: aiSupportEn,
   },
 });
 

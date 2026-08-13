@@ -14,6 +14,8 @@ const cartSource = fs.readFileSync(
   new URL("../src/modules/pos/components/CartSidebar.jsx", import.meta.url),
   "utf8"
 );
+const posAr = JSON.parse(fs.readFileSync(new URL("../src/locales/ar/pos.json", import.meta.url), "utf8"));
+const posEn = JSON.parse(fs.readFileSync(new URL("../src/locales/en/pos.json", import.meta.url), "utf8"));
 
 test("POS checkout rejects a paid invoice whose split breakdown is incomplete", () => {
   assert.match(ordersControllerSource, /Payment breakdown total must equal the paid amount/);
@@ -22,7 +24,11 @@ test("POS checkout rejects a paid invoice whose split breakdown is incomplete", 
 });
 
 test("POS supports a deposit with the remaining balance saved as customer credit", () => {
-  assert.match(cartSource, /تسجيل الباقي آجل/);
+  // The deposit/remainder toggle is localized: assert the key is wired and that both
+  // locales carry the wording, so the control cannot lose a language silently.
+  assert.match(cartSource, /posLabel\("credit\.recordRemainder"/);
+  assert.equal(posAr.credit.recordRemainder, "تسجيل الباقي آجل");
+  assert.match(posEn.credit.recordRemainder, /credit/i);
   assert.match(cartSource, /partialCreditActive/);
   assert.match(cartSource, /partialCredit:\s*true/);
   assert.match(cartSource, /hasPartialSplitCollection/);
@@ -66,7 +72,13 @@ test("POS invoice edit exposes the original payment methods and their amounts", 
   assert.match(posSource, /originalPaymentBreakdown: parsePaymentBreakdownRows/);
   assert.match(cartSource, /originalPaymentBreakdown=\{editPaymentSummary\.originalPaymentBreakdown\}/);
   assert.match(cartSource, /originalPaymentBreakdown\.map/);
-  assert.match(cartSource, /المطلوب تحصيله الآن/);
-  assert.match(cartSource, /لو المبلغ كله كاش/);
+  // "Due to collect now" and the collection hint are localized; assert the keys are
+  // wired and that both locales carry them.
+  assert.match(cartSource, /posLabel\("payment\.dueNow"/);
+  assert.match(cartSource, /posLabel\("payment\.methodHint"/);
+  assert.equal(posAr.payment.dueNow, "المطلوب تحصيله الآن");
+  assert.match(posAr.payment.methodHint, /لو المبلغ كله كاش/);
+  assert.ok(posEn.payment.dueNow, "en is missing payment.dueNow");
+  assert.ok(posEn.payment.methodHint, "en is missing payment.methodHint");
   assert.equal((cartSource.match(/<EditPaymentDifferenceCard/g) || []).length, 1);
 });

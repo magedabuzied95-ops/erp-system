@@ -1,6 +1,8 @@
 import { BrainCircuit, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 function AiInsightCard({ title, insight, tone = "cyan" }) {
+  const { t } = useTranslation();
   const tones = {
     cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
@@ -14,7 +16,7 @@ function AiInsightCard({ title, insight, tone = "cyan" }) {
           <BrainCircuit className="h-5 w-5" />
         </div>
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">AI insight</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{t("analytics.charts.aiInsight")}</div>
           <h3 className="m1-section-title mt-1 text-[var(--text)]">{title}</h3>
         </div>
       </div>

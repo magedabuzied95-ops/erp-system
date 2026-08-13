@@ -1,19 +1,22 @@
 import { NavLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { LayoutDashboard, Workflow, Activity, ShieldCheck, Wrench, PackageCheck } from "lucide-react";
 
+/* `to` is the ROUTE and stays raw; only labelKey is presentation. */
 const TABS = [
-  { to: "/ai-studio", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/ai-studio/workflows", label: "Workflows", icon: Workflow },
-  { to: "/ai-studio/executions", label: "Executions", icon: Activity },
-  { to: "/ai-studio/approvals", label: "Approvals", icon: ShieldCheck },
-  { to: "/ai-studio/restock-recovery", label: "Restock Recovery", icon: PackageCheck },
-  { to: "/ai-studio/tools", label: "Tools", icon: Wrench },
+  { to: "/ai-studio", labelKey: "aiStudio.nav.overview", icon: LayoutDashboard, end: true },
+  { to: "/ai-studio/workflows", labelKey: "aiStudio.nav.workflows", icon: Workflow },
+  { to: "/ai-studio/executions", labelKey: "aiStudio.nav.executions", icon: Activity },
+  { to: "/ai-studio/approvals", labelKey: "aiStudio.nav.approvals", icon: ShieldCheck },
+  { to: "/ai-studio/restock-recovery", labelKey: "aiStudio.nav.restockRecovery", icon: PackageCheck },
+  { to: "/ai-studio/tools", labelKey: "aiStudio.nav.tools", icon: Wrench },
 ];
 
 export default function AiStudioNav() {
+  const { t } = useTranslation();
   return (
     <nav dir="ltr" className="flex flex-wrap gap-1.5">
-      {TABS.map(({ to, label, icon: Icon, end }) => (
+      {TABS.map(({ to, labelKey, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -27,7 +30,7 @@ export default function AiStudioNav() {
           }
         >
           <Icon className="h-4 w-4" />
-          {label}
+          {t(labelKey)}
         </NavLink>
       ))}
     </nav>

@@ -57,12 +57,18 @@ export const RESOURCE_BRANCHES = [
   { branch: "transfers", file: "transfers" },
   { branch: "managerPortal", file: "managerPortal" },
   { branch: "employeePortal", file: "employeePortal" },
+  { branch: "attendance", file: "attendance" },
+  { branch: "access", file: "access" },
   { branch: "auth", file: "auth" },
   { branch: "marketing", file: "marketing" },
+  { branch: "aiStudio", file: "aiStudio" },
+  { branch: "aiSupport", file: "aiSupport" },
+  { branch: "shipping", file: "shipping" },
+  { branch: "loyalty", file: "loyalty" },
+  { branch: "saas", file: "saas" },
   { branch: "storefront", file: "storefront" },
   { branch: "print", file: "print" },
   { branch: "sales", file: "sales" },
-  { branch: "aiSupport", file: "aiSupport" },
 ];
 
 /**
