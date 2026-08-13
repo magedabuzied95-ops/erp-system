@@ -2504,23 +2504,26 @@ function InboxChatHeader({
             </button>
           )}
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenCustomer360?.(conversation, {
-                    customerId: customer360Identifier(conversation),
-                    source: "inbox_header",
-                    platform: channel,
-                  });
-                }}
-                className="truncate text-left text-sm font-black leading-5 text-white hover:underline"
-              >
-                {name}
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenCustomer360?.(conversation, {
+                      customerId: customer360Identifier(conversation),
+                      source: "inbox_header",
+                      platform: channel,
+                    });
+                  }}
+                  className="block truncate text-left text-sm font-black leading-5 text-white hover:underline"
+                >
+                  {name}
+                </button>
+                {showCustomerIdentifier ? <div dir="ltr" className="truncate text-left text-[10px] font-semibold leading-4 text-slate-400">{phone}</div> : null}
+              </div>
               {conversationLabels.slice(0, 4).map((label) => (
-                <span key={label.id} className={`inline-flex h-5 items-center rounded-md border px-1.5 text-[9px] font-black ${conversationLabelClass(label.color)}`}>{label.name}</span>
+                <span key={label.id} className={`inline-flex h-6 items-center rounded-md border px-2 text-[10px] font-black ${conversationLabelClass(label.color)}`}>{label.name}</span>
               ))}
               {conversationLabels.length > 4 ? <span className="text-[9px] font-black text-slate-400">+{conversationLabels.length - 4}</span> : null}
               <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
@@ -2530,7 +2533,6 @@ function InboxChatHeader({
                 </span>
               </Pill>
             </div>
-            {showCustomerIdentifier ? <div dir="ltr" className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">{phone}</div> : null}
           </div>
         </div>
         <div data-ai-inbox-header-actions="right" className="flex flex-wrap items-center justify-end gap-1.5">

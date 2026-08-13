@@ -93,6 +93,9 @@ test("desktop conversation header stays compact and exposes multi-label manageme
   assert.doesNotMatch(compactHeaderSource, /aria-label="Lead Status"/);
   assert.match(compactHeaderSource, /<Tag className="h-3\.5 w-3\.5" \/> \{t\("aiSupport\.inbox\.header\.addLabel"\)\}/);
   assert.match(compactHeaderSource, /conversationLabels\.slice\(0, 4\)\.map/);
+  assert.match(compactHeaderSource, /className="block truncate text-left text-sm font-black/);
+  assert.match(compactHeaderSource, /showCustomerIdentifier \? <div dir="ltr" className="truncate text-left text-\[10px\][\s\S]*?\{phone\}<\/div>/);
+  assert.match(compactHeaderSource, /inline-flex h-6 items-center rounded-md border px-2 text-\[10px\] font-black/);
   assert.match(compactHeaderSource, /<ConversationLabelsModal/);
 });
 
