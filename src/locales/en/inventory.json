@@ -225,6 +225,8 @@
   "actions": {
     "view": "View",
     "editStock": "Edit stock",
+    "inventoryHistory": "Inventory history",
+    "inventoryAdjustments": "Inventory adjustments",
     "refresh": "Refresh",
     "reset": "Reset",
     "clear": "Clear",

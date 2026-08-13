@@ -225,6 +225,8 @@
   "actions": {
     "view": "عرض",
     "editStock": "تعديل المخزون",
+    "inventoryHistory": "سجل المخزون",
+    "inventoryAdjustments": "تسويات المخزون",
     "refresh": "تحديث",
     "reset": "إعادة ضبط",
     "clear": "مسح",

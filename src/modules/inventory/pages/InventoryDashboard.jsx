@@ -437,11 +437,11 @@ function InventoryDashboard() {
         <>
           <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover">
             <Clock3 className="h-4 w-4" />
-            {t("inventory.history")}
+            {t("inventory.actions.inventoryHistory")}
           </Link>
           <Link to="/inventory/adjustments" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary">
             <Layers3 className="h-4 w-4" />
-            {t("inventory.adjustments")}
+            {t("inventory.actions.inventoryAdjustments")}
           </Link>
         </>
       }
