@@ -233,3 +233,141 @@ own storage, since removed.
 — require `domChanged`. Never poll `innerText` on large surfaces. An empty
 `#root` with healthy Production is an automation fault, never a Production
 rollback trigger.
+
+---
+
+## Appendix — the auditor (consolidated, all five fixes applied)
+
+Paste into the authenticated browser console, then `await __geo.run()`.
+Persist sweep output to `localStorage`, never `sessionStorage` (per-tab).
+
+```js
+window.__geo = (function () {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const RR = (e) => { const b = e.getBoundingClientRect();
+    return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height), t: Math.round(b.top) }; };
+  const cls = (e) => (typeof e.className === "string" ? e.className : e.getAttribute("class") || "").trim();
+  const sig = (e) => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + cls(e).split(/\s+/).slice(0, 5).join(".");
+
+  // FIX 4: never poll innerText -- it forces layout and freezes 1M-char surfaces.
+  const key = () =>
+    document.getElementsByTagName("*").length + "|" + Math.round(document.body.scrollHeight) +
+    "|" + document.title + "|" +
+    Array.from(document.querySelectorAll("h1,h2")).slice(0, 3).map((e) => e.textContent.trim().slice(0, 40)).join("~");
+
+  async function settle(maxMs = 4000) {
+    const t0 = Date.now(); let last = null, stable = 0;
+    while (Date.now() - t0 < maxMs) {
+      await sleep(200);
+      const k = key();
+      if (k === last) { stable++; if (stable >= 2) return true; } else { stable = 0; last = k; }
+    }
+    return false;
+  }
+
+  const shellRoot = () =>
+    document.querySelector(".m1-shell-content") || document.querySelector("main") ||
+    document.getElementById("root") || document.body;
+
+  function styled(e, pbg) {
+    const s = getComputedStyle(e);
+    if (s.display === "none" || s.visibility === "hidden") return false;
+    const b = ["borderTopWidth","borderRightWidth","borderBottomWidth","borderLeftWidth"].some((k) => parseFloat(s[k]) > 0);
+    const sh = s.boxShadow && s.boxShadow !== "none";
+    const bg = s.backgroundColor && s.backgroundColor !== "rgba(0, 0, 0, 0)" && s.backgroundColor !== pbg;
+    return b || sh || bg || /card|panel|tile|kpi|stat|widget|surface|m1-/i.test(cls(e));
+  }
+
+  // FIX 1: resolve through unstyled wrappers, but measure the CELL rect.
+  function proxy(child, pbg) {
+    const cr = child.getBoundingClientRect();
+    if (cr.width < 140 || cr.height < 56) return null;
+    if (styled(child, pbg)) return child;
+    let cur = child, guard = 0;
+    while (cur && guard++ < 4) {
+      const kids = Array.from(cur.children).filter((k) => { const r = k.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+      if (kids.length !== 1) break;
+      cur = kids[0];
+      const r = cur.getBoundingClientRect();
+      if (styled(cur, pbg) && r.width * r.height >= cr.width * cr.height * 0.7) return child;
+    }
+    return null;
+  }
+
+  function analyse() {
+    const root = shellRoot();
+    if (root.querySelectorAll("*").length > 9000) return { rows: [], overflow: [], scrollports: [], bounded: true };
+    const res = { rows: [], overflow: [], scrollports: [] }; const seen = new Set();
+    for (const el of root.querySelectorAll("*")) {
+      const s = getComputedStyle(el);
+      if (s.display !== "grid" && s.display !== "flex") continue;
+      const pbg = s.backgroundColor;
+      const kids = Array.from(el.children).filter((k) => {
+        const ks = getComputedStyle(k);
+        if (ks.display === "none" || ks.visibility === "hidden") return false;
+        const r = k.getBoundingClientRect(); return r.width > 0 && r.height > 0;
+      });
+      if (kids.length < 2) continue;
+      const cards = kids.filter((k) => proxy(k, pbg));
+      if (cards.length < 2) continue;
+      const byTop = new Map();
+      for (const c of cards) {
+        const r = RR(c); let b = null;
+        for (const k of byTop.keys()) if (Math.abs(k - r.t) <= 6) { b = k; break; }
+        if (b === null) { b = r.t; byTop.set(b, []); }
+        byTop.get(b).push({ el: c, r });
+      }
+      for (const [top, items] of byTop) {
+        if (items.length < 2) continue;
+        const hs = items.map((i) => i.r.h), ws = items.map((i) => i.r.w);
+        const hDelta = Math.max(...hs) - Math.min(...hs), wDelta = Math.max(...ws) - Math.min(...ws);
+        const id = sig(el) + "|" + top + "|" + items.length;
+        if (seen.has(id)) continue; seen.add(id);
+        const spans = items.map((i) => { const g = getComputedStyle(i.el); return g.gridColumn || g.flexBasis || ""; });
+        const uniformSpan = new Set(spans).size === 1;
+        // FIX 3: a width delta only counts when the grid's own tracks are equal.
+        const tracks = (s.gridTemplateColumns || "").split(" ").map(parseFloat).filter((n) => !isNaN(n));
+        const equalTracks = tracks.length > 1 && Math.max(...tracks) - Math.min(...tracks) <= 2;
+        const flagged = hDelta > 8 || (wDelta > 8 && uniformSpan && s.display === "grid" && equalTracks);
+        res.rows.push({ owner: sig(el), display: s.display, cols: (s.gridTemplateColumns || "").slice(0, 110),
+          gap: s.gap, rowGap: s.rowGap, colGap: s.columnGap, alignItems: s.alignItems, padding: s.padding,
+          n: items.length, top, heights: hs, widths: ws, hDelta, wDelta, uniformSpan, flagged,
+          cards: flagged ? items.map((i) => { const c = getComputedStyle(i.el);
+            return { sig: sig(i.el), h: i.r.h, w: i.r.w, x: i.r.x, pad: c.padding, alignSelf: c.alignSelf,
+                     gridCol: c.gridColumn, minH: c.minHeight, height: c.height }; }) : [] });
+      }
+    }
+    const de = document.documentElement;
+    if (de.scrollWidth > de.clientWidth + 1) res.overflow.push({ el: "html", scrollW: de.scrollWidth, clientW: de.clientWidth });
+    for (const el of root.querySelectorAll("*")) {
+      const s = getComputedStyle(el);
+      // threshold >4px: smaller deltas are sub-pixel track rounding, proven noise.
+      if (el.scrollWidth > el.clientWidth + 4 && s.overflowX === "visible" && el.clientWidth > 200)
+        res.overflow.push({ el: sig(el), scrollW: el.scrollWidth, clientW: el.clientWidth });
+      if ((s.overflowY === "auto" || s.overflowY === "scroll") && el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 200)
+        res.scrollports.push({ el: sig(el), scrollH: el.scrollHeight, clientH: el.clientHeight });
+    }
+    res.overflow = res.overflow.slice(0, 10); res.scrollports = res.scrollports.slice(0, 10);
+    return res;
+  }
+
+  async function run() {
+    const ok = await settle(); const a = analyse(); const f = a.rows.filter((r) => r.flagged);
+    return { route: location.pathname, settled: ok, dir: document.documentElement.dir, lang: document.documentElement.lang,
+      theme: /dark/.test(document.documentElement.className) ? "dark" : "light",
+      vw: document.documentElement.clientWidth, vh: innerHeight,
+      els: document.getElementsByTagName("*").length,
+      rootKids: (document.getElementById("root") || { children: [] }).children.length,
+      totalRows: a.rows.length, cardsMeasured: a.rows.reduce((n, r) => n + r.n, 0),
+      flaggedCount: f.length, flagged: f.slice(0, 14), overflow: a.overflow, scrollports: a.scrollports, bounded: !!a.bounded };
+  }
+  return { settle, analyse, run, key, RR, sig };
+})();
+```
+
+**Sweep driver contract.** Before each route capture `key()`; `pushState` +
+`PopStateEvent`; wait (max 3 s) until `key()` changes — FIX 2, this is what proves
+the DOM belongs to the new route; then `run()`. A row is PASS only when
+`landed === route && settled && domChanged`. Budget each slice to 30 s or less:
+the CDP evaluator hard-times-out at 45 s. `/dashboard` must reproduce
+7 x (255 x 172) + 3 x (622 x 340) with 0 flags before any sweep is trusted.
