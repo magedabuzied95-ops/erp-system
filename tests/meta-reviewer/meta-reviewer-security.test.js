@@ -160,20 +160,34 @@ test("Socket events are emitted only to the selected authorized channel room", (
   setIo(null);
 });
 
-test("API boundary keeps the reviewer inside its inbox while preserving Admin access", () => {
+test("API boundary keeps the reviewer inside its inbox while preserving Admin access", async () => {
   process.env.JWT_SECRET = "boundary-test-secret";
   const makeResponse = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
   let nextCalls = 0;
   const reviewerToken = jwt.sign({ id: 1, role: "meta_reviewer" }, process.env.JWT_SECRET);
   const denied = makeResponse();
-  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl: "/api/settings" }, denied, () => { nextCalls += 1; });
+  await metaReviewerApiBoundary({ headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl: "/api/settings" }, denied, () => { nextCalls += 1; });
   assert.equal(denied.statusCode, 403);
   const allowed = makeResponse();
-  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl: "/api/meta-reviewer/inbox/channels/instagram/conversations" }, allowed, () => { nextCalls += 1; });
+  await metaReviewerApiBoundary({ headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl: "/api/meta-reviewer/inbox/channels/instagram/conversations" }, allowed, () => { nextCalls += 1; });
   assert.equal(nextCalls, 1);
   const adminToken = jwt.sign({ id: 2, role: "admin" }, process.env.JWT_SECRET);
-  metaReviewerApiBoundary({ headers: { authorization: `Bearer ${adminToken}` }, originalUrl: "/api/settings" }, makeResponse(), () => { nextCalls += 1; });
+  await metaReviewerApiBoundary({ headers: { authorization: `Bearer ${adminToken}` }, originalUrl: "/api/settings" }, makeResponse(), () => { nextCalls += 1; });
   assert.equal(nextCalls, 2);
+});
+
+test("standard AI Inbox compatibility returns no WhatsApp conversations for the reviewer", async () => {
+  process.env.JWT_SECRET = "boundary-test-secret";
+  const reviewerToken = jwt.sign({ id: 1, role: "meta_reviewer" }, process.env.JWT_SECRET);
+  const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+  await metaReviewerApiBoundary({
+    method: "GET",
+    headers: { authorization: `Bearer ${reviewerToken}` },
+    originalUrl: "/api/ai-inbox/conversations?channel_filter=whatsapp",
+    query: { channel_filter: "whatsapp" },
+  }, response, () => {});
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body?.conversations, []);
 });
 
 test("Instagram webhook setup subscribes to direct messages and fails back to the required field", () => {

@@ -26,7 +26,7 @@ import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlag
 ====================================================== */
 
 import Login from "./pages/Login";
-import { getToken, getUserRole, setAuth } from "./shared/auth/authStorage";
+import { getToken, isMetaReviewerUser, setAuth } from "./shared/auth/authStorage";
 
 /* ======================================================
    DASHBOARD
@@ -317,7 +317,7 @@ function StorefrontLegacyRedirect() {
 }
 
 function ScopedInbox() {
-  return getUserRole() === "meta_reviewer" ? <AiInbox reviewerMode /> : <AiInboxPwa />;
+  return isMetaReviewerUser() ? <AiInbox reviewerMode /> : <AiInboxPwa />;
 }
 
 function ErpMainRoute() {
@@ -400,7 +400,7 @@ function App() {
     );
   }
 
-  if (enableErpAppRoutes && getToken() && getUserRole() === "meta_reviewer" && location.pathname === "/login") {
+  if (enableErpAppRoutes && getToken() && isMetaReviewerUser() && location.pathname === "/login") {
     return <Navigate to="/admin/ai-inbox" replace />;
   }
 
@@ -784,7 +784,7 @@ function App() {
           path="admin/ai-inbox"
           element={
             <ProtectedRoute requiredPermissions={["ai_inbox_messenger.view"]}>
-              <AiInbox reviewerMode={getUserRole() === "meta_reviewer"} />
+              <AiInbox reviewerMode={isMetaReviewerUser()} />
             </ProtectedRoute>
           }
         />

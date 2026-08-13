@@ -180,6 +180,10 @@ const getUserPermissions = async (userId) => {
 const getRoleName = (user = {}, fallback = "user") =>
   user.role || user.role_name || (user.is_super_admin ? "super_admin" : fallback);
 
+const reviewerPresentation = (role = "") => isMetaReviewerRole(role)
+  ? { role: "admin", role_name: "admin", account_mode: "meta_reviewer" }
+  : { role, role_name: role, account_mode: "standard" };
+
 export const register = async (req, res) => {
   try {
     const { name, email, password, role_id, role } = req.body;
@@ -503,6 +507,7 @@ export const login = async (req, res) => {
       }
     })();
 
+    const presentedRole = reviewerPresentation(getRoleName(user));
     return res.status(200).json({
       success: true,
       message: "Login Successful",
@@ -512,8 +517,9 @@ export const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: getRoleName(user),
-        role_name: user.role_name || getRoleName(user),
+        role: presentedRole.role,
+        role_name: presentedRole.role_name,
+        account_mode: presentedRole.account_mode,
         tenant_id: user.tenant_id,
         company_name: tenant?.companyName || "",
         company_logo_url: tenant?.companyLogoUrl || "",
@@ -597,14 +603,16 @@ export const me = async (req, res) => {
       : null;
 
     const currentUser = current.rows[0];
-    const safeReviewerUser = isMetaReviewerRole(currentUser?.role || currentUser?.role_name)
+    const reviewerAccount = isMetaReviewerRole(currentUser?.role || currentUser?.role_name);
+    const safeReviewerUser = reviewerAccount
       ? {
           id: currentUser.id,
           tenant_id: currentUser.tenant_id,
           name: currentUser.name,
           email: currentUser.email,
-          role: "meta_reviewer",
-          role_name: "meta_reviewer",
+          role: "admin",
+          role_name: "admin",
+          account_mode: "meta_reviewer",
           is_active: currentUser.is_active,
           is_super_admin: false,
           account_expires_at: currentUser.account_expires_at,
