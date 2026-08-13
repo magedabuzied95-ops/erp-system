@@ -493,7 +493,62 @@
     "confirmDeleteForAll": "Delete this message for everyone?",
     "deleteFailed": "Unable to delete the message",
     "reactionFailed": "Unable to add the reaction",
-    "editFailed": "Unable to edit the message"
+    "editFailed": "Unable to edit the message",
+    "admin": {
+      "headerTitle": "Employee conversations",
+      "headerKicker": "Employees / Conversations",
+      "secureNotice": "This conversation is private between the employee and management",
+      "pollNotice": "Fallback refresh runs every {{seconds}} seconds",
+      "searchThreads": "Search by employee name or message",
+      "noThreads": "No conversations yet.",
+      "employeeFallback": "Employee",
+      "noBranch": "No branch",
+      "noMessagesYet": "No messages yet",
+      "backToThreads": "Back to employee conversations",
+      "openEmployeeInfo": "Open employee info",
+      "threadReady": "Conversation ready",
+      "searchMessages": "Search",
+      "pickEmployee": "Pick an employee from the list.",
+      "management": "Management",
+      "employee": "Employee",
+      "replyPlaceholder": "Write the management reply...",
+      "removeAttachment": "Remove",
+      "disabledNotice": "The conversation appears here once the employee sends their first message from the employee portal.",
+      "typing": "Typing...",
+      "staffAbout": "M1 Store employee",
+      "openingThread": "Opening the conversation...",
+      "threadEmpty": "No messages in this conversation.",
+      "reply": "Reply",
+      "forward": {
+        "title": "Forward to",
+        "subtitle": "Pick the employee conversation",
+        "search": "Search for an employee",
+        "empty": "No other conversations are available."
+      },
+      "errors": {
+        "loadThreads": "Unable to load the employee conversations",
+        "openThread": "Unable to open the conversation",
+        "forward": "Unable to forward the message",
+        "unsupportedFile": "This file type is not supported, or it is larger than 10MB",
+        "loadEmployees": "Unable to load the employees"
+      },
+      "headerKickerManagement": "Management / Conversations"
+    },
+    "contactInfo": {
+      "title": "Contact info",
+      "businessAccount": "Business account",
+      "voice": "Voice",
+      "video": "Video",
+      "search": "Search",
+      "media": "Media, links and documents",
+      "noMedia": "No media yet",
+      "storage": "Manage storage",
+      "starred": "Starred messages",
+      "none": "None",
+      "notifications": "Notifications",
+      "theme": "Chat theme",
+      "themeDark": "Dark"
+    }
   },
   "profile": {
     "settings": "Profile settings",

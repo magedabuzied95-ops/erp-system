@@ -493,7 +493,62 @@
     "confirmDeleteForAll": "حذف هذه الرسالة لدى الجميع؟",
     "deleteFailed": "تعذر حذف الرسالة",
     "reactionFailed": "تعذر إضافة التفاعل",
-    "editFailed": "تعذر تعديل الرسالة"
+    "editFailed": "تعذر تعديل الرسالة",
+    "admin": {
+      "headerTitle": "محادثات الموظفين",
+      "headerKicker": "الموظفون / المحادثات",
+      "secureNotice": "هذه المحادثة خاصة بين الموظف والإدارة",
+      "pollNotice": "التحديث الاحتياطي يعمل كل {{seconds}} ثانية",
+      "searchThreads": "ابحث باسم الموظف أو الرسالة",
+      "noThreads": "لا توجد محادثات حتى الآن.",
+      "employeeFallback": "موظف",
+      "noBranch": "بدون فرع",
+      "noMessagesYet": "لا توجد رسائل بعد",
+      "backToThreads": "الرجوع إلى محادثات الموظفين",
+      "openEmployeeInfo": "فتح معلومات الموظف",
+      "threadReady": "المحادثة جاهزة",
+      "searchMessages": "بحث",
+      "pickEmployee": "اختر موظفًا من القائمة.",
+      "management": "الإدارة",
+      "employee": "الموظف",
+      "replyPlaceholder": "اكتب رد الإدارة...",
+      "removeAttachment": "حذف",
+      "disabledNotice": "ستظهر المحادثة هنا بعد أن يرسل الموظف أول رسالة من بوابة الموظف.",
+      "typing": "يكتب الآن...",
+      "staffAbout": "موظف M1 Store",
+      "openingThread": "جاري فتح المحادثة...",
+      "threadEmpty": "لا توجد رسائل في هذه المحادثة.",
+      "reply": "رد",
+      "forward": {
+        "title": "إعادة توجيه إلى",
+        "subtitle": "اختر محادثة الموظف",
+        "search": "ابحث عن موظف",
+        "empty": "لا توجد محادثات أخرى متاحة."
+      },
+      "errors": {
+        "loadThreads": "تعذر تحميل محادثات الموظفين",
+        "openThread": "تعذر فتح المحادثة",
+        "forward": "تعذر إعادة توجيه الرسالة",
+        "unsupportedFile": "نوع الملف غير مدعوم أو أكبر من 10MB",
+        "loadEmployees": "تعذر تحميل الموظفين"
+      },
+      "headerKickerManagement": "الإدارة / المحادثات"
+    },
+    "contactInfo": {
+      "title": "معلومات جهة الاتصال",
+      "businessAccount": "حساب أعمال",
+      "voice": "صوت",
+      "video": "فيديو",
+      "search": "بحث",
+      "media": "الوسائط والروابط والمستندات",
+      "noMedia": "لا توجد وسائط بعد",
+      "storage": "إدارة التخزين",
+      "starred": "الرسائل المميزة",
+      "none": "لا يوجد",
+      "notifications": "الإشعارات",
+      "theme": "سمة المحادثة",
+      "themeDark": "داكن"
+    }
   },
   "profile": {
     "settings": "إعدادات الملف الشخصي",

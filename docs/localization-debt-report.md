@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 135
-- Hardcoded Arabic UI strings: 1326
-- Hardcoded English UI strings: 1144
-- Total hardcoded UI strings: 2470
+- Files with debt: 134
+- Hardcoded Arabic UI strings: 1298
+- Hardcoded English UI strings: 1145
+- Total hardcoded UI strings: 2443
 - Mixed-language files (both scripts hardcoded): 37
 
 ### By surface
@@ -21,7 +21,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 66 | 934 | 748 | 1682 | 24 |
-| shared | 53 | 192 | 313 | 505 | 9 |
+| shared | 52 | 164 | 314 | 478 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1262,40 +1262,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 637 [jsx-text/en] Rounding mode
 - 649 [jsx-text/en] Existing Sale Prices
 
-### src/shared/chat/PortalChatContactInfo.jsx (shared — ar:14 en:0)
-
-- 27 [attribute/ar] إغلاق
-- 28 [jsx-text/ar] معلومات جهة الاتصال
-- 38 [jsx-text/ar] حساب أعمال
-- 43 [jsx-text/ar] صوت
-- 44 [jsx-text/ar] فيديو
-- 45 [jsx-text/ar] بحث
-- 49 [jsx-text/ar] الوسائط والروابط والمستندات
-- 50 [jsx-text/ar] لا توجد وسائط بعد
-- 51 [jsx-text/ar] إدارة التخزين
-- 52 [jsx-text/ar] الرسائل المميزة
-- 52 [jsx-text/ar] لا يوجد
-- 56 [jsx-text/ar] الإشعارات
-- 57 [jsx-text/ar] داكن
-- 57 [jsx-text/ar] سمة المحادثة
-
-### src/shared/chat/SharedPortalChat.jsx (shared — ar:14 en:0)
-
-- 501 [dialog/ar] حذف هذه الرسالة لدى الجميع؟
-- 717 [jsx-text/ar] التحديث الاحتياطي يعمل كل
-- 731 [attribute/ar] ابحث باسم الموظف أو الرسالة
-- 785 [jsx-text/ar] لا توجد محادثات حتى الآن.
-- 800 [attribute/ar] الرجوع إلى محادثات الموظفين
-- 805 [attribute/ar] فتح معلومات الموظف
-- 821 [attribute/ar] بحث
-- 879 [object-key/ar] اكتب رد الإدارة...
-- 909 [attribute/ar] بحث
-- 935 [attribute/ar] إغلاق
-- 938 [jsx-text/ar] اختر محادثة الموظف
-- 938 [jsx-text/ar] إعادة توجيه إلى
-- 942 [attribute/ar] ابحث عن موظف
-- 951 [jsx-text/ar] لا توجد محادثات أخرى متاحة.
-
 ### src/modules/accounting/pages/AccountingAnalytics.jsx (main-erp — ar:13 en:0)
 
 - 23 [inline-ternary/ar] isArabic ? "تعذر فتح التحليلات المتقدمة." : "Unable to open advanced analytics."
@@ -2038,6 +2004,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/shared/api/api.js (shared — ar:0 en:1)
 
 - 242 [attribute/en] Backend or Vite proxy is not reachable
+
+### src/shared/chat/SharedPortalChat.jsx (shared — ar:0 en:1)
+
+- 28 [inline-ternary/en] language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB"
 
 ### src/shared/components/mobile/ResponsiveMobile.jsx (shared — ar:0 en:1)
 

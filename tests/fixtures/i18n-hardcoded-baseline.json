@@ -1,9 +1,9 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1326,
-    "english": 1144,
-    "total": 2470,
+    "arabic": 1298,
+    "english": 1145,
+    "total": 2443,
     "mixedFiles": 37
   },
   "files": {
@@ -612,15 +612,10 @@
       "english": 1,
       "total": 1
     },
-    "src/shared/chat/PortalChatContactInfo.jsx": {
-      "arabic": 14,
-      "english": 0,
-      "total": 14
-    },
     "src/shared/chat/SharedPortalChat.jsx": {
-      "arabic": 14,
-      "english": 0,
-      "total": 14
+      "arabic": 0,
+      "english": 1,
+      "total": 1
     },
     "src/shared/components/mobile/ResponsiveMobile.jsx": {
       "arabic": 0,

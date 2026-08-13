@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowRight, Loader2, MessageCircle, RefreshCw, Search, UserRound, X } from "lucide-react";
 
+import i18n from "../../i18n/i18n";
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
 import { resolveEmployeeProfileImageUrl } from "../lib/imageUrls";
 import PortalChatComposer from "./PortalChatComposer";
@@ -16,11 +18,20 @@ const threadHasMessages = (item = {}) =>
   Number(item?.message_count ?? item?.messages_count ?? 0) > 0 ||
   Boolean(item?.last_message_id || item?.last_message_created_at || item?.last_message_at || String(item?.last_message || item?.body || "").trim());
 
+/*
+ * Read at CALL time, never at module scope: these formatters are module-level, so
+ * capturing the locale here would freeze chat timestamps to whichever language was
+ * active when the module first loaded. `-u-nu-latn` keeps Latin digits in Arabic,
+ * which is what the rest of the portal does.
+ */
+const chatDateLocale = () =>
+  String(i18n.language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB";
+
 const formatChatDateTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  return new Intl.DateTimeFormat(chatDateLocale(), {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -32,7 +43,7 @@ const formatMessageTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  return new Intl.DateTimeFormat(chatDateLocale(), {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
@@ -75,15 +86,25 @@ export default function SharedPortalChat({
   onSelectedEmployeeChange,
   onThreadChange,
   className = "",
-  headerTitle = "محادثات الموظفين",
-  headerKicker = "الموظفون / المحادثات",
-  secureNotice = "هذه المحادثة خاصة بين الموظف والإدارة",
+  headerTitle,
+  headerKicker,
+  secureNotice,
   managerPanel = null,
   pollMs = 12000,
   allowReply = true,
   useTextareaComposer = false,
   mobileFullScreen = false,
 }) {
+  const { t, i18n: i18nInstance } = useTranslation();
+  /*
+   * Resolved here rather than as a signature default: `t` is not in scope in the
+   * parameter list, and a literal default would render Arabic chrome inside an
+   * English shell for any caller that does not pass its own copy.
+   */
+  const resolvedHeaderTitle = headerTitle ?? t("employeePortal.chat.admin.headerTitle");
+  const resolvedHeaderKicker = headerKicker ?? t("employeePortal.chat.admin.headerKicker");
+  const resolvedSecureNotice = secureNotice ?? t("employeePortal.chat.admin.secureNotice");
+  const employeeFallback = t("employeePortal.chat.admin.employeeFallback");
   const [threads, setThreads] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(String(initialSelectedEmployeeId || employeeRecordId(selectedEmployee) || ""));
   const [selectedThreadId, setSelectedThreadId] = useState("");
@@ -107,12 +128,27 @@ export default function SharedPortalChat({
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
+  /*
+   * The banner holds either OUR translation key or the raw `text` of a server
+   * message, which is not ours to translate. Keeping our half unresolved is what
+   * lets a language switch relabel a banner that is already on screen.
+   */
+  const [error, setError] = useState({ key: "", text: "" });
+  const clearError = useCallback(() => setError({ key: "", text: "" }), []);
+  const failure = useCallback(
+    (err, key) => ({ key: err?.responseBody?.message || err?.message ? "" : key, text: err?.responseBody?.message || err?.message || "" }),
+    []
+  );
+  const errorMessage = error.key ? t(error.key) : error.text;
   const [recordingState, setRecordingState] = useState({ active: false, paused: false, seconds: 0, supported: false });
   const [recordingStream, setRecordingStream] = useState(null);
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
+  // The contact panel focuses this input directly. It used to be located by a
+  // DOM query on its placeholder text, which made a RENDERED label part of the
+  // lookup - translating that placeholder would have broken the focus jump.
+  const messageSearchRef = useRef(null);
   const messagesRef = useRef(null);
   const messagesByThreadRef = useRef({});
   const draftsByThreadRef = useRef({});
@@ -250,13 +286,13 @@ export default function SharedPortalChat({
     if (!apiAdapter?.listThreads) return;
     setLoadingThreads(true);
     try {
-      setError("");
+      clearError();
       const response = await apiAdapter.listThreads();
       const nextThreads = dedupeChatThreads(safeArray(response?.threads));
       setThreads((current) => mergeChatThreads(current, nextThreads));
       return response;
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر تحميل محادثات الموظفين");
+      setError(failure(err, "employeePortal.chat.admin.errors.loadThreads"));
       return null;
     } finally {
       setLoadingThreads(false);
@@ -268,7 +304,7 @@ export default function SharedPortalChat({
     if (!resolvedThreadId || !apiAdapter?.getThread) return null;
     if (!silent) setLoadingThread(true);
     try {
-      setError("");
+      clearError();
       const response = await apiAdapter.getThread(resolvedThreadId);
       const nextThread = response?.thread || null;
       const nextMessages = dedupeChatMessages(safeArray(response?.messages), nextThread);
@@ -280,7 +316,7 @@ export default function SharedPortalChat({
       await apiAdapter.markRead?.(resolvedThreadId);
       return response;
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر فتح المحادثة");
+      setError(failure(err, "employeePortal.chat.admin.errors.openThread"));
       return null;
     } finally {
       if (!silent) setLoadingThread(false);
@@ -371,7 +407,7 @@ export default function SharedPortalChat({
       onTyping: (payload = {}) => {
         const threadId = eventThreadId(payload);
         if (threadId && threadId === String(selectedThreadIdRef.current || "")) {
-          setTypingLabel(payload?.sender_name || payload?.employee_name || "يكتب الآن...");
+          setTypingLabel(payload?.sender_name || payload?.employee_name || t("employeePortal.chat.admin.typing"));
         }
       },
       onStopTyping: (payload = {}) => {
@@ -424,13 +460,13 @@ export default function SharedPortalChat({
       return;
     }
     if (!allowedPortalChatAttachment(file) || file.size > 10 * 1024 * 1024) {
-      setError("نوع الملف غير مدعوم أو أكبر من 10MB");
+      setError({ key: "employeePortal.chat.admin.errors.unsupportedFile", text: "" });
       event.target.value = "";
       setAttachment(null);
       setAttachmentDuration(0);
       return;
     }
-    setError("");
+    clearError();
     setAttachment(file);
     setAttachmentDuration(0);
   };
@@ -442,13 +478,13 @@ export default function SharedPortalChat({
       if (!text || !activeThreadId || !apiAdapter?.editMessage) return;
       try {
         setSending(true);
-        setError("");
+        clearError();
         await apiAdapter.editMessage(activeThreadId, editingMessage.id, { body: text });
         setEditingMessage(null);
         setBody("");
         await loadThread(activeThreadId, { silent: true });
       } catch (err) {
-        setError(err?.responseBody?.message || err?.message || "تعذر تعديل الرسالة");
+        setError(failure(err, "employeePortal.chat.editFailed"));
       } finally {
         setSending(false);
       }
@@ -462,7 +498,7 @@ export default function SharedPortalChat({
     if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
     try {
       setSending(true);
-      setError("");
+      clearError();
       setBody("");
       setAttachment(null);
       setAttachmentDuration(0);
@@ -482,7 +518,7 @@ export default function SharedPortalChat({
       await loadThread(activeThreadId, { silent: true });
       await loadThreads();
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرسالة");
+      setError(failure(err, "employeePortal.chat.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -498,21 +534,21 @@ export default function SharedPortalChat({
 
   const deleteMessage = async (message) => {
     if (!activeThreadId || !message?.id || !apiAdapter?.deleteMessage) return;
-    if (!window.confirm("حذف هذه الرسالة لدى الجميع؟")) return;
+    if (!window.confirm(t("employeePortal.chat.confirmDeleteForAll"))) return;
     try {
-      setError("");
+      clearError();
       await apiAdapter.deleteMessage(activeThreadId, message.id);
       await loadThread(activeThreadId, { silent: true });
       await loadThreads();
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر حذف الرسالة");
+      setError(failure(err, "employeePortal.chat.deleteFailed"));
     }
   };
 
   const reactToMessage = async (message, emoji) => {
     if (!message?.id || !apiAdapter?.reactMessage) return;
     try {
-      setError("");
+      clearError();
       const response = await apiAdapter.reactMessage(message.id, emoji);
       if (response?.message) {
         setMessagesByThread((current) => ({
@@ -521,7 +557,7 @@ export default function SharedPortalChat({
         }));
       }
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر إضافة التفاعل");
+      setError(failure(err, "employeePortal.chat.reactionFailed"));
     }
   };
 
@@ -537,13 +573,13 @@ export default function SharedPortalChat({
     if (!forwardMessage?.id || !targetThreadId || !apiAdapter?.forwardMessage) return;
     try {
       setForwarding(true);
-      setError("");
+      clearError();
       await apiAdapter.forwardMessage(forwardMessage.id, targetThreadId);
       setForwardMessage(null);
       setForwardSearch("");
       await loadThreads();
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر إعادة توجيه الرسالة");
+      setError(failure(err, "employeePortal.chat.admin.errors.forward"));
     } finally {
       setForwarding(false);
     }
@@ -671,7 +707,7 @@ export default function SharedPortalChat({
   const sendVoiceRecording = async () => {
     if (sending || !activeThreadId || !apiAdapter?.sendMessage) return;
     setSending(true);
-    setError("");
+    clearError();
     try {
       const recording = await stopVoiceRecording({ capture: true });
       if (!recording?.blob?.size) return;
@@ -693,7 +729,7 @@ export default function SharedPortalChat({
       await loadThread(activeThreadId, { silent: true });
       await loadThreads();
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرسالة");
+      setError(failure(err, "employeePortal.chat.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -706,35 +742,35 @@ export default function SharedPortalChat({
   return (
     <section
       className={`theme-card flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
-      dir="rtl"
+      dir={i18nInstance.dir()}
       data-mobile-conversation-open={mobileConversationOpen ? "true" : "false"}
     >
       <div className={`shrink-0 border-b border-[var(--border)] p-4 ${mobileFullScreen && mobileConversationOpen ? "hidden md:block" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-black text-[var(--muted)]">{headerKicker}</p>
-            <h2 className="m1-section-title mt-1 text-[var(--text)]">{headerTitle}</h2>
-            <p className="mt-1 text-xs font-bold text-[var(--muted)]">التحديث الاحتياطي يعمل كل {Math.round(pollMs / 1000)} ثانية</p>
+            <p className="text-[11px] font-black text-[var(--muted)]">{resolvedHeaderKicker}</p>
+            <h2 className="m1-section-title mt-1 text-[var(--text)]">{resolvedHeaderTitle}</h2>
+            <p className="mt-1 text-xs font-bold text-[var(--muted)]">{t("employeePortal.chat.admin.pollNotice", { seconds: Math.round(pollMs / 1000) })}</p>
           </div>
           <button type="button" onClick={() => { void loadThreads(); if (activeThreadId) void loadThread(activeThreadId); }} className="theme-button-soft min-h-[var(--control-height-md)] px-3 text-sm">
             <RefreshCw className={`h-4 w-4 ${loadingThreads ? "animate-spin" : ""}`} />
-            تحديث
+            {t("common.refresh")}
           </button>
         </div>
-        {error ? <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-200" dir="auto">{error}</div> : null}
+        {errorMessage ? <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-200" dir="auto">{errorMessage}</div> : null}
       </div>
 
       <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "xl:grid-cols-[22rem_1fr_20rem] md:grid-cols-[20rem_1fr]" : "md:grid-cols-[22rem_1fr]"}`}>
         <aside className={`${mobileFullScreen && mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l`}>
           <label className="mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-[var(--muted)]">
             <Search className="h-4 w-4 shrink-0" />
-            <input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder="ابحث باسم الموظف أو الرسالة" className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--text)] outline-none" />
+            <input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchThreads")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--text)] outline-none" />
             {threadSearch ? <button type="button" onClick={() => setThreadSearch("")}><X className="h-4 w-4" /></button> : null}
           </label>
           {loadingThreads && !sidebarRows.length ? (
             <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]">
               <Loader2 className="h-4 w-4 animate-spin" />
-              جاري التحميل...
+              {t("common.loading")}
             </div>
           ) : sidebarRows.length ? (
             <div className="min-h-0 flex-1 overflow-y-auto p-2 md:max-h-[34rem]">
@@ -765,13 +801,13 @@ export default function SharedPortalChat({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{employee.full_name || employee.employee_name || "موظف"}</div>
+                          <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{employee.full_name || employee.employee_name || employeeFallback}</div>
                           {Number(employeeThread?.unread_count || 0) > 0 ? (
                             <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-black text-white" dir="ltr">{employeeThread.unread_count}</span>
                           ) : null}
                         </div>
-                        <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employee.branch_name || employeeThread?.branch_name || "بدون فرع"}</div>
-                        <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employeeThread ? portalChatMessagePreview(employeeThread, { image: "صورة", voice: "رسالة صوتية", file: "ملف" }) : "لا توجد رسائل بعد"}</div>
+                        <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employee.branch_name || employeeThread?.branch_name || t("employeePortal.chat.admin.noBranch")}</div>
+                        <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employeeThread ? portalChatMessagePreview(employeeThread, { image: t("employeePortal.chat.image"), voice: t("employeePortal.chat.voiceMessage"), file: t("employeePortal.chat.file") }) : t("employeePortal.chat.admin.noMessagesYet")}</div>
                         <div className="mt-2 text-[11px] font-black text-[var(--muted)]" dir="ltr">{employeeThread ? formatChatDateTime(employeeThread.last_message_created_at || employeeThread.last_message_at || employeeThread.updated_at) : "-"}</div>
                       </div>
                     </div>
@@ -782,7 +818,7 @@ export default function SharedPortalChat({
           ) : (
             <div className="p-6 text-center text-sm font-bold text-[var(--muted)]">
               <MessageCircle className="mx-auto h-8 w-8" />
-              <div className="mt-2">لا توجد محادثات حتى الآن.</div>
+              <div className="mt-2">{t("employeePortal.chat.admin.noThreads")}</div>
             </div>
           )}
         </aside>
@@ -797,12 +833,12 @@ export default function SharedPortalChat({
                       type="button"
                       onClick={() => setMobileConversationOpen(false)}
                       className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-white transition hover:bg-white/10 md:hidden"
-                      aria-label="الرجوع إلى محادثات الموظفين"
+                      aria-label={t("employeePortal.chat.admin.backToThreads")}
                     >
                       <ArrowRight className="h-6 w-6" />
                     </button>
                   ) : null}
-                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-control)] text-start hover:bg-white/5" aria-label="فتح معلومات الموظف">
+                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-control)] text-start hover:bg-white/5" aria-label={t("employeePortal.chat.admin.openEmployeeInfo")}>
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                       {selectedEmployeeRecord.photo_url ? (
                         <>
@@ -812,36 +848,36 @@ export default function SharedPortalChat({
                       ) : <UserRound className="h-4 w-4" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || "موظف"}</div>
-                      <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{activeThreadId ? "المحادثة جاهزة" : "لا توجد رسائل حتى الآن"}</div>
+                      <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || employeeFallback}</div>
+                      <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}</div>
                     </div>
                   </button>
                   <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
                     <Search className="h-4 w-4 shrink-0" />
-                    <input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="بحث" className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
+                    <input ref={messageSearchRef} value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchMessages")} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
                     {messageSearch ? <button type="button" onClick={() => setMessageSearch("")}><X className="h-3.5 w-3.5" /></button> : null}
                   </label>
                 </div>
               </div>
               <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
-                {secureNotice}
+                {resolvedSecureNotice}
               </div>
               <PortalChatMessageList
                 messages={visibleMessages}
                 loading={loadingThread}
                 labels={{
-                  today: "اليوم",
-                  loading: "جاري فتح المحادثة...",
-                  empty: "لا توجد رسائل في هذه المحادثة.",
-                  unread: "رسائل غير مقروءة",
-                  image: "صورة",
-                  voice: "رسالة صوتية",
-                  file: "ملف",
-                  reply: "رد",
+                  today: t("common.today"),
+                  loading: t("employeePortal.chat.admin.openingThread"),
+                  empty: t("employeePortal.chat.admin.threadEmpty"),
+                  unread: t("employeePortal.chat.unread"),
+                  image: t("employeePortal.chat.image"),
+                  voice: t("employeePortal.chat.voiceMessage"),
+                  file: t("employeePortal.chat.file"),
+                  reply: t("employeePortal.chat.admin.reply"),
                 }}
                 outgoingSenderType="admin"
-                outgoingLabel="الإدارة"
-                incomingLabel={selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || "الموظف"}
+                outgoingLabel={t("employeePortal.chat.admin.management")}
+                incomingLabel={selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || t("employeePortal.chat.admin.employee")}
                 timeFormatter={formatMessageTime}
                 messagesRef={messagesRef}
                 onScroll={onMessagesScroll}
@@ -874,13 +910,13 @@ export default function SharedPortalChat({
                 setEditingMessage={setEditingMessage}
                 labels={{
                   outgoingSenderType: "admin",
-                  you: "الإدارة",
-                  management: selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || "الموظف",
-                  placeholder: "اكتب رد الإدارة...",
-                  attachFile: "إرفاق ملف",
-                  removeAttachment: "حذف",
-                  recordVoice: "تسجيل صوتي",
-                  disabledNotice: "ستظهر المحادثة هنا بعد أن يرسل الموظف أول رسالة من بوابة الموظف.",
+                  you: t("employeePortal.chat.admin.management"),
+                  management: selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || t("employeePortal.chat.admin.employee"),
+                  placeholder: t("employeePortal.chat.admin.replyPlaceholder"),
+                  attachFile: t("employeePortal.chat.attachFile"),
+                  removeAttachment: t("employeePortal.chat.admin.removeAttachment"),
+                  recordVoice: t("employeePortal.chat.voiceRecording"),
+                  disabledNotice: t("employeePortal.chat.admin.disabledNotice"),
                 }}
                 fileInputRef={fileInputRef}
                 inputRef={inputRef}
@@ -900,18 +936,18 @@ export default function SharedPortalChat({
                 open={contactInfoOpen}
                 onClose={() => setContactInfoOpen(false)}
                 contact={{
-                  name: selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || "موظف",
+                  name: selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || employeeFallback,
                   phone: selectedEmployeeRecord.phone || selectedEmployeeRecord.mobile || "",
                   avatar: resolveEmployeeProfileImageUrl(selectedEmployeeRecord.photo_url || selectedEmployeeRecord.image_url || ""),
-                  about: selectedEmployeeRecord.branch_name || "موظف M1 Store",
+                  about: selectedEmployeeRecord.branch_name || t("employeePortal.chat.admin.staffAbout"),
                 }}
                 messages={messages}
-                onSearch={() => window.setTimeout(() => document.querySelector('input[placeholder="بحث"]')?.focus?.(), 30)}
+                onSearch={() => window.setTimeout(() => messageSearchRef.current?.focus?.(), 30)}
               />
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-sm font-bold text-[var(--muted)]">
-              اختر موظفًا من القائمة.
+              {t("employeePortal.chat.admin.pickEmployee")}
             </div>
           )}
         </div>
@@ -931,24 +967,24 @@ export default function SharedPortalChat({
         </div>
       ) : null}
       {forwardMessage ? (
-        <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" dir="rtl">
-          <button type="button" className="absolute inset-0" onClick={() => !forwarding && setForwardMessage(null)} aria-label="إغلاق" />
+        <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" dir={i18nInstance.dir()}>
+          <button type="button" className="absolute inset-0" onClick={() => !forwarding && setForwardMessage(null)} aria-label={t("common.close")} />
           <div className="relative flex max-h-[78dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-[#202c33] text-white shadow-2xl sm:rounded-[1.75rem]">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <div><div className="text-base font-black">إعادة توجيه إلى</div><div className="mt-0.5 text-xs text-slate-400">اختر محادثة الموظف</div></div>
+              <div><div className="text-base font-black">{t("employeePortal.chat.admin.forward.title")}</div><div className="mt-0.5 text-xs text-slate-400">{t("employeePortal.chat.admin.forward.subtitle")}</div></div>
               <button type="button" onClick={() => setForwardMessage(null)} disabled={forwarding} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
             </div>
             <label className="mx-3 mt-3 flex h-11 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-300">
-              <Search className="h-4 w-4" /><input autoFocus value={forwardSearch} onChange={(event) => setForwardSearch(event.target.value)} placeholder="ابحث عن موظف" className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none" />
+              <Search className="h-4 w-4" /><input autoFocus value={forwardSearch} onChange={(event) => setForwardSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.forward.search")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none" />
             </label>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {forwardTargets.length ? forwardTargets.map(({ employee, thread: targetThread }) => (
                 <button key={targetThread.id} type="button" disabled={forwarding} onClick={() => forwardToThread(targetThread.id)} className="mb-2 flex w-full items-center gap-3 rounded-[var(--radius-control)] bg-white/5 p-3 text-start transition hover:bg-white/10 disabled:opacity-50">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300"><UserRound className="h-5 w-5" /></span>
-                  <span className="min-w-0 flex-1"><span className="block truncate font-black" dir="auto">{employee?.full_name || employee?.employee_name || targetThread.employee_name || "موظف"}</span><span className="mt-1 block truncate text-xs text-slate-400">{employee?.branch_name || targetThread.branch_name || "بدون فرع"}</span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-black" dir="auto">{employee?.full_name || employee?.employee_name || targetThread.employee_name || employeeFallback}</span><span className="mt-1 block truncate text-xs text-slate-400">{employee?.branch_name || targetThread.branch_name || t("employeePortal.chat.admin.noBranch")}</span></span>
                   {forwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 </button>
-              )) : <div className="py-8 text-center text-sm font-bold text-slate-400">لا توجد محادثات أخرى متاحة.</div>}
+              )) : <div className="py-8 text-center text-sm font-bold text-slate-400">{t("employeePortal.chat.admin.forward.empty")}</div>}
             </div>
           </div>
         </div>
