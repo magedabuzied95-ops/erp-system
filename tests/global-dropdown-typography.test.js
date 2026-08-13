@@ -41,7 +41,6 @@ test("canonical classes cover the live custom picker owners", () => {
     "src/modules/accounting/pages/Expenses.jsx",
     "src/modules/purchases/pages/PurchaseOrder.jsx",
     "src/modules/pos/components/CartSidebar.jsx",
-    "src/shared/components/LanguageSwitcher.jsx",
   ];
   for (const owner of owners) {
     assert.match(read(owner), /m1-dropdown-(?:trigger|menu|option)/, owner);
@@ -49,6 +48,12 @@ test("canonical classes cover the live custom picker owners", () => {
   const manufacturer = read("src/modules/products/components/ManufacturerSelect.jsx");
   assert.match(manufacturer, /createM1SelectTypographyStyles/);
   assert.match(manufacturer, /classNamePrefix="m1-react-select"/);
+});
+
+test("compact language control toggles directly without opening a menu", () => {
+  const switcher = read("src/shared/components/LanguageSwitcher.jsx");
+  assert.match(switcher, /current === "ar" \? "en" : "ar"/);
+  assert.doesNotMatch(switcher, /aria-haspopup="menu"|role="menuitemradio"|createPortal/);
 });
 
 test("searchable brand picker keeps complete listbox keyboard semantics", () => {
