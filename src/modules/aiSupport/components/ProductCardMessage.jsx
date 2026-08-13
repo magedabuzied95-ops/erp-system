@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -44,11 +45,11 @@ const firstImageValue = (...values) => {
   return "";
 };
 
-const absoluteTime = (value) => {
+const absoluteTime = (value, language = "ar") => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return clean(value);
-  return date.toLocaleString("ar-EG", {
+  return date.toLocaleString(language === "ar" ? "ar-EG" : "en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -92,8 +93,7 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
     merged.label,
     inherited.product_name,
     inherited.name,
-    inherited.title,
-    "منتج"
+    inherited.title
   );
   const storefrontUrl = firstText(
     merged.storefront_url,
@@ -150,6 +150,7 @@ const cardImage = (card = {}) =>
   resolveProductImageUrl(firstImageValue(card.image_url, card.image, card.thumbnail_url, card.media_url, card.product_image_url, card.product_image, card.variant_image_url, card.variant_image, card.main_image));
 
 function ProductCardMessage({ message = {}, cards = [], compact = false }) {
+  const { t, i18n } = useTranslation();
   const items = asArray(cards).flatMap((card) => normalizeProductCard(card)).filter(Boolean);
   if (!items.length) return null;
   const deliveryStatus = clean(message.delivery_status || "");
@@ -162,14 +163,14 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
     >
       <div className={`flex flex-wrap items-center font-black uppercase text-cyan-100 ${compact ? "gap-1.5 text-[10px] tracking-[0.1em]" : "gap-2 text-[11px] tracking-[0.14em]"}`}>
         <ShoppingBag className="h-3.5 w-3.5" />
-        <span>إرسال منتج</span>
+        <span>{t("aiSupport.inbox.productCard.sentProduct")}</span>
         {deliveryStatus ? (
           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] tracking-[0.08em] text-slate-200">
             {deliveryStatus}
           </span>
         ) : null}
-        {message.created_at ? <span className="text-slate-500">{absoluteTime(message.created_at)}</span> : null}
-        {items.length > 1 ? <span className="text-slate-500">{items.length} منتجات</span> : null}
+        {message.created_at ? <span className="text-slate-500">{absoluteTime(message.created_at, i18n.resolvedLanguage)}</span> : null}
+        {items.length > 1 ? <span className="text-slate-500">{t("aiSupport.inbox.productCard.productCount", { count: items.length })}</span> : null}
       </div>
 
       <div className={`${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} grid ${items.length > 1 ? "sm:grid-cols-2" : ""}`}>
@@ -186,21 +187,21 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
               {storefrontUrl ? (
                 <a href={storefrontUrl} target="_blank" rel="noreferrer" className="block">
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className={compact ? "h-56 w-full bg-white object-contain" : "aspect-[16/10] w-full object-cover"} loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "h-56 w-full bg-white object-contain" : "aspect-[16/10] w-full object-cover"} loading="lazy" decoding="async" />
                   ) : (
                     <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "h-40" : "aspect-[16/10]"}`}>
                       <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
                     </div>
                   )}
                   <div className={compact ? "p-2.5" : "p-3"}>
-                    <div className={`truncate font-black text-white ${compact ? "text-xs" : "text-sm"}`}>{card.product_name || card.name || card.title || "منتج"}</div>
+                    <div className={`truncate font-black text-white ${compact ? "text-xs" : "text-sm"}`}>{card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")}</div>
                     {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
                     <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
-                      {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">اللون: {card.color}</span> : null}
-                      {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">المقاس: {card.size}</span> : null}
+                      {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.colorValue", { color: card.color })}</span> : null}
+                      {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.sizeValue", { size: card.size })}</span> : null}
                     </div>
                     <div className={`${compact ? "mt-2 rounded-lg px-2.5 py-1.5 text-[10px]" : "mt-3 rounded-xl px-3 py-2 text-[11px]"} inline-flex items-center gap-1.5 border border-cyan-300/20 bg-cyan-300/10 font-black text-cyan-100`}>
-                      فتح المنتج
+                      {t("aiSupport.inbox.productCard.openProduct")}
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </div>
                   </div>
@@ -208,17 +209,17 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
               ) : (
                 <div className={compact ? "p-2.5" : "p-3"}>
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className={compact ? "h-56 w-full rounded-lg bg-white object-contain" : "aspect-[16/10] w-full rounded-xl object-cover"} loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "h-56 w-full rounded-lg bg-white object-contain" : "aspect-[16/10] w-full rounded-xl object-cover"} loading="lazy" decoding="async" />
                   ) : (
                     <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "h-40 rounded-lg" : "aspect-[16/10] rounded-xl"}`}>
                       <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
                     </div>
                   )}
-                  <div className={`${compact ? "mt-2 text-xs" : "mt-3 text-sm"} truncate font-black text-white`}>{card.product_name || card.name || card.title || "منتج"}</div>
+                  <div className={`${compact ? "mt-2 text-xs" : "mt-3 text-sm"} truncate font-black text-white`}>{card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")}</div>
                   {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
-                    {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">اللون: {card.color}</span> : null}
-                    {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">المقاس: {card.size}</span> : null}
+                    {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.colorValue", { color: card.color })}</span> : null}
+                    {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.sizeValue", { size: card.size })}</span> : null}
                   </div>
                 </div>
               )}

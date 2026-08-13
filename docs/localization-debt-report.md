@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 118
-- Hardcoded Arabic UI strings: 1030
+- Files with debt: 117
+- Hardcoded Arabic UI strings: 1025
 - Hardcoded English UI strings: 807
-- Total hardcoded UI strings: 1837
+- Total hardcoded UI strings: 1832
 - Mixed-language files (both scripts hardcoded): 29
 
 ### By surface
@@ -21,7 +21,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 58 | 725 | 446 | 1171 | 18 |
-| shared | 44 | 105 | 278 | 383 | 7 |
+| shared | 43 | 100 | 278 | 378 | 7 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1447,14 +1447,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 30 [jsx-text/en] Objection:
 - 35 [jsx-text/en] Copilot
 - 47 [jsx-text/en] AI DEBUG
-
-### src/modules/aiSupport/components/ProductCardMessage.jsx (shared — ar:5 en:0)
-
-- 165 [jsx-text/ar] إرسال منتج
-- 199 [jsx-text/ar] اللون:
-- 200 [jsx-text/ar] المقاس:
-- 220 [jsx-text/ar] اللون:
-- 221 [jsx-text/ar] المقاس:
 
 ### src/modules/aiSupport/intelligence/recommendReply.ts (main-erp — ar:0 en:5)
 

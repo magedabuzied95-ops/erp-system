@@ -98,9 +98,10 @@ checkpoint deployed and verified in both AR/RTL and EN/LTR before the next owner
 | ---: | --- | --- |
 | 1 | `AiInbox.jsx` | COMPLETE (`dfccaa7`) |
 | 2 | `TranscriptMessage.jsx` | COMPLETE (`65a1c02`) |
-| 3 | `ProductCardPicker.jsx` | COMPLETE in the current checkpoint; scanner 37 → 0 |
+| 3 | `ProductCardPicker.jsx` | COMPLETE (`3cbf3ab`); scanner 37 → 0; AR/RTL + EN/LTR runtime verified |
+| 4 | `ProductCardMessage.jsx` | COMPLETE in the current checkpoint; scanner 5 → 0 |
 
-**RESUME MARKER:** owner 4 — `ProductCardMessage.jsx`. Do not restart owners 1–3.
+**RESUME MARKER:** owner 5 — `PwaOrderComposer.jsx`. Do not restart owners 1–4.
 The final zero gate still requires a deployed bidirectional runtime sweep and a
 separate multi-line JSX check, because the legacy scanner only counts same-line
 JSX text.

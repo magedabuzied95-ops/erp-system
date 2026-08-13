@@ -942,6 +942,14 @@
       "fmtLink": "Product link",
       "templateHint": "Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
     },
+    "productCard": {
+      "sentProduct": "Product sent",
+      "productCount": "{{count}} products",
+      "product": "Product",
+      "colorValue": "Colour: {{color}}",
+      "sizeValue": "Size: {{size}}",
+      "openProduct": "Open product"
+    },
     "picker": {
       "aiInbox": "AI Inbox",
       "availableBySize": "Available by size",

@@ -942,6 +942,14 @@
       "fmtLink": "لينك المنتج",
       "templateHint": "نص القالب باستخدام {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
     },
+    "productCard": {
+      "sentProduct": "إرسال منتج",
+      "productCount": "{{count}} منتجات",
+      "product": "منتج",
+      "colorValue": "اللون: {{color}}",
+      "sizeValue": "المقاس: {{size}}",
+      "openProduct": "فتح المنتج"
+    },
     "picker": {
       "aiInbox": "صندوق الذكاء",
       "availableBySize": "المتاح بالمقاس",
