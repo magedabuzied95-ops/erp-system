@@ -1449,3 +1449,153 @@ authoritative signal.
 5. **Traps recorded:** never measure intrinsic width on a detached clone; a
    single-item toggle cannot move a track sized by the max over N items; the
    shallow bounded probe overstates content because it ignores out-of-flow boxes.
+
+---
+
+## Session 9 — Internal-State Geometry sweep; DEFECT 8 (shared `.m1-control`)
+
+Started at `main` = Production = `6788e8a`. **Ten** unrelated commits landed on
+`main` from other workstreams during this session (POS M1 convergence, sidebar
+highlighting, orders workspace-switcher removal, orders action layout, returns
+colours, four AI-inbox fixes, pricing). Three touched real layout files
+(`MainLayout.jsx`, `index.css`, `theme/foundation.css`, `OrdersDashboard.jsx`).
+Each was fetched, inspected, reconciled, and cp8 re-verified intact afterwards.
+Available workspace at 1024 shifted 690 -> 691px from those shell changes;
+utilisation stayed 100 % and gutters stayed 0 / 0.
+
+### Control discovery — semantics and structure, never labels
+
+Two discovery passes, both DOM-derived:
+
+1. **ARIA semantics** — `[role="tab"]`, `[aria-expanded]`, `details > summary`.
+2. **Structural component ownership** — sibling `<button>` groups (2–8 members,
+   equal heights) where exactly **one** member is visually distinct. That is a
+   segmented/tab/pagination selector by construction.
+
+Both passes exclude anything inside a `<form>`, any `type="submit"`, and anything
+`aria-disabled`. Every control exercised is a disclosure or view selector, so no
+form was submitted, no record created/updated/deleted, and no business action
+fired. Every toggle was restored to its original state after measurement, and a
+`location.pathname` guard reverted any control that turned out to navigate.
+
+**Finding worth carrying forward:** pure-ARIA discovery under-detects badly in
+this codebase — `/inventory` exposes **zero** ARIA controls. The structural
+detector found the real ones (on `/orders`: a 4-way view selector *and* a 5-button
+pagination group). Both passes are needed.
+
+### Internal-state coverage (rung C, 1024px)
+
+| Route | States exercised | Result |
+|---|---|---|
+| `/orders` | 4 (3 view + pagination) + 1 disclosure | clean |
+| `/products` | 5 | clean |
+| `/customers` | 4 | clean |
+| `/purchases` | 4 | clean |
+| `/suppliers`, `/branches` | 1, 2 | clean |
+| `/settings/company`, `/settings/appearance` | 3 each | clean |
+| `/settings/storefront`, `/payments`, `/shipping`, `/currencies`, `/website/settings` | 1 each | **DEFECT 8** |
+| `/reports/sales`, `/reports/inventory` | base | clean |
+| `/marketing`, `/marketing/posts`, `/marketing/campaigns` | 0 discovered | clean |
+| `/warehouses`, `/stock-transfers` | 0 discovered | clean — genuine **empty states** |
+
+### DEFECT 8 — `FIXED_VERIFIED` — shared `.m1-control` had no shrink floor
+
+Every settings route using the M1UI `Field` primitive rendered a blown grid: an
+inner card sat 13–14 px outside its column. `escNotInScrollport` was 0 and
+`htmlOvf` 0, so nothing was clipped or unreachable — but the grid genuinely
+overflowed its own box.
+
+**Root owner.** `.m1-control` (`src/shared/ui/m1-ui.css`, applied by
+`M1UI.jsx:102`) declared `display:grid` with **no column template**. The single
+implicit track is therefore `auto`, whose base size is the min-content of the
+label/input/help stack, so the control could not shrink below its content and
+blew every ancestor grid with it.
+
+An iterative live experiment showed the cascade is **three deep** on
+`/settings/storefront` — fixing the page grid exposed the section grid, which
+exposed `.m1-control`. Fixing **only** `.m1-control` collapses all three:
+
+| State | blownGrids | worstBlow | escNotInScrollport | htmlOvf |
+|---|---|---|---|---|
+| as deployed | 1 | 14 px | 0 | 0 |
+| `.m1-control` floor only | **0** | **0** | 0 | 0 |
+| restored | 1 | 14 px | 0 | 0 |
+
+Reproduced independently on `/settings/shipping`. One declaration replaced what
+would otherwise have been a page grid plus seven section grids **per settings tab**.
+
+`minmax(0,1fr)` and `auto` are identical for a one-column grid whenever the
+content fits; they differ only in the minimum. No visual change where nothing
+was overflowing.
+
+**cp8** — `rollback/pre-layout-geometry-cp8-20260813` -> `0a7b175`, released
+`21e070e`. eslint 0 errors, build green, guards 122/123 with `m1ui-primitives`
+passing; the single failure (`AiStudio.jsx: h-8`) is the known pre-existing one.
+
+**Shared-owner matrix** (required, since `.m1-control` is a design-system primitive):
+
+| Rung | Available | Result |
+|---|---|---|
+| 1920 | 1570 | util 100 %, 0 escapes, 0 blown, gutters 0·0 |
+| 1440 | 1090 | 100 %, 0 / 0 |
+| 1024 | 691 | 100 %, 0 / 0 |
+| 768 | 714 | 100 %, 0 / 0 |
+
+RTL and LTR byte-identical at 1024. Dark measured and identical to Light; the
+user's `light` preference was restored.
+
+### Empty-root incident recurred — new diagnostic evidence
+
+After ~60 transitions the shell stopped mounting (`rootKids: 0`, 46 static
+elements). It persisted across a **fresh tab**, a sized viewport, hard reloads and
+cache-busting query strings. Per the permanent rule this is an automation-session
+failure and **Production was not touched or rolled back**.
+
+New evidence this session, for the workstream that owns the incident:
+
+- Console: **`Failed to load module script: … MIME type of "text/html"`** ×8.
+- **A missing asset returns HTTP 200 with `text/html`**, not 404 —
+  `/assets/does-not-exist-probe.js` -> `200 text/html`. The SPA rewrite catches
+  `/assets/*` and serves `index.html`, which is exactly what turns any missing
+  chunk into the MIME error above. This masks chunk-404s from monitoring.
+- **Production assets are intact:** the entry chunk and **all 10** of its static
+  imports fetch `200 application/javascript`. So this is *not* an asset-integrity
+  or deploy problem.
+- A service worker **is** registered (`pos-sw.js?v=10`, scope `/pos`, caches
+  `pos-shell-v10-*`). Earlier sessions recorded "service workers: none", so this
+  is new. Unregistering it and clearing its caches did **not** restore the shell,
+  so the SW is not the cause either.
+
+Hypothesis for that workstream: the 200-instead-of-404 rewrite means a client that
+requests a chunk hash removed by a newer deploy silently receives HTML. This
+session saw ~10 deploys while the tab was open.
+
+### Programme state
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | **8** (`e7b5745`, `729d979`, `6b0dff3`, `4952d47`, `8498cbb`, `04aede2`, `5d7f471`, **`21e070e`**) |
+| Shared width owners changed | 11 + `.m1-control` |
+| Defects: found / FIXED_VERIFIED / dismissed | **8 / 7 / 1** |
+| `NEEDS_FIX` / `NEEDS_FLUID_FIX` | **0 / 0** |
+| Auditor fixes to date | 10 |
+
+### RESUME MARKER (supersedes session 8)
+
+**The internal-state matrix is NOT complete.** ~21 routes were exercised; roughly
+40 operational routes still have no internal-state reading:
+`/accounting/*`, `/employees/*`, `/admin/*`, `/ai-studio/*`, `/inventory/*`,
+`/products/*`, `/notifications`, `/expenses`, `/users`, `/roles`, `/analytics`,
+`/smart-warehouse`, `/operations/shipping`, `/loyalty`, `/billing`, `/workspace`,
+`/inbox`, `/staff/tasks`, `/orders/returns`, `/pos`.
+
+1. Re-establish a browser (the empty-root condition blocked further measurement).
+   Validate against `/dashboard` before trusting any reading.
+2. Re-run the two-pass control discovery above — the code is in this session's
+   transcript. **Keep both passes**; ARIA alone finds nothing on many routes.
+3. `/orders` internal states must be **re-measured**: the workspace switcher was
+   removed by another workstream mid-session, so the 4-state reading above
+   describes states that no longer exist.
+4. Budget for deploy churn: `main` moved 10 times in one session. Re-fetch before
+   every push and re-verify shared owners after any commit touching
+   `MainLayout.jsx`, `index.css` or `theme/foundation.css`.
