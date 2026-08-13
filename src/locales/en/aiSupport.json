@@ -1003,6 +1003,25 @@
       "likeState": "Like {{state}}", "replyState": "Reply {{state}}", "on": "ON", "off": "OFF",
       "noTemplateText": "No template text yet."
     },
+    "customer360": {
+      "title": "Customer 360", "summary": "Summary", "activity": "Activity", "timeline": "Timeline", "orders": "Orders",
+      "products": "Products", "aiInsights": "AI insights", "cancelRestockConfirm": "Cancel this restock request? A future restock will not recover it.",
+      "openChat": "Open chat", "reply": "Reply", "privateReply": "Private reply", "createLead": "Create lead",
+      "createOrder": "Create order", "assignAgent": "Assign agent", "openCustomerProfile": "Open customer profile",
+      "closeDrawer": "Close customer drawer", "lifetimeSpend": "Lifetime spend:", "ordersLabel": "Orders:", "since": "Since:", "channel": "Channel:",
+      "recordedPreferences": "Automatically recorded purchase preferences", "recordedPreferencesHint": "Derived from the customer's actual purchases for targeted offers.",
+      "department": "Department", "category": "Category", "sizes": "Sizes", "aiSummary": "AI summary", "quickActions": "Quick actions",
+      "communicationActions": "Customer communication and workflow actions", "additionalActions": "Additional customer workflow actions",
+      "customerPreferences": "Customer preferences", "noActivity": "No current activity yet.", "noTimeline": "Timeline will appear when there is source data.",
+      "orderNumber": "Order #{{number}}", "noOrders": "No order history yet.", "noProducts": "No products in this section.",
+      "restockRequests": "Restock requests", "createRestockRequest": "Create availability notification request",
+      "restockHint": "Enter the exact product and variant from the conversation product card. A variant is required; no request is created without it.",
+      "productId": "Product ID", "variantId": "Variant ID", "cancel": "Cancel", "confirmCreate": "Confirm and create", "loading": "Loading...",
+      "noRestockRequests": "No restock requests for this customer.", "restockNotice": "Creating or holding a request does not notify the customer; outreach is a manual action.",
+      "customerHealth": "Customer health", "customerScore": "Customer score", "grade": "Grade {{grade}}",
+      "purchaseProbability": "Purchase probability", "confidence": "{{value}} confidence", "recommendedAction": "Recommended action",
+      "currencyValue": "{{value}} EGP", "openOrder": "Open order", "openProduct": "Open product"
+    },
     "commentTimeline": {
       "customer": "Customer", "openCustomerDetails": "Open customer details for {{name}}",
       "intent": "Intent: {{intent}}", "statusTitle": "{{label}}: {{status}}",

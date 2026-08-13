@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 110
-- Hardcoded Arabic UI strings: 940
-- Hardcoded English UI strings: 640
-- Total hardcoded UI strings: 1580
-- Mixed-language files (both scripts hardcoded): 26
+- Files with debt: 109
+- Hardcoded Arabic UI strings: 935
+- Hardcoded English UI strings: 596
+- Total hardcoded UI strings: 1531
+- Mixed-language files (both scripts hardcoded): 25
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 57 | 665 | 377 | 1042 | 17 |
-| shared | 37 | 75 | 180 | 255 | 5 |
+| shared | 36 | 70 | 136 | 206 | 4 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -33,7 +33,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
-| src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 28 | 3 | 31 |
@@ -365,50 +364,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 86 [jsx-text/ar] الطلب INV-2840
 - 86 [jsx-text/ar] تحديث مباشر
 - ... 18 more
-
-### src/modules/aiSupport/components/Customer360Drawer.jsx (shared — ar:5 en:44)
-
-- 31 [object-key/en] Summary
-- 32 [object-key/en] Activity
-- 33 [object-key/en] Timeline
-- 34 [object-key/en] Orders
-- 35 [object-key/en] Products
-- 36 [object-key/en] AI Insights
-- 189 [attribute/en] Customer 360
-- 220 [dialog/en] Cancel this restock request? A future restock will not recover it.
-- 352 [object-key/en] Open Chat
-- 353 [object-key/en] Reply
-- 354 [object-key/en] Private Reply
-- 355 [object-key/en] Create Lead
-- 358 [object-key/en] Create Order
-- 359 [object-key/en] Assign Agent
-- 360 [object-key/en] Open Customer Profile
-- 368 [attribute/en] Close customer drawer
-- 396 [jsx-text/en] Lifetime spend:
-- 397 [jsx-text/en] Orders:
-- 398 [jsx-text/en] Since:
-- 399 [jsx-text/en] Channel:
-- 445 [jsx-text/ar] مستخرجة من مشتريات العميل الفعلية لاستخدامها في العروض الموجهة.
-- 449 [jsx-text/ar] القسم
-- 457 [jsx-text/ar] التصنيف
-- 465 [jsx-text/ar] المقاسات
-- 475 [jsx-text/en] AI Summary
-- 481 [jsx-text/en] Quick Actions
-- 482 [attribute/en] Customer communication and workflow actions
-- 495 [attribute/en] Additional customer workflow actions
-- 510 [jsx-text/en] Customer Preferences
-- 541 [jsx-text/en] No current activity yet.
-- 559 [jsx-text/en] Timeline will appear when there is source data.
-- 569 [jsx-text/en] Order #
-- 581 [jsx-text/en] No order history yet.
-- 618 [jsx-text/en] No products in this section.
-- 626 [jsx-text/en] Restock Requests
-- 627 [jsx-text/ar] إنشاء طلب إبلاغ عند التوفر
-- 632 [jsx-text/en] Enter the exact product and variant from the conversation product card. A variant is required — no request is created without it.
-- 634 [attribute/en] Product ID
-- 635 [attribute/en] Variant ID
-- 638 [jsx-text/en] Cancel
-- ... 9 more
 
 ### src/modules/analytics/lib/analyticsExport.js (main-erp — ar:0 en:47)
 

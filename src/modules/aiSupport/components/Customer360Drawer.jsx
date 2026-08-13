@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -28,12 +29,12 @@ const clean = (value = "") => String(value ?? "").trim();
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
 const CUSTOMER_TABS = [
-  { key: "summary", label: "Summary" },
-  { key: "activity", label: "Activity" },
-  { key: "timeline", label: "Timeline" },
-  { key: "orders", label: "Orders" },
-  { key: "products", label: "Products" },
-  { key: "insights", label: "AI Insights" },
+  { key: "summary", labelKey: "summary" },
+  { key: "activity", labelKey: "activity" },
+  { key: "timeline", labelKey: "timeline" },
+  { key: "orders", labelKey: "orders" },
+  { key: "products", labelKey: "products" },
+  { key: "insights", labelKey: "aiInsights" },
 ];
 
 const formatDateTime = (value = "") => {
@@ -186,11 +187,12 @@ export default function Customer360Drawer({
   customerId = "",
   customerProfile = null,
   context = {},
-  title = "Customer 360",
+  title = "",
   initialTab = "summary",
   aiAnalysis = null,
   portalTarget = null,
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
@@ -217,7 +219,7 @@ export default function Customer360Drawer({
   }, [open, restockPhone]);
 
   const cancelRestockIntent = async (id) => {
-    if (!window.confirm("Cancel this restock request? A future restock will not recover it.")) return;
+    if (!window.confirm(t("aiSupport.inbox.customer360.cancelRestockConfirm"))) return;
     try { await api.post(`/ai-studio/restock-intents/${encodeURIComponent(id)}/cancel`, {}, { suppressErrorStatuses: [400, 403, 404, 500] }); await loadRestockIntents(); }
     catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to cancel"); }
   };
@@ -349,15 +351,15 @@ export default function Customer360Drawer({
   const orderPath = (order = {}) => clean(order.id || order.order_id) ? `/orders/${encodeURIComponent(clean(order.id || order.order_id))}` : "/orders";
   const productPath = (product = {}) => clean(product.id || product.product_id) ? `/products/${encodeURIComponent(clean(product.id || product.product_id))}` : "/products";
   const communicationActions = [
-    { label: "Open Chat", Icon: MessageCircle, action: () => returnToConversation("chat") },
-    { label: "Reply", Icon: MessageSquareText, action: () => returnToConversation("reply") },
-    { label: "Private Reply", Icon: Bot, action: () => returnToConversation("private_reply") },
-    { label: "Create Lead", Icon: Users2, action: () => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+    { labelKey: "openChat", Icon: MessageCircle, action: () => returnToConversation("chat") },
+    { labelKey: "reply", Icon: MessageSquareText, action: () => returnToConversation("reply") },
+    { labelKey: "privateReply", Icon: Bot, action: () => returnToConversation("private_reply") },
+    { labelKey: "createLead", Icon: Users2, action: () => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
   ];
   const workflowActions = [
-    { label: "Create Order", Icon: ShoppingBag, action: () => openSystemPath(`/create-order${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
-    { label: "Assign Agent", Icon: Handshake, action: () => openSystemPath(`/admin/ai-inbox${resolvedConversationId ? `?conversation_id=${encodeURIComponent(resolvedConversationId)}&action=assign` : ""}`) },
-    { label: "Open Customer Profile", Icon: ExternalLink, action: () => openSystemPath(`/customers${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+    { labelKey: "createOrder", Icon: ShoppingBag, action: () => openSystemPath(`/create-order${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
+    { labelKey: "assignAgent", Icon: Handshake, action: () => openSystemPath(`/admin/ai-inbox${resolvedConversationId ? `?conversation_id=${encodeURIComponent(resolvedConversationId)}&action=assign` : ""}`) },
+    { labelKey: "openCustomerProfile", Icon: ExternalLink, action: () => openSystemPath(`/customers${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
   ];
   const quickActions = [...communicationActions, ...workflowActions];
 
@@ -365,7 +367,7 @@ export default function Customer360Drawer({
 
   const content = (
     <div className="m1-customer-360 fixed inset-0 z-[80]">
-      <button type="button" aria-label="Close customer drawer" onClick={onClose} className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" />
+      <button type="button" aria-label={t("aiSupport.inbox.customer360.closeDrawer")} onClick={onClose} className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" />
       <aside className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-[#F8FAFC] shadow-[0_24px_80px_rgba(15,23,42,0.24)] sm:w-[460px] lg:w-[520px]">
         <div className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-white/95 px-4 py-4 backdrop-blur">
           <div className="flex items-start justify-between gap-3">
@@ -378,7 +380,7 @@ export default function Customer360Drawer({
                 </span>
               )}
               <div className="min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{title || t("aiSupport.inbox.customer360.title")}</div>
                 <div className="mt-1 truncate text-lg font-black text-slate-900">{profileData.name || "Customer"}</div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-600">
                   {profileData.phone ? <span>{profileData.phone}</span> : null}
@@ -393,10 +395,10 @@ export default function Customer360Drawer({
                   <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{relativeTime(profileData.last_active_at)}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                  <span><strong className="text-slate-700">Lifetime spend:</strong> {lifetimeSpend ? `${lifetimeSpend} EGP` : "—"}</span>
-                  <span><strong className="text-slate-700">Orders:</strong> {crmIntelligence?.metrics?.totalOrders ?? metrics.totalOrders ?? orders.length}</span>
-                  <span><strong className="text-slate-700">Since:</strong> {formatDateTime(profileData.customer_since)}</span>
-                  <span><strong className="text-slate-700">Channel:</strong> {sourceLabelByPlatform(profileData.platform)}</span>
+                  <span><strong className="text-slate-700">{t("aiSupport.inbox.customer360.lifetimeSpend")}</strong> {lifetimeSpend ? `${lifetimeSpend} EGP` : "—"}</span>
+                  <span><strong className="text-slate-700">{t("aiSupport.inbox.customer360.ordersLabel")}</strong> {crmIntelligence?.metrics?.totalOrders ?? metrics.totalOrders ?? orders.length}</span>
+                  <span><strong className="text-slate-700">{t("aiSupport.inbox.customer360.since")}</strong> {formatDateTime(profileData.customer_since)}</span>
+                  <span><strong className="text-slate-700">{t("aiSupport.inbox.customer360.channel")}</strong> {sourceLabelByPlatform(profileData.platform)}</span>
                 </div>
               </div>
             </div>
@@ -407,7 +409,7 @@ export default function Customer360Drawer({
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {tabs.map((tab) => (
               <TabButton key={tab.key} active={activeTab === tab.key} onClick={() => setActiveTab(tab.key)}>
-                {tab.label}
+                {t(`aiSupport.inbox.customer360.${tab.labelKey}`)}
               </TabButton>
             ))}
           </div>
@@ -440,13 +442,13 @@ export default function Customer360Drawer({
                 <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]" dir="rtl">
                   <div className="flex items-center gap-2 text-sm font-black text-slate-900">
                     <ShoppingBag className="h-4 w-4 text-emerald-600" />
-                    تفضيلات الشراء المسجلة تلقائيًا
+                    {t("aiSupport.inbox.customer360.recordedPreferences")}
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">مستخرجة من مشتريات العميل الفعلية لاستخدامها في العروض الموجهة.</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{t("aiSupport.inbox.customer360.recordedPreferencesHint")}</p>
                   <div className="mt-3 space-y-3">
                     {preferredDepartments.length ? (
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">القسم</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.customer360.department")}</div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {preferredDepartments.map((item) => <span key={item.value} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800">{item.value}{item.count ? ` · ${item.count}` : ""}</span>)}
                         </div>
@@ -454,7 +456,7 @@ export default function Customer360Drawer({
                     ) : null}
                     {preferredCategories.length ? (
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">التصنيف</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.customer360.category")}</div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {preferredCategories.map((item) => <span key={item.value} className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-800">{item.value}{item.count ? ` · ${item.count}` : ""}</span>)}
                         </div>
@@ -462,7 +464,7 @@ export default function Customer360Drawer({
                     ) : null}
                     {preferredSizes.length ? (
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">المقاسات</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.customer360.sizes")}</div>
                         <div className="mt-2 flex flex-wrap gap-2" dir="ltr">
                           {preferredSizes.map((item) => <span key={item.value} className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900">{item.value}{item.count ? ` · ${item.count}` : ""}</span>)}
                         </div>
@@ -472,42 +474,42 @@ export default function Customer360Drawer({
                 </div>
               ) : null}
               {crmIntelligence ? <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500"><Sparkles className="h-4 w-4" />AI Summary</div>
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500"><Sparkles className="h-4 w-4" />{t("aiSupport.inbox.customer360.aiSummary")}</div>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
                   {crmIntelligence.summary.map((item) => <li key={item} className="flex gap-2"><span aria-hidden="true">•</span><span>{item}</span></li>)}
                 </ul>
               </div> : null}
               <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Quick Actions</div>
-                <div className="mt-3 hidden grid-cols-2 gap-2 sm:grid" role="group" aria-label="Customer communication and workflow actions">
-                  {quickActions.map(({ label, Icon, action }) => (
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.customer360.quickActions")}</div>
+                <div className="mt-3 hidden grid-cols-2 gap-2 sm:grid" role="group" aria-label={t("aiSupport.inbox.customer360.communicationActions")}>
+                  {quickActions.map(({ labelKey, Icon, action }) => (
                     <button
-                      key={label}
+                      key={labelKey}
                       type="button"
                       onClick={action}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
                     >
                       <Icon className="h-4 w-4" />
-                      {label}
+                      {t(`aiSupport.inbox.customer360.${labelKey}`)}
                     </button>
                   ))}
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden" role="group" aria-label="Additional customer workflow actions">
-                  {workflowActions.map(({ label, Icon, action }, index) => (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden" role="group" aria-label={t("aiSupport.inbox.customer360.additionalActions")}>
+                  {workflowActions.map(({ labelKey, Icon, action }, index) => (
                     <button
-                      key={label}
+                      key={labelKey}
                       type="button"
                       onClick={action}
                       className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm ${index === workflowActions.length - 1 ? "col-span-2" : ""}`}
                     >
                       <Icon className="h-4 w-4" />
-                      {label}
+                      {t(`aiSupport.inbox.customer360.${labelKey}`)}
                     </button>
                   ))}
                 </div>
               </div>
               {crmIntelligence ? <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Customer Preferences</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.customer360.customerPreferences")}</div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {[
                     ["Preferred Categories", crmIntelligence.preferences.favoriteCategory],
@@ -538,7 +540,7 @@ export default function Customer360Drawer({
                   <div className="mt-1 text-sm font-black text-slate-900">{clean(item.label || item.title || item.source || "Latest activity")}</div>
                   <div className="mt-1 text-xs text-slate-500">{clean(item.time || item.created_at || "") ? formatDateTime(item.time || item.created_at) : "Unknown"}</div>
                 </div>
-              )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-6 text-center text-sm text-slate-500">No current activity yet.</div>}
+              )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-6 text-center text-sm text-slate-500">{t("aiSupport.inbox.customer360.noActivity")}</div>}
             </div>
           ) : null}
 
@@ -556,7 +558,7 @@ export default function Customer360Drawer({
                     </div>
                   </div>
                 </div>
-              )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-6 text-center text-sm text-slate-500">Timeline will appear when there is source data.</div>}
+              )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-6 text-center text-sm text-slate-500">{t("aiSupport.inbox.customer360.noTimeline")}</div>}
             </div>
           ) : null}
 
@@ -566,19 +568,19 @@ export default function Customer360Drawer({
                 <div key={order.id || order.order_id || index} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="text-sm font-black text-slate-900">Order #{clean(order.order_number || order.invoice_number || order.id || `#${index + 1}`)}</div>
+                      <div className="text-sm font-black text-slate-900">{t("aiSupport.inbox.customer360.orderNumber", { number: clean(order.order_number || order.invoice_number || order.id || `#${index + 1}`) })}</div>
                       <div className="mt-1 text-xs text-slate-500">{formatDateTime(order.created_at || order.order_date || "")}</div>
                     </div>
                     <span className="rounded-full border border-[#E2E8F0] bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(order.status || "Open")}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm text-slate-700">
-                    <span>{clean(order.amount || order.total_amount || order.total || "—")} EGP</span>
+                    <span>{t("aiSupport.inbox.customer360.currencyValue", { value: clean(order.amount || order.total_amount || order.total || "—") })}</span>
                     <button type="button" onClick={() => openSystemPath(orderPath(order))} className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
-                      Open Order <ArrowUpRight className="h-3.5 w-3.5" />
+                      {t("aiSupport.inbox.customer360.openOrder")} <ArrowUpRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
-              )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-6 text-center text-sm text-slate-500">No order history yet.</div>}
+              )) : <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-6 text-center text-sm text-slate-500">{t("aiSupport.inbox.customer360.noOrders")}</div>}
             </div>
           ) : null}
 
@@ -611,11 +613,11 @@ export default function Customer360Drawer({
                           <div className="mt-1 text-xs text-[var(--muted)]">{[product.department, product.category, product.color, product.size ? `Size ${product.size}` : ""].filter(Boolean).join(" · ") || "Product details unavailable"}</div>
                         </div>
                         <button type="button" onClick={() => openSystemPath(productPath(product))} className="m1-customer-product-action inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-black text-[var(--text)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
-                          Open Product <ExternalLink className="h-3.5 w-3.5" />
+                          {t("aiSupport.inbox.customer360.openProduct")} <ExternalLink className="h-3.5 w-3.5" />
                         </button>
                       </div>
                       );
-                    }) : <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">No products in this section.</div>}
+                    }) : <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">{t("aiSupport.inbox.customer360.noProducts")}</div>}
                   </div>
                 </div>
               ))}
@@ -623,28 +625,28 @@ export default function Customer360Drawer({
               {/* Phase 7.5 — Restock Requests (variant-level intents). No message is ever sent to the customer. */}
               <div className="m1-customer-products-section rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">Restock Requests</div>
-                  <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">إنشاء طلب إبلاغ عند التوفر</button>
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockRequests")}</div>
+                  <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.createRestockRequest")}</button>
                 </div>
                 {restockMsg ? <div className="mt-2 rounded-xl bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">{restockMsg}</div> : null}
                 {restockCreate.open ? (
                   <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
-                    <div className="text-xs text-[var(--muted)]">Enter the exact product and variant from the conversation product card. A variant is required — no request is created without it.</div>
+                    <div className="text-xs text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockHint")}</div>
                     <div className="flex gap-2">
-                      <input value={restockCreate.productId} onChange={(e) => setRestockCreate((s) => ({ ...s, productId: e.target.value.replace(/\D/g, "") }))} placeholder="Product ID" className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
-                      <input value={restockCreate.variantId} onChange={(e) => setRestockCreate((s) => ({ ...s, variantId: e.target.value.replace(/\D/g, "") }))} placeholder="Variant ID" className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
+                      <input value={restockCreate.productId} onChange={(e) => setRestockCreate((s) => ({ ...s, productId: e.target.value.replace(/\D/g, "") }))} placeholder={t("aiSupport.inbox.customer360.productId")} className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
+                      <input value={restockCreate.variantId} onChange={(e) => setRestockCreate((s) => ({ ...s, variantId: e.target.value.replace(/\D/g, "") }))} placeholder={t("aiSupport.inbox.customer360.variantId")} className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
                     </div>
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setRestockCreate({ open: false, productId: "", variantId: "", busy: false })} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">Cancel</button>
-                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}Confirm & create</button>
+                      <button type="button" onClick={() => setRestockCreate({ open: false, productId: "", variantId: "", busy: false })} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">{t("aiSupport.inbox.customer360.cancel")}</button>
+                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{t("aiSupport.inbox.customer360.confirmCreate")}</button>
                     </div>
                   </div>
                 ) : null}
                 <div className="mt-3 space-y-2">
                   {restockLoading ? (
-                    <div className="flex items-center gap-2 p-2 text-sm text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+                    <div className="flex items-center gap-2 p-2 text-sm text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" />{t("aiSupport.inbox.customer360.loading")}</div>
                   ) : restockIntents.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">No restock requests for this customer.</div>
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">{t("aiSupport.inbox.customer360.noRestockRequests")}</div>
                   ) : restockIntents.map((i) => (
                     <div key={i.id} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-2.5">
                       <div className="min-w-0 flex-1">
@@ -657,12 +659,12 @@ export default function Customer360Drawer({
                         </div>
                       </div>
                       {["waiting", "recovery_created"].includes(i.status) ? (
-                        <button type="button" onClick={() => cancelRestockIntent(i.id)} className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">Cancel</button>
+                        <button type="button" onClick={() => cancelRestockIntent(i.id)} className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">{t("aiSupport.inbox.customer360.cancel")}</button>
                       ) : null}
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 text-[10px] text-[var(--muted)]">Creating or holding a request does not notify the customer — outreach is a manual action.</div>
+                <div className="mt-2 text-[10px] text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockNotice")}</div>
               </div>
             </div>
           ) : null}
@@ -670,31 +672,31 @@ export default function Customer360Drawer({
           {activeTab === "insights" && crmIntelligence ? (
             <div className="space-y-3">
               <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">AI Insights</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.customer360.aiInsights")}</div>
                 <div className="mt-3 grid gap-2">
                   <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                     <div className="flex items-end justify-between gap-3">
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Customer Health</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.customer360.customerHealth")}</div>
                         <span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${crmIntelligence.health.color}`}>{crmIntelligence.health.badge}</span>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Customer Score</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.customer360.customerScore")}</div>
                         <div className="mt-1 text-lg font-black text-slate-900">{crmIntelligence.score.score} / 100</div>
-                        <div className="text-[11px] font-black text-slate-500">Grade {crmIntelligence.score.grade}</div>
+                        <div className="text-[11px] font-black text-slate-500">{t("aiSupport.inbox.customer360.grade", { grade: crmIntelligence.score.grade })}</div>
                       </div>
                     </div>
                   </div>
                   <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Purchase Probability</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.customer360.purchaseProbability")}</div>
                     <div className="mt-1 text-lg font-black text-slate-900">{crmIntelligence.purchase.probability}%</div>
-                    <div className="text-[11px] text-slate-500">{crmIntelligence.purchase.confidence} confidence</div>
+                    <div className="text-[11px] text-slate-500">{t("aiSupport.inbox.customer360.confidence", { value: crmIntelligence.purchase.confidence })}</div>
                     <ul className="mt-2 space-y-1 text-xs text-slate-700">
                       {crmIntelligence.purchase.reasons.map((reason) => <li key={reason}>✓ {reason}</li>)}
                     </ul>
                   </div>
                   <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Recommended Action</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.customer360.recommendedAction")}</div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <div className="text-sm font-black text-slate-900">{crmIntelligence.nextAction.title}</div>
                       <span className="rounded-full border border-[#E2E8F0] bg-white px-2 py-1 text-[10px] font-black uppercase text-slate-600">{crmIntelligence.nextAction.priority}</span>
@@ -711,19 +713,19 @@ export default function Customer360Drawer({
           <div className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2 sm:overflow-x-auto">
             <button type="button" onClick={() => returnToConversation("chat")} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-slate-900 px-1 text-[10px] font-black text-white sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <MessageCircle className="h-4 w-4" />
-              Open Chat
+              {t("aiSupport.inbox.customer360.openChat")}
             </button>
             <button type="button" onClick={() => returnToConversation("reply")} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E2E8F0] bg-white px-1 text-[10px] font-black text-slate-700 shadow-sm sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <MessageSquareText className="h-4 w-4" />
-              Reply
+              {t("aiSupport.inbox.customer360.reply")}
             </button>
             <button type="button" onClick={() => returnToConversation("private_reply")} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E2E8F0] bg-white px-1 text-center text-[10px] font-black leading-3 text-slate-700 shadow-sm sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <Bot className="h-4 w-4" />
-              Private Reply
+              {t("aiSupport.inbox.customer360.privateReply")}
             </button>
             <button type="button" onClick={() => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`)} className="inline-flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E2E8F0] bg-white px-1 text-center text-[10px] font-black leading-3 text-slate-700 shadow-sm sm:h-11 sm:flex-row sm:gap-2 sm:px-4 sm:text-sm">
               <Users2 className="h-4 w-4" />
-              Create Lead
+              {t("aiSupport.inbox.customer360.createLead")}
             </button>
           </div>
         </div>
