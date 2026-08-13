@@ -408,7 +408,40 @@
     "sizesColors": "المقاسات/الألوان",
     "sizesWithValue": "المقاسات: {{value}}",
     "colorsWithValue": "الألوان: {{value}}",
-    "apply": "تطبيق"
+    "apply": "تطبيق",
+    "editingInvoice": "تعديل {{invoice}}",
+    "articleCode": "أرتيكل {{code}}",
+    "matchedTo": "مطابق: {{label}}",
+    "panelClose": "إغلاق لوحة المنتج",
+    "panelCollapse": "طي لوحة المنتج",
+    "panelExpand": "توسيع لوحة المنتج",
+    "optional": "اختياري",
+    "bulkAllNotice": "سيتم تحديث جميع المنتجات في فاتورة الشراء هذه.",
+    "discountPercentLabel": "نسبة الخصم",
+    "discountAmountLabel": "قيمة الخصم",
+    "priceLabel": "السعر",
+    "modelPricing": {
+      "title": "أسعار نموذج المنتج",
+      "lead": "تحديد سعر البيع وسعر الخصم وسعر الجملة حسب المنتج أو النموذج.",
+      "note": "تطبيق الأسعار يحدّث بنود فاتورة الشراء محليًا فقط، ولا ينفّذ الاستلام.",
+      "options": "الخيارات",
+      "sellingPrice": "سعر البيع",
+      "salePrice": "سعر الخصم",
+      "wholesalePrice": "سعر الجملة",
+      "productsCount": "المنتجات:",
+      "optionsCount": "الخيارات:",
+      "doneCount": "تمت:",
+      "applyPrices": "تطبيق الأسعار",
+      "saveAndClose": "حفظ وإغلاق",
+      "closeWithoutSaving": "إغلاق دون حفظ",
+      "errors": {
+        "sellingPositive": "يجب أن يكون سعر البيع أكبر من 0.",
+        "salePositive": "يجب أن يكون سعر الخصم أكبر من 0.",
+        "wholesalePositive": "يجب أن يكون سعر الجملة أكبر من 0.",
+        "saleAboveSelling": "لا يجب أن يكون سعر الخصم أكبر من سعر البيع.",
+        "wholesaleAboveSelling": "لا يجب أن يكون سعر الجملة أكبر من سعر البيع."
+      }
+    }
   },
   "reorder": {
     "title": "اقتراحات إعادة الطلب الذكية",

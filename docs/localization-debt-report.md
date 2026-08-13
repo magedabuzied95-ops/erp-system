@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 616
 - Files with debt: 135
-- Hardcoded Arabic UI strings: 1342
-- Hardcoded English UI strings: 1149
-- Total hardcoded UI strings: 2491
+- Hardcoded Arabic UI strings: 1326
+- Hardcoded English UI strings: 1144
+- Total hardcoded UI strings: 2470
 - Mixed-language files (both scripts hardcoded): 37
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 66 | 950 | 753 | 1703 | 24 |
+| main-erp | 66 | 934 | 748 | 1682 | 24 |
 | shared | 53 | 192 | 313 | 505 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -37,11 +37,11 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
-| src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 44 | 8 | 52 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
+| src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 28 | 3 | 31 |
 | src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 15 | 12 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
@@ -509,50 +509,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 86 [jsx-text/ar] تحديث مباشر
 - ... 18 more
 
-### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:44 en:8)
-
-- 1221 [inline-ternary/ar] isArabic ? "متاح فقط" : "Available only"
-- 1225 [inline-ternary/ar] isArabic ? "المفضلة فقط" : "Favorites only"
-- 1942 [inline-ternary/ar] isArabic ? "اختر الفرع أولاً قبل حفظ فاتورة الشراء." : "Select the branch before saving the purchase invoice."
-- 1989 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع أولاً." : "Choose a payment method first."
-- 1996 [inline-ternary/ar] isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first."
-- 2014 [inline-ternary/ar] isArabic ? "إجمالي الفاتورة غير صالح." : "Invoice total is invalid."
-- 2023 [inline-ternary/ar] isArabic ? "أدخل مبلغاً مدفوعاً صحيحاً أقل من إجمالي الفاتورة." : "Enter a valid paid amount less than the invoice total
-- 2256 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
-- 2258 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
-- 2292 [jsx-text/en] Editing
-- 2351 [inline-ternary/ar] isArabic ? "إضافة مورد" : "Add supplier"
-- 2363 [inline-ternary/ar] isArabic ? "لا توجد فروع نشطة" : "No active branches"
-- 2364 [inline-ternary/ar] isArabic ? "اختر الفرع" : "Select branch"
-- 2391 [inline-ternary/ar] isArabic ? "الفلاتر" : "Filters"
-- 2447 [attribute/ar] إغلاق لوحة المنتج
-- 2463 [attribute/ar] طي لوحة المنتج
-- 2464 [attribute/ar] طي لوحة المنتج
-- 2498 [attribute/ar] إغلاق لوحة المنتج
-- 2499 [attribute/ar] إغلاق لوحة المنتج
-- 2520 [inline-ternary/ar] isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size."
-- 2521 [inline-ternary/ar] isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product tha
-- 2628 [jsx-text/en] Match:
-- 2629 [jsx-text/en] Article
-- 2681 [attribute/en] Color
-- 2962 [inline-ternary/ar] isArabic ? "طريقة الدفع والحساب" : "Payment method & account"
-- 2980 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
-- 2984 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع" : "Choose a payment method"
-- 2987 [inline-ternary/ar] isArabic ? "الحساب المالي" : "Financial account"
-- 2994 [inline-ternary/ar] isArabic ? "اختر الحساب" : "Choose an account"
-- 3006 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
-- 3007 [inline-ternary/ar] isArabic ? "الحساب" : "Account"
-- 3007 [inline-ternary/ar] isArabic ? "غير محدد" : "Not selected"
-- 3009 [inline-ternary/ar] isArabic ? "المتبقي" : "Remaining"
-- 3166 [jsx-text/en] Article
-- 3211 [object-key/ar] استخدم كميات المنتج
-- 3212 [object-key/ar] راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.
-- 3228 [object-key/en] Use Product Purchase Qty
-- 3229 [object-key/en] Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.
-- 3346 [object-key/ar] تسعير المنتجات المختارة
-- 3347 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
-- ... 12 more
-
 ### src/modules/aiSupport/components/Customer360Drawer.jsx (shared — ar:5 en:44)
 
 - 31 [object-key/en] Summary
@@ -826,6 +782,40 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2579 [attribute/en] Vodafone Cash
 - 2586 [attribute/en] InstaPay
 - 2661 [attribute/en] INV-123
+
+### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:28 en:3)
+
+- 1221 [inline-ternary/ar] isArabic ? "متاح فقط" : "Available only"
+- 1225 [inline-ternary/ar] isArabic ? "المفضلة فقط" : "Favorites only"
+- 1942 [inline-ternary/ar] isArabic ? "اختر الفرع أولاً قبل حفظ فاتورة الشراء." : "Select the branch before saving the purchase invoice."
+- 1989 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع أولاً." : "Choose a payment method first."
+- 1996 [inline-ternary/ar] isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first."
+- 2014 [inline-ternary/ar] isArabic ? "إجمالي الفاتورة غير صالح." : "Invoice total is invalid."
+- 2023 [inline-ternary/ar] isArabic ? "أدخل مبلغاً مدفوعاً صحيحاً أقل من إجمالي الفاتورة." : "Enter a valid paid amount less than the invoice total
+- 2256 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
+- 2258 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
+- 2355 [inline-ternary/ar] isArabic ? "إضافة مورد" : "Add supplier"
+- 2367 [inline-ternary/ar] isArabic ? "لا توجد فروع نشطة" : "No active branches"
+- 2368 [inline-ternary/ar] isArabic ? "اختر الفرع" : "Select branch"
+- 2395 [inline-ternary/ar] isArabic ? "الفلاتر" : "Filters"
+- 2524 [inline-ternary/ar] isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size."
+- 2525 [inline-ternary/ar] isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product tha
+- 2966 [inline-ternary/ar] isArabic ? "طريقة الدفع والحساب" : "Payment method & account"
+- 2984 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
+- 2988 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع" : "Choose a payment method"
+- 2991 [inline-ternary/ar] isArabic ? "الحساب المالي" : "Financial account"
+- 2998 [inline-ternary/ar] isArabic ? "اختر الحساب" : "Choose an account"
+- 3010 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
+- 3011 [inline-ternary/ar] isArabic ? "الحساب" : "Account"
+- 3011 [inline-ternary/ar] isArabic ? "غير محدد" : "Not selected"
+- 3013 [inline-ternary/ar] isArabic ? "المتبقي" : "Remaining"
+- 3215 [object-key/ar] استخدم كميات المنتج
+- 3216 [object-key/ar] راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.
+- 3235 [object-key/en] Use Product Purchase Qty
+- 3236 [object-key/en] Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.
+- 3353 [object-key/ar] تسعير المنتجات المختارة
+- 3354 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
+- 3372 [object-key/en] Price selected products
 
 ### src/modules/aiSupport/components/socialAutomation/PostProductLinksDrawer.jsx (shared — ar:0 en:28)
 
