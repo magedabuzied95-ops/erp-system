@@ -95,7 +95,8 @@ test("frontend lifecycle: a successful approval CONSUMES the suggestion (card re
 
 test("frontend lifecycle: text failure keeps the suggestion pending (no dismiss); card failure is surfaced", () => {
   assert.match(inboxSrc, /\/\/ Text failed or was stale \(409\) → keep the suggestion pending\/actionable[\s\S]*?if \(!result\?\.ok\) return;/);
-  assert.match(inboxSrc, /cardOk = false;[\s\S]*?كارت المنتج فشل/);
+  // Phase 13.4 — card failure is derived from the FE-sequential batch summary and surfaced honestly.
+  assert.match(inboxSrc, /cardOk = cardSummary\.failed === 0;[\s\S]*?فشل إرسال/);
 });
 
 test("backend lifecycle: the draft is cleared on send (not returned as an active suggestion afterwards)", () => {

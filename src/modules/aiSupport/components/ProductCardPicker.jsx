@@ -9,6 +9,7 @@ import { loadCustomerProductCatalog, searchCustomerProducts, PICKER_PAGE_SIZE } 
 import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
+import { MAX_BATCH_PRODUCTS, selectedCountText, manualSendButtonText, maxBatchReachedText } from "../lib/productSelection.js";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
 import { matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
@@ -407,6 +408,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState([]);
+  // Phase 13.4 — retain the canonical card payload for every selected product (keyed by id) so the manual batch
+  // selection SURVIVES search/filter/pagination (off-screen products stay selected) and submits real cards.
+  const [selectedCardsById, setSelectedCardsById] = useState({});
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const [selectedLinkSizes, setSelectedLinkSizes] = useState([]);
   const [selectedLinkGender, setSelectedLinkGender] = useState("all");
@@ -830,9 +834,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     previousOpenRef.current = open;
     if (!openedNow) return;
     setPreviewCollapsed(!desktopInboxMode);
+    // Phase 13.4 — every fresh open starts with an empty manual batch selection (so selection never leaks across
+    // conversations or picker sessions). Selection then survives search/filter WITHIN this open.
+    setSelectedProductIds([]);
+    setSelectedCardsById({});
     if (sizeMode) {
       setSelectedProductId("");
-      setSelectedProductIds([]);
       setSelectedColor("");
       setSelectedSize("");
       setSelectedSizeCards([]);
@@ -908,12 +915,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const activePrice = Number(activeCard?.price || 0);
   const selectedProducts = useMemo(() => {
     if (allowMultiple && selectedProductIds.length) {
+      // Prefer the retained card snapshot (survives search/filter); fall back to the live product if still visible.
       return selectedProductIds
-        .map((id) => visibleProducts.find((product) => String(product.product_id || product.id || "") === String(id)))
+        .map((id) => selectedCardsById[id] || visibleProducts.find((product) => String(product.product_id || product.id || "") === String(id)))
         .filter(Boolean);
     }
     return selectedProduct ? [selectedProduct] : [];
-  }, [allowMultiple, selectedProduct, selectedProductIds, visibleProducts]);
+  }, [allowMultiple, selectedCardsById, selectedProduct, selectedProductIds, visibleProducts]);
 
   useEffect(() => {
     if (!open || !sizeMode) return;
@@ -929,10 +937,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     }
   }, [availableSizes, open, selectedLinkSizes.length, sizeMode]);
 
-  useEffect(() => {
-    if (!open) return;
-    setSelectedProductIds((current) => current.filter((id) => visibleProducts.some((product) => String(product.product_id || product.id || "") === String(id))));
-  }, [open, visibleProducts]);
+  // Phase 13.4 — NOTE: no longer prune selectedProductIds to the currently-visible products. The manual batch
+  // selection must SURVIVE search/filter/pagination (a product selected under "Jordan" stays selected after
+  // searching "Adidas"); the retained card snapshots in selectedCardsById make the off-screen cards sendable.
 
   useEffect(() => {
     if (!sizeMode || !selectedSize) return;
@@ -944,14 +951,24 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSelectedProductId(productId);
     if (!allowMultiple) {
       setSelectedProductIds([]);
+      setSelectedCardsById({});
       return;
     }
-    setSelectedProductIds((current) => (
-      current.includes(productId)
-        ? current.filter((id) => id !== productId)
-        : [...current, productId]
-    ));
-  }, [allowMultiple]);
+    const already = selectedProductIds.includes(productId);
+    if (already) {
+      setSelectedProductIds((cur) => cur.filter((id) => id !== productId));
+      setSelectedCardsById((m) => { const next = { ...m }; delete next[productId]; return next; });
+      return;
+    }
+    // Phase 13.4 — hard cap: block the (MAX+1)th selection with a clear message; never silently drop it.
+    if (selectedProductIds.length >= MAX_BATCH_PRODUCTS) {
+      setError(maxBatchReachedText());
+      return;
+    }
+    const card = buildProductCardPayload(product, asArray(product.variants)[0] || null);
+    setSelectedProductIds((cur) => [...cur, productId]);
+    setSelectedCardsById((m) => ({ ...m, [productId]: card }));
+  }, [allowMultiple, selectedProductIds]);
 
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
@@ -980,17 +997,30 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const submitSelection = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
-    if (!activeCard || submitting) return;
+    // Phase 13.4 — batch send: submit the ORDERED multi-selection when present (manual multi-select), else the
+    // single active card. Nothing reached the provider before this explicit click. The parent returns per-card
+    // results; on partial failure we KEEP ONLY the failed cards selected (successful ones are removed).
+    const batch = allowMultiple && selectedProducts.length ? selectedProducts : (activeCard ? [activeCard] : []);
+    if (!batch.length || submitting) return;
     setSubmitting(true);
     setError("");
     try {
-      await onSubmit?.([activeCard]);
+      const outcome = await onSubmit?.(batch);
+      const results = outcome && Array.isArray(outcome.results) ? outcome.results : null;
+      if (allowMultiple && results) {
+        // Reconcile the selection against per-card results: keep only the products whose send failed.
+        const failedIds = new Set(
+          results.filter((r) => r && r.ok === false).map((r) => String(r.key || "").split(":")[0]).filter(Boolean)
+        );
+        setSelectedProductIds((cur) => cur.filter((id) => failedIds.has(String(id))));
+        setSelectedCardsById((m) => Object.fromEntries(Object.entries(m).filter(([id]) => failedIds.has(String(id)))));
+      }
     } catch (err) {
       setError(err?.message || "تعذر إرسال المنتج");
     } finally {
       setSubmitting(false);
     }
-  }, [activeCard, onSubmit, submitting]);
+  }, [activeCard, allowMultiple, onSubmit, selectedProducts, submitting]);
 
   const submitSelectionWithSizeMode = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
@@ -1577,6 +1607,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 </div>
 
+                {/* Phase 13.4 — manual multi-select bar: count + clear, above the explicit send action. */}
+                {allowMultiple && selectedProducts.length > 0 ? (
+                  <div className="flex items-center justify-between gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-3 py-2">
+                    <span className="text-xs font-black text-cyan-100">{selectedCountText(selectedProducts.length)}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedProductIds([]); setSelectedCardsById({}); }}
+                      className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-black text-slate-100 hover:bg-white/[0.1]"
+                    >
+                      إلغاء التحديد
+                    </button>
+                  </div>
+                ) : null}
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1587,7 +1631,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  إرسال المنتج
+                  {allowMultiple && selectedProducts.length ? manualSendButtonText(selectedProducts.length) : "إرسال المنتج"}
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}

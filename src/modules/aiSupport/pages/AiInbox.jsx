@@ -70,6 +70,11 @@ import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
+import {
+  MAX_BATCH_PRODUCTS, productSelectionKey, toggleProductSelection,
+  summarizeSendResults, selectedCountText, assistedSendButtonText,
+  maxBatchReachedText, sendOutcomeText,
+} from "../lib/productSelection.js";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
@@ -2806,9 +2811,12 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
-function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, onRemove, onChange, onChoose }) {
+function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, recommendationMode = false, recommendationSelectedKeys = null, onToggleRecommendation, onRemove, onChange, onChoose }) {
   const hasCard = Boolean(card && (card.product_id || card.id));
-  const showChoices = ambiguous && !hasCard && !removed && Array.isArray(choices) && choices.length > 0;
+  // Phase 13.4 — RECOMMENDATION multi-select: the operator ticks the grounded products to send with the reply.
+  // Distinct from single-select identity disambiguation (below) which resolves ONE product.
+  const showRecommendation = recommendationMode && !removed && Array.isArray(choices) && choices.length > 0;
+  const showChoices = !recommendationMode && ambiguous && !hasCard && !removed && Array.isArray(choices) && choices.length > 0;
   // Phase 12.2 — requested size available in >1 colour, none picked yet → require a colour before a card is definitive.
   const showColorChoices = colorRequired && !hasCard && !removed && Array.isArray(colorChoices) && colorChoices.length > 0;
   if (removed) {
@@ -2830,6 +2838,41 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
               {clean(c.color) || "لون"}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
             </button>
           ))}
+        </div>
+      </div>
+    );
+  }
+  if (showRecommendation) {
+    const selKeys = recommendationSelectedKeys instanceof Set ? recommendationSelectedKeys : new Set();
+    const selectedCount = selKeys.size;
+    return (
+      <div className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-400/[0.08] p-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">اختار المنتجات اللي هتتبعت</div>
+          {selectedCount > 0 ? <span className="rounded-lg border border-cyan-300/25 bg-cyan-400/15 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">{selectedCountText(selectedCount)}</span> : null}
+        </div>
+        <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {choices.map((c) => {
+            const key = productSelectionKey(c);
+            const picked = selKeys.has(key);
+            const name = clean(c.name || c.product_name);
+            const img = c.image_url || c.image || c.thumbnail_url || "";
+            const price = c.display_price ?? c.price ?? null;
+            const url = c.storefront_url || c.product_url || c.url || "";
+            return (
+              <div key={c.product_id || c.id} className={`flex items-start gap-2 rounded-lg border p-1.5 transition ${picked ? "border-cyan-300/50 bg-cyan-400/15" : "border-white/12 bg-white/[0.04]"}`}>
+                <button type="button" onClick={() => onToggleRecommendation?.(c)} aria-pressed={picked} className="flex min-w-0 flex-1 items-start gap-2 text-right">
+                  <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border text-[9px] font-black ${picked ? "border-cyan-300 bg-cyan-400 text-slate-900" : "border-white/25 text-transparent"}`}>✓</span>
+                  {img ? <img src={img} alt={name} className="h-9 w-9 shrink-0 rounded border border-white/10 object-cover" /> : null}
+                  <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
+                    <span className="block truncate font-black">{name}</span>
+                    {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
+                  </span>
+                </button>
+                {url ? <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-[9px] font-black text-cyan-200 underline">فتح المنتج ↗</a> : null}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -2899,6 +2942,9 @@ function AiSuggestionCard({
   deliveryFormat = "",
   channelName = "",
   instagramDelivery = false,
+  recommendationMode = false,
+  recommendationSelectedKeys = null,
+  onToggleRecommendation,
   onRemoveProduct,
   onChangeProduct,
   onChooseProduct,
@@ -2910,6 +2956,8 @@ function AiSuggestionCard({
   if (!value) return null;
   // The text that Approve & Send will actually send: the inline edit while editing, else the AI suggestion.
   const finalText = editing ? editText : value;
+  // Phase 13.4 — recommendation batch count drives the Approve button label ("اعتماد وإرسال (N منتجات)").
+  const recommendationCount = recommendationMode && recommendationSelectedKeys instanceof Set ? recommendationSelectedKeys.size : 0;
 
   return (
     <div className={`mb-2 rounded-2xl border p-2.5 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
@@ -2953,6 +3001,9 @@ function AiSuggestionCard({
         removed={productRemoved}
         deliveryFormat={deliveryFormat}
         instagramDelivery={instagramDelivery}
+        recommendationMode={recommendationMode}
+        recommendationSelectedKeys={recommendationSelectedKeys}
+        onToggleRecommendation={onToggleRecommendation}
         onRemove={onRemoveProduct}
         onChange={onChangeProduct}
         onChoose={onChooseProduct}
@@ -2970,7 +3021,7 @@ function AiSuggestionCard({
           onClick={onApprove}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15"
         >
-          ✅ اعتماد وإرسال
+          ✅ {recommendationMode && recommendationCount > 0 ? assistedSendButtonText(recommendationCount) : "اعتماد وإرسال"}
         </button>
         <button
           type="button"
@@ -3009,6 +3060,9 @@ function ManualReplyComposer({
   aiSuggestionColorRequired = false,
   aiSuggestionProductRemoved = false,
   aiSuggestionDeliveryFormat = "",
+  aiSuggestionRecommendationMode = false,
+  aiSuggestionRecommendationSelectedKeys = null,
+  onToggleSuggestionRecommendation,
   aiSuggestionEditText = "",
   onAiSuggestionEditTextChange,
   onCancelEditAiSuggestion,
@@ -3074,6 +3128,9 @@ function ManualReplyComposer({
           deliveryFormat={aiSuggestionDeliveryFormat}
           channelName={channelLabel(conversation?.channel || conversation?.source)}
           instagramDelivery={String(conversation?.channel || conversation?.source || "").toLowerCase().includes("instagram")}
+          recommendationMode={aiSuggestionRecommendationMode}
+          recommendationSelectedKeys={aiSuggestionRecommendationSelectedKeys}
+          onToggleRecommendation={onToggleSuggestionRecommendation}
           onRemoveProduct={onRemoveSuggestionProduct}
           onChangeProduct={onChangeSuggestionProduct}
           onChooseProduct={onChooseSuggestionProduct}
@@ -4652,6 +4709,11 @@ export default function AiInbox() {
   // Phase 11.2 — employee control over the grounded product attachment on the suggestion.
   const [suggestionProductRemoved, setSuggestionProductRemoved] = useState(false);
   const [suggestionChosenCard, setSuggestionChosenCard] = useState(null);
+  // Phase 13.4 — RECOMMENDATION multi-select. When the grounded suggestion is a recommendation batch
+  // (send_package.selection_semantics === "recommendation") the operator may pick up to MAX_BATCH_PRODUCTS
+  // grounded products to send together with the approved reply. Ordered, canonical-identity keyed, and scoped to
+  // the current draft (reset by the activeAiSuggestionKey effect). Identity disambiguation stays single-select.
+  const [suggestionRecommendationCards, setSuggestionRecommendationCards] = useState([]);
   // Phase 11.2 — inline edit buffer for the AI suggestion (separate from the manual composer).
   const [aiSuggestionEditText, setAiSuggestionEditText] = useState("");
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
@@ -6151,6 +6213,12 @@ export default function AiInbox() {
   }, [activeAiReplyDraft]);
   const suggestionSendPackage = activeAiReplyDraft?.metadata?.send_package || null;
   const effectiveSuggestionCard = suggestionProductRemoved ? null : (suggestionChosenCard || suggestionDraftCard);
+  // Phase 13.4 — recommendation (multi-select) vs identity-disambiguation (single-select). The mode comes from the
+  // grounded send_package, never inferred from the number of cards. Recommendation lets the operator pick several
+  // grounded products to send with the approved reply; disambiguation resolves ONE product identity.
+  const suggestionSelectionSemantics = suggestionSendPackage?.selection_semantics || null;
+  const isRecommendationSuggestion = suggestionSelectionSemantics === "recommendation";
+  const suggestionRecommendationKeys = useMemo(() => new Set(suggestionRecommendationCards.map(productSelectionKey)), [suggestionRecommendationCards]);
   const suggestionDeliveryFormat = useMemo(() => {
     const ch = String(selectedConversation?.channel || selectedConversation?.source || "").toLowerCase();
     if (ch.includes("messenger") || ch === "facebook") return { label: "كارت منتج (Messenger)", kind: "rich_card" };
@@ -6162,6 +6230,7 @@ export default function AiInbox() {
   useEffect(() => {
     setSuggestionProductRemoved(false);
     setSuggestionChosenCard(null);
+    setSuggestionRecommendationCards([]);
     setEditingAiDraft(false);
     setAiSuggestionEditText("");
   }, [activeAiSuggestionKey]);
@@ -6326,11 +6395,14 @@ export default function AiInbox() {
   }, []);
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
   const openProductCardPicker = useCallback((options = {}) => {
+    const selectMode = Boolean(options.selectMode);
     setProductCardPickerConfig({
       open: true,
       sizeMode: Boolean(options.sizeMode),
-      allowMultiple: Boolean(options.allowMultiple),
-      selectMode: Boolean(options.selectMode),
+      // Phase 13.4 — the manual "إرسال منتج" picker is multi-select by default (batch up to MAX_BATCH_PRODUCTS).
+      // selectMode (AI single-product identity disambiguation "Change product") stays SINGLE-select.
+      allowMultiple: options.allowMultiple !== undefined ? Boolean(options.allowMultiple) : !selectMode,
+      selectMode,
     });
   }, []);
   const closeProductCardPicker = useCallback(() => {
@@ -7126,17 +7198,25 @@ export default function AiInbox() {
   // over the current sendProductCards, which is defined later in this component.
   const handleApproveAiSuggestion = async () => {
     if (!activeAiSuggestionText) return;
-    if (suggestionSendPackage?.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved) {
+    // Phase 13.4 — IDENTITY DISAMBIGUATION stays single-select: an ambiguous match still requires picking exactly
+    // one product (or removing it). RECOMMENDATION mode skips this — the operator may send several (or none).
+    if (!isRecommendationSuggestion && suggestionSendPackage?.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved) {
       setToast({ tone: "amber", text: "فيه أكتر من منتج مطابق — اختر المنتج المطلوب أو احذفه قبل الإرسال" });
       return;
     }
     // Phase 12.2 — the requested size is available in multiple colours: require a colour pick before sending.
-    if (suggestionSendPackage?.color_choice_required && !suggestionChosenCard && !suggestionProductRemoved) {
+    if (!isRecommendationSuggestion && suggestionSendPackage?.color_choice_required && !suggestionChosenCard && !suggestionProductRemoved) {
       setToast({ tone: "amber", text: "المقاس متاح بأكتر من لون — اختار اللون المطلوب قبل الإرسال" });
       return;
     }
+    // Phase 13.4 — the set of grounded products to send with the reply. Recommendation batch → the ordered
+    // multi-selection; otherwise → the single (kept/chosen) card. Both go through the same FE-sequential sender.
     const card = effectiveSuggestionCard;
-    const disposition = suggestionProductRemoved ? "removed" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none"));
+    const recommendationCards = isRecommendationSuggestion ? suggestionRecommendationCards : [];
+    const cardsToSend = recommendationCards.length ? recommendationCards : (card ? [card] : []);
+    const disposition = suggestionProductRemoved
+      ? "removed"
+      : (recommendationCards.length ? "recommendation_batch" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none")));
     // Send the INLINE-edited text when the employee edited the suggestion; otherwise the unchanged suggestion.
     const textToSend = editingAiDraft && clean(aiSuggestionEditText) ? clean(aiSuggestionEditText) : activeAiSuggestionText;
     const result = await sendCurrentReply(textToSend, {
@@ -7147,19 +7227,27 @@ export default function AiInbox() {
         source: "ai_suggestion_approved",
         approved_ai_reply: true,
         product_disposition: disposition,
-        product_id: card?.product_id || card?.id || null,
-        variant_id: card?.variant_id || null,
+        product_id: cardsToSend[0]?.product_id || cardsToSend[0]?.id || null,
+        variant_id: cardsToSend[0]?.variant_id || null,
+        product_count: cardsToSend.length,
       },
     });
-    // Text failed or was stale (409) → keep the suggestion pending/actionable (do NOT clear the card).
+    // Text failed or was stale (409) → keep the suggestion pending/actionable (do NOT clear the card/selection).
     if (!result?.ok) return;
+    // Text succeeded. Send the selected products FE-sequentially (each its own request → honest per-card result).
     let cardOk = true;
-    if (card) {
-      try {
-        await sendProductCards([card], { assistedApproval: true });
-      } catch {
-        cardOk = false;
-        setToast({ tone: "amber", text: "الرد اتبعت، لكن كارت المنتج فشل — ابعته من زرار المنتج" });
+    let cardSummary = { total: 0, sent: 0, failed: 0 };
+    if (cardsToSend.length) {
+      const res = await sendProductCards(cardsToSend, { assistedApproval: true, suppressToast: true });
+      cardSummary = res?.summary || cardSummary;
+      cardOk = cardSummary.failed === 0;
+      if (!cardOk) {
+        // Phase 13.4/§22 — text is COMPLETED and the products that sent are completed; only the failed products
+        // are surfaced honestly. The suggestion is still consumed (never falsely restored as unsent).
+        const failed = cardSummary.total - cardSummary.sent;
+        setToast({ tone: "amber", text: cardSummary.sent > 0
+          ? `الرد اتبعت و${cardSummary.sent} منتج — فشل إرسال ${failed === 1 ? "منتج واحد" : `${failed} منتجات`}، ابعتهم من زرار المنتج`
+          : "الرد اتبعت، لكن إرسال المنتجات فشل — ابعتهم من زرار المنتج" });
       }
     }
     // Phase 11.2 lifecycle — a successful assisted approval CONSUMES the suggestion: remove the actionable card
@@ -7170,6 +7258,7 @@ export default function AiInbox() {
     setAiSuggestionEditText("");
     setSuggestionProductRemoved(false);
     setSuggestionChosenCard(null);
+    setSuggestionRecommendationCards([]);
     // Phase 13 — a completed assisted approval CONSUMES the draft. Optimistically clear the AUTHORITATIVE draft in
     // conversation state to match the backend (which cleared it to {}), so activeAiReplyDraft becomes empty at once
     // and EVERY derived surface (reply card, validation, confidence, grounding facts, product/colour choices,
@@ -7177,7 +7266,12 @@ export default function AiInbox() {
     // completed suggestion. Only reached after result.ok (a stale/failed TEXT send returns above and stays actionable).
     const completedTombstone = { status: "sent", text: "", source_message_id: suggestionSourceId || null, metadata: { source_message_id: suggestionSourceId || null }, updated_at: new Date().toISOString() };
     patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conv) => ({ ...conv, ai_reply_draft: completedTombstone, last_ai_reply_draft: completedTombstone, last_ai_reply_draft_updated_at: completedTombstone.updated_at }));
-    if (cardOk) setToast({ tone: "emerald", text: card ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI" });
+    if (cardOk) {
+      const n = cardSummary.sent || cardsToSend.length;
+      setToast({ tone: "emerald", text: n > 1
+        ? `✓ تم اعتماد وإرسال اقتراح AI مع ${n} منتجات`
+        : (n === 1 ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI") });
+    }
   };
 
   const handleDismissAiSuggestion = useCallback(() => {
@@ -7189,6 +7283,16 @@ export default function AiInbox() {
   const handleRemoveSuggestionProduct = useCallback(() => { setSuggestionProductRemoved(true); setSuggestionChosenCard(null); }, []);
   const handleChangeSuggestionProduct = useCallback(() => { openProductCardPicker({ selectMode: true }); }, [openProductCardPicker]);
   const handleChooseSuggestionProduct = useCallback((choice) => { if (choice) { setSuggestionChosenCard(choice); setSuggestionProductRemoved(false); } }, []);
+  // Phase 13.4 — toggle a grounded product in the RECOMMENDATION batch (multi-select, ordered, max 5). Blocking
+  // the 6th selection surfaces the limit — never a silent drop.
+  const handleToggleRecommendationCard = useCallback((choice) => {
+    if (!choice) return;
+    setSuggestionRecommendationCards((current) => {
+      const { list, blocked } = toggleProductSelection(current, choice, { max: MAX_BATCH_PRODUCTS });
+      if (blocked) setToast({ tone: "amber", text: maxBatchReachedText() });
+      return list;
+    });
+  }, []);
 
   const createLeadCustomer = async () => {
     if (!selectedConversation?.session_id) return;
@@ -7347,149 +7451,91 @@ export default function AiInbox() {
       }))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
     const conversationId = clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || "");
-    if (!conversationId || !cards.length) return;
+    if (!conversationId || !cards.length) return { ok: false, results: [], summary: { total: 0, sent: 0, failed: 0 } };
 
-    const now = new Date().toISOString();
     const previewText = productCardPreviewText(cards) || "إرسال منتج";
-    const clientRequestId = buildClientRequestId();
-    console.info("[selected-conversation-product-send]", {
-      route_id: selectedConversationRouteId || conversationId,
-      channel: selectedConversation?.channel,
-      external_customer_id: selectedConversation?.external_customer_id,
-      name: selectedConversation?.customer_name,
-    });
-    const messageIdentityKey = buildMessageIdentityKey({
-      tenantId,
-      sessionId: conversationId,
-      direction: "outbound",
-      clientRequestId,
-    });
 
-    console.info("[product-card-send]", {
-      conversationId,
-      conversation: selectedConversation,
-    });
-
-    // Atomic in-flight guard — see sendManualReply. Prevents a rapid
-    // double-click from sending the same product cards twice.
-    if (sendingProductCardsRef.current) return;
+    // Atomic in-flight guard — see sendManualReply. Prevents a rapid double-click from sending the batch twice.
+    if (sendingProductCardsRef.current) return { ok: false, results: [], summary: { total: 0, sent: 0, failed: 0 }, busy: true };
     sendingProductCardsRef.current = true;
     setProductCardSending(true);
     setError("");
+
+    // Phase 13.4 — FE-SEQUENTIAL per-card send. Each selected card is delivered as its own
+    // /product-card/send request (its own client_request_id / message_identity_key), reusing the already-live
+    // single-card route path. This yields HONEST per-card partial failure and preserves operator selection order
+    // with ZERO change to the live provider send loop. Nothing reached the provider before this explicit call.
+    const results = [];
+    let needsRefresh = false;
     try {
-      const payload = await api.post(
-        aiInboxConversationEndpoint(conversationId, "/product-card/send"),
-        {
-          tenant_id: tenantId,
-          product_cards: cards,
-          client_request_id: clientRequestId,
-          message_identity_key: messageIdentityKey,
-          assisted_approval: options.assistedApproval === true,
-        },
-        { headers, perfComponent: "AiInbox.sendProductCards" }
-      );
-
-      const returnedMessage = payload?.message || null;
-      if (returnedMessage) {
-        const returnedCards = normalizeProductCardsValue(returnedMessage.product_cards || returnedMessage.productCards || cards);
-        const normalizedCards = returnedCards.length
-          ? returnedCards.map((card, index) => {
-              const fallbackCard = cards[index] || cards[0] || {};
-              const exactUrl = clean(
-                card.storefront_url ||
-                  card.product_url ||
-                  card.url ||
-                  card.share_url ||
-                  card.shareUrl ||
-                  fallbackCard.storefront_url ||
-                  fallbackCard.product_url ||
-                  fallbackCard.url ||
-                  fallbackCard.share_url ||
-                  ""
-              );
-              const fallbackImage = clean(
-                fallbackCard.image_url ||
-                  fallbackCard.product_image_url ||
-                  fallbackCard.variant_image_url ||
-                  fallbackCard.image ||
-                  fallbackCard.thumbnail_url ||
-                  fallbackCard.media_url ||
-                  ""
-              );
-              const imageUrl = clean(
-                card.image_url ||
-                  card.product_image_url ||
-                  card.variant_image_url ||
-                  card.image ||
-                  card.thumbnail_url ||
-                  card.media_url ||
-                  fallbackImage
-              );
-              const productName = clean(
-                card.product_name ||
-                  card.name ||
-                  card.title ||
-                  card.display_name ||
-                  card.label ||
-                  fallbackCard.product_name ||
-                  fallbackCard.name ||
-                  fallbackCard.title ||
-                  ""
-              );
-              return {
-                ...fallbackCard,
-                ...card,
-                product_name: productName,
-                name: productName,
-                title: productName,
-                display_name: productName,
-                label: productName,
-                image_url: imageUrl,
-                product_image_url: clean(card.product_image_url || fallbackCard.product_image_url || ""),
-                variant_image_url: clean(card.variant_image_url || fallbackCard.variant_image_url || ""),
-                image: imageUrl,
-                thumbnail_url: imageUrl,
-                media_url: clean(card.media_url || card.mediaUrl || fallbackCard.media_url || fallbackCard.mediaUrl || ""),
-                storefront_url: exactUrl,
-                product_url: exactUrl,
-                url: exactUrl,
-                share_url: clean(card.share_url || card.shareUrl || fallbackCard.share_url || fallbackCard.shareUrl || ""),
-              };
-            })
-          : cards;
-        patchConversation(conversationId, (conversation) => ({
-          ...conversation,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages), { ...returnedMessage, client_request_id: returnedMessage.client_request_id || clientRequestId, message_identity_key: returnedMessage.message_identity_key || messageIdentityKey, product_cards: normalizedCards }]),
-          latest_message_preview:
-            returnedMessage.message_text ||
-            returnedMessage.staff_message ||
-            returnedMessage.customer_message ||
-            productCardPreviewText(normalizedCards) ||
-            previewText,
-          last_activity_at: returnedMessage.created_at || now,
-          updated_at: returnedMessage.created_at || now,
-        }));
-      } else {
-        patchConversation(conversationId, (conversation) => ({
-          ...conversation,
-          latest_message_preview: previewText,
-          last_activity_at: now,
-          updated_at: now,
-        }));
-        await loadAll({ silent: true });
+      for (const card of cards) {
+        const key = productSelectionKey(card);
+        const cardRequestId = buildClientRequestId();
+        const cardIdentityKey = buildMessageIdentityKey({ tenantId, sessionId: conversationId, direction: "outbound", clientRequestId: cardRequestId });
+        const cardPreview = productCardPreviewText([card]) || previewText;
+        const cardNow = new Date().toISOString();
+        try {
+          const payload = await api.post(
+            aiInboxConversationEndpoint(conversationId, "/product-card/send"),
+            {
+              tenant_id: tenantId,
+              product_cards: [card],
+              client_request_id: cardRequestId,
+              message_identity_key: cardIdentityKey,
+              assisted_approval: options.assistedApproval === true,
+            },
+            { headers, perfComponent: "AiInbox.sendProductCards" }
+          );
+          const returnedMessage = payload?.message || null;
+          if (returnedMessage) {
+            const returnedCards = normalizeProductCardsValue(returnedMessage.product_cards || returnedMessage.productCards || [card]);
+            const normalizedCards = returnedCards.length
+              ? returnedCards.map((rc) => {
+                  const exactUrl = clean(rc.storefront_url || rc.product_url || rc.url || rc.share_url || rc.shareUrl || card.storefront_url || card.product_url || card.url || card.share_url || "");
+                  const imageUrl = clean(rc.image_url || rc.product_image_url || rc.variant_image_url || rc.image || rc.thumbnail_url || rc.media_url || card.image_url || card.image || "");
+                  const productName = clean(rc.product_name || rc.name || rc.title || rc.display_name || rc.label || card.product_name || card.name || card.title || "");
+                  return {
+                    ...card, ...rc,
+                    product_name: productName, name: productName, title: productName, display_name: productName, label: productName,
+                    image_url: imageUrl, product_image_url: clean(rc.product_image_url || card.product_image_url || ""), variant_image_url: clean(rc.variant_image_url || card.variant_image_url || ""),
+                    image: imageUrl, thumbnail_url: imageUrl,
+                    media_url: clean(rc.media_url || rc.mediaUrl || card.media_url || card.mediaUrl || ""),
+                    storefront_url: exactUrl, product_url: exactUrl, url: exactUrl,
+                    share_url: clean(rc.share_url || rc.shareUrl || card.share_url || card.shareUrl || ""),
+                  };
+                })
+              : [card];
+            patchConversation(conversationId, (conversation) => ({
+              ...conversation,
+              messages: mergeMessagesByIdentity([...asArray(conversation.messages), { ...returnedMessage, client_request_id: returnedMessage.client_request_id || cardRequestId, message_identity_key: returnedMessage.message_identity_key || cardIdentityKey, product_cards: normalizedCards }]),
+              latest_message_preview: returnedMessage.message_text || returnedMessage.staff_message || returnedMessage.customer_message || productCardPreviewText(normalizedCards) || cardPreview,
+              last_activity_at: returnedMessage.created_at || cardNow,
+              updated_at: returnedMessage.created_at || cardNow,
+            }));
+          } else {
+            needsRefresh = true;
+            patchConversation(conversationId, (conversation) => ({ ...conversation, latest_message_preview: cardPreview, last_activity_at: cardNow, updated_at: cardNow }));
+          }
+          results.push({ key, ok: true });
+        } catch (err) {
+          results.push({ key, ok: false, error: err?.message || "تعذر إرسال المنتج" });
+        }
       }
-
-      setToast({ tone: "emerald", text: "تم إرسال المنتج" });
-      closeProductCardPicker();
-    } catch (err) {
-      setToast({ tone: "rose", text: err?.message || "تعذر إرسال المنتج" });
-      setError(err?.message || "تعذر إرسال المنتج");
-      throw err;
     } finally {
       sendingProductCardsRef.current = false;
       setProductCardSending(false);
     }
-  }, [headers, loadAll, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
+
+    if (needsRefresh) { try { await loadAll({ silent: true }); } catch { /* non-fatal */ } }
+    const summary = summarizeSendResults(results);
+    const allOk = summary.failed === 0 && summary.sent > 0;
+    if (summary.sent === 0) setError(results.find((r) => r.error)?.error || "تعذر إرسال المنتج");
+    if (!options.suppressToast) {
+      setToast({ tone: allOk ? "emerald" : summary.sent > 0 ? "amber" : "rose", text: sendOutcomeText(summary) });
+      if (allOk) closeProductCardPicker();
+    }
+    return { ok: allOk, results, summary };
+  }, [closeProductCardPicker, headers, loadAll, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, selectedConversationRouteId, tenantId]);
 
   const sendAvailableBySizeLink = useCallback(
     async ({ message = "" } = {}) => {
@@ -8612,6 +8658,9 @@ export default function AiInbox() {
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
                         aiSuggestionColorChoices={suggestionSendPackage?.color_choices || []}
                         aiSuggestionColorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
+                        aiSuggestionRecommendationMode={isRecommendationSuggestion}
+                        aiSuggestionRecommendationSelectedKeys={suggestionRecommendationKeys}
+                        onToggleSuggestionRecommendation={handleToggleRecommendationCard}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
                         aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
                         aiSuggestionEditText={aiSuggestionEditText}
@@ -9470,6 +9519,9 @@ export default function AiInbox() {
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
                         aiSuggestionColorChoices={suggestionSendPackage?.color_choices || []}
                         aiSuggestionColorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
+                        aiSuggestionRecommendationMode={isRecommendationSuggestion}
+                        aiSuggestionRecommendationSelectedKeys={suggestionRecommendationKeys}
+                        onToggleSuggestionRecommendation={handleToggleRecommendationCard}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
                         aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
                         aiSuggestionEditText={aiSuggestionEditText}
