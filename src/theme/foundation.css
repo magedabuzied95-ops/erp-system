@@ -32,6 +32,9 @@
   }
 
   html[dir="rtl"], html[data-language="ar"] { --app-font: var(--font-ar); }
+  /* --font-en is deliberately bilingual: Inter owns Latin glyphs and Cairo
+     owns Arabic glyphs, so changing the shell language never restyles Arabic
+     customer content. */
   html[dir="ltr"], html[data-language="en"] { --app-font: var(--font-en); }
 
   /* GLOBAL_DROPDOWN_TYPOGRAPHY

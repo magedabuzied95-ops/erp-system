@@ -39,7 +39,10 @@ const shared = {
   "space-6": "24px",
   "space-8": "32px",
   "font-ar": '"Cairo", "Tajawal", "Noto Sans Arabic", sans-serif',
-  "font-en": '"Inter", "Segoe UI", sans-serif',
+  // Keep Inter for Latin glyphs while rendering Arabic content with the same
+  // Cairo face used by the Arabic UI. This prevents customer messages and
+  // names from changing typeface when the application language is English.
+  "font-en": '"Inter", "Cairo", "Tajawal", "Noto Sans Arabic", "Segoe UI", sans-serif',
   // Typography scale. Derived from what the product already uses rather than
   // invented: 11px and 10px account for two thirds of every sized string in the
   // repo, with 13px body and 15px section titles behind them. Seven steps, no

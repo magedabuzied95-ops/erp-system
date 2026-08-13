@@ -229,7 +229,7 @@ const resources = buildResources({
 const resolveFontFamily = (language) =>
   normalizeLanguage(language) === "ar"
     ? '"Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif'
-    : '"Inter", "Segoe UI", sans-serif';
+    : '"Inter", "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif';
 
 export const applyDocumentLanguage = (language) => {
   if (typeof document === "undefined") return;
