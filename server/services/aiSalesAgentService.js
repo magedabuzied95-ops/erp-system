@@ -5749,7 +5749,9 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
         const colorChoices = Array.isArray(groundingResult.color_choices) ? groundingResult.color_choices : [];
         const enrichedColorChoices = [];
         for (const cc of colorChoices.slice(0, 8)) {
-          const ec = await enrichGroundedSendReadyCard({ tenantId, identity: { product_id: cc.product_id, id: cc.product_id, variant_id: cc.variant_id, size: cc.size || null, color: cc.color || null, grounded: true } });
+          // Phase 13.4.1 — carry the DISPLAY size (canonical resolver output, e.g. EU 43) so every selectable colour
+          // shows/sends the size the customer actually asked for, never the raw internal variant size.
+          const ec = await enrichGroundedSendReadyCard({ tenantId, identity: { product_id: cc.product_id, id: cc.product_id, variant_id: cc.variant_id, size: cc.displaySize || cc.size || null, color: cc.color || null, grounded: true } });
           if (ec) enrichedColorChoices.push({ ...ec, stock: cc.stock });
         }
         reply.send_package = {

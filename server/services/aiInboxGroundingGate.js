@@ -682,9 +682,16 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       product_ambiguous: productAmbiguous,
       // Phase 13.4 — selection semantics for the ambiguous card set. "recommendation" ⇒ operator may multi-select
       // and send several; "identity_disambiguation" ⇒ pick exactly one (safe default); null when not ambiguous.
+      // Phase 13.4.1 — "multi_variant_options": product identity is ALREADY grounded (exactly one catalog product),
+      // the customer requested a size but NO colour, and the size is in stock in >1 canonical colour. That is not a
+      // disambiguation question ("which one do you mean?") — it is an OPTIONS question ("here is what's available"),
+      // so the operator may tick several grounded variants of the SAME product. Any ambiguity about WHICH product
+      // is meant outranks this and stays single-select (§15).
       selection_semantics: productAmbiguous
         ? ((decision.action === "soft_match" || detectsRecommendationIntent(message)) ? "recommendation" : "identity_disambiguation")
-        : null,
+        : (decision.action === "color_choice_required" && !entities.color && Array.isArray(decision.color_choices) && decision.color_choices.length > 1
+            ? "multi_variant_options"
+            : null),
       color_choices: Array.isArray(decision.color_choices) ? decision.color_choices : [],
       color_choice_required: decision.action === "color_choice_required",
       grounding: {

@@ -73,8 +73,9 @@ import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import {
-  MAX_BATCH_PRODUCTS, productSelectionKey, toggleProductSelection,
+  MAX_BATCH_PRODUCTS, SELECTION_MODES, selectionModeFromSemantics, productSelectionKey, toggleProductSelection,
   summarizeSendResults, selectedCountText, assistedSendButtonText,
+  selectedVariantCountText, assistedVariantSendButtonText, maxVariantBatchReachedText, variantSendOutcomeText,
   maxBatchReachedText, sendOutcomeText,
 } from "../lib/productSelection.js";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
@@ -2835,7 +2836,7 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
-function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, recommendationMode = false, recommendationSelectedKeys = null, onToggleRecommendation, onRemove, onChange, onChoose }) {
+function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, recommendationMode = false, variantOptionsMode = false, recommendationSelectedKeys = null, onToggleRecommendation, onRemove, onChange, onChoose }) {
   const hasCard = Boolean(card && (card.product_id || card.id));
   // Phase 13.4 — RECOMMENDATION multi-select: the operator ticks the grounded products to send with the reply.
   // Distinct from single-select identity disambiguation (below) which resolves ONE product.
@@ -2843,11 +2844,49 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
   const showChoices = !recommendationMode && ambiguous && !hasCard && !removed && Array.isArray(choices) && choices.length > 0;
   // Phase 12.2 — requested size available in >1 colour, none picked yet → require a colour before a card is definitive.
   const showColorChoices = colorRequired && !hasCard && !removed && Array.isArray(colorChoices) && colorChoices.length > 0;
+  // Phase 13.4.1 — VARIANT OPTIONS multi-select: identity is grounded, the customer named a size but no colour, so
+  // these colours are AVAILABLE OPTIONS, not a "which one did you mean?" question. Ticking never sends.
+  const showVariantOptions = showColorChoices && variantOptionsMode;
   if (removed) {
     return (
       <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/40 p-2 text-[11px] font-bold text-slate-300">
         تم حذف كارت المنتج — هيتبعت الرد بس.
         <button type="button" onClick={onChange} className="mr-2 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-black text-cyan-100">➕ إضافة منتج</button>
+      </div>
+    );
+  }
+  if (showVariantOptions) {
+    const selKeys = recommendationSelectedKeys instanceof Set ? recommendationSelectedKeys : new Set();
+    const selectedCount = selKeys.size;
+    return (
+      <div className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-400/[0.08] p-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">اختار الألوان اللي هتتبعت</div>
+          {selectedCount > 0 ? <span className="rounded-lg border border-cyan-300/25 bg-cyan-400/15 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">{selectedVariantCountText(selectedCount)}</span> : null}
+        </div>
+        <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {colorChoices.map((c) => {
+            // Keyed by CANONICAL product+variant identity — never by colour text, so two similar colour labels
+            // cannot collide and several variants of the same product are distinct selections.
+            const key = productSelectionKey(c);
+            const picked = selKeys.has(key);
+            const img = c.image_url || c.image || c.thumbnail_url || "";
+            const price = c.display_price ?? c.price ?? null;
+            return (
+              <div key={key || `${c.product_id}:${c.color}`} className={`flex items-start gap-2 rounded-lg border p-1.5 transition ${picked ? "border-cyan-300/50 bg-cyan-400/15" : "border-white/12 bg-white/[0.04]"}`}>
+                <button type="button" onClick={() => onToggleRecommendation?.(c)} aria-pressed={picked} className="flex min-w-0 flex-1 items-start gap-2 text-right">
+                  <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border text-[9px] font-black ${picked ? "border-cyan-300 bg-cyan-400 text-slate-900" : "border-white/25 text-transparent"}`}>✓</span>
+                  {img ? <img src={img} alt={clean(c.color)} className="h-9 w-9 shrink-0 rounded border border-white/10 object-cover" /> : null}
+                  <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
+                    <span className="block truncate font-black">{clean(c.color) || "لون"}</span>
+                    {c.size ? <span className="block text-slate-300">مقاس {clean(c.size)}</span> : null}
+                    {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -2967,6 +3006,7 @@ function AiSuggestionCard({
   channelName = "",
   instagramDelivery = false,
   recommendationMode = false,
+  variantOptionsMode = false,
   recommendationSelectedKeys = null,
   onToggleRecommendation,
   onRemoveProduct,
@@ -2981,7 +3021,12 @@ function AiSuggestionCard({
   // The text that Approve & Send will actually send: the inline edit while editing, else the AI suggestion.
   const finalText = editing ? editText : value;
   // Phase 13.4 — recommendation batch count drives the Approve button label ("اعتماد وإرسال (N منتجات)").
-  const recommendationCount = recommendationMode && recommendationSelectedKeys instanceof Set ? recommendationSelectedKeys.size : 0;
+  // Phase 13.4.1 — variant options use the same count with colour wording ("اعتماد وإرسال (N اختيارات)").
+  const multiSelectMode = recommendationMode || variantOptionsMode;
+  const recommendationCount = multiSelectMode && recommendationSelectedKeys instanceof Set ? recommendationSelectedKeys.size : 0;
+  const approveLabel = recommendationCount > 0
+    ? (variantOptionsMode ? assistedVariantSendButtonText(recommendationCount) : assistedSendButtonText(recommendationCount))
+    : "اعتماد وإرسال";
 
   return (
     <div className={`mb-2 rounded-2xl border p-2.5 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
@@ -3026,6 +3071,7 @@ function AiSuggestionCard({
         deliveryFormat={deliveryFormat}
         instagramDelivery={instagramDelivery}
         recommendationMode={recommendationMode}
+        variantOptionsMode={variantOptionsMode}
         recommendationSelectedKeys={recommendationSelectedKeys}
         onToggleRecommendation={onToggleRecommendation}
         onRemove={onRemoveProduct}
@@ -3045,7 +3091,7 @@ function AiSuggestionCard({
           onClick={onApprove}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15"
         >
-          ✅ {recommendationMode && recommendationCount > 0 ? assistedSendButtonText(recommendationCount) : "اعتماد وإرسال"}
+          ✅ {approveLabel}
         </button>
         <button
           type="button"
@@ -3085,6 +3131,7 @@ function ManualReplyComposer({
   aiSuggestionProductRemoved = false,
   aiSuggestionDeliveryFormat = "",
   aiSuggestionRecommendationMode = false,
+  aiSuggestionVariantOptionsMode = false,
   aiSuggestionRecommendationSelectedKeys = null,
   onToggleSuggestionRecommendation,
   aiSuggestionEditText = "",
@@ -3174,6 +3221,7 @@ function ManualReplyComposer({
           channelName={channelLabel(conversation?.channel || conversation?.source)}
           instagramDelivery={String(conversation?.channel || conversation?.source || "").toLowerCase().includes("instagram")}
           recommendationMode={aiSuggestionRecommendationMode}
+          variantOptionsMode={aiSuggestionVariantOptionsMode}
           recommendationSelectedKeys={aiSuggestionRecommendationSelectedKeys}
           onToggleRecommendation={onToggleSuggestionRecommendation}
           onRemoveProduct={onRemoveSuggestionProduct}
@@ -6301,7 +6349,13 @@ export default function AiInbox() {
   // grounded send_package, never inferred from the number of cards. Recommendation lets the operator pick several
   // grounded products to send with the approved reply; disambiguation resolves ONE product identity.
   const suggestionSelectionSemantics = suggestionSendPackage?.selection_semantics || null;
-  const isRecommendationSuggestion = suggestionSelectionSemantics === "recommendation";
+  const suggestionSelectionMode = selectionModeFromSemantics(suggestionSelectionSemantics);
+  const isRecommendationSuggestion = suggestionSelectionMode === SELECTION_MODES.RECOMMENDATION;
+  // Phase 13.4.1 — grounded VARIANT OPTIONS of one identified product (size asked, no colour asked, >1 in-stock
+  // colour). Multi-select like a recommendation batch; identity disambiguation stays single-select.
+  const isVariantOptionsSuggestion = suggestionSelectionMode === SELECTION_MODES.VARIANT_OPTIONS
+    && Array.isArray(suggestionSendPackage?.color_choices) && suggestionSendPackage.color_choices.length > 1;
+  const isMultiSelectSuggestion = isRecommendationSuggestion || isVariantOptionsSuggestion;
   const suggestionRecommendationKeys = useMemo(() => new Set(suggestionRecommendationCards.map(productSelectionKey)), [suggestionRecommendationCards]);
   const suggestionDeliveryFormat = useMemo(() => {
     const ch = String(selectedConversation?.channel || selectedConversation?.source || "").toLowerCase();
@@ -7285,23 +7339,32 @@ export default function AiInbox() {
     if (!activeAiSuggestionText) return;
     // Phase 13.4 — IDENTITY DISAMBIGUATION stays single-select: an ambiguous match still requires picking exactly
     // one product (or removing it). RECOMMENDATION mode skips this — the operator may send several (or none).
-    if (!isRecommendationSuggestion && suggestionSendPackage?.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved) {
+    if (!isMultiSelectSuggestion && suggestionSendPackage?.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved) {
       setToast({ tone: "amber", text: "فيه أكتر من منتج مطابق — اختر المنتج المطلوب أو احذفه قبل الإرسال" });
       return;
     }
+    // Phase 13.4.1 — VARIANT OPTIONS: ticking a colour never sends; approving with nothing ticked would send the
+    // reply text with no option at all, so require at least one grounded colour (or an explicit product removal).
+    if (isVariantOptionsSuggestion && !suggestionRecommendationCards.length && !suggestionProductRemoved) {
+      setToast({ tone: "amber", text: "اختار الألوان اللي هتتبعت قبل الإرسال" });
+      return;
+    }
     // Phase 12.2 — the requested size is available in multiple colours: require a colour pick before sending.
-    if (!isRecommendationSuggestion && suggestionSendPackage?.color_choice_required && !suggestionChosenCard && !suggestionProductRemoved) {
+    if (!isMultiSelectSuggestion && suggestionSendPackage?.color_choice_required && !suggestionChosenCard && !suggestionProductRemoved) {
       setToast({ tone: "amber", text: "المقاس متاح بأكتر من لون — اختار اللون المطلوب قبل الإرسال" });
       return;
     }
     // Phase 13.4 — the set of grounded products to send with the reply. Recommendation batch → the ordered
     // multi-selection; otherwise → the single (kept/chosen) card. Both go through the same FE-sequential sender.
+    // Phase 13.4.1 — a variant-options batch uses the SAME ordered multi-selection (colours of one product).
     const card = effectiveSuggestionCard;
-    const recommendationCards = isRecommendationSuggestion ? suggestionRecommendationCards : [];
+    const recommendationCards = isMultiSelectSuggestion ? suggestionRecommendationCards : [];
     const cardsToSend = recommendationCards.length ? recommendationCards : (card ? [card] : []);
     const disposition = suggestionProductRemoved
       ? "removed"
-      : (recommendationCards.length ? "recommendation_batch" : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none")));
+      : (recommendationCards.length
+          ? (isVariantOptionsSuggestion ? "variant_options_batch" : "recommendation_batch")
+          : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none")));
     // Send the INLINE-edited text when the employee edited the suggestion; otherwise the unchanged suggestion.
     const textToSend = editingAiDraft && clean(aiSuggestionEditText) ? clean(aiSuggestionEditText) : activeAiSuggestionText;
     const result = await sendCurrentReply(textToSend, {
@@ -7312,6 +7375,7 @@ export default function AiInbox() {
         source: "ai_suggestion_approved",
         approved_ai_reply: true,
         product_disposition: disposition,
+        selection_semantics: suggestionSelectionSemantics || null,
         product_id: cardsToSend[0]?.product_id || cardsToSend[0]?.id || null,
         variant_id: cardsToSend[0]?.variant_id || null,
         product_count: cardsToSend.length,
@@ -7330,9 +7394,11 @@ export default function AiInbox() {
         // Phase 13.4/§22 — text is COMPLETED and the products that sent are completed; only the failed products
         // are surfaced honestly. The suggestion is still consumed (never falsely restored as unsent).
         const failed = cardSummary.total - cardSummary.sent;
-        setToast({ tone: "amber", text: cardSummary.sent > 0
-          ? `الرد اتبعت و${cardSummary.sent} منتج — فشل إرسال ${failed === 1 ? "منتج واحد" : `${failed} منتجات`}، ابعتهم من زرار المنتج`
-          : "الرد اتبعت، لكن إرسال المنتجات فشل — ابعتهم من زرار المنتج" });
+        setToast({ tone: "amber", text: isVariantOptionsSuggestion
+          ? `الرد اتبعت — ${variantSendOutcomeText(cardSummary)}`
+          : (cardSummary.sent > 0
+            ? `الرد اتبعت و${cardSummary.sent} منتج — فشل إرسال ${failed === 1 ? "منتج واحد" : `${failed} منتجات`}، ابعتهم من زرار المنتج`
+            : "الرد اتبعت، لكن إرسال المنتجات فشل — ابعتهم من زرار المنتج") });
       }
     }
     // Phase 11.2 lifecycle — a successful assisted approval CONSUMES the suggestion: remove the actionable card
@@ -7353,9 +7419,11 @@ export default function AiInbox() {
     patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conv) => ({ ...conv, ai_reply_draft: completedTombstone, last_ai_reply_draft: completedTombstone, last_ai_reply_draft_updated_at: completedTombstone.updated_at }));
     if (cardOk) {
       const n = cardSummary.sent || cardsToSend.length;
-      setToast({ tone: "emerald", text: n > 1
-        ? `✓ تم اعتماد وإرسال اقتراح AI مع ${n} منتجات`
-        : (n === 1 ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI") });
+      setToast({ tone: "emerald", text: isVariantOptionsSuggestion && n > 0
+        ? `✓ تم اعتماد وإرسال اقتراح AI مع ${n === 1 ? "اختيار واحد" : n === 2 ? "اختيارين" : `${n} اختيارات`}`
+        : (n > 1
+          ? `✓ تم اعتماد وإرسال اقتراح AI مع ${n} منتجات`
+          : (n === 1 ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI")) });
     }
   };
 
@@ -7370,14 +7438,16 @@ export default function AiInbox() {
   const handleChooseSuggestionProduct = useCallback((choice) => { if (choice) { setSuggestionChosenCard(choice); setSuggestionProductRemoved(false); } }, []);
   // Phase 13.4 — toggle a grounded product in the RECOMMENDATION batch (multi-select, ordered, max 5). Blocking
   // the 6th selection surfaces the limit — never a silent drop.
+  // Phase 13.4.1 — the SAME primitive drives variant/colour options (canonical product+variant key, so several
+  // variants of one product are distinct selections); only the limit wording differs.
   const handleToggleRecommendationCard = useCallback((choice) => {
     if (!choice) return;
     setSuggestionRecommendationCards((current) => {
       const { list, blocked } = toggleProductSelection(current, choice, { max: MAX_BATCH_PRODUCTS });
-      if (blocked) setToast({ tone: "amber", text: maxBatchReachedText() });
+      if (blocked) setToast({ tone: "amber", text: isVariantOptionsSuggestion ? maxVariantBatchReachedText() : maxBatchReachedText() });
       return list;
     });
-  }, []);
+  }, [isVariantOptionsSuggestion]);
 
   const createLeadCustomer = async () => {
     if (!selectedConversation?.session_id) return;
@@ -8772,6 +8842,7 @@ export default function AiInbox() {
                         aiSuggestionColorChoices={suggestionSendPackage?.color_choices || []}
                         aiSuggestionColorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
                         aiSuggestionRecommendationMode={isRecommendationSuggestion}
+                        aiSuggestionVariantOptionsMode={isVariantOptionsSuggestion}
                         aiSuggestionRecommendationSelectedKeys={suggestionRecommendationKeys}
                         onToggleSuggestionRecommendation={handleToggleRecommendationCard}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
@@ -9637,6 +9708,7 @@ export default function AiInbox() {
                         aiSuggestionColorChoices={suggestionSendPackage?.color_choices || []}
                         aiSuggestionColorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
                         aiSuggestionRecommendationMode={isRecommendationSuggestion}
+                        aiSuggestionVariantOptionsMode={isVariantOptionsSuggestion}
                         aiSuggestionRecommendationSelectedKeys={suggestionRecommendationKeys}
                         onToggleSuggestionRecommendation={handleToggleRecommendationCard}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
