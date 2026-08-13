@@ -1599,3 +1599,154 @@ session saw ~10 deploys while the tab was open.
 4. Budget for deploy churn: `main` moved 10 times in one session. Re-fetch before
    every push and re-verify shared owners after any commit touching
    `MainLayout.jsx`, `index.css` or `theme/foundation.css`.
+
+---
+
+## Session 10 — Internal-state matrix continued in Chrome; DEFECT 9
+
+Chrome restored. Auditor re-validated against the frozen `/dashboard` reference
+**before** any reading was trusted, in both browsers:
+
+| Browser | CSS width | Available | `/dashboard` |
+|---|---|---|---|
+| Claude Browser pane | 1024 | 691 | util 100 %, 0 escapes, 0 blown, gutters 0·0 |
+| Chrome (Dark) | 1536 then 2304 | 1185 then 1937 | util 100 %, 0 escapes, 0 blown, gutters 0·0 |
+
+### Instrumentation correction — the auditor was O(n·depth)
+
+`geo()` re-walked every element's ancestor chain calling `getComputedStyle` to
+decide out-of-flow / scrollport membership. Replaced with a **single DFS that
+inherits both flags down the tree**. Same semantics, same numbers (verified
+side-by-side on `/orders`: `escReal 0`, `blownGrids 0` identical), but **98 ms
+instead of seconds**. This is what made the sweep viable at all.
+
+### Browser capability split — recorded so it is not re-litigated
+
+- **Chrome cannot reach rung C.** `outerWidth` is 0 and `innerWidth` stays pinned
+  regardless of `resize_window`. Confirmed again at 900 px requested -> 2304 px
+  actual. Chrome's effective CSS width changed only when the *zoom* changed
+  (dpr 1.25 -> 0.833), which is not controllable from the tools.
+- **The Browser pane has exact viewport emulation but is timer-throttled** while
+  hidden, so multi-route batches with clicks time out.
+
+Practical split used: Browser pane for rung-C geometry, Chrome for the
+state-cycling bulk (unthrottled). Every reading below records its width.
+
+### Internal-state coverage added this session
+
+Base geometry + discovered-state cycling at Chrome's wide rung (av 1185 / 1937,
+**Dark**), all with `escNotInScrollport 0`, `blownGrids 0`, `htmlOvf 0` unless noted:
+
+`/accounting` · `/accounting/journal-entries` · `/accounting/treasury` ·
+`/accounting/audit-trail` · `/accounting/trial-balance` · `/accounting/cashbox` ·
+`/accounting/general-ledger` · `/accounting/profit-loss` · `/accounting/reports` (3 states) ·
+`/accounting/financial-accounts` · `/accounting/income` · `/accounting/accounts` ·
+`/employees` · `/employees/employees` · `/employees/attendance` ·
+`/employees/analytics` · `/employees/reports` · `/admin/tenants` ·
+`/admin/ai-followups` · `/admin/ai-agent-settings` · `/admin/ai-support-console` ·
+`/ai-studio` · `/ai-studio/executions` · `/ai-studio/tools` · `/ai-studio/approvals` ·
+`/ai-studio/workflows` · `/ai-studio/restock-recovery` · `/notifications` ·
+`/users` · `/roles` · `/expenses` · `/analytics` · `/smart-warehouse` ·
+`/operations/shipping` (3 states) · `/loyalty` · `/billing` · `/workspace` ·
+`/inbox` · `/staff/tasks` · `/orders/returns` · `/inventory/count` ·
+`/inventory/history` · `/inventory/movements` · `/inventory/adjustments` ·
+`/products/brands` · `/products/categories` · `/products/variants` · `/products/units`
+
+**`/orders` re-measured from its CURRENT structure** (another workstream removed
+the workspace switcher): it now exposes **1** control group (pagination) instead
+of 2. Base at rung C: `escNotInScrollport 0`, `blownGrids 0`, `htmlOvf 0`,
+`escInScrollport 767`. The removed states were **not** recreated.
+
+### DEFECT 9 — `FIXED_VERIFIED` — finance KPI value ejects its icon
+
+Found on `/accounting/expenses`: one in-flow element escaping the shell by 15 px,
+outside any scrollport, persisting after load (not a skeleton).
+
+`FinanceMetricCard` renders `flex items-start justify-between gap-3` with a text
+block and an icon box. The text block had **no `min-w-0`**, so a long currency
+value (`-2,848,153.00 ج.م`) could not shrink below its content and pushed the
+26 × 46 icon box outside the card.
+
+Reversible live toggle before editing:
+
+| State | `escNotInScrollport` | `htmlOvf` |
+|---|---|---|
+| as deployed | 1 | 0 |
+| `min-width:0` on the text block | **0** | 0 |
+| restored | 1 | 0 |
+
+Fix: `min-w-0` on the text block, `shrink-0` on the icon box — the same pairing as
+the DEFECT 3 fix. **Shared component with 12 consumer pages** across the
+accounting module, so one edit covers all of them.
+
+**cp9** — `rollback/pre-layout-geometry-cp9-20260813` -> `766aa65`, released
+`b5a6e79`. eslint 0 errors, build green, guards 104/105 with the known
+pre-existing `AiStudio.jsx h-8` failure.
+
+### DEFECT 9 lives in a MID-BAND — invisible at BOTH ends of the ladder
+
+Measured on the pre-fix build at three widths:
+
+| CSS width | Available | `escNotInScrollport` | Why |
+|---|---|---|---|
+| 1024 | 691 | **0** | grid collapses to `md:grid-cols-2`; each card is wide enough |
+| **1536** | **1186** | **1** | `xl:grid-cols-6` active, columns ~180 px — value overflows |
+| 2304 | 1937 | **0** | 6 columns of ~300 px; the value fits again |
+
+**Rule carried forward — the ladder must be swept in the MIDDLE too, not just at
+its ends.** Sessions 7–8 established that breakpoint-only *clipping* concentrates
+at rung C, and this programme has repeatedly measured the wide rung. DEFECT 9 sits
+in neither: a dense multi-column grid whose columns are narrowest at an
+intermediate width. A rung-C-only sweep and a wide-only sweep would **both** have
+reported it clean. Add ~1536 as a standing rung.
+
+### Empty-root incident — substantially narrowed (still owned elsewhere)
+
+It recurred, and the correlation is now much sharper:
+
+- Chrome on the **newest** build (`766aa65`) rendered an empty root while the
+  Browser pane on the **older** build (`87e86f1`) stayed healthy at the same moment.
+- The app has a **self-reload mechanism** — it navigated itself to
+  `/employees/analytics?__m1_reload=<ts>` when a new build appeared, and landed on
+  the empty root.
+- **Assets on that build are intact**: the 6 chunks referenced by a freshly fetched
+  `index.html` and **all 10** entry imports return `200 application/javascript`.
+- A plain reload of the same URL **recovered** the shell immediately.
+
+So it presents as a **transient deploy-window failure** — the app's own
+`__m1_reload` fires while the new deployment is still propagating — not a
+persistent break and not an asset-integrity problem. It self-heals on the next
+clean load.
+
+**Asset-routing evidence recorded for that workstream (unchanged here):**
+`/assets/does-not-exist-probe.js` returns **HTTP 200 `text/html`**, because the SPA
+rewrite catches `/assets/*` and serves `index.html`. That is what turns any missing
+chunk into `Failed to load module script … MIME type of "text/html"`, and it means
+**chunk-404s are invisible to status-code monitoring**. This routing was deliberately
+**not** changed by this programme.
+
+### Programme state
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | **9** (…, `21e070e`, **`b5a6e79`**) |
+| Defects: found / FIXED_VERIFIED / dismissed | **9 / 8 / 1** |
+| `NEEDS_FIX` / `NEEDS_FLUID_FIX` | **0 / 0** |
+| Auditor fixes to date | 10 (+ the DFS performance correction) |
+
+### RESUME MARKER (supersedes session 9)
+
+1. **cp9 post-deploy re-measurement was still pending when this entry was written**
+   — Vercel had not yet served `b5a6e793422a`. Reopen `/accounting/expenses` at a
+   **wide** rung (≥1280 CSS, where `xl:grid-cols-6` is active) and confirm
+   `escNotInScrollport` 1 -> 0.
+2. Remaining internal-state cycling: routes whose control groups were discovered
+   but not fully cycled — `/users` (cycling froze the renderer once; retry with a
+   smaller budget), `/notifications`, `/inventory/count`, `/inventory/history`,
+   `/employees/attendance`, `/employees/analytics`, `/ai-studio/workflows`,
+   `/ai-studio/restock-recovery`, `/smart-warehouse`, `/accounting/accounts`,
+   `/expenses`. Their **base** geometry is already clean at the wide rung.
+3. `/pos` has no internal-state reading yet (it renders outside `.m1-shell-content`;
+   expect `NOSET` and handle it as its own surface).
+4. Rung-C internal-state cycling is still owed for the routes above — only base
+   geometry was measured at 1024 for most of them.
