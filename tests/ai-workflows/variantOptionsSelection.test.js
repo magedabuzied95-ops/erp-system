@@ -201,13 +201,35 @@ test("8: selection ORDER is preserved (append-only)", () => {
 });
 
 // ================= UI wiring =================
-test("2/3: the options UI is multi-select with checkmark + selected state + count, driven by semantics not count", () => {
-  assert.match(inboxSrc, /const isVariantOptionsSuggestion = suggestionSelectionMode === SELECTION_MODES\.VARIANT_OPTIONS/);
+test("2/3: the options UI is multi-select with checkmark + selected state + count, driven by the grounded package", () => {
+  assert.match(inboxSrc, /const isVariantOptionsSuggestion = variantOptionsEligible && !isRecommendationSuggestion/);
   assert.match(inboxSrc, /const showVariantOptions = showColorChoices && variantOptionsMode/);
   assert.match(inboxSrc, /اختار الألوان اللي هتتبعت/);
   assert.match(inboxSrc, /selectedVariantCountText\(selectedCount\)/);
   assert.match(inboxSrc, /aria-pressed=\{picked\}/);
   assert.match(inboxSrc, /const key = productSelectionKey\(c\);\s*\n\s*const picked = selKeys\.has\(key\)/);
+});
+
+// The production defect: a draft PERSISTED before this phase shipped carries the older selection_semantics label
+// while its colour choices already describe an options set. Mode is therefore decided from the grounded package.
+test("stale label: color_choice_required + >1 choices + ONE product ⇒ options mode regardless of the saved label", () => {
+  assert.match(inboxSrc, /const variantOptionsEligible = useMemo\(\(\) => \{[\s\S]*?if \(!suggestionSendPackage\?\.color_choice_required \|\| choices\.length <= 1\) return false;[\s\S]*?new Set\(choices\.map\(\(c\) => String\(c\?\.product_id \?\? c\?\.id \?\? ""\)\)\)\.size === 1/);
+  // an explicit RECOMMENDATION label still wins (§14 non-regression)
+  assert.match(inboxSrc, /variantOptionsEligible && !isRecommendationSuggestion/);
+});
+
+test("discoverability: pointer cursor, hover, ring on the selected card, and a hint when none picked", () => {
+  assert.match(inboxSrc, /cursor-pointer/);
+  assert.match(inboxSrc, /ring-1 ring-cyan-300\/40/);
+  assert.match(inboxSrc, /hover:border-cyan-300\/30/);
+  assert.match(inboxSrc, /تقدر تختار أكتر من لون/);
+  assert.match(inboxSrc, /title=\{picked \? "اضغط لإلغاء الاختيار" : "اضغط لاختيار اللون ده"\}/);
+});
+
+test("zero selected in options mode ⇒ Approve & Send is DISABLED (not a failing click)", () => {
+  assert.match(inboxSrc, /const approveDisabled = variantOptionsMode && recommendationCount === 0/);
+  assert.match(inboxSrc, /disabled=\{approveDisabled\}/);
+  assert.match(inboxSrc, /disabled:cursor-not-allowed/);
 });
 
 test("clicking a colour NEVER sends — approval is the only send action", () => {
