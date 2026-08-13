@@ -169,6 +169,10 @@ export default function MetaReviewerInbox() {
   };
 
   const chooseChannel = (channel) => {
+    setSelectedId("");
+    setMessages([]);
+    setConversations([]);
+    setCounts({ total: 0, unread: 0 });
     setActiveChannel(channel);
     setSearch("");
     setMobileChatOpen(false);
