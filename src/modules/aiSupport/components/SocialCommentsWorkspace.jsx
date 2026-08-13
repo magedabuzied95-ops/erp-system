@@ -19,6 +19,7 @@ import {
   UserRound,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 import { VirtualList } from "../../../shared/components/VirtualList";
@@ -1127,37 +1128,37 @@ const resolveAutomationStateLabel = ({ post = {}, config = null, productCount = 
   const enabledValue = normalizedConfig?.enabled ?? post?.auto_reply_enabled ?? post?.template_enabled ?? post?.autoReplyEnabled ?? false;
   if (!hasProduct) {
     return {
-      label: "Link Product Required",
+      labelKey: "aiSupport.inbox.socialWorkspace.linkProductRequired",
       tone: "amber",
       configId,
       enabled: Boolean(enabledValue),
-      hint: "No linked product",
+      hintKey: "aiSupport.inbox.socialWorkspace.noLinkedProduct",
     };
   }
   if (configId && Boolean(enabledValue)) {
     return {
-      label: "Automation Enabled",
+      labelKey: "aiSupport.inbox.socialWorkspace.automationEnabled",
       tone: "emerald",
       configId,
       enabled: true,
-      hint: "Config active",
+      hintKey: "aiSupport.inbox.socialWorkspace.configActive",
     };
   }
   if (configId) {
     return {
-      label: "Automation Disabled",
+      labelKey: "aiSupport.inbox.socialWorkspace.automationDisabled",
       tone: "slate",
       configId,
       enabled: false,
-      hint: "Config saved",
+      hintKey: "aiSupport.inbox.socialWorkspace.configSaved",
     };
   }
   return {
-    label: "Ready",
+    labelKey: "aiSupport.inbox.socialWorkspace.ready",
     tone: "cyan",
     configId,
     enabled: Boolean(enabledValue),
-    hint: "Product linked",
+    hintKey: "aiSupport.inbox.socialWorkspace.productLinked",
   };
 }
 
@@ -1376,6 +1377,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   onIgnore,
   registerCommentNode,
 }) {
+  const { t } = useTranslation();
   const key = clean(comment.comment_id || comment.external_comment_id || comment.id || "");
   const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
   const busy = Boolean(replyLoadingKey === key || privateMessageLoadingKey === key || leadLoadingKey === key || ignoreLoadingKey === key);
@@ -1455,7 +1457,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
               <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
               <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
-                Media
+                {t("aiSupport.inbox.socialWorkspace.media")}
               </span>
             </div>
           </a>
@@ -1469,7 +1471,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
           >
             {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Reply
+            {t("aiSupport.inbox.socialWorkspace.reply")}
           </button>
           <button
             type="button"
@@ -1488,7 +1490,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
           >
             {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-            Create Lead
+            {t("aiSupport.inbox.socialWorkspace.createLead")}
           </button>
           <button
             type="button"
@@ -1497,7 +1499,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
           >
             {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
-            Ignore
+            {t("aiSupport.inbox.socialWorkspace.ignore")}
           </button>
         </div>
       </CommentTimelineCard>
@@ -1531,6 +1533,7 @@ function SocialCommentsWorkspace({
   onLoadMore,
   loadingMore = false,
 }) {
+  const { t } = useTranslation();
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
   const [selectedCommentKey, setSelectedCommentKey] = useState(() => clean(initialSelectedCommentId));
   const [replyDraft, setReplyDraft] = useState("");
@@ -2467,7 +2470,7 @@ function SocialCommentsWorkspace({
 
   const handleSaveGlobalSettings = async () => {
     if (clean(currentGlobalSettings.mode) === "full_auto") {
-      const confirmed = window.confirm("Full Auto يفعّل الرد الكامل تلقائيًا. هل تريد المتابعة؟");
+      const confirmed = window.confirm(t("aiSupport.inbox.socialWorkspace.confirmGlobalFullAuto"));
       if (!confirmed) {
         notify("amber", "تم إلغاء حفظ Full Auto");
         return;
@@ -2499,7 +2502,7 @@ function SocialCommentsWorkspace({
       return;
     }
     if (clean(activeTemplate?.mode) === "full_auto") {
-      const confirmed = window.confirm("Full Auto يفعّل الرد الكامل تلقائيًا لهذا البوست. هل تريد المتابعة؟");
+      const confirmed = window.confirm(t("aiSupport.inbox.socialWorkspace.confirmPostFullAuto"));
       if (!confirmed) {
         notify("amber", "تم إلغاء حفظ Full Auto");
         return;
@@ -2796,8 +2799,8 @@ function SocialCommentsWorkspace({
         <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2.5">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">Social Comments</div>
-              <div className="mt-1 text-sm font-black text-white">Posts</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">{t("aiSupport.inbox.socialWorkspace.socialComments")}</div>
+              <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.posts")}</div>
             </div>
             <button
               type="button"
@@ -2806,7 +2809,7 @@ function SocialCommentsWorkspace({
               className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-white shadow-sm disabled:opacity-50"
             >
               {loading || refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Refresh
+              {t("aiSupport.inbox.socialWorkspace.refresh")}
             </button>
           </div>
 
@@ -2816,8 +2819,8 @@ function SocialCommentsWorkspace({
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <div className="mt-3 text-sm font-black text-white">لا توجد منشورات بعد</div>
-                <div className="mt-1 text-xs text-slate-400">سيظهر هنا المنشور المرتبط بالتعليقات عندما يتوفر</div>
+                <div className="mt-3 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.noPosts")}</div>
+                <div className="mt-1 text-xs text-slate-400">{t("aiSupport.inbox.socialWorkspace.noPostsHint")}</div>
               </div>
             ) : null}
 
@@ -2917,7 +2920,7 @@ function SocialCommentsWorkspace({
                                 <div className="flex flex-col items-center gap-1">
                                   <ImageIcon className="h-4 w-4" />
                                   <span className="rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-400">
-                                    لا توجد صورة
+                                    {t("aiSupport.inbox.socialWorkspace.noImage")}
                                   </span>
                                 </div>
                               </div>
@@ -2931,13 +2934,13 @@ function SocialCommentsWorkspace({
                               <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
-                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount} comments</span>
-                              <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{post.newCount} new</span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: post.commentsCount })}</span>
+                              <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{t("aiSupport.inbox.socialWorkspace.newCount", { count: post.newCount })}</span>
                               <span
-                                title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hint}
+                                title={t(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hintKey)}
                                 className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).tone)}`}
                               >
-                                {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).label}
+                                {t(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).labelKey)}
                               </span>
                               {hasVisibleProductLink ? (
                                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
@@ -2945,10 +2948,10 @@ function SocialCommentsWorkspace({
                                 {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
                               </span>
                             ) : (
-                              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">⚠ No Product Linked</span>
+                              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">{t("aiSupport.inbox.socialWorkspace.noProductLinkedWarning")}</span>
                             )}
                               {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
-                              {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
+                              {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">{t("aiSupport.inbox.socialWorkspace.needsReply")}</span> : null}
                               <button
                                 type="button"
                                 onClick={(event) => {
@@ -2957,7 +2960,7 @@ function SocialCommentsWorkspace({
                                 }}
                                 className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-200"
                               >
-                                Automation
+                                {t("aiSupport.inbox.socialWorkspace.automation")}
                               </button>
                               <button
                                 type="button"
@@ -2967,7 +2970,7 @@ function SocialCommentsWorkspace({
                                 }}
                                 className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100"
                               >
-                                Link Products
+                                {t("aiSupport.inbox.socialWorkspace.linkProducts")}
                               </button>
                             </div>
                             <div className="mt-2 text-[11px] font-medium text-slate-400">
@@ -3075,7 +3078,7 @@ function SocialCommentsWorkspace({
                               <div className="flex flex-col items-center gap-1">
                                 <ImageIcon className="h-4 w-4" />
                                 <span className="rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-400">
-                                  لا توجد صورة
+                                  {t("aiSupport.inbox.socialWorkspace.noImage")}
                                 </span>
                               </div>
                             </div>
@@ -3089,13 +3092,13 @@ function SocialCommentsWorkspace({
                             <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
-                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount} comments</span>
-                            <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{post.newCount} new</span>
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: post.commentsCount })}</span>
+                            <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{t("aiSupport.inbox.socialWorkspace.newCount", { count: post.newCount })}</span>
                             <span
-                              title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hint}
+                              title={t(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hintKey)}
                               className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).tone)}`}
                             >
-                              {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).label}
+                              {t(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).labelKey)}
                             </span>
                             {hasVisibleProductLink ? (
                               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
@@ -3103,10 +3106,10 @@ function SocialCommentsWorkspace({
                               {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
                             </span>
                           ) : (
-                              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">⚠ No Product Linked</span>
+                            <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">{t("aiSupport.inbox.socialWorkspace.noProductLinkedWarning")}</span>
                             )}
                             {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
-                            {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
+                            {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">{t("aiSupport.inbox.socialWorkspace.needsReply")}</span> : null}
                             <button
                               type="button"
                               onClick={(event) => {
@@ -3115,7 +3118,7 @@ function SocialCommentsWorkspace({
                               }}
                                 className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-200"
                             >
-                              Automation
+                              {t("aiSupport.inbox.socialWorkspace.automation")}
                             </button>
                             <button
                               type="button"
@@ -3125,7 +3128,7 @@ function SocialCommentsWorkspace({
                               }}
                                 className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100"
                             >
-                              Link Products
+                              {t("aiSupport.inbox.socialWorkspace.linkProducts")}
                             </button>
                           </div>
                           <div className="mt-2 text-[11px] font-medium text-slate-400">
@@ -3155,7 +3158,7 @@ function SocialCommentsWorkspace({
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
                 >
                   {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Load more
+                  {t("aiSupport.inbox.socialWorkspace.loadMore")}
                 </button>
               </div>
             ) : null}
@@ -3169,14 +3172,14 @@ function SocialCommentsWorkspace({
                 <div className="min-w-0 flex-1">
                   <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                     <ArrowUpRight className="h-3.5 w-3.5" />
-                    Post Workspace
+                    {t("aiSupport.inbox.socialWorkspace.postWorkspace")}
                   </div>
                   <h2 className="mt-1 line-clamp-1 text-xl font-black leading-7 text-white min-[1600px]:text-2xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostMediaBadge ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
-                      {activePostDisplay?.displayCommentCount || activePost.commentsCount || 0} comments
+                      {t("aiSupport.inbox.socialWorkspace.commentsCount", { count: activePostDisplay?.displayCommentCount || activePost.commentsCount || 0 })}
                     </span>
                     {activePostPublishedAt ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
@@ -3184,39 +3187,39 @@ function SocialCommentsWorkspace({
                         {absoluteTime(activePostPublishedAt)}
                       </span>
                     ) : null}
-                    {typeof activePostLikes === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{activePostLikes} likes</span> : null}
-                    {typeof activePostShares === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{activePostShares} shares</span> : null}
+                    {typeof activePostLikes === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{t("aiSupport.inbox.socialWorkspace.likesCount", { count: activePostLikes })}</span> : null}
+                    {typeof activePostShares === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{t("aiSupport.inbox.socialWorkspace.sharesCount", { count: activePostShares })}</span> : null}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
-                      {activePost.newCount || 0} new
+                      {t("aiSupport.inbox.socialWorkspace.newCount", { count: activePost.newCount || 0 })}
                     </span>
                     {activePostSourceId ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800">
-                        Active alias id: {activePostSourceId}
+                        {t("aiSupport.inbox.socialWorkspace.activeAliasId", { id: activePostSourceId })}
                       </span>
                     ) : null}
                     {activePostConversationId ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-700">
-                        Conversation: {activePostConversationId}
+                        {t("aiSupport.inbox.socialWorkspace.conversationId", { id: activePostConversationId })}
                       </span>
                     ) : null}
                     {activePostPostId ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800">
-                        Canonical post_id: {activePostPostId}
+                        {t("aiSupport.inbox.socialWorkspace.canonicalPostId", { id: activePostPostId })}
                       </span>
                     ) : null}
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(activeAutomationState.tone)}`}>
-                      Automation: {activeAutomationState.configId ? `${activeAutomationState.configId} · ${activeAutomationState.enabled ? "Enabled" : "Disabled"}` : activeAutomationState.label}
+                      {t("aiSupport.inbox.socialWorkspace.automation")}: {activeAutomationState.configId ? `${activeAutomationState.configId} · ${activeAutomationState.enabled ? t("aiSupport.inbox.socialWorkspace.enabled") : t("aiSupport.inbox.socialWorkspace.disabled")}` : t(activeAutomationState.labelKey)}
                     </span>
                     {activeProductCard.productCount > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-700">
-                        ✓ Linked Products
+                        {t("aiSupport.inbox.socialWorkspace.linkedProducts")}
                         {activeProductCard.productName ? ` · ${activeProductCard.productName}` : ""}
                         {activeProductCard.productBrand ? ` · ${activeProductCard.productBrand}` : ""}
                         {activeProductCard.productCount > 1 ? ` +${activeProductCard.productCount - 1}` : ""}
                       </span>
                   ) : (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                        ⚠ No Product Linked
+                        {t("aiSupport.inbox.socialWorkspace.noProductLinkedWarning")}
                       </span>
                   )}
                 </div>
@@ -3226,11 +3229,11 @@ function SocialCommentsWorkspace({
                         <div className="min-w-0 flex-1">
                           <div className="inline-flex items-center gap-2 text-[11px] font-black text-amber-900">
                             <AlertTriangle className="h-4 w-4" />
-                            Latest comment arrived on a different Facebook post
+                            {t("aiSupport.inbox.socialWorkspace.latestCommentDifferentPost")}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em]">
-                            <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-amber-900">Selected: {latestCommentMismatch.selectedStatusLabel || dash}</span>
-                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-700">Latest: {latestCommentMismatch.latestStatusLabel || dash}</span>
+                            <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-amber-900">{t("aiSupport.inbox.socialWorkspace.selectedId", { id: latestCommentMismatch.selectedStatusLabel || dash })}</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-700">{t("aiSupport.inbox.socialWorkspace.latestId", { id: latestCommentMismatch.latestStatusLabel || dash })}</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -3239,7 +3242,7 @@ function SocialCommentsWorkspace({
                             onClick={() => setShowLatestCommentDetails((current) => !current)}
                             className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-2.5 text-[11px] font-black text-amber-900 shadow-sm"
                           >
-                            Details
+                            {t("aiSupport.inbox.socialWorkspace.details")}
                             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLatestCommentDetails ? "rotate-180" : ""}`} />
                           </button>
                           <button
@@ -3250,7 +3253,7 @@ function SocialCommentsWorkspace({
                             className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-2.5 text-[11px] font-black text-amber-900 shadow-sm disabled:opacity-50"
                           >
                             {openingPost ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-                            Open
+                            {t("aiSupport.inbox.socialWorkspace.open")}
                           </button>
                           <button
                             type="button"
@@ -3260,7 +3263,7 @@ function SocialCommentsWorkspace({
                             className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
                           >
                             <ArrowUpRight className="h-3.5 w-3.5" />
-                            Switch
+                            {t("aiSupport.inbox.socialWorkspace.switch")}
                           </button>
                           <button
                             type="button"
@@ -3268,28 +3271,28 @@ function SocialCommentsWorkspace({
                             className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-[11px] font-black text-cyan-800 shadow-sm"
                           >
                             <ShoppingBag className="h-3.5 w-3.5" />
-                            Link
+                            {t("aiSupport.inbox.socialWorkspace.link")}
                           </button>
                         </div>
                       </div>
                       {showLatestCommentDetails ? (
                         <div className="mt-2 grid gap-2 text-[11px] text-slate-700 sm:grid-cols-2">
                           <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Post ID</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.selectedPostId")}</div>
                             <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.selectedPostId || dash}</div>
-                            <div className="mt-1 text-[11px] font-semibold text-emerald-700">Selected post: {latestCommentMismatch.selectedStatusLabel || dash}</div>
+                            <div className="mt-1 text-[11px] font-semibold text-emerald-700">{t("aiSupport.inbox.socialWorkspace.selectedPost", { status: latestCommentMismatch.selectedStatusLabel || dash })}</div>
                           </div>
                           <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Post ID</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.latestCommentPostId")}</div>
                             <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.latestCommentPostId || dash}</div>
-                            <div className="mt-1 text-[11px] font-semibold text-amber-700">Latest comment post: {latestCommentMismatch.latestStatusLabel || dash}</div>
+                            <div className="mt-1 text-[11px] font-semibold text-amber-700">{t("aiSupport.inbox.socialWorkspace.latestCommentPost", { status: latestCommentMismatch.latestStatusLabel || dash })}</div>
                           </div>
                           <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Permalink</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.selectedPermalink")}</div>
                             <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.selectedPermalink || dash}</div>
                           </div>
                           <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Permalink</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.latestCommentPermalink")}</div>
                             <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.latestCommentPermalink || dash}</div>
                           </div>
                         </div>
@@ -3303,7 +3306,7 @@ function SocialCommentsWorkspace({
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm"
                 >
                   <Bot className="h-4 w-4" />
-                  Automation
+                  {t("aiSupport.inbox.socialWorkspace.automation")}
                 </button>
                 <button
                   type="button"
@@ -3313,7 +3316,7 @@ function SocialCommentsWorkspace({
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
                 >
                   {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                  Open Post
+                  {t("aiSupport.inbox.socialWorkspace.openPost")}
                 </button>
               </div>
             </div>
@@ -3336,7 +3339,7 @@ function SocialCommentsWorkspace({
                             <Sparkles className="h-6 w-6 text-cyan-100" />
                           </span>
                           <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black tracking-[0.12em] text-slate-200">
-                            لا توجد صورة
+                            {t("aiSupport.inbox.socialWorkspace.noImage")}
                           </span>
                         </div>
                       </div>
@@ -3358,16 +3361,16 @@ function SocialCommentsWorkspace({
                         className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/20 bg-white/90 px-3 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
                       >
                         {openingPost ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-                        Open Post
+                        {t("aiSupport.inbox.socialWorkspace.openPost")}
                       </button>
                     </div>
                   </button>
 
                   <div className="space-y-2.5 p-3.5">
                     <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
-                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostLikes} likes</span> : null}
-                      {typeof activePostShares === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostShares} shares</span> : null}
+                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: activePost.commentsCount || 0 })}</span>
+                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.likesCount", { count: activePostLikes })}</span> : null}
+                      {typeof activePostShares === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.sharesCount", { count: activePostShares })}</span> : null}
                       {activePostPublishedAt ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
                           <Clock3 className="h-3.5 w-3.5" />
@@ -3379,7 +3382,7 @@ function SocialCommentsWorkspace({
                     <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-2 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.erpProductCard")}</div>
                           <div className="mt-1 text-sm font-black text-white">{activeProductCard.productName || "Linked product"}</div>
                           <div className="mt-1 text-xs font-semibold text-slate-500">
                             {activeProductCard.productBrand || dash}
@@ -3401,19 +3404,19 @@ function SocialCommentsWorkspace({
                               rel="noreferrer"
                               className="inline-flex h-8 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-[11px] font-black text-slate-900 shadow-sm"
                             >
-                              Product Link
+                              {t("aiSupport.inbox.socialWorkspace.productLink")}
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>
                           ) : (
                             <span className="inline-flex h-8 items-center rounded-xl border border-dashed border-[#E2E8F0] bg-white px-2.5 text-[11px] font-black text-slate-400">
-                              No product link
+                              {t("aiSupport.inbox.socialWorkspace.noProductLink")}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                        <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">Price: {activeProductCard.priceValue || dash}</span>
-                        <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">Stock: {activeProductCard.stockValue || dash}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.priceValue", { value: activeProductCard.priceValue || dash })}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.stockValue", { value: activeProductCard.stockValue || dash })}</span>
                       </div>
                       {showProductCardDetails ? (
                         <div className="mt-3 space-y-3">
@@ -3423,10 +3426,10 @@ function SocialCommentsWorkspace({
                             </div>
                           ) : null}
                           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                            <InfoChip label="Sale" value={activeProductCard.salePriceValue || dash} />
-                            <InfoChip label="Sizes" value={activeProductCard.sizesValue || dash} />
-                            <InfoChip label="Colors" value={activeProductCard.colorsValue || dash} />
-                            <InfoChip label="Product" value={activeProductCard.productCount > 0 ? `${activeProductCard.productCount} linked` : dash} />
+                            <InfoChip label={t("aiSupport.inbox.ui.sale")} value={activeProductCard.salePriceValue || dash} />
+                            <InfoChip label={t("aiSupport.inbox.ui.sizes")} value={activeProductCard.sizesValue || dash} />
+                            <InfoChip label={t("aiSupport.inbox.ui.colors")} value={activeProductCard.colorsValue || dash} />
+                            <InfoChip label={t("aiSupport.inbox.ui.product")} value={activeProductCard.productCount > 0 ? `${activeProductCard.productCount} linked` : dash} />
                           </div>
                         </div>
                       ) : null}
@@ -3438,9 +3441,9 @@ function SocialCommentsWorkspace({
                 <div className="flex min-h-[420px] flex-1 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Comments Timeline</div>
-                      <div className="mt-1 text-sm font-black text-white">{displayComments.length} comments</div>
-                      <div className="mt-1 text-xs text-slate-500">Showing the latest social thread activity</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.ui.commentsTimeline")}</div>
+                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: displayComments.length })}</div>
+                      <div className="mt-1 text-xs text-slate-500">{t("aiSupport.inbox.socialWorkspace.timelineHint")}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {hasMoreComments ? (
@@ -3449,7 +3452,7 @@ function SocialCommentsWorkspace({
                           onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))}
                           className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200"
                         >
-                          Load older comments
+                          {t("aiSupport.inbox.socialWorkspace.loadOlderComments")}
                           <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px]">
                             +{Math.min(50, displayComments.length - commentsToRender.length)}
                           </span>
@@ -3462,7 +3465,7 @@ function SocialCommentsWorkspace({
                         className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                       >
                         {refreshing || activeThread.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                        Reload
+                        {t("aiSupport.inbox.socialWorkspace.reload")}
                       </button>
                     </div>
                   </div>
@@ -3489,8 +3492,8 @@ function SocialCommentsWorkspace({
                           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
                             <MessageSquareText className="h-5 w-5" />
                           </div>
-                          <div className="mt-3 text-sm font-black text-white">لا توجد تعليقات للعرض الآن</div>
-                          <div className="mt-1 text-xs text-slate-500">لم يتم تحميل أي تعليقات لهذا المنشور بعد.</div>
+                          <div className="mt-3 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.noComments")}</div>
+                          <div className="mt-1 text-xs text-slate-500">{t("aiSupport.inbox.socialWorkspace.noCommentsHint")}</div>
                           <button
                             type="button"
                             onClick={() => void handleRefresh()}
@@ -3498,7 +3501,7 @@ function SocialCommentsWorkspace({
                             className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                           >
                             {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                            Reload comments
+                            {t("aiSupport.inbox.socialWorkspace.reloadComments")}
                           </button>
                         </div>
                       </div>
@@ -3533,8 +3536,8 @@ function SocialCommentsWorkspace({
                   <div className="rounded-[24px] border border-white/10 bg-slate-950/70 p-2.5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Reply Composer</div>
-                        <div className="mt-1 text-sm font-black text-white">Draft a reply</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.replyComposer")}</div>
+                        <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.draftReply")}</div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -3544,7 +3547,7 @@ function SocialCommentsWorkspace({
                           className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                         >
                           {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                          Preview Reply
+                          {t("aiSupport.inbox.socialWorkspace.previewReply")}
                         </button>
                         <button
                           type="button"
@@ -3553,7 +3556,7 @@ function SocialCommentsWorkspace({
                           className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                         >
                           <MessageSquareText className="h-3.5 w-3.5" />
-                          Copy suggested reply
+                          {t("aiSupport.inbox.socialWorkspace.copySuggestedReply")}
                         </button>
                       </div>
                     </div>
@@ -3564,7 +3567,7 @@ function SocialCommentsWorkspace({
                       onChange={(event) => setReplyDraft(event.target.value)}
                       rows={2}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-5 text-white outline-none"
-                      placeholder="Reply draft"
+                      placeholder={t("aiSupport.inbox.socialWorkspace.replyDraft")}
                     />
 
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -3575,7 +3578,7 @@ function SocialCommentsWorkspace({
                         className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
                       >
                         {replyLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Send suggested reply
+                        {t("aiSupport.inbox.socialWorkspace.sendSuggestedReply")}
                       </button>
                       <button
                         type="button"
@@ -3603,7 +3606,7 @@ function SocialCommentsWorkspace({
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-slate-200 disabled:opacity-50"
                       >
                         <MessageSquareText className="h-4 w-4" />
-                        Copy suggested reply
+                        {t("aiSupport.inbox.socialWorkspace.copySuggestedReply")}
                       </button>
                     </div>
                   </div>
@@ -3614,36 +3617,36 @@ function SocialCommentsWorkspace({
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Automation Status</div>
-                      <div className="mt-1 text-sm font-black text-white">Config and runtime summary</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.automationStatus")}</div>
+                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.automationSummary")}</div>
                     </div>
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(activeAutomationState.tone)}`}>
-                      {activeAutomationState.enabled ? "Enabled" : activeAutomationState.label}
+                      {activeAutomationState.enabled ? t("aiSupport.inbox.socialWorkspace.enabled") : t(activeAutomationState.labelKey)}
                     </span>
                   </div>
                   <div className="mt-2 grid gap-2 text-sm text-slate-200">
-                    <SidebarRow label="Config ID" value={activeAutomationState.configId || dash} icon={<Bot className="h-4 w-4 text-cyan-100" />} />
-                    <SidebarRow label="Enabled" value={activeAutomationState.enabled ? "Yes" : "No"} icon={<Sparkles className="h-4 w-4 text-emerald-100" />} />
-                    <SidebarRow label="Template Key" value={clean(activeAutomationConfig?.template_key || activeAutomationDraft?.templateId || "") || dash} icon={<MessageSquareText className="h-4 w-4 text-violet-100" />} />
-                    <SidebarRow label="Product Linked" value={activeProductCard.productCount > 0 ? "Yes" : "No"} icon={<ShoppingBag className="h-4 w-4 text-amber-100" />} />
-                    <SidebarRow label="Runtime Status" value={clean(activeAutomationRuntime?.status || activeAutomationRuntimeMonitor?.status || "") || dash} icon={<ThumbsUp className="h-4 w-4 text-sky-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.configId")} value={activeAutomationState.configId || dash} icon={<Bot className="h-4 w-4 text-cyan-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.enabled")} value={activeAutomationState.enabled ? t("aiSupport.inbox.socialWorkspace.yes") : t("aiSupport.inbox.socialWorkspace.no")} icon={<Sparkles className="h-4 w-4 text-emerald-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.templateKey")} value={clean(activeAutomationConfig?.template_key || activeAutomationDraft?.templateId || "") || dash} icon={<MessageSquareText className="h-4 w-4 text-violet-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.productLinked")} value={activeProductCard.productCount > 0 ? t("aiSupport.inbox.socialWorkspace.yes") : t("aiSupport.inbox.socialWorkspace.no")} icon={<ShoppingBag className="h-4 w-4 text-amber-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.runtimeStatus")} value={clean(activeAutomationRuntime?.status || activeAutomationRuntimeMonitor?.status || "") || dash} icon={<ThumbsUp className="h-4 w-4 text-sky-100" />} />
                     <SidebarRow
-                      label="Last Reason"
+                      label={t("aiSupport.inbox.socialWorkspace.lastReason")}
                       value={clean(activeAutomationRuntime?.skipped_reason || activeAutomationRuntime?.duplicate_reason || activeAutomationRuntime?.error_message || activeAutomationRuntimeMonitor?.skipped_reason || "") || dash}
                       icon={<AlertTriangle className="h-4 w-4 text-rose-100" />}
                     />
-                    <SidebarRow label="Detected Intent" value={clean(activeAutomationRuntimeMonitor?.detected_intent || activeAutomationAiSales?.intent || "") || dash} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
-                    <SidebarRow label="Approval State" value={clean(activeAutomationRuntimeMonitor?.approval_status || activeAutomationAiSales?.approval_status || "") || dash} icon={<Bot className="h-4 w-4 text-fuchsia-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.detectedIntent")} value={clean(activeAutomationRuntimeMonitor?.detected_intent || activeAutomationAiSales?.intent || "") || dash} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.approvalState")} value={clean(activeAutomationRuntimeMonitor?.approval_status || activeAutomationAiSales?.approval_status || "") || dash} icon={<Bot className="h-4 w-4 text-fuchsia-100" />} />
                   </div>
                   <div className="mt-2 grid gap-2">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Generated Public Reply</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.generatedPublicReply")}</div>
                       <div className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-slate-200">
                         {clean(activeAutomationRuntimeMonitor?.generated_public_reply || activeAutomationAiSales?.public_reply || "") || dash}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Generated Private Reply</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.generatedPrivateReply")}</div>
                       <div className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-slate-200">
                         {clean(activeAutomationRuntimeMonitor?.generated_private_reply || activeAutomationAiSales?.private_reply || "") || dash}
                       </div>
@@ -3651,7 +3654,7 @@ function SocialCommentsWorkspace({
                   </div>
                   {Array.isArray(activeAutomationRuntime?.step_results) && activeAutomationRuntime.step_results.length ? (
                       <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Last Steps</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.lastSteps")}</div>
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {activeAutomationRuntime.step_results.slice(0, 6).map((step, index) => (
                           <span
@@ -3671,17 +3674,17 @@ function SocialCommentsWorkspace({
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">AI Assistant</div>
-                      <div className="mt-1 text-sm font-black text-white">Insight dashboard</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.aiAssistant")}</div>
+                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.insightDashboard")}</div>
                     </div>
-                    <span className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black text-cyan-100">Live</span>
+                    <span className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black text-cyan-100">{t("aiSupport.inbox.socialWorkspace.live")}</span>
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-200">
-                    <SidebarRow label="Most Asked Question" value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
-                    <SidebarRow label="Suggested Reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
-                    <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.mostAskedQuestion")} value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.suggestedReply")} value={suggestedReply || t("aiSupport.inbox.socialWorkspace.noSuggestion")} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.leadIntent")} value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
                     <SidebarRow
-                      label="Comment Identity"
+                      label={t("aiSupport.inbox.socialWorkspace.commentIdentity")}
                       value={selectFirst(resolveCommentCustomerName(actionableComment), activePostDetails?.customerName)}
                       icon={
                         resolveCommentCustomerAvatar(actionableComment) ? (
@@ -3691,15 +3694,15 @@ function SocialCommentsWorkspace({
                         )
                       }
                     />
-                    <SidebarRow label="Auto Reply Status" value={currentGlobalSettings.generic_enabled ? "Global ON" : "Global OFF"} icon={<Bot className="h-4 w-4 text-sky-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.autoReplyStatus")} value={currentGlobalSettings.generic_enabled ? t("aiSupport.inbox.socialWorkspace.globalOn") : t("aiSupport.inbox.socialWorkspace.globalOff")} icon={<Bot className="h-4 w-4 text-sky-100" />} />
                   </div>
                 </div>
 
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Global Template</div>
-                      <div className="mt-1 text-sm font-black text-white">Generic reply template</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.globalTemplate")}</div>
+                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.genericReplyTemplate")}</div>
                     </div>
                     <button
                       type="button"
@@ -3708,13 +3711,13 @@ function SocialCommentsWorkspace({
                       className="inline-flex h-8 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50"
                     >
                       {savingGlobal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      Save Global Template
+                      {t("aiSupport.inbox.socialWorkspace.saveGlobalTemplate")}
                     </button>
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <TogglePill
-                      label="Enabled"
+                      label={t("aiSupport.inbox.socialWorkspace.enabled")}
                       active={currentGlobalSettings.generic_enabled}
                       onClick={() => setGlobalDraft((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
                     />
@@ -3735,10 +3738,10 @@ function SocialCommentsWorkspace({
                     onChange={(event) => setGlobalDraft((current) => ({ ...current, mode: event.target.value }))}
                     className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
                   >
-                    <option value="off">Off</option>
-                    <option value="draft">Draft only</option>
-                    <option value="manual_approval">Manual Approval</option>
-                    <option value="full_auto">Full Auto</option>
+                    <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
+                    <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
+                    <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
+                    <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
                   </select>
 
                   <textarea
@@ -3746,16 +3749,16 @@ function SocialCommentsWorkspace({
                     onChange={(event) => setGlobalDraft((current) => ({ ...current, generic_template: event.target.value }))}
                     rows={4}
                     className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                    placeholder="Global auto reply template"
+                    placeholder={t("aiSupport.inbox.socialWorkspace.globalAutoReplyTemplate")}
                   />
-                  <div className="mt-2 text-[11px] font-medium text-slate-400">OFF by default. Full Auto requires explicit admin enablement.</div>
+                  <div className="mt-2 text-[11px] font-medium text-slate-400">{t("aiSupport.inbox.socialWorkspace.fullAutoWarning")}</div>
                 </div>
 
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Post Template</div>
-                      <div className="mt-1 text-sm font-black text-white">Template specific to this post</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.postTemplate")}</div>
+                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.postTemplateHint")}</div>
                     </div>
                     <button
                       type="button"
@@ -3764,7 +3767,7 @@ function SocialCommentsWorkspace({
                       className="inline-flex h-8 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50"
                     >
                       {savingTemplate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      Save Post Template
+                      {t("aiSupport.inbox.socialWorkspace.savePostTemplate")}
                     </button>
                   </div>
 
@@ -3811,10 +3814,10 @@ function SocialCommentsWorkspace({
                     }
                     className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
                   >
-                    <option value="off">Off</option>
-                    <option value="draft">Draft only</option>
-                    <option value="manual_approval">Manual Approval</option>
-                    <option value="full_auto">Full Auto</option>
+                    <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
+                    <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
+                    <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
+                    <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
                   </select>
 
                   <textarea
@@ -3827,12 +3830,12 @@ function SocialCommentsWorkspace({
                     }
                     rows={5}
                     className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                    placeholder="Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
+                    placeholder={t("aiSupport.inbox.ui.templateHint")}
                   />
 
                   <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Preview</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.preview")}</div>
                       <button
                         type="button"
                         onClick={() => void handlePreviewReply()}
@@ -3840,7 +3843,7 @@ function SocialCommentsWorkspace({
                         className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                       >
                         {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        Preview Reply
+                        {t("aiSupport.inbox.socialWorkspace.previewReply")}
                       </button>
                     </div>
                     <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{suggestedReply || "No template text yet."}</div>
@@ -3848,12 +3851,12 @@ function SocialCommentsWorkspace({
                 </div>
 
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Quick Actions</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.quickActions")}</div>
                   <div className="mt-3 grid gap-2">
-                    <QuickActionButton label="Reply All Price Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Price")), replyDraft || previewReply || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Price")) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)} />
-                    <QuickActionButton label="Reply All Size Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Size")), replyDraft || previewReply || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Size")) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)} />
-                    <QuickActionButton label="Create Leads" onClick={() => void handleCreateLead(firstMatchingComment((comment) => getCommentTags(comment).includes("Lead")))} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Lead"))} />
-                    <QuickActionButton label="Send Product" onClick={() => void handleSendProduct()} />
+                    <QuickActionButton label={t("aiSupport.inbox.socialWorkspace.replyAllPriceQuestions")} onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Price")), replyDraft || previewReply || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Price")) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)} />
+                    <QuickActionButton label={t("aiSupport.inbox.socialWorkspace.replyAllSizeQuestions")} onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Size")), replyDraft || previewReply || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Size")) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)} />
+                    <QuickActionButton label={t("aiSupport.inbox.socialWorkspace.createLeads")} onClick={() => void handleCreateLead(firstMatchingComment((comment) => getCommentTags(comment).includes("Lead")))} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Lead"))} />
+                    <QuickActionButton label={t("aiSupport.inbox.socialWorkspace.sendProduct")} onClick={() => void handleSendProduct()} />
                   </div>
                 </div>
               </aside>

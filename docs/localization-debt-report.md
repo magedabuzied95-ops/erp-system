@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 113
-- Hardcoded Arabic UI strings: 946
-- Hardcoded English UI strings: 733
-- Total hardcoded UI strings: 1679
-- Mixed-language files (both scripts hardcoded): 27
+- Files with debt: 112
+- Hardcoded Arabic UI strings: 940
+- Hardcoded English UI strings: 658
+- Total hardcoded UI strings: 1598
+- Mixed-language files (both scripts hardcoded): 26
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 57 | 665 | 377 | 1042 | 17 |
-| shared | 40 | 81 | 273 | 354 | 6 |
+| shared | 39 | 75 | 198 | 273 | 5 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -30,7 +30,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
-| src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
@@ -234,50 +233,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 68 [attribute/ar] اسم المنتج
 - 68 [attribute/ar] الاسم كما يظهر للعميل
 - ... 48 more
-
-### src/modules/aiSupport/components/SocialCommentsWorkspace.jsx (shared — ar:6 en:75)
-
-- 1130 [object-key/en] Link Product Required
-- 1134 [object-key/en] No linked product
-- 1139 [object-key/en] Automation Enabled
-- 1143 [object-key/en] Config active
-- 1148 [object-key/en] Automation Disabled
-- 1152 [object-key/en] Config saved
-- 1156 [object-key/en] Ready
-- 1160 [object-key/en] Product linked
-- 2470 [dialog/ar] Full Auto يفعّل الرد الكامل تلقائيًا. هل تريد المتابعة؟
-- 2502 [dialog/ar] Full Auto يفعّل الرد الكامل تلقائيًا لهذا البوست. هل تريد المتابعة؟
-- 2799 [jsx-text/en] Social Comments
-- 2800 [jsx-text/en] Posts
-- 2819 [jsx-text/ar] لا توجد منشورات بعد
-- 2820 [jsx-text/ar] سيظهر هنا المنشور المرتبط بالتعليقات عندما يتوفر
-- 2951 [jsx-text/en] Needs reply
-- 3109 [jsx-text/en] Needs reply
-- 3232 [jsx-text/en] Selected:
-- 3233 [jsx-text/en] Latest:
-- 3278 [jsx-text/en] Selected Post ID
-- 3280 [jsx-text/en] Selected post:
-- 3283 [jsx-text/en] Latest Comment Post ID
-- 3285 [jsx-text/en] Latest comment post:
-- 3288 [jsx-text/en] Selected Permalink
-- 3292 [jsx-text/en] Latest Comment Permalink
-- 3382 [jsx-text/en] ERP Product Card
-- 3415 [jsx-text/en] Price:
-- 3416 [jsx-text/en] Stock:
-- 3426 [attribute/en] Sale
-- 3427 [attribute/en] Sizes
-- 3428 [attribute/en] Colors
-- 3429 [attribute/en] Product
-- 3441 [jsx-text/en] Comments Timeline
-- 3443 [jsx-text/en] Showing the latest social thread activity
-- 3492 [jsx-text/ar] لا توجد تعليقات للعرض الآن
-- 3493 [jsx-text/ar] لم يتم تحميل أي تعليقات لهذا المنشور بعد.
-- 3536 [jsx-text/en] Reply Composer
-- 3537 [jsx-text/en] Draft a reply
-- 3567 [attribute/en] Reply draft
-- 3617 [jsx-text/en] Automation Status
-- 3618 [jsx-text/en] Config and runtime summary
-- ... 41 more
 
 ### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:4)
 
