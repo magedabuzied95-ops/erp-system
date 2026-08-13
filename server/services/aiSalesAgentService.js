@@ -1,5 +1,5 @@
 import db from "../database/db.js";
-import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { resolveCustomerDisplayPrice, loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
 import { emitToRooms } from "../utils/socket.js";
 import { resolveAiProductUrl } from "./aiProductEligibilityService.js";
@@ -4262,7 +4262,14 @@ export const enrichGroundedSendReadyCard = async ({ tenantId, identity }) => {
     if (identity.variant_id) {
       variant = (await db.query("SELECT * FROM product_variants WHERE tenant_id = $1 AND id = $2 LIMIT 1", [tenantId, identity.variant_id]).catch(() => ({ rows: [] }))).rows[0] || null;
     }
-    const priceInfo = resolveCustomerDisplayPrice({ ...prod, variant, product: prod, selected_variant: variant, matched_variant: variant });
+    // Batch 1A — the customer price must be the SAME one POS charges: canonical normal price, and a sale only
+    // when the GLOBAL Sale Mode rules say so. The raw DB rows are passed (not a serialized API object, whose
+    // regular_price may have been overwritten with the resolved normal price).
+    const saleModeSettings = await loadTenantSaleModeSettings({ tenantId });
+    const priceInfo = resolveCustomerDisplayPrice(
+      { ...prod, variant, product: prod, selected_variant: variant, matched_variant: variant },
+      { saleModeSettings }
+    );
     const image = resolvePublicProductImageUrl(resolveProductImageFromRecord({ ...prod, ...(variant || {}) }) || variant?.image_url || variant?.image || prod.image_url || prod.image || "");
     const url = resolvePublicProductUrl(prod);
     const sizes = availableProductSizes(prod);

@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
+import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
 
 const toMoney = (value = null) => {
   const amount = Number(value);
@@ -30,10 +31,21 @@ const trace = (payload) => {
   }
 };
 
-export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
+// Batch 1A — DELEGATES to the one canonical authority (src/shared/lib/effectiveCustomerPrice.js), the same rule
+// POS charges by. The previous implementation inferred "a sale is running" from ~30 loose per-record flags and
+// never consulted the GLOBAL website_settings.sale_mode_enabled toggle, so it quoted dormant sale prices on ~41%
+// of the catalogue (product 39: AI quoted 1550, POS charges 1750). Callers that know the tenant MUST pass
+// `saleModeSettings` (see loadTenantSaleModeSettings); without it the safe default is Sale OFF ⇒ the normal
+// price, which can never under-quote what POS charges. The returned shape is unchanged for existing consumers.
+export const resolveCustomerDisplayPrice = (productOrVariant = {}, { saleModeSettings = null } = {}) => {
   const product = productOrVariant?.product || productOrVariant?.parent_product || productOrVariant?.parent || productOrVariant;
   const variant = productOrVariant?.variant || productOrVariant?.selected_variant || productOrVariant?.matched_variant || productOrVariant;
-  const saleModeOn = [
+  const canonical = resolveEffectiveCustomerPrice({
+    product: product === productOrVariant ? product : { ...product, ...productOrVariant },
+    variant: variant === product ? null : variant,
+    saleModeSettings: saleModeSettings || { sale_mode_enabled: false },
+  });
+  const legacyUnusedSaleFlags = [
     productOrVariant.sale_active,
     productOrVariant.is_sale_active,
     productOrVariant.on_sale,
@@ -62,20 +74,15 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
     product.global_sale_enabled,
     product.sale_prices_enabled,
   ].some((value) => Boolean(truthy(value)));
+  // Kept ONLY as an observability signal: these legacy per-record flags no longer decide anything. When one is
+  // truthy while the canonical rule says "normal price", that is the old bug's fingerprint — log it, don't obey it.
+  const legacySaleFlagSeen = legacyUnusedSaleFlags;
 
-  const selling_price = toMoney(
-    productOrVariant.selling_price ??
-      productOrVariant.price ??
-      productOrVariant.regular_price ??
-      variant.selling_price ??
-      variant.price ??
-      variant.regular_price ??
-      product.selling_price ??
-      product.price ??
-      product.regular_price
-  );
-  const sale_price = toMoney(productOrVariant.sale_price ?? variant.sale_price ?? product.sale_price);
-  const saleActive = saleModeOn && sale_price > 0 && (selling_price <= 0 || sale_price < selling_price);
+  // Canonical values — the normal price comes from the Phase 1 contract (manual → purchase_selling_price →
+  // legacy), and the sale price is only active when the GLOBAL Sale Mode rules say so.
+  const selling_price = toMoney(canonical.normal_price);
+  const sale_price = toMoney(canonical.sale_price);
+  const saleActive = canonical.price_source === "sale";
   const wholesale_price = toMoney(
     productOrVariant.wholesale_price ??
       variant.wholesale_price ??
@@ -95,7 +102,7 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
   );
   const cost_price = toMoney(productOrVariant.cost_price ?? variant.cost_price ?? product.cost_price);
 
-  let display_price = saleActive ? sale_price : selling_price;
+  let display_price = toMoney(canonical.active_price);
   let price_source = saleActive ? "sale_price" : "selling_price";
   if (["wholesale_price", "cost_price", "purchase_price", "supplier_price"].includes(price_source)) {
     console.error("[ai-price-source]", {
@@ -113,12 +120,17 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
     display_price = selling_price;
     price_source = "selling_price";
   }
-  const old_price = saleActive && selling_price > sale_price ? selling_price : null;
+  // Display-only strikethrough. Never an active price, never a budget/eligibility input.
+  const old_price = toMoney(canonical.compare_price) || null;
   const result = {
     display_price,
     old_price,
     price_source,
-    sale_active: saleActive && sale_price > 0,
+    sale_active: saleActive,
+    has_price: canonical.has_price === true,
+    canonical_reason: canonical.reason,
+    sale_mode_enabled: canonical.sale_mode_enabled === true,
+    legacy_sale_flag_seen: Boolean(legacySaleFlagSeen) && !saleActive,
     selling_price,
     sale_price,
     wholesale_price,
@@ -138,6 +150,13 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
     selected_price_source: result.price_source,
   });
   return result;
+};
+
+// The GLOBAL Sale Mode state for a tenant — the same website_settings the POS and storefront read. Every
+// customer-facing AI surface must resolve prices with this, otherwise it silently falls back to "Sale OFF".
+export const loadTenantSaleModeSettings = async ({ tenantId } = {}) => {
+  const settings = await getWebsiteSettings({ tenantId }).catch(() => null);
+  return settings || { sale_mode_enabled: false };
 };
 
 export const formatCustomerDisplayPrice = (value) => {
