@@ -187,12 +187,44 @@ export const PRINT_RESERVED = new Map([
  * Deleting them is a separate call — this pass only classifies.
  */
 export const DEAD_FILES = new Map([
+  ["src/components/ai/AISuggestedReplies.jsx", "No import anywhere under src/."],
+  ["src/components/ProductCard.jsx", "No import anywhere under src/; its strings are demo props."],
+  ["src/components/ProductSizes.jsx", "No import anywhere under src/."],
+  ["src/components/ProductVariants.jsx", "No import anywhere under src/."],
+  ["src/components/ProductColors.jsx", "Imported only by products/pages/ProductsLegacy.jsx, which is itself unreachable."],
   ["src/components/Table.jsx", "No import anywhere under src/."],
   ["src/shared/components/Table.jsx", "No import anywhere under src/."],
   ["src/pages/CreateOrder.jsx", "Superseded by modules/sales/pages/CreateOrder.jsx, which App.jsx routes; nothing imports this one."],
   ["src/pages/Sales.jsx", "No import anywhere under src/."],
   ["src/modules/sales/pages/InvoicesLegacy.jsx", "No import anywhere under src/; the name records that it is the legacy screen."],
   ["src/pages/UploadTest.jsx", "Upload scratch page; no import anywhere under src/."],
+]);
+
+/**
+ * Bucket D — generated / outbound content, not interface vocabulary.
+ *
+ * These strings are produced FOR a customer or a model rather than labelling a
+ * control, so translating them changes what gets published or sent, not what an
+ * operator reads. Decided on the hit, not the file: the surrounding chrome in
+ * these same files is already localized.
+ */
+export const GENERATED_CONTENT = new Map([
+  ["src/modules/marketing/pages/AiMarketingVideos.jsx", "Reel captions and audio-track names baked into the generated video; the page chrome already uses tt()."],
+  ["src/modules/marketing/components/PostEditorModal.jsx", "Audio-track name for a generated reel."],
+  ["src/modules/marketing/services/marketingApi.js", "Default body of the Facebook publish TEST call - outbound post content."],
+  ["src/modules/aiSupport/pages/AiSettings.jsx", "Playground sample message sent to the AI, not chrome."],
+  ["src/modules/aiSupport/pages/AiChannels.jsx", "WhatsApp gateway test message, not chrome."],
+]);
+
+/**
+ * Bucket F — serialized workflow data.
+ *
+ * workflowGraph's palette entries carry labelKey/descriptionKey and are already
+ * localized; this one literal is the DEFAULT NODE DATA written into a saved
+ * workflow graph, which the backend/serialization freeze covers.
+ */
+export const WORKFLOW_DATA = new Map([
+  ["src/modules/aiStudio/lib/workflowGraph.js", "Default `label` of a persisted approval node, not a rendered palette label."],
 ]);
 
 /**
@@ -210,6 +242,8 @@ const RESERVED = [
   ["C. catalogue values", CATALOGUE_VALUES],
   ["E. print/export artwork", PRINT_RESERVED],
   ["G. dead / unreachable", DEAD_FILES],
+  ["D. generated/outbound content", GENERATED_CONTENT],
+  ["F. serialized workflow data", WORKFLOW_DATA],
   ["K. product-decision debt", PRODUCT_DECISION],
 ];
 

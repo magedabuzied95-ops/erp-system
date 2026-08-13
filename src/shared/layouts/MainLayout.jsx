@@ -381,7 +381,7 @@ function NotificationBellFallback() {
     <button
       type="button"
       className="relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--text)] opacity-70 shadow-sm"
-      aria-label="الإشعارات"
+      aria-label={t("notifications.bell.title")}
       disabled
     >
       <Bell className="h-5 w-5" />
@@ -404,7 +404,7 @@ function RealtimePill({ label }) {
   return (
     <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-primary/25 bg-zinc-950/75 px-3 text-sm font-black text-primary shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
       <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" : "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.75)]"}`} />
-      <span className="hidden md:inline">{connected ? label : "جارٍ إعادة الاتصال"}</span>
+      <span className="hidden md:inline">{connected ? label : t("common.reconnecting")}</span>
     </div>
   );
 }

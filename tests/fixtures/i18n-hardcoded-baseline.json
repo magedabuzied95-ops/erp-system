@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1229,
-    "english": 1093,
-    "total": 2322,
-    "mixedFiles": 33
+    "arabic": 1234,
+    "english": 1084,
+    "total": 2318,
+    "mixedFiles": 32
   },
   "files": {
     "src/components/ai/AILiveLogs.jsx": {
@@ -483,9 +483,9 @@
       "total": 1
     },
     "src/modules/website/pages/WebsiteSettings.jsx": {
-      "arabic": 2,
-      "english": 13,
-      "total": 15
+      "arabic": 10,
+      "english": 9,
+      "total": 19
     },
     "src/pages/AppShellPreview.jsx": {
       "arabic": 25,
@@ -522,15 +522,10 @@
       "english": 1,
       "total": 58
     },
-    "src/pages/Login.jsx": {
-      "arabic": 1,
-      "english": 2,
-      "total": 3
-    },
     "src/pages/PublicProduct.jsx": {
       "arabic": 0,
-      "english": 6,
-      "total": 6
+      "english": 3,
+      "total": 3
     },
     "src/pages/Sales.jsx": {
       "arabic": 0,
@@ -573,9 +568,9 @@
       "total": 2
     },
     "src/shared/layouts/MainLayout.jsx": {
-      "arabic": 3,
+      "arabic": 1,
       "english": 0,
-      "total": 3
+      "total": 1
     },
     "src/shared/lib/categorySeo.js": {
       "arabic": 16,

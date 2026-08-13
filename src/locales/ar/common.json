@@ -737,6 +737,12 @@
       "screenCrashed": "تعطلت هذه الشاشة",
       "appCrashed": "تعطلت شاشة التطبيق",
       "employeeAppCrashed": "تعطلت شاشة تطبيق الموظفين"
+    },
+    "reconnecting": "جارٍ إعادة الاتصال",
+    "login": {
+      "email": "البريد الإلكتروني",
+      "password": "كلمة المرور",
+      "workspace": "مساحة العمل / معرف الشركة"
     }
   },
   "sidebar": {

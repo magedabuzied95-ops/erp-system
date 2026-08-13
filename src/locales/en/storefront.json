@@ -729,5 +729,10 @@
     "links": "Links",
     "contact": "Contact",
     "followUs": "Follow us"
+  },
+  "product": {
+    "noImage": "No image available",
+    "variants": "Variants",
+    "noVariants": "No variants available."
   }
 }

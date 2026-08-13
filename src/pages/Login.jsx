@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api } from "../shared/api/api";
 import { setAuth, getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
@@ -36,6 +37,7 @@ function BrandBadge({ name, logoUrl }) {
 }
 
 function Login() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [workspace, setWorkspace] = useState(getCurrentTenant()?.slug || "");
@@ -163,7 +165,7 @@ function Login() {
 
         <input
           type="email"
-          placeholder="Email"
+          placeholder={t("common.login.email")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="mb-4 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
@@ -171,7 +173,7 @@ function Login() {
 
         <input
           type="password"
-          placeholder="كلمة المرور"
+          placeholder={t("common.login.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mb-4 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
@@ -179,7 +181,7 @@ function Login() {
 
         <input
           type="text"
-          placeholder="Workspace / company slug"
+          placeholder={t("common.login.workspace")}
           value={workspace}
           onChange={(e) => setWorkspace(e.target.value)}
           className="mb-4 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"

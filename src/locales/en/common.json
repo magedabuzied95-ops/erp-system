@@ -737,6 +737,12 @@
       "screenCrashed": "This screen crashed",
       "appCrashed": "Application screen crashed",
       "employeeAppCrashed": "Employee app screen crashed"
+    },
+    "reconnecting": "Reconnecting",
+    "login": {
+      "email": "Email",
+      "password": "Password",
+      "workspace": "Workspace / company slug"
     }
   },
   "sidebar": {

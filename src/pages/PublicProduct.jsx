@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowRight, Loader2, ShoppingCart, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socialMeta";
@@ -104,6 +105,7 @@ const postPublicEvent = async ({ productId, eventType, product, attribution }) =
 };
 
 export default function PublicProduct() {
+  const { t } = useTranslation();
   const { productId } = useParams();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -244,7 +246,7 @@ export default function PublicProduct() {
                 {mainImage ? (
                   <img src={mainImage} alt={product.name} className="aspect-square h-full w-full object-cover" />
                 ) : (
-                  <div className="flex aspect-square items-center justify-center text-sm text-slate-500">No image available</div>
+                  <div className="flex aspect-square items-center justify-center text-sm text-slate-500">{t("storefront.product.noImage")}</div>
                 )}
               </div>
             </div>
@@ -252,10 +254,10 @@ export default function PublicProduct() {
         </section>
 
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5">
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Variants</div>
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">{t("storefront.product.variants")}</div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {variants.length === 0 ? (
-              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">No variants available.</div>
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("storefront.product.noVariants")}</div>
             ) : (
               variants.map((variant) => (
                 <div key={String(variant.id)} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">

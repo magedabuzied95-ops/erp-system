@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 120
-- Hardcoded Arabic UI strings: 1229
-- Hardcoded English UI strings: 1093
-- Total hardcoded UI strings: 2322
-- Mixed-language files (both scripts hardcoded): 33
+- Files with debt: 119
+- Hardcoded Arabic UI strings: 1234
+- Hardcoded English UI strings: 1084
+- Total hardcoded UI strings: 2318
+- Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 59 | 879 | 711 | 1590 | 20 |
-| shared | 45 | 150 | 299 | 449 | 9 |
+| main-erp | 58 | 886 | 702 | 1588 | 19 |
+| shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -45,10 +45,10 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
+| src/modules/website/pages/WebsiteSettings.jsx | main-erp | 10 | 9 | 19 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
 | src/modules/products/pages/ProductPrintList.jsx | main-erp | 15 | 2 | 17 |
 | src/modules/products/pages/ProductEdit.jsx | main-erp | 3 | 13 | 16 |
-| src/modules/website/pages/WebsiteSettings.jsx | main-erp | 2 | 13 | 15 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 3 | 12 |
 | src/modules/products/pages/BarcodeLabels.jsx | main-erp | 4 | 7 | 11 |
 | src/modules/products/pages/CreateProduct.jsx | main-erp | 7 | 4 | 11 |
@@ -60,7 +60,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/products/lib/productClassifications.js | main-erp | 1 | 4 | 5 |
 | src/modules/aiSupport/components/socialAutomation/AutomationMessageTemplates.jsx | shared | 2 | 2 | 4 |
 | src/modules/products/lib/barcodeLabels.js | main-erp | 2 | 1 | 3 |
-| src/pages/Login.jsx | main-erp | 1 | 2 | 3 |
 | src/shared/lib/crocsSizes.js | shared | 1 | 1 | 2 |
 
 ## Per-file detail
@@ -1103,6 +1102,28 @@ of scope. The scanner is conservative and can still contain false positives.
 - 178 [inline-ternary/ar] isArabic ? "مشاركة واتساب" : "WhatsApp Share"
 - 182 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 
+### src/modules/website/pages/WebsiteSettings.jsx (main-erp — ar:10 en:9)
+
+- 87 [object-key/en] Website Settings
+- 88 [object-key/en] Control storefront pricing, checkout shipping rules, and public commerce behavior from one admin module.
+- 93 [object-key/en] Public storefront is available at {url}.
+- 93 [object-key/en] Website status
+- 94 [object-key/en] Domain
+- 95 [object-key/en] Control storefront logo, colors, typography, and homepage assets.
+- 95 [object-key/en] Theme
+- 96 [object-key/en] Bosta, Mylerz, Aramex, manual delivery, and pickup structure is ready.
+- 96 [object-key/en] Shipping provider
+- 156 [object-key/ar] إعدادات الموقع
+- 157 [object-key/ar] تحكم في أسعار المتجر والشحن والدفع من وحدة إدارة واحدة.
+- 162 [object-key/ar] المتجر العام متاح على {url}.
+- 162 [object-key/ar] حالة الموقع
+- 163 [object-key/ar] اربط نطاقًا مخصصًا لمتجر العملاء.
+- 163 [object-key/ar] النطاق
+- 164 [object-key/ar] المظهر
+- 164 [object-key/ar] تحكم في شعار المتجر والألوان والخطوط وعناصر الصفحة الرئيسية.
+- 165 [object-key/ar] بوسطة وميلرز وأرامكس والتوصيل اليدوي والاستلام من الفرع جاهزة.
+- 165 [object-key/ar] شركة الشحن
+
 ### src/modules/aiSupport/components/socialAutomation/SocialAutomationDrawer.jsx (shared — ar:0 en:17)
 
 - 37 [object-key/en] Comments
@@ -1218,24 +1239,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 136 [inline-ternary/ar] isArabic ? "رابط واتساب" : "WhatsApp Link"
 - 140 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 - 144 [inline-ternary/ar] isArabic ? "إعادة إنشاء الرابط" : "Regenerate Link"
-
-### src/modules/website/pages/WebsiteSettings.jsx (main-erp — ar:2 en:13)
-
-- 87 [object-key/en] Website Settings
-- 88 [object-key/en] Control storefront pricing, checkout shipping rules, and public commerce behavior from one admin module.
-- 145 [object-key/ar] إعدادات الموقع
-- 146 [object-key/ar] تحكم في أسعار المتجر والشحن والدفع من وحدة إدارة واحدة.
-- 614 [object-key/en] Website status
-- 615 [object-key/en] Domain
-- 616 [object-key/en] Control storefront logo, colors, typography, and homepage assets.
-- 616 [object-key/en] Theme
-- 617 [object-key/en] Bosta, Mylerz, Aramex, manual delivery, and pickup structure is ready.
-- 617 [object-key/en] Shipping provider
-- 630 [jsx-text/en] Enable fake compare price
-- 631 [jsx-text/en] Show generated old prices on storefront cards and product pages.
-- 635 [attribute/en] Fake compare percent
-- 637 [jsx-text/en] Rounding mode
-- 649 [jsx-text/en] Existing Sale Prices
 
 ### src/modules/accounting/pages/AccountingAnalytics.jsx (main-erp — ar:13 en:0)
 
@@ -1547,15 +1550,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 521 [jsx-text/en] 3. Check in/out
 - 524 [jsx-text/en] Generated $
 
-### src/pages/PublicProduct.jsx (main-erp — ar:0 en:6)
-
-- 217 [jsx-text/en] Source:
-- 218 [jsx-text/en] Campaign:
-- 219 [jsx-text/en] Code:
-- 247 [jsx-text/en] No image available
-- 255 [jsx-text/en] Variants
-- 258 [jsx-text/en] No variants available.
-
 ### src/components/ai/AISuggestedReplies.jsx (shared — ar:1 en:4)
 
 - 90 [jsx-text/en] Intent:
@@ -1698,23 +1692,17 @@ of scope. The scanner is conservative and can still contain false positives.
 - 316 [attribute/en] MODEL-...
 - 396 [attribute/en] MEN-SHOES-41
 
-### src/pages/Login.jsx (main-erp — ar:1 en:2)
+### src/pages/PublicProduct.jsx (main-erp — ar:0 en:3)
 
-- 166 [attribute/en] Email
-- 174 [attribute/ar] كلمة المرور
-- 182 [attribute/en] Workspace / company slug
+- 219 [jsx-text/en] Source:
+- 220 [jsx-text/en] Campaign:
+- 221 [jsx-text/en] Code:
 
 ### src/pages/UploadTest.jsx (main-erp — ar:0 en:3)
 
 - 51 [dialog/en] Select Image First
 - 76 [dialog/en] Image Uploaded Successfully ✅
 - 84 [dialog/en] Upload Failed ❌
-
-### src/shared/layouts/MainLayout.jsx (shared — ar:3 en:0)
-
-- 384 [attribute/ar] الإشعارات
-- 407 [object-key/ar] جارٍ إعادة الاتصال
-- 810 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
 
 ### src/components/ProductCard.jsx (shared — ar:0 en:2)
 
@@ -1859,6 +1847,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/shared/components/Sidebar.jsx (shared — ar:0 en:1)
 
 - 28 [jsx-text/en] ERP PRO
+
+### src/shared/layouts/MainLayout.jsx (shared — ar:1 en:0)
+
+- 810 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
 
 ### src/shared/utils/whatsapp.js (shared — ar:1 en:0)
 
