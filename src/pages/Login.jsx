@@ -126,7 +126,7 @@ function Login() {
       });
 
       const role = String(data?.user?.role || data?.user?.role_name || "").toLowerCase();
-      window.location.href = role === "meta_reviewer" ? "/inbox" : "/dashboard";
+      window.location.href = role === "meta_reviewer" ? "/admin/ai-inbox" : "/dashboard";
     } catch (loginError) {
       console.log(loginError);
       console.error("[login] fetch error details:", {

@@ -276,6 +276,38 @@ const buildMessageIdentityKey = ({ tenantId = "", sessionId = "", direction = "o
 };
 const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
+const metaReviewerChannel = (value = "") => clean(value).toLowerCase().includes("instagram") ? "instagram" : "messenger";
+const metaReviewerConversationEndpoint = (channel = "messenger", conversationRef = "", suffix = "") =>
+  `/meta-reviewer/inbox/channels/${metaReviewerChannel(channel)}/conversations${conversationRef ? `/${encodeConversationId(conversationRef)}` : ""}${suffix}`;
+const normalizeMetaReviewerConversation = (row = {}, fallbackChannel = "messenger") => {
+  const channel = metaReviewerChannel(row.channel || fallbackChannel);
+  const sessionId = clean(row.id);
+  return {
+    ...row,
+    id: sessionId,
+    session_id: sessionId,
+    conversation_id: sessionId,
+    conversation_key: `${channel}:${sessionId}`,
+    channel,
+    source: channel,
+    is_live_meta: true,
+    live_sending_available: true,
+    latest_message_preview: clean(row.latest_message_preview),
+    last_message: clean(row.latest_message_preview),
+    last_activity_at: row.last_message_at || null,
+    updated_at: row.last_message_at || null,
+    message_count: 1,
+    messages: [],
+  };
+};
+const normalizeMetaReviewerMessage = (message = {}) => ({
+  ...message,
+  customer_message: message.sender_type === "customer" ? clean(message.text) : "",
+  staff_message: message.sender_type === "customer" ? "" : clean(message.text),
+  message_text: clean(message.text),
+  manual_message: message.sender_type !== "customer",
+  visual_attachments: asArray(message.attachments),
+});
 const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
   `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
 const aiReplyCorrectionEndpoint = (sessionId = "", messageId = "") =>
@@ -4763,7 +4795,7 @@ function RightToolsTabsPanel({
   );
 }
 
-export default function AiInbox() {
+export default function AiInbox({ reviewerMode = false }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const deepLinkConversationRef = useRef(clean(searchParams.get("conversation") || searchParams.get("conversation_id") || searchParams.get("session_id") || ""));
@@ -5010,14 +5042,16 @@ export default function AiInbox() {
     // "All" is one bounded request per message channel. Declared out here because
     // both the warm-cache read and the network round below need them.
     const deepLinkConversationId = clean(deepLinkConversationRef.current);
-    const warmChannels = channelsForFilter(channelFilter);
+    const warmChannels = reviewerMode
+      ? (clean(channelFilter).toLowerCase().includes("instagram") ? ["instagram"] : clean(channelFilter).toLowerCase().includes("messenger") ? ["messenger"] : ["messenger", "instagram"])
+      : channelsForFilter(channelFilter);
     // Cache entries are per-channel (keyed by the backend channel name), never one
     // giant unscoped "all" blob — a merged blob would re-introduce exactly the
     // starvation we are fixing as soon as it got clipped by the row cap. Also
     // reused as the per-channel fallback if a channel request fails below.
-    const cachedPages = await Promise.all(
-      warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => []))
-    );
+    const cachedPages = reviewerMode
+      ? warmChannels.map(() => [])
+      : await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])));
     if (!silent) {
       // Warm start (stale-while-revalidate): render cached conversation summaries
       // immediately and skip the blocking spinner while the channels revalidate.
@@ -5051,7 +5085,12 @@ export default function AiInbox() {
       // This is still one logical refresh: the in-flight guard and the freshness
       // window above already gate the whole block, so mount/visibility/focus/
       // socket/SWR cannot multiply these into duplicate rounds.
-      const fetchChannelPage = (backendChannel) => api.get("/ai-inbox/conversations", {
+      const fetchChannelPage = (backendChannel) => reviewerMode
+        ? api.get(metaReviewerConversationEndpoint(backendChannel), {
+            params: { search: debouncedSearch || deepLinkConversationId, limit: channelWindow(backendChannel) },
+            perfComponent: `AiInbox.reviewerConversations.${metaReviewerChannel(backendChannel)}`,
+          }).then((payload) => asArray(payload?.conversations).map((row) => normalizeMetaReviewerConversation(row, backendChannel)))
+        : api.get("/ai-inbox/conversations", {
         params: {
           tenant_id: tenantId,
           filter,
@@ -5123,7 +5162,7 @@ export default function AiInbox() {
       // failure is not rewritten: that would just echo stale data back.
       requestedChannels.forEach((backendChannel, index) => {
         if (failedChannels.includes(backendChannel)) return;
-        inboxCache.saveList(channelPages[index], backendChannel);
+        if (!reviewerMode) inboxCache.saveList(channelPages[index], backendChannel);
       });
       const deepLinkedConversation = findDeepLinkedConversation(
         nextConversations,
@@ -5145,7 +5184,14 @@ export default function AiInbox() {
       // Conversation list is usable now — unblock render BEFORE fetching the
       // non-essential secondary data so it never gates the list.
       if (!silent) setLoading(false);
-      Promise.all([
+      if (reviewerMode) {
+        setDrafts([]);
+        setAnalytics({});
+        setChannelStatus({ messenger: { effective_enabled: true }, instagram: { effective_enabled: true } });
+        setAiAssistantGlobalEnabled(false);
+        setEmployees([]);
+        setSocialComments({ items: [], loading: false, error: "" });
+      } else Promise.all([
         api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }).catch(() => ({ drafts: [] })),
         api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }).catch(() => ({ analytics: {} })),
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
@@ -5171,7 +5217,7 @@ export default function AiInbox() {
       // Social comments are a SEPARATE section — they are never required to show
       // conversations. Detached from the awaited path so the comments endpoint
       // can't hold isRefreshingRef (and therefore the refresh queue) open.
-      void (async () => {
+      if (!reviewerMode) void (async () => {
       try {
         const [postsPayload, settingsPayload] = await Promise.all([
           api.get("/social-comments/posts", {
@@ -5260,7 +5306,7 @@ export default function AiInbox() {
         }
       }
     }
-  }, [channelFilter, debouncedSearch, filter, headers, tenantId]);
+  }, [channelFilter, debouncedSearch, filter, headers, reviewerMode, tenantId]);
 
   // Shared inboxCache housekeeping: expiry sweep on mount, and wipe on logout /
   // user switch so one account's cached inbox is never shown to the next.
@@ -5591,7 +5637,9 @@ export default function AiInbox() {
   const fixedChannelSummaries = useMemo(() => {
     const byKey = new Map(channelSummaries.channels.map((item) => [item.key, item]));
 
-    const fixedChannelOrder = inboxSection === "social_comments" ? socialCommentChannelOrder : conversationChannelOrder;
+    const fixedChannelOrder = reviewerMode
+      ? ["messenger", "instagram"]
+      : inboxSection === "social_comments" ? socialCommentChannelOrder : conversationChannelOrder;
     return fixedChannelOrder.map((key) => ({
       key,
       label: channelBadgeLabel(key),
@@ -5599,7 +5647,7 @@ export default function AiInbox() {
       unread: Number(byKey.get(key)?.unread || 0),
       tone: byKey.get(key)?.tone || "zinc",
     }));
-  }, [channelSummaries.channels, inboxSection]);
+  }, [channelSummaries.channels, inboxSection, reviewerMode]);
   const realMetaCount = conversationPanelConversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const conversationPanelCount = conversationPanelConversations.length;
   const socialCommentsPanelCount = asArray(socialComments.items).length;
@@ -6756,15 +6804,20 @@ export default function AiInbox() {
     isLoadingOlderRef.current = true;
     setOlderMessagesLoading(true);
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/messages"), {
-        params: { tenant_id: tenantId, ...(before ? { before, before_id: beforeId } : {}), limit: 30 },
-        headers,
-        perfComponent: "AiInbox.messages.loadOlder",
-      });
+      const payload = reviewerMode
+        ? await api.get(metaReviewerConversationEndpoint(selectedConversation?.channel || selectedConversation?.source, selectedConversationRouteId || sessionId, "/messages"), {
+            params: { limit: 50 },
+            perfComponent: "AiInbox.reviewerMessages",
+          })
+        : await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/messages"), {
+            params: { tenant_id: tenantId, ...(before ? { before, before_id: beforeId } : {}), limit: 30 },
+            headers,
+            perfComponent: "AiInbox.messages.loadOlder",
+          });
       hydratedThreadsRef.current.add(clean(conversationIdentifier));
       patchConversation(conversationIdentifier, (conversation) => {
         const existing = asArray(conversation.messages);
-        const incoming = asArray(payload.messages);
+        const incoming = reviewerMode ? asArray(payload.messages).map(normalizeMetaReviewerMessage) : asArray(payload.messages);
         // Older-page loads prepend (incoming is strictly older). A full-page
         // hydrate may merge over a cache-primed window that reaches FURTHER BACK
         // than this page, and merge keeps first-seen order, so order the result
@@ -6792,7 +6845,7 @@ export default function AiInbox() {
       setOlderMessagesLoading(false);
       isLoadingOlderRef.current = false;
     }
-  }, [headers, olderMessagesLoading, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, olderMessagesLoading, patchConversation, reviewerMode, selectedConversation, selectedConversationRouteId, tenantId]);
 
   // WARM THREAD (stale-while-revalidate) — shared inboxCache.
   // Opening a conversation renders its cached message window immediately; the
@@ -7256,8 +7309,11 @@ export default function AiInbox() {
     setReplySending(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval, product_id: correctionMetadata?.product_id || null, product_disposition: correctionMetadata?.product_disposition || null }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = reviewerMode
+        ? await api.post(metaReviewerConversationEndpoint(selectedConversation?.channel || selectedConversation?.source, selectedConversationRouteId || sessionId, "/send"), { message }, { perfComponent: "AiInbox.reviewerSend" })
+        : await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval, product_id: correctionMetadata?.product_id || null, product_disposition: correctionMetadata?.product_disposition || null }, { headers, perfComponent: "AiInbox.sendManualReply" });
       if (payload.message) {
+        const sentMessage = reviewerMode ? normalizeMetaReviewerMessage(payload.message) : payload.message;
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           ai_reply_draft: null,
@@ -7265,13 +7321,14 @@ export default function AiInbox() {
           last_ai_reply_validation: null,
           last_ai_reply_confidence_engine: null,
           last_ai_reply_draft_updated_at: null,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), payload.message]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), sentMessage]),
           latest_message_preview: message,
-          last_activity_at: payload.message.created_at || now,
-          updated_at: payload.message.created_at || now,
+          last_activity_at: sentMessage.created_at || now,
+          updated_at: sentMessage.created_at || now,
         }));
         let correctionSaved = true;
         try {
+          if (reviewerMode) return { ok: true, correctionSaved: true };
           await saveEditedAiReplyCorrection({
             sentMessageId: payload.message.id || "",
             aiReplyDraft: activeDraft,
@@ -8006,7 +8063,14 @@ export default function AiInbox() {
     setReplyText(composed);
   }, []);
 
-  const renderModeTabs = () => (
+  const renderModeTabs = () => reviewerMode ? (
+    <div className="mt-3 inline-flex max-w-full flex-wrap gap-2">
+      <button type="button" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950">
+        <span>AI Inbox</span>
+        <span className="rounded-full bg-slate-950/15 px-2 py-0.5">{conversationPanelCount}</span>
+      </button>
+    </div>
+  ) : (
     <div className="mt-3 inline-flex max-w-full flex-wrap gap-2">
       <button
         type="button"

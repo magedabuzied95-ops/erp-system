@@ -239,7 +239,6 @@ const AiStudioTools = lazy(() => import("./modules/aiStudio/pages/AiStudioTools"
 // Visual workflow builder — lazy so @xyflow/react loads ONLY on the editor route.
 const AiStudioWorkflowEditor = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflowEditor"));
 const AiStudioRestockRecovery = lazy(() => import("./modules/aiStudio/pages/AiStudioRestockRecovery"));
-const MetaReviewerInbox = lazy(() => import("./modules/aiSupport/pages/MetaReviewerInbox"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
 const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
@@ -318,11 +317,11 @@ function StorefrontLegacyRedirect() {
 }
 
 function ScopedInbox() {
-  return getUserRole() === "meta_reviewer" ? <MetaReviewerInbox /> : <AiInboxPwa />;
+  return getUserRole() === "meta_reviewer" ? <AiInbox reviewerMode /> : <AiInboxPwa />;
 }
 
 function ErpMainRoute() {
-  return getUserRole() === "meta_reviewer" ? <Navigate to="/inbox" replace /> : <MainLayout />;
+  return <MainLayout />;
 }
 
 function App() {
@@ -401,8 +400,8 @@ function App() {
     );
   }
 
-  if (enableErpAppRoutes && getToken() && getUserRole() === "meta_reviewer" && !location.pathname.startsWith("/inbox") && location.pathname !== "/login") {
-    return <Navigate to="/inbox" replace />;
+  if (enableErpAppRoutes && getToken() && getUserRole() === "meta_reviewer" && location.pathname === "/login") {
+    return <Navigate to="/admin/ai-inbox" replace />;
   }
 
   return (
@@ -784,8 +783,8 @@ function App() {
         <Route
           path="admin/ai-inbox"
           element={
-            <ProtectedRoute adminOnly>
-              <AiInbox />
+            <ProtectedRoute requiredPermissions={["ai_inbox_messenger.view"]}>
+              <AiInbox reviewerMode={getUserRole() === "meta_reviewer"} />
             </ProtectedRoute>
           }
         />
