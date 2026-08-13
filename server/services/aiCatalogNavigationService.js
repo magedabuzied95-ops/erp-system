@@ -113,6 +113,7 @@ const buildUrl = ({ audience = null, productType = "", category = "", brand = ""
   if (maxPrice !== null) params.set("maxPrice", String(maxPrice));
   if (category && !productType) params.set("q", category);
   params.set("inStock", "1");
+  params.set("v", "4");
   const base = publicStorefrontBaseUrl();
   return `${base}/share/available?${params.toString().replace(/\+/g, "%20")}`;
 };
