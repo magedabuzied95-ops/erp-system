@@ -30,6 +30,7 @@ import {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
+const SHARE_AVAILABLE_OG_VERSION = "V4";
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -706,7 +707,7 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
 
 const buildShareAvailableFallbackImageUrl = (req) => buildAbsolutePublicUrl(req, "/favicon.svg");
 
-const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
+export const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
   const params = new URLSearchParams();
   parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
   if (filters.gender) params.set("gender", filters.gender);
@@ -716,7 +717,8 @@ const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
   if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
   if (filters.q) params.set("q", filters.q);
   if (filters.quality) params.set("quality", filters.quality);
-  if (req?.query?.v) params.set("v", String(req.query.v));
+  // Version the generated asset so social crawlers do not reuse an older broken preview.
+  params.set("v", SHARE_AVAILABLE_OG_VERSION.toLowerCase());
   params.set("inStock", filters.inStock === false ? "0" : "1");
   const suffix = format === "png" ? "/share/available/og-image.png" : "/share/available/og-image";
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
@@ -913,18 +915,17 @@ const loadShareAvailableProducts = async (req = {}, filters = {}) => {
   };
 };
 
-const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0, embeddedImageUrl = "" } = {}) => {
-  const imageGeneratorVersion = "V2";
-  const sizeValue = filters.sizes?.[0] || "";
-  const title = escapeHtml(`المنتجات المتاحة للمقاس ${sizeValue}`.trim() || "المنتجات المتاحة");
+export const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0, embeddedImageUrl = "" } = {}) => {
+  const imageGeneratorVersion = SHARE_AVAILABLE_OG_VERSION;
   const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
   const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
-  const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
-  const selectedImage = embeddedImageUrl || primaryImage || fallbackImage || "";
-  const routeBranch = embeddedImageUrl ? "embedded-product" : primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
-  const selectedTitle = title || "المنتجات المتاحة";
+  // Sharp/librsvg does not reliably fetch remote URLs while rasterising SVG.
+  // Only render an image after it has been fetched and embedded as a data URL.
+  const selectedImage = embeddedImageUrl || "";
+  const routeBranch = embeddedImageUrl ? "embedded-product" : primaryImage ? "product-image-unavailable" : "empty";
+  const selectedTitle = firstText(firstImageProduct?.name, "M1 Store");
   const imageTag = selectedImage
-    ? `<image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />`
+    ? `<image href="${escapeHtml(selectedImage)}" x="0" y="0" width="1200" height="630" preserveAspectRatio="xMidYMid meet" />`
     : "";
   console.log("[share-available-og-image]", {
     routeHandler: "getPublicAvailableOgImage",
@@ -956,22 +957,18 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" direction="rtl" xml:lang="ar">
   <defs>
-    <linearGradient id="frameGradient" x1="0" x2="1" y1="0" y2="1">
+    <linearGradient id="emptyGradient" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#111827" />
-      <stop offset="100%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#080d18" />
     </linearGradient>
   </defs>
-  <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
-  <text x="92" y="112" fill="#f4e8bf" font-size="20" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
-  <text x="92" y="178" fill="#ffffff" font-size="54" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
-  <text x="92" y="220" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">كل الموديلات المتاحة حاليًا من M1 Store</text>
-  <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">اختر المنتج المناسب وأكمل طلبك من المتجر</text>
+  <rect width="1200" height="630" fill="${selectedImage ? "#ffffff" : "url(#emptyGradient)"}" />
   ${selectedImage
     ? `
       ${imageTag}
     `
     : `
-      <text x="600" y="410" text-anchor="middle" fill="#ffffff" font-size="42" font-weight="900" font-family="Arial, sans-serif">NO IMAGE</text>
+      <path d="M520 250h160v130H520z" fill="#ffffff" fill-opacity="0.08" />
     `}
 </svg>`;
 };
@@ -979,21 +976,14 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
 const buildShareAvailableFallbackSvg = (options = {}) => buildShareAvailablePreviewSvg(options);
 
 const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
-  const sizeLabel = filters.sizes?.length > 1
-    ? `المنتجات المتاحة للمقاسات ${filters.sizes.join("، ")}`
-    : `المنتجات المتاحة للمقاس ${filters.sizes?.[0] || ""}`.trim();
-  const title = escapeHtml(sizeLabel || "المنتجات المتاحة");
-  const description = escapeHtml(Number(count || 0) > 0 ? `${count} منتج متاح حاليًا من M1 Store` : "كل المنتجات المتاحة حاليًا من M1 Store");
+  const firstProduct = products[0] || null;
+  const title = escapeHtml(firstText(firstProduct?.name, "M1 Store"));
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
   const absoluteUrl = escapeHtml(new URL(req.originalUrl || req.url || "/share/available", publicBaseUrl).toString());
   const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableOgImageUrl(req, filters, "png"));
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
-  const productsPreview = products
-    .slice(0, 4)
-    .map((product) => `<li>${escapeHtml(firstText(product.name, product.brand_name, product.brand, "منتج بدون اسم"))}</li>`)
-    .join("");
   return `<!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -1001,7 +991,6 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="M1 Store" />
     <meta property="og:title" content="${title}" />
-    <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${absoluteImage}" />
     <meta property="og:image:secure_url" content="${absoluteImage}" />
     <meta property="og:image:width" content="1200" />
@@ -1011,27 +1000,13 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
     <link rel="canonical" href="${fallbackTarget}" />
-    <meta http-equiv="refresh" content="1;url=${fallbackTarget}" />
+    <meta http-equiv="refresh" content="0;url=${fallbackTarget}" />
     <style>
-      body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(135deg, #0c1220, #18111b); color: #fff; }
-      main { min-height: 100vh; display: grid; place-items: center; padding: 24px; text-align: center; }
-      .card { width: min(100%, 760px); border-radius: 28px; padding: 28px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 24px 60px rgba(0,0,0,.24); }
-      a { color: #111; display: inline-block; padding: 12px 20px; border-radius: 999px; background: linear-gradient(135deg, #f5d97a, #d4af37); text-decoration: none; font-weight: 800; }
-      ul { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 8px; }
-      li { opacity: .9; }
+      html, body { margin: 0; min-height: 100%; background: #0c1220; }
     </style>
   </head>
   <body>
-    <main>
-      <section class="card">
-        <h1 style="margin:0 0 12px;font-size:34px;">${title}</h1>
-        <p style="margin:0 0 8px;font-size:18px;opacity:.92;">${description}</p>
-        <p style="margin:0 0 18px;opacity:.72;">اختر المنتج المناسب وأكمل طلبك من المتجر. لو لديك أي سؤال، تواصل معنا وسنساعدك.</p>
-        <a href="${fallbackTarget}">عرض المنتجات</a>
-        ${productsPreview ? `<ul>${productsPreview}</ul>` : ""}
-      </section>
-    </main>
-    <script>setTimeout(function(){window.location.href=${JSON.stringify(String(targetUrl || fallbackTarget))};}, 1000);</script>
+    <script>window.location.replace(${JSON.stringify(String(targetUrl || fallbackTarget))});</script>
   </body>
 </html>`;
 };
@@ -1079,11 +1054,11 @@ export const getPublicAvailableSharePage = async (req, res) => {
 };
 
 export const getPublicAvailableOgImage = async (req, res) => {
-  res.setHeader("X-OG-Image-Version", "V2");
+  res.setHeader("X-OG-Image-Version", SHARE_AVAILABLE_OG_VERSION);
   res.setHeader("X-Route-Handler", "getPublicAvailableOgImage");
   res.setHeader("X-Source-File", "server/controllers/publicProductsController.js");
   console.log("ogImageHandlerReached", {
-    imageGeneratorVersion: "V2",
+    imageGeneratorVersion: SHARE_AVAILABLE_OG_VERSION,
     routeHandler: "getPublicAvailableOgImage",
     sourceFile: "server/controllers/publicProductsController.js",
     routeBranch: "unknown",
@@ -1110,7 +1085,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const selectedImage = ogImageUrls[0] || buildShareAvailableFallbackImageUrl(req) || "";
     const selectedTitle = ogTitle;
     console.log("ogImageHandlerReached", {
-      imageGeneratorVersion: "V2",
+      imageGeneratorVersion: SHARE_AVAILABLE_OG_VERSION,
       routeHandler: "getPublicAvailableOgImage",
       sourceFile: "server/controllers/publicProductsController.js",
       routeBranch,
@@ -1161,7 +1136,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
       ogTitle,
       ogDescription,
       ogImageUrl,
-      imageGeneratorVersion: "V2",
+      imageGeneratorVersion: SHARE_AVAILABLE_OG_VERSION,
       routeHandler: "getPublicAvailableOgImage",
       sourceFile: "server/controllers/publicProductsController.js",
       routeBranch,
