@@ -2889,7 +2889,7 @@ function AiSuggestionCard({
   onApprove,
   onDismiss,
   editing = false,
-  facts = null,
+  reviewNeeded = false,
   productCard = null,
   productChoices = [],
   productAmbiguous = false,
@@ -2911,32 +2911,16 @@ function AiSuggestionCard({
   // The text that Approve & Send will actually send: the inline edit while editing, else the AI suggestion.
   const finalText = editing ? editText : value;
 
-  const grounding = facts?.grounding || null;
-  const resolved = grounding?.resolved || null;
-  const requested = grounding?.requested || null;
-  const groundingAction = clean(grounding?.action || "");
-  const factProducts = Array.isArray(facts?.products) ? facts.products.filter((p) => clean(p?.name)) : [];
-  const actionLabel = { available: "متوفر", unavailable: "غير متوفر", soft_match: "مطابقة", clarify_size: "توضيح المقاس", clarify_color: "توضيح اللون", clarify_product: "توضيح المنتج", no_match: "لا يوجد", restock_suggestion: "إشعار توفر" }[groundingAction] || groundingAction;
-  // Phase 12.1 — surface when the product SUBJECT was recalled from conversation context (facts stay fresh).
-  const fromContext = grounding?.product_resolution?.source === "conversation_context";
-  const factChips = [
-    fromContext ? "المنتج من سياق المحادثة" : "",
-    resolved?.productId ? `#${resolved.productId}` : "",
-    clean(requested?.productTerm || ""),
-    (resolved?.displaySize || requested?.size) ? `مقاس ${resolved?.displaySize || requested?.size}` : "",
-    clean(resolved?.color || requested?.color || ""),
-    resolved && (resolved.stock !== null && resolved.stock !== undefined) ? `مخزون ${resolved.stock}` : "",
-    resolved?.matchType ? clean(resolved.matchType) : "",
-  ].filter(Boolean);
-
   return (
-    <div className={`mb-2 rounded-2xl border p-3 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
+    <div className={`mb-2 rounded-2xl border p-2.5 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{editing ? "تعديل اقتراح الذكاء الاصطناعي" : "اقتراح الذكاء الاصطناعي"}</div>
             {clean(channelName) ? <span className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-black text-slate-200">{clean(channelName)}</span> : null}
             {clean(deliveryFormat) ? <span className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">التسليم: {clean(deliveryFormat)}</span> : null}
+            {/* Phase 13.3 — ONE compact operator-facing review cue; replaces the large validation/confidence panels. */}
+            {reviewNeeded ? <span className="rounded-lg border border-amber-300/30 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-black text-amber-100">⚠ يحتاج مراجعة</span> : null}
           </div>
           {editing ? (
             <textarea
@@ -2953,23 +2937,10 @@ function AiSuggestionCard({
               {value}
             </div>
           )}
+          {/* Phase 13.3 — presentation-only: show only the exact text that will be sent. The technical grounding
+              facts block, context-provenance chip, match type and stock counts are hidden from the operator
+              view (grounding still runs and is enforced server-side; only the display is simplified). */}
           <div className="mt-1 text-[10px] font-bold text-slate-400">النص اللي هيتبعت للعميل: <span className="text-slate-100">{clean(finalText) || "—"}</span></div>
-          {grounding || factProducts.length ? (
-            <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/50 p-2">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200/80">
-                <span>حقائق الاستناد</span>
-                {actionLabel ? <Pill tone={groundingAction === "available" ? "emerald" : groundingAction === "unavailable" || groundingAction === "no_match" ? "amber" : "zinc"} className="px-2 py-0.5 text-[9px] font-black">{actionLabel}</Pill> : null}
-              </div>
-              {factChips.length ? (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {factChips.map((chip) => <span key={chip} className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-bold text-slate-200">{chip}</span>)}
-                </div>
-              ) : null}
-              {factProducts.length ? (
-                <div className="mt-1.5 truncate text-[10px] font-bold text-slate-300">{factProducts.map((p) => p.name).join(" · ")}</div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
         {editing ? <Pill tone="violet" className="shrink-0 px-2 py-0.5 text-[10px] font-black">Editing</Pill> : null}
       </div>
@@ -3031,7 +3002,6 @@ function ManualReplyComposer({
   aiSuggestionText = "",
   aiSuggestionVisible = false,
   aiSuggestionEditing = false,
-  aiSuggestionFacts = null,
   aiSuggestionProductCard = null,
   aiSuggestionProductChoices = [],
   aiSuggestionProductAmbiguous = false,
@@ -3056,9 +3026,11 @@ function ManualReplyComposer({
   const textareaRef = useRef(null);
   const normalizedValidation = normalizeValidationSummary(validationSummary || {});
   const normalizedConfidence = normalizeConfidenceEngineSummary(confidenceEngineSummary || {});
-  const hasValidation = Boolean(normalizedValidation.violationsCount || normalizedValidation.warningsCount || normalizedValidation.details.length);
-  const validationTone = normalizedValidation.violationsCount > 0 ? "amber" : normalizedValidation.warningsCount > 0 ? "zinc" : "emerald";
-  const hasConfidence = Boolean(normalizedConfidence.reasonsCount || normalizedConfidence.riskFlagsCount || normalizedConfidence.score);
+  // Phase 13.3 — PRESENTATION ONLY. The large validation + confidence panels are removed from the normal
+  // operator view; their state is condensed into ONE compact "⚠ يحتاج مراجعة" badge shown only when the EXISTING
+  // logic materially recommends review (a real validation violation or a high-risk confidence decision). No
+  // decision logic, thresholds, or telemetry change — the full detail stays in the draft/schema for AI Studio.
+  const reviewNeeded = normalizedValidation.violationsCount > 0 || normalizedConfidence.decision === "high_risk" || normalizedConfidence.tone === "rose";
   const submit = () => {
     if (clean(value)) onSend();
   };
@@ -3078,37 +3050,6 @@ function ManualReplyComposer({
   return (
     <div className="sticky bottom-0 w-full bg-[#eefaf8] p-2 shadow-[0_-1px_10px_rgba(15,23,42,0.08)] dark:bg-[#20231f] dark:shadow-[0_-1px_10px_rgba(0,0,0,0.22)]">
       {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="sr-only">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
-      {hasValidation ? (
-        <div className={`mb-1.5 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${validationTone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-50" : validationTone === "zinc" ? "border-white/10 bg-white/[0.045] text-slate-200" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-50"}`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-inherit">AI draft validation</span>
-            <Pill tone={validationTone === "amber" ? "amber" : validationTone === "zinc" ? "zinc" : "emerald"} className="px-2 py-0.5 text-[10px]">
-              {normalizedValidation.status}
-            </Pill>
-            <span className="font-black">{normalizedValidation.confidencePercent.toFixed(0)}%</span>
-            <span className="font-bold">violations {normalizedValidation.violationsCount}</span>
-            <span className="font-bold">warnings {normalizedValidation.warningsCount}</span>
-          </div>
-          {normalizedValidation.details.length ? <div className="mt-1.5 space-y-1">{normalizedValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
-        </div>
-      ) : null}
-      {hasConfidence ? (
-        <div className={`mb-1.5 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${normalizedConfidence.tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-50" : normalizedConfidence.tone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-50" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-50"}`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-inherit">Confidence engine</span>
-            <Pill tone={normalizedConfidence.tone === "rose" ? "rose" : normalizedConfidence.tone === "amber" ? "amber" : "emerald"} className="px-2 py-0.5 text-[10px]">
-              {normalizedConfidence.levelLabel}
-            </Pill>
-            <Pill tone={normalizedConfidence.tone === "rose" ? "rose" : normalizedConfidence.tone === "amber" ? "amber" : "emerald"} className="px-2 py-0.5 text-[10px]">
-              {normalizedConfidence.decisionLabel}
-            </Pill>
-            <span className="font-black">{normalizedConfidence.score.toFixed(0)}%</span>
-            <span className="font-bold">reasons {normalizedConfidence.reasonsCount}</span>
-          </div>
-          {normalizedConfidence.reasonsPreview.length ? <div className="mt-1.5 space-y-1">{normalizedConfidence.reasonsPreview.map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
-          {normalizedConfidence.decision === "high_risk" ? <div className="mt-1.5 font-black uppercase tracking-[0.12em]">High risk: manual review recommended before sending.</div> : null}
-        </div>
-      ) : null}
       {isCommentConversation ? (
         <div className="mb-1.5">
           <CommentReplyDraftPanel
@@ -3123,7 +3064,7 @@ function ManualReplyComposer({
         <AiSuggestionCard
           text={aiSuggestionText}
           editing={aiSuggestionEditing}
-          facts={aiSuggestionFacts}
+          reviewNeeded={reviewNeeded}
           productCard={aiSuggestionProductCard}
           productChoices={aiSuggestionProductChoices}
           colorChoices={aiSuggestionColorChoices}
@@ -6202,12 +6143,6 @@ export default function AiInbox() {
   const aiSuggestionVisible = Boolean(activeAiSuggestionText) && !draftCompleted && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;
   // Grounding facts for the suggestion card (product/size/color/stock/action) so the operator reviews WHY the
   // AI answered as it did before approving. Derived from the persisted draft; null when absent.
-  const activeAiSuggestionFacts = useMemo(() => {
-    const g = activeAiReplyDraft?.metadata?.grounding || activeAiReplyDraft?.grounding || null;
-    const cards = Array.isArray(activeAiReplyDraft?.product_cards) ? activeAiReplyDraft.product_cards : [];
-    if (!g && !cards.length) return null;
-    return { grounding: g, products: cards.slice(0, 4).map((c) => ({ id: c?.id || c?.product_id || "", name: clean(c?.name || c?.product_name || "") })) };
-  }, [activeAiReplyDraft]);
   // Phase 11.2 — send-ready product attachment on the suggestion. The single enriched card (unambiguous) is the
   // draft's first product_card; ambiguous choices + delivery format come from metadata.send_package.
   const suggestionDraftCard = useMemo(() => {
@@ -8672,7 +8607,6 @@ export default function AiInbox() {
                         aiSuggestionText={activeAiSuggestionText}
                         aiSuggestionVisible={aiSuggestionVisible}
                         aiSuggestionEditing={editingAiDraft}
-                        aiSuggestionFacts={activeAiSuggestionFacts}
                         aiSuggestionProductCard={effectiveSuggestionCard}
                         aiSuggestionProductChoices={suggestionSendPackage?.card_choices || []}
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
@@ -9531,7 +9465,6 @@ export default function AiInbox() {
                         aiSuggestionText={activeAiSuggestionText}
                         aiSuggestionVisible={aiSuggestionVisible}
                         aiSuggestionEditing={editingAiDraft}
-                        aiSuggestionFacts={activeAiSuggestionFacts}
                         aiSuggestionProductCard={effectiveSuggestionCard}
                         aiSuggestionProductChoices={suggestionSendPackage?.card_choices || []}
                         aiSuggestionProductAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
