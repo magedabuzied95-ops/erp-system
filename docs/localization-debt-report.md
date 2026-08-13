@@ -9,19 +9,19 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 615
+- Source files scanned: 616
 - Files with debt: 135
-- Hardcoded Arabic UI strings: 1369
-- Hardcoded English UI strings: 1147
-- Total hardcoded UI strings: 2516
+- Hardcoded Arabic UI strings: 1342
+- Hardcoded English UI strings: 1149
+- Total hardcoded UI strings: 2491
 - Mixed-language files (both scripts hardcoded): 37
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 67 | 979 | 752 | 1731 | 24 |
-| shared | 52 | 190 | 312 | 502 | 9 |
+| main-erp | 66 | 950 | 753 | 1703 | 24 |
+| shared | 53 | 192 | 313 | 505 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 161 | 260 | 421 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 161 | 261 | 422 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
@@ -42,8 +42,8 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
+| src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 15 | 12 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
-| src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 13 | 12 | 25 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
@@ -69,49 +69,49 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:161 en:260)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:161 en:261)
 
-- 571 [object-key/en] All
-- 572 [object-key/en] Messages
-- 573 [object-key/en] Comments
-- 574 [object-key/en] Needs Reply
-- 578 [object-key/en] All
-- 579 [object-key/en] Favorites
-- 583 [object-key/en] All Messages
-- 587 [object-key/en] Web
-- 592 [object-key/en] All Comments
-- 599 [object-key/ar] الكل
-- 600 [object-key/ar] جاهز للشراء
-- 601 [object-key/ar] ساخن
-- 602 [object-key/ar] دافئ
-- 603 [object-key/ar] يحتاج تدخلًا بشريًا
-- 607 [object-key/ar] بارد
-- 608 [object-key/ar] دافئ
-- 609 [object-key/ar] ساخن
-- 610 [object-key/ar] جاهز للشراء
-- 1265 [object-key/en] New
-- 1266 [object-key/en] Contacted
-- 1267 [object-key/en] Interested
-- 1268 [object-key/en] Negotiation
-- 1269 [object-key/en] Won
-- 1588 [attribute/en] Not set yet
-- 1699 [object-key/en] Like
-- 1700 [object-key/en] Public reply
-- 1701 [object-key/en] Private message
-- 1908 [jsx-text/en] Needs Human
-- 1968 [jsx-text/ar] غير مقروء
-- 2073 [attribute/en] Config
+- 572 [object-key/en] All
+- 573 [object-key/en] Messages
+- 574 [object-key/en] Comments
+- 575 [object-key/en] Needs Reply
+- 579 [object-key/en] All
+- 580 [object-key/en] Favorites
+- 584 [object-key/en] All Messages
+- 588 [object-key/en] Web
+- 593 [object-key/en] All Comments
+- 600 [object-key/ar] الكل
+- 601 [object-key/ar] جاهز للشراء
+- 602 [object-key/ar] ساخن
+- 603 [object-key/ar] دافئ
+- 604 [object-key/ar] يحتاج تدخلًا بشريًا
+- 608 [object-key/ar] بارد
+- 609 [object-key/ar] دافئ
+- 610 [object-key/ar] ساخن
+- 611 [object-key/ar] جاهز للشراء
+- 1266 [object-key/en] New
+- 1267 [object-key/en] Contacted
+- 1268 [object-key/en] Interested
+- 1269 [object-key/en] Negotiation
+- 1270 [object-key/en] Won
+- 1589 [attribute/en] Not set yet
+- 1700 [object-key/en] Like
+- 1701 [object-key/en] Public reply
+- 1702 [object-key/en] Private message
+- 1909 [jsx-text/en] Needs Human
+- 1969 [jsx-text/ar] غير مقروء
 - 2074 [attribute/en] Config
-- 2079 [jsx-text/en] Config
-- 2088 [attribute/en] Social Comments
+- 2075 [attribute/en] Config
+- 2080 [jsx-text/en] Config
 - 2089 [attribute/en] Social Comments
-- 2209 [jsx-text/en] Needs Human
-- 2252 [jsx-text/en] Unread
-- 2290 [attribute/en] Conversation Labels
-- 2292 [jsx-text/ar] أضف أكثر من Label للعميل
-- 2292 [jsx-text/en] Conversation Labels
-- 2293 [attribute/en] Close labels
-- ... 381 more
+- 2090 [attribute/en] Social Comments
+- 2210 [jsx-text/en] Needs Human
+- 2253 [jsx-text/en] Unread
+- 2291 [attribute/en] Conversation Labels
+- 2293 [jsx-text/ar] أضف أكثر من Label للعميل
+- 2293 [jsx-text/en] Conversation Labels
+- 2294 [attribute/en] Close labels
+- ... 382 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
@@ -203,46 +203,46 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/pages/AiInboxPwa.jsx (main-erp — ar:60 en:69)
 
-- 196 [jsx-text/en] AI Inbox Order
-- 197 [jsx-text/ar] إنشاء طلب من المحادثة
-- 198 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
-- 200 [attribute/ar] إغلاق
-- 205 [jsx-text/ar] بيانات العميل
-- 207 [attribute/ar] اسم العميل
-- 208 [attribute/ar] رقم الهاتف
-- 209 [attribute/ar] المحافظة
-- 210 [attribute/ar] المنطقة
-- 211 [attribute/ar] العنوان بالتفصيل
-- 216 [jsx-text/ar] المنتج والمخزون
-- 222 [attribute/ar] المقاس
-- 223 [attribute/ar] اللون
-- 224 [attribute/ar] الكمية
-- 226 [jsx-text/ar] الإجمالي:
-- 226 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
-- 226 [jsx-text/ar] المتاح:
-- 229 [attribute/ar] ملاحظات الطلب
-- 230 [jsx-text/ar] إنشاء مسودة الطلب
-- 279 [jsx-text/en] AI Inbox Order
-- 280 [jsx-text/ar] إنشاء طلب من المحادثة
-- 281 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
-- 283 [attribute/ar] إغلاق
-- 288 [jsx-text/ar] بيانات العميل
-- 290 [attribute/ar] اسم العميل
-- 291 [attribute/ar] رقم الهاتف
-- 292 [attribute/ar] المحافظة
-- 293 [attribute/ar] المنطقة
-- 294 [attribute/ar] العنوان بالتفصيل
-- 299 [jsx-text/ar] المنتج والمخزون
-- 305 [attribute/ar] المقاس
-- 306 [attribute/ar] اللون
-- 307 [attribute/ar] الكمية
-- 309 [jsx-text/ar] الإجمالي:
-- 309 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
-- 309 [jsx-text/ar] المتاح:
-- 312 [attribute/ar] ملاحظات الطلب
-- 313 [jsx-text/ar] إنشاء مسودة الطلب
-- 886 [object-key/en] All Messages
-- 890 [object-key/en] Web
+- 198 [jsx-text/en] AI Inbox Order
+- 199 [jsx-text/ar] إنشاء طلب من المحادثة
+- 200 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
+- 202 [attribute/ar] إغلاق
+- 207 [jsx-text/ar] بيانات العميل
+- 209 [attribute/ar] اسم العميل
+- 210 [attribute/ar] رقم الهاتف
+- 211 [attribute/ar] المحافظة
+- 212 [attribute/ar] المنطقة
+- 213 [attribute/ar] العنوان بالتفصيل
+- 218 [jsx-text/ar] المنتج والمخزون
+- 224 [attribute/ar] المقاس
+- 225 [attribute/ar] اللون
+- 226 [attribute/ar] الكمية
+- 228 [jsx-text/ar] الإجمالي:
+- 228 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
+- 228 [jsx-text/ar] المتاح:
+- 231 [attribute/ar] ملاحظات الطلب
+- 232 [jsx-text/ar] إنشاء مسودة الطلب
+- 281 [jsx-text/en] AI Inbox Order
+- 282 [jsx-text/ar] إنشاء طلب من المحادثة
+- 283 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
+- 285 [attribute/ar] إغلاق
+- 290 [jsx-text/ar] بيانات العميل
+- 292 [attribute/ar] اسم العميل
+- 293 [attribute/ar] رقم الهاتف
+- 294 [attribute/ar] المحافظة
+- 295 [attribute/ar] المنطقة
+- 296 [attribute/ar] العنوان بالتفصيل
+- 301 [jsx-text/ar] المنتج والمخزون
+- 307 [attribute/ar] المقاس
+- 308 [attribute/ar] اللون
+- 309 [attribute/ar] الكمية
+- 311 [jsx-text/ar] الإجمالي:
+- 311 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
+- 311 [jsx-text/ar] المتاح:
+- 314 [attribute/ar] ملاحظات الطلب
+- 315 [jsx-text/ar] إنشاء مسودة الطلب
+- 888 [object-key/en] All Messages
+- 892 [object-key/en] Web
 - ... 89 more
 
 ### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
@@ -643,44 +643,44 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:28 en:10)
 
-- 1111 [jsx-text/en] AI INBOX
-- 1112 [jsx-text/ar] المتاح بالمقاس
-- 1113 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
-- 1127 [jsx-text/ar] نوع المنتج
-- 1128 [jsx-text/ar] اختر نوعًا أو أكثر
-- 1129 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
-- 1157 [jsx-text/ar] المقاسات
-- 1158 [jsx-text/ar] اختر المقاس أو المقاسات
-- 1159 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
-- 1187 [jsx-text/en] Gender
-- 1193 [jsx-text/en] Brand
-- 1195 [jsx-text/ar] الكل
-- 1201 [jsx-text/en] Min
-- 1205 [jsx-text/en] Max
-- 1212 [jsx-text/ar] المعاينة
-- 1214 [jsx-text/ar] النتائج المطابقة:
-- 1229 [jsx-text/ar] اختر المقاس أولًا.
-- 1258 [jsx-text/en] AI INBOX
-- 1259 [jsx-text/ar] إرسال منتج
-- 1260 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
-- 1274 [jsx-text/en] Size filter
-- 1275 [jsx-text/ar] اختر المقاس المتاح
-- 1276 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
-- 1304 [attribute/ar] ابحث باسم المنتج أو الباركود
-- 1353 [jsx-text/ar] المقاس:
-- 1360 [jsx-text/en] Variant:
-- 1427 [jsx-text/ar] باركود:
-- 1473 [jsx-text/en] Size mode
-- 1474 [jsx-text/ar] المقاس المختار:
-- 1475 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
-- 1482 [jsx-text/ar] إرسال محددات المقاس
-- 1539 [jsx-text/en] Selected product
-- 1544 [jsx-text/ar] باركود:
-- 1551 [jsx-text/ar] اللون
-- 1578 [jsx-text/ar] لا يوجد لون محدد
-- 1585 [jsx-text/ar] المقاس
-- 1586 [jsx-text/ar] المقاسات المتاحة فقط
-- 1606 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
+- 1116 [jsx-text/en] AI INBOX
+- 1117 [jsx-text/ar] المتاح بالمقاس
+- 1118 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
+- 1132 [jsx-text/ar] نوع المنتج
+- 1133 [jsx-text/ar] اختر نوعًا أو أكثر
+- 1134 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
+- 1164 [jsx-text/ar] المقاسات
+- 1165 [jsx-text/ar] اختر المقاس أو المقاسات
+- 1166 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
+- 1197 [jsx-text/en] Gender
+- 1203 [jsx-text/en] Brand
+- 1205 [jsx-text/ar] الكل
+- 1211 [jsx-text/en] Min
+- 1215 [jsx-text/en] Max
+- 1222 [jsx-text/ar] المعاينة
+- 1224 [jsx-text/ar] النتائج المطابقة:
+- 1239 [jsx-text/ar] اختر المقاس أولًا.
+- 1268 [jsx-text/en] AI INBOX
+- 1269 [jsx-text/ar] إرسال منتج
+- 1270 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
+- 1284 [jsx-text/en] Size filter
+- 1285 [jsx-text/ar] اختر المقاس المتاح
+- 1286 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
+- 1314 [attribute/ar] ابحث باسم المنتج أو الباركود
+- 1363 [jsx-text/ar] المقاس:
+- 1370 [jsx-text/en] Variant:
+- 1437 [jsx-text/ar] باركود:
+- 1483 [jsx-text/en] Size mode
+- 1484 [jsx-text/ar] المقاس المختار:
+- 1485 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
+- 1492 [jsx-text/ar] إرسال محددات المقاس
+- 1549 [jsx-text/en] Selected product
+- 1554 [jsx-text/ar] باركود:
+- 1561 [jsx-text/ar] اللون
+- 1588 [jsx-text/ar] لا يوجد لون محدد
+- 1595 [jsx-text/ar] المقاس
+- 1596 [jsx-text/ar] المقاسات المتاحة فقط
+- 1616 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:36)
 
@@ -827,38 +827,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2586 [attribute/en] InstaPay
 - 2661 [attribute/en] INV-123
 
-### src/modules/purchases/pages/SupplierStatement.jsx (main-erp — ar:29 en:0)
-
-- 23 [inline-ternary/ar] isArabic ? "حركة" : "Transaction"
-- 45 [inline-ternary/ar] isArabic ? "تعذر تحميل كشف الحساب" : "Failed to load supplier statement"
-- 47 [inline-ternary/ar] isArabic ? "تعذر تحميل كشف الحساب" : "Failed to load supplier statement"
-- 66 [attribute/ar] كشف حساب المورد
-- 69 [inline-ternary/ar] isArabic ? "المشتريات" : "Purchases"
-- 70 [inline-ternary/ar] isArabic ? "إنشاء فاتورة" : "Create purchase"
-- 71 [inline-ternary/ar] isArabic ? "الموردون" : "Suppliers"
-- 72 [inline-ternary/ar] isArabic ? "المخزون" : "Inventory"
-- 73 [inline-ternary/ar] isArabic ? "المحاسبة" : "Accounting"
-- 80 [jsx-text/ar] جاري تحميل كشف الحساب...
-- 95 [inline-ternary/ar] isArabic ? "ملاحظات تنفيذية" : "Implementation notes"
-- 107 [inline-ternary/ar] isArabic ? "كشف حساب المورد" : "Supplier statement"
-- 127 [attribute/ar] إجمالي المشتريات
-- 128 [attribute/ar] إجمالي المدفوع
-- 129 [attribute/ar] الرصيد الافتتاحي
-- 130 [attribute/ar] الرصيد المستحق
-- 135 [inline-ternary/ar] isArabic ? "المورد" : "Supplier"
-- 136 [inline-ternary/ar] isArabic ? "الكود" : "Code"
-- 137 [inline-ternary/ar] isArabic ? "الهاتف" : "Phone"
-- 138 [inline-ternary/ar] isArabic ? "واتساب" : "WhatsApp"
-- 139 [inline-ternary/ar] isArabic ? "البريد" : "Email"
-- 145 [jsx-text/ar] حركات الحساب
-- 154 [inline-ternary/ar] isArabic ? "التاريخ" : "Date"
-- 155 [inline-ternary/ar] isArabic ? "النوع" : "Type"
-- 156 [inline-ternary/ar] isArabic ? "المرجع" : "Reference"
-- 157 [inline-ternary/ar] isArabic ? "البيان" : "Description"
-- 158 [inline-ternary/ar] isArabic ? "مدين" : "Debit"
-- 159 [inline-ternary/ar] isArabic ? "دائن" : "Credit"
-- 160 [inline-ternary/ar] isArabic ? "الرصيد" : "Balance"
-
 ### src/modules/aiSupport/components/socialAutomation/PostProductLinksDrawer.jsx (shared — ar:0 en:28)
 
 - 15 [object-key/en] Sneakers
@@ -890,6 +858,36 @@ of scope. The scanner is conservative and can still contain false positives.
 - 939 [jsx-text/en] Price
 - 956 [jsx-text/en] Primary
 
+### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:15 en:12)
+
+- 194 [attribute/en] Pinned messages
+- 217 [attribute/en] Unpin message
+- 218 [attribute/en] Unpin
+- 367 [object-key/en] Reply
+- 372 [object-key/en] Info
+- 385 [jsx-text/en] Pinned
+- 386 [jsx-text/en] Starred
+- 394 [attribute/ar] إضافة تفاعل
+- 395 [attribute/ar] إضافة تفاعل
+- 409 [attribute/ar] عرض كل الإيموجي
+- 418 [attribute/ar] اختيار تفاعل
+- 435 [attribute/en] Message actions
+- 449 [attribute/en] Message info
+- 451 [jsx-text/ar] تفاصيل الرسالة
+- 451 [jsx-text/en] Message info
+- 455 [jsx-text/ar] المرسل
+- 456 [jsx-text/ar] القناة
+- 457 [jsx-text/ar] الوقت
+- 458 [jsx-text/ar] النوع
+- 459 [jsx-text/ar] الحالة
+- 460 [jsx-text/ar] المعرف
+- 503 [attribute/en] Attachment
+- 615 [jsx-text/ar] فتح الملف
+- 717 [jsx-text/ar] العميل
+- 727 [jsx-text/ar] فتح الملف
+- 737 [jsx-text/en] Draft reply
+- 778 [jsx-text/ar] فتح الملف
+
 ### src/pages/AppShellPreview.jsx (main-erp — ar:25 en:2)
 
 - 11 [object-key/ar] الرئيسية
@@ -919,34 +917,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 49 [jsx-text/ar] الإيرادات والطلبات خلال آخر 7 أيام
 - 49 [jsx-text/ar] تحديث مباشر
 - 49 [jsx-text/ar] منذ دقائق
-
-### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:13 en:12)
-
-- 192 [attribute/en] Pinned messages
-- 215 [attribute/en] Unpin message
-- 216 [attribute/en] Unpin
-- 364 [object-key/en] Reply
-- 369 [object-key/en] Info
-- 382 [jsx-text/en] Pinned
-- 383 [jsx-text/en] Starred
-- 391 [attribute/ar] إضافة تفاعل
-- 392 [attribute/ar] إضافة تفاعل
-- 425 [attribute/en] Message actions
-- 439 [attribute/en] Message info
-- 441 [jsx-text/ar] تفاصيل الرسالة
-- 441 [jsx-text/en] Message info
-- 445 [jsx-text/ar] المرسل
-- 446 [jsx-text/ar] القناة
-- 447 [jsx-text/ar] الوقت
-- 448 [jsx-text/ar] النوع
-- 449 [jsx-text/ar] الحالة
-- 450 [jsx-text/ar] المعرف
-- 493 [attribute/en] Attachment
-- 604 [jsx-text/ar] فتح الملف
-- 706 [jsx-text/ar] العميل
-- 716 [jsx-text/ar] فتح الملف
-- 726 [jsx-text/en] Draft reply
-- 767 [jsx-text/ar] فتح الملف
 
 ### src/modules/employees/components/HRRequestsWorkspace.jsx (employee-portal — ar:25 en:0)
 
@@ -2010,6 +1980,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/accounting/components/AccountingShell.jsx (shared — ar:1 en:0)
 
 - 21 [inline-ternary/ar] isArabic ? "أقسام الحسابات" : "Accounting sections"
+
+### src/modules/aiSupport/components/AppleEmojiPicker.jsx (shared — ar:0 en:1)
+
+- 23 [attribute/en] Choose emoji
 
 ### src/modules/aiSupport/copilot/SuggestionEngine.ts (main-erp — ar:0 en:1)
 

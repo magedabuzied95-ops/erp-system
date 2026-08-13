@@ -13,21 +13,28 @@ import { formatCurrency, formatDateTime, normalizeSupplier } from "../lib/flowSt
 const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
-const typeLabel = (kind, isArabic) => {
-  const labels = {
-    purchase_invoice: "فاتورة شراء",
-    purchase_payment: "سداد شراء",
-    purchase_payment_reversal: "عكس سداد",
-    adjustment: "تسوية",
-  };
-  return labels[kind] || kind || (isArabic ? "حركة" : "Transaction");
+/**
+ * `kind` is the backend transaction enum. It stays the raw lookup value; only the
+ * label it selects is localized, and an unknown kind still renders its raw id
+ * rather than a humanised guess.
+ */
+const TRANSACTION_TYPE_KEYS = {
+  purchase_invoice: "purchases.statement.types.purchase_invoice",
+  purchase_payment: "purchases.statement.types.purchase_payment",
+  purchase_payment_reversal: "purchases.statement.types.purchase_payment_reversal",
+  adjustment: "purchases.statement.types.adjustment",
+};
+
+const typeLabel = (kind, t) => {
+  const key = TRANSACTION_TYPE_KEYS[kind];
+  if (key) return t(key);
+  return kind || t("purchases.statement.types.fallback");
 };
 
 function SupplierStatement() {
   const { t, i18n } = useTranslation();
   const params = useParams();
   const supplierId = params.supplierId || params.id || "";
-  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const [statement, setStatement] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,9 +49,10 @@ function SupplierStatement() {
       setStatement(payload);
     } catch (requestError) {
       console.error("[supplier-statement] load failed", requestError);
-      setError(requestError?.message || (isArabic ? "تعذر تحميل كشف الحساب" : "Failed to load supplier statement"));
+      const message = requestError?.message || t("purchases.statement.loadFailed");
+      setError(message);
       setStatement(null);
-      toast.error(requestError?.message || (isArabic ? "تعذر تحميل كشف الحساب" : "Failed to load supplier statement"));
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -63,21 +71,21 @@ function SupplierStatement() {
 
   return (
     <FlowShell
-      title="كشف حساب المورد"
+      title={t("purchases.statement.title")}
       subtitle={`${supplier.name || "-"} ${supplier.supplier_code ? `• ${supplier.supplier_code}` : ""}`.trim()}
       tabs={[
-        { to: "/purchases", label: isArabic ? "المشتريات" : "Purchases", end: true },
-        { to: "/purchases/create", label: isArabic ? "إنشاء فاتورة" : "Create purchase" },
-        { to: "/suppliers", label: isArabic ? "الموردون" : "Suppliers", end: true },
-        { to: "/inventory", label: isArabic ? "المخزون" : "Inventory" },
-        { to: "/accounting", label: isArabic ? "المحاسبة" : "Accounting" },
+        { to: "/purchases", label: t("purchases.tabs.purchases"), end: true },
+        { to: "/purchases/create", label: t("purchases.tabs.createInvoice") },
+        { to: "/suppliers", label: t("purchases.tabs.suppliers"), end: true },
+        { to: "/inventory", label: t("purchases.tabs.inventory") },
+        { to: "/accounting", label: t("purchases.tabs.accounting") },
       ]}
       compact
     >
       {loading ? (
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-10 text-center text-zinc-400">
           <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-          <div className="mt-3">جاري تحميل كشف الحساب...</div>
+          <div className="mt-3">{t("purchases.statement.loading")}</div>
         </div>
       ) : null}
 
@@ -92,7 +100,7 @@ function SupplierStatement() {
         <>
           {import.meta.env.DEV && toArray(statement?.warnings).length ? (
             <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-              <div className="font-black">{isArabic ? "ملاحظات تنفيذية" : "Implementation notes"}</div>
+              <div className="font-black">{t("purchases.statement.devNotes")}</div>
               <ul className="mt-2 list-disc space-y-1 ps-5">
                 {toArray(statement.warnings).map((warning, index) => (
                   <li key={`${index}-${warning}`}>{warning}</li>
@@ -101,10 +109,10 @@ function SupplierStatement() {
             </div>
           ) : null}
 
-          <div dir="rtl" className="rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 shadow-lg shadow-black/10">
+          <div dir={i18n.dir()} className="rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 shadow-lg shadow-black/10">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0 text-right">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">{isArabic ? "كشف حساب المورد" : "Supplier statement"}</div>
+              <div className="min-w-0 text-start">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">{t("purchases.statement.title")}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-300">
                   <span className="font-black text-white">{supplier.name || "-"}</span>
                   <span className="text-zinc-500">|</span>
@@ -117,54 +125,54 @@ function SupplierStatement() {
                   className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  العودة للموردين
+                  {t("purchases.supplierDetails.backToSuppliers")}
                 </Link>
               </div>
             </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="إجمالي المشتريات" value={formatCurrency(totals.total_purchases || 0)} icon={<ReceiptText className="h-4 w-4" />} tone="rose" />
-            <StatCard label="إجمالي المدفوع" value={formatCurrency(totals.total_paid || 0)} icon={<Wallet className="h-4 w-4" />} tone="emerald" />
-            <StatCard label="الرصيد الافتتاحي" value={formatCurrency(openingBalance)} icon={<FileText className="h-4 w-4" />} tone="blue" />
-            <StatCard label="الرصيد المستحق" value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
+            <StatCard label={t("purchases.statement.kpis.totalPurchases")} value={formatCurrency(totals.total_purchases || 0)} icon={<ReceiptText className="h-4 w-4" />} tone="rose" />
+            <StatCard label={t("purchases.statement.kpis.totalPaid")} value={formatCurrency(totals.total_paid || 0)} icon={<Wallet className="h-4 w-4" />} tone="emerald" />
+            <StatCard label={t("purchases.statement.kpis.openingBalance")} value={formatCurrency(openingBalance)} icon={<FileText className="h-4 w-4" />} tone="blue" />
+            <StatCard label={t("purchases.statement.kpis.dueBalance")} value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
           </div>
 
           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-zinc-300">
-                <span><span className="text-zinc-500">{isArabic ? "المورد" : "Supplier"}:</span> {supplier.name || "-"}</span>
-                <span><span className="text-zinc-500">{isArabic ? "الكود" : "Code"}:</span> {supplier.supplier_code || "-"}</span>
-                <span><span className="text-zinc-500">{isArabic ? "الهاتف" : "Phone"}:</span> {supplier.phone || "-"}</span>
-                <span><span className="text-zinc-500">{isArabic ? "واتساب" : "WhatsApp"}:</span> {supplier.whatsapp || supplier.phone || "-"}</span>
-                <span><span className="text-zinc-500">{isArabic ? "البريد" : "Email"}:</span> {supplier.email || "-"}</span>
+                <span><span className="text-zinc-500">{t("purchases.statement.fields.supplier")}:</span> {supplier.name || "-"}</span>
+                <span><span className="text-zinc-500">{t("purchases.statement.fields.code")}:</span> {supplier.supplier_code || "-"}</span>
+                <span><span className="text-zinc-500">{t("purchases.statement.fields.phone")}:</span> {supplier.phone || "-"}</span>
+                <span><span className="text-zinc-500">{t("purchases.statement.fields.whatsapp")}:</span> {supplier.whatsapp || supplier.phone || "-"}</span>
+                <span><span className="text-zinc-500">{t("purchases.statement.fields.email")}:</span> {supplier.email || "-"}</span>
               </div>
           </div>
 
           <div className="mt-4 rounded-3xl border border-white/10 bg-zinc-950/80 shadow-2xl shadow-black/10">
             <div className="border-b border-white/10 px-4 py-4">
-              <h3 className="m1-section-title text-white">حركات الحساب</h3>
+              <h3 className="m1-section-title text-white">{t("purchases.statement.transactions.title")}</h3>
               <p className="mt-1 text-sm text-zinc-400">
-                الترتيب زمني من الأقدم إلى الأحدث
+                {t("purchases.statement.transactions.subtitle")}
               </p>
             </div>
             <div className="m1-table-container overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-[1100px] w-full text-left text-sm">
                 <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
                   <tr>
-                    <Th>{isArabic ? "التاريخ" : "Date"}</Th>
-                    <Th>{isArabic ? "النوع" : "Type"}</Th>
-                    <Th>{isArabic ? "المرجع" : "Reference"}</Th>
-                    <Th>{isArabic ? "البيان" : "Description"}</Th>
-                    <Th align="right">{isArabic ? "مدين" : "Debit"}</Th>
-                    <Th align="right">{isArabic ? "دائن" : "Credit"}</Th>
-                    <Th align="right">{isArabic ? "الرصيد" : "Balance"}</Th>
+                    <Th>{t("purchases.statement.table.date")}</Th>
+                    <Th>{t("purchases.statement.table.type")}</Th>
+                    <Th>{t("purchases.statement.table.reference")}</Th>
+                    <Th>{t("purchases.statement.table.description")}</Th>
+                    <Th align="right">{t("purchases.statement.table.debit")}</Th>
+                    <Th align="right">{t("purchases.statement.table.credit")}</Th>
+                    <Th align="right">{t("purchases.statement.table.balance")}</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length ? rows.map((row) => (
                     <tr key={`${row.kind}-${row.id}-${row.created_at}`} className="bg-zinc-950/80 text-zinc-300">
                       <Td>{formatDateTime(row.created_at)}</Td>
-                      <Td className="font-semibold text-white">{typeLabel(row.kind, isArabic)}</Td>
+                      <Td className="font-semibold text-white">{typeLabel(row.kind, t)}</Td>
                       <Td>{row.reference || "-"}</Td>
                       <Td>{row.description || "-"}</Td>
                       <Td align="right" className="font-semibold text-emerald-300">{row.debit ? formatCurrency(row.debit) : "-"}</Td>
@@ -174,7 +182,7 @@ function SupplierStatement() {
                   )) : (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
-                        لا توجد حركات مسجلة بعد
+                        {t("purchases.statement.transactions.empty")}
                       </td>
                     </tr>
                   )}

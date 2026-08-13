@@ -11,7 +11,9 @@
     "smartReorder": "إعادة الطلب الذكية",
     "suppliers": "الموردون",
     "inventory": "المخزون",
-    "warehouses": "المخازن"
+    "warehouses": "المخازن",
+    "createInvoice": "إنشاء فاتورة",
+    "accounting": "المحاسبة"
   },
   "kpis": {
     "totalPurchases": "إجمالي المشتريات",
@@ -457,6 +459,46 @@
       "buyNow": "اشتر الآن",
       "watch": "راقب",
       "doNotBuy": "لا تشتر"
+    }
+  },
+  "statement": {
+    "title": "كشف حساب المورد",
+    "loading": "جاري تحميل كشف الحساب...",
+    "loadFailed": "تعذر تحميل كشف الحساب",
+    "devNotes": "ملاحظات تنفيذية",
+    "kpis": {
+      "totalPurchases": "إجمالي المشتريات",
+      "totalPaid": "إجمالي المدفوع",
+      "openingBalance": "الرصيد الافتتاحي",
+      "dueBalance": "الرصيد المستحق"
+    },
+    "fields": {
+      "supplier": "المورد",
+      "code": "الكود",
+      "phone": "الهاتف",
+      "whatsapp": "واتساب",
+      "email": "البريد"
+    },
+    "transactions": {
+      "title": "حركات الحساب",
+      "subtitle": "الترتيب زمني من الأقدم إلى الأحدث",
+      "empty": "لا توجد حركات مسجلة بعد"
+    },
+    "table": {
+      "date": "التاريخ",
+      "type": "النوع",
+      "reference": "المرجع",
+      "description": "البيان",
+      "debit": "مدين",
+      "credit": "دائن",
+      "balance": "الرصيد"
+    },
+    "types": {
+      "purchase_invoice": "فاتورة شراء",
+      "purchase_payment": "سداد شراء",
+      "purchase_payment_reversal": "عكس سداد",
+      "adjustment": "تسوية",
+      "fallback": "حركة"
     }
   }
 }

@@ -11,7 +11,9 @@
     "smartReorder": "Smart Reorder",
     "suppliers": "Suppliers",
     "inventory": "Inventory",
-    "warehouses": "Warehouses"
+    "warehouses": "Warehouses",
+    "createInvoice": "Create invoice",
+    "accounting": "Accounting"
   },
   "kpis": {
     "totalPurchases": "Total purchases",
@@ -457,6 +459,46 @@
       "buyNow": "Buy now",
       "watch": "Watch",
       "doNotBuy": "Do not buy"
+    }
+  },
+  "statement": {
+    "title": "Supplier statement",
+    "loading": "Loading the statement…",
+    "loadFailed": "Failed to load supplier statement",
+    "devNotes": "Implementation notes",
+    "kpis": {
+      "totalPurchases": "Total purchases",
+      "totalPaid": "Total paid",
+      "openingBalance": "Opening balance",
+      "dueBalance": "Outstanding balance"
+    },
+    "fields": {
+      "supplier": "Supplier",
+      "code": "Code",
+      "phone": "Phone",
+      "whatsapp": "WhatsApp",
+      "email": "Email"
+    },
+    "transactions": {
+      "title": "Account transactions",
+      "subtitle": "Ordered chronologically, oldest first",
+      "empty": "No transactions recorded yet"
+    },
+    "table": {
+      "date": "Date",
+      "type": "Type",
+      "reference": "Reference",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "types": {
+      "purchase_invoice": "Purchase invoice",
+      "purchase_payment": "Purchase payment",
+      "purchase_payment_reversal": "Payment reversal",
+      "adjustment": "Adjustment",
+      "fallback": "Transaction"
     }
   }
 }
