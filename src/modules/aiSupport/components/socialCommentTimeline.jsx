@@ -419,6 +419,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   onKeyDown,
   fallbackPlatform = "facebook",
   compact = false,
+  authorOnLeft = false,
   className = "",
   children = null,
   ...rest
@@ -460,7 +461,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
         .filter(Boolean)
         .join(" ")}
     >
-      <div className={`flex items-start ${compact ? "gap-2.5" : "gap-3.5"}`}>
+      <div dir={authorOnLeft ? "ltr" : undefined} className={`flex items-start ${compact ? "gap-2.5" : "gap-3.5"}`}>
         <div className="relative shrink-0">
           {hasAvatar ? (
             <button
@@ -544,7 +545,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
             </div> : null}
           </div>
 
-          <div className={`rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] ${compact ? "mt-1.5 p-2 text-[13px] leading-6" : "mt-2 p-3 text-[14px] leading-7"}`}>
+          <div dir="auto" className={`rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] ${compact ? "mt-1.5 p-2 text-[13px] leading-6" : "mt-2 p-3 text-[14px] leading-7"}`}>
             <div
               className="whitespace-pre-wrap"
               style={canCollapse && !expanded ? { maxHeight: "4.5rem", overflow: "hidden" } : undefined}

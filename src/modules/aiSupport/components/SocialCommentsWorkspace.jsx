@@ -1454,6 +1454,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
         onSelect={handleSelect}
         onCustomerSelect={onSelectCustomer}
         compact
+        authorOnLeft
       >
         {attachmentPreview ? (
           <a
@@ -3014,7 +3015,7 @@ function SocialCommentsWorkspace({
                   const replyText = clean(comment.replyText || comment.raw?.reply_text || comment.raw?.rendered_reply || "");
                   return (
                     <div key={comment.id || comment.createdTime} className="flex w-full flex-col gap-2">
-                      <div className="mr-auto w-[94%] min-[1200px]:w-[88%]">
+                      <div className="w-full">
                         <SocialCommentsWorkspaceCommentRow
                           comment={comment}
                           selectedCommentKey={selectedCommentKey}
@@ -3799,7 +3800,7 @@ function SocialCommentsWorkspace({
                     ) : null}
 
                     {commentsToRender.map((comment) => (
-                      <div key={comment.id || `${comment.createdTime || ""}:comment`} className="mr-auto w-[94%] min-[1200px]:w-[88%]">
+                      <div key={comment.id || `${comment.createdTime || ""}:comment`} className="w-full">
                         <SocialCommentsWorkspaceCommentRow
                           comment={comment}
                           selectedCommentKey={selectedCommentKey}
