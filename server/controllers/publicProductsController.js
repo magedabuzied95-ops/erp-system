@@ -30,7 +30,7 @@ import {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
-const SHARE_AVAILABLE_OG_VERSION = "V6";
+const SHARE_AVAILABLE_OG_VERSION = "V7";
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -825,26 +825,25 @@ const shareTenantFromRequest = (req = {}) => {
   return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : DEFAULT_TENANT_ID;
 };
 
+export const buildShareAvailableStorefrontFilters = ({ filters = {}, normalizedSizes = [] } = {}) => ({
+  brand: normalizeShareFilterValue(filters.brand || ""),
+  gender: normalizeAudienceValue(filters.gender || "") || normalizeShareFilterValue(filters.gender || ""),
+  productType: normalizeShareFilterValue(filters.type || ""),
+  grade: "",
+  quality: [],
+  size: normalizedSizes.length === 1 ? String(normalizedSizes[0] || "").trim() : "",
+  inStock: Boolean(filters.inStock),
+  offerStory: false,
+});
+
 const loadShareAvailableProducts = async (req = {}, filters = {}) => {
   const normalizedSizes = parseShareParamList(filters.sizes).map((item) => String(item).trim()).filter(Boolean);
-  const gender = normalizeAudienceValue(filters.gender || "") ? normalizeAudienceValue(filters.gender || "") : normalizeShareFilterValue(filters.gender || "");
-  const type = normalizeShareFilterValue(filters.type || "");
-  const brand = normalizeShareFilterValue(filters.brand || "");
   const minPrice = normalizeSharePriceValue(filters.minPrice);
   const maxPrice = normalizeSharePriceValue(filters.maxPrice);
   const tenantId = shareTenantFromRequest(req);
   const branchId = normalizeShareFilterValue(filters.branchId || filters.branch_id || "");
   const language = normalizeShareFilterValue(filters.language || filters.lang || filters.locale || "");
-  const storefrontFilters = {
-    brand,
-    gender,
-    productType: type,
-    grade: "",
-    quality: [],
-    size: "",
-    inStock: false,
-    offerStory: false,
-  };
+  const storefrontFilters = buildShareAvailableStorefrontFilters({ filters, normalizedSizes });
   console.log("[share-available-query-debug]", {
     requestUrl: req.originalUrl || req.url || "",
     filters,
