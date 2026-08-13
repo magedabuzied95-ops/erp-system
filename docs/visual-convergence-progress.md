@@ -1276,3 +1276,182 @@ has been measured. Those remain outstanding for every row.
 - AI Inbox and its PWA — observe only, do not modify (hard freeze)
 - Add/Edit Product — frozen
 - Dashboard, Orders, Products List, Customers, Inventory — frozen references
+
+---
+
+# POST-CLOSURE USER VISUAL CORRECTIONS
+
+A second, user-initiated programme opened after the route-level convergence
+closed. The user rejected specific **internal states and nested surfaces** that
+the route-level auditor had passed. Six surfaces were approved for correction:
+the Workflow Editor, the Workflows list, Restock Recovery, Tools, POS, and the
+AI Settings page. Nothing else was in scope.
+
+**Starting Production SHA:** `041a8a6` (`main` tip `c442474`, docs-only above it).
+
+## Why the earlier sweeps passed these pages
+
+Two independent blind spots, and both had to hold at once:
+
+1. **The old auditor measured opaque surface luminance only.** The AI Studio
+   panels are `*-white/alpha` washes with alpha well under the 0.6 opacity floor,
+   so no surface was ever flagged. "0 dark islands" was true and meaningless.
+2. **Text colour was never audited at all.** The pages set `text-white` on the
+   page root, so in Light every label that did not override it rendered white on
+   the beige `--bg`.
+
+This is the section 4 lesson in one sentence: a page with unreadable text is a
+FAIL even when every surface token is technically correct.
+
+## Auditor rebuild (a tooling defect was found first)
+
+The first version of the contrast auditor was **wrong and its results were
+discarded**. Tailwind v4 reports colours as `oklch()`, and a naive numeric parse
+turned `oklch(0.704 0.04 256.788)` into `rgb(0.929, 0.013, 255.5)` -- it reported
+slate-400 on near-black at contrast 2.2 when the real value is about 6.7.
+
+The rebuilt parser hands every colour to Chrome itself: it fills a 1x1 canvas
+over black and again over white, reads both pixels back, and recovers alpha from
+the difference. That handles `oklch`, `lab`, `color()` and alpha compositing
+exactly, because it is the browser's own colour engine. Validated against
+Tailwind ground truth before use -- slate-200 resolves to exactly `#e2e8f0`,
+`white/5` recovers alpha `0.051`.
+
+Contrast is then computed against the **effective** background: every
+semi-transparent ancestor is composited down to the first opaque one. Without
+that, a wash over a dark canvas looks like a wash over white.
+
+## The contrast baseline, measured not assumed
+
+`/products`, a frozen reference, was measured first. It reports **73 text
+failures** in Light: 1 invisible, 10 severe, 62 marginal -- mostly 10-11px muted
+labels sitting just under 4.5.
+
+So WCAG-clean is **not** the bar: the frozen references do not meet it, and
+reaching it would mean redesigning them. The bar used throughout this programme:
+
+- **0 invisible** (contrast below 2.0)
+- **0 fixed-dark surface islands in Light**
+- severe (2.0-3.0) count **no worse than the frozen reference**
+- marginal 3.0-4.5 on small muted text = accepted system-wide baseline
+
+### Incidental finding on a frozen reference -- NOT fixed, reported
+
+`/products` has a genuine Light defect: `ProductsShell.css` carries
+`.m1-products-catalog > div:first-child > button { color: var(--muted)
+!important }`, which forces **every** segmented-tab button to muted including the
+active gold-filled one. Measured **1.46**. It is a frozen reference and not one
+of the six approved surfaces, so it was left alone and is recorded here for a
+separate decision.
+
+## Standing record corrected: the Workflow Editor mounts
+
+`/ai-studio/workflows/:id/edit` was carried as **BLOCKED_FUNCTIONAL** ("mounts
+nothing, `#root.childElementCount === 0`"). That record is **stale**. On current
+Production the route mounts normally: 1213 nodes, `.react-flow` present, settled
+in 3.1s, on a clean full navigation. Resolved by another workstream. Visual
+convergence therefore proceeded.
+
+## Shared owner
+
+One file owns the correction for all four AI Studio surfaces:
+`src/theme/ai-surface.css`, opt-in via a `.m1-ai-scope` root class. It retargets
+the palette classes the pages already carry onto shipped M1 tokens -- the same
+technique `foundation.css` already uses for emerald/cyan/blue/amber/rose -- so the
+blast radius is exactly the pages that opt in.
+
+Three things could not be owned from that sheet and were corrected at their own
+source instead, so every surface has exactly one owner:
+
+| Surface | Why not the shared sheet |
+|---|---|
+| react-flow `Controls` / `MiniMap` | Carry Tailwind `!` modifiers. For **important** declarations the cascade-layer order is **inverted** -- a layered `!important` outranks an unlayered one no matter how specific the unlayered selector is. Retargeted in `WorkflowCanvas.jsx`. |
+| Edges and handles | Owned by that component's injected `CANVAS_CSS`, which wins on source order. Its literals now read the status tokens. |
+| Restock Recovery view toggle | A token misuse in JSX, not a palette leak (see cp3). |
+
+### Palette-family gap found
+
+`violet` is the only family these modules use that `foundation.css` does **not**
+normalise (it covers emerald, green, cyan, sky, blue, amber, yellow, orange,
+rose, red). It reached Light untouched and was the worst residual defect after
+cp1 -- violet-100 on violet-300/15 measured **1.02**. It marks an *automatic*
+trigger against slate for *manual*, so it lands on the info pair and keeps a hue
+of its own.
+
+## Checkpoints
+
+| # | Scope | Rollback ref | Released | Production | Suite |
+|---|---|---|---|---|---|
+| 1 | AI Studio fixed-dark idiom: shared sheet + 4 scoped roots + react-flow chrome | `rollback/pre-postclosure-cp1-pageA-20260813` -> `041a8a6` | `98ad2ab` | `98ad2ab` verified Light + Dark | 2089 tests / 28 fail, identity-identical |
+| 2 | `violet` gap + solid mid-slate fills | `rollback/pre-postclosure-cp2-pagesBCD-20260813` -> `98ad2ab` | `d0e70ff` | `d0e70ff` verified Light | identity-identical |
+| 3 | Restock Recovery view toggle: near-black on dark (Dark-only, pre-existing) | `rollback/pre-postclosure-cp3-darkfix-20260813` -> `d0e70ff` | `ce919e4` | `ce919e4` verified Dark | identity-identical |
+
+Every checkpoint: `main` only, never the feature branch (Vercel dedupes a SHA it
+has already seen on a branch and starves Production). Production verified by the
+**served bundle fingerprint** -- asset filenames embed the commit SHA -- then by
+re-measuring the real deployed DOM with no local injection present.
+
+## Measured results -- approved surfaces
+
+Light, Arabic RTL unless noted. "inv" = contrast below 2.0.
+
+| Surface | Light before | Light after | Dark before | Dark after |
+|---|---|---|---|---|
+| `/ai-studio/workflows/:id/edit` | 101 fails, **42 inv**, min **1.00**, 3 dark islands | 23 fails, **0 inv**, min 2.71, **0 islands** | 44 fails, 0 inv | **0 fails** |
+| `/ai-studio/workflows` | 12 fails, 1 inv, min 1.02 | 11 fails, **0 inv**, min 2.95 | -- | **0 fails** |
+| `/ai-studio/restock-recovery` | 6 fails, 1 inv, min 1.23 | 4 fails, **0 inv**, min 2.75 | 2 inv, min 1.12 | **0 fails** |
+| `/ai-studio/tools` | 16 fails, 0 inv, min 3.03 | 16 fails, **0 inv**, 0 severe | -- | **0 fails** |
+
+Dark also stopped being a second palette: the editor canvas was slate blue-black
+`rgb(9,11,21)`; it is now the M1 warm `--bg` `rgb(19,18,17)`, with header
+`--surface` and minimap `--card`.
+
+Every remaining failure on these four surfaces is a **global semantic pair**
+shared with the frozen references -- `--warning` on `--warning-soft` (2.75-3.03),
+`--primary` on `--primary-soft` (2.95-3.47), `--success` on `--success-soft`
+(4.02). Those are a system-wide characteristic of the shipped palette, not an AI
+Studio defect; fixing them inside these pages only would create exactly the
+page-specific colour system section 0 forbids. Recorded as a system-wide finding.
+
+## Verification matrix
+
+| Surface | Light | Dark | RTL/ar | LTR/en | Overflow | Behaviour |
+|---|---|---|---|---|---|---|
+| `/ai-studio/workflows/:id/edit` | yes | yes | yes | yes | none; collapsed rails reachable | preserved |
+| `/ai-studio/workflows` | yes | yes | yes | yes | none | preserved |
+| `/ai-studio/restock-recovery` | yes | yes | yes | yes | none | preserved |
+| `/ai-studio/tools` | yes | yes | yes | yes | none | preserved |
+
+Typography: page titles measure the canonical **22px/800** on all three list
+pages. The 8px and 9px arbitrary steps are normalised to `--font-caption`. Fonts
+resolve Cairo in Arabic and Inter in English. `READ`/`WRITE`/`SENSITIVE`
+differentiation is preserved -- measured distinctly as success/warning/danger on
+the group headers. (The per-tool enum pill was never colour-coded in the source;
+that is original design, not a regression.)
+
+Behaviour preservation: every diff is `className`, CSS, or a colour literal
+becoming a token. No workflow definition, node/condition/operator id, serialized
+config, `cfg.label`, version, dirty-state, autosave, validation, execution,
+approval or tool-grant path was touched. No `t()` call or dictionary modified.
+
+## State
+
+| Target | State |
+|---|---|
+| A `/ai-studio/workflows/:id/edit` | **COMPLETE** |
+| B `/ai-studio/workflows` | **COMPLETE** |
+| C `/ai-studio/restock-recovery` | **COMPLETE** |
+| D `/ai-studio/tools` | **COMPLETE** |
+| E `/pos` | PENDING |
+| F `/ai/settings` | PENDING |
+
+Page F's route was resolved from the router, not from the screenshot:
+`/ai/settings` -> `src/modules/aiSupport/pages/AiSettings.jsx`, the only AI
+settings route carrying tone + channel + product-id + textarea together.
+
+### Out of approved scope, still carrying the same debt
+
+`/ai-studio`, `/ai-studio/executions` and `/ai-studio/approvals` share the same
+fixed-dark idiom and were **not** given the scope class, because section 1 listed
+four AI Studio surfaces and widening was explicitly forbidden. They are one-line
+changes each (`.m1-ai-scope` plus the import) whenever they are approved.
