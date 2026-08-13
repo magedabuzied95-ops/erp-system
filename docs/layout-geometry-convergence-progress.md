@@ -1281,3 +1281,171 @@ or route their overflow through legitimate scrollports.
 5. **Rule added this session: a width cap is invisible until the workspace
    exceeds it.** Measure the fluid dimension at the widest viewport in real use.
    A 1440-only sweep reports this entire programme as clean.
+
+---
+
+## Session 8 — DEFECT 4 solved; rung C found three more; pathological surfaces closed
+
+Resumed from the session-7 marker. `main` = Production = `721d93e` at start.
+**Six** unrelated commits landed on `main` from other workstreams during this
+session (pricing/POS, settings branding, two AI-inbox grounding fixes, two
+inventory fixes). Each was fetched, inspected for layout impact and reconciled
+before push; the 11 shared-owner Fluid Workspace corrections were re-verified
+intact after the two that touched `SettingsCenter.jsx` and `InventoryDashboard.jsx`.
+
+### DEFECT 4 — the previous attribution was wrong on both halves
+
+Session 7 recorded "a grid item with `min-width:auto`" and that `min-w-0` on the
+card did not fix it. Both halves needed correcting:
+
+- **Why the earlier `min-w-0` test failed.** It was applied to **one** card. The
+  track is the max over **693** items, so a single card cannot move it. Applying
+  `min-width:0` to *all* items collapses the track 1490.97px -> 574.6px.
+- **An offscreen clone measured the card min-content at 429px**, which looked like
+  it disproved the mechanism. That figure is invalid — a detached clone loses its
+  CSS context. Recorded as a trap: **never measure intrinsic width on a clone
+  outside its ancestor chain.**
+
+**Real owner.** Two sibling grids (neither contains the other) declare columns
+only at `xl:`. Below that breakpoint the template is `none`, items auto-place into
+an *implicit* auto track with no `minmax(0,...)` floor, and the track resolves to
+max-content. Tailwind `grid-cols-1` is exactly `repeat(1, minmax(0,1fr))` — the
+missing floor.
+
+**Nothing is hidden by the fix.** With every item allowed to shrink, **zero**
+descendants overflow their card: the content is fully compressible. The residual
+980px is a `min-w-[980px]` 7-column data table inside a horizontal scroller — all
+103 remaining wide descendants sit inside legitimate scrollports
+(`notInScrollport: 0`). No clipping, no fixed widths, no hidden content, and
+`htmlOvf` stayed 0 throughout, so no forced page scrolling.
+
+### Three more instances, found by the new detector
+
+`blownGrids` (a grid whose resolved tracks exceed its own box, excluding grids
+inside scrollports) was added to the auditor and immediately surfaced three more —
+**objectively, not by pattern-matching**:
+
+| Defect | Route | Before | After |
+|---|---|---|---|
+| 5 | `/settings/permissions` | track 3795px in 690px, **46** escapes | track 689.8px, **0** |
+| 6 | `/marketing/social-comments` | track 313.6px in 249px, **5** escapes | **0** |
+| 7 | settings branding upload | 2 escapes, 2 blown grids, 24px overshoot | **0** |
+
+DEFECT 7 had two causes in one component: the `justify-between` header row's
+title/helper block had no `min-w-0`, so it could not shrink and pushed the
+`shrink-0` "Clear image" button outside the card; and the thumbnail track was a
+fixed `5.5rem` that could not shrink inside a 64px grid. Same component as
+DEFECT 1, which fixed the URL text but not these controls.
+
+**`/settings/permissions` was classified clean in session 5 — correctly, at wide
+viewport, where `escNotInScrollport` was 0. The defect exists only below `xl`.**
+This is the strongest evidence yet for the rung-C rule.
+
+### Scope discipline
+
+**747** grids in `src` declare columns only at a breakpoint. They were **not**
+swept. Only the five that measurably blow out were changed. The detector now
+carries the rule so future sweeps find them on evidence.
+
+### Checkpoints
+
+| # | Scope | Rollback ref | Released | Verified |
+|---|---|---|---|---|
+| cp6 | 2 grids in `InventoryDashboard`, 1 in `StockTransfers` | `rollback/pre-layout-geometry-cp6-20260813` -> `8a662a5` | `04aede2` | **FIXED_VERIFIED** |
+| cp7 | `Permissions`, `SettingsCenter` x2, `SocialCommentsWorkspace` | `rollback/pre-layout-geometry-cp7-20260813` -> `ecb22a2` | `5d7f471` | **FIXED_VERIFIED** |
+
+Both: eslint 0 errors, `vite build` green, guards 94/95 then 85/86 — the single
+failure (`typography-spacing-convergence`, `AiStudio.jsx: h-8` x4) reproduces
+identically on the untouched base. Zero newly introduced failures.
+
+### Post-deploy verification
+
+`/inventory` @1024 on `04aede2d022d`: content 1491 -> **980**, utilisation 216.1%
+-> **142.1%**, `escNotInScrollport` **19024 -> 0**, blown grids **2 -> 0**,
+`htmlOvf` 0.
+
+`/settings/permissions` @1024 on `5d7f471e2dfd`: the fixed grid now carries
+`grid-cols-1` and resolves to **689.8px** (was 3795.2px), escapes **46 -> 0**.
+`/marketing/social-comments` and `/settings/company` @1024: escapes -> **0**,
+blown grids -> **0**, utilisation 100%.
+
+### Responsive matrix for the DEFECT 4/5/6/7 fixes
+
+| Rung | Available | `/inventory` | Result |
+|---|---|---|---|
+| 2288 | 1937 | 100% | 0 escapes, 0 blown, `htmlOvf` 0 |
+| 1920 | 1569 | 100% | 0 / 0 / 0 |
+| 1440 | 1089 | 100% | 0 / 0 / 0 |
+| 1024 | 690 | 142.1% (scrollport) | **0** real escapes, 0 blown |
+| 768 | 713 | 137.5% (scrollport) | **0** real escapes, 0 blown |
+
+**RTL / LTR** on `/inventory` @1024: byte-identical
+(`[690, 980, 142.1, escReal 0, escSp 13, blown 0, htmlOvf 0]`) in both directions.
+
+**Dark theme:** switched via `localStorage['erp.theme']`, swept, and **restored to
+the user's original `light`**. `/inventory` @1024 in Dark is identical to Light.
+All **40** newly-fluid routes re-measured in Dark @2288: **100% utilisation,
+`escNotInScrollport` 0, blown grids 0** on every one. Geometry is theme-independent
+here — no changed declaration sits in a `dark:` variant.
+
+### Pathological surfaces — CLOSED
+
+Method: **hard page load** (not SPA navigation) + shallow structural read. SPA
+navigation into `/products/barcodes` froze the renderer again, exactly as in
+session 1; a hard load does not.
+
+| Route | Elements | Result |
+|---|---|---|
+| `/purchases/reorder-suggestions` | **137054** | `PASS_BOUNDED` — util 100%, `shellOvf` 0, `htmlOvf` 0 |
+| `/products/barcode-print-queue` | **46106** | `PASS_BOUNDED` — util 100%, 0 / 0 |
+| `/settings/permissions` (loaded) | **327850** | `PASS_BOUNDED` — util 100%, 0 / 0 |
+| `/purchases/create` | 1203 | **PASS** — full walk: 0 escapes, 0 blown grids |
+| `/create-order` | 683 | **PASS** — full walk: 0 / 0 |
+| `/products/barcodes`, `/products/barcode-labels`, `/products/labels` | 845 | **PASS** in default state |
+| `/products/print-list` | 794 | **PASS** |
+
+Honest caveat: the barcode surfaces are only pathological **after labels are
+generated**, which is a user action. It was not triggered, so those three are
+PASS *in their default state*, not across all states.
+
+Auditor note: the shallow bounded probe does **not** filter out-of-flow elements,
+so its `content` can overstate — `/purchases/create` read 2278px shallow but a
+full walk found 0 escapes. For bounded surfaces, `shellOvf`/`htmlOvf` are the
+authoritative signal.
+
+### Auditor fixes 8-10
+
+8. Loading-skeleton bars are not width owners (require >=200px tall and >=8 descendants).
+9. An element that is *itself* a scrollport owns its overflow.
+10. A grid **inside** a scrollport may legitimately exceed its box — excluded from
+    `blownGrids`. Without this the `/settings/permissions` fix read as a
+    regression (1 -> 30) when `escNotInScrollport` had actually gone 46 -> 0.
+
+### Programme state
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | **7** (`e7b5745`, `729d979`, `6b0dff3`, `4952d47`, `8498cbb`, `04aede2`, `5d7f471`) |
+| Shared width owners changed | 11 |
+| Width caps removed | 26 |
+| Grid/flex clipping defects fixed | **5** (in 4 owner files) |
+| Defects: found / FIXED_VERIFIED / dismissed | **7 / 6 / 1** |
+| `NEEDS_FIX` / `NEEDS_FLUID_FIX` | **0 / 0** |
+| Auditor fixes to date | **10** |
+
+### RESUME MARKER (supersedes session 7)
+
+1. **Internal states remain the one unswept dimension** — tabs, expanded filter
+   panels, drawers, non-destructive modals, empty states, card/list toggles. A
+   page can be clean by default and clip when a drawer opens. Sweep read-only,
+   never mutating business data.
+2. Rung C/D full-matrix coverage is now broad but not exhaustive — ~45 routes
+   measured at 1024, fewer at 768. Use `blownGrids` + `escNotInScrollport`; those
+   two found every defect this session.
+3. **Rung C is where defects live.** Every one of DEFECT 4-7 is invisible at wide
+   viewport, and `/settings/permissions` was explicitly (and correctly) classified
+   clean at 2288 in session 5.
+4. Do not reopen the 26 removed caps or the 40 verified fluid routes.
+5. **Traps recorded:** never measure intrinsic width on a detached clone; a
+   single-item toggle cannot move a track sized by the max over N items; the
+   shallow bounded probe overstates content because it ignores out-of-flow boxes.
