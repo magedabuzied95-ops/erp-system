@@ -486,5 +486,96 @@
     "saveError": "Could not save the quick reply",
     "deleteError": "Could not delete the quick reply",
     "reorderError": "Could not reorder quick replies"
+  },
+  "inbox": {
+    "rail": {
+      "conversations": "Conversations",
+      "subtitle": "All connected customer channels",
+      "config": "Config",
+      "socialComments": "Social Comments"
+    },
+    "filters": {
+      "all": "All",
+      "messages": "Messages",
+      "comments": "Comments",
+      "needsReply": "Needs Reply",
+      "favorites": "Favorites",
+      "allMessages": "All Messages",
+      "allComments": "All Comments",
+      "web": "Web"
+    },
+    "lead": {
+      "all": "All",
+      "readyToBuy": "Ready to buy",
+      "hot": "Hot",
+      "warm": "Warm",
+      "cold": "Cold",
+      "needsHuman": "Needs human"
+    },
+    "leadStatus": {
+      "new": "New",
+      "contacted": "Contacted",
+      "interested": "Interested",
+      "negotiation": "Negotiation",
+      "won": "Won",
+      "lost": "Lost"
+    },
+    "card": {
+      "unread": "Unread",
+      "needsHuman": "Needs Human",
+      "noMessages": "No messages yet",
+      "noTranscript": "No transcript yet.",
+      "notSet": "Not set yet"
+    },
+    "header": {
+      "addLabel": "Add Label",
+      "returnToAi": "Return to AI",
+      "aiOn": "AI ON",
+      "aiOff": "AI OFF",
+      "expandLayout": "Expand conversation layout",
+      "openCustomer": "Open customer details for {{name}}"
+    },
+    "labels": {
+      "title": "Conversation Labels",
+      "close": "Close labels",
+      "search": "Search or type a new label...",
+      "current": "Current labels",
+      "none": "No labels selected",
+      "edit": "Edit label",
+      "name": "Label name",
+      "cancel": "Cancel",
+      "save": "Save edit",
+      "available": "Available labels",
+      "create": "Create",
+      "noOthers": "No other labels",
+      "hint": "Add more than one label to this customer"
+    },
+    "composer": {
+      "placeholder": "Type your message...",
+      "notePlaceholder": "Write an internal note. It will not be sent yet.",
+      "attachProduct": "Attach product",
+      "emoji": "Emoji",
+      "chooseEmoji": "Choose emoji",
+      "availableProducts": "Available products",
+      "sendNowMeta": "Send now through Meta",
+      "closedConversation": "This conversation is closed. Manual replies are disabled.",
+      "takeoverWarning": "Sending a staff reply will take over this conversation and pause AI automation.",
+      "editing": "Editing"
+    },
+    "delivery": {
+      "sending": "Sending",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read",
+      "failed": "Failed",
+      "pending": "Pending"
+    },
+    "autoReply": {
+      "off": "Off",
+      "suggestOnly": "Suggest only",
+      "approval": "Approval",
+      "automatic": "Automatic",
+      "mode": "Auto reply mode"
+    }
   }
 }

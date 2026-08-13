@@ -9,18 +9,18 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 616
+- Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1234
-- Hardcoded English UI strings: 1084
-- Total hardcoded UI strings: 2318
+- Hardcoded Arabic UI strings: 1231
+- Hardcoded English UI strings: 1071
+- Total hardcoded UI strings: 2302
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 886 | 702 | 1588 | 19 |
+| main-erp | 58 | 883 | 689 | 1572 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 161 | 261 | 422 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 158 | 248 | 406 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -64,49 +64,49 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:161 en:261)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:158 en:248)
 
-- 572 [object-key/en] All
-- 573 [object-key/en] Messages
-- 574 [object-key/en] Comments
-- 575 [object-key/en] Needs Reply
-- 579 [object-key/en] All
-- 580 [object-key/en] Favorites
-- 584 [object-key/en] All Messages
-- 588 [object-key/en] Web
-- 593 [object-key/en] All Comments
-- 600 [object-key/ar] الكل
-- 601 [object-key/ar] جاهز للشراء
-- 602 [object-key/ar] ساخن
-- 603 [object-key/ar] دافئ
-- 604 [object-key/ar] يحتاج تدخلًا بشريًا
-- 608 [object-key/ar] بارد
-- 609 [object-key/ar] دافئ
-- 610 [object-key/ar] ساخن
-- 611 [object-key/ar] جاهز للشراء
-- 1266 [object-key/en] New
-- 1267 [object-key/en] Contacted
-- 1268 [object-key/en] Interested
-- 1269 [object-key/en] Negotiation
-- 1270 [object-key/en] Won
-- 1589 [attribute/en] Not set yet
-- 1700 [object-key/en] Like
-- 1701 [object-key/en] Public reply
-- 1702 [object-key/en] Private message
-- 1909 [jsx-text/en] Needs Human
-- 1969 [jsx-text/ar] غير مقروء
-- 2074 [attribute/en] Config
-- 2075 [attribute/en] Config
-- 2080 [jsx-text/en] Config
-- 2089 [attribute/en] Social Comments
-- 2090 [attribute/en] Social Comments
-- 2210 [jsx-text/en] Needs Human
-- 2253 [jsx-text/en] Unread
-- 2291 [attribute/en] Conversation Labels
-- 2293 [jsx-text/ar] أضف أكثر من Label للعميل
-- 2293 [jsx-text/en] Conversation Labels
-- 2294 [attribute/en] Close labels
-- ... 382 more
+- 606 [object-key/en] All
+- 607 [object-key/en] Messages
+- 608 [object-key/en] Comments
+- 609 [object-key/en] Needs Reply
+- 613 [object-key/en] All
+- 614 [object-key/en] Favorites
+- 618 [object-key/en] All Messages
+- 622 [object-key/en] Web
+- 627 [object-key/en] All Comments
+- 634 [object-key/ar] الكل
+- 635 [object-key/ar] جاهز للشراء
+- 636 [object-key/ar] ساخن
+- 637 [object-key/ar] دافئ
+- 638 [object-key/ar] يحتاج تدخلًا بشريًا
+- 642 [object-key/ar] بارد
+- 643 [object-key/ar] دافئ
+- 644 [object-key/ar] ساخن
+- 645 [object-key/ar] جاهز للشراء
+- 1300 [object-key/en] New
+- 1301 [object-key/en] Contacted
+- 1302 [object-key/en] Interested
+- 1303 [object-key/en] Negotiation
+- 1304 [object-key/en] Won
+- 1623 [attribute/en] Not set yet
+- 1734 [object-key/en] Like
+- 1735 [object-key/en] Public reply
+- 1736 [object-key/en] Private message
+- 1943 [jsx-text/en] Needs Human
+- 2003 [jsx-text/ar] غير مقروء
+- 2124 [attribute/en] Social Comments
+- 2125 [attribute/en] Social Comments
+- 2246 [jsx-text/en] Needs Human
+- 2289 [jsx-text/en] Unread
+- 2328 [attribute/en] Conversation Labels
+- 2330 [jsx-text/ar] أضف أكثر من Label للعميل
+- 2330 [jsx-text/en] Conversation Labels
+- 2331 [attribute/en] Close labels
+- 2354 [attribute/en] Label name
+- 2360 [jsx-text/en] Cancel
+- 2361 [jsx-text/en] Save edit
+- ... 366 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 
@@ -635,42 +635,42 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:36)
 
-- 7371 [jsx-text/en] Shift report
-- 7387 [jsx-text/en] Print
-- 7389 [jsx-text/en] End of Shift Report #$
-- 7390 [jsx-text/en] Cashier: $
-- 7391 [jsx-text/en] Variance: $
-- 7393 [jsx-text/en] Count
-- 7393 [jsx-text/en] Method
-- 7393 [jsx-text/en] No payments
-- 7393 [jsx-text/en] Payment breakdown
-- 7393 [jsx-text/en] Total
-- 7394 [jsx-text/en] Invoices
-- 7394 [jsx-text/en] No seller data
-- 7394 [jsx-text/en] Sales
-- 7394 [jsx-text/en] Seller
-- 7394 [jsx-text/en] Seller performance
-- 7395 [jsx-text/en] No products
-- 7395 [jsx-text/en] Product
-- 7395 [jsx-text/en] Qty
-- 7395 [jsx-text/en] Share
-- 7395 [jsx-text/en] Top products
-- 7395 [jsx-text/en] Total
-- 7396 [jsx-text/en] Action
-- 7396 [jsx-text/en] Amount
-- 7396 [jsx-text/en] Audit timeline
-- 7396 [jsx-text/en] No events
-- 7396 [jsx-text/en] Reference
-- 7396 [jsx-text/en] Time
-- 7397 [jsx-text/en] Cashier signature
-- 7397 [jsx-text/en] Manager signature
-- 8628 [jsx-text/en] SKU:
-- 8629 [jsx-text/en] ART:
-- 8687 [jsx-text/en] SKU:
-- 9079 [object-key/en] Shift close reconciliation
-- 9080 [object-key/en] Review drawer cash, payments, sales, and audit records before final close.
-- 9615 [attribute/en] InstaPay
-- 9616 [attribute/en] Vodafone Cash
+- 7430 [jsx-text/en] Shift report
+- 7446 [jsx-text/en] Print
+- 7448 [jsx-text/en] End of Shift Report #$
+- 7449 [jsx-text/en] Cashier: $
+- 7450 [jsx-text/en] Variance: $
+- 7452 [jsx-text/en] Count
+- 7452 [jsx-text/en] Method
+- 7452 [jsx-text/en] No payments
+- 7452 [jsx-text/en] Payment breakdown
+- 7452 [jsx-text/en] Total
+- 7453 [jsx-text/en] Invoices
+- 7453 [jsx-text/en] No seller data
+- 7453 [jsx-text/en] Sales
+- 7453 [jsx-text/en] Seller
+- 7453 [jsx-text/en] Seller performance
+- 7454 [jsx-text/en] No products
+- 7454 [jsx-text/en] Product
+- 7454 [jsx-text/en] Qty
+- 7454 [jsx-text/en] Share
+- 7454 [jsx-text/en] Top products
+- 7454 [jsx-text/en] Total
+- 7455 [jsx-text/en] Action
+- 7455 [jsx-text/en] Amount
+- 7455 [jsx-text/en] Audit timeline
+- 7455 [jsx-text/en] No events
+- 7455 [jsx-text/en] Reference
+- 7455 [jsx-text/en] Time
+- 7456 [jsx-text/en] Cashier signature
+- 7456 [jsx-text/en] Manager signature
+- 8690 [jsx-text/en] SKU:
+- 8691 [jsx-text/en] ART:
+- 8749 [jsx-text/en] SKU:
+- 9141 [object-key/en] Shift close reconciliation
+- 9142 [object-key/en] Review drawer cash, payments, sales, and audit records before final close.
+- 9677 [attribute/en] InstaPay
+- 9678 [attribute/en] Vodafone Cash
 
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 
@@ -787,30 +787,30 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1996 [inline-ternary/ar] isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first."
 - 2014 [inline-ternary/ar] isArabic ? "إجمالي الفاتورة غير صالح." : "Invoice total is invalid."
 - 2023 [inline-ternary/ar] isArabic ? "أدخل مبلغاً مدفوعاً صحيحاً أقل من إجمالي الفاتورة." : "Enter a valid paid amount less than the invoice total
-- 2256 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
-- 2258 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
-- 2355 [inline-ternary/ar] isArabic ? "إضافة مورد" : "Add supplier"
-- 2367 [inline-ternary/ar] isArabic ? "لا توجد فروع نشطة" : "No active branches"
-- 2368 [inline-ternary/ar] isArabic ? "اختر الفرع" : "Select branch"
-- 2395 [inline-ternary/ar] isArabic ? "الفلاتر" : "Filters"
-- 2524 [inline-ternary/ar] isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size."
-- 2525 [inline-ternary/ar] isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product tha
-- 2966 [inline-ternary/ar] isArabic ? "طريقة الدفع والحساب" : "Payment method & account"
-- 2984 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
-- 2988 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع" : "Choose a payment method"
-- 2991 [inline-ternary/ar] isArabic ? "الحساب المالي" : "Financial account"
-- 2998 [inline-ternary/ar] isArabic ? "اختر الحساب" : "Choose an account"
-- 3010 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
-- 3011 [inline-ternary/ar] isArabic ? "الحساب" : "Account"
-- 3011 [inline-ternary/ar] isArabic ? "غير محدد" : "Not selected"
-- 3013 [inline-ternary/ar] isArabic ? "المتبقي" : "Remaining"
-- 3215 [object-key/ar] استخدم كميات المنتج
-- 3216 [object-key/ar] راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.
-- 3235 [object-key/en] Use Product Purchase Qty
-- 3236 [object-key/en] Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.
-- 3353 [object-key/ar] تسعير المنتجات المختارة
-- 3354 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
-- 3372 [object-key/en] Price selected products
+- 2255 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
+- 2257 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
+- 2354 [inline-ternary/ar] isArabic ? "إضافة مورد" : "Add supplier"
+- 2366 [inline-ternary/ar] isArabic ? "لا توجد فروع نشطة" : "No active branches"
+- 2367 [inline-ternary/ar] isArabic ? "اختر الفرع" : "Select branch"
+- 2394 [inline-ternary/ar] isArabic ? "الفلاتر" : "Filters"
+- 2523 [inline-ternary/ar] isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size."
+- 2524 [inline-ternary/ar] isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product tha
+- 2965 [inline-ternary/ar] isArabic ? "طريقة الدفع والحساب" : "Payment method & account"
+- 2983 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
+- 2987 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع" : "Choose a payment method"
+- 2990 [inline-ternary/ar] isArabic ? "الحساب المالي" : "Financial account"
+- 2997 [inline-ternary/ar] isArabic ? "اختر الحساب" : "Choose an account"
+- 3009 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
+- 3010 [inline-ternary/ar] isArabic ? "الحساب" : "Account"
+- 3010 [inline-ternary/ar] isArabic ? "غير محدد" : "Not selected"
+- 3012 [inline-ternary/ar] isArabic ? "المتبقي" : "Remaining"
+- 3214 [object-key/ar] استخدم كميات المنتج
+- 3215 [object-key/ar] راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.
+- 3234 [object-key/en] Use Product Purchase Qty
+- 3235 [object-key/en] Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.
+- 3352 [object-key/ar] تسعير المنتجات المختارة
+- 3353 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
+- 3371 [object-key/en] Price selected products
 
 ### src/modules/aiSupport/components/socialAutomation/PostProductLinksDrawer.jsx (shared — ar:0 en:28)
 
@@ -845,33 +845,33 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:15 en:12)
 
-- 194 [attribute/en] Pinned messages
-- 217 [attribute/en] Unpin message
-- 218 [attribute/en] Unpin
-- 367 [object-key/en] Reply
-- 372 [object-key/en] Info
-- 385 [jsx-text/en] Pinned
-- 386 [jsx-text/en] Starred
-- 394 [attribute/ar] إضافة تفاعل
-- 395 [attribute/ar] إضافة تفاعل
-- 409 [attribute/ar] عرض كل الإيموجي
-- 418 [attribute/ar] اختيار تفاعل
-- 435 [attribute/en] Message actions
-- 449 [attribute/en] Message info
-- 451 [jsx-text/ar] تفاصيل الرسالة
-- 451 [jsx-text/en] Message info
-- 455 [jsx-text/ar] المرسل
-- 456 [jsx-text/ar] القناة
-- 457 [jsx-text/ar] الوقت
-- 458 [jsx-text/ar] النوع
-- 459 [jsx-text/ar] الحالة
-- 460 [jsx-text/ar] المعرف
-- 503 [attribute/en] Attachment
-- 615 [jsx-text/ar] فتح الملف
-- 717 [jsx-text/ar] العميل
-- 727 [jsx-text/ar] فتح الملف
-- 737 [jsx-text/en] Draft reply
-- 778 [jsx-text/ar] فتح الملف
+- 217 [attribute/en] Pinned messages
+- 240 [attribute/en] Unpin message
+- 241 [attribute/en] Unpin
+- 390 [object-key/en] Reply
+- 395 [object-key/en] Info
+- 408 [jsx-text/en] Pinned
+- 409 [jsx-text/en] Starred
+- 417 [attribute/ar] إضافة تفاعل
+- 418 [attribute/ar] إضافة تفاعل
+- 432 [attribute/ar] عرض كل الإيموجي
+- 441 [attribute/ar] اختيار تفاعل
+- 458 [attribute/en] Message actions
+- 472 [attribute/en] Message info
+- 474 [jsx-text/ar] تفاصيل الرسالة
+- 474 [jsx-text/en] Message info
+- 478 [jsx-text/ar] المرسل
+- 479 [jsx-text/ar] القناة
+- 480 [jsx-text/ar] الوقت
+- 481 [jsx-text/ar] النوع
+- 482 [jsx-text/ar] الحالة
+- 483 [jsx-text/ar] المعرف
+- 526 [attribute/en] Attachment
+- 639 [jsx-text/ar] فتح الملف
+- 741 [jsx-text/ar] العميل
+- 751 [jsx-text/ar] فتح الملف
+- 761 [jsx-text/en] Draft reply
+- 802 [jsx-text/ar] فتح الملف
 
 ### src/pages/AppShellPreview.jsx (main-erp — ar:25 en:2)
 
@@ -933,30 +933,30 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/settings/pages/SettingsCenter.jsx (main-erp — ar:17 en:7)
 
-- 79 [object-key/en] Settings Center
-- 80 [object-key/en] Manage your entire ERP from one place.
-- 81 [object-key/en] Manage company, operations, orders, AI and security settings.
-- 126 [object-key/ar] مركز الإعدادات
-- 127 [object-key/ar] إدارة إعدادات النظام بالكامل من شاشة واحدة.
-- 128 [object-key/ar] تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.
-- 703 [inline-ternary/ar] language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults"
-- 744 [inline-ternary/ar] language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved"
-- 757 [inline-ternary/ar] language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded"
-- 981 [inline-ternary/ar] language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"
-- 981 [inline-ternary/ar] language === "ar" ? "محفوظ" : "Saved"
-- 982 [inline-ternary/ar] language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
-- 1184 [inline-ternary/ar] language === "ar" ? "إعادة الافتراضي" : "Reset defaults"
-- 1627 [jsx-text/en] InstaPay
-- 1780 [inline-ternary/ar] language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"
-- 1792 [inline-ternary/ar] language === "ar" ? "الحد الأدنى لمدة التجهيز بالأيام" : "Minimum handling days"
-- 1807 [inline-ternary/ar] language === "ar" ? "الحد الأقصى لمدة التجهيز بالأيام" : "Maximum handling days"
-- 1827 [inline-ternary/ar] language === "ar" ? "تُطبّق هذه القيمة تلقائيًا على كل مناطق الشحن الفعالة ما لم يتم تفعيل مدة خاصة لمنطقة محددة." : "Ap
-- 2506 [object-key/en] Mylerz
-- 2507 [object-key/en] ShipBlu
-- 3293 [jsx-text/en] Provider:
-- 3550 [inline-ternary/ar] language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"
-- 3560 [inline-ternary/ar] language === "ar" ? "أقل مدة تجهيز" : "Handling min days"
-- 3561 [inline-ternary/ar] language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"
+- 80 [object-key/en] Settings Center
+- 81 [object-key/en] Manage your entire ERP from one place.
+- 82 [object-key/en] Manage company, operations, orders, AI and security settings.
+- 127 [object-key/ar] مركز الإعدادات
+- 128 [object-key/ar] إدارة إعدادات النظام بالكامل من شاشة واحدة.
+- 129 [object-key/ar] تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.
+- 704 [inline-ternary/ar] language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults"
+- 745 [inline-ternary/ar] language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved"
+- 758 [inline-ternary/ar] language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded"
+- 982 [inline-ternary/ar] language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"
+- 982 [inline-ternary/ar] language === "ar" ? "محفوظ" : "Saved"
+- 983 [inline-ternary/ar] language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
+- 1185 [inline-ternary/ar] language === "ar" ? "إعادة الافتراضي" : "Reset defaults"
+- 1630 [jsx-text/en] InstaPay
+- 1783 [inline-ternary/ar] language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"
+- 1795 [inline-ternary/ar] language === "ar" ? "الحد الأدنى لمدة التجهيز بالأيام" : "Minimum handling days"
+- 1810 [inline-ternary/ar] language === "ar" ? "الحد الأقصى لمدة التجهيز بالأيام" : "Maximum handling days"
+- 1830 [inline-ternary/ar] language === "ar" ? "تُطبّق هذه القيمة تلقائيًا على كل مناطق الشحن الفعالة ما لم يتم تفعيل مدة خاصة لمنطقة محددة." : "Ap
+- 2509 [object-key/en] Mylerz
+- 2510 [object-key/en] ShipBlu
+- 3296 [jsx-text/en] Provider:
+- 3553 [inline-ternary/ar] language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"
+- 3563 [inline-ternary/ar] language === "ar" ? "أقل مدة تجهيز" : "Handling min days"
+- 3564 [inline-ternary/ar] language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"
 
 ### src/shared/utils/invoicePdf.js (shared — ar:24 en:0)
 
@@ -1794,7 +1794,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/pages/AiSettings.jsx (main-erp — ar:1 en:0)
 
-- 98 [object-key/ar] بكام؟
+- 99 [object-key/ar] بكام؟
 
 ### src/modules/marketing/pages/MarketingSettings.jsx (main-erp — ar:0 en:1)
 
@@ -1850,7 +1850,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/shared/layouts/MainLayout.jsx (shared — ar:1 en:0)
 
-- 810 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
+- 811 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
 
 ### src/shared/utils/whatsapp.js (shared — ar:1 en:0)
 

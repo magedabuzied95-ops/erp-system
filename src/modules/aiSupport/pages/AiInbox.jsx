@@ -1,4 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -2017,6 +2018,7 @@ function InboxChannelSidebar({
   onOpenConfig,
   configActive = false,
 }) {
+  const { t } = useTranslation();
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
@@ -2104,13 +2106,13 @@ function InboxChannelSidebar({
           <button
             type="button"
             onClick={onOpenConfig}
-            title="Config"
-            aria-label="Config"
+            title={t("aiSupport.inbox.rail.config")}
+            aria-label={t("aiSupport.inbox.rail.config")}
             aria-pressed={configActive}
             className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 rounded-xl text-center transition ${configActive ? "bg-[#f2dfad] text-[#8c6100] shadow-sm dark:bg-amber-400/15 dark:text-amber-200" : "text-[#9a6a00] hover:bg-[#f7efd9] hover:text-[#704d00] dark:text-white/75 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}
           >
             <Settings className="h-6 w-6" aria-hidden="true" />
-            <span className="text-[8px] font-black uppercase tracking-wide">Config</span>
+            <span className="text-[8px] font-black uppercase tracking-wide">{t("aiSupport.inbox.rail.config")}</span>
           </button>
         </div>
       ) : null}
@@ -2142,6 +2144,7 @@ function InboxChannelSidebar({
 }
 
 const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
+  const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -2291,6 +2294,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
 });
 
 function ConversationLabelsModal({ open, labels = [], saving = false, onClose, onSave }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [draftLabels, setDraftLabels] = useState([]);
   const [editingLabel, setEditingLabel] = useState(null);
@@ -2330,11 +2334,11 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
         <div className="space-y-4 p-5">
           <label className="flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 focus-within:border-amber-300/40">
             <Search className="h-4 w-4 text-slate-500" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث أو اكتب Label جديد..." className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500" autoFocus />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("aiSupport.inbox.labels.search")} className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500" autoFocus />
           </label>
 
           <div>
-            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Current labels ({draftLabels.length})</div>
+            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.labels.current")} ({draftLabels.length})</div>
             <div className="flex min-h-10 flex-wrap gap-2 rounded-xl border border-white/8 bg-black/15 p-2">
               {draftLabels.length ? draftLabels.map((label) => (
                 <span key={label.id} className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black ${conversationLabelClass(label.color)}`}>
@@ -2342,11 +2346,11 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
                   <button type="button" onClick={() => setEditingLabel({ ...label })} aria-label={`Edit ${label.name}`} className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/20"><Pencil className="h-2.5 w-2.5" /></button>
                   <button type="button" onClick={() => setDraftLabels((current) => current.filter((item) => item.id !== label.id))} aria-label={`Remove ${label.name}`} className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/20">×</button>
                 </span>
-              )) : <span className="px-1 py-1.5 text-xs text-slate-500">لا توجد Labels مختارة</span>}
+              )) : <span className="px-1 py-1.5 text-xs text-slate-500">{t("aiSupport.inbox.labels.none")}</span>}
             </div>
             {editingLabel ? (
               <div className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3">
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200">Edit label</div>
+                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200">{t("aiSupport.inbox.labels.edit")}</div>
                 <input value={editingLabel.name} onChange={(event) => setEditingLabel((current) => ({ ...current, name: event.target.value }))} maxLength={40} aria-label="Label name" className="h-9 w-full rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/40" />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {Object.keys(CONVERSATION_LABEL_DOT_CLASSES).map((color) => (
@@ -2362,7 +2366,7 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
           </div>
 
           <div>
-            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Available labels</div>
+            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.labels.available")}</div>
             <div className="max-h-60 space-y-1 overflow-y-auto rounded-xl border border-white/8 bg-black/15 p-1.5">
               {availableLabels.map((label) => (
                 <button key={label.id} type="button" onClick={() => addLabel(label)} className="flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-right transition hover:bg-white/[0.07]">
@@ -2373,10 +2377,10 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
               ))}
               {canCreateCustom ? (
                 <button type="button" onClick={() => { addLabel(customCandidate); setQuery(""); }} className="flex h-11 w-full items-center gap-3 rounded-lg border border-dashed border-amber-300/25 bg-amber-300/[0.06] px-2.5 text-right transition hover:bg-amber-300/10">
-                  <Tag className="h-4 w-4 text-amber-300" /><span className="flex-1 text-sm font-black text-amber-100">إنشاء “{customCandidate.name}”</span><span className="text-lg text-amber-300">+</span>
+                  <Tag className="h-4 w-4 text-amber-300" /><span className="flex-1 text-sm font-black text-amber-100">{t("aiSupport.inbox.labels.create")} “{customCandidate.name}”</span><span className="text-lg text-amber-300">+</span>
                 </button>
               ) : null}
-              {!availableLabels.length && !canCreateCustom ? <div className="p-4 text-center text-xs text-slate-500">لا توجد Labels أخرى</div> : null}
+              {!availableLabels.length && !canCreateCustom ? <div className="p-4 text-center text-xs text-slate-500">{t("aiSupport.inbox.labels.noOthers")}</div> : null}
             </div>
           </div>
         </div>
@@ -2406,6 +2410,7 @@ function InboxChatHeader({
   toolsOpen = false,
   onOpenCustomer360,
 }) {
+  const { t } = useTranslation();
   const [labelsOpen, setLabelsOpen] = useState(false);
   const conversationLabels = useMemo(() => aiInboxLabelsFromConversation(conversation || {}), [conversation]);
   if (!conversation) return null;
@@ -2510,7 +2515,7 @@ function InboxChatHeader({
         </div>
         <div data-ai-inbox-header-actions="right" className="flex flex-wrap items-center justify-end gap-1.5">
           <button type="button" onClick={() => setLabelsOpen(true)} disabled={loading || labelsSaving} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
-            <Tag className="h-3.5 w-3.5" /> Add Label
+            <Tag className="h-3.5 w-3.5" /> {t("aiSupport.inbox.header.addLabel")}
           </button>
           {onOpenTools ? (
             <button
@@ -2542,7 +2547,7 @@ function InboxChatHeader({
             className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[11px] font-black transition disabled:opacity-50 ${aiTone}`}
           >
             <Bot className="h-3.5 w-3.5" />
-            {status === "human_takeover" ? "Return to AI" : `AI ${conversationAiEnabled ? "ON" : "OFF"}`}
+            {status === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : t(conversationAiEnabled ? "aiSupport.inbox.header.aiOn" : "aiSupport.inbox.header.aiOff")}
           </button>
         </div>
       </div>
@@ -3191,6 +3196,7 @@ function ManualReplyComposer({
   quickReplies = [],
   quickReplyCustomerName = "",
 }) {
+  const { t } = useTranslation();
   const status = conversation?.conversation_status || conversation?.status || "ai_active";
   const canSendLive = conversation?.live_sending_available === true || isCommentConversation;
   const submitLabel = isCommentConversation ? "إرسال الرد" : "إرسال الآن";
@@ -3236,11 +3242,11 @@ function ManualReplyComposer({
   }, [value]);
   if (!conversation) return null;
   if (status === "closed") {
-    return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
+    return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{t("aiSupport.inbox.composer.closedConversation")}</div>;
   }
   return (
     <div className="sticky bottom-0 w-full border-t border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#20231f]/95">
-      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="sr-only">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
+      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="sr-only">{t("aiSupport.inbox.composer.takeoverWarning")}</div> : null}
       {isCommentConversation ? (
         <div className="mb-1.5">
           <CommentReplyDraftPanel
@@ -3296,8 +3302,8 @@ function ManualReplyComposer({
             type="button"
             onClick={() => onOpenProductPicker?.()}
             disabled={loading}
-            title="Attach product"
-            aria-label="Attach product"
+            title={t("aiSupport.inbox.composer.attachProduct")}
+            aria-label={t("aiSupport.inbox.composer.attachProduct")}
             className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
             <Paperclip className="h-5 w-5" />
@@ -3320,10 +3326,10 @@ function ManualReplyComposer({
               }
             }}
             rows={1}
-            placeholder={canSendLive ? "Type your message..." : "Write an internal note. It will not be sent yet."}
+            placeholder={canSendLive ? t("aiSupport.inbox.composer.placeholder") : t("aiSupport.inbox.composer.notePlaceholder")}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
-          <button ref={emojiButtonRef} type="button" onClick={() => setEmojiPickerOpen((current) => !current)} title="Emoji" aria-label="Emoji" aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
+          <button ref={emojiButtonRef} type="button" onClick={() => setEmojiPickerOpen((current) => !current)} title={t("aiSupport.inbox.composer.emoji")} aria-label={t("aiSupport.inbox.composer.emoji")} aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
             <Smile className="h-5 w-5" />
           </button>
           <AppleEmojiPicker
@@ -3337,8 +3343,8 @@ function ManualReplyComposer({
             type="button"
             onClick={() => onOpenAvailableBySizePicker?.()}
             disabled={loading}
-            title="Available products"
-            aria-label="Available products"
+            title={t("aiSupport.inbox.composer.availableProducts")}
+            aria-label={t("aiSupport.inbox.composer.availableProducts")}
             className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
             <FileText className="h-5 w-5" />
@@ -4796,6 +4802,7 @@ function RightToolsTabsPanel({
 }
 
 export default function AiInbox({ reviewerMode = false }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const deepLinkConversationRef = useRef(clean(searchParams.get("conversation") || searchParams.get("conversation_id") || searchParams.get("session_id") || ""));
@@ -8669,8 +8676,8 @@ export default function AiInbox({ reviewerMode = false }) {
 	                <div className="flex flex-col gap-3">
 	                  <div className="flex items-center justify-between gap-3 px-1">
 	                    <div>
-	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">Conversations</div>
-	                      <div className="mt-0.5 text-xs text-slate-500">All connected customer channels</div>
+	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.rail.conversations")}</div>
+	                      <div className="mt-0.5 text-xs text-slate-500">{t("aiSupport.inbox.rail.subtitle")}</div>
 	                    </div>
 	                    <Pill tone="cyan">{filteredConversations.length}</Pill>
 	                  </div>

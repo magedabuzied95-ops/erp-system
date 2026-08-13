@@ -46,7 +46,8 @@ test("desktop workspace keeps search while channel filters stay out of the top b
 
 test("desktop message composer matches the omnichannel footer in light and dark modes", () => {
   assert.match(desktopSource, /data-ai-inbox-composer="true"/);
-  assert.match(desktopSource, /placeholder=\{canSendLive \? "Type your message\.\.\."/);
+  // Localized: the live/internal-note split is what this guards, not the copy.
+  assert.match(desktopSource, /placeholder=\{canSendLive \? t\("aiSupport\.inbox\.composer\.placeholder"\)/);
   assert.match(desktopSource, /<Paperclip className="h-5 w-5"/);
   assert.match(desktopSource, /<Smile className="h-5 w-5"/);
   assert.match(desktopSource, /<FileText className="h-5 w-5"/);
@@ -90,7 +91,7 @@ test("desktop conversation header stays compact and exposes multi-label manageme
   assert.doesNotMatch(compactHeaderSource, /onClick=\{onClose\}/);
   assert.match(compactHeaderSource, /showCustomerIdentifier[\s\S]*?facebook[\s\S]*?messenger[\s\S]*?instagram/);
   assert.doesNotMatch(compactHeaderSource, /aria-label="Lead Status"/);
-  assert.match(compactHeaderSource, /<Tag className="h-3\.5 w-3\.5" \/> Add Label/);
+  assert.match(compactHeaderSource, /<Tag className="h-3\.5 w-3\.5" \/> \{t\("aiSupport\.inbox\.header\.addLabel"\)\}/);
   assert.match(compactHeaderSource, /conversationLabels\.slice\(0, 4\)\.map/);
   assert.match(compactHeaderSource, /<ConversationLabelsModal/);
 });

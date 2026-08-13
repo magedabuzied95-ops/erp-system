@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
 
+import { useTranslation } from "react-i18next";
+
 import ProductCardMessage from "./ProductCardMessage";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 
@@ -60,6 +62,27 @@ const messageAttachments = (message = {}) => [
 ];
 
 const uniqueUrls = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))];
+/*
+ * delivery_status is a RAW enum. It is compared against "failed"/"sending"
+ * below and travels in payloads, so the value itself must never change --
+ * only how it is shown. Keys live in a literal map rather than being built by
+ * interpolation, so every one stays statically visible to the missing-key
+ * guard, and an unrecognised status falls back to its raw text rather than
+ * rendering nothing.
+ */
+const DELIVERY_STATUS_KEYS = {
+  sending: "aiSupport.inbox.delivery.sending",
+  sent: "aiSupport.inbox.delivery.sent",
+  delivered: "aiSupport.inbox.delivery.delivered",
+  read: "aiSupport.inbox.delivery.read",
+  failed: "aiSupport.inbox.delivery.failed",
+  pending: "aiSupport.inbox.delivery.pending",
+};
+const deliveryStatusLabel = (t, status) => {
+  const key = DELIVERY_STATUS_KEYS[String(status || "").toLowerCase()];
+  return key ? t(key) : String(status || "");
+};
+
 const PLACEHOLDER_BODY = /^\[(attachment|image|media|file|sticker)\]$/i;
 
 const imageUrlsForMessage = (message = {}) =>
@@ -535,6 +558,7 @@ function TranscriptMessage({
   reactionOptions = QUICK_MESSAGE_REACTIONS,
   channelLabel = "",
 }) {
+  const { t } = useTranslation();
   const safeRow = row || {};
   const message = safeRow.message || {};
   const cards = asArray(safeRow.cards);
@@ -769,7 +793,7 @@ function TranscriptMessage({
                 </span>
               ) : null}
               <span className="text-slate-500">{createdAt}</span>
-              {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
+              {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span> : null}
             </div>
             <LinkifiedText text={bodyText(message.staff_message)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageImageGrid urls={mediaUrls} />

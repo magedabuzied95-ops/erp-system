@@ -486,5 +486,96 @@
     "saveError": "تعذر حفظ الرد السريع",
     "deleteError": "تعذر حذف الرد السريع",
     "reorderError": "تعذر ترتيب الردود السريعة"
+  },
+  "inbox": {
+    "rail": {
+      "conversations": "المحادثات",
+      "subtitle": "كل قنوات العملاء المتصلة",
+      "config": "الإعدادات",
+      "socialComments": "تعليقات السوشيال"
+    },
+    "filters": {
+      "all": "الكل",
+      "messages": "الرسائل",
+      "comments": "التعليقات",
+      "needsReply": "يحتاج رد",
+      "favorites": "المفضلة",
+      "allMessages": "كل الرسائل",
+      "allComments": "كل التعليقات",
+      "web": "الويب"
+    },
+    "lead": {
+      "all": "الكل",
+      "readyToBuy": "جاهز للشراء",
+      "hot": "ساخن",
+      "warm": "دافئ",
+      "cold": "بارد",
+      "needsHuman": "يحتاج تدخلًا بشريًا"
+    },
+    "leadStatus": {
+      "new": "جديد",
+      "contacted": "تم التواصل",
+      "interested": "مهتم",
+      "negotiation": "تفاوض",
+      "won": "تم البيع",
+      "lost": "خسارة"
+    },
+    "card": {
+      "unread": "غير مقروء",
+      "needsHuman": "يحتاج تدخلًا بشريًا",
+      "noMessages": "لا توجد رسائل بعد",
+      "noTranscript": "لا يوجد سجل محادثة بعد.",
+      "notSet": "غير محدد بعد"
+    },
+    "header": {
+      "addLabel": "إضافة تصنيف",
+      "returnToAi": "العودة للذكاء الاصطناعي",
+      "aiOn": "الذكاء الاصطناعي مفعّل",
+      "aiOff": "الذكاء الاصطناعي متوقف",
+      "expandLayout": "توسيع عرض المحادثة",
+      "openCustomer": "فتح بيانات العميل {{name}}"
+    },
+    "labels": {
+      "title": "تصنيفات المحادثة",
+      "close": "إغلاق التصنيفات",
+      "search": "ابحث أو اكتب تصنيفًا جديدًا...",
+      "current": "التصنيفات الحالية",
+      "none": "لا توجد تصنيفات مختارة",
+      "edit": "تعديل التصنيف",
+      "name": "اسم التصنيف",
+      "cancel": "إلغاء",
+      "save": "حفظ التعديل",
+      "available": "التصنيفات المتاحة",
+      "create": "إنشاء",
+      "noOthers": "لا توجد تصنيفات أخرى",
+      "hint": "أضف أكثر من تصنيف للعميل"
+    },
+    "composer": {
+      "placeholder": "اكتب رسالتك...",
+      "notePlaceholder": "اكتب ملاحظة داخلية. لن تُرسل بعد.",
+      "attachProduct": "إرفاق منتج",
+      "emoji": "إيموجي",
+      "chooseEmoji": "اختر إيموجي",
+      "availableProducts": "المنتجات المتاحة",
+      "sendNowMeta": "إرسال الآن عبر Meta",
+      "closedConversation": "المحادثة مغلقة. تم تعطيل الرد اليدوي.",
+      "takeoverWarning": "إرسال رد يدوي سيستحوذ على المحادثة ويوقف أتمتة الذكاء الاصطناعي.",
+      "editing": "جاري التعديل"
+    },
+    "delivery": {
+      "sending": "جاري الإرسال",
+      "sent": "تم الإرسال",
+      "delivered": "تم التسليم",
+      "read": "تمت القراءة",
+      "failed": "فشل",
+      "pending": "قيد الانتظار"
+    },
+    "autoReply": {
+      "off": "إيقاف",
+      "suggestOnly": "اقتراح فقط",
+      "approval": "موافقة",
+      "automatic": "تلقائي",
+      "mode": "وضع الرد التلقائي"
+    }
   }
 }

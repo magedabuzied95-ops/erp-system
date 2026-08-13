@@ -35,9 +35,12 @@ test("conversation labels allow stable custom labels and multiple selections", (
 test("desktop label manager saves labels and renders them beside the customer name", () => {
   assert.match(desktopSource, /function ConversationLabelsModal/);
   assert.match(desktopSource, /aria-label="Conversation Labels"/);
-  assert.match(desktopSource, /Current labels \(\{draftLabels\.length\}\)/);
-  assert.match(desktopSource, /Available labels/);
-  assert.match(desktopSource, /إنشاء “\{customCandidate\.name\}”/);
+  // Localized: these pin the translation KEY plus the live value rendered
+  // beside it, so the guard still proves the count and the custom-label name
+  // reach the UI without pinning one locale's copy.
+  assert.match(desktopSource, /aiSupport\.inbox\.labels\.current"\)\} \(\{draftLabels\.length\}\)/);
+  assert.match(desktopSource, /aiSupport\.inbox\.labels\.available/);
+  assert.match(desktopSource, /aiSupport\.inbox\.labels\.create"\)\} “\{customCandidate\.name\}”/);
   assert.match(desktopSource, /aiAgentInboxEndpoint\(sessionId, "\/labels"\)/);
   assert.match(desktopSource, /conversationLabels\.slice\(0, 4\)\.map/);
   assert.match(desktopSource, /aria-label=\{`Edit \$\{label\.name\}`\}/);

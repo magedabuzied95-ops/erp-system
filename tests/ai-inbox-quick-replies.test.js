@@ -31,7 +31,7 @@ test("Quick Replies persistence is tenant scoped and ordered", () => {
 });
 
 test("desktop AI Inbox places Config above Social Comments and uses replies in the composer", () => {
-  const configPosition = desktop.indexOf('title="Config"');
+  const configPosition = desktop.indexOf('title={t("aiSupport.inbox.rail.config")}');
   const commentsPosition = desktop.indexOf('title="Social Comments"');
   assert.ok(configPosition > 0 && commentsPosition > configPosition);
   assert.match(desktop, /<QuickRepliesPicker/);
