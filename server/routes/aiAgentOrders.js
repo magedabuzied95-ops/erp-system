@@ -122,6 +122,13 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
+import {
+  createAiInboxQuickReply,
+  deleteAiInboxQuickReply,
+  listAiInboxQuickReplies,
+  reorderAiInboxQuickReplies,
+  updateAiInboxQuickReply,
+} from "../services/aiInboxQuickRepliesService.js";
 
 const router = express.Router();
 const whatsappProfileSyncState = new Map();
@@ -1157,6 +1164,55 @@ router.get("/logs", protect, permit("settings", "view"), (req, res) => {
     success: true,
     logs: getAIEvents(),
   });
+});
+
+router.get("/quick-replies", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const quickReplies = await listAiInboxQuickReplies({
+      tenantId: toTenantId(req),
+      includeInactive: req.query?.include_inactive === "true",
+      userId: req.user?.id || null,
+    });
+    return res.json({ success: true, quick_replies: quickReplies });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load quick replies" });
+  }
+});
+
+router.post("/quick-replies", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const quickReply = await createAiInboxQuickReply({ tenantId: toTenantId(req), userId: req.user?.id || null, input: req.body || {} });
+    return res.status(201).json({ success: true, quick_reply: quickReply });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to create quick reply" });
+  }
+});
+
+router.patch("/quick-replies/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const quickReply = await updateAiInboxQuickReply({ tenantId: toTenantId(req), id: req.params.id, input: req.body || {} });
+    return res.json({ success: true, quick_reply: quickReply });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to update quick reply" });
+  }
+});
+
+router.delete("/quick-replies/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    await deleteAiInboxQuickReply({ tenantId: toTenantId(req), id: req.params.id });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to delete quick reply" });
+  }
+});
+
+router.put("/quick-replies/reorder", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const quickReplies = await reorderAiInboxQuickReplies({ tenantId: toTenantId(req), orderedIds: req.body?.ordered_ids });
+    return res.json({ success: true, quick_replies: quickReplies });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to reorder quick replies" });
+  }
 });
 
 router.post("/test-reply", protect, permit("settings", "view"), async (req, res) => {

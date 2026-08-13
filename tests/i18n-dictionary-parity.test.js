@@ -42,6 +42,8 @@ const PRESERVED_LATIN = new Set([
   "facebook messenger", "instagram dm",
   // protocol/technical terms used verbatim in Arabic UI
   "webhook",
+  // User-facing navigation label explicitly requested in English.
+  "config",
 ]);
 
 /** Interpolation-only values such as "{{count}}" or "{{start}} - {{end}}". */

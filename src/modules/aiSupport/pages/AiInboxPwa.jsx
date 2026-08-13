@@ -22,6 +22,7 @@ import {
   Ruler,
   Search,
   Send,
+  Settings,
   ShieldBan,
   ShoppingBag,
   ShoppingCart,
@@ -32,6 +33,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from "react-icons/fa";
 
 import { api } from "../../../shared/api/api";
@@ -60,6 +62,7 @@ import EnhancedPwaOrderComposer from "../components/PwaOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import "./AiInboxPwa.css";
+import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -2105,8 +2108,9 @@ const findVariant = (product = {}, color = "", size = "") => {
 
 const NAV_ITEMS = [
   { key: "conversations", label: "AI Inbox", icon: MessageCircleMore },
-  { key: "social_comments", label: "Social Comments", icon: MessageSquareText },
   { key: "leads", label: "Leads", icon: Layers3 },
+  { key: "config", labelKey: "aiSupport.quickReplies.config", icon: Settings },
+  { key: "social_comments", label: "Social Comments", icon: MessageSquareText },
   { key: "more", label: "More", icon: MoreHorizontal },
 ];
 
@@ -3306,6 +3310,7 @@ function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
 }
 
 export default function AiInboxPwa() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -3318,6 +3323,7 @@ export default function AiInboxPwa() {
   const realtimeStatus = useRealtimeStatus();
   const socketHealthy = realtimeStatus.connected && !realtimeStatus.connecting;
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
+  const quickRepliesStore = useQuickReplies({ headers, tenantId });
 
   const [loading, setLoading] = useState(true);
   const [olderLoading, setOlderLoading] = useState(false);
@@ -3331,6 +3337,7 @@ export default function AiInboxPwa() {
   const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
+  const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
 
   useEffect(() => {
     const handleCustomerAction = (event) => {
@@ -6452,6 +6459,18 @@ export default function AiInboxPwa() {
   return (
     <div className="ai-inbox-pwa h-dvh overflow-hidden bg-slate-50 text-slate-900">
       <div className="ai-pwa-shell mx-auto flex h-full w-full flex-col bg-slate-50">
+        <QuickRepliesConfig
+          open={quickRepliesConfigOpen}
+          onClose={() => setQuickRepliesConfigOpen(false)}
+          replies={quickRepliesStore.quickReplies}
+          loading={quickRepliesStore.loading}
+          saving={quickRepliesStore.saving}
+          onCreate={quickRepliesStore.createReply}
+          onUpdate={quickRepliesStore.updateReply}
+          onDelete={quickRepliesStore.deleteReply}
+          onReorder={quickRepliesStore.reorderReplies}
+          light={!isDarkTheme}
+        />
         {contentScreen && tab === "conversations" ? (
           <header
             ref={conversationHeaderRef}
@@ -6845,6 +6864,12 @@ export default function AiInboxPwa() {
                   </div>
                 </div>
               ) : null}
+              <QuickRepliesPicker
+                replies={quickRepliesStore.quickReplies}
+                customerName={getConversationDisplayName(selectedConversation || {})}
+                onUse={(message) => setComposerText(message)}
+                light={!isDarkTheme}
+              />
               <div className="flex items-end gap-2">
                 <button
                   type="button"
@@ -6894,7 +6919,7 @@ export default function AiInboxPwa() {
 
         {!contentScreen ? (
         <nav className="ai-pwa-fixed ai-pwa-nav fixed inset-x-0 bottom-0 z-20 mx-auto w-full border-t border-slate-200 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-5 gap-1">
             {NAV_ITEMS.map((item) => {
               const active = tab === item.key;
               const Icon = item.icon;
@@ -6903,6 +6928,10 @@ export default function AiInboxPwa() {
                   key={item.key}
                   type="button"
                   onClick={() => {
+                    if (item.key === "config") {
+                      setQuickRepliesConfigOpen(true);
+                      return;
+                    }
                     if (item.key === "social_comments") setSocialMobileDetailOpen(false);
                     updateUrlState({ nextConversationId: item.key === "conversations" ? conversationParam : "", nextTab: item.key });
                   }}
@@ -6911,7 +6940,7 @@ export default function AiInboxPwa() {
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  <span>{item.label}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.label}</span>
                 </button>
               );
             })}

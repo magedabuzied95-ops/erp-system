@@ -46,9 +46,11 @@ test("11: a STALE/failed TEXT send returns BEFORE clearing — the suggestion st
 
 test("13: a partial product-package failure is surfaced honestly (text consumed, card-failure toast)", () => {
   const block = inboxSrc.slice(inboxSrc.indexOf("const handleApproveAiSuggestion"), inboxSrc.indexOf("const handleDismissAiSuggestion"));
-  assert.match(block, /الرد اتبعت، لكن كارت المنتج فشل/);
-  // the success emerald toast is gated on cardOk
-  assert.match(block, /if \(cardOk\) setToast\(\{ tone: "emerald"/);
+  // Phase 13.4 — the product package is now a FE-sequential batch; a partial failure is surfaced honestly
+  // (text stays completed, sent products completed, failed products surfaced) via the assisted partial toast.
+  assert.match(block, /الرد اتبعت[\s\S]{0,120}فشل إرسال/);
+  // the success emerald toast is gated on cardOk (all products sent)
+  assert.match(block, /if \(cardOk\) \{[\s\S]{0,200}tone: "emerald"/);
 });
 
 test("14: a new inbound / new source_message_id produces a fresh clean suggestion (dismissal is keyed, not global)", () => {

@@ -9,18 +9,18 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 613
+- Source files scanned: 615
 - Files with debt: 135
-- Hardcoded Arabic UI strings: 1367
-- Hardcoded English UI strings: 1144
-- Total hardcoded UI strings: 2511
+- Hardcoded Arabic UI strings: 1369
+- Hardcoded English UI strings: 1147
+- Total hardcoded UI strings: 2516
 - Mixed-language files (both scripts hardcoded): 37
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 67 | 977 | 749 | 1726 | 24 |
+| main-erp | 67 | 979 | 752 | 1731 | 24 |
 | shared | 52 | 190 | 312 | 502 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 159 | 257 | 416 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 161 | 260 | 421 |
 | src/pages/Dashboard.jsx | main-erp | 140 | 10 | 150 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
@@ -69,49 +69,49 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:159 en:257)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:161 en:260)
 
-- 564 [object-key/en] All
-- 565 [object-key/en] Messages
-- 566 [object-key/en] Comments
-- 567 [object-key/en] Needs Reply
 - 571 [object-key/en] All
-- 572 [object-key/en] Favorites
-- 576 [object-key/en] All Messages
-- 580 [object-key/en] Web
-- 585 [object-key/en] All Comments
-- 592 [object-key/ar] الكل
-- 593 [object-key/ar] جاهز للشراء
-- 594 [object-key/ar] ساخن
-- 595 [object-key/ar] دافئ
-- 596 [object-key/ar] يحتاج تدخلًا بشريًا
-- 600 [object-key/ar] بارد
-- 601 [object-key/ar] دافئ
-- 602 [object-key/ar] ساخن
-- 603 [object-key/ar] جاهز للشراء
-- 1258 [object-key/en] New
-- 1259 [object-key/en] Contacted
-- 1260 [object-key/en] Interested
-- 1261 [object-key/en] Negotiation
-- 1262 [object-key/en] Won
-- 1581 [attribute/en] Not set yet
-- 1692 [object-key/en] Like
-- 1693 [object-key/en] Public reply
-- 1694 [object-key/en] Private message
-- 1901 [jsx-text/en] Needs Human
-- 1961 [jsx-text/ar] غير مقروء
-- 2064 [attribute/en] Social Comments
-- 2065 [attribute/en] Social Comments
-- 2185 [jsx-text/en] Needs Human
-- 2228 [jsx-text/en] Unread
-- 2266 [attribute/en] Conversation Labels
-- 2268 [jsx-text/ar] أضف أكثر من Label للعميل
-- 2268 [jsx-text/en] Conversation Labels
-- 2269 [attribute/en] Close labels
-- 2275 [attribute/ar] ابحث أو اكتب Label جديد...
-- 2279 [jsx-text/en] Current labels (
-- 2287 [jsx-text/ar] لا توجد Labels مختارة
-- ... 376 more
+- 572 [object-key/en] Messages
+- 573 [object-key/en] Comments
+- 574 [object-key/en] Needs Reply
+- 578 [object-key/en] All
+- 579 [object-key/en] Favorites
+- 583 [object-key/en] All Messages
+- 587 [object-key/en] Web
+- 592 [object-key/en] All Comments
+- 599 [object-key/ar] الكل
+- 600 [object-key/ar] جاهز للشراء
+- 601 [object-key/ar] ساخن
+- 602 [object-key/ar] دافئ
+- 603 [object-key/ar] يحتاج تدخلًا بشريًا
+- 607 [object-key/ar] بارد
+- 608 [object-key/ar] دافئ
+- 609 [object-key/ar] ساخن
+- 610 [object-key/ar] جاهز للشراء
+- 1265 [object-key/en] New
+- 1266 [object-key/en] Contacted
+- 1267 [object-key/en] Interested
+- 1268 [object-key/en] Negotiation
+- 1269 [object-key/en] Won
+- 1588 [attribute/en] Not set yet
+- 1699 [object-key/en] Like
+- 1700 [object-key/en] Public reply
+- 1701 [object-key/en] Private message
+- 1908 [jsx-text/en] Needs Human
+- 1968 [jsx-text/ar] غير مقروء
+- 2073 [attribute/en] Config
+- 2074 [attribute/en] Config
+- 2079 [jsx-text/en] Config
+- 2088 [attribute/en] Social Comments
+- 2089 [attribute/en] Social Comments
+- 2209 [jsx-text/en] Needs Human
+- 2252 [jsx-text/en] Unread
+- 2290 [attribute/en] Conversation Labels
+- 2292 [jsx-text/ar] أضف أكثر من Label للعميل
+- 2292 [jsx-text/en] Conversation Labels
+- 2293 [attribute/en] Close labels
+- ... 381 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:10)
 
@@ -203,46 +203,46 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/pages/AiInboxPwa.jsx (main-erp — ar:60 en:69)
 
-- 193 [jsx-text/en] AI Inbox Order
-- 194 [jsx-text/ar] إنشاء طلب من المحادثة
-- 195 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
-- 197 [attribute/ar] إغلاق
-- 202 [jsx-text/ar] بيانات العميل
-- 204 [attribute/ar] اسم العميل
-- 205 [attribute/ar] رقم الهاتف
-- 206 [attribute/ar] المحافظة
-- 207 [attribute/ar] المنطقة
-- 208 [attribute/ar] العنوان بالتفصيل
-- 213 [jsx-text/ar] المنتج والمخزون
-- 219 [attribute/ar] المقاس
-- 220 [attribute/ar] اللون
-- 221 [attribute/ar] الكمية
-- 223 [jsx-text/ar] الإجمالي:
-- 223 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
-- 223 [jsx-text/ar] المتاح:
-- 226 [attribute/ar] ملاحظات الطلب
-- 227 [jsx-text/ar] إنشاء مسودة الطلب
-- 276 [jsx-text/en] AI Inbox Order
-- 277 [jsx-text/ar] إنشاء طلب من المحادثة
-- 278 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
-- 280 [attribute/ar] إغلاق
-- 285 [jsx-text/ar] بيانات العميل
-- 287 [attribute/ar] اسم العميل
-- 288 [attribute/ar] رقم الهاتف
-- 289 [attribute/ar] المحافظة
-- 290 [attribute/ar] المنطقة
-- 291 [attribute/ar] العنوان بالتفصيل
-- 296 [jsx-text/ar] المنتج والمخزون
-- 302 [attribute/ar] المقاس
-- 303 [attribute/ar] اللون
-- 304 [attribute/ar] الكمية
-- 306 [jsx-text/ar] الإجمالي:
-- 306 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
-- 306 [jsx-text/ar] المتاح:
-- 309 [attribute/ar] ملاحظات الطلب
-- 310 [jsx-text/ar] إنشاء مسودة الطلب
-- 883 [object-key/en] All Messages
-- 887 [object-key/en] Web
+- 196 [jsx-text/en] AI Inbox Order
+- 197 [jsx-text/ar] إنشاء طلب من المحادثة
+- 198 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
+- 200 [attribute/ar] إغلاق
+- 205 [jsx-text/ar] بيانات العميل
+- 207 [attribute/ar] اسم العميل
+- 208 [attribute/ar] رقم الهاتف
+- 209 [attribute/ar] المحافظة
+- 210 [attribute/ar] المنطقة
+- 211 [attribute/ar] العنوان بالتفصيل
+- 216 [jsx-text/ar] المنتج والمخزون
+- 222 [attribute/ar] المقاس
+- 223 [attribute/ar] اللون
+- 224 [attribute/ar] الكمية
+- 226 [jsx-text/ar] الإجمالي:
+- 226 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
+- 226 [jsx-text/ar] المتاح:
+- 229 [attribute/ar] ملاحظات الطلب
+- 230 [jsx-text/ar] إنشاء مسودة الطلب
+- 279 [jsx-text/en] AI Inbox Order
+- 280 [jsx-text/ar] إنشاء طلب من المحادثة
+- 281 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
+- 283 [attribute/ar] إغلاق
+- 288 [jsx-text/ar] بيانات العميل
+- 290 [attribute/ar] اسم العميل
+- 291 [attribute/ar] رقم الهاتف
+- 292 [attribute/ar] المحافظة
+- 293 [attribute/ar] المنطقة
+- 294 [attribute/ar] العنوان بالتفصيل
+- 299 [jsx-text/ar] المنتج والمخزون
+- 305 [attribute/ar] المقاس
+- 306 [attribute/ar] اللون
+- 307 [attribute/ar] الكمية
+- 309 [jsx-text/ar] الإجمالي:
+- 309 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
+- 309 [jsx-text/ar] المتاح:
+- 312 [attribute/ar] ملاحظات الطلب
+- 313 [jsx-text/ar] إنشاء مسودة الطلب
+- 886 [object-key/en] All Messages
+- 890 [object-key/en] Web
 - ... 89 more
 
 ### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
@@ -643,44 +643,44 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:28 en:10)
 
-- 1081 [jsx-text/en] AI INBOX
-- 1082 [jsx-text/ar] المتاح بالمقاس
-- 1083 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
-- 1097 [jsx-text/ar] نوع المنتج
-- 1098 [jsx-text/ar] اختر نوعًا أو أكثر
-- 1099 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
-- 1127 [jsx-text/ar] المقاسات
-- 1128 [jsx-text/ar] اختر المقاس أو المقاسات
-- 1129 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
-- 1157 [jsx-text/en] Gender
-- 1163 [jsx-text/en] Brand
-- 1165 [jsx-text/ar] الكل
-- 1171 [jsx-text/en] Min
-- 1175 [jsx-text/en] Max
-- 1182 [jsx-text/ar] المعاينة
-- 1184 [jsx-text/ar] النتائج المطابقة:
-- 1199 [jsx-text/ar] اختر المقاس أولًا.
-- 1228 [jsx-text/en] AI INBOX
-- 1229 [jsx-text/ar] إرسال منتج
-- 1230 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
-- 1244 [jsx-text/en] Size filter
-- 1245 [jsx-text/ar] اختر المقاس المتاح
-- 1246 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
-- 1274 [attribute/ar] ابحث باسم المنتج أو الباركود
-- 1323 [jsx-text/ar] المقاس:
-- 1330 [jsx-text/en] Variant:
-- 1397 [jsx-text/ar] باركود:
-- 1443 [jsx-text/en] Size mode
-- 1444 [jsx-text/ar] المقاس المختار:
-- 1445 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
-- 1452 [jsx-text/ar] إرسال محددات المقاس
-- 1509 [jsx-text/en] Selected product
-- 1514 [jsx-text/ar] باركود:
-- 1521 [jsx-text/ar] اللون
-- 1548 [jsx-text/ar] لا يوجد لون محدد
-- 1555 [jsx-text/ar] المقاس
-- 1556 [jsx-text/ar] المقاسات المتاحة فقط
-- 1576 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
+- 1111 [jsx-text/en] AI INBOX
+- 1112 [jsx-text/ar] المتاح بالمقاس
+- 1113 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
+- 1127 [jsx-text/ar] نوع المنتج
+- 1128 [jsx-text/ar] اختر نوعًا أو أكثر
+- 1129 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
+- 1157 [jsx-text/ar] المقاسات
+- 1158 [jsx-text/ar] اختر المقاس أو المقاسات
+- 1159 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
+- 1187 [jsx-text/en] Gender
+- 1193 [jsx-text/en] Brand
+- 1195 [jsx-text/ar] الكل
+- 1201 [jsx-text/en] Min
+- 1205 [jsx-text/en] Max
+- 1212 [jsx-text/ar] المعاينة
+- 1214 [jsx-text/ar] النتائج المطابقة:
+- 1229 [jsx-text/ar] اختر المقاس أولًا.
+- 1258 [jsx-text/en] AI INBOX
+- 1259 [jsx-text/ar] إرسال منتج
+- 1260 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
+- 1274 [jsx-text/en] Size filter
+- 1275 [jsx-text/ar] اختر المقاس المتاح
+- 1276 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
+- 1304 [attribute/ar] ابحث باسم المنتج أو الباركود
+- 1353 [jsx-text/ar] المقاس:
+- 1360 [jsx-text/en] Variant:
+- 1427 [jsx-text/ar] باركود:
+- 1473 [jsx-text/en] Size mode
+- 1474 [jsx-text/ar] المقاس المختار:
+- 1475 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
+- 1482 [jsx-text/ar] إرسال محددات المقاس
+- 1539 [jsx-text/en] Selected product
+- 1544 [jsx-text/ar] باركود:
+- 1551 [jsx-text/ar] اللون
+- 1578 [jsx-text/ar] لا يوجد لون محدد
+- 1585 [jsx-text/ar] المقاس
+- 1586 [jsx-text/ar] المقاسات المتاحة فقط
+- 1606 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:36)
 
