@@ -89,6 +89,24 @@ filters (matching behaviour), the `"غير مصنف"` comparison list in Product
 
 ---
 
+## AI Inbox dedicated closure — live resume marker
+
+The former AI Inbox freeze is now being retired owner-by-owner, with every
+checkpoint deployed and verified in both AR/RTL and EN/LTR before the next owner.
+
+| Owner | Surface | State |
+| ---: | --- | --- |
+| 1 | `AiInbox.jsx` | COMPLETE (`dfccaa7`) |
+| 2 | `TranscriptMessage.jsx` | COMPLETE (`65a1c02`) |
+| 3 | `ProductCardPicker.jsx` | COMPLETE in the current checkpoint; scanner 37 → 0 |
+
+**RESUME MARKER:** owner 4 — `ProductCardMessage.jsx`. Do not restart owners 1–3.
+The final zero gate still requires a deployed bidirectional runtime sweep and a
+separate multi-line JSX check, because the legacy scanner only counts same-line
+JSX text.
+
+---
+
 ## Two scanner blind spots
 
 Recorded, deliberately not fixed — either change moves every baseline at once and

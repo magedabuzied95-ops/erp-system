@@ -11,17 +11,17 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 118
-- Hardcoded Arabic UI strings: 1058
-- Hardcoded English UI strings: 816
-- Total hardcoded UI strings: 1874
-- Mixed-language files (both scripts hardcoded): 30
+- Hardcoded Arabic UI strings: 1030
+- Hardcoded English UI strings: 807
+- Total hardcoded UI strings: 1837
+- Mixed-language files (both scripts hardcoded): 29
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 58 | 725 | 446 | 1171 | 18 |
-| shared | 44 | 133 | 287 | 420 | 8 |
+| shared | 44 | 105 | 278 | 383 | 7 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -36,7 +36,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
 | src/modules/aiSupport/components/Customer360Drawer.jsx | shared | 5 | 44 | 49 |
-| src/modules/aiSupport/components/ProductCardPicker.jsx | shared | 28 | 10 | 38 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 28 | 3 | 31 |
@@ -545,47 +544,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 323 [jsx-text/en] AI customer intelligence
 - 325 [jsx-text/en] Action
 - ... 7 more
-
-### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:28 en:10)
-
-- 1125 [jsx-text/en] AI INBOX
-- 1126 [jsx-text/ar] المتاح بالمقاس
-- 1127 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
-- 1141 [jsx-text/ar] نوع المنتج
-- 1142 [jsx-text/ar] اختر نوعًا أو أكثر
-- 1143 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
-- 1182 [jsx-text/ar] المقاسات
-- 1183 [jsx-text/ar] اختر المقاس أو المقاسات
-- 1184 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
-- 1215 [jsx-text/en] Gender
-- 1221 [jsx-text/en] Brand
-- 1223 [jsx-text/ar] الكل
-- 1229 [jsx-text/en] Min
-- 1233 [jsx-text/en] Max
-- 1240 [jsx-text/ar] المعاينة
-- 1242 [jsx-text/ar] النتائج المطابقة:
-- 1257 [jsx-text/ar] اختر المقاس أولًا.
-- 1286 [jsx-text/en] AI INBOX
-- 1287 [jsx-text/ar] إرسال منتج
-- 1288 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
-- 1302 [jsx-text/en] Size filter
-- 1303 [jsx-text/ar] اختر المقاس المتاح
-- 1304 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
-- 1332 [attribute/ar] ابحث باسم المنتج أو الباركود
-- 1381 [jsx-text/ar] المقاس:
-- 1388 [jsx-text/en] Variant:
-- 1455 [jsx-text/ar] باركود:
-- 1501 [jsx-text/en] Size mode
-- 1502 [jsx-text/ar] المقاس المختار:
-- 1503 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
-- 1510 [jsx-text/ar] إرسال محددات المقاس
-- 1567 [jsx-text/en] Selected product
-- 1572 [jsx-text/ar] باركود:
-- 1579 [jsx-text/ar] اللون
-- 1606 [jsx-text/ar] لا يوجد لون محدد
-- 1613 [jsx-text/ar] المقاس
-- 1614 [jsx-text/ar] المقاسات المتاحة فقط
-- 1634 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:36)
 
@@ -1711,6 +1669,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/aiSupport/components/AppleEmojiPicker.jsx (shared — ar:0 en:1)
 
 - 23 [attribute/en] Choose emoji
+
+### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:0 en:1)
+
+- 1391 [jsx-text/en] Variant:
 
 ### src/modules/aiSupport/copilot/SuggestionEngine.ts (main-erp — ar:0 en:1)
 

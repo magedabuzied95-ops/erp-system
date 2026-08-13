@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { CheckCircle2, Eye, EyeOff, Loader2, Search, ShoppingBag, SlidersHorizontal, Square, X } from "lucide-react";
 
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
@@ -10,7 +11,7 @@ import { loadCustomerProductCatalog, searchCustomerProducts, PICKER_PAGE_SIZE } 
 import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
-import { MAX_BATCH_PRODUCTS, selectedCountText, manualSendButtonText, maxBatchReachedText } from "../lib/productSelection.js";
+import { MAX_BATCH_PRODUCTS } from "../lib/productSelection.js";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
 import { matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
@@ -363,6 +364,8 @@ const matchesQuery = (product = {}, query = "") => {
 };
 
 export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "", portalTarget = null }) {
+  const { t, i18n } = useTranslation("aiSupport");
+  const pickerDir = i18n.resolvedLanguage === "ar" ? "rtl" : "ltr";
   const { theme } = useTheme();
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const [products, setProducts] = useState([]);
@@ -474,7 +477,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         })
         .catch((err) => {
           if (!active) return;
-          setError(err?.message || "تعذر تحميل كتالوج المنتجات");
+          setError(err?.message || t("aiSupport.inbox.picker.catalogLoadFailed"));
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -516,7 +519,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         .catch((err) => {
           if (cancelled || requestId !== searchRequestIdRef.current) return;
           if (err?.name === "AbortError" || err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
-          setError(err?.message || "تعذر تحميل كتالوج المنتجات");
+          setError(err?.message || t("aiSupport.inbox.picker.catalogLoadFailed"));
         })
         .finally(() => {
           if (!cancelled && requestId === searchRequestIdRef.current) setLoading(false);
@@ -527,7 +530,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [open, sizeMode, sizeCatalogFallback, search, serverFilters]);
+  }, [open, sizeMode, sizeCatalogFallback, search, serverFilters, t]);
 
   // Append the next page of MATCHES. One in-flight request per page, and the
   // result is merged by product id so rapid clicking cannot duplicate rows.
@@ -969,13 +972,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     }
     // Phase 13.4 — hard cap: block the (MAX+1)th selection with a clear message; never silently drop it.
     if (selectedProductIds.length >= MAX_BATCH_PRODUCTS) {
-      setError(maxBatchReachedText());
+      setError(t("aiSupport.inbox.picker.maxBatchReached", { count: MAX_BATCH_PRODUCTS }));
       return;
     }
     const card = buildProductCardPayload(product, asArray(product.variants)[0] || null);
     setSelectedProductIds((cur) => [...cur, productId]);
     setSelectedCardsById((m) => ({ ...m, [productId]: card }));
-  }, [allowMultiple, selectedProductIds]);
+  }, [allowMultiple, selectedProductIds, t]);
 
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
@@ -1023,11 +1026,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         setSelectedCardsById((m) => Object.fromEntries(Object.entries(m).filter(([id]) => failedIds.has(String(id)))));
       }
     } catch (err) {
-      setError(err?.message || "تعذر إرسال المنتج");
+      setError(err?.message || t("aiSupport.inbox.picker.productSendFailed"));
     } finally {
       setSubmitting(false);
     }
-  }, [activeCard, allowMultiple, onSubmit, selectedProducts, submitting]);
+  }, [activeCard, allowMultiple, onSubmit, selectedProducts, submitting, t]);
 
   const submitSelectionWithSizeMode = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
@@ -1060,11 +1063,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkTypes, offerStory: selectedLinkOffers, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
       else await onSubmit?.([{ url, storefront_url: url, product_url: url, share_url: url, name: message, product_name: message }]);
     } catch (err) {
-      setError(err?.message || "تعذر إرسال الرابط");
+      setError(err?.message || t("aiSupport.inbox.picker.linkSendFailed"));
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkSizes, selectedLinkTypes, submitting]);
+  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkSizes, selectedLinkTypes, submitting, t]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -1118,13 +1121,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           role="dialog"
           aria-modal="true"
           aria-labelledby="ai-product-card-picker-title"
-          dir="rtl"
+          dir={pickerDir}
         >
           <div className="ai-plink__header sticky top-0 z-20 flex items-start justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <div className="ai-plink__eyebrow">AI INBOX</div>
-              <h3 id="ai-product-card-picker-title" className="ai-plink__title mt-1">المتاح بالمقاس</h3>
-              <p className="ai-plink__subtitle mt-1">اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
+              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.aiInbox")}</div>
+              <h3 id="ai-product-card-picker-title" className="ai-plink__title mt-1">{t("aiSupport.inbox.picker.availableBySize")}</h3>
+              <p className="ai-plink__subtitle mt-1">{t("aiSupport.inbox.picker.availableBySizeHint")}</p>
             </div>
             <button
               data-testid="available-by-size-close"
@@ -1138,9 +1141,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
           <div className="ai-plink__body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
             <div className="ai-plink__group p-4">
-              <div className="ai-plink__eyebrow">نوع المنتج</div>
-              <div className="ai-plink__group-title mt-2">اختر نوعًا أو أكثر</div>
-              <div className="ai-plink__hint mt-1">يمكنك الجمع بين أكثر من نوع في نفس الرابط.</div>
+              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.productType")}</div>
+              <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseTypes")}</div>
+              <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseTypesHint")}</div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -1149,7 +1152,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${!selectedLinkTypes.length && !selectedLinkOffers ? "is-active" : ""}`}
                 >
                   <span aria-hidden="true">✨</span>
-                  الكل
+                  {t("aiSupport.inbox.picker.all")}
                 </button>
                 {typeOptions.map((item) => {
                   const active = selectedLinkTypes.includes(item);
@@ -1173,15 +1176,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${selectedLinkOffers ? "is-active" : ""}`}
                 >
                   <span className="text-base" aria-hidden="true">🏷️</span>
-                  العروض
+                  {t("aiSupport.inbox.picker.offers")}
                 </button>
               </div>
             </div>
 
             <div className="ai-plink__group p-4">
-              <div className="ai-plink__eyebrow">المقاسات</div>
-              <div className="ai-plink__group-title mt-2">اختر المقاس أو المقاسات</div>
-              <div className="ai-plink__hint mt-1">المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
+              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.sizes")}</div>
+              <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseSizes")}</div>
+              <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseSizesHint")}</div>
               {availableSizes.length ? (
                 <div className="ai-plink__size-grid mt-4">
                   {availableSizes.map((size) => {
@@ -1205,41 +1208,41 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </div>
               ) : (
                 <div className="ai-plink__empty mt-4 p-4">
-                  لا توجد مقاسات متاحة حاليًا
+                  {t("aiSupport.inbox.picker.noSizes")}
                 </div>
               )}
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="ai-plink__field flex items-center gap-2 px-3">
-                <span className="ai-plink__field-label">Gender</span>
+                <span className="ai-plink__field-label">{t("aiSupport.inbox.picker.gender")}</span>
                 <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className="ai-plink__field-control min-w-0 flex-1 appearance-none">
-                  {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "الكل" : option}</option>)}
+                  {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? t("aiSupport.inbox.picker.all") : option}</option>)}
                 </select>
               </label>
               <label className="ai-plink__field flex items-center gap-2 px-3">
-                <span className="ai-plink__field-label">Brand</span>
+                <span className="ai-plink__field-label">{t("aiSupport.inbox.picker.brand")}</span>
                 <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className="ai-plink__field-control min-w-0 flex-1 appearance-none">
-                  <option value="all">الكل</option>
+                  <option value="all">{t("aiSupport.inbox.picker.all")}</option>
                   {brandOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="ai-plink__field flex items-center gap-2 px-3">
-                  <span className="ai-plink__field-label">Min</span>
+                  <span className="ai-plink__field-label">{t("aiSupport.inbox.picker.min")}</span>
                   <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" className="ai-plink__field-control min-w-0 flex-1" />
                 </label>
                 <label className="ai-plink__field flex items-center gap-2 px-3">
-                  <span className="ai-plink__field-label">Max</span>
+                  <span className="ai-plink__field-label">{t("aiSupport.inbox.picker.max")}</span>
                   <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" className="ai-plink__field-control min-w-0 flex-1" />
                 </label>
               </div>
             </div>
 
             <div className="ai-plink__preview p-4">
-              <div className="ai-plink__eyebrow">المعاينة</div>
-              <div className="ai-plink__preview-value mt-2">{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
-              <div className="ai-plink__hint mt-1">النتائج المطابقة: {matchingCount}</div>
+              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.preview")}</div>
+              <div className="ai-plink__preview-value mt-2">{normalizedSelectedSizes.length ? t("aiSupport.inbox.picker.searchingFor", { sizes: normalizedSelectedSizes.join(", ") }) : t("aiSupport.inbox.picker.chooseSizeFirst")}</div>
+              <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.matchingResults", { count: matchingCount })}</div>
             </div>
           </div>
 
@@ -1252,9 +1255,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               className="ai-plink__send inline-flex w-full items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              إرسال الرابط
+              {t("aiSupport.inbox.picker.sendLink")}
             </button>
-            {!normalizedSelectedSizes.length ? <div className="ai-plink__footer-hint mt-2">اختر المقاس أولًا.</div> : null}
+            {!normalizedSelectedSizes.length ? <div className="ai-plink__footer-hint mt-2">{t("aiSupport.inbox.picker.chooseSizeFirst")}</div> : null}
           </div>
         </section>
       </div>
@@ -1279,13 +1282,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-product-card-picker-title"
-        dir="rtl"
+        dir={pickerDir}
       >
         <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 backdrop-blur ${desktopInboxMode ? "ai-inbox-product-picker-desktop__header bg-slate-950/95 px-6 py-4" : `px-4 py-3 ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}`}>
           <div className="min-w-0">
-            <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>AI INBOX</div>
-            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>إرسال منتج</h3>
-            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.</p>
+            <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>{t("aiSupport.inbox.picker.aiInbox")}</div>
+            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{t("aiSupport.inbox.picker.sendProduct")}</h3>
+            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>{t("aiSupport.inbox.picker.sendProductHint")}</p>
           </div>
           <button
             type="button"
@@ -1299,9 +1302,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         {isSizeSelectionStep ? (
           <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-white p-4" : "absolute inset-x-0 bottom-0 top-[57px] z-20 flex min-h-0 flex-col gap-3 overflow-y-auto bg-slate-950 p-4"}>
             <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-slate-50 p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
-              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Size filter</div>
-              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>اختر المقاس المتاح</div>
-              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.</div>
+              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>{t("aiSupport.inbox.picker.sizeFilter")}</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>{t("aiSupport.inbox.picker.chooseAvailableSize")}</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>{t("aiSupport.inbox.picker.sizeFilterHint")}</div>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {availableSizes.length ? availableSizes.map((size) => (
                   <button
@@ -1314,7 +1317,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </button>
                 )) : (
                   <div className={inlineFullscreenMode ? "col-span-full rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500" : "col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500"}>
-                    لا توجد مقاسات متاحة حالياً
+                    {t("aiSupport.inbox.picker.noSizes")}
                   </div>
                 )}
               </div>
@@ -1329,14 +1332,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث باسم المنتج أو الباركود"
+                placeholder={t("aiSupport.inbox.picker.searchPlaceholder")}
                 className={inlineFullscreenMode ? "h-11 w-full rounded-2xl border border-slate-200 bg-white pl-3 pr-9 text-sm font-bold text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-300/40" : "h-11 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"}
               />
             </label>
 
             <button type="button" onClick={openPosFilters} className="ai-pwa-pos-filter-trigger inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition">
               <SlidersHorizontal className="h-4 w-4" />
-              فلاتر POS الذكية
+              {t("aiSupport.inbox.picker.smartPosFilters")}
               {activeFilterCount ? <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
             </button>
 
@@ -1344,7 +1347,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               {loading ? (
                 <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
                   <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  جاري تحميل كتالوج المنتجات...
+                  {t("aiSupport.inbox.picker.loadingCatalog")}
                 </div>
               ) : error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div>
@@ -1366,7 +1369,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
                           </span>
                           {card.image ? (
-                            <img src={card.image} alt={card.productName || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                            <img src={card.image} alt={card.productName || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                           ) : (
                             <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                               <ShoppingBag className="h-5 w-5" />
@@ -1375,10 +1378,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{card.productName || "منتج"}</div>
+                                <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{card.productName || t("aiSupport.inbox.picker.product")}</div>
                                 <div className={`mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                                   {card.color ? <span>{card.color}</span> : null}
-                                  {card.size ? <span>المقاس: {card.size}</span> : null}
+                                  {card.size ? <span>{t("aiSupport.inbox.picker.sizeValue", { size: card.size })}</span> : null}
                                 </div>
                               </div>
                               {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
@@ -1395,7 +1398,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 ) : (
                   <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
-                    لا توجد بطاقات متاحة لهذا المقاس
+                    {t("aiSupport.inbox.picker.noCardsForSize")}
                   </div>
                 )
               ) : visibleProducts.length ? (
@@ -1423,7 +1426,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         key={`${product.product_id || product.id}`}
                         type="button"
                         onClick={() => toggleProductSelection(product)}
-                        className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
+                        className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-start transition ${
                           isActive ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
                         }`}
                       >
@@ -1433,7 +1436,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           </span>
                         ) : null}
                         {previewImage ? (
-                          <img src={previewImage} alt={product.name || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                          <img src={previewImage} alt={product.name || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                         ) : (
                           <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                             <ShoppingBag className="h-5 w-5" />
@@ -1442,7 +1445,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{product.name || product.product_name || "منتج"}</div>
+                              <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{product.name || product.product_name || t("aiSupport.inbox.picker.product")}</div>
                               <div className={`mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                                 {product.brand || product.brand_name ? <span>{product.brand || product.brand_name}</span> : null}
                                 {product.category || product.category_name ? <span>{product.category || product.category_name}</span> : null}
@@ -1452,7 +1455,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           </div>
                           <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                             {Number.isFinite(previewPrice) && previewPrice > 0 ? <span className={`font-black ${inlineFullscreenMode ? "text-emerald-700" : "text-emerald-100"}`}>{money(previewPrice)}</span> : null}
-                            {productBarcode(product) ? <span>باركود: {productBarcode(product)}</span> : null}
+                            {productBarcode(product) ? <span>{t("aiSupport.inbox.picker.barcodeValue", { barcode: productBarcode(product) })}</span> : null}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {previewColors.map((item) => (
@@ -1479,16 +1482,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     >
                       {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                       {loadingMore
-                        ? "جاري التحميل..."
+                        ? t("aiSupport.inbox.picker.loading")
                         : resultTotal !== null
-                          ? `تحميل المزيد (${visibleProducts.length} من ${resultTotal})`
-                          : "تحميل المزيد"}
+                          ? t("aiSupport.inbox.picker.loadMoreProgress", { visible: visibleProducts.length, total: resultTotal })
+                          : t("aiSupport.inbox.picker.loadMore")}
                     </button>
                   ) : null}
                 </div>
               ) : (
                 <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
-                  لا توجد منتجات مطابقة للبحث الحالي
+                  {t("aiSupport.inbox.picker.noMatchingProducts")}
                 </div>
               )}
             </div>
@@ -1498,18 +1501,18 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             {sizeMode && selectedSize ? (
               <div className="space-y-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                  <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Size mode</div>
-                  <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>المقاس المختار: {selectedSize}</div>
-                  <div className="mt-2 text-sm font-semibold text-slate-400">اختر المنتجات التي تريد إرسالها من القائمة.</div>
+                  <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>{t("aiSupport.inbox.picker.sizeMode")}</div>
+                  <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{t("aiSupport.inbox.picker.selectedSize", { size: selectedSize })}</div>
+                  <div className="mt-2 text-sm font-semibold text-slate-400">{t("aiSupport.inbox.picker.chooseProductsHint")}</div>
                   <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
-                    عدد المنتجات المحددة: {selectedSizeCards.length}
+                    {t("aiSupport.inbox.picker.selectedProductCount", { count: selectedSizeCards.length })}
                 </div>
                   </div>
 
                 <div className="rounded-2xl border border-white/10 bg-[#22221e] p-3">
-                  <div className="text-sm font-black text-white">إرسال محددات المقاس</div>
+                  <div className="text-sm font-black text-white">{t("aiSupport.inbox.picker.sendSizeSelection")}</div>
                   <div className="mt-2 text-xs font-semibold leading-6 text-slate-400">
-                    المنتجات الظاهرة في القائمة هي فقط التي لديها stock فعلي لهذا المقاس. لا حاجة لاختيار لون أو مقاس لكل منتج.
+                    {t("aiSupport.inbox.picker.sendSizeSelectionHint")}
                   </div>
                 </div>
 
@@ -1520,7 +1523,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     disabled={!visibleSizeCards.length}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    تحديد الكل
+                    {t("aiSupport.inbox.picker.selectAll")}
                   </button>
                   <button
                     type="button"
@@ -1528,7 +1531,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     disabled={!visibleSizeCards.length}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-black text-white transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    إلغاء تحديد الكل
+                    {t("aiSupport.inbox.picker.clearAll")}
                   </button>
                 </div>
 
@@ -1539,7 +1542,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  إرسال المنتجات المحددة
+                  {t("aiSupport.inbox.picker.sendSelectedProducts")}
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
@@ -1552,31 +1555,31 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="sticky top-0 z-10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#27251f] px-4 py-2 text-sm font-black text-[#f4df9a] shadow-lg"
                 >
                   {previewCollapsed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                  {previewCollapsed ? "إظهار معاينة المنتج" : "إخفاء معاينة المنتج"}
+                  {previewCollapsed ? t("aiSupport.inbox.picker.showPreview") : t("aiSupport.inbox.picker.hidePreview")}
                 </button>
                 <div className={previewCollapsed ? "hidden" : "space-y-3"}>
                 <div className="flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#1d1d1a] p-3">
                   {activeImage ? (
-                    <img src={activeImage} alt={selectedProduct.name || "منتج"} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" loading="lazy" />
+                    <img src={activeImage} alt={selectedProduct.name || t("aiSupport.inbox.picker.product")} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" loading="lazy" />
                   ) : (
                     <div className="grid h-24 w-24 shrink-0 place-items-center rounded-2xl bg-white/[0.05]">
                       <ShoppingBag className="h-8 w-8 text-stone-500" />
                     </div>
                   )}
                   <div className="min-w-0 flex-1 py-1">
-                    <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-stone-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-[#d4af37]"}>Selected product</div>
-                    <div className={inlineFullscreenMode ? "mt-1 truncate text-base font-black text-stone-900" : "mt-1 truncate text-base font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || "منتج"}</div>
+                    <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-stone-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-[#d4af37]"}>{t("aiSupport.inbox.picker.selectedProduct")}</div>
+                    <div className={inlineFullscreenMode ? "mt-1 truncate text-base font-black text-stone-900" : "mt-1 truncate text-base font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || t("aiSupport.inbox.picker.product")}</div>
                     <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-bold text-stone-400">
                       {selectedProduct.brand || selectedProduct.brand_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.brand || selectedProduct.brand_name}</span> : null}
                       {selectedProduct.category || selectedProduct.category_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.category || selectedProduct.category_name}</span> : null}
-                      {productBarcode(selectedProduct) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">باركود: {productBarcode(selectedProduct)}</span> : null}
+                      {productBarcode(selectedProduct) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.picker.barcodeValue", { barcode: productBarcode(selectedProduct) })}</span> : null}
                     </div>
                     {activePrice > 0 ? <div className="mt-2 text-sm font-black text-emerald-200">{money(activePrice)}</div> : null}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-sm font-black text-white">اللون</div>
+                  <div className="text-sm font-black text-white">{t("aiSupport.inbox.picker.color")}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {activeColors.length ? (
                       activeColors.map((color) => {
@@ -1603,15 +1606,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         );
                       })
                     ) : (
-                      <span className="text-sm font-semibold text-slate-500">لا يوجد لون محدد</span>
+                      <span className="text-sm font-semibold text-slate-500">{t("aiSupport.inbox.picker.noColor")}</span>
                     )}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-[#22221e] p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-black text-white">المقاس</div>
-                    <div className="text-[11px] font-bold text-slate-500">المقاسات المتاحة فقط</div>
+                    <div className="text-sm font-black text-white">{t("aiSupport.inbox.picker.size")}</div>
+                    <div className="text-[11px] font-bold text-slate-500">{t("aiSupport.inbox.picker.availableSizesOnly")}</div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {activeSizes.length ? (
@@ -1622,7 +1625,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             key={size}
                             type="button"
                             onClick={() => setSelectedSize(size)}
-                            className={`min-h-12 rounded-2xl border px-3 py-2 text-right transition ${
+                            className={`min-h-12 rounded-2xl border px-3 py-2 text-start transition ${
                               active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                             }`}
                           >
@@ -1631,7 +1634,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         );
                       })
                     ) : (
-                      <div className="col-span-full text-sm font-semibold text-slate-500">لا توجد مقاسات متاحة لهذا اللون</div>
+                      <div className="col-span-full text-sm font-semibold text-slate-500">{t("aiSupport.inbox.picker.noSizesForColor")}</div>
                     )}
                   </div>
                 </div>
@@ -1639,13 +1642,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 {/* Phase 13.4 — manual multi-select bar: count + clear, above the explicit send action. */}
                 {allowMultiple && selectedProducts.length > 0 ? (
                   <div className="flex items-center justify-between gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-3 py-2">
-                    <span className="text-xs font-black text-cyan-100">{selectedCountText(selectedProducts.length)}</span>
+                    <span className="text-xs font-black text-cyan-100">{t("aiSupport.inbox.picker.selectedProductCount", { count: selectedProducts.length })}</span>
                     <button
                       type="button"
                       onClick={() => { setSelectedProductIds([]); setSelectedCardsById({}); }}
                       className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-black text-slate-100 hover:bg-white/[0.1]"
                     >
-                      إلغاء التحديد
+                      {t("aiSupport.inbox.picker.clearSelection")}
                     </button>
                   </div>
                 ) : null}
@@ -1660,7 +1663,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {allowMultiple && selectedProducts.length ? manualSendButtonText(selectedProducts.length) : "إرسال المنتج"}
+                  {allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.sendSelectedCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.sendProduct")}
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
@@ -1668,7 +1671,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               </div>
             ) : (
               <div className="grid min-h-[24rem] place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
-                اختر منتجًا لعرض اللون والمقاس
+                {t("aiSupport.inbox.picker.chooseProductPrompt")}
               </div>
             )}
           </div>

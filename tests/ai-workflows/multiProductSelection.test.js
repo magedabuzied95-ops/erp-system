@@ -55,7 +55,7 @@ test("manual selection survives search/filter (retained card snapshots, no visib
   assert.doesNotMatch(pickerSrc, /setSelectedProductIds\(\(current\) => current\.filter\(\(id\) => visibleProducts\.some/);
 });
 test("manual max 5 enforced with a clear message, never a silent drop", () => {
-  assert.match(pickerSrc, /if \(selectedProductIds\.length >= MAX_BATCH_PRODUCTS\) \{\s*\n\s*setError\(maxBatchReachedText\(\)\);\s*\n\s*return;/);
+  assert.match(pickerSrc, /if \(selectedProductIds\.length >= MAX_BATCH_PRODUCTS\) \{\s*\n\s*setError\(t\("aiSupport\.inbox\.picker\.maxBatchReached", \{ count: MAX_BATCH_PRODUCTS \}\)\);\s*\n\s*return;/);
 });
 test("manual submit sends the ORDERED multi-selection and reconciles keep-only-failed on partial failure", () => {
   assert.match(pickerSrc, /const batch = allowMultiple && selectedProducts\.length \? selectedProducts : \(activeCard \? \[activeCard\] : \[\]\)/);
