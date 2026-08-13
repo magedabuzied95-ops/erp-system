@@ -105,7 +105,10 @@ test("recency bound is an explicit, env-overridable constant (not silently widen
 });
 
 test("resolver precedence + scoping are SQL-enforced: approved correction, then sent card, session-scoped", () => {
-  assert.match(gateSrc, /FROM ai_reply_corrections\s+WHERE tenant_id = \$1 AND conversation_id = \$2 AND NULLIF\(product_id::text, ''\) IS NOT NULL/);
+  // Phase 15 — this predicate deliberately changed. The old NULLIF(product_id::text,'') guard let product_id=0
+  // through and, because corrections are read first with LIMIT 1, the poison row won AND suppressed the sent-card
+  // fallback. The contract asserted here is unchanged in spirit: precedence and scoping are still SQL-enforced.
+  assert.match(gateSrc, /FROM ai_reply_corrections[\s\S]{0,800}?WHERE tenant_id = \$1 AND conversation_id = \$2\s*\n\s*AND product_id IS NOT NULL AND product_id > 0/);
   assert.match(gateSrc, /FROM ai_support_messages\s+WHERE tenant_id = \$1 AND session_id = \$2 AND message_type = 'product_card'/);
   assert.match(gateSrc, /created_at > NOW\(\) - \(\$3 \|\| ' seconds'\)::interval/);
 });

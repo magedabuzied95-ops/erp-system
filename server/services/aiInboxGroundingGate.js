@@ -41,18 +41,50 @@ export const DURABLE_PRODUCT_CONTEXT_MAX_AGE_MS = (() => {
 //      never a rejected/stale suggestion (corrections are only written on an assisted approve),
 //   2. else the most recent SENT canonical product-card message (ai_support_messages product_cards[0]).
 // Cheap: session-scoped, indexed by created_at, LIMIT 1, no catalog scan. Returns null when nothing qualifies.
+// Phase 15 — ONE validity rule for durable product identity. A subject is real only when the id is a canonical
+// POSITIVE integer; everything else (null, '', 0, '0', negatives, decimals, garbage) is "no product identity",
+// never a product called zero. Returns the positive integer or null — deliberately not a boolean, so callers
+// cannot slip back into JS truthiness, which is how metadata.product_id=0 became a persisted subject.
+export const canonicalProductId = (value) => {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!/^[0-9]+$/.test(raw)) return null; // rejects '', -3, 3.5, 3abc, NaN
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+};
+
+// Phase 15 — the approved package decides the durable subject. Several VARIANTS of one product are still ONE
+// subject; several DIFFERENT products are genuinely ambiguous and must never collapse to whichever card happened
+// to sort first. Pure, order-independent; invalid ids never affect the distinct count.
+export const deriveApprovedProductSubject = (selectedCards = []) => {
+  const ids = (Array.isArray(selectedCards) ? selectedCards : [])
+    .map((c) => canonicalProductId(c && typeof c === "object" ? (c.product_id ?? c.id) : c))
+    .filter((id) => id !== null);
+  const distinct = [...new Set(ids)];
+  if (distinct.length === 0) return { state: "none", productId: null, distinctProductIds: [] };
+  if (distinct.length === 1) return { state: "single", productId: distinct[0], distinctProductIds: distinct };
+  return { state: "ambiguous", productId: null, distinctProductIds: distinct.sort((a, b) => a - b) };
+};
+
 export const resolveConversationProductSubject = async ({ tenantId, sessionId, maxAgeMs = DURABLE_PRODUCT_CONTEXT_MAX_AGE_MS, dbClient = db } = {}) => {
   if (!tenantId || !sessionId) return null;
   const seconds = String(Math.max(1, Math.round(maxAgeMs / 1000)));
   const corr = await dbClient.query(
     `SELECT product_id, message_id, ROUND(EXTRACT(EPOCH FROM (NOW() - created_at)))::int AS age_s
        FROM ai_reply_corrections
-      WHERE tenant_id = $1 AND conversation_id = $2 AND NULLIF(product_id::text, '') IS NOT NULL
+      -- Phase 15 — only a CANONICAL POSITIVE product id is durable product evidence. The old guard
+      -- (NULLIF(product_id::text,'') IS NOT NULL) let '0' through, and because corrections are read first with
+      -- LIMIT 1 a text-only approval that persisted product_id=0 became the subject and suppressed the valid
+      -- sent-product-card fallback beneath it (production row 7 on whatsapp:201024960585 does exactly this).
+      -- Filtering INSIDE the query — before ORDER BY/LIMIT — skips the invalid row instead of letting it win
+      -- and short-circuit, so the next real evidence still gets its turn.
+      WHERE tenant_id = $1 AND conversation_id = $2
+        AND product_id IS NOT NULL AND product_id > 0
         AND created_at > NOW() - ($3 || ' seconds')::interval
       ORDER BY created_at DESC LIMIT 1`,
     [tenantId, sessionId, seconds]
   ).catch(() => ({ rows: [] }));
-  if (corr.rows[0]?.product_id) {
+  if (canonicalProductId(corr.rows[0]?.product_id)) {
     return { productId: String(corr.rows[0].product_id), sourceMessageId: corr.rows[0].message_id || null, ageSeconds: Number(corr.rows[0].age_s) || 0, source: "approved_selection" };
   }
   const card = await dbClient.query(
