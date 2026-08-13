@@ -22377,6 +22377,55 @@ const extractMetaMessageId = (payload = null) => {
   return "";
 };
 
+export const sendInstagramInboxReaction = async ({
+  tenantId,
+  recipientId = "",
+  messageId = "",
+  emoji = "",
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+  preferredConfigId = null,
+} = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeRecipientId = text(recipientId);
+  const safeMessageId = text(messageId);
+  if (!scopedTenantId || !safeRecipientId || !safeMessageId) {
+    throw Object.assign(new Error("tenant_id, Instagram recipient id, and message id are required"), {
+      status: 400,
+      code: "INSTAGRAM_REACTION_INPUT_REQUIRED",
+    });
+  }
+  const { config, token, instagramBusinessLogin } = await resolveMetaSendConfig({
+    tenantId: scopedTenantId,
+    channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    facebookPageId,
+    instagramBusinessAccountId,
+    preferredConfigId,
+  });
+  const sendContext = {
+    channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    instagram_business_login: instagramBusinessLogin,
+    resolved_instagram_account_id: text(instagramBusinessAccountId || config.instagram_business_account_id),
+    resolved_page_id: text(facebookPageId || config.facebook_page_id || config.page_id),
+  };
+  const reacting = Boolean(text(emoji));
+  const result = await postMetaMessageWithThreadControl({
+    token,
+    recipientId: safeRecipientId,
+    sendContext,
+    body: {
+      recipient: { id: safeRecipientId },
+      sender_action: reacting ? "react" : "unreact",
+      payload: {
+        message_id: safeMessageId,
+        ...(reacting ? { reaction: "love" } : {}),
+      },
+    },
+  });
+  return { result, emoji: reacting ? "❤️" : "", message_id: safeMessageId };
+};
+
 export const sendMetaInboxOutboundMessage = async ({
   tenantId,
   channel = "",

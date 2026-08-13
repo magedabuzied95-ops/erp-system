@@ -47,7 +47,7 @@ import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
-import TranscriptMessage, { PinnedMessagesBar } from "../components/TranscriptMessage";
+import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
@@ -2439,6 +2439,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  reactionOptions,
 }) {
   const isCommentThread = isCommentConversation(conversation || {});
   if (!rows.length && !isCommentThread) {
@@ -2520,6 +2521,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
+              reactionOptions={reactionOptions}
             />
           </Fragment>
         );
@@ -6792,7 +6794,8 @@ export default function AiInboxPwa() {
                   olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                   onReplyComment={sendLeadCommentReply}
                   onPrivateMessage={sendLeadPrivateMessage}
-                  onReact={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? reactToMessage : null}
+                  onReact={["whatsapp", "instagram"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
+                  reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : undefined}
                 />
               </>
             ) : filteredConversations.length ? (

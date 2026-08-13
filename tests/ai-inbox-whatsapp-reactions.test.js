@@ -10,6 +10,7 @@ const logService = fs.readFileSync("server/services/aiSupportLogService.js", "ut
 const inbox = fs.readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8");
 const pwaInbox = fs.readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const transcript = fs.readFileSync("src/modules/aiSupport/components/TranscriptMessage.jsx", "utf8");
+const metaService = fs.readFileSync("server/services/metaIntegrationService.js", "utf8");
 const cacheStore = fs.readFileSync("src/modules/aiSupport/services/inboxCache/inboxCacheStore.js", "utf8");
 
 test("Evolution reactionMessage keeps the emoji and exact target message id", () => {
@@ -64,12 +65,13 @@ test("AI Inbox attaches reactions to their target bubble and hides raw reaction 
   assert.match(inbox, /const providerIds = \[\.\.\.new Set\(/);
 });
 
-test("AI Inbox and PWA expose the WhatsApp-style quick reaction picker", () => {
+test("AI Inbox and PWA expose provider-aware quick reaction pickers", () => {
   assert.match(transcript, /QUICK_MESSAGE_REACTIONS/);
   assert.match(transcript, /data-ai-message-reaction-picker="true"/);
   assert.match(transcript, /effectiveOwnReaction === emoji \? "" : emoji/);
-  assert.match(inbox, /onReact=\{isWhatsappChannel/);
-  assert.match(pwaInbox, /onReact=\{isWhatsappChannel/);
+  assert.match(inbox, /INSTAGRAM_MESSAGE_REACTIONS/);
+  assert.match(pwaInbox, /INSTAGRAM_MESSAGE_REACTIONS/);
+  assert.doesNotMatch(transcript, /group-hover:opacity-100/);
   assert.ok(
     transcript.indexOf("setLocalReaction(nextEmoji)") < transcript.indexOf("await onReact({"),
     "the reaction must render optimistically before the provider request finishes",
@@ -81,9 +83,18 @@ test("outbound WhatsApp reactions use Evolution's reaction endpoint and are pers
   assert.match(gateway, /key:\s*\{[\s\S]*remoteJid: safeRemoteJid,[\s\S]*fromMe: targetFromMe === true,[\s\S]*id: safeTargetMessageId/);
   assert.match(gateway, /reaction: safeEmoji/);
   assert.match(routes, /\/conversations\/:conversationId\/reaction/);
-  assert.match(routes, /sendWhatsappReaction\(\{ remoteJid, targetMessageId, targetFromMe, emoji \}\)/);
+  assert.match(routes, /sendWhatsappReaction\(\{ remoteJid, targetMessageId, targetFromMe, emoji: normalizedEmoji \}\)/);
   assert.match(routes, /upsertAiSupportMessageReaction\(\{/);
   assert.doesNotMatch(routes, /SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone, direction/);
+});
+
+test("outbound Instagram reactions use Meta's sender action and persist a love reaction", () => {
+  assert.match(metaService, /export const sendInstagramInboxReaction/);
+  assert.match(metaService, /sender_action: reacting \? "react" : "unreact"/);
+  assert.match(metaService, /reaction: "love"/);
+  assert.match(routes, /await sendInstagramInboxReaction\(\{/);
+  assert.match(routes, /normalizedEmoji = isInstagramReaction && emoji \? "❤️" : emoji/);
+  assert.match(transcript, /export const INSTAGRAM_MESSAGE_REACTIONS = \["❤️"\]/);
 });
 
 test("ordinary text messages do not show a technical text type badge", () => {
