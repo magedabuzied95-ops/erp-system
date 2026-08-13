@@ -15,7 +15,8 @@ const routeSrc = read("server/routes/aiAgentOrders.js");
 
 test("1/2/3/4/5: a successful assisted approval optimistically clears the authoritative draft (all channels)", () => {
   // the single shared handler patches the conversation draft to {} on success → activeAiReplyDraft becomes empty
-  assert.match(inboxSrc, /patchConversation\(selectedConversation\?\.conversation_key \|\| selectedConversation\?\.session_id, \(conv\) => \(\{ \.\.\.conv, ai_reply_draft: \{\}, last_ai_reply_draft: \{\} \}\)\);/);
+  // Phase 13.2 — now writes a versioned completed tombstone (not {}) so a stale payload can't resurrect it
+  assert.match(inboxSrc, /patchConversation\(selectedConversation\?\.conversation_key \|\| selectedConversation\?\.session_id, \(conv\) => \(\{ \.\.\.conv, ai_reply_draft: completedTombstone, last_ai_reply_draft: completedTombstone/);
 });
 
 test("6/7/8: selected product, colour/variant, and inline-edit state all reset on success", () => {
@@ -37,7 +38,7 @@ test("9/10: validation, confidence and grounding all derive from the (now-empty)
 test("11: a STALE/failed TEXT send returns BEFORE clearing — the suggestion stays actionable", () => {
   const block = inboxSrc.slice(inboxSrc.indexOf("const handleApproveAiSuggestion"), inboxSrc.indexOf("const handleDismissAiSuggestion"));
   const guardIdx = block.indexOf("if (!result?.ok) return;");
-  const clearIdx = block.indexOf("last_ai_reply_draft: {}");
+  const clearIdx = block.indexOf("last_ai_reply_draft: completedTombstone");
   assert.ok(guardIdx > 0 && clearIdx > guardIdx, "the draft-clear must be AFTER the result.ok guard");
   // frontend classifies 409 STALE as superseded (not provider-failed) — unchanged
   assert.match(inboxSrc, /if \(stale\) \{[\s\S]*?superseded: true \};/);
@@ -51,7 +52,7 @@ test("13: a partial product-package failure is surfaced honestly (text consumed,
 });
 
 test("14: a new inbound / new source_message_id produces a fresh clean suggestion (dismissal is keyed, not global)", () => {
-  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && !draftCompleted && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
   assert.match(inboxSrc, /const suggestionSourceId = Number\(activeAiReplyDraft\?\.metadata\?\.source_message_id\) \|\| 0;/);
 });
 
@@ -60,7 +61,7 @@ test("15: draft identity is per-conversation → switching conversations cannot 
 });
 
 test("16: double approval stays idempotent — server clears the draft on send + validates a REAL current draft", () => {
-  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
+  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId/);
   assert.match(routeSrc, /const hasCurrentDraft = aiReplyDraft\?\.status === "not_sent" && Boolean\(envText\(aiReplyDraft\?\.text\)\)/);
   // once cleared, a second approve finds no not_sent draft → isAssistedApprove false → no duplicate assisted send
   assert.match(routeSrc, /const isAssistedApprove = req\.body\?\.assisted_approval === true && hasCurrentDraft/);

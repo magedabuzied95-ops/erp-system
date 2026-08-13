@@ -5049,6 +5049,16 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     // AND a real current not_sent draft exists. A forged flag without a live draft is ignored (falls back to
     // manual/human_takeover). This is the authoritative signal, not a bare browser boolean.
     const isAssistedApprove = req.body?.assisted_approval === true && hasCurrentDraft;
+    // Phase 13.2 idempotency defense — a repeated Approve for an ALREADY-COMPLETED suggestion (assisted_approval
+    // declared but no current not_sent draft, because a prior send cleared/tombstoned it) must NO-OP, NOT fall
+    // through to the MANUAL send path. Enforced server-side, independent of the UI hiding the card. Provider is
+    // never called; the conversation state is not flipped to human_takeover.
+    if (req.body?.assisted_approval === true && !hasCurrentDraft) {
+      return res.status(409).json({
+        success: false, sent: false, code: "NO_CURRENT_DRAFT", reason: "already_completed",
+        message: "الاقتراح ده اتبعت خلاص — مفيش اقتراح حالي للإرسال.",
+      });
+    }
     const isUneditedSuggestionSend = hasCurrentDraft && envText(aiReplyDraft.text) === messageText;
     // Stale protection applies to ANY assisted approval (unedited OR edited-then-approved) — a newer customer
     // message blocks the whole package. Manual composer replies are intentional and are never blocked here.
@@ -5191,7 +5201,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           });
         });
       }
-      await clearAiReplySuggestionDraft({ tenantId, sessionId: conversationId }).catch(() => {});
+      await clearAiReplySuggestionDraft({ tenantId, sessionId: conversationId, sourceMessageId: rawAiReplyDraft?.metadata?.source_message_id || "" }).catch(() => {});
       // Phase 11.2 A/B — deterministic, canonical conversation-state transition after a successful send:
       //   • AI-assisted approval  → KEEP ai_active (the next customer message stays eligible for a suggestion),
       //     and record the approved_unchanged / approved_edited metric.

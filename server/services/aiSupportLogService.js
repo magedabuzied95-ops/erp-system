@@ -2086,20 +2086,29 @@ export const upsertAiReplySuggestionDraft = async ({
   return draft;
 };
 
-export const clearAiReplySuggestionDraft = async ({ tenantId, sessionId } = {}) => {
+export const clearAiReplySuggestionDraft = async ({ tenantId, sessionId, sourceMessageId = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   if (!safeTenantId || !safeSessionId) return null;
   await ensureAiSupportLogSchema();
+  // Phase 13.2 — clear to a versioned TOMBSTONE (status:"sent" + the completed source_message_id + cleared_at),
+  // NOT '{}'. A bare {} loses identity, so a stale list/socket/cache payload carrying the OLD draft can't be
+  // recognised as older and resurrects the completed suggestion. The tombstone + the bumped
+  // last_ai_reply_draft_updated_at give the cleared state a monotonic version the client can reconcile against.
   await db.query(
     `
     UPDATE ai_support_sessions
-    SET last_ai_reply_draft = '{}'::jsonb,
+    SET last_ai_reply_draft = jsonb_build_object(
+          'status', 'sent',
+          'text', '',
+          'source_message_id', $3::text,
+          'cleared_at', to_jsonb(NOW())
+        ),
         last_ai_reply_draft_updated_at = NOW(),
         updated_at = NOW()
     WHERE tenant_id = $1::bigint AND session_id = $2::text
     `,
-    [safeTenantId, safeSessionId]
+    [safeTenantId, safeSessionId, toText(sourceMessageId)]
   );
   return true;
 };

@@ -99,13 +99,13 @@ test("frontend lifecycle: text failure keeps the suggestion pending (no dismiss)
 });
 
 test("backend lifecycle: the draft is cleared on send (not returned as an active suggestion afterwards)", () => {
-  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
+  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId/);
 });
 
 test("frontend reconciliation: suggestion visibility is derived from authoritative source_message_id identity", () => {
   // stale = there is a newer inbound than the draft's source → never actionable
   assert.match(inboxSrc, /const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;/);
-  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && !draftCompleted && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
   // identity keyed by source_message_id so a new draft replaces the old + resets edit/product state
   assert.match(inboxSrc, /return `\$\{selectedConversation\.session_id\}:\$\{suggestionSourceId \|\| 0\}:\$\{stamp \|\| activeAiSuggestionText\.length\}`;/);
   assert.match(inboxSrc, /const suggestionSourceId = Number\(activeAiReplyDraft\?\.metadata\?\.source_message_id\) \|\| 0;/);
@@ -128,7 +128,7 @@ test("invariant: the actionable suggestion is the single authoritative server dr
   assert.match(inboxSrc, /const activeAiReplyDraft = /);
   // (b) exactly one visibility gate — a newer inbound turn hides the old draft, so two can never be actionable at once
   assert.match(inboxSrc, /const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;/);
-  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && !draftCompleted && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
   // (c) server side: the draft is the single source and is cleared on send so it cannot re-appear as actionable
-  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId \}\)/);
+  assert.match(routeSrc, /clearAiReplySuggestionDraft\(\{ tenantId, sessionId: conversationId/);
 });
