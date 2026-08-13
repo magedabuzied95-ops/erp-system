@@ -12,7 +12,6 @@ import {
   MessageSquareText,
   RefreshCw,
   Send,
-  ShieldBan,
   Sparkles,
   ShoppingBag,
   ThumbsUp,
@@ -1370,22 +1369,25 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   previewReply = "",
   suggestedReply = "",
   replyLoadingKey = "",
+  likeLoadingKey = "",
+  likeStatus = "",
   privateMessageLoadingKey = "",
   privateMessageStatus = "",
   leadLoadingKey = "",
   ignoreLoadingKey = "",
   onSelectComment,
   onSelectCustomer,
+  onLike,
+  onCompose,
   onReply,
   onPrivateMessage,
-  onCreateLead,
-  onIgnore,
   registerCommentNode,
 }) {
   const { t } = useTranslation();
   const key = clean(comment.comment_id || comment.external_comment_id || comment.id || "");
+  const actionKey = resolveSocialCommentActionId(comment) || key;
   const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
-  const busy = Boolean(replyLoadingKey === key || privateMessageLoadingKey === key || leadLoadingKey === key || ignoreLoadingKey === key);
+  const busy = Boolean(likeLoadingKey === actionKey || replyLoadingKey === actionKey || privateMessageLoadingKey === actionKey || leadLoadingKey === key || ignoreLoadingKey === key);
   const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
   const isHighlighted = highlightedCommentKey === key;
   const nextReplyText = clean(replyDraft || previewReply || suggestedReply);
@@ -1393,30 +1395,34 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   const handleReply = useCallback(
     (event) => {
       event.stopPropagation();
+      handleSelect();
+      if (!nextReplyText) {
+        onCompose?.(comment, "reply");
+        return;
+      }
       onReply?.(comment, nextReplyText);
     },
-    [comment, nextReplyText, onReply]
+    [comment, handleSelect, nextReplyText, onCompose, onReply]
+  );
+  const handleLike = useCallback(
+    (event) => {
+      event.stopPropagation();
+      handleSelect();
+      onLike?.(comment);
+    },
+    [comment, handleSelect, onLike]
   );
   const handlePrivateMessage = useCallback(
     (event) => {
       event.stopPropagation();
+      handleSelect();
+      if (!nextReplyText) {
+        onCompose?.(comment, "private_message");
+        return;
+      }
       onPrivateMessage?.(comment, nextReplyText);
     },
-    [comment, nextReplyText, onPrivateMessage]
-  );
-  const handleCreateLead = useCallback(
-    (event) => {
-      event.stopPropagation();
-      onCreateLead?.(comment);
-    },
-    [comment, onCreateLead]
-  );
-  const handleIgnore = useCallback(
-    (event) => {
-      event.stopPropagation();
-      onIgnore?.(comment);
-    },
-    [comment, onIgnore]
+    [comment, handleSelect, nextReplyText, onCompose, onPrivateMessage]
   );
   const setCommentRef = useCallback((node) => registerCommentNode?.(key, node), [key, registerCommentNode]);
   const cardComment = useMemo(
@@ -1434,10 +1440,11 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
       customer_profile_id: clean(comment.customer_profile_id || comment.customerProfileId || ""),
       automation_status: clean(comment.automation_status || comment.reply_status || comment.auto_reply_mode || ""),
       private_reply_status: clean(comment.private_reply_status || comment.dm_status || ""),
+      like_status: clean(likeStatus || comment.like_status || ""),
       last_ai_action: clean(comment.last_ai_action || comment.ai_last_action || ""),
       product_name: clean(comment.product_name || ""),
     }),
-    [activePostPlatform, comment, key]
+    [activePostPlatform, comment, key, likeStatus]
   );
 
   return (
@@ -1469,11 +1476,20 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
           </a>
         ) : null}
 
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-2">
+          <button
+            type="button"
+            onClick={handleLike}
+            disabled={busy || likeStatus === "sent" || Boolean(likeLoadingKey)}
+            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black disabled:opacity-60 ${likeStatus === "sent" ? "border-blue-400/30 bg-blue-400/15 text-blue-200" : "border-white/10 bg-white/[0.04] text-slate-200"}`}
+          >
+            {likeLoadingKey === actionKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className={`h-4 w-4 ${likeStatus === "sent" ? "fill-current" : ""}`} />}
+            {likeStatus === "sent" ? "تم الإعجاب" : "إعجاب"}
+          </button>
           <button
             type="button"
             onClick={handleReply}
-            disabled={busy || !nextReplyText || Boolean(replyLoadingKey)}
+            disabled={busy || Boolean(replyLoadingKey)}
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-cyan-300 px-2.5 text-[11px] font-black text-slate-950 disabled:opacity-50"
           >
             {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1482,30 +1498,12 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
           <button
             type="button"
             onClick={handlePrivateMessage}
-            disabled={busy || !privateMessageSupported || !nextReplyText || Boolean(privateMessageLoadingKey)}
+            disabled={busy || !privateMessageSupported || Boolean(privateMessageLoadingKey)}
             title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-200 disabled:opacity-50"
           >
             {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
-          </button>
-          <button
-            type="button"
-            onClick={handleCreateLead}
-            disabled={busy}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-200 disabled:opacity-50"
-          >
-            {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-            {t("aiSupport.inbox.socialWorkspace.createLead")}
-          </button>
-          <button
-            type="button"
-            onClick={handleIgnore}
-            disabled={busy}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-300 disabled:opacity-50"
-          >
-            {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
-            {t("aiSupport.inbox.socialWorkspace.ignore")}
           </button>
         </div>
       </CommentTimelineCard>
@@ -1556,6 +1554,8 @@ function SocialCommentsWorkspace({
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [replyLoadingKey, setReplyLoadingKey] = useState("");
+  const [likeLoadingKey, setLikeLoadingKey] = useState("");
+  const [likeStatusOverrides, setLikeStatusOverrides] = useState({});
   const [privateMessageLoadingKey, setPrivateMessageLoadingKey] = useState("");
   const [privateMessageStatusOverrides, setPrivateMessageStatusOverrides] = useState({});
   const [ignoreLoadingKey, setIgnoreLoadingKey] = useState("");
@@ -2657,6 +2657,41 @@ function SocialCommentsWorkspace({
     }
   };
 
+  const submitLike = async (comment = actionableComment) => {
+    const actionId = resolveSocialCommentActionId(comment);
+    if (likeLoadingKey) return;
+    if (!actionId) {
+      notify("amber", "تعذر تحديد معرف التعليق");
+      return;
+    }
+    setLikeLoadingKey(actionId);
+    setSelectedCommentKey(clean(comment?.id || actionId));
+    try {
+      await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/like`, {});
+      setLikeStatusOverrides((current) => ({ ...current, [clean(comment?.id || actionId)]: "sent", [actionId]: "sent" }));
+      upsertOptimisticCommentEntry(comment, {
+        like_status: "sent",
+        updated_at: new Date().toISOString(),
+      });
+      notify("emerald", "تم تسجيل الإعجاب على التعليق");
+    } catch (error) {
+      setLikeStatusOverrides((current) => ({ ...current, [clean(comment?.id || actionId)]: "failed", [actionId]: "failed" }));
+      notify("rose", error?.message || "تعذر تسجيل الإعجاب على التعليق");
+    } finally {
+      setLikeLoadingKey("");
+    }
+  };
+
+  const prepareCommentComposer = useCallback((comment = {}, mode = "reply") => {
+    const key = clean(comment?.id || comment?.comment_id || comment?.external_comment_id || "");
+    if (key) setSelectedCommentKey(key);
+    requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      composerRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    });
+    notify("amber", mode === "private_message" ? "اكتب الرسالة ثم اضغط إرسال رسالة خاصة" : "اكتب الرد ثم اضغط إرسال الرد");
+  }, []);
+
   const submitPrivateMessage = async (comment = actionableComment, messageText = replyDraft || suggestedReply) => {
     const clickedComment = comment || actionableComment || null;
     const actionId = resolveSocialCommentActionId(clickedComment);
@@ -2699,9 +2734,10 @@ function SocialCommentsWorkspace({
       last_activity_at: new Date().toISOString(),
     });
     try {
+      const commentPlatform = clean(clickedComment?.platform || clickedComment?.raw?.platform || activePostPlatform || "facebook");
       await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/private-message`, {
         message: finalMessage,
-        platform: activePostPlatform || "facebook",
+        platform: commentPlatform,
         post_id: activePostPostId,
       });
       const statusKey = loadingKey || actionId;
@@ -3766,12 +3802,16 @@ function SocialCommentsWorkspace({
                         previewReply={previewReply}
                         suggestedReply={suggestedReply}
                         replyLoadingKey={replyLoadingKey}
+                        likeLoadingKey={likeLoadingKey}
+                        likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
                         privateMessageLoadingKey={privateMessageLoadingKey}
                         privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
                         leadLoadingKey={leadLoadingKey}
                         ignoreLoadingKey={ignoreLoadingKey}
                         onSelectComment={setSelectedCommentKey}
                         onSelectCustomer={onSelectCustomer}
+                        onLike={submitLike}
+                        onCompose={prepareCommentComposer}
                         onReply={submitReply}
                         onPrivateMessage={submitPrivateMessage}
                         onCreateLead={handleCreateLead}

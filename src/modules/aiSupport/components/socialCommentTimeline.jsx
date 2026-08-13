@@ -450,7 +450,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       {...rest}
       className={[
         compact
-          ? "rounded-2xl border border-white/10 bg-slate-950/70 p-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition"
+          ? "w-full rounded-2xl border border-white/10 bg-slate-950/70 p-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition"
           : "rounded-[22px] border border-white/10 bg-slate-950/70 p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition",
         selected ? "ring-1 ring-cyan-300/30" : "hover:border-white/20 hover:bg-slate-900/80",
         className,

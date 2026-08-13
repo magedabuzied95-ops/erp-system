@@ -96,7 +96,7 @@ import { inboundAttachmentLabel, materializeInboundAttachments } from "../servic
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
-import { probePrivateReplyComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
+import { likeComment, probePrivateReplyComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
 import {
   createCorrection,
   listConversationCorrections,
@@ -2992,6 +2992,51 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
       comment_id: commentRun.comment_id,
       reply_text: replyText,
     });
+  }
+});
+
+router.post("/comments/:commentId/like", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const commentId = decodeRouteId(req.params.commentId);
+  if (!tenantId || !commentId) {
+    return sendError(res, Object.assign(new Error("tenant_id and commentId are required"), { status: 400 }), "tenant_id and commentId are required");
+  }
+
+  const commentRun = await resolveSocialCommentReplyTarget({ tenantId, commentId });
+  if (!commentRun) {
+    return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${commentId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
+  }
+
+  const platform = envText(commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
+    ? "instagram"
+    : "facebook";
+  const providerCommentId = envText(commentRun.comment_id || commentId);
+  try {
+    const metaResponse = await likeComment(platform, providerCommentId, tenantId);
+    await db.query(
+      `
+      UPDATE social_comment_automation_runs
+      SET like_status = 'sent', updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
+      `,
+      [tenantId, commentRun.platform || platform, providerCommentId]
+    ).catch(() => {});
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""),
+      at: new Date().toISOString(),
+    });
+    return res.status(201).json({ success: true, liked: true, delivery_status: "sent", comment_id: providerCommentId, platform, meta_response: metaResponse || null });
+  } catch (error) {
+    await db.query(
+      `
+      UPDATE social_comment_automation_runs
+      SET like_status = 'failed', error_code = COALESCE(NULLIF($4::text, ''), error_code), updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
+      `,
+      [tenantId, commentRun.platform || platform, providerCommentId, envText(error?.code || "meta_like_failed")]
+    ).catch(() => {});
+    return sendError(res, error, "Failed to like comment");
   }
 });
 
