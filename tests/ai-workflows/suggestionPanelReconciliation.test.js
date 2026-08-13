@@ -33,11 +33,29 @@ test("aiSuggestionVisible is the SAME identity the AI Suggested Reply card uses 
   assert.match(inboxSrc, /aiSuggestionVisible && clean\(aiSuggestionText\) \? \(\s*<AiSuggestionCard/);
 });
 
-test("the panels only render when hasValidation/hasConfidence are truthy (empty summary ⇒ hidden)", () => {
-  assert.match(inboxSrc, /const hasValidation = Boolean\(normalizedValidation\.violationsCount \|\| normalizedValidation\.warningsCount \|\| normalizedValidation\.details\.length\);/);
-  assert.match(inboxSrc, /const hasConfidence = Boolean\(normalizedConfidence\.reasonsCount \|\| normalizedConfidence\.riskFlagsCount \|\| normalizedConfidence\.score\);/);
-  assert.match(inboxSrc, /\{hasValidation \? \(/);
-  assert.match(inboxSrc, /\{hasConfidence \? \(/);
+// Phase 13.3 — PRESENTATION ONLY. The large "AI draft validation" and "Confidence engine" panels are removed
+// from the operator view. Their state is condensed into ONE compact "⚠ يحتاج مراجعة" badge, shown only when the
+// EXISTING logic materially recommends review. The underlying validation/confidence memos are unchanged (they
+// still gate on aiSuggestionVisible + derive from the authoritative draft — asserted above).
+test("the large validation/confidence panels are gone from the operator view", () => {
+  assert.doesNotMatch(inboxSrc, /const hasValidation = /);
+  assert.doesNotMatch(inboxSrc, /const hasConfidence = /);
+  assert.doesNotMatch(inboxSrc, /\{hasValidation \? \(/);
+  assert.doesNotMatch(inboxSrc, /\{hasConfidence \? \(/);
+});
+
+test("review state is condensed into ONE compact badge, driven by the SAME existing validation/confidence logic", () => {
+  // the compact review cue derives only from the existing normalized summaries — no new thresholds
+  assert.match(inboxSrc, /const reviewNeeded = normalizedValidation\.violationsCount > 0 \|\| normalizedConfidence\.decision === "high_risk" \|\| normalizedConfidence\.tone === "rose";/);
+  // it is threaded into the single shared suggestion card and rendered as one small badge
+  assert.match(inboxSrc, /reviewNeeded=\{reviewNeeded\}/);
+  assert.match(inboxSrc, /reviewNeeded \? <span[^>]*>⚠ يحتاج مراجعة<\/span> : null/);
+});
+
+test("technical grounding facts + context provenance are hidden from the operator suggestion card", () => {
+  const cardBlock = inboxSrc.slice(inboxSrc.indexOf("function AiSuggestionCard"), inboxSrc.indexOf("function ManualReplyComposer"));
+  assert.doesNotMatch(cardBlock, /حقائق الاستناد/);
+  assert.doesNotMatch(cardBlock, /المنتج من سياق المحادثة/);
 });
 
 test("draft identity is per-conversation (activeAiReplyDraft ← selectedConversation) so switching cannot retain prior panels", () => {

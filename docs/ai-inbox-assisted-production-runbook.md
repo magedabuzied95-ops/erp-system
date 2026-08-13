@@ -253,6 +253,22 @@ explicit colour still wins; unavailable colour never substitutes. Customer-facin
 helper (`1 → قطعة واحدة`, `2 → قطعتين`, `N → N قطع`) — presentation only, fact unchanged. Detail in
 [ai-inbox-durable-product-context.md](ai-inbox-durable-product-context.md) §13.
 
+## 9c. Operator card simplification (Phase 13.3 — presentation only)
+
+The AI Suggested Reply card was condensed for the operator. **Removed from view:** the large "AI draft
+validation" panel, the "Confidence engine" panel, the technical **"حقائق الاستناد"** grounding-facts block
+(match type, stock counts, resolved product id) and the **"المنتج من سياق المحادثة"** context-provenance
+chip. **Kept:** the reply text, the exact text-to-send line, product/colour choices (اختار المنتج / اختار
+اللون), the Product-to-Send preview, and the three actions (تعديل الرد / اعتماد وإرسال / تجاهل). When the
+existing validation/confidence logic materially recommends review (a real validation violation or a
+high-risk confidence decision), the card shows **one compact `⚠ يحتاج مراجعة` badge** in the header
+instead of the panels.
+
+This is **display only** — generation, grounding, the validation + confidence engines, product resolution,
+durable context, colour disambiguation, stale protection, the monotonic completed-draft lifecycle, learning
+and all backend data are unchanged (the full detail still lives in the draft/schema for AI Studio). One
+shared card serves all three channels (Messenger / Instagram / WhatsApp); the channel is a prop.
+
 ## 10. Change log
 
 - Stage A (Messenger, human-approved) declared GO. WA remains OFF.
@@ -260,3 +276,7 @@ helper (`1 → قطعة واحدة`, `2 → قطعتين`, `N → N قطع`) —
   live proof. No new AI brain, no autonomous replies.
 - Style learning enabled for **tenant 1 only**, opt-in, ≥5-example threshold, facts never learned.
 - Runbook created for Phase 11.3; Instagram section added for Phase 12.
+- Phase 13.3 (presentation only): removed the validation + confidence panels and the technical grounding
+  facts / context chip from the operator card; condensed to one compact `⚠ يحتاج مراجعة` badge. No logic,
+  lifecycle, or backend change. Production state unchanged (all live channels suggest-only,
+  `WHATSAPP_AI_AUTO_REPLY=false`).
