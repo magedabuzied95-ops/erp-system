@@ -120,7 +120,10 @@ function HistoryRow({ item, t }) {
   };
 
   return (
-    <article className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] transition hover:border-[var(--border)] hover:bg-[var(--surface)]">
+    // min-w-0: as a grid item its automatic minimum size is its min-content width,
+    // which the nowrap caption inflates far past the column. Without this the track
+    // resolves to ~3390px inside a ~1174px grid and the overflow is clipped, not scrollable.
+    <article className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] transition hover:border-[var(--border)] hover:bg-[var(--surface)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
