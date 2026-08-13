@@ -16,6 +16,7 @@ import {
   metaReviewerRealtimeRoom,
   normalizeMetaReviewerChannel,
   sanitizeMetaReviewerMessage,
+  sanitizeMetaReviewerProductCards,
 } from "./metaReviewerAccessService.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -233,4 +234,64 @@ export const sendMetaReviewerMessage = async ({ channel, conversationRef, messag
   const safeStored = sanitizeMetaReviewerMessage(stored);
   emitToRooms([metaReviewerRealtimeRoom(scope, normalized)], "meta_reviewer:message", { channel: normalized, conversation_id: conversationRef, message: safeStored, at: new Date().toISOString() });
   return { sent: deliveryStatus === "sent", delivery_status: deliveryStatus, message: safeStored };
+};
+
+export const sendMetaReviewerProductCards = async ({ channel, conversationRef, productCards, actorUserId, scope = loadMetaReviewerScope() } = {}) => {
+  const safeCards = sanitizeMetaReviewerProductCards(productCards);
+  if (!safeCards.length) throw Object.assign(new Error("At least one valid product card is required."), { status: 400 });
+  const conversation = await resolveMetaReviewerConversation({ channel, conversationRef, scope });
+  if (!conversation) throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
+  const normalized = conversation.normalizedChannel;
+  const channelConfig = getMetaReviewerChannelScope(scope, normalized);
+  if (!metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: normalized, assetId: conversation.assetId, senderScopedId: conversation.senderScopedId }, scope)) {
+    throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
+  }
+
+  const fallbackText = safeCards.map((card) => {
+    const details = [card.product_name, card.color && `Color: ${card.color}`, card.size && `Size: ${card.size}`, card.price > 0 && `Price: ${card.price}`, card.storefront_url]
+      .filter(Boolean);
+    return details.join("\n");
+  }).join("\n\n");
+  const sendResult = await sendMetaInboxOutboundMessage({
+    tenantId: scope.tenantId,
+    channel: CHANNEL_SQL[normalized].outbound,
+    recipientId: conversation.senderScopedId,
+    messageText: fallbackText,
+    conversationId: conversationRef,
+    facebookPageId: normalized === "messenger" ? channelConfig.assetId : "",
+    instagramBusinessAccountId: normalized === "instagram" ? channelConfig.assetId : "",
+    productCards: safeCards,
+    replyOwner: "meta_reviewer",
+    replySource: "meta_reviewer_product_card",
+    orchestratorUsed: false,
+  });
+  const deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
+  const stored = await appendManualAiSupportReply({
+    tenantId: scope.tenantId,
+    sessionId: conversation.session_id,
+    clientRequestId: randomUUID(),
+    message: fallbackText,
+    previewMessage: safeCards[0]?.product_name || fallbackText,
+    messageType: "product_card",
+    productCards: safeCards,
+    staffUserId: actorUserId || null,
+    staffUserName: "Meta Reviewer",
+    source: "meta_reviewer_product_card",
+    channel: CHANNEL_SQL[normalized].outbound,
+    deliveryStatus,
+    deliveryError: deliveryStatus === "failed" ? (sendResult?.delivery_error || sendResult?.message || "Product card delivery failed") : "",
+    externalMessageId: sendResult?.message_id || "",
+    providerMessageId: sendResult?.message_id || "",
+    redactSessionInLogs: true,
+  });
+  const safeStored = sanitizeMetaReviewerMessage(stored);
+  emitToRooms([metaReviewerRealtimeRoom(scope, normalized)], "meta_reviewer:message", { channel: normalized, conversation_id: conversationRef, message: safeStored, at: new Date().toISOString() });
+  return {
+    success: deliveryStatus !== "failed",
+    sent: deliveryStatus === "sent",
+    delivered: deliveryStatus === "sent",
+    delivery_status: deliveryStatus,
+    message: safeStored,
+    product_cards: safeCards,
+  };
 };

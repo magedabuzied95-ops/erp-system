@@ -190,6 +190,33 @@ test("standard AI Inbox compatibility returns no WhatsApp conversations for the 
   assert.deepEqual(response.body?.conversations, []);
 });
 
+test("reviewer can read only the picker catalog endpoints, never product writes or full records", async () => {
+  process.env.JWT_SECRET = "boundary-test-secret";
+  const reviewerToken = jwt.sign({ id: 1, role: "meta_reviewer" }, process.env.JWT_SECRET);
+  const makeResponse = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
+
+  for (const originalUrl of [
+    "/api/products/with-variants?compact=1&limit=24",
+    "/api/products/available-sizes",
+    "/api/products/by-size?count_only=1",
+    "/api/product-classifications",
+  ]) {
+    let nextCalls = 0;
+    await metaReviewerApiBoundary({ method: "GET", headers: { authorization: `Bearer ${reviewerToken}` }, originalUrl }, makeResponse(), () => { nextCalls += 1; });
+    assert.equal(nextCalls, 1, `${originalUrl} should reach its read-only route`);
+  }
+
+  for (const request of [
+    { method: "GET", originalUrl: "/api/products/42/full" },
+    { method: "POST", originalUrl: "/api/products" },
+    { method: "PATCH", originalUrl: "/api/products/42" },
+  ]) {
+    const response = makeResponse();
+    await metaReviewerApiBoundary({ ...request, headers: { authorization: `Bearer ${reviewerToken}` } }, response, () => {});
+    assert.equal(response.statusCode, 403, `${request.method} ${request.originalUrl} must remain blocked`);
+  }
+});
+
 test("Instagram webhook setup subscribes to direct messages and fails back to the required field", () => {
   const source = fs.readFileSync(new URL("../../server/services/metaIntegrationService.js", import.meta.url), "utf8");
   assert.match(source, /META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS\s*=\s*\[[\s\S]*?"messages"/);

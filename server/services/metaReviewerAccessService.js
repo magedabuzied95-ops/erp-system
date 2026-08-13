@@ -142,6 +142,35 @@ export const extractMetaReviewerIdentity = (record = {}, channel = record.channe
   return { assetId, senderScopedId };
 };
 
+const sanitizeMetaReviewerProductCard = (card = {}) => {
+  const productName = text(card.product_name || card.name || card.title || card.display_name);
+  const imageUrl = text(card.image_url || card.product_image_url || card.variant_image_url || card.image || card.thumbnail_url || card.media_url);
+  const productUrl = text(card.storefront_url || card.product_url || card.url || card.share_url);
+  return {
+    id: card.product_id ?? card.id ?? null,
+    product_id: card.product_id ?? card.id ?? null,
+    variant_id: card.variant_id ?? card.selected_variant_id ?? null,
+    product_name: productName,
+    name: productName,
+    title: productName,
+    image_url: imageUrl,
+    image: imageUrl,
+    thumbnail_url: imageUrl,
+    price: Number(card.price ?? card.final_price ?? card.sale_price ?? 0) || 0,
+    color: text(card.color || card.variant_color),
+    size: text(card.size || card.variant_size),
+    storefront_url: productUrl,
+    product_url: productUrl,
+    url: productUrl,
+  };
+};
+
+export const sanitizeMetaReviewerProductCards = (cards = []) =>
+  (Array.isArray(cards) ? cards : [])
+    .slice(0, 5)
+    .map(sanitizeMetaReviewerProductCard)
+    .filter((card) => card.product_id || card.product_name || card.storefront_url);
+
 export const sanitizeMetaReviewerMessage = (message = {}) => ({
   id: message.id ?? null,
   text: text(message.staff_message || message.customer_message || message.message_text || message.ai_answer || message.last_message),
@@ -149,6 +178,7 @@ export const sanitizeMetaReviewerMessage = (message = {}) => ({
   sender_type: message.sender_type === "customer" ? "customer" : "staff",
   message_type: text(message.message_type || "text"),
   attachments: Array.isArray(message.visual_attachments) ? message.visual_attachments : [],
+  product_cards: sanitizeMetaReviewerProductCards(message.product_cards),
   delivery_status: text(message.delivery_status),
   created_at: message.created_at || null,
 });

@@ -5,6 +5,7 @@ import {
   listMetaReviewerConversations,
   loadMetaReviewerMessages,
   sendMetaReviewerMessage,
+  sendMetaReviewerProductCards,
 } from "../services/metaReviewerInboxService.js";
 
 const text = (value) => String(value ?? "").trim();
@@ -44,7 +45,7 @@ const handleStandardInboxCompatibility = async (req, res, decoded) => {
     return res.json({ success: true, conversations: payload.conversations.map(presentConversation), followups: [] });
   }
 
-  const match = path.match(/^\/api\/ai-inbox\/conversations\/([^/]+)\/(messages|send)$/);
+  const match = path.match(/^\/api\/ai-inbox\/conversations\/([^/]+)\/(messages|send|product-card\/send)$/);
   if (!match) return false;
   const conversationRef = decodeURIComponent(match[1]);
   const requestedChannel = reviewerChannel(req.query?.channel || req.body?.channel || req.headers?.["x-review-channel"]);
@@ -73,13 +74,45 @@ const handleStandardInboxCompatibility = async (req, res, decoded) => {
     if (!payload) throw lastError || Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
     return res.json({ ...payload, message: presentMessage(payload.message) });
   }
+  if (match[2] === "product-card/send" && req.method === "POST") {
+    let payload = null;
+    let lastError = null;
+    for (const channel of candidateChannels) {
+      try {
+        payload = await sendMetaReviewerProductCards({
+          channel,
+          conversationRef,
+          productCards: req.body?.product_cards || req.body?.productCards,
+          actorUserId: decoded?.id,
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        if (error?.status !== 403) throw error;
+      }
+    }
+    if (!payload) throw lastError || Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
+    return res.status(201).json({ ...payload, message: presentMessage(payload.message) });
+  }
   return false;
 };
+
+const REVIEWER_PRODUCT_READ_PATHS = new Set([
+  "/api/products/with-variants",
+  "/api/products/available-sizes",
+  "/api/products/by-size",
+  "/api/product-classifications",
+  "/api/website/settings",
+  "/api/settings/public",
+]);
 
 const allowedReviewerPath = (req) => {
   const path = String(req.originalUrl || req.url || "").split("?")[0];
   const inboxPrefix = "/api/meta-reviewer/inbox";
-  return path === "/api/auth/me" || path === inboxPrefix || path.startsWith(`${inboxPrefix}/`);
+  return path === "/api/auth/me"
+    || path === inboxPrefix
+    || path.startsWith(`${inboxPrefix}/`)
+    || (req.method === "GET" && REVIEWER_PRODUCT_READ_PATHS.has(path));
 };
 
 export const metaReviewerApiBoundary = async (req, res, next) => {

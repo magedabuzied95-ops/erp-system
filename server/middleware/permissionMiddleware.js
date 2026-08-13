@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { isSuperAdminUser } from "../utils/requestScope.js";
+import { isMetaReviewerRole } from "../services/metaReviewerAccessService.js";
 
 const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
 const ADMIN_ROLES = ["admin", "super_admin", "super admin", "superadmin"];
@@ -472,6 +473,17 @@ const permit = (
       }
       if (normalizedModuleName === "marketing" && normalizedAction === "approve") {
         normalizedAction = "publish";
+      }
+
+      // The Meta review account may read the compact product catalog only so the
+      // reviewer can exercise the real AI Inbox product-card flow. The API
+      // boundary still blocks every product write and every non-picker route.
+      if (
+        normalizedModuleName === "products" &&
+        normalizedAction === "view" &&
+        isMetaReviewerRole(req.user?.role || req.user?.role_name)
+      ) {
+        return next();
       }
 
       /* =========================
