@@ -72,9 +72,9 @@ test("send route: Instagram routes through the SAME Meta sender as Messenger (on
 });
 
 test("UI: the AI Inbox labels Instagram delivery as TEXT + product link (not a rich card)", () => {
-  assert.match(inboxSrc, /if \(ch\.includes\("instagram"\)\) return \{ label: "نص \+ لينك المنتج", kind: "text_link" \};/);
+  assert.match(inboxSrc, /if \(ch\.includes\("instagram"\)\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtTextLink", kind: "text_link" \};/);
   // and Messenger stays the rich card — the two are not conflated
-  assert.match(inboxSrc, /if \(ch\.includes\("messenger"\) \|\| ch === "facebook"\) return \{ label: "كارت منتج \(Messenger\)", kind: "rich_card" \};/);
+  assert.match(inboxSrc, /if \(ch\.includes\("messenger"\) \|\| ch === "facebook"\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtRichCard", kind: "rich_card" \};/);
   // the suggestion card surfaces channel + delivery so the employee knows what the customer will receive
   assert.match(inboxSrc, /channelName=\{channelLabel\(conversation\?\.channel \|\| conversation\?\.source\)\}/);
 });

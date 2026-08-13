@@ -269,9 +269,9 @@ test("22/23/24: the existing FE-sequential per-card sender + channel-specific de
   assert.match(inboxSrc, /for \(const card of cards\) \{[\s\S]*?product_cards: \[card\],[\s\S]*?client_request_id: cardRequestId/);
   assert.match(inboxSrc, /variant_id: card\.variant_id \?\? card\.variantId \?\? null/);
   // channel formats untouched
-  assert.match(inboxSrc, /if \(ch\.includes\("messenger"\) \|\| ch === "facebook"\) return \{ label: "كارت منتج \(Messenger\)"/);
-  assert.match(inboxSrc, /if \(ch\.includes\("whatsapp"\)\) return \{ label: "صورة \+ لينك"/);
-  assert.match(inboxSrc, /if \(ch\.includes\("instagram"\)\) return \{ label: "نص \+ لينك المنتج"/);
+  assert.match(inboxSrc, /if \(ch\.includes\("messenger"\) \|\| ch === "facebook"\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtRichCard"/);
+  assert.match(inboxSrc, /if \(ch\.includes\("whatsapp"\)\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtImageLink"/);
+  assert.match(inboxSrc, /if \(ch\.includes\("instagram"\)\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtTextLink"/);
 });
 
 // ================= 25-30 — FAILURE, LIFECYCLE, SAFETY =================

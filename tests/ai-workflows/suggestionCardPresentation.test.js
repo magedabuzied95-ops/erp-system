@@ -31,7 +31,7 @@ test("the compact review badge renders ONLY when reviewNeeded is true (one small
 
 test("operator-actionable content is fully retained: final send text, product/colour choices, Product-to-Send preview", () => {
   // the exact text that will be sent
-  assert.match(cardBlock, /النص اللي هيتبعت للعميل/);
+  assert.match(cardBlock, /aiSupport\.inbox\.panel\.textToSend/);
   // the Product-to-Send preview + product/colour disambiguation still mount (unchanged component)
   assert.match(cardBlock, /<SuggestionProductToSend/);
   assert.match(cardBlock, /colorChoices=\{colorChoices\}/);

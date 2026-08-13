@@ -68,7 +68,7 @@ test("frontend: AI suggestion has INLINE editing inside the card, separate from 
   assert.match(inboxSrc, /const textToSend = editingAiDraft && clean\(aiSuggestionEditText\) \? clean\(aiSuggestionEditText\) : activeAiSuggestionText/);
   assert.match(inboxSrc, /const handleCancelEditAiSuggestion = useCallback\(\(\) => \{\s*setEditingAiDraft\(false\);\s*setAiSuggestionEditText\(""\);/);
   // card shows the FINAL text that will be sent
-  assert.match(inboxSrc, /النص اللي هيتبعت للعميل/);
+  assert.match(inboxSrc, /aiSupport\.inbox\.panel\.textToSend/);
 });
 
 test("frontend: assisted approval does NOT optimistically take over; manual reply does", () => {

@@ -112,7 +112,7 @@ test("new source_message_id / completed tombstone clears the recommendation sele
 
 // ---------------- Providers: shared UX, channel-specific delivery unchanged ----------------
 test("delivery stays channel-specific and unchanged (Messenger rich card / Instagram text+link / WhatsApp image+link)", () => {
-  assert.match(inboxSrc, /if \(ch\.includes\("messenger"\) \|\| ch === "facebook"\) return \{ label: "كارت منتج \(Messenger\)"/);
-  assert.match(inboxSrc, /if \(ch\.includes\("whatsapp"\)\) return \{ label: "صورة \+ لينك"/);
-  assert.match(inboxSrc, /if \(ch\.includes\("instagram"\)\) return \{ label: "نص \+ لينك المنتج"/);
+  assert.match(inboxSrc, /if \(ch\.includes\("messenger"\) \|\| ch === "facebook"\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtRichCard"/);
+  assert.match(inboxSrc, /if \(ch\.includes\("whatsapp"\)\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtImageLink"/);
+  assert.match(inboxSrc, /if \(ch\.includes\("instagram"\)\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtTextLink"/);
 });

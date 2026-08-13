@@ -53,7 +53,7 @@ test("send: WhatsApp assisted uses the shared Evolution sender (sendWhatsAppClou
 });
 
 test("UI: AI Inbox labels WhatsApp delivery as image + link (its audited capability)", () => {
-  assert.match(inboxSrc, /if \(ch\.includes\("whatsapp"\)\) return \{ label: "صورة \+ لينك", kind: "image_link" \};/);
+  assert.match(inboxSrc, /if \(ch\.includes\("whatsapp"\)\) return \{ labelKey: "aiSupport\.inbox\.ui\.fmtImageLink", kind: "image_link" \};/);
   assert.match(inboxSrc, /if \(key === "whatsapp"\) return "واتساب";/);
 });
 
