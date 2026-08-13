@@ -3014,29 +3014,31 @@ function SocialCommentsWorkspace({
                   const replyText = clean(comment.replyText || comment.raw?.reply_text || comment.raw?.rendered_reply || "");
                   return (
                     <div key={comment.id || comment.createdTime} className="flex w-full flex-col gap-2">
-                      <SocialCommentsWorkspaceCommentRow
-                        comment={comment}
-                        selectedCommentKey={selectedCommentKey}
-                        highlightedCommentKey={highlightedCommentKey}
-                        activePostPlatform={activePostPlatform}
-                        replyDraft={replyDraft}
-                        previewReply={previewReply}
-                        suggestedReply={suggestedReply}
-                        replyLoadingKey={replyLoadingKey}
-                        likeLoadingKey={likeLoadingKey}
-                        likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
-                        privateMessageLoadingKey={privateMessageLoadingKey}
-                        privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
-                        leadLoadingKey={leadLoadingKey}
-                        ignoreLoadingKey={ignoreLoadingKey}
-                        onSelectComment={setSelectedCommentKey}
-                        onSelectCustomer={onSelectCustomer}
-                        onLike={submitLike}
-                        onCompose={prepareCommentComposer}
-                        onReply={submitReply}
-                        onPrivateMessage={submitPrivateMessage}
-                        registerCommentNode={registerCommentNode}
-                      />
+                      <div className="mr-auto w-[94%] min-[1200px]:w-[88%]">
+                        <SocialCommentsWorkspaceCommentRow
+                          comment={comment}
+                          selectedCommentKey={selectedCommentKey}
+                          highlightedCommentKey={highlightedCommentKey}
+                          activePostPlatform={activePostPlatform}
+                          replyDraft={replyDraft}
+                          previewReply={previewReply}
+                          suggestedReply={suggestedReply}
+                          replyLoadingKey={replyLoadingKey}
+                          likeLoadingKey={likeLoadingKey}
+                          likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
+                          privateMessageLoadingKey={privateMessageLoadingKey}
+                          privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
+                          leadLoadingKey={leadLoadingKey}
+                          ignoreLoadingKey={ignoreLoadingKey}
+                          onSelectComment={setSelectedCommentKey}
+                          onSelectCustomer={onSelectCustomer}
+                          onLike={submitLike}
+                          onCompose={prepareCommentComposer}
+                          onReply={submitReply}
+                          onPrivateMessage={submitPrivateMessage}
+                          registerCommentNode={registerCommentNode}
+                        />
+                      </div>
                       {replyText ? (
                         <div className="max-w-[78%] self-end rounded-2xl border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3.5 py-2.5 text-start">
                           <div className="text-[10px] font-black text-[var(--primary)]">{t("aiSupport.inbox.socialWorkspace.sent")}</div>
@@ -3797,32 +3799,33 @@ function SocialCommentsWorkspace({
                     ) : null}
 
                     {commentsToRender.map((comment) => (
-                      <SocialCommentsWorkspaceCommentRow
-                        key={comment.id || `${comment.createdTime || ""}:comment`}
-                        comment={comment}
-                        selectedCommentKey={selectedCommentKey}
-                        highlightedCommentKey={highlightedCommentKey}
-                        activePostPlatform={activePostPlatform}
-                        replyDraft={replyDraft}
-                        previewReply={previewReply}
-                        suggestedReply={suggestedReply}
-                        replyLoadingKey={replyLoadingKey}
-                        likeLoadingKey={likeLoadingKey}
-                        likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
-                        privateMessageLoadingKey={privateMessageLoadingKey}
-                        privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
-                        leadLoadingKey={leadLoadingKey}
-                        ignoreLoadingKey={ignoreLoadingKey}
-                        onSelectComment={setSelectedCommentKey}
-                        onSelectCustomer={onSelectCustomer}
-                        onLike={submitLike}
-                        onCompose={prepareCommentComposer}
-                        onReply={submitReply}
-                        onPrivateMessage={submitPrivateMessage}
-                        onCreateLead={handleCreateLead}
-                        onIgnore={handleIgnoreComment}
-                        registerCommentNode={registerCommentNode}
-                      />
+                      <div key={comment.id || `${comment.createdTime || ""}:comment`} className="mr-auto w-[94%] min-[1200px]:w-[88%]">
+                        <SocialCommentsWorkspaceCommentRow
+                          comment={comment}
+                          selectedCommentKey={selectedCommentKey}
+                          highlightedCommentKey={highlightedCommentKey}
+                          activePostPlatform={activePostPlatform}
+                          replyDraft={replyDraft}
+                          previewReply={previewReply}
+                          suggestedReply={suggestedReply}
+                          replyLoadingKey={replyLoadingKey}
+                          likeLoadingKey={likeLoadingKey}
+                          likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
+                          privateMessageLoadingKey={privateMessageLoadingKey}
+                          privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
+                          leadLoadingKey={leadLoadingKey}
+                          ignoreLoadingKey={ignoreLoadingKey}
+                          onSelectComment={setSelectedCommentKey}
+                          onSelectCustomer={onSelectCustomer}
+                          onLike={submitLike}
+                          onCompose={prepareCommentComposer}
+                          onReply={submitReply}
+                          onPrivateMessage={submitPrivateMessage}
+                          onCreateLead={handleCreateLead}
+                          onIgnore={handleIgnoreComment}
+                          registerCommentNode={registerCommentNode}
+                        />
+                      </div>
                     ))}
                   </div>
 
