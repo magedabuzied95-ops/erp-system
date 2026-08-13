@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1159
-- Hardcoded English UI strings: 991
-- Total hardcoded UI strings: 2150
+- Hardcoded Arabic UI strings: 1137
+- Hardcoded English UI strings: 979
+- Total hardcoded UI strings: 2116
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 811 | 609 | 1420 | 19 |
+| main-erp | 58 | 789 | 597 | 1386 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 86 | 168 | 254 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 64 | 156 | 220 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -64,7 +64,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:86 en:168)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:64 en:156)
 
 - 654 [object-key/ar] بارد
 - 655 [object-key/ar] دافئ
@@ -90,23 +90,23 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2373 [jsx-text/en] Cancel
 - 2374 [jsx-text/en] Save edit
 - 3359 [attribute/en] Choose emoji
-- 3394 [jsx-text/en] AI correction memory
-- 3395 [jsx-text/ar] تصحيح رد الـAI
-- 3408 [jsx-text/ar] سؤال العميل
-- 3414 [jsx-text/ar] رد الـAI القديم
-- 3423 [jsx-text/ar] الرد الصحيح
-- 3428 [attribute/ar] اكتب التصحيح هنا...
-- 3434 [jsx-text/ar] نوع التصحيح
-- 3446 [jsx-text/ar] Product ID اختياري
-- 3532 [attribute/en] Matched products
-- 3552 [jsx-text/en] Score
-- 3558 [jsx-text/en] Quick send
-- 3559 [jsx-text/en] Send images
-- 3560 [jsx-text/en] Draft order
-- 3561 [jsx-text/en] Open product
-- 3567 [jsx-text/en] No matched products yet. Refresh after the customer sends a model, color, size, or category.
-- 3576 [object-key/en] Mylerz
-- ... 214 more
+- 3578 [object-key/en] Mylerz
+- 3579 [object-key/en] ShipBlu
+- 3823 [object-key/en] Recommend alternative
+- 3824 [object-key/en] Escalate to human
+- 3825 [object-key/en] Draft order
+- 3826 [object-key/en] Reserve stock
+- 3827 [object-key/ar] المتاح بالمقاس
+- 3828 [object-key/en] Send payment link
+- 3829 [object-key/en] Follow up
+- 3843 [attribute/en] AI Next Step
+- 3848 [jsx-text/en] Recommended next step
+- 3854 [jsx-text/en] Confidence
+- 3858 [jsx-text/en] Reason
+- 3862 [jsx-text/en] Suggested action
+- 3874 [jsx-text/en] Purchase intent:
+- 3924 [jsx-text/en] Size
+- ... 180 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 

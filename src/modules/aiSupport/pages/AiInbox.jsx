@@ -3385,14 +3385,15 @@ function ManualReplyComposer({
 }
 
 function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }) {
+  const { t } = useTranslation();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 px-3 py-4 backdrop-blur-sm md:items-center">
       <div className="w-full max-w-3xl rounded-[28px] border border-white/10 bg-slate-950/98 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.55)]">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200">AI correction memory</div>
-            <h3 className="mt-1 text-lg font-black text-white">تصحيح رد الـAI</h3>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200">{t("aiSupport.inbox.panel.correctionMemory")}</div>
+            <h3 className="mt-1 text-lg font-black text-white">{t("aiSupport.inbox.panel.correctionTitle")}</h3>
           </div>
           <button
             type="button"
@@ -3405,13 +3406,13 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">سؤال العميل</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.customerQuestion")}</div>
             <div className="mt-2 max-h-36 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-7 text-slate-100">
               {clean(draft.customerQuestion) || "غير متاح"}
             </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">رد الـAI القديم</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.oldAiReply")}</div>
             <div className="mt-2 max-h-36 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-7 text-slate-100">
               {clean(draft.aiWrongAnswer) || "غير متاح"}
             </div>
@@ -3420,18 +3421,18 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
 
         <div className="mt-3 grid gap-3 md:grid-cols-[1fr_220px]">
           <label className="block">
-            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الرد الصحيح</div>
+            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.correctReply")}</div>
             <textarea
               value={draft.employeeCorrectAnswer}
               onChange={(event) => onChange({ employeeCorrectAnswer: event.target.value })}
               rows={5}
-              placeholder="اكتب التصحيح هنا..."
+              placeholder={t("aiSupport.inbox.panel.correctionPlaceholder")}
               className="min-h-36 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-medium leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
             />
           </label>
           <div className="space-y-3">
             <label className="block">
-              <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">نوع التصحيح</div>
+              <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.correctionType")}</div>
               <select
                 value={draft.correctionType}
                 onChange={(event) => onChange({ correctionType: event.target.value })}
@@ -3443,7 +3444,7 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Product ID اختياري</div>
+              <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.productIdOptional")}</div>
               <input
                 value={draft.productId}
                 onChange={(event) => onChange({ productId: event.target.value })}
@@ -3525,11 +3526,12 @@ function AutoReplyModePanel({ channelStatus = {}, mode, onChange, saving }) {
 }
 
 function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, onSendImages, onCreateDraft }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
       <SectionTitle
         icon={ShoppingBag}
-        title="Matched products"
+        title={t("aiSupport.inbox.panel.matchedProducts")}
         action={<button type="button" onClick={onRefresh} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Refresh</button>}
       />
       {products.length ? (
@@ -3549,22 +3551,22 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
                     <div className="mt-1 text-xs text-slate-400">{variantLabel}</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Pill tone="zinc">{productSource(product)}</Pill>
-                      {score ? <Pill tone="cyan">Score {score.toFixed(2)}</Pill> : null}
+                      {score ? <Pill tone="cyan">{t("aiSupport.inbox.panel.score")} {score.toFixed(2)}</Pill> : null}
                     </div>
                   </div>
                 </div>
                 {reason ? <p dir={isRtlText(reason) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-400">{reason}</p> : null}
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => onQuickSend(product)} className="h-9 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100">Quick send</button>
-                  <button type="button" onClick={() => onSendImages?.(product)} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2 text-[11px] font-black text-violet-100">Send images</button>
-                  <button type="button" onClick={() => onCreateDraft(product)} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2 text-[11px] font-black text-emerald-100">Draft order</button>
-                  <a href={storefrontProductUrl(product)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open product</a>
+                  <button type="button" onClick={() => onQuickSend(product)} className="h-9 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100">{t("aiSupport.inbox.panel.quickSend")}</button>
+                  <button type="button" onClick={() => onSendImages?.(product)} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2 text-[11px] font-black text-violet-100">{t("aiSupport.inbox.panel.sendImages")}</button>
+                  <button type="button" onClick={() => onCreateDraft(product)} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2 text-[11px] font-black text-emerald-100">{t("aiSupport.inbox.panel.draftOrder")}</button>
+                  <a href={storefrontProductUrl(product)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">{t("aiSupport.inbox.panel.openProduct")}</a>
                 </div>
               </div>
             );
           })}
         </div>
-      ) : <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No matched products yet. Refresh after the customer sends a model, color, size, or category.</div>}
+      ) : <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">{t("aiSupport.inbox.panel.noMatched")}</div>}
     </div>
   );
 }
@@ -3575,7 +3577,7 @@ const AI_INBOX_SHIPPING_PROVIDERS = [
   { id: "bosta", label: "Bosta" },
   { id: "mylerz", label: "Mylerz" },
   { id: "shipblu", label: "ShipBlu" },
-  { id: "in_store_delivery", label: "توصيل المتجر" },
+  { id: "in_store_delivery", labelKey: "aiSupport.inbox.panel.inStoreDelivery" },
 ];
 
 function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null }) {
@@ -3715,7 +3717,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                         }}
                         className={`h-11 rounded-xl border px-2 text-xs font-black transition ${active ? "border-amber-300 bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/30" : "border-white/10 bg-slate-950/70 text-slate-200 hover:border-white/25"}`}
                       >
-                        {provider.label}
+                        {filterLabel(t, provider)}
                       </button>
                     );
                   })}
@@ -3799,6 +3801,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
 }
 
 function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText, onCreateDraft, onPaymentAction, onOpenProductPicker }) {
+  const { t } = useTranslation();
   const intent = plan.intent || {};
   const lead = plan.lead || {};
   const actions = asArray(plan.suggested_actions);
@@ -3896,10 +3899,10 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
                   <div className="mt-1 text-xs text-slate-500">{productVariantLabel(primary)}</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Pill tone="zinc">{productSource(primary)}</Pill>
-                    {productScore(primary) ? <Pill tone="cyan">Score {productScore(primary).toFixed(2)}</Pill> : null}
+                    {productScore(primary) ? <Pill tone="cyan">{t("aiSupport.inbox.panel.score")} {productScore(primary).toFixed(2)}</Pill> : null}
                   </div>
                   {productReason(primary) ? <p dir={isRtlText(productReason(primary)) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-400">{productReason(primary)}</p> : null}
-                  <button type="button" onClick={() => onUseText(`${primary.name || primary.title}\n${money(primary.final_price || primary.price)}\n${storefrontProductUrl(primary)}`.trim())} className="mt-2 inline-flex h-8 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">Quick send card</button>
+                  <button type="button" onClick={() => onUseText(`${primary.name || primary.title}\n${money(primary.final_price || primary.price)}\n${storefrontProductUrl(primary)}`.trim())} className="mt-2 inline-flex h-8 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">{t("aiSupport.inbox.panel.quickSendCard")}</button>
                 </div>
               </div>
             </div>
@@ -3916,12 +3919,12 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
             ))}
           </div> : null}
           <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-black text-slate-100"><BadgePercent className="h-4 w-4 text-amber-200" />الذاكرة</div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-black text-slate-100"><BadgePercent className="h-4 w-4 text-amber-200" />{t("aiSupport.inbox.panel.memory")}</div>
             <div className="flex flex-wrap gap-1.5">
               {memory.preferred_size ? <Pill tone="zinc">Size {memory.preferred_size}</Pill> : null}
               {asArray(memory.preferred_colors).slice(0, 3).map((item) => <Pill key={item} tone="zinc">{item}</Pill>)}
               {asArray(memory.favorite_models).slice(0, 3).map((item) => <Pill key={item} tone="zinc">{item}</Pill>)}
-              {!memory.preferred_size && !asArray(memory.preferred_colors).length && !asArray(memory.favorite_models).length ? <span className="text-xs text-slate-500">ستتحسن الذاكرة مع استمرار المحادثة.</span> : null}
+              {!memory.preferred_size && !asArray(memory.preferred_colors).length && !asArray(memory.favorite_models).length ? <span className="text-xs text-slate-500">{t("aiSupport.inbox.panel.memoryHint")}</span> : null}
             </div>
           </div>
         </div>
@@ -3930,12 +3933,17 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
   );
 }
 
+/*
+ * `status` is a RAW enum and is compared with === here; it is never rewritten.
+ * The function returns a translation KEY so the caller resolves it at render
+ * time. An unrecognised status keeps its raw text via `label`.
+ */
 const confirmationStatusMeta = (status = "") => {
   const key = clean(status).toLowerCase();
-  if (key === "confirmed") return { label: "تم التأكيد من العميل", tone: "emerald" };
-  if (key === "edit_requested") return { label: "العميل طلب تعديل", tone: "amber" };
-  if (key === "cancelled_by_customer") return { label: "ألغاه العميل", tone: "rose" };
-  if (key === "pending_confirmation") return { label: "بانتظار التأكيد", tone: "cyan" };
+  if (key === "confirmed") return { labelKey: "aiSupport.inbox.panel.confirmed", tone: "emerald" };
+  if (key === "edit_requested") return { labelKey: "aiSupport.inbox.panel.editRequested", tone: "amber" };
+  if (key === "cancelled_by_customer") return { labelKey: "aiSupport.inbox.panel.cancelledByCustomer", tone: "rose" };
+  if (key === "pending_confirmation") return { labelKey: "aiSupport.inbox.panel.pendingConfirmation", tone: "cyan" };
   return { label: key || "Unknown", tone: "zinc" };
 };
 
@@ -3990,7 +3998,7 @@ function CustomerContextCard({ conversation = {} }) {
       <div className="mb-3 flex items-center gap-3">
         {avatarUrl ? <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">سياق العميل</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.customerContext")}</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
         </div>
       </div>
@@ -4010,23 +4018,23 @@ function CustomerContextCard({ conversation = {} }) {
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
-        {lastProduct ? <Pill tone="cyan">آخر منتج {lastProductLabel}</Pill> : null}
-        {lastOrder ? <Pill tone={confirmationMeta.tone}>{confirmationMeta.label}</Pill> : null}
+        {lastProduct ? <Pill tone="cyan">{t("aiSupport.inbox.panel.lastProduct")} {lastProductLabel}</Pill> : null}
+        {lastOrder ? <Pill tone={confirmationMeta.tone}>{filterLabel(t, confirmationMeta)}</Pill> : null}
       </div>
       {lastOrder ? (
         <div className="mb-3 rounded-xl border border-white/10 bg-slate-950/60 p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Order confirmation</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.orderConfirmation")}</div>
               <div className="mt-1 truncate text-sm font-black text-white">{lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</div>
-              <div className="mt-1 text-xs text-slate-400">{confirmationMeta.label}</div>
+              <div className="mt-1 text-xs text-slate-400">{filterLabel(t, confirmationMeta)}</div>
             </div>
-            <Pill tone={confirmationMeta.tone}>{confirmationMeta.label}</Pill>
+            <Pill tone={confirmationMeta.tone}>{filterLabel(t, confirmationMeta)}</Pill>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <button type="button" onClick={() => handleManualOrderAction("confirm")} className="inline-flex items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15">تأكيد يدوي</button>
-            <button type="button" onClick={() => handleManualOrderAction("edit")} className="inline-flex items-center justify-center rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15">تعديل يدوي</button>
-            <button type="button" onClick={() => handleManualOrderAction("cancel")} className="inline-flex items-center justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs font-black text-rose-100 transition hover:bg-rose-400/15">إلغاء يدوي</button>
+            <button type="button" onClick={() => handleManualOrderAction("confirm")} className="inline-flex items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15">{t("aiSupport.inbox.panel.manualConfirm")}</button>
+            <button type="button" onClick={() => handleManualOrderAction("edit")} className="inline-flex items-center justify-center rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15">{t("aiSupport.inbox.panel.manualEdit")}</button>
+            <button type="button" onClick={() => handleManualOrderAction("cancel")} className="inline-flex items-center justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs font-black text-rose-100 transition hover:bg-rose-400/15">{t("aiSupport.inbox.panel.manualCancel")}</button>
           </div>
         </div>
       ) : null}
@@ -4405,16 +4413,16 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
         <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Order confirmation</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.orderConfirmation")}</div>
               <div className="mt-1 truncate text-sm font-black text-white">{lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</div>
-              <div className="mt-1 text-xs text-slate-300">{confirmationMeta.label}</div>
+              <div className="mt-1 text-xs text-slate-300">{filterLabel(t, confirmationMeta)}</div>
             </div>
-            <Pill tone={confirmationMeta.tone}>{confirmationMeta.label}</Pill>
+            <Pill tone={confirmationMeta.tone}>{filterLabel(t, confirmationMeta)}</Pill>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <button type="button" onClick={() => void handleManualOrderAction("confirm")} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-2 text-[11px] font-black text-emerald-100">تأكيد يدوي</button>
-            <button type="button" onClick={() => void handleManualOrderAction("edit")} className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 py-2 text-[11px] font-black text-amber-100">تعديل يدوي</button>
-            <button type="button" onClick={() => void handleManualOrderAction("cancel")} className="rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 py-2 text-[11px] font-black text-rose-100">إلغاء يدوي</button>
+            <button type="button" onClick={() => void handleManualOrderAction("confirm")} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-2 text-[11px] font-black text-emerald-100">{t("aiSupport.inbox.panel.manualConfirm")}</button>
+            <button type="button" onClick={() => void handleManualOrderAction("edit")} className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 py-2 text-[11px] font-black text-amber-100">{t("aiSupport.inbox.panel.manualEdit")}</button>
+            <button type="button" onClick={() => void handleManualOrderAction("cancel")} className="rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 py-2 text-[11px] font-black text-rose-100">{t("aiSupport.inbox.panel.manualCancel")}</button>
           </div>
         </div>
       ) : null}
