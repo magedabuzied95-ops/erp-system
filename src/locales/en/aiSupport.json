@@ -1079,9 +1079,7 @@
       "typeReply": "Type a reply",
       "violationsCount": "violations {{count}}",
       "warningsCount": "warnings {{count}}",
-      "writeInternalNote": "Write an internal note",
-      "today": "Today",
-      "yesterday": "Yesterday"
+      "writeInternalNote": "Write an internal note"
     },
     "pwaOrder": {
       "aiInboxOrder": "AI Inbox Order",

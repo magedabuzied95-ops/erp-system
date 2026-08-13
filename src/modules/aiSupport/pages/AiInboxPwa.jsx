@@ -132,20 +132,19 @@ const looksLikeMessageName = (value = "") => {
 // Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026").
 const transcriptDayKey = (value) => {
   const date = new Date(value || 0);
-  return Number.isFinite(date.getTime()) && date.getFullYear() >= 2020 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
+  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
 };
-const transcriptDayLabel = (value, language = "en", translate = (key) => key) => {
+const transcriptDayLabel = (value) => {
   const date = new Date(value || 0);
   if (!Number.isFinite(date.getTime()) || date.getTime() <= 0) return "";
   const key = transcriptDayKey(value);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  if (!key) return "";
-  if (key === transcriptDayKey(today)) return translate("aiSupport.inbox.pwa.today");
-  if (key === transcriptDayKey(yesterday)) return translate("aiSupport.inbox.pwa.yesterday");
+  if (key === transcriptDayKey(today)) return "اليوم";
+  if (key === transcriptDayKey(yesterday)) return "أمس";
   try {
-    return new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
+    return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
   } catch {
     return date.toLocaleDateString();
   }
@@ -2457,7 +2456,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onReact,
   reactionOptions,
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const isCommentThread = isCommentConversation(conversation || {});
   if (!rows.length && !isCommentThread) {
     return (
@@ -2524,7 +2523,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
         const rowTime = transcriptRowTime(row);
         const rowKey = transcriptDayKey(rowTime);
         const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
-        const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime, i18n.resolvedLanguage === "ar" ? "ar" : "en", t) : "";
+        const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime) : "";
         return (
           <Fragment key={row.key}>
             {dayLabel ? (

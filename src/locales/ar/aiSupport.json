@@ -1079,9 +1079,7 @@
       "typeReply": "اكتب ردًا",
       "violationsCount": "المخالفات {{count}}",
       "warningsCount": "التحذيرات {{count}}",
-      "writeInternalNote": "اكتب ملاحظة داخلية",
-      "today": "اليوم",
-      "yesterday": "أمس"
+      "writeInternalNote": "اكتب ملاحظة داخلية"
     },
     "pwaOrder": {
       "aiInboxOrder": "طلب صندوق الذكاء",
