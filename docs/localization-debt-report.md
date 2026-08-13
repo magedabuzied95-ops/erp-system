@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 125
-- Hardcoded Arabic UI strings: 1249
-- Hardcoded English UI strings: 1096
-- Total hardcoded UI strings: 2345
-- Mixed-language files (both scripts hardcoded): 34
+- Files with debt: 123
+- Hardcoded Arabic UI strings: 1236
+- Hardcoded English UI strings: 1095
+- Total hardcoded UI strings: 2331
+- Mixed-language files (both scripts hardcoded): 33
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 61 | 886 | 713 | 1599 | 21 |
-| shared | 48 | 163 | 300 | 463 | 9 |
+| main-erp | 60 | 879 | 712 | 1591 | 20 |
+| shared | 47 | 157 | 300 | 457 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -55,7 +55,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 4 | 5 | 9 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 7 | 2 | 9 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 6 | 2 | 8 |
-| src/modules/notifications/pages/NotificationsCenter.jsx | main-erp | 7 | 1 | 8 |
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
 | src/components/ai/AISuggestedReplies.jsx | shared | 1 | 4 | 5 |
 | src/modules/products/lib/productClassifications.js | main-erp | 1 | 4 | 5 |
@@ -1451,17 +1450,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 860 [jsx-text/en] Resolver result
 - 864 [jsx-text/en] Source
 
-### src/modules/notifications/pages/NotificationsCenter.jsx (main-erp — ar:7 en:1)
-
-- 101 [jsx-text/en] Notifications Center
-- 106 [jsx-text/ar] الإشعارات
-- 113 [jsx-text/ar] مركز متابعة أحداث ERP والويب سايت في الوقت الحقيقي.
-- 142 [attribute/ar] بحث
-- 155 [attribute/ar] تصنيف الإشعارات
-- 181 [jsx-text/ar] عرض القسم
-- 199 [jsx-text/ar] لا توجد إشعارات
-- 200 [jsx-text/ar] لا توجد نتائج مطابقة للفلاتر الحالية. غيّر الفلاتر أو جرّب التحديث لاحقا.
-
 ### src/modules/aiSupport/components/socialAutomation/automationEngine.js (shared — ar:0 en:7)
 
 - 10 [object-key/en] Product Comment Sales Flow
@@ -1577,15 +1565,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 247 [jsx-text/en] No image available
 - 255 [jsx-text/en] Variants
 - 258 [jsx-text/en] No variants available.
-
-### src/shared/notifications/NotificationBell.jsx (shared — ar:6 en:0)
-
-- 158 [attribute/ar] غير مقروء
-- 263 [attribute/ar] فتح الإشعارات
-- 276 [attribute/ar] إغلاق الإشعارات
-- 307 [attribute/ar] إغلاق الإشعارات
-- 338 [jsx-text/ar] تعذر تحميل الإشعارات
-- 375 [jsx-text/ar] لا توجد إشعارات
 
 ### src/components/ai/AISuggestedReplies.jsx (shared — ar:1 en:4)
 
