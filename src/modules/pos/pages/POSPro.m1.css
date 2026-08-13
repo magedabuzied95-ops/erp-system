@@ -288,3 +288,70 @@ html[data-theme="light"] .pos-pro-shell .pos-checkout-paymob {
     background: rgb(255 255 255 / 97%) !important;
   }
 }
+
+/* ==========================================================================
+   POST-CLOSURE: status-tint text in Light
+   --------------------------------------------------------------------------
+   POS renders OUTSIDE `.m1-shell-root`, so NONE of foundation.css's
+   palette -> token normalisation reaches it: that whole layer is scoped to
+   `.m1-shell-root .m1-shell-content`. Every emerald/amber/rose/cyan class in
+   POS is therefore raw Tailwind, and the light tint steps (amber-50/100,
+   emerald-100) were authored as text on a dark canvas.
+
+   In Light that puts a near-white tint on a near-white tint. Measured on
+   Production, 10 visible nodes, ALL of them invisible:
+
+     "فاتورة 1" / "0.00 ج.م"   amber-50  on amber tint    1.02
+     "مطلوب"                    amber-100 on amber-500/15  1.02
+     "فاتورة"                   emerald-100 on emerald tint 1.04
+     catalog count badge        emerald-100 on emerald-400/15 1.06
+     "خصم الفاتورة"             amber-100 on amber-300/10  1.07
+     "- 0.00 ج.م"               amber-100 on white         1.11
+     "مصروف"                    amber-100                  1.15
+     "العمليات الأخيرة"         emerald-100                1.16
+     invoice count chip         amber-50 on bg-black/25    1.87
+
+   Light only. Dark measured 0 failures on this route and is deliberately left
+   untouched, so this cannot regress the commercial dark palette.
+
+   Scoped POSITIVELY to the five containers that own those nodes rather than to
+   `.pos-pro-shell` as a whole, because the shared mobile action bar
+   (`ResponsiveMobile.jsx`, `xl:hidden`, `bg-zinc-950/95`) keeps a genuinely dark
+   plate and its light tint text is correct ON that plate. A shell-wide rule
+   would drag it from ~12 down to ~3.6 at mobile widths. That bar is a shared
+   component with consumers outside POS and is reported separately, not changed
+   here.
+   ====================================================================== */
+
+html[data-theme="light"] .pos-pro-shell
+  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
+  :is([class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"]) {
+  color: var(--warning) !important;
+}
+
+html[data-theme="light"] .pos-pro-shell
+  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
+  :is([class*="text-emerald-"], [class*="text-green-"]) {
+  color: var(--success) !important;
+}
+
+html[data-theme="light"] .pos-pro-shell
+  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
+  :is([class*="text-rose-"], [class*="text-red-"]) {
+  color: var(--danger) !important;
+}
+
+html[data-theme="light"] .pos-pro-shell
+  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
+  :is([class*="text-cyan-"], [class*="text-sky-"], [class*="text-blue-"], [class*="text-violet-"]) {
+  color: var(--info) !important;
+}
+
+/* `bg-black/α` is a dark-canvas trick: it deepens a surface that is already
+   dark. Over a light canvas it composites to mud (measured rgb(191,187,168)),
+   so the small counter chips that use it take the neutral surface step. */
+html[data-theme="light"] .pos-pro-shell
+  :is(.pos-desktop-toolbar, .pos-catalog-toolbar, .pos-cart-panel, .pos-cart-totals, .pos-customer-picker)
+  :is([class*="bg-black/"]) {
+  background-color: var(--surface-soft) !important;
+}
