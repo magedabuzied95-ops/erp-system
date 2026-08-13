@@ -28,7 +28,7 @@ test("panels NO LONGER fall back to stale frontend state (aiReply.*) or last_ai_
 });
 
 test("aiSuggestionVisible is the SAME identity the AI Suggested Reply card uses (source_message_id + stale + dismissed)", () => {
-  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
+  assert.match(inboxSrc, /const aiSuggestionVisible = Boolean\(activeAiSuggestionText\) && !draftCompleted && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;/);
   // the card renders only when the same gate is true — panels + card now share one lifecycle
   assert.match(inboxSrc, /aiSuggestionVisible && clean\(aiSuggestionText\) \? \(\s*<AiSuggestionCard/);
 });
