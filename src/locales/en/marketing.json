@@ -165,6 +165,29 @@
       "website": "Website",
       "pos": "POS",
       "all": "All"
+    },
+    "export": {
+      "menu": "Print and share",
+      "printA4": "Print A4 — 6 coupons",
+      "printA5": "Print A5 — 2 coupons",
+      "printSingle": "Print one coupon",
+      "printThis": "Print this coupon",
+      "exportPdf": "Export PDF",
+      "emailPdf": "Email the PDF",
+      "shareWhatsapp": "Share on WhatsApp",
+      "shareTitle": "Discount coupons",
+      "shareText": "The discount coupon file has been downloaded and can be attached to the chat.",
+      "prepareFailed": "Unable to prepare the coupon file",
+      "exportFailed": "The export failed",
+      "emailSent": "The coupon file was emailed",
+      "emailFailed": "Unable to email the coupon file",
+      "dialog": {
+        "eyebrow": "PDF by email",
+        "title": "Send discount coupons",
+        "subtitle": "A print-ready A4 file will be sent as an attachment.",
+        "email": "Email address",
+        "send": "Send PDF"
+      }
     }
   },
   "posts": {

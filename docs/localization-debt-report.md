@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 132
-- Hardcoded Arabic UI strings: 1280
-- Hardcoded English UI strings: 1143
-- Total hardcoded UI strings: 2423
+- Files with debt: 131
+- Hardcoded Arabic UI strings: 1256
+- Hardcoded English UI strings: 1144
+- Total hardcoded UI strings: 2400
 - Mixed-language files (both scripts hardcoded): 36
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 66 | 917 | 747 | 1664 | 23 |
+| main-erp | 65 | 893 | 748 | 1641 | 23 |
 | shared | 50 | 163 | 313 | 476 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -1301,21 +1301,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1768 [inline-ternary/ar] isArabic ? "صورة الموظف" : "Employee photo"
 - 1770 [inline-ternary/ar] isArabic ? "ارفع صورة أو الصق رابط الصورة الرسمي." : "Upload an image or paste the official employee photo URL."
 
-### src/modules/coupons/pages/CouponsManager.jsx (main-erp — ar:12 en:0)
-
-- 264 [notification/ar] تم إرسال ملف الكوبونات بالبريد
-- 369 [attribute/ar] طباعة A4 — 6 كوبونات
-- 370 [attribute/ar] طباعة A5 — كوبونان
-- 371 [attribute/ar] طباعة كوبون واحد
-- 373 [attribute/ar] تصدير PDF
-- 374 [attribute/ar] إرسال PDF بالبريد
-- 375 [attribute/ar] مشاركة عبر واتساب
-- 416 [attribute/ar] طباعة هذا الكوبون
-- 446 [jsx-text/ar] PDF عبر البريد
-- 447 [jsx-text/ar] إرسال قسائم الخصم
-- 448 [jsx-text/ar] سيتم إرسال ملف A4 جاهز للطباعة كمرفق.
-- 453 [jsx-text/ar] البريد الإلكتروني
-
 ### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:3)
 
 - 358 [jsx-text/en] Analytics & Reports
@@ -1330,21 +1315,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 435 [inline-ternary/ar] isArabic ? "طرق الدفع" : "Payment Methods"
 - 438 [inline-ternary/ar] isArabic ? "المبيعات حسب الفرع" : "Sales by Branch"
 - 441 [inline-ternary/ar] isArabic ? "اتجاه الحضور" : "Attendance Trend"
-
-### src/modules/warehouse/pages/WarehouseLivePicks.jsx (main-erp — ar:12 en:0)
-
-- 434 [jsx-text/ar] التقاط المخزن المباشر
-- 458 [jsx-text/ar] آخر استقبال:
-- 534 [attribute/ar] اللون
-- 535 [attribute/ar] كود الأرتكل
-- 536 [attribute/ar] اسم المصنع
-- 540 [attribute/ar] البائع
-- 541 [attribute/ar] الوقت
-- 556 [jsx-text/ar] بانتظار أول سحب من الـ POS
-- 557 [jsx-text/ar] التنبيه سيظهر مباشرة بعد "إضافة للفاتورة" بدون أي إجراءات يدوية.
-- 588 [jsx-text/ar] اللون:
-- 589 [jsx-text/ar] كود الأرتكل:
-- 590 [jsx-text/ar] اسم المصنع:
 
 ### src/components/dashboard/CommandCenterDashboard.jsx (shared — ar:0 en:11)
 
@@ -1969,6 +1939,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/reports/lib/metricFormat.js (main-erp — ar:1 en:0)
 
 - 47 [inline-ternary/ar] language).startsWith("ar") ? (millions ? " م" : " ألف"
+
+### src/modules/warehouse/pages/WarehouseLivePicks.jsx (main-erp — ar:0 en:1)
+
+- 19 [inline-ternary/en] language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB"
 
 ### src/pages/ActivityLogs.jsx (main-erp — ar:0 en:1)
 
