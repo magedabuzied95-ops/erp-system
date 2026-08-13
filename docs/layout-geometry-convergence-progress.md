@@ -1032,3 +1032,252 @@ the rule, which would also un-centre the reading surfaces.
    *up* to the width-defining ancestor and confirm with a live toggle test before
    editing — the first attribution here was wrong and only the post-deploy
    measurement caught it.
+
+---
+
+## Session 7 — FLUID WORKSPACE RULING EXECUTED (cp4 + cp5)
+
+The open design question escalated at the end of session 6 was **answered by the
+user**: ordinary operational ERP surfaces should consume the available workspace
+instead of sitting as narrow centred islands. This applies system-wide, not only
+to Marketing. Fluid does **not** mean full-bleed — canonical shell gutters stay.
+
+### Baseline
+
+| Item | Value |
+|---|---|
+| Starting `origin/main` | `d56f7a3` |
+| Starting Production | `d56f7a3` (fingerprint `d56f7a34c71e`) |
+| `visual/layout-geometry` | `d56f7a3` — already merged, 0 ahead / 0 behind |
+
+Worked in an isolated git worktree (`.claude/worktrees/fluid-workspace-convergence`)
+because the shared checkout was dirty with a concurrent AI-inbox workstream.
+
+### The user's three named surfaces mapped onto two owners
+
+`/settings/company`, `/marketing/ai-center/leads` and `/admin/ai-channels` were
+named as narrow islands. A source grep for page-level caps landed all three on
+exactly two shared owners before a single measurement was taken —
+`SettingsCenter.m1.css:2` and `AiMarketing.m1.css:2`.
+
+### Caps are viewport-dependent — measure at the width the user actually uses
+
+First measured at 1920 CSS px (1570 available): `/settings/company` reported
+**100 %** utilisation and *no* binding cap, because a 1600 px cap cannot bind
+inside 1570 px of workspace. Re-measured at the user's real **2288 px** (1938
+available), the same route reports **82.6 %** with the cap binding.
+
+**Rule carried forward: a width cap is invisible until the workspace exceeds it.
+Always measure the fluid dimension at the widest viewport in use, not a
+convenient one.** A 1440-px-only sweep would have reported this whole programme
+as clean.
+
+The auditor also gained an `effectiveContentWidth` notion: the shallowest
+*binding* cap (depth ≤ 3), not the widest in-flow element — a full-bleed
+background wrapper otherwise reports 100 % while the real content column is
+capped far narrower underneath it.
+
+### Baseline matrix — Light/RTL @ 2288 px (1938 available), Production `d56f7a3`
+
+74 routes measured. Already fluid at **100 %**: `/dashboard`, `/orders`,
+`/products` + all `/products/*`, the entire `/accounting/*` family, `/employees/*`,
+all `/ai-studio/*`, `/workspace`, `/expenses`, `/users`, `/roles`, `/billing`,
+`/loyalty`, `/staff/tasks`, `/inbox`, `/settings/users`, `/settings/permissions`,
+`/settings/roles`.
+
+Capped operational surfaces found:
+
+| Utilisation | Unused | Routes | Owner |
+|---|---|---|---|
+| 59.4 % | 786 px | `/admin/ai-support-console` and family | 1480 + inner `max-w-6xl` |
+| 66 % | 658 px | `/marketing`, `/marketing/attribution`, `/marketing/posts`, `/marketing/campaigns`, `/marketing/templates`, `/marketing/settings` | 1480 + inner `max-w-7xl` |
+| 52.8 % | 914 px | `/ai/settings` | `max-w-5xl` |
+| 76.4 % | 458 px | remaining 14 `/marketing/*` + `/admin/ai-*` | `AiMarketing.m1.css:2` |
+| 79.3 % | 402 px | `/operations/shipping` | `max-w-[96rem]` |
+| 82.6 % | 338 px | settings family, `/customers`, `/notifications`, `/reports/*`, `/website/settings` | four 1600 px owners |
+| 92.9 % | 138 px | `/inventory/*`, `/purchases`, `/warehouses`, `/suppliers`, `/branches`, `/stock-transfers`, `/analytics`, `/smart-warehouse` | shared 1800 px shells |
+
+### cp4 — marketing + AI operational scope
+
+Live DOM toggle proof **before** editing (per session 6's lesson):
+`/marketing/posts` and `/marketing` both 1480 → 1938 px, 76.4 % → 100 %, with
+in-flow escapes 0 and page overflow 0 in **both** states, fully reversible.
+
+Owners changed: `AiMarketing.m1.css:2` (width cap only — colour/font declarations
+untouched) and the `max-w-7xl` page-root idiom in 8 files.
+
+Post-deploy on `4952d4763dce`:
+
+| Route | Before | After |
+|---|---|---|
+| `/marketing/posts` | 1480 / 76.4 % / caps [1480,1280] / gutters 229·229 | **1937 / 100 % / caps [] / gutters 0·0** |
+| `/marketing` | 1280 / 66 % | **1937 / 100 %** |
+| `/marketing/ai-center/leads` | 1480 / 76.4 % | **1937 / 100 %** |
+| `/marketing/attribution` | 1280 / 66 % | **1937 / 100 %** |
+| `/marketing/campaigns`, `/marketing/templates`, `/marketing/settings`, `/admin/ai-support-console` | 66–76.4 % | **100 %** |
+
+`escNotInScrollport 0`, `escInScrollport 0`, `htmlOvf 0` on every route — widening
+introduced **no** overflow. **DEFECT 3 regression check passed**: `/marketing/posts`
+is the frozen `FIXED_VERIFIED` route, and the cp3 `min-w-0` fix still holds under
+the now-wider container.
+
+### cp5 — remaining operational owners
+
+17 files. Shared shells (InventoryShell, OrdersShell, FlowShell, ReportsLayout,
+Branches) plus the settings/customers/notifications/shipping/AI page roots.
+
+`FlowShell`'s `wide` prop only ever selected between `max-w-none` and
+`max-w-[1800px]`; with the cap gone it was dead and was removed with its single
+caller.
+
+**Deliberately kept:** `max-w-[calc(100vw-3rem)]` on the settings page root — a
+viewport overflow guard, not a design cap.
+
+### Checkpoints
+
+| # | Scope | Rollback ref | Released |
+|---|---|---|---|
+| cp4 | marketing/AI scope, 9 files | `rollback/pre-layout-geometry-cp4-20260813` → `d56f7a3` | `4952d47` — **FIXED_FLUID_VERIFIED** |
+| cp5 | remaining owners, 17 files | `rollback/pre-layout-geometry-cp5-20260813` → `4952d47` | `8498cbb` |
+
+Both: eslint 0 errors, `vite build` green, guards 76/77 then 94/95. The single
+failure (`typography-spacing-convergence`, `AiStudio.jsx: h-8` ×4) reproduces
+**identically on the pristine base** — verified by stashing the changes and
+re-running. Zero newly introduced failures.
+
+### INTENTIONAL_CAPPED — with semantic reasons
+
+| Surface | Cap | Reason |
+|---|---|---|
+| Modals across marketing/publisher | `max-w-6xl` / `max-w-5xl` with `max-h-[92vh]` | Focused overlay; a full-width dialog is harder to use, not easier |
+| `/manager/inventory-approvals` | 672 px | Manager portal is a mobile-first focused surface; it renders without the ERP sidebar (2226 px available) and is designed as a single column |
+| In-card prose (`max-w-3xl`, `max-w-2xl` on `<p>`) | 672–768 px | Readable line measure inside a card — §9 explicitly preserves this; the card itself is fluid |
+| Global `--content-max: 1480px` | 1480 px | Untouched design token still used by `.m1-container`; only the Reporting Center opted out |
+
+### Behaviour freeze
+
+Honoured. Every edit is a `className` width utility or a CSS `max-width`
+declaration. No API, DB, payload, calculation, permission, order-state,
+inventory, payment, POS, workflow, localization or AI behaviour touched.
+
+
+### Post-deploy verification of cp5 on `8498cbb3b4fb`
+
+Every route below: `escNotInScrollport 0`, `escInScrollport 0`, `htmlOvf 0`,
+gutters 0 · 0 symmetric, `rootKids 2`.
+
+| Route | Before | After |
+|---|---|---|
+| `/settings/company` (user example) | 1600 / 82.6 % | **1937 / 100 %** |
+| `/admin/ai-channels` (user example) | 1480 → 1536 / 79.3 % | **1937 / 100 %** |
+| `/ai/settings` | 1024 / 52.8 % | **1937 / 100 %** |
+| `/customers`, `/notifications`, `/website/settings` | 1600 / 82.6 % | **1937 / 100 %** |
+| `/reports/sales`, `/reports/inventory`, `/reports/overview` | 1600 / 82.6 % | **1937 / 100 %** |
+| `/inventory`, `/purchases`, `/warehouses`, `/suppliers`, `/branches`, `/stock-transfers`, `/smart-warehouse`, `/analytics` | 1800 / 92.9 % | **1937 / 100 %** |
+| `/operations/shipping` | 1536 / 79.3 % | **1937 / 100 %** |
+| `/settings/appearance`, `/marketing/social-comments` | capped | **1937 / 100 %** |
+
+**Frozen-reference regression** (`/dashboard`, `/orders`, `/products`,
+`/customers`): all 1937 / 100 % / 0 escapes / 0 overflow. No regression.
+
+**Frozen defect regression:** DEFECT 1 (`/settings/company` branding overflow)
+and DEFECT 3 (`/marketing/posts`) both still clean at the new wider widths.
+
+### Two more auditor fixes
+
+**Fix #8 — skeleton bars are not width owners.** `/analytics` reported 34.7 %
+utilisation with "binding caps" of 896 and 672 px. Those were
+`div.mt-5.h-12.max-w-4xl` and `div.mt-4.h-6.max-w-2xl` — **loading skeleton
+placeholder bars**. A page-level cap must now also be ≥200 px tall and contain
+≥8 descendants. Re-measured: `/analytics` is 100 %, zero caps.
+
+**Fix #9 — an element that is *itself* a scrollport owns its overflow.**
+`/reports/inventory` reported one in-flow escape: a `-mx-1 overflow-x-auto`
+container overhanging **+4 px on both logical edges**. That is the symmetric
+full-bleed idiom on a self-owned horizontal scroller. The scrollport test walked
+only *ancestors*, so it missed that the element itself scrolls. `NOT_A_DEFECT`.
+
+### Responsive matrix (changed shared owners)
+
+| Rung | CSS width | Available | Result |
+|---|---|---|---|
+| A | 2288 | 1937 | all changed owners 100 %, 0 real escapes, 0 page overflow |
+| B | 1440 | 1089 | all 100 %, 0 real escapes. `/customers` 9 escapes — all inside legitimate table scrollports |
+| C | 1024 | 690 | `/dashboard` `/settings/company` `/marketing` `/reports/sales` `/warehouses` 100 % clean. `/suppliers` 185.6 % and `/customers` 156.6 % — **all** escapes inside table scrollports (`escReal 0`). **`/inventory` = DEFECT 4** |
+| D | 768 | 713 | `/dashboard` `/settings/company` `/marketing` `/reports/sales` 100 %, 0 escapes, 0 page overflow |
+
+**RTL / LTR:** measured both on `/settings/company`, `/marketing`, `/inventory` —
+gutters `0 · 0`, utilisation 100 %, 0 escapes in **both** directions. The changes
+are direction-invariant by construction: every cap removed was either a symmetric
+`margin-inline:auto` centre or a `max-width`, and the result is a zero-gutter
+full-width column with no handedness.
+
+**Theme:** this session measured in **Light**. Geometry here is theme-independent —
+no changed declaration is inside a `dark:` variant or theme-conditional block, and
+no colour/typography contract was touched.
+
+### DEFECT 4 — `NEEDS_FLUID_FIX` — `/inventory` at ≤1024 px, PRE-EXISTING
+
+Found by the rung-C sweep. **Not caused by cp4/cp5** — proven, not assumed:
+restoring `max-width: 1800px` on the page root in the live DOM produced
+**byte-identical** numbers (content 1491, utilisation 216.1 %, `escReal` 19024).
+A 1800 px cap cannot bind inside 690 px of workspace, so the cp5 edit is a no-op
+at this viewport.
+
+| Quantity | Value @ 1024 |
+|---|---|
+| available workspace | 690 px |
+| page content width | **1491 px** |
+| utilisation | **216 %** |
+| in-flow escapes NOT in a scrollport | **19 024** |
+| page-level horizontal overflow | 0 |
+
+`htmlOvf 0` with no scrollport is the DEFECT 3 signature: the shell's
+`overflow-x-hidden` **clips** the excess, so the content is unreachable.
+
+Owner, established by walking **up** (walking *down* found only a stretched
+`truncate`/`nowrap` node — the same trap that produced session 6's wrong first
+attribution):
+
+```
+div.mt-4.grid.gap-3.xl:grid-cols-2   w 575   grid-template-columns: 1490.97px  <- track blown out
+  div.relative.rounded-[…].border.p-4 w 1491  min-width: auto                   <- forcing grid item
+```
+
+**Open, deliberately not fixed here.** `min-width: 0` on the card alone does
+**not** collapse the track (1491 unchanged), so the DEFECT 3 remedy does not
+transfer directly and the originator inside the card is still unidentified.
+Shipping a guess is exactly what session 6 proved costly. Scope: `/inventory`
+only — `/warehouses`, `/suppliers`, `/customers`, `/reports/*` at 1024 are clean
+or route their overflow through legitimate scrollports.
+
+### Programme state after session 7
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | **5** total (`e7b5745`, `729d979`, `6b0dff3`, **`4952d47`**, **`8498cbb`**) |
+| Rollback refs (this session) | cp4 → `d56f7a3`, cp5 → `4952d47` (both pushed) |
+| Shared width owners changed | **11** |
+| Width caps removed | **26** across 26 files |
+| Width caps preserved (explained) | 4 classes — modals, manager portal, in-card prose, `--content-max` token |
+| Routes moved to 100 % utilisation | **40** |
+| Defects: found / FIXED_VERIFIED / dismissed / **open** | 4 / 3 / 1 / **1 (DEFECT 4)** |
+| Production at session end | **`8498cbb`** |
+| Auditor fixes to date | **9** |
+
+### RESUME MARKER (supersedes session 6)
+
+1. **DEFECT 4** — `/inventory` at ≤1024 px. Find what establishes the 1491 px
+   min-content width inside `div.relative.rounded-[…].border.p-4`; walk **up**,
+   prove with a live toggle, then full Safe Release + post-deploy re-measure at
+   **1024**, not just at wide.
+2. Complete rungs C/D across the remaining ~60 routes — session 7 verified the
+   changed owners at every rung, but the full matrix at 1024/768 is not swept.
+   **Rung C is where defects actually live**; wide viewports hid DEFECT 4 entirely.
+3. Dark-theme smoke on the 40 newly-fluid routes (geometry is theme-independent
+   here, but the smoke is owed by the mandate).
+4. Internal states (tabs, drawers, expanded filters) and the 7 pathological
+   surfaces (bounded → `PASS_BOUNDED`) remain unswept.
+5. **Rule added this session: a width cap is invisible until the workspace
+   exceeds it.** Measure the fluid dimension at the widest viewport in real use.
+   A 1440-only sweep reports this entire programme as clean.
