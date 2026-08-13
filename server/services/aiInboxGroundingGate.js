@@ -159,10 +159,34 @@ const STOPWORDS = new Set([
   "شكرا", "تمام", "ok", "اوك", "please", "the", "a", "an", "do", "you", "have", "is", "there", "any", "of",
 ]);
 
+// Batch 1A-2.1 — Arabic definite article on a PRODUCT/BRAND/MODEL search token. Customers write "الجوردن فور" as
+// naturally as the bare form, but the catalog stores "Air Jordan 4", so the article-prefixed token matched nothing
+// and the turn fell through ungrounded — which is how a raw LLM price survived ("الجوردن فور بكام؟").
+// Deliberately conservative: only a leading "ال" on a token of ≥5 chars whose remainder is ≥3 chars, so short
+// words are untouched and the article is never mistaken for the start of a real name. It applies ONLY to
+// brand/model search terms — support-fact intents (العنوان / الاستبدال / الشحن), greetings and price wording are
+// detected by other modules and never pass through here. Runs after normalizeAliasText, so "الأديداس" has already
+// folded to "الاديداس" before the article is removed.
+export const normalizeArabicProductSearchToken = (token = "") => {
+  const t = String(token || "").trim();
+  if (t.length < 5 || !t.startsWith("ال")) return t;
+  const rest = t.slice(2);
+  return rest.length >= 3 ? rest : t;
+};
+
+export const stripArabicDefiniteArticle = (term = "") =>
+  normalizeAliasText(term).split(/\s+/).filter(Boolean).map(normalizeArabicProductSearchToken).join(" ").trim();
+
 // Phase 10.8 — expand a free-text brand/model term into meaningful matcher terms via the shared alias engine.
 // Keeps only terms with a letter (drops bare numbers so a lone size/quantity can't cause a false name match).
-export const buildBrandModelTerms = (term = "") =>
-  expandSearchAliasTerms(term, { limit: 60 }).filter((t) => t && t.length >= 3 && /[a-z؀-ۿ]/.test(t));
+// Batch 1A-2.1 — the article-stripped form is expanded too and UNIONed in. This is ADDITIVE: the original terms
+// come first and none is removed, so nothing that resolves today can stop resolving because of this change.
+export const buildBrandModelTerms = (term = "") => {
+  const expand = (value) => expandSearchAliasTerms(value, { limit: 60 });
+  const stripped = stripArabicDefiniteArticle(term);
+  const all = stripped && stripped !== normalizeAliasText(term) ? [...expand(term), ...expand(stripped)] : expand(term);
+  return [...new Set(all)].filter((t) => t && t.length >= 3 && /[a-z؀-ۿ]/.test(t));
+};
 
 // Score how SPECIFICALLY a product name matches the expanded terms. A multi-word phrase ("nike air max",
 // "jordan 4") dominates a single token ("air", "jordan"); among equal word-counts the longer term wins. This
