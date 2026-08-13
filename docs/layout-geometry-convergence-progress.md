@@ -371,3 +371,105 @@ the DOM belongs to the new route; then `run()`. A row is PASS only when
 `landed === route && settled && domChanged`. Budget each slice to 30 s or less:
 the CDP evaluator hard-times-out at 45 s. `/dashboard` must reproduce
 7 x (255 x 172) + 3 x (622 x 340) with 0 flags before any sweep is trusted.
+
+---
+
+## Session 2 — LTR pass at Production `5c123e3`, and a reproducible app-boot failure
+
+### Measured — Light theme, English LTR, **1430 × 900 CSS** (rung B), Production `5c123e3`
+
+Run in the Claude Browser pane (exact viewport emulation, dpr 1.25).
+
+Readings 100 · distinct routes 97 · **trusted PASS 65** ·
+**peer cards 378** · **peer groups 138** · **geometry flags 1** · aliases 0 ·
+page-level horizontal overflow **0**.
+
+The single flag is `/reports/inventory` — the same `items-start` collapsible
+`SectionCard` grid already classified **intentional** in session 1. It reproduces
+identically in LTR at 1430 px, which strengthens that classification: the
+asymmetry is content-driven, not direction- or width-driven.
+
+`/dashboard` was re-validated at this viewport and SHA before the sweep:
+3 peer rows, 10 cards, 0 flags. The recurring `/dashboard` "overflow" is now
+**fully explained and closed**: `div.mt-2.divide-y.divide-border` is 305 px wide
+with six `-mx-2` children at 321 px — an intentional symmetric −8 px full-bleed so
+the row hover/active highlight extends past the text column. Clipped by the
+shell's `overflow-x-hidden`; zero elements escape the content box; no page-level
+overflow. **Not a defect.**
+
+### Cross-check against session 1
+
+Session 1 (Light/RTL @ 2288 px, Production `041a8a6`) and session 2 (Light/LTR
+@ 1430 px, Production `5c123e3`) agree: **no genuine card-order, card-size,
+grid, spacing, overflow or scroll-ownership defect has been found on any route
+measured under a trusted reading.** Combined trusted coverage: **1255 peer cards
+across 433 peer groups**. Confirmed defects remain **0**; code changed remains
+**none**.
+
+### Reproducible app-boot failure — NOT a geometry finding, needs its own investigation
+
+Partway through the LTR sweep (from `/marketing/ai-center` onward, 32 routes) the
+app stopped rendering: `#root` empty, 46 static elements, `documentElement.dir`
+empty, title stuck at the default. Those 32 rows were correctly rejected by the
+`domChanged` + `settled` gate and are **not** counted above.
+
+What is established:
+
+- **Reproducible in two independent browsers** (the user's Chrome profile, and
+  the Claude Browser pane) — in both cases after sustained authenticated
+  synthetic SPA navigation.
+- **Persists across full page loads**, not just within a session. A hard
+  navigation to `/dashboard` still yields `rootKids: 0`.
+- In Chrome it also killed the **public** `/login` route.
+- **Not caused by the auditor's storage.** Removing every auditor key
+  (23,761 → 2,474 chars of localStorage) and reloading did **not** restore it.
+- **Not a Production outage.** All routes return HTTP 200, and the *identical*
+  build `app-CcxBkJV1-5c123e3cfec6.js` rendered correctly in the Browser pane
+  before that pane had been swept — `rootKids: 2`. Service workers: none.
+  Caches: none. 16/16 JS chunks 200 with valid decoded bodies. A synthetic
+  `type="module"` script executes. No console errors captured.
+
+Per the permanent rule, an empty `#root` while Production is healthy is an
+automation-session failure and **Production was not touched**. But the fact that
+it now reproduces in a second, clean browser and survives reload means it should
+**not** be dismissed as pure automation noise. It is logged here as an open
+question for a separate, behaviour-focused investigation — it is out of scope for
+this presentation-only programme.
+
+**Repro:** authenticate, then drive ~60–90 `history.pushState` + `PopStateEvent`
+route transitions across the ERP shell at ~1.5 s intervals; the shell stops
+mounting and does not recover on reload.
+
+**Practical consequence for this programme:** the sweep must be split into
+batches of well under ~60 route transitions, with a real page load between
+batches, and `/dashboard` re-validated after each batch.
+
+### Matrices after session 2
+
+| Dimension | State |
+|---|---|
+| Light / RTL @ 2288 (`041a8a6`) | 75 PASS · 3 explained · 13 ALIAS · 21 unverified · 6 deferred |
+| Light / LTR @ 1430 (`5c123e3`) | 65 PASS · 1 explained · 32 rejected (boot failure) |
+| Dark (either direction) | **not run** |
+| Responsive rung A (1920) / C (1024) / D (768) | **not run** |
+| Internal states | **not run** |
+| Pathological surfaces (7) | **not run** — bounded sampling still owed |
+| Frozen-reference re-sweep | n/a — no shared owner changed |
+
+### RESUME MARKER (supersedes session 1)
+
+**Still nothing deployed. `main` and Production untouched by this programme.
+Zero code changes across both sessions.**
+
+1. Open a **fresh** browser context and sign in (agent never handles credentials).
+2. Paste the auditor from the Appendix. Validate `/dashboard` first — at 1430 px
+   expect 3 rows / 10 cards / 0 flags; at 2288 px expect 7 × (255 × 172) and
+   3 × (622 × 340).
+3. Re-measure the 32 routes rejected by the boot failure (`/marketing/*`,
+   `/ai-studio/*`, `/admin/*`, `/ai/settings`, `/billing`, `/users`, `/expenses`)
+   **in batches of ≤40 transitions with a real reload between batches.**
+4. Then: Dark pass, rungs A/C/D, the 21 session-1 unverified routes, the 7
+   pathological surfaces (bounded → `PASS_BOUNDED`), then internal states.
+5. Re-fetch `origin/main` immediately before any push — a second visual
+   programme is shipping to the same files, and Production already moved 29
+   commits mid-audit once.
