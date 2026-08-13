@@ -712,6 +712,31 @@
         "title": "{{count}} new ERP updates",
         "message": "Open the ERP workspace to review the latest activity."
       }
+    },
+    "m1": {
+      "pagination": {
+        "nav": "Pagination",
+        "rowsPerPage": "Rows per page",
+        "show": "Show",
+        "rows": "rows",
+        "all": "All",
+        "previous": "Previous",
+        "next": "Next",
+        "range": "Showing {{start}}–{{end}} of {{count}}",
+        "page": "Page {{page}}"
+      },
+      "table": {
+        "empty": "No data",
+        "loading": "Loading"
+      },
+      "emptyState": "No results",
+      "loadingState": "Loading...",
+      "clearSearch": "Clear search"
+    },
+    "errorBoundary": {
+      "screenCrashed": "This screen crashed",
+      "appCrashed": "Application screen crashed",
+      "employeeAppCrashed": "Employee app screen crashed"
     }
   },
   "sidebar": {

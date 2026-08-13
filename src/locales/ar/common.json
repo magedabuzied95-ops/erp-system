@@ -712,6 +712,31 @@
         "title": "{{count}} تحديثات جديدة",
         "message": "افتح مساحة العمل لمراجعة آخر الأنشطة."
       }
+    },
+    "m1": {
+      "pagination": {
+        "nav": "التنقل بين الصفحات",
+        "rowsPerPage": "عدد الصفوف في الصفحة",
+        "show": "عرض",
+        "rows": "صفوف",
+        "all": "الكل",
+        "previous": "السابق",
+        "next": "التالي",
+        "range": "عرض {{start}}–{{end}} من أصل {{count}}",
+        "page": "الصفحة {{page}}"
+      },
+      "table": {
+        "empty": "لا توجد بيانات",
+        "loading": "جاري التحميل"
+      },
+      "emptyState": "لا توجد نتائج",
+      "loadingState": "جاري التحميل...",
+      "clearSearch": "مسح البحث"
+    },
+    "errorBoundary": {
+      "screenCrashed": "تعطلت هذه الشاشة",
+      "appCrashed": "تعطلت شاشة التطبيق",
+      "employeeAppCrashed": "تعطلت شاشة تطبيق الموظفين"
     }
   },
   "sidebar": {

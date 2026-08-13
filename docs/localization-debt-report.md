@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 123
-- Hardcoded Arabic UI strings: 1236
-- Hardcoded English UI strings: 1095
-- Total hardcoded UI strings: 2331
+- Files with debt: 120
+- Hardcoded Arabic UI strings: 1229
+- Hardcoded English UI strings: 1093
+- Total hardcoded UI strings: 2322
 - Mixed-language files (both scripts hardcoded): 33
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 60 | 879 | 712 | 1591 | 20 |
-| shared | 47 | 157 | 300 | 457 | 9 |
+| main-erp | 59 | 879 | 711 | 1590 | 20 |
+| shared | 45 | 150 | 299 | 449 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1520,16 +1520,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 349 [attribute/en] Quantity
 - 365 [attribute/en] Price
 
-### src/shared/ui/M1UI.jsx (shared — ar:7 en:0)
-
-- 365 [attribute/ar] إغلاق
-- 385 [attribute/ar] إغلاق
-- 497 [attribute/ar] لا توجد بيانات
-- 606 [attribute/ar] التنقل بين الصفحات
-- 615 [attribute/ar] عدد الصفوف في الصفحة
-- 647 [attribute/ar] لا توجد نتائج
-- 653 [attribute/ar] جاري التحميل...
-
 ### src/modules/aiSupport/components/socialCommentTimeline.jsx (shared — ar:0 en:6)
 
 - 402 [object-key/en] Like
@@ -1786,10 +1776,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 70 [object-key/en] Calm, dense ERP surfaces with restrained M1 gold actions.
 - 114 [object-key/en] Neutral charcoal ERP surfaces with readable dense data.
 
-### src/App.jsx (main-erp — ar:0 en:1)
-
-- 390 [attribute/en] Employee app screen crashed
-
 ### src/components/ProductSizes.jsx (shared — ar:0 en:1)
 
 - 109 [attribute/en] Choose sizes...
@@ -1869,10 +1855,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/shared/chat/SharedPortalChat.jsx (shared — ar:0 en:1)
 
 - 28 [inline-ternary/en] language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB"
-
-### src/shared/components/mobile/ResponsiveMobile.jsx (shared — ar:0 en:1)
-
-- 26 [attribute/en] Close
 
 ### src/shared/components/Sidebar.jsx (shared — ar:0 en:1)
 

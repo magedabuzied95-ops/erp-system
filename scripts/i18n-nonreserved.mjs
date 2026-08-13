@@ -141,6 +141,22 @@ export const PRODUCT_FORM_HOLD = new Map([
  */
 export const CATALOGUE_VALUES = new Map([
   [
+    "src/shared/lib/currency.js",
+    "supportedCurrencies[].label is unused config: nothing under src/ imports supportedCurrencies, and no JSX renders a label. The code and symbol are what the formatter uses.",
+  ],
+  [
+    "src/theme/themes.js",
+    "THEMES[].description is unused config: ThemeProvider and themeStore read variables/ids, and no JSX renders a description.",
+  ],
+  [
+    "src/shared/components/Sidebar.jsx",
+    "\"ERP PRO\" is the product wordmark, sitting beside an already-translated subtitle.",
+  ],
+  [
+    "src/shared/api/api.js",
+    "The network hint is passed to debugAiMarketingRequest, a logger; it never reaches the UI.",
+  ],
+  [
     "src/config/realtimeSoundThemes.js",
     "Theme `name`/`description` are config metadata: the only consumer is realtimeFeedbackService.js, which reads sounds and intensities, never the copy. No JSX renders either field.",
   ],
@@ -171,6 +187,8 @@ export const PRINT_RESERVED = new Map([
  * Deleting them is a separate call — this pass only classifies.
  */
 export const DEAD_FILES = new Map([
+  ["src/components/Table.jsx", "No import anywhere under src/."],
+  ["src/shared/components/Table.jsx", "No import anywhere under src/."],
   ["src/pages/CreateOrder.jsx", "Superseded by modules/sales/pages/CreateOrder.jsx, which App.jsx routes; nothing imports this one."],
   ["src/pages/Sales.jsx", "No import anywhere under src/."],
   ["src/modules/sales/pages/InvoicesLegacy.jsx", "No import anywhere under src/; the name records that it is the legacy screen."],
