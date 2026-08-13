@@ -134,7 +134,34 @@ const COLOR_ALIASES = [
   ["brown", ["brown", "بني"], "البني"],
   ["pink", ["pink", "بينك", "وردي", "روز"], "الوردي"],
   ["navy", ["navy", "كحلي"], "الكحلي"],
+  // Colour-safety remediation — these families are REAL customer-visible stock in this catalogue (purple 36,
+  // burgundy 162, olive 27, camel 25 in-stock variants) that had no Arabic alias, so a customer asking for them
+  // fell into the unresolved-colour path. Bounded additions only; the fail-closed guard still protects every
+  // colour we do not know. "bige" is a real catalogue spelling of beige.
+  ["purple", ["purple", "بنفسجي", "بنفسج", "موف", "mauve"], "البنفسجي"],
+  ["burgundy", ["burgundy", "نبيتي", "خمري", "بورجندي", "عنابي"], "النبيتي"],
+  ["olive", ["olive", "زيتي", "زيتوني"], "الزيتي"],
+  ["camel", ["camel", "كاميل", "جملي"], "الكاميلي"],
 ];
+// The beige family also covers the catalogue's own "bige" spelling.
+COLOR_ALIASES.find(([c]) => c === "beige")?.[1].push("bige");
+
+// Colour-shaped words we recognise AS A COLOUR but cannot map to a canonical family. Detecting them is what turns
+// a silent colourless search into an honest clarification. The generic "لون <word>" shape catches colours we have
+// never seen at all, so the guard degrades safely for future vocabulary too.
+const UNMAPPED_COLOR_TERMS = [
+  "تركواز", "فيروزي", "ترابي", "ذهبي", "دهبي", "فضي", "نحاسي", "سماوي", "موستارد", "خردلي", "ليموني",
+  "turquoise", "gold", "golden", "silver", "mustard", "teal", "magenta", "violet", "lilac", "peach", "coral",
+];
+
+export const detectUnmappedColorTerm = (normalizedText = "") => {
+  const t = String(normalizedText || "");
+  if (!t) return "";
+  const hit = UNMAPPED_COLOR_TERMS.find((w) => t.includes(clean(w)));
+  if (hit) return hit;
+  const m = t.match(/لون\s+([^\s،,.؟?]{3,})/);
+  return m && m[1] ? m[1] : "";
+};
 // Product-category terms → canonical product_type. Reuses normalizeProductTypeValue for the mapping.
 const TYPE_TERMS = [
   ["كروكس", "crocs", "كروكس"], ["كروك", "crocs", "كروكس"], ["crocs", "crocs", "كروكس"], ["croc", "crocs", "كروكس"],
@@ -230,6 +257,11 @@ export const extractRequestedEntities = (message = "") => {
   for (const [c, aliases, label] of COLOR_ALIASES) {
     if (aliases.some((a) => norm.includes(clean(a)))) { color = c; colorLabel = label; break; }
   }
+  // Colour safety — distinguish "no colour asked" from "a colour was asked that we could NOT resolve". Losing that
+  // difference is what let "عايز كوتشي بنفسجي مقاس 43" become a colourless search that answered "available" for a
+  // colour nobody checked. rawColorTerm keeps the customer's own word so the clarification can quote it.
+  const unmappedColor = color ? "" : detectUnmappedColorTerm(norm);
+  const colorMentioned = Boolean(color) || Boolean(unmappedColor);
   // Size: prefer an explicit "مقاس <n>"/"size <n>", else a standalone plausible footwear size (20–50).
   const sizeExplicit = norm.match(/(?:مقاس|مقاسي|size)\s*[:#]?\s*(\d{2,3})/);
   const sizeStandalone = norm.match(/\b([2-5]\d)\b/);
@@ -253,7 +285,7 @@ export const extractRequestedEntities = (message = "") => {
     .filter((w) => w && !STOPWORDS.has(w) && !colorTokens.has(w) && !sizeTokens.has(w) && !availabilityWords.has(w) && w !== clean(productTerm))
     .join(" ")
     .trim();
-  return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, size, sizeIsExplicit: Boolean(sizeExplicit), hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
+  return { normalized: norm, productType, productTerm, typeLabel, color, colorLabel, colorMentioned, rawColorTerm: unmappedColor, size, sizeIsExplicit: Boolean(sizeExplicit), hasGreeting, wantsAvailability, wantsRestock, brandModelTerm };
 };
 
 // ---- Pure: substantive business intent beats a leading greeting (operates on entities — single or merged turn) ----
@@ -288,7 +320,7 @@ export const mergeTurnEntities = (entitiesList = []) => {
       if (e.brandModelTerm) { merged.brandModelTerm = e.brandModelTerm; break; }
     }
   }
-  if (!merged.color) { const p = priorNewestFirst.find((e) => e.color); if (p) { merged.color = p.color; merged.colorLabel = p.colorLabel; } }
+  if (!merged.color) { const p = priorNewestFirst.find((e) => e.color); if (p) { merged.color = p.color; merged.colorLabel = p.colorLabel; merged.colorMentioned = true; } }
   if (!merged.size) { const p = priorNewestFirst.find((e) => e.size); if (p) { merged.size = p.size; merged.sizeIsExplicit = p.sizeIsExplicit; } }
   merged.wantsAvailability = list.some((e) => e.wantsAvailability);
   merged.wantsRestock = list.some((e) => e.wantsRestock);
@@ -544,6 +576,30 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // is not mistaken for a product here.
     const priceAsk = isPriceQuestion(message);
     const productDependentRequest = Boolean(entities.productType || entities.size || entities.color || entities.wantsAvailability || entities.wantsRestock || priceAsk);
+    // ---- COLOUR SAFETY — fail closed on an unresolved colour constraint --------------------------------------
+    // The customer expressed a COLOUR the vocabulary cannot resolve. Dropping it silently is what made
+    // "عايز كوتشي بنفسجي مقاس 43" answer "available" from a colourless search. Neither available nor unavailable
+    // has been proven for the requested colour, so assert neither: clarify, attach no cards, and never let the
+    // authoritative category query run without the colour predicate. Applies to explicit-product turns and to
+    // durable-context follow-ups ("والبنفسجي؟") alike — no path may erase an explicit new colour constraint.
+    if (entities.colorMentioned && !entities.color) {
+      const raw = clean(entities.rawColorTerm || "");
+      const sizeNote = entities.size ? ` مقاس ${entities.size}` : "";
+      return {
+        changed: true, entities, requestedIntent: "PRODUCT_AVAILABILITY", action: "clarify_color_unsupported", confidence: 0.4,
+        answer: raw
+          ? `مش قادر أحدد لون «${raw}» بالظبط${sizeNote}. ممكن توضّح اللون وأنا أشيكلك على التوفر؟`
+          : `تقصد لون إيه بالظبط${sizeNote}؟ قولّي اللون وأنا أشيكلك على التوفر.`,
+        suggested_products: [], send_ready_card: null, card_choices: [], color_choices: [],
+        product_ambiguous: false, color_choice_required: false, selection_semantics: null,
+        grounding: {
+          requested: { productType: entities.productType || null, color: null, rawColor: raw || null, size: entities.size || null },
+          resolved: { note: "color_constraint_unresolved" }, action: "clarify_color_unsupported",
+          product_resolution: { source: "explicit_message" },
+        },
+      };
+    }
+
     if (!hasExplicitProductMention(entities) && !productDependentRequest) {
       const rp = reply || {};
       const rawLeak = (Array.isArray(rp.suggested_products) && rp.suggested_products.length > 0)
