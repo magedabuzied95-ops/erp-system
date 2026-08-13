@@ -5,6 +5,10 @@
 .m1-shell-sidebar .sidebar-scroll{font-size:13px}.m1-shell-sidebar nav{padding-block:3px;padding-bottom:14px;scrollbar-gutter:stable;overscroll-behavior:contain}
 .m1-shell-sidebar nav>div>button{min-height:32px;padding-inline:9px!important;font-size:11px!important;line-height:1.4;letter-spacing:0!important;text-transform:none!important;font-weight:700!important}
 .m1-shell-sidebar nav a{min-height:42px!important;padding:8px 11px!important;gap:9px!important;border-radius:var(--radius-sm)!important;font-size:14px!important;line-height:1.55;font-weight:600!important}
+.m1-shell-sidebar--compact .m1-shell-sidebar__compact-nav{padding-inline:0;scrollbar-width:none;scrollbar-gutter:auto}
+.m1-shell-sidebar--compact .m1-shell-sidebar__compact-nav::-webkit-scrollbar{display:none;width:0;height:0}
+.m1-shell-sidebar--compact .m1-sidebar-nav-item--compact{min-height:44px!important;width:100%;padding:9px!important}
+.m1-shell-sidebar--compact .m1-sidebar-nav-item--compact>svg{height:19px!important;width:19px!important}
 .m1-shell-sidebar nav a[aria-current="page"]{background:var(--surface)!important;border-color:var(--border)!important;color:var(--text)!important;box-shadow:var(--shadow-card)!important;font-weight:800!important}
 .m1-shell-sidebar nav a[aria-current="page"] svg{color:var(--primary)!important}.m1-shell-sidebar nav a:not([aria-current="page"]){color:var(--text-secondary)!important}
 .m1-shell-sidebar input{height:42px!important;border-radius:var(--radius-md)!important;background:var(--surface)!important;font-size:13px!important;font-weight:500!important}
@@ -22,5 +26,5 @@ html[data-theme="dark"] .m1-topbar-create-menu{border-color:var(--border);backgr
 [dir="rtl"] .m1-shell-root{font-family:var(--font-ar);font-kerning:normal}[dir="rtl"] .m1-shell-sidebar nav>div>button{font-size:12px!important}[dir="rtl"] .m1-shell-sidebar nav a{letter-spacing:0!important}
 .m1-shell-content{padding:22px var(--page-inline) 42px!important;background:var(--bg)}
 html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;font-size:12px!important}html[data-density="compact"] .m1-shell-content{padding-top:16px!important}
-@media(min-width:1024px){.m1-shell-root{grid-template-columns:260px minmax(0,1fr)!important}.m1-shell-root:has(.m1-shell-sidebar[class*="p-3"]) {grid-template-columns:76px minmax(0,1fr)!important}}
+@media(min-width:1024px){.m1-shell-root{grid-template-columns:260px minmax(0,1fr)!important}.m1-shell-root.m1-shell-root--sidebar-compact{grid-template-columns:76px minmax(0,1fr)!important}.m1-shell-sidebar--compact{padding-inline:10px!important}}
 @media(max-width:1023px){.m1-shell-sidebar{width:min(88vw,284px)!important;padding:12px!important}.m1-shell-topbar{min-height:58px}.m1-shell-topbar>div:last-child{min-height:58px;padding-inline:12px!important}.m1-shell-content{padding:16px 12px 36px!important}}

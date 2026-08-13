@@ -304,6 +304,7 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
   const displayLabel = item.sidebarLabelKey ? t(item.sidebarLabelKey) : item.label;
   const className = [
     "group/nav relative flex min-h-9 items-center rounded-xl border text-sm font-semibold transition duration-200",
+    collapsed ? "m1-sidebar-nav-item--compact" : "",
     collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2",
     active
       ? "border-[var(--primary)]/45 bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm"
@@ -553,6 +554,17 @@ function MainLayout() {
       }))
       .filter((group) => group.items.length > 0);
   }, [groupedSections, searchQuery]);
+  const compactSidebarItems = useMemo(() => {
+    const seen = new Set();
+    return visibleGroupedSections
+      .flatMap((group) => group.items)
+      .filter((item) => {
+        const key = String(item?.to || item?.label || "");
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [visibleGroupedSections]);
   const sidebarCompact = sidebarCollapsed && !mobileDrawerOpen;
   const CollapseIcon = isRtl
     ? sidebarCollapsed ? PanelRightOpen : PanelRightClose
@@ -624,6 +636,7 @@ function MainLayout() {
       dir={dir}
       className={[
         "m1-shell-root min-h-screen w-full max-w-none overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300",
+        sidebarCompact ? "m1-shell-root--sidebar-compact" : "",
         isAiMarketingWorkspace ? "m1-ai-marketing-scope" : "",
         "lg:grid",
         sidebarCollapsed
@@ -643,6 +656,7 @@ function MainLayout() {
       <aside
         className={[
           "m1-shell-sidebar sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
+          sidebarCompact ? "m1-shell-sidebar--compact" : "",
           sidebarCollapsed ? "p-3 lg:p-3" : "p-4 lg:p-4",
           mobileDrawerOpen ? "translate-x-0" : isRtl ? "translate-x-full" : "-translate-x-full",
           isRtl
@@ -713,8 +727,26 @@ function MainLayout() {
             </label>}
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label={t("common.mainNavigation", "التنقل الرئيسي")}>
-            {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
+          <nav
+            className={[
+              "min-h-0 flex-1 overflow-y-auto",
+              sidebarCompact ? "m1-shell-sidebar__compact-nav space-y-1" : "space-y-1.5 pe-1",
+            ].join(" ")}
+            aria-label={t("common.mainNavigation", "التنقل الرئيسي")}
+          >
+            {sidebarCompact ? (
+              <div className="space-y-1 py-0.5">
+                {compactSidebarItems.map((item) => (
+                  <SidebarNavItem
+                    key={item.to}
+                    item={item}
+                    location={location}
+                    collapsed
+                    onNavigate={() => setMobileDrawerOpen(false)}
+                  />
+                ))}
+              </div>
+            ) : visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
               const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
               const groupLabel = t(GROUP_TITLE_KEYS[group.title] || group.title, { defaultValue: group.title });
               const activeInGroup = group.items.some((item) => sidebarItemActive(item, location));
