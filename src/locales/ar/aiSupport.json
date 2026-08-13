@@ -1003,6 +1003,14 @@
       "likeState": "إعجاب {{state}}", "replyState": "رد {{state}}", "on": "مفعّل", "off": "متوقف",
       "noTemplateText": "لا يوجد نص للقالب بعد."
     },
+    "commentTimeline": {
+      "customer": "عميل", "openCustomerDetails": "فتح بيانات العميل {{name}}",
+      "intent": "النية: {{intent}}", "statusTitle": "{{label}}: {{status}}",
+      "like": "إعجاب", "publicReply": "رد عام", "privateReply": "رد خاص", "ai": "الذكاء", "lead": "عميل محتمل",
+      "success": "ناجح", "pending": "قيد الانتظار", "failed": "فشل", "skipped": "تم التجاوز",
+      "noCommentText": "لا يوجد نص للتعليق.", "generatedPublicReply": "الرد العام المُنشأ",
+      "generatedPrivateReply": "الرد الخاص المُنشأ"
+    },
     "socialPanel": {
       "all": "الكل", "price": "السعر", "size": "المقاس", "shipping": "الشحن", "details": "التفاصيل",
       "inbox": "صندوق الوارد", "ignore": "تجاهل", "humanReview": "مراجعة بشرية", "facebook": "فيسبوك",

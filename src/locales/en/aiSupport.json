@@ -1003,6 +1003,14 @@
       "likeState": "Like {{state}}", "replyState": "Reply {{state}}", "on": "ON", "off": "OFF",
       "noTemplateText": "No template text yet."
     },
+    "commentTimeline": {
+      "customer": "Customer", "openCustomerDetails": "Open customer details for {{name}}",
+      "intent": "Intent: {{intent}}", "statusTitle": "{{label}}: {{status}}",
+      "like": "Like", "publicReply": "Public reply", "privateReply": "Private reply", "ai": "AI", "lead": "Lead",
+      "success": "Success", "pending": "Pending", "failed": "Failed", "skipped": "Skipped",
+      "noCommentText": "No comment text available.", "generatedPublicReply": "Generated public reply",
+      "generatedPrivateReply": "Generated private reply"
+    },
     "socialPanel": {
       "all": "All", "price": "Price", "size": "Size", "shipping": "Shipping", "details": "Details",
       "inbox": "Inbox", "ignore": "Ignore", "humanReview": "Human review", "facebook": "Facebook",

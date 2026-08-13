@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 111
+- Files with debt: 110
 - Hardcoded Arabic UI strings: 940
-- Hardcoded English UI strings: 646
-- Total hardcoded UI strings: 1586
+- Hardcoded English UI strings: 640
+- Total hardcoded UI strings: 1580
 - Mixed-language files (both scripts hardcoded): 26
 
 ### By surface
@@ -21,7 +21,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 57 | 665 | 377 | 1042 | 17 |
-| shared | 38 | 75 | 186 | 261 | 5 |
+| shared | 37 | 75 | 180 | 255 | 5 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1276,15 +1276,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 349 [attribute/en] Quantity
 - 365 [attribute/en] Price
 
-### src/modules/aiSupport/components/socialCommentTimeline.jsx (shared — ar:0 en:6)
-
-- 402 [object-key/en] Like
-- 403 [object-key/en] Public Reply
-- 404 [object-key/en] Private Reply
-- 406 [object-key/en] Lead
-- 542 [jsx-text/en] Generated Public Reply
-- 546 [jsx-text/en] Generated Private Reply
-
 ### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:0 en:6)
 
 - 1116 [jsx-text/en] Source:
@@ -1597,7 +1588,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/shared/layouts/MainLayout.jsx (shared — ar:1 en:0)
 
-- 811 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
+- 843 [inline-ternary/ar] isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found"
 
 ### src/shared/utils/whatsapp.js (shared — ar:1 en:0)
 

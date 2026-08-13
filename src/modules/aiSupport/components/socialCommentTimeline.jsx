@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { Clock3, MessageSquareText, UserRound } from "lucide-react";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -125,27 +126,29 @@ const isValidDate = (value) => {
 
 const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
-export const getRelativeTimeLabel = (value, now = new Date()) => {
-  if (!value) return "وقت غير معروف";
+export const getRelativeTimeLabel = (value, now = new Date(), language = "en") => {
+  if (!value) return "";
   const date = new Date(value);
-  if (!isValidDate(date)) return "وقت غير معروف";
+  if (!isValidDate(date)) return "";
 
   const diffMs = Math.max(0, now.getTime() - date.getTime());
   const diffMinutes = Math.floor(diffMs / 60000);
-  if (diffMinutes < 1) return "now";
-  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const locale = language === "ar" ? "ar" : "en";
+  const relativeFormatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (diffMinutes < 1) return relativeFormatter.format(0, "minute");
+  if (diffMinutes < 60) return relativeFormatter.format(-diffMinutes, "minute");
 
   const nowDay = startOfDay(now);
   const itemDay = startOfDay(date);
   if (itemDay === nowDay) {
-    return `Today ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+    return `${relativeFormatter.format(0, "day")} ${date.toLocaleTimeString(language === "ar" ? "ar-EG" : "en-US", { hour: "numeric", minute: "2-digit" })}`;
   }
 
   if (itemDay === nowDay - 86400000) {
-    return "Yesterday";
+    return relativeFormatter.format(-1, "day");
   }
 
-  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  return `${date.toLocaleDateString(language === "ar" ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" })} ${date.toLocaleTimeString(language === "ar" ? "ar-EG" : "en-US", { hour: "numeric", minute: "2-digit" })}`;
 };
 
 const platformMeta = (platform = "") => {
@@ -232,7 +235,7 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
     commentIdentity.name,
     rawIdentity.name,
     metadataIdentity.name
-  ) || "عميل";
+  );
 
   const customerAvatarUrl = clean(
     comment.customer_avatar_url ||
@@ -381,8 +384,8 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
 
   return {
     key: clean(comment.id || comment.comment_id || comment.external_message_id || comment.provider_message_id || raw.id || raw.comment_id || metadata.comment_id || ""),
-    customerName: customerName || "عميل",
-    customer_name: customerName || "عميل",
+    customerName,
+    customer_name: customerName,
     customerAvatarUrl,
     customer_avatar_url: customerAvatarUrl,
     text,
@@ -399,11 +402,11 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
     generatedPrivateReply: clean(comment.generated_private_reply || runtimeMonitor.generated_private_reply || aiSales.private_reply || ""),
     approvalStatus: clean(comment.approval_status || runtimeMonitor.approval_status || aiSales.approval_status || ""),
     statuses: [
-      { key: "like", label: "Like", status: likeState, className: statusToneClass(likeState) },
-      { key: "public_reply", label: "Public Reply", status: publicReplyState, className: statusToneClass(publicReplyState) },
-      { key: "private_reply", label: "Private Reply", status: privateReplyState, className: statusToneClass(privateReplyState) },
-      { key: "ai", label: "AI", status: aiState, className: statusToneClass(aiState) },
-      { key: "lead", label: "Lead", status: leadState, className: statusToneClass(leadState) },
+      { key: "like", labelKey: "like", status: likeState, className: statusToneClass(likeState) },
+      { key: "public_reply", labelKey: "publicReply", status: publicReplyState, className: statusToneClass(publicReplyState) },
+      { key: "private_reply", labelKey: "privateReply", status: privateReplyState, className: statusToneClass(privateReplyState) },
+      { key: "ai", labelKey: "ai", status: aiState, className: statusToneClass(aiState) },
+      { key: "lead", labelKey: "lead", status: leadState, className: statusToneClass(leadState) },
     ],
   };
 };
@@ -419,6 +422,8 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   children = null,
   ...rest
 }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const data = resolveCommentTimelineData(comment, fallbackPlatform);
   const hasAvatar = Boolean(data.customerAvatarUrl);
   const interactive = typeof onSelect === "function";
@@ -458,7 +463,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 onCustomerSelect?.(comment, data);
               }}
               className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/30"
-              aria-label={`Open customer details for ${data.customerName || "customer"}`}
+              aria-label={t("aiSupport.inbox.commentTimeline.openCustomerDetails", { name: data.customerName || t("aiSupport.inbox.commentTimeline.customer") })}
             >
               <img
                 src={data.customerAvatarUrl}
@@ -475,7 +480,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 onCustomerSelect?.(comment, data);
               }}
               className="grid h-12 w-12 place-items-center rounded-full bg-white/[0.05] text-sm font-black text-slate-100 ring-1 ring-white/10 transition hover:bg-white/[0.08]"
-              aria-label={`Open customer details for ${data.customerName || "customer"}`}
+              aria-label={t("aiSupport.inbox.commentTimeline.openCustomerDetails", { name: data.customerName || t("aiSupport.inbox.commentTimeline.customer") })}
             >
               {data.initials || <UserRound className="h-5 w-5" />}
             </button>
@@ -496,7 +501,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 }}
                 className="truncate text-left text-[15px] font-black leading-6 text-white hover:underline"
               >
-                {data.customerName || "عميل"}
+                {data.customerName || t("aiSupport.inbox.commentTimeline.customer")}
               </button>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
@@ -504,11 +509,11 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-300">
                   <Clock3 className="h-3.5 w-3.5" />
-                  {data.createdAt ? getRelativeTimeLabel(data.createdAt) : "—"}
+                  {data.createdAt ? getRelativeTimeLabel(data.createdAt, new Date(), language) : "—"}
                 </span>
                 {data.detectedIntent ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">
-                    Intent: {data.detectedIntent}
+                    {t("aiSupport.inbox.commentTimeline.intent", { intent: data.detectedIntent })}
                   </span>
                 ) : null}
                 {data.approvalStatus ? (
@@ -523,27 +528,27 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
               {data.statuses.map((status) => (
                 <span
                   key={status.key}
-                  title={`${status.label}: ${status.status}`}
+                  title={t("aiSupport.inbox.commentTimeline.statusTitle", { label: t(`aiSupport.inbox.commentTimeline.${status.labelKey}`), status: t(`aiSupport.inbox.commentTimeline.${status.status}`) })}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${status.className}`}
                 >
-                  {status.label}
+                  {t(`aiSupport.inbox.commentTimeline.${status.labelKey}`)}
                 </span>
               ))}
             </div>
           </div>
 
           <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[14px] leading-7 text-slate-100">
-            <div className="whitespace-pre-wrap">{data.text || "No comment text available."}</div>
+            <div className="whitespace-pre-wrap">{data.text || t("aiSupport.inbox.commentTimeline.noCommentText")}</div>
           </div>
 
           {data.generatedPublicReply || data.generatedPrivateReply ? (
             <div className="mt-3 grid gap-2 lg:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Generated Public Reply</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{t("aiSupport.inbox.commentTimeline.generatedPublicReply")}</div>
                 <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-100">{data.generatedPublicReply || "—"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Generated Private Reply</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{t("aiSupport.inbox.commentTimeline.generatedPrivateReply")}</div>
                 <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-100">{data.generatedPrivateReply || "—"}</div>
               </div>
             </div>
