@@ -38,31 +38,29 @@
   scrollbar-gutter: stable;
 }
 
-/* Product selection is a desktop workspace in AI Inbox only. */
+/* Product selection is a desktop workspace in AI Inbox only.
+ *
+ * AI_INBOX_PRODUCT_LINK_MODAL follow-up: these --picker-* variables used to be a
+ * hand-tuned second palette (a literal #d4af37 gold and its own light/dark pair),
+ * so the picker was a separate AI Inbox theme that happened to sit next to the
+ * ERP rather than belonging to it. They are now aliases onto the M1 tokens, which
+ * means one definition serves both themes — the per-theme override block below is
+ * gone because the tokens already re-point themselves — and re-pointing the brand
+ * in themes.js reaches this surface like every other. Every rule further down is
+ * untouched and keeps consuming the same variable names. */
 .ai-inbox-product-picker-desktop {
-  --picker-accent: #d4af37;
-  --picker-accent-soft: rgba(212, 175, 55, 0.14);
-  --picker-accent-border: rgba(212, 175, 55, 0.32);
-  --picker-backdrop: rgba(8, 9, 7, 0.82);
-  --picker-bg: #1b1d19;
-  --picker-surface: #242620;
-  --picker-surface-soft: #2a2c26;
-  --picker-border: rgba(255, 255, 255, 0.11);
-  --picker-text: #f4f1e8;
-  --picker-muted: #aaa797;
+  --picker-accent: var(--primary);
+  --picker-accent-soft: var(--primary-soft);
+  --picker-accent-border: color-mix(in srgb, var(--primary) 38%, var(--border));
+  --picker-backdrop: var(--overlay-scrim);
+  --picker-bg: var(--bg);
+  --picker-surface: var(--surface);
+  --picker-surface-soft: var(--surface-soft);
+  --picker-border: var(--border);
+  --picker-text: var(--text);
+  --picker-muted: var(--muted);
   padding: clamp(1rem, 2.5vw, 2.5rem) !important;
   background: var(--picker-backdrop) !important;
-}
-
-html[data-theme="light"] .ai-inbox-product-picker-desktop,
-html.light .ai-inbox-product-picker-desktop {
-  --picker-backdrop: rgba(8, 9, 7, 0.68);
-  --picker-bg: #f5f3ed;
-  --picker-surface: #fffdf8;
-  --picker-surface-soft: #efede6;
-  --picker-border: rgba(84, 79, 62, 0.2);
-  --picker-text: #24251f;
-  --picker-muted: #777466;
 }
 
 .ai-inbox-product-picker-desktop__dialog {
@@ -76,7 +74,7 @@ html.light .ai-inbox-product-picker-desktop {
   border-color: var(--picker-accent-border) !important;
   background: var(--picker-bg) !important;
   color: var(--picker-text) !important;
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(212, 175, 55, 0.08);
+  box-shadow: var(--shadow-overlay), 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .ai-inbox-product-picker-desktop__header {
@@ -168,7 +166,7 @@ html.light .ai-inbox-product-picker-desktop {
 .ai-inbox-product-picker-desktop__product-grid > button[class*="border-cyan"] {
   border-color: var(--picker-accent) !important;
   background: var(--picker-accent-soft) !important;
-  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .ai-inbox-product-picker-desktop__product-grid > button :where(.text-white, .text-slate-300) {
@@ -210,11 +208,11 @@ html.light .ai-inbox-product-picker-desktop {
 
 .ai-inbox-product-picker-desktop__preview button.bg-emerald-300 {
   background: var(--picker-accent) !important;
-  color: #171714 !important;
+  color: var(--primary-contrast) !important;
 }
 
 .ai-inbox-product-picker-desktop__preview button.bg-emerald-300:hover {
-  background: #e5c14c !important;
+  background: var(--primary-hover) !important;
 }
 
 .ai-inbox-product-picker-desktop .text-cyan-200,

@@ -128,8 +128,13 @@ test("desktop AI Inbox uses its own wide product selection workspace", () => {
   assert.match(productPickerSource, /ai-inbox-product-picker-desktop__product-grid/);
   assert.match(desktopCss, /\.ai-inbox-product-picker-desktop__dialog[\s\S]*?width:\s*min\(1280px/);
   assert.match(desktopCss, /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(desktopCss, /--picker-accent:\s*#d4af37/);
-  assert.match(desktopCss, /html\[data-theme="light"\] \.ai-inbox-product-picker-desktop/);
+  // AI_INBOX_PRODUCT_LINK_MODAL: the picker used to carry its own gold literal
+  // plus a duplicated light-theme override block, which made it a second AI Inbox
+  // theme rather than part of the ERP. Both are gone — theme awareness now comes
+  // from the M1 tokens themselves, so one definition serves both themes and the
+  // brand stays re-pointable from themes.js. The workspace geometry is unchanged.
+  assert.match(desktopCss, /--picker-accent:\s*var\(--primary\)/);
+  assert.match(desktopCss, /--picker-bg:\s*var\(--bg\)/);
   assert.match(desktopCss, /\.ai-inbox-product-picker-desktop__product-grid > button/);
 });
 
