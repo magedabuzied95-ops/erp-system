@@ -4847,7 +4847,8 @@ function RightToolsTabsPanel({
 }
 
 export default function AiInbox({ reviewerMode = false }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.resolvedLanguage === "ar";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const deepLinkConversationRef = useRef(clean(searchParams.get("conversation") || searchParams.get("conversation_id") || searchParams.get("session_id") || ""));
@@ -8715,7 +8716,7 @@ export default function AiInbox({ reviewerMode = false }) {
             />
           </div>
 
-	          <aside dir="rtl" className={`ai-omni-panel ai-omni-list-panel ${isSocialMode ? "hidden" : ""} min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+	          <aside dir={isArabic ? "rtl" : "ltr"} className={`ai-omni-panel ai-omni-list-panel ${isSocialMode ? "hidden" : ""} min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${isArabic ? "text-right" : "text-left"} ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 	            <div className="shrink-0 space-y-3">
 	              {inboxSection === "conversations" ? (
 	                <div className="flex flex-col gap-3">
@@ -8728,8 +8729,8 @@ export default function AiInbox({ reviewerMode = false }) {
 	                  </div>
 	                  <div className="flex items-center gap-2">
 	                    <label className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-950/70 h-10">
-	                      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiSupport.inbox.ui.searchCustomerMessage")} className="h-10 w-full min-w-0 rounded-xl bg-transparent pr-9 pl-3 text-sm font-bold text-white outline-none placeholder:text-slate-600" />
+	                      <Search className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 ${isArabic ? "right-3" : "left-3"}`} />
+	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiSupport.inbox.ui.searchCustomerMessage")} className={`h-10 w-full min-w-0 rounded-xl bg-transparent text-sm font-bold text-white outline-none placeholder:text-slate-600 ${isArabic ? "pr-9 pl-3 text-right" : "pl-9 pr-3 text-left"}`} />
 	                    </label>
 	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title={t("aiSupport.inbox.ui.favorites")} aria-label={t("aiSupport.inbox.ui.favorites")} aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
@@ -8914,7 +8915,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300/40 bg-emerald-50 px-2.5 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-45 dark:border-emerald-300/25 dark:bg-emerald-400/10 dark:text-emerald-100"
                     >
                       <ShoppingCart className="h-4 w-4" />
-                      إنشاء أوردر
+                      {t("aiSupport.inbox.pwa.createOrder")}
                     </button>
                     <button
                       type="button"
@@ -8923,7 +8924,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-50 px-2.5 text-[11px] font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-45 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100"
                     >
                       <PackageCheck className="h-4 w-4" />
-                      إرسال منتج
+                      {t("aiSupport.inbox.pwa.sendProduct")}
                     </button>
                     <button
                       type="button"
@@ -8932,7 +8933,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-50 px-2.5 text-[11px] font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-45 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100"
                     >
                       <Ruler className="h-4 w-4" />
-                      المتاح بالمقاس
+                      {t("aiSupport.inbox.pwa.availableBySize")}
                     </button>
                     <button
                       type="button"
@@ -8941,7 +8942,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-black text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-200"
                     >
                       <UserPlus className="h-4 w-4" />
-                      إنشاء عميل
+                      {t("aiSupport.inbox.pwa.createCustomer")}
                     </button>
                   </div>
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">

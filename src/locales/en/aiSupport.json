@@ -1154,6 +1154,7 @@
       "autoReplySummary": "Mode: {{mode}} · Like: {{like}} · Reply: {{reply}}",
       "blockCustomer": "Block customer",
       "createOrder": "Create order",
+      "createCustomer": "Create customer",
       "createOrderFromConversation": "Create order from conversation",
       "darkMode": "Enable dark mode",
       "disabled": "Disabled",

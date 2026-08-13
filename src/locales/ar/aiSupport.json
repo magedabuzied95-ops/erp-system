@@ -1154,6 +1154,7 @@
       "autoReplySummary": "الوضع: {{mode}} · الإعجاب: {{like}} · الرد: {{reply}}",
       "blockCustomer": "حظر العميل",
       "createOrder": "إنشاء طلب",
+      "createCustomer": "إنشاء عميل",
       "createOrderFromConversation": "إنشاء طلب من المحادثة",
       "darkMode": "تفعيل الوضع الداكن",
       "disabled": "متوقف",
