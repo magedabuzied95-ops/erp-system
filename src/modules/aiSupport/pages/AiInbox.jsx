@@ -6211,7 +6211,9 @@ export default function AiInbox({ reviewerMode = false }) {
   }, []);
   const openSocialCommentThread = useCallback((item = {}) => {
     const nextSelectionKey = clean(
-      item?.post_link_key ||
+      item?.group_key ||
+        item?.groupKey ||
+        item?.post_link_key ||
         item?.postLinkKey ||
         item?.platform_post_id ||
         item?.platformPostId ||
