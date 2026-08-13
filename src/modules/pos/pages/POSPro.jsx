@@ -100,6 +100,7 @@ import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
 import { printThermalReceipt, warmThermalReceiptPrinter } from "../lib/thermalReceiptPrint.jsx";
+import i18nInstance from "../../../i18n/i18n";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import {
   PRODUCT_REFRESH_CHANNEL,
@@ -198,19 +199,35 @@ const POS_CHECKOUT_DEBUG = Boolean(
   String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
 );
 const POS_OFFLINE_DEBUG = String(import.meta.env?.VITE_POS_OFFLINE_DEBUG || "").trim().toLowerCase() === "true";
+const tt = (key, options) => i18nInstance.t(key, options);
+
 const quickExpenseDefaults = { category: "delivery", employee_id: "", amount: "", payment_method: "cash", notes: "" };
-const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "سلفة موظف / Employee Advance" };
+const QUICK_EXPENSE_CATEGORY_KEYS = {
+  delivery: "pos.posPro.quickExpenseCategories.delivery",
+  snacks: "pos.posPro.quickExpenseCategories.snacks",
+  cleaning: "pos.posPro.quickExpenseCategories.cleaning",
+  small_purchases: "pos.posPro.quickExpenseCategories.small_purchases",
+  water: "pos.posPro.quickExpenseCategories.water",
+  electricity: "pos.posPro.quickExpenseCategories.electricity",
+  shipping: "pos.posPro.quickExpenseCategories.shipping",
+  maintenance: "pos.posPro.quickExpenseCategories.maintenance",
+  other: "pos.posPro.quickExpenseCategories.other",
+  employee_advance: "pos.posPro.quickExpenseCategories.employee_advance",
+};
+const quickExpenseCategoryLabel = (value) => tt(QUICK_EXPENSE_CATEGORY_KEYS[value]);
+
+const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", get label() { return quickExpenseCategoryLabel("employee_advance"); } };
 const quickExpenseCategories = [
-  { value: "delivery", label: "توصيل / Delivery" },
-  { value: "snacks", label: "سناكس / Snacks" },
-  { value: "cleaning", label: "تنظيف / Cleaning" },
-  { value: "small_purchases", label: "مشتريات بسيطة" },
-  { value: "water", label: "مياه / Water" },
-  { value: "electricity", label: "كهرباء / Electricity" },
-  { value: "shipping", label: "شحن / Shipping" },
-  { value: "maintenance", label: "صيانة / Maintenance" },
-  { value: "other", label: "أخرى / Other" },
-];
+  "delivery",
+  "snacks",
+  "cleaning",
+  "small_purchases",
+  "water",
+  "electricity",
+  "shipping",
+  "maintenance",
+  "other",
+].map((value) => ({ value, get label() { return quickExpenseCategoryLabel(value); } }));
 
 const openingCandidateReasonLabels = {
   inactive: "غير نشط",
@@ -2131,7 +2148,7 @@ function POSPro() {
       setInvoiceDiscount(savedSession.invoiceDiscount ?? defaultState.invoiceDiscount);
       setServiceFee(savedSession.serviceFee ?? defaultState.serviceFee);
       if (savedSession.selectedSalespersonId) setSelectedSalespersonId(String(savedSession.selectedSalespersonId));
-      toast.success("تم استرجاع جلسة البيع المحفوظة");
+      toast.success(tt("pos.posPro.toasts.sessionRestored"));
     }
   }, [activePosShift?.id, routeEditOrderId]);
 
@@ -2779,9 +2796,9 @@ function POSPro() {
 
     setCart(reconciliation.nextCart);
     if (reconciliation.removedItems.length > 0) {
-      toast.error(t("pos.posPro.toasts.cartItemsRemoved"));
+      toast.error(tt("pos.posPro.toasts.cartItemsRemoved"));
     } else {
-      toast.error(t("pos.posPro.toasts.cartQuantitiesAdjusted"));
+      toast.error(tt("pos.posPro.toasts.cartQuantitiesAdjusted"));
     }
   }, [products, cart, editingOrder?.id, t]);
 
@@ -3048,7 +3065,7 @@ function POSPro() {
     const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && nextId && currentEmployeeId && nextId !== currentEmployeeId) {
-      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
+      toast.error(tt("pos.posPro.toasts.noSellAsOtherUser"));
       return;
     }
     setSelectedSalespersonId(nextId);
@@ -3063,7 +3080,7 @@ function POSPro() {
     const customerId = selected?.id || selected?.customer_id;
     if (!customerId) {
       console.error("[pos] selected customer is missing id/customer_id:", item);
-      toast.error(t("pos.posPro.toasts.customerIdMissing"));
+      toast.error(tt("pos.posPro.toasts.customerIdMissing"));
       return;
     }
 
@@ -3080,7 +3097,7 @@ function POSPro() {
       setPersonalSettlementType("");
       setPersonalNote("");
     }
-  }, [t]);
+  }, []);
 
   const customerPhoneAutoSelectMatch = useMemo(() => {
     if (selectedCustomerId) return null;
@@ -3880,7 +3897,7 @@ function POSPro() {
 
   const handleAddInvoiceTab = useCallback(() => {
     if (openInvoiceDrafts.length >= 5) {
-      toast.error("الحد الأقصى 5 فواتير مفتوحة");
+      toast.error(tt("pos.posPro.toasts.maxOpenInvoices"));
       return;
     }
     const current = captureCurrentInvoiceDraft();
@@ -3894,7 +3911,7 @@ function POSPro() {
     const current = captureCurrentInvoiceDraft();
     const drafts = openInvoiceDrafts.map((draft) => String(draft.id) === String(activeInvoiceTabId) ? current : draft);
     const closing = drafts.find((draft) => String(draft.id) === String(tabId));
-    if (!completed && closing?.cart?.length && !window.confirm("الفاتورة تحتوي على منتجات. هل تريد إغلاقها؟")) return;
+    if (!completed && closing?.cart?.length && !window.confirm(tt("pos.posPro.toasts.confirmCloseInvoiceWithItems"))) return;
     if (drafts.length === 1) {
       const blank = { id: closing?.id || activeInvoiceTabId, invoiceNumber: generateInvoiceNumber(), cart: [], itemCount: 0, total: 0, dirty: false };
       setOpenInvoiceDrafts([blank]);
@@ -4080,9 +4097,9 @@ function POSPro() {
   const activeSmartFilters = useMemo(
     () =>
       [
-        { key: "gender", label: "الجنس", value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
-        { key: "type", label: "نوع المنتج", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
-        { key: "grade", label: "الفئة", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
+        { key: "gender", label: t("pos.posPro.smartFilters.gender"), value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
+        { key: "type", label: t("pos.posPro.smartFilters.productType"), value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
+        { key: "grade", label: t("pos.posPro.smartFilters.grade"), value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
       ]
         .flatMap((item) => {
           const values = item.key === "gender" ? normalizeMultiFilterValue(item.value) : normalizeMultiFilterValue(item.value);
@@ -4092,7 +4109,8 @@ function POSPro() {
             name: item.options.find((option) => option.id === value)?.name || item.options.find((option) => option.value === value)?.name || value,
           }));
         }),
-    [selectedGender, selectedProductType, selectedGrade, smartFilterOptions]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedGender, selectedProductType, selectedGrade, smartFilterOptions, i18n.language]
   );
   const activeSmartFilterCount =
     activeSmartFilters.length +
@@ -4785,13 +4803,13 @@ function POSPro() {
       const targetVariant = variantsById.get(targetVariantId) || null;
 
       if (!targetVariant) {
-        toast.error("Variant not found / لم يتم العثور على المقاس أو اللون");
+        toast.error(tt("pos.posPro.toasts.variantNotFound"));
         return prev;
       }
 
       const liveStock = normalizeStockQuantity(targetVariant.stock_quantity ?? targetVariant.stock);
       if (liveStock <= 0) {
-        toast.error("Out of stock / غير متوفر بالمخزون");
+        toast.error(tt("pos.posPro.toasts.outOfStock"));
         return prev;
       }
 
@@ -5000,7 +5018,7 @@ function POSPro() {
         map_order_to_cart_ms: editTimings.map_order_to_cart_ms,
       });
       if (loadedItems.length > 0 && mappedCart.length === 0) {
-        toast.error(t("pos.posPro.toasts.invoiceItemsLoadFailed"));
+        toast.error(tt("pos.posPro.toasts.invoiceItemsLoadFailed"));
         return false;
       }
 
@@ -5119,7 +5137,7 @@ function POSPro() {
         map_order_to_cart_ms: editTimings.map_order_to_cart_ms,
       });
       if (loadedItems.length > 0 && mappedCart.length === 0) {
-        toast.error(t("pos.posPro.toasts.invoiceItemsLoadFailed"));
+        toast.error(tt("pos.posPro.toasts.invoiceItemsLoadFailed"));
         return;
       }
       const originalContext = { ...order, ...loadedOrder };
@@ -5381,7 +5399,7 @@ function POSPro() {
 
   const handleOpenShift = async () => {
     if (posShiftNetworkUnavailable) {
-      toast.error("لا يمكن فتح شفت جديد بدون اتصال");
+      toast.error(tt("pos.posPro.toasts.offlineOpenShift"));
       return;
     }
     try {
@@ -5416,11 +5434,11 @@ function POSPro() {
 
   const handleCloseShift = async () => {
     if (!activePosShift?.id) {
-      toast.error("لا توجد نردية مفتوحة");
+      toast.error(tt("pos.posPro.toasts.noOpenShift"));
       return;
     }
     if (posShiftSource === "cache" || posShiftNetworkUnavailable) {
-      toast.error("لا يمكن إغلاق الشفت بدون اتصال");
+      toast.error(tt("pos.posPro.toasts.offlineCloseShift"));
       return;
     }
 
@@ -5475,7 +5493,7 @@ function POSPro() {
   const handleConfirmCloseShift = async () => {
     if (shiftCloseSubmitting) return;
     if (nextOpeningException && !String(nextOpeningExceptionReason || "").trim()) {
-      toast.error("اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.");
+      toast.error(tt("pos.posPro.toasts.overrideReasonRequired"));
       return;
     }
 
@@ -5540,7 +5558,7 @@ function POSPro() {
     }
     const amount = Number(quickExpense.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error(t("pos.posPro.toasts.invalidExpenseAmount"));
+      toast.error(tt("pos.posPro.toasts.invalidExpenseAmount"));
       return;
     }
     const isEmployeeAdvance = quickExpense.category === "employee_advance";
@@ -5613,7 +5631,7 @@ function POSPro() {
     }
 
     if (!isShiftActive) {
-      toast.error("يجب فتح نردية قبل البيع");
+      toast.error(tt("pos.posPro.toasts.openShiftBeforeSelling"));
       return null;
     }
 
@@ -5643,23 +5661,23 @@ function POSPro() {
     const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && selectedSalespersonId && currentEmployeeId && String(selectedSalespersonId) !== currentEmployeeId) {
-      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
+      toast.error(tt("pos.posPro.toasts.noSellAsOtherUser"));
       return null;
     }
 
     if (!selectedSalespersonId) {
-      toast.error("يجب تحديد البائع قبل إتمام الفاتورة");
+      toast.error(tt("pos.posPro.toasts.selectSalespersonFirst"));
       return null;
     }
 
     if ((paymobTerminalCheckout || paymobTerminalConfirmed) && Number(paymobTerminalConfirmed ? terminalConfirmedAmount : paymobTerminalAmount) <= 0) {
-      toast.error(t("pos.posPro.toasts.invoiceAmountRequired"));
+      toast.error(tt("pos.posPro.toasts.invoiceAmountRequired"));
       return null;
     }
 
     const normalizedPaymentMode = String(creditSaleCheckout ? "credit_sale" : paymentMode || "").toLowerCase();
     if (!paymobTerminalCheckout && !paymobTerminalConfirmed && !normalizedPaymentMode) {
-      toast.error("يجب اختيار طريقة الدفع لهذه الفاتورة");
+      toast.error(tt("pos.posPro.toasts.selectPaymentMethod"));
       return null;
     }
     const isPersonalTransaction = normalizedPaymentMode === "personal";
@@ -5671,25 +5689,25 @@ function POSPro() {
         : 0;
     if (isPersonalTransaction) {
       if (!customer || !customer.id) {
-        toast.error("اختر عميلًا أولًا قبل العملية الشخصية.");
+        toast.error(tt("pos.posPro.toasts.personalSelectCustomer"));
         return null;
       }
       if (!(customer.allow_personal_transactions ?? customer.allowPersonalTransactions ?? false)) {
-        toast.error("هذا العميل غير مسموح له بالعمليات الشخصية.");
+        toast.error(tt("pos.posPro.toasts.personalNotAllowed"));
         return null;
       }
       if (!String(personalSettlementType || "").trim()) {
-        toast.error("اختر نوع العملية الشخصية قبل حفظ الفاتورة.");
+        toast.error(tt("pos.posPro.toasts.personalSelectType"));
         return null;
       }
     }
     if ((isCreditSaleTransaction || partialCreditCheckout) && (!customer || !customer.id)) {
-      toast.error("اختر عميلًا أولًا قبل البيع الآجل.");
+      toast.error(tt("pos.posPro.toasts.creditSelectCustomer"));
       return null;
     }
     const availableCustomerWalletBalance = canUseCustomerCredit ? customerCreditBalance : 0;
     if (requestedCustomerWalletAmount > 0 && !canUseCustomerCredit) {
-      toast.error("رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.");
+      toast.error(tt("pos.posPro.toasts.customerBalanceNeedsPositive"));
       return null;
     }
     if (requestedCustomerWalletAmount > availableCustomerWalletBalance) {
@@ -5705,7 +5723,7 @@ function POSPro() {
       : Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + requestedCustomerWalletAmount;
     const paymentTarget = Number(amountDueNow || 0);
     if (enteredPaymentTotal - paymentTarget > 0.009) {
-      toast.error(t("pos.posPro.toasts.paymentExceedsDue"));
+      toast.error(tt("pos.posPro.toasts.paymentExceedsDue"));
       return null;
     }
     if (!isPersonalTransaction && !isCreditSaleTransaction && !partialCreditCheckout && !paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
@@ -5713,11 +5731,11 @@ function POSPro() {
       return null;
     }
     if (partialCreditCheckout && (enteredPaymentTotal <= 0.009 || enteredPaymentTotal >= paymentTarget - 0.009)) {
-      toast.error("أدخل عربونًا أقل من إجمالي الفاتورة، وسيُسجل الباقي آجلًا.");
+      toast.error(tt("pos.posPro.toasts.depositBelowTotal"));
       return null;
     }
     if ((isPersonalTransaction || isCreditSaleTransaction) && (paymobTerminalCheckout || paymobTerminalConfirmed)) {
-      toast.error("العملية الشخصية لا تدعم الدفع عبر التيرمنال.");
+      toast.error(tt("pos.posPro.toasts.personalNoTerminal"));
       return null;
     }
 
@@ -6675,7 +6693,7 @@ function POSPro() {
       });
     } catch (error) {
       console.error("[pos] invoice pdf download failed:", error);
-      toast.error(t("pos.posPro.toasts.invoicePdfFailed"));
+      toast.error(tt("pos.posPro.toasts.invoicePdfFailed"));
     }
   };
 
@@ -6712,7 +6730,7 @@ function POSPro() {
     }
 
     if (!invoiceUrl) {
-      toast.error("تعذر إنشاء رابط الفاتورة");
+      toast.error(tt("pos.posPro.toasts.invoiceLinkFailed"));
       return;
     }
 
@@ -6743,21 +6761,21 @@ function POSPro() {
 
   const handleCopyInvoiceLink = async () => {
     if (!currentPublicInvoiceUrl) {
-      toast.error(t("pos.posPro.toasts.noInvoiceLink"));
+      toast.error(tt("pos.posPro.toasts.noInvoiceLink"));
       return;
     }
 
     try {
       await navigator.clipboard.writeText(currentPublicInvoiceUrl);
-      toast.success(t("pos.posPro.toasts.invoiceLinkCopied"));
+      toast.success(tt("pos.posPro.toasts.invoiceLinkCopied"));
     } catch {
-      toast.error(t("pos.posPro.toasts.invoiceLinkCopyFailed"));
+      toast.error(tt("pos.posPro.toasts.invoiceLinkCopyFailed"));
     }
   };
 
   const handleOpenInvoice = () => {
     if (!currentPublicInvoiceUrl) {
-      toast.error(t("pos.posPro.toasts.noInvoiceLink"));
+      toast.error(tt("pos.posPro.toasts.noInvoiceLink"));
       return;
     }
 
@@ -7050,7 +7068,7 @@ function POSPro() {
       return;
     }
     if (!initialAmount || initialAmount <= 0) {
-      toast.error(t("pos.posPro.toasts.invoiceAmountRequired"));
+      toast.error(tt("pos.posPro.toasts.invoiceAmountRequired"));
       return;
     }
 
@@ -7186,7 +7204,7 @@ function POSPro() {
     setLoyaltyValidation(null);
     setLoyaltyRedeemPoints(0);
     clearEditMode();
-    toast.success(t("pos.posPro.toasts.cartCleared"));
+    toast.success(tt("pos.posPro.toasts.cartCleared"));
   };
 
   const handleClearSmartFilters = useCallback(() => {
@@ -7506,7 +7524,7 @@ function POSPro() {
   const handleSoftRefreshPos = useCallback(async () => {
     if (posRefreshLoading) return;
     setPosRefreshLoading(true);
-    const refreshToast = toast.loading("جاري تحديث المنتجات والمخزون والعملاء...");
+    const refreshToast = toast.loading(tt("pos.posPro.toasts.refreshing"));
     try {
       const [catalog] = await Promise.all([
         refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }),
@@ -7522,7 +7540,7 @@ function POSPro() {
         }
         return reconciled.nextCart;
       });
-      toast.success("تم تحديث الـ POS مع الاحتفاظ بالفواتير المفتوحة", { id: refreshToast });
+      toast.success(tt("pos.posPro.toasts.refreshed"), { id: refreshToast });
     } catch (refreshError) {
       console.error("[pos] soft refresh failed", refreshError);
       toast.error(getErrorMessage(refreshError, "تعذر تحديث الـ POS"), { id: refreshToast });
@@ -7678,10 +7696,10 @@ function POSPro() {
                 onClick={() => setQuickExpenseOpen(true)}
                 disabled={!activePosShift?.id}
                 className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                title="مصروف / Expense"
+                title={t("pos.posPro.chrome.expense")}
               >
                 <ReceiptText className="h-4 w-4" />
-                <span>مصروف</span>
+                <span>{t("pos.posPro.chrome.expense")}</span>
               </button>
             ) : null}
           </div>
@@ -7837,7 +7855,7 @@ function POSPro() {
                         onChange={(e) => setQuickCustomer((prev) => ({ ...prev, allow_personal_transactions: e.target.checked }))}
                         className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
                       />
-                      <span>السماح بالعمليات الشخصية</span>
+                      <span>{t("pos.posPro.chrome.allowPersonal")}</span>
                     </label>
                   ) : null}
 
@@ -7978,8 +7996,8 @@ function POSPro() {
                     type="button"
                     onClick={() => setCameraScannerOpen(true)}
                     className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 xl:hidden"
-                    aria-label="فتح ماسح الكاميرا"
-                    title="فتح ماسح الكاميرا"
+                    aria-label={t("pos.posPro.chrome.openCameraScanner")}
+                    title={t("pos.posPro.chrome.openCameraScanner")}
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -7989,7 +8007,7 @@ function POSPro() {
                   onClick={handleSoftRefreshPos}
                   disabled={posRefreshLoading}
                   className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-60"
-                  title="تحديث المنتجات والمخزون والعملاء بدون إعادة تحميل الصفحة"
+                  title={t("pos.posPro.chrome.refreshTooltip")}
                 >
                   <RotateCcw className={`h-4 w-4 ${posRefreshLoading ? "animate-spin" : ""}`} />
                   <span>{posRefreshLoading ? "جاري التحديث" : "تحديث POS"}</span>
@@ -8013,10 +8031,10 @@ function POSPro() {
                   type="button"
                   onClick={handleClearSmartFilters}
                   className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-xs font-black text-rose-100 transition hover:border-rose-200/45 hover:bg-rose-400/15"
-                  title="مسح الفلاتر"
+                  title={t("pos.posPro.smartFilters.clear")}
                 >
                   <RotateCcw className="h-4 w-4" />
-                  <span>مسح الفلاتر</span>
+                  <span>{t("pos.posPro.smartFilters.clear")}</span>
                 </button>
             </div>
             <QuickPosFilters
@@ -8962,7 +8980,7 @@ function ShiftGate({
                 المستخدم
               </div>
               <div className="mt-2 text-lg font-black text-white">{userName || "المستخدم الحالي"}</div>
-              <div className="mt-1 text-xs text-zinc-500">متعلق من الحساب الحالي</div>
+              <div className="mt-1 text-xs text-zinc-500">{t("pos.posPro.chrome.pendingFromCurrentAccount")}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
@@ -9472,7 +9490,7 @@ function ShiftCloseAuditLayout({
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-[0.72fr_1.28fr]">
                 <label className="block">
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">تاريخ الفتح</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">{t("pos.posPro.shiftCloseAudit.openedAt")}</span>
                   <input
                     type="date"
                     value={nextOpeningWorkDate || ""}
@@ -9481,7 +9499,7 @@ function ShiftCloseAuditLayout({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">الموظف المؤهل</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">{t("pos.posPro.shiftCloseAudit.eligibleEmployee")}</span>
                   <select
                     value={nextOpeningEmployeeId || ""}
                     onChange={(event) => onNextOpeningEmployeeChange?.(event.target.value)}
@@ -9543,7 +9561,7 @@ function ShiftCloseAuditLayout({
                     value={nextOpeningExceptionReason}
                     onChange={(event) => onNextOpeningExceptionReasonChange?.(event.target.value)}
                     rows={3}
-                    placeholder="اكتب سبب التجاوز..."
+                    placeholder={t("pos.posPro.shiftCloseAudit.overrideReasonPlaceholder")}
                     className="mt-3 min-h-20 w-full resize-none rounded-xl border border-amber-200/20 bg-black/45 p-3 text-sm font-bold text-white outline-none transition placeholder:text-amber-100/35 focus:border-amber-200/60"
                   />
                 ) : null}
@@ -9570,7 +9588,7 @@ function ShiftCloseAuditLayout({
         <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">ملخص المراجعة</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.posPro.shiftCloseAudit.auditSummary")}</div>
               <div className="mt-1 text-sm font-semibold text-zinc-400">{shift.cashier_name || ""} / {shift.branch_name || ""}</div>
             </div>
             <button
@@ -9584,25 +9602,25 @@ function ShiftCloseAuditLayout({
             </button>
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.08fr_1.08fr_0.88fr]">
-            <AccountingLedgerSection title="ملخص الكاش" accent="amber">
-              <AccountingLedgerRow label="مبيعات نقدية" value={formatCurrency(totals.cash || 0)} />
-              <AccountingLedgerRow label="مرتجعات نقدية" value={formatCurrency(totals.returns || 0)} />
-              <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
-              <AccountingLedgerRow label="صافي الدرج المتوقع" value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} strong highlight />
+            <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.cashSummary")} accent="amber">
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashSales")} value={formatCurrency(totals.cash || 0)} />
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashReturns")} value={formatCurrency(totals.returns || 0)} />
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashExpenses")} value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.netExpectedDrawer")} value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} strong highlight />
             </AccountingLedgerSection>
 
-            <AccountingLedgerSection title="وسائل الدفع" accent="emerald">
-              <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
-              <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
+            <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.paymentMethods")} accent="emerald">
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cards")} value={formatCurrency(totals.card || 0)} />
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.wallet")} value={formatCurrency(totals.wallet || 0)} />
               <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} />
               <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} />
             </AccountingLedgerSection>
 
-            <AccountingLedgerSection title="النشاط" accent="cyan">
-              <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
-            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
-            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
-            <AccountingLedgerRow label="مدة الشيفت" value={safeShiftDuration} />
+            <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.activity")} accent="cyan">
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.invoiceCount")} value={Number(totals.invoice_count || 0).toLocaleString()} />
+            <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.discounts")} value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.employeeAdvances")} value={formatCurrency(totals.employee_advances || 0)} />
+            <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.shiftDuration")} value={safeShiftDuration} />
           </AccountingLedgerSection>
           </div>
           <div className={`mt-4 rounded-2xl border p-4 ${paymentWarnings.length ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"}`}>
@@ -9716,6 +9734,7 @@ function ShiftCloseAuditLayout({
 }
 
 function ShiftReportModal({ report, onClose, onPrint }) {
+  const { t } = useTranslation();
   const totals = report?.totals || {};
   const shift = report?.shift || {};
   const expectedCash = Number(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash ?? report?.expectedDrawer ?? 0);
@@ -9729,12 +9748,12 @@ function ShiftReportModal({ report, onClose, onPrint }) {
       <div dir="rtl" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">إغلاق وردية</div>
-            <h2 className="mt-1 text-2xl font-black text-white">تم إغلاق الوردية بنجاح</h2>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">{t("pos.posPro.shiftReport.eyebrow")}</div>
+            <h2 className="mt-1 text-2xl font-black text-white">{t("pos.posPro.shiftReport.title")}</h2>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => onPrint?.(report)} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm font-bold text-emerald-100">
-              طباعة التقرير
+              {t("pos.posPro.shiftReport.print")}
             </button>
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
               إغلاق
@@ -9747,21 +9766,21 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           </div>
           <div className="space-y-2 text-sm text-zinc-200">
             <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
-              <span className="font-semibold text-zinc-400">صافي الدرج المتوقع</span>
+              <span className="font-semibold text-zinc-400">{t("pos.posPro.shiftReport.expectedDrawer")}</span>
               <span className="font-black text-white">{formatCurrency(expectedCash)}</span>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
-              <span className="font-semibold text-zinc-400">العد الفعلي</span>
+              <span className="font-semibold text-zinc-400">{t("pos.posPro.shiftReport.actualCount")}</span>
               <span className="font-black text-white">{actualCash === null ? "-" : formatCurrency(actualCash)}</span>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
-              <span className="font-semibold text-zinc-400">الفرق</span>
+              <span className="font-semibold text-zinc-400">{t("pos.posPro.shiftReport.difference")}</span>
               <span className={variance === 0 ? "font-black text-emerald-200" : variance > 0 ? "font-black text-amber-200" : "font-black text-rose-200"}>
-                {variance === 0 ? "✅ متوازن" : variance > 0 ? `✅ زيادة: ${formatCurrency(Math.abs(variance))}` : `⚠️ عجز: ${formatCurrency(Math.abs(variance))}`}
+                {variance === 0 ? t("pos.posPro.shiftReport.balanced") : t(variance > 0 ? "pos.posPro.shiftReport.over" : "pos.posPro.shiftReport.short", { amount: formatCurrency(Math.abs(variance)) })}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
-              <span className="font-semibold text-zinc-400">عدد الفواتير</span>
+              <span className="font-semibold text-zinc-400">{t("pos.posPro.shiftReport.invoiceCount")}</span>
               <span className="font-black text-white">{invoiceCount.toLocaleString()}</span>
             </div>
           </div>
@@ -9791,14 +9810,14 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{t("pos.posPro.misc.posScanner")}</div>
-            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الكاميرا نحو الباركود أو QR الخاص بالمنتج وسيتم التنفيذ مباشرة.</p>
+            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">{t("pos.posPro.cameraScanner.title")}</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">{t("pos.posPro.cameraScanner.subtitle")}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
-            aria-label="إغلاق ماسح الكاميرا"
+            aria-label={t("pos.posPro.cameraScanner.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -9854,7 +9873,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{t("pos.posPro.misc.posExpense")}</div>
-            <h3 className="mt-1 text-xl font-black">مصروف / Expense</h3>
+            <h3 className="mt-1 text-xl font-black">{t("pos.posPro.chrome.expense")}</h3>
             <p className="mt-1 text-xs font-semibold text-zinc-500">
               {branchName || "الفرع الحالي"} {shiftId ? `#${shiftId}` : ""}
             </p>

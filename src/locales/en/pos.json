@@ -100,15 +100,15 @@
     "price": "Price",
     "favorite": "Favorite"
   },
-    "treasury": {
-      "adjustment": "Treasury adjustment",
-      "recharge": "Recharge treasury account",
-      "rechargeOrAdjustment": "Recharge / adjustment",
-      "rechargeAmount": "Recharge amount",
-      "auditNote": "Audit note",
-      "enterPositiveAmount": "Enter a positive recharge amount",
-      "adjustmentRecorded": "Treasury adjustment recorded"
-    },
+  "treasury": {
+    "adjustment": "Treasury adjustment",
+    "recharge": "Recharge treasury account",
+    "rechargeOrAdjustment": "Recharge / adjustment",
+    "rechargeAmount": "Recharge amount",
+    "auditNote": "Audit note",
+    "enterPositiveAmount": "Enter a positive recharge amount",
+    "adjustmentRecorded": "Treasury adjustment recorded"
+  },
   "posPro": {
     "toasts": {
       "cartItemsRemoved": "Some cart items are no longer available and were removed.",
@@ -122,7 +122,30 @@
       "noInvoiceLink": "No invoice link available",
       "invoiceLinkCopied": "Invoice link copied",
       "invoiceLinkCopyFailed": "Unable to copy invoice link",
-      "cartCleared": "Cart cleared"
+      "cartCleared": "Cart cleared",
+      "sessionRestored": "Saved sale session restored",
+      "noSellAsOtherUser": "You do not have permission to sell as another user",
+      "maxOpenInvoices": "Maximum of 5 open invoices",
+      "offlineOpenShift": "A new shift cannot be opened while offline",
+      "noOpenShift": "No shift is open",
+      "offlineCloseShift": "The shift cannot be closed while offline",
+      "overrideReasonRequired": "Enter a reason for overriding the branch opener before closing the shift.",
+      "openShiftBeforeSelling": "A shift must be opened before selling",
+      "selectSalespersonFirst": "Select the salesperson before completing the invoice",
+      "selectPaymentMethod": "Select a payment method for this invoice",
+      "personalSelectCustomer": "Select a customer before a personal transaction.",
+      "personalNotAllowed": "This customer is not allowed personal transactions.",
+      "personalSelectType": "Select the personal transaction type before saving the invoice.",
+      "creditSelectCustomer": "Select a customer before a credit sale.",
+      "customerBalanceNeedsPositive": "Customer balance is only available for a customer with a positive balance.",
+      "depositBelowTotal": "Enter a deposit lower than the invoice total; the remainder is recorded as credit.",
+      "personalNoTerminal": "Personal transactions do not support terminal payment.",
+      "invoiceLinkFailed": "Could not create the invoice link",
+      "refreshing": "Refreshing products, stock and customers...",
+      "refreshed": "POS refreshed, open invoices kept",
+      "variantNotFound": "Variant not found",
+      "outOfStock": "Out of stock",
+      "confirmCloseInvoiceWithItems": "This invoice contains products. Close it anyway?"
     },
     "terminal": {
       "unconfirmed": "Payment was sent to the terminal, but ERP did not receive confirmation. If the terminal shows Approved, click Confirm terminal payment.",
@@ -176,6 +199,68 @@
       "amount": "Amount",
       "notes": "Notes",
       "status": "Status"
+    },
+    "quickExpenseCategories": {
+      "delivery": "Delivery",
+      "snacks": "Snacks",
+      "cleaning": "Cleaning",
+      "small_purchases": "Small purchases",
+      "water": "Water",
+      "electricity": "Electricity",
+      "shipping": "Shipping",
+      "maintenance": "Maintenance",
+      "other": "Other",
+      "employee_advance": "Employee advance"
+    },
+    "smartFilters": {
+      "gender": "Gender",
+      "productType": "Product type",
+      "grade": "Grade",
+      "clear": "Clear filters"
+    },
+    "chrome": {
+      "expense": "Expense",
+      "allowPersonal": "Allow personal transactions",
+      "openCameraScanner": "Open camera scanner",
+      "refreshTooltip": "Refresh products, stock and customers without reloading the page",
+      "pendingFromCurrentAccount": "Outstanding on the current account"
+    },
+    "shiftCloseAudit": {
+      "openedAt": "Opened at",
+      "eligibleEmployee": "Eligible employee",
+      "overrideReasonPlaceholder": "Write the override reason...",
+      "auditSummary": "Audit summary",
+      "cashSummary": "Cash summary",
+      "cashSales": "Cash sales",
+      "cashReturns": "Cash returns",
+      "cashExpenses": "Cash expenses",
+      "netExpectedDrawer": "Expected net drawer",
+      "paymentMethods": "Payment methods",
+      "cards": "Cards",
+      "wallet": "Wallet",
+      "activity": "Activity",
+      "invoiceCount": "Invoice count",
+      "discounts": "Discounts",
+      "employeeAdvances": "Employee advances",
+      "shiftDuration": "Shift duration"
+    },
+    "shiftReport": {
+      "eyebrow": "Shift close",
+      "title": "Shift closed successfully",
+      "print": "Print report",
+      "close": "Close",
+      "expectedDrawer": "Expected net drawer",
+      "actualCount": "Actual count",
+      "difference": "Difference",
+      "balanced": "✅ Balanced",
+      "over": "✅ Over: {{amount}}",
+      "short": "⚠️ Short: {{amount}}",
+      "invoiceCount": "Invoice count"
+    },
+    "cameraScanner": {
+      "title": "Scan the barcode or QR with the camera",
+      "subtitle": "Point the camera at the product barcode or QR and it is applied immediately.",
+      "close": "Close camera scanner"
     }
   },
   "cart": {
@@ -246,7 +331,6 @@
     "other": "Other",
     "processing": "Processing...",
     "savingInvoice": "Saving the invoice...",
-    "createOrder": "Create order",
     "saveInvoiceEdit": "Save Changes",
     "thermalPrint": "Thermal print",
     "downloadPdf": "Download PDF",
@@ -266,7 +350,6 @@
     "closeInvoice": "Close the invoice",
     "note": "Note",
     "optional": "Optional",
-    "editInvoice": "Edit the invoice",
     "invoiceTotal": "Invoice total"
   },
   "saleMode": {
