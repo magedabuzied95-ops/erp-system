@@ -1481,7 +1481,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
           >
             {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-            {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
+            {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
           </button>
           <button
             type="button"
@@ -3383,7 +3383,7 @@ function SocialCommentsWorkspace({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.erpProductCard")}</div>
-                          <div className="mt-1 text-sm font-black text-white">{activeProductCard.productName || "Linked product"}</div>
+                          <div className="mt-1 text-sm font-black text-white">{activeProductCard.productName || t("aiSupport.inbox.socialWorkspace.linkedProduct")}</div>
                           <div className="mt-1 text-xs font-semibold text-slate-500">
                             {activeProductCard.productBrand || dash}
                             {activeProductCard.productCount > 0 ? ` · ${activeProductCard.productCount} linked` : ""}
@@ -3395,7 +3395,7 @@ function SocialCommentsWorkspace({
                             onClick={() => setShowProductCardDetails((current) => !current)}
                             className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white px-2.5 text-[11px] font-black text-slate-900 shadow-sm"
                           >
-                            {showProductCardDetails ? "Collapse" : "Expand"}
+                            {showProductCardDetails ? t("aiSupport.inbox.socialWorkspace.collapse") : t("aiSupport.inbox.socialWorkspace.expand")}
                           </button>
                           {activeProductCard.productLink ? (
                             <a
@@ -3588,7 +3588,7 @@ function SocialCommentsWorkspace({
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-slate-200 disabled:opacity-50"
                       >
                         {privateMessageLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                        {activePrivateMessageStatus === "sent" ? "Sent" : "Private Message"}
+                        {activePrivateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
                       </button>
                       <button
                         type="button"
@@ -3682,7 +3682,7 @@ function SocialCommentsWorkspace({
                   <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-200">
                     <SidebarRow label={t("aiSupport.inbox.socialWorkspace.mostAskedQuestion")} value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label={t("aiSupport.inbox.socialWorkspace.suggestedReply")} value={suggestedReply || t("aiSupport.inbox.socialWorkspace.noSuggestion")} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
-                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.leadIntent")} value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
+                    <SidebarRow label={t("aiSupport.inbox.socialWorkspace.leadIntent")} value={t("aiSupport.inbox.socialWorkspace.leadIntentCounts", { leads: visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length, price: visibleComments.filter((item) => getCommentTags(item).includes("Price")).length, size: visibleComments.filter((item) => getCommentTags(item).includes("Size")).length })} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
                     <SidebarRow
                       label={t("aiSupport.inbox.socialWorkspace.commentIdentity")}
                       value={selectFirst(resolveCommentCustomerName(actionableComment), activePostDetails?.customerName)}
@@ -3722,12 +3722,12 @@ function SocialCommentsWorkspace({
                       onClick={() => setGlobalDraft((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
                     />
                     <TogglePill
-                      label={`Like ${currentGlobalSettings.generic_like_enabled ? "ON" : "OFF"}`}
+                      label={t("aiSupport.inbox.socialWorkspace.likeState", { state: currentGlobalSettings.generic_like_enabled ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
                       active={currentGlobalSettings.generic_like_enabled}
                       onClick={() => setGlobalDraft((current) => ({ ...current, generic_like_enabled: !current.generic_like_enabled }))}
                     />
                     <TogglePill
-                      label={`Reply ${currentGlobalSettings.generic_reply_enabled ? "ON" : "OFF"}`}
+                      label={t("aiSupport.inbox.socialWorkspace.replyState", { state: currentGlobalSettings.generic_reply_enabled ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
                       active={currentGlobalSettings.generic_reply_enabled}
                       onClick={() => setGlobalDraft((current) => ({ ...current, generic_reply_enabled: !current.generic_reply_enabled }))}
                     />
@@ -3773,7 +3773,7 @@ function SocialCommentsWorkspace({
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <TogglePill
-                      label={activeTemplateEnabled ? "Enabled" : "Disabled"}
+                      label={activeTemplateEnabled ? t("aiSupport.inbox.socialWorkspace.enabled") : t("aiSupport.inbox.socialWorkspace.disabled")}
                       active={activeTemplateEnabled}
                       onClick={() =>
                         setTemplateDraft((current) => ({
@@ -3783,7 +3783,7 @@ function SocialCommentsWorkspace({
                       }
                     />
                     <TogglePill
-                      label={`Like ${activeTemplate?.like_enabled !== false ? "ON" : "OFF"}`}
+                      label={t("aiSupport.inbox.socialWorkspace.likeState", { state: activeTemplate?.like_enabled !== false ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
                       active={activeTemplate?.like_enabled !== false}
                       onClick={() =>
                         setTemplateDraft((current) => ({
@@ -3793,7 +3793,7 @@ function SocialCommentsWorkspace({
                       }
                     />
                     <TogglePill
-                      label={`Reply ${activeTemplate?.reply_enabled !== false ? "ON" : "OFF"}`}
+                      label={t("aiSupport.inbox.socialWorkspace.replyState", { state: activeTemplate?.reply_enabled !== false ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
                       active={activeTemplate?.reply_enabled !== false}
                       onClick={() =>
                         setTemplateDraft((current) => ({
@@ -3846,7 +3846,7 @@ function SocialCommentsWorkspace({
                         {t("aiSupport.inbox.socialWorkspace.previewReply")}
                       </button>
                     </div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{suggestedReply || "No template text yet."}</div>
+                    <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{suggestedReply || t("aiSupport.inbox.socialWorkspace.noTemplateText")}</div>
                   </div>
                 </div>
 

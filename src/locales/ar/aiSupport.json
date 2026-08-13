@@ -997,7 +997,22 @@
       "priceValue": "السعر: {{value}}", "stockValue": "المخزون: {{value}}", "loadOlderComments": "تحميل التعليقات الأقدم",
       "reload": "إعادة تحميل", "reloadComments": "إعادة تحميل التعليقات", "previewReply": "معاينة الرد",
       "copySuggestedReply": "نسخ الرد المقترح", "sendSuggestedReply": "إرسال الرد المقترح",
-      "saveGlobalTemplate": "حفظ القالب العام", "savePostTemplate": "حفظ قالب المنشور"
+      "saveGlobalTemplate": "حفظ القالب العام", "savePostTemplate": "حفظ قالب المنشور",
+      "sent": "تم الإرسال", "privateMessage": "رسالة خاصة", "linkedProduct": "المنتج المرتبط",
+      "collapse": "طي", "expand": "توسيع", "leadIntentCounts": "{{leads}} محتمل / {{price}} سعر / {{size}} مقاس",
+      "likeState": "إعجاب {{state}}", "replyState": "رد {{state}}", "on": "مفعّل", "off": "متوقف",
+      "noTemplateText": "لا يوجد نص للقالب بعد."
+    },
+    "socialPanel": {
+      "all": "الكل", "price": "السعر", "size": "المقاس", "shipping": "الشحن", "details": "التفاصيل",
+      "inbox": "صندوق الوارد", "ignore": "تجاهل", "humanReview": "مراجعة بشرية", "facebook": "فيسبوك",
+      "instagram": "إنستجرام", "needsReply": "يحتاج إلى رد", "linkedEdit": "مربوط ({{count}}) · تعديل",
+      "linkProduct": "ربط منتج", "openComment": "فتح التعليق", "socialPosts": "منشورات التواصل الاجتماعي",
+      "postsHint": "منشورات ومقاطع فيسبوك وإنستجرام", "commentsHint": "أحدث التعليقات في النظام",
+      "debugUrl": "الرابط: {{value}}", "debugTenant": "المستأجر: {{value}}", "debugStatus": "الحالة: {{value}}",
+      "debugCount": "العدد: {{value}}", "debugError": "الخطأ: {{value}}", "loadingPosts": "جارٍ تحميل المنشورات...",
+      "loadingComments": "جارٍ تحميل التعليقات...", "noMatchingPosts": "لا توجد منشورات مطابقة.",
+      "noMatchingComments": "لا توجد تعليقات مطابقة."
     },
     "pwa": {
       "allMessages": "كل الرسائل",

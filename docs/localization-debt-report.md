@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 112
+- Files with debt: 111
 - Hardcoded Arabic UI strings: 940
-- Hardcoded English UI strings: 658
-- Total hardcoded UI strings: 1598
+- Hardcoded English UI strings: 646
+- Total hardcoded UI strings: 1586
 - Mixed-language files (both scripts hardcoded): 26
 
 ### By surface
@@ -21,7 +21,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 57 | 665 | 377 | 1042 | 17 |
-| shared | 39 | 75 | 198 | 273 | 5 |
+| shared | 38 | 75 | 186 | 261 | 5 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1038,21 +1038,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 11 [inline-ternary/ar] isArabic ? "الأرباح والخسائر" : "Profit & loss"
 - 12 [inline-ternary/ar] isArabic ? "مراجعة التكلفة" : "Cost review"
 - 13 [inline-ternary/ar] isArabic ? "سجل التدقيق" : "Audit trail"
-
-### src/modules/aiSupport/components/SocialCommentsPanel.jsx (shared — ar:0 en:12)
-
-- 15 [object-key/en] All
-- 16 [object-key/en] Price
-- 17 [object-key/en] Size
-- 18 [object-key/en] Shipping
-- 19 [object-key/en] Details
-- 20 [object-key/en] Inbox
-- 21 [object-key/en] Ignore
-- 22 [object-key/en] Human Review
-- 26 [object-key/en] All
-- 29 [object-key/en] Needs Reply
-- 263 [jsx-text/en] Needs reply
-- 372 [jsx-text/en] URL:
 
 ### src/modules/attendance/components/AttendanceWorkspace.jsx (employee-portal — ar:12 en:0)
 

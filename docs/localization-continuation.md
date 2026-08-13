@@ -104,9 +104,10 @@ checkpoint deployed and verified in both AR/RTL and EN/LTR before the next owner
 | 6 | `AppleEmojiPicker.jsx` | COMPLETE (`636b29a`); scanner 1 → 0; AR/RTL + EN/LTR runtime verified |
 | 7 | `AILiveLogs.jsx` | COMPLETE (`636b29a`); scanner 2 → 0 |
 | 8 | `AiInboxPwa.jsx` | COMPLETE (`eb9a4e9`, runtime correction `6e3e3e4`); scanner 129 → 0; multiline JSX AST check → 0 |
-| 9 | `SocialCommentsWorkspace.jsx` | COMPLETE in the current checkpoint; scanner 77 → 0; direct JSX/attribute AST check 57 → 0 |
+| 9 | `SocialCommentsWorkspace.jsx` | COMPLETE (`5604bc7`, runtime correction in current checkpoint); scanner 77 → 0; direct JSX/attribute AST check 57 → 0 |
+| 10 | `SocialCommentsPanel.jsx` | COMPLETE in the current checkpoint; scanner 11 → 0; direct JSX/attribute AST check 11 → 0 |
 
-**RESUME MARKER:** owner 10 — `SocialCommentsPanel.jsx`. Do not restart owners 1–9.
+**RESUME MARKER:** owner 11 — `socialCommentTimeline.jsx`. Do not restart owners 1–10.
 The final zero gate still requires a deployed bidirectional runtime sweep and a
 separate multi-line JSX check, because the legacy scanner only counts same-line
 JSX text.

@@ -997,7 +997,22 @@
       "priceValue": "Price: {{value}}", "stockValue": "Stock: {{value}}", "loadOlderComments": "Load older comments",
       "reload": "Reload", "reloadComments": "Reload comments", "previewReply": "Preview reply",
       "copySuggestedReply": "Copy suggested reply", "sendSuggestedReply": "Send suggested reply",
-      "saveGlobalTemplate": "Save global template", "savePostTemplate": "Save post template"
+      "saveGlobalTemplate": "Save global template", "savePostTemplate": "Save post template",
+      "sent": "Sent", "privateMessage": "Private message", "linkedProduct": "Linked product",
+      "collapse": "Collapse", "expand": "Expand", "leadIntentCounts": "{{leads}} leads / {{price}} price / {{size}} size",
+      "likeState": "Like {{state}}", "replyState": "Reply {{state}}", "on": "ON", "off": "OFF",
+      "noTemplateText": "No template text yet."
+    },
+    "socialPanel": {
+      "all": "All", "price": "Price", "size": "Size", "shipping": "Shipping", "details": "Details",
+      "inbox": "Inbox", "ignore": "Ignore", "humanReview": "Human review", "facebook": "Facebook",
+      "instagram": "Instagram", "needsReply": "Needs reply", "linkedEdit": "Linked ({{count}}) · Edit",
+      "linkProduct": "Link product", "openComment": "Open comment", "socialPosts": "Social posts",
+      "postsHint": "Facebook and Instagram posts and reels", "commentsHint": "Latest comments in the system",
+      "debugUrl": "URL: {{value}}", "debugTenant": "Tenant: {{value}}", "debugStatus": "Status: {{value}}",
+      "debugCount": "Count: {{value}}", "debugError": "Error: {{value}}", "loadingPosts": "Loading social posts...",
+      "loadingComments": "Loading social comments...", "noMatchingPosts": "No matching posts.",
+      "noMatchingComments": "No matching comments."
     },
     "pwa": {
       "allMessages": "All messages",

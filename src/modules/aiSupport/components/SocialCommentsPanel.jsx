@@ -1,32 +1,33 @@
 import { memo, useCallback, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Clock3, ExternalLink, Image as ImageIcon, Link2, MessageSquareText, Play, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
-const absoluteTime = (value) => {
+const absoluteTime = (value, language = "en") => {
   if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(language === "ar" ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" });
 };
 
 const COMMENT_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "lead_price", label: "Price" },
-  { key: "lead_size", label: "Size" },
-  { key: "lead_shipping", label: "Shipping" },
-  { key: "lead_details", label: "Details" },
-  { key: "lead_inbox", label: "Inbox" },
-  { key: "ignore", label: "Ignore" },
-  { key: "human_review", label: "Human Review" },
+  { key: "all", labelKey: "all" },
+  { key: "lead_price", labelKey: "price" },
+  { key: "lead_size", labelKey: "size" },
+  { key: "lead_shipping", labelKey: "shipping" },
+  { key: "lead_details", labelKey: "details" },
+  { key: "lead_inbox", labelKey: "inbox" },
+  { key: "ignore", labelKey: "ignore" },
+  { key: "human_review", labelKey: "humanReview" },
 ];
 
 const POST_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "facebook", label: "Facebook" },
-  { key: "instagram", label: "Instagram" },
-  { key: "needs_reply", label: "Needs Reply" },
+  { key: "all", labelKey: "all" },
+  { key: "facebook", labelKey: "facebook" },
+  { key: "instagram", labelKey: "instagram" },
+  { key: "needs_reply", labelKey: "needsReply" },
 ];
 
 const normalizedPlatform = (item = {}) => {
@@ -169,6 +170,8 @@ const socialCommentItemsEqual = (left = {}, right = {}) =>
   Boolean(left.unread) === Boolean(right.unread);
 
 const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem, onPrefetchItem, onLinkProduct }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const platform = platformMeta(item.platform);
   const itemKey = socialCommentItemKey(item);
   const media = postMedia(item);
@@ -252,22 +255,22 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
                 }`}
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {isProductLinked ? `مربوط${linkedProductsCount ? ` (${linkedProductsCount})` : ""} · تعديل` : "ربط منتج"}
+                {isProductLinked ? t("aiSupport.inbox.socialPanel.linkedEdit", { count: linkedProductsCount }) : t("aiSupport.inbox.socialPanel.linkProduct")}
               </button>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{Number(item.comments_count || 0)} comments</span>
-            <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{Number(item.new_comments_count || 0)} new</span>
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: Number(item.comments_count || 0) })}</span>
+            <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{t("aiSupport.inbox.socialWorkspace.newCount", { count: Number(item.new_comments_count || 0) })}</span>
             <span className={`rounded-full border px-2.5 py-1 ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>{clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}</span>
-            {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+            {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">{t("aiSupport.inbox.socialWorkspace.needsReply")}</span> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
               <Clock3 className="h-3.5 w-3.5" />
               {(() => {
                 const time = getPostVisibleTime(item);
-                return time ? absoluteTime(time) : "Unknown";
+                return time ? absoluteTime(time, language) : t("aiSupport.inbox.pwa.unknown");
               })()}
             </span>
           </div>
@@ -284,6 +287,7 @@ const SocialCommentsPanelCommentRow = memo(function SocialCommentsPanelCommentRo
   onPrefetchItem,
   fallbackPlatform = "facebook",
 }) {
+  const { t } = useTranslation();
   const itemKey = socialCommentItemKey(item);
   const permalink = clean(item.post_permalink);
   const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
@@ -316,7 +320,7 @@ const SocialCommentsPanelCommentRow = memo(function SocialCommentsPanelCommentRo
           rel="noreferrer"
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700"
         >
-          Open comment
+          {t("aiSupport.inbox.socialPanel.openComment")}
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       ) : null}
@@ -342,6 +346,7 @@ function SocialCommentsPanel({
   onPrefetchItem,
   onLinkProduct,
 }) {
+  const { t } = useTranslation();
   const filters = mode === "posts" ? POST_FILTERS : COMMENT_FILTERS;
   const handleFilterChange = useCallback((itemKey) => onFilterChange?.(itemKey), [onFilterChange]);
   const handleRefresh = useCallback(() => onRefresh?.(), [onRefresh]);
@@ -362,18 +367,18 @@ function SocialCommentsPanel({
         <div>
           <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
             <MessageSquareText className="h-4 w-4" />
-            {mode === "posts" ? "Social Posts" : "Social Comments"}
+            {mode === "posts" ? t("aiSupport.inbox.socialPanel.socialPosts") : t("aiSupport.inbox.socialWorkspace.socialComments")}
           </div>
           <div className="mt-1 text-sm font-black text-slate-900">
-            {mode === "posts" ? "Facebook & Instagram posts and reels" : "Latest comments in the system"}
+            {mode === "posts" ? t("aiSupport.inbox.socialPanel.postsHint") : t("aiSupport.inbox.socialPanel.commentsHint")}
           </div>
           {debugInfo ? (
             <div className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">
-              {debugInfo.request_url ? <span className="mr-2">URL: {debugInfo.request_url}</span> : null}
-              {debugInfo.tenant_id ? <span className="mr-2">tenant: {debugInfo.tenant_id}</span> : null}
-              {typeof debugInfo.status !== "undefined" ? <span className="mr-2">status: {String(debugInfo.status)}</span> : null}
-              {typeof debugInfo.count !== "undefined" ? <span>count: {String(debugInfo.count)}</span> : null}
-              {debugInfo.error ? <span className="block text-rose-600">error: {debugInfo.error}</span> : null}
+              {debugInfo.request_url ? <span className="mr-2">{t("aiSupport.inbox.socialPanel.debugUrl", { value: debugInfo.request_url })}</span> : null}
+              {debugInfo.tenant_id ? <span className="mr-2">{t("aiSupport.inbox.socialPanel.debugTenant", { value: debugInfo.tenant_id })}</span> : null}
+              {typeof debugInfo.status !== "undefined" ? <span className="mr-2">{t("aiSupport.inbox.socialPanel.debugStatus", { value: String(debugInfo.status) })}</span> : null}
+              {typeof debugInfo.count !== "undefined" ? <span>{t("aiSupport.inbox.socialPanel.debugCount", { value: String(debugInfo.count) })}</span> : null}
+              {debugInfo.error ? <span className="block text-rose-600">{t("aiSupport.inbox.socialPanel.debugError", { value: debugInfo.error })}</span> : null}
             </div>
           ) : null}
         </div>
@@ -385,7 +390,7 @@ function SocialCommentsPanel({
             className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            {t("aiSupport.inbox.socialWorkspace.refresh")}
           </button>
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">
             {filteredItems.length}/{Number.isFinite(Number(totalItemsCount)) ? Number(totalItemsCount) : items.length}
@@ -407,7 +412,7 @@ function SocialCommentsPanel({
                 active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
               }`}
             >
-              {item.label}
+              {t(`aiSupport.inbox.socialPanel.${item.labelKey}`)}
             </button>
           );
         })}
@@ -416,7 +421,7 @@ function SocialCommentsPanel({
       <div className="mt-3 max-h-[26rem] overflow-y-auto pr-1">
         {loading && !items.length ? (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-            {mode === "posts" ? "Loading social posts..." : "Loading social comments..."}
+            {mode === "posts" ? t("aiSupport.inbox.socialPanel.loadingPosts") : t("aiSupport.inbox.socialPanel.loadingComments")}
           </div>
         ) : null}
 
@@ -451,14 +456,14 @@ function SocialCommentsPanel({
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 disabled:opacity-50"
                 >
                   {loadingMore ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Load more
+                  {t("aiSupport.inbox.socialWorkspace.loadMore")}
                 </button>
               </div>
             ) : null}
           </div>
         ) : !loading ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-            {mode === "posts" ? "No matching posts." : "No matching comments."}
+            {mode === "posts" ? t("aiSupport.inbox.socialPanel.noMatchingPosts") : t("aiSupport.inbox.socialPanel.noMatchingComments")}
           </div>
         ) : null}
       </div>
