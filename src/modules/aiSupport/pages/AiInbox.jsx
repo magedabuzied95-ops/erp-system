@@ -2038,6 +2038,8 @@ function InboxChannelSidebar({
   socialCommentsCount = 0,
   socialCommentsActive = false,
   onSelectSocialComments,
+  socialPlatformFilter = "all",
+  onSelectSocialPlatform,
   onOpenConfig,
   configActive = false,
 }) {
@@ -2143,12 +2145,15 @@ function InboxChannelSidebar({
         <div className="mt-1 border-t border-white/10 pt-1">
           <button
             type="button"
-            onClick={onSelectSocialComments}
+            onClick={() => {
+              onSelectSocialComments();
+              onSelectSocialPlatform?.("all");
+            }}
             title={t("aiSupport.inbox.ui.socialComments")}
             aria-label={t("aiSupport.inbox.ui.socialComments")}
-            aria-pressed={socialCommentsActive}
+            aria-pressed={socialCommentsActive && socialPlatformFilter === "all"}
             className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
-              socialCommentsActive
+              socialCommentsActive && socialPlatformFilter === "all"
                 ? "text-amber-200 drop-shadow-[0_0_12px_rgba(212,175,55,0.4)]"
                 : "text-amber-200/80 hover:text-amber-100"
             }`}
@@ -2160,6 +2165,30 @@ function InboxChannelSidebar({
             ) : null}
             <MessageSquareText className="h-7 w-7" aria-hidden="true" />
           </button>
+          {socialCommentsActive && onSelectSocialPlatform ? (
+            <div className="flex flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onSelectSocialPlatform("facebook")}
+                title="Facebook"
+                aria-label="Facebook"
+                aria-pressed={socialPlatformFilter === "facebook"}
+                className={`relative flex h-12 w-12 items-center justify-center rounded-xl transition ${socialPlatformFilter === "facebook" ? "bg-blue-400/10 text-blue-300 drop-shadow-[0_0_10px_rgba(96,165,250,0.35)]" : "text-blue-300/80 hover:bg-white/[0.05] hover:text-blue-200"}`}
+              >
+                <FaFacebookF className="h-6 w-6" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectSocialPlatform("instagram")}
+                title="Instagram"
+                aria-label="Instagram"
+                aria-pressed={socialPlatformFilter === "instagram"}
+                className={`relative flex h-12 w-12 items-center justify-center rounded-xl transition ${socialPlatformFilter === "instagram" ? "bg-pink-400/10 text-pink-300 drop-shadow-[0_0_10px_rgba(244,114,182,0.35)]" : "text-pink-300/80 hover:bg-white/[0.05] hover:text-pink-200"}`}
+              >
+                <FaInstagram className="h-6 w-6" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </aside>
@@ -8600,6 +8629,11 @@ export default function AiInbox({ reviewerMode = false }) {
             activeChannel="all"
             socialCommentsCount={socialCommentsPanelCount}
             socialCommentsActive
+            socialPlatformFilter={socialPostsPlatformFilter === socialThreadPlatformFilter ? socialPostsPlatformFilter : "all"}
+            onSelectSocialPlatform={(platform) => {
+              setSocialPostsPlatformFilter(platform);
+              setSocialThreadPlatformFilter(platform);
+            }}
             onSelectChannel={() => {
               setInboxSection("conversations");
               setChannelFilter("all");

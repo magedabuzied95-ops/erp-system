@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { FaFacebookF, FaInstagram } from "react-icons/fa";
 
 import { api } from "../../../shared/api/api";
 import { VirtualList } from "../../../shared/components/VirtualList";
@@ -2847,46 +2846,12 @@ function SocialCommentsWorkspace({
   };
 
   if (streamlined) {
-    const platformFilterButtons = [
-      { key: "all", label: t("aiSupport.inbox.filters.all"), icon: MessageSquareText, iconClassName: "text-[var(--text)]" },
-      { key: "facebook", label: "Facebook", icon: FaFacebookF, iconClassName: "text-blue-400" },
-      { key: "instagram", label: "Instagram", icon: FaInstagram, iconClassName: "text-pink-400" },
-    ];
-    const selectPlatformFilter = (key) => {
-      onPostPlatformFilterChange?.(key);
-      onCommentPlatformFilterChange?.(key);
-    };
     const postPlatforms = (post) => {
       const values = asArray(post.platforms).length ? post.platforms : [post.platform];
       return Array.from(new Set(values.map((value) => clean(value).toLowerCase()).filter((value) => value === "facebook" || value === "instagram")));
     };
     return (
-      <section dir="ltr" className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">
-        <nav aria-label={t("aiSupport.inbox.socialWorkspace.platformFilter", { defaultValue: "فلترة المنصة" })} className="flex w-[64px] shrink-0 flex-col items-center gap-2 border-e border-[var(--border)] bg-[var(--surface)] px-2 py-3">
-          {platformFilterButtons.map((filterItem) => {
-            const FilterIcon = filterItem.icon;
-            const active = postPlatformFilter === filterItem.key && commentPlatformFilter === filterItem.key;
-            return (
-              <button
-                key={filterItem.key}
-                type="button"
-                onClick={() => selectPlatformFilter(filterItem.key)}
-                title={filterItem.label}
-                aria-label={filterItem.label}
-                aria-pressed={active}
-                className={`relative inline-flex h-12 w-12 items-center justify-center rounded-2xl border transition ${
-                  active
-                    ? "border-[var(--primary)] bg-[var(--primary)]/15 shadow-[0_0_18px_color-mix(in_srgb,var(--primary)_24%,transparent)]"
-                    : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--surface-hover)]"
-                }`}
-              >
-                <FilterIcon className={`h-6 w-6 ${filterItem.iconClassName}`} aria-hidden="true" />
-                {active ? <span className="absolute -end-0.5 top-2 h-2 w-2 rounded-full bg-[var(--primary)] shadow-[0_0_8px_var(--primary)]" /> : null}
-              </button>
-            );
-          })}
-        </nav>
-
+      <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">
         <div dir="ltr" className="grid h-full min-h-0 min-w-0 flex-1 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
           <aside dir="rtl" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
             <div className="flex min-h-[62px] flex-col justify-center border-b border-[var(--border)] px-3 py-2">
