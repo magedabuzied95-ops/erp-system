@@ -7,7 +7,6 @@ import {
   Loader2,
   Pencil,
   Plus,
-  Search,
   Settings,
   Trash2,
   X,
@@ -26,6 +25,7 @@ const normalizeReply = (reply = {}, index = 0) => ({
   id: Number(reply.id),
   name: clean(reply.name),
   message: clean(reply.message),
+  shortcut: clean(reply.shortcut),
   is_active: reply.is_active !== false,
   sort_order: Number(reply.sort_order ?? index),
 });
@@ -134,7 +134,12 @@ export function QuickRepliesPicker({ replies = [], customerName = "", value = ""
   const activeReplies = useMemo(() => asArray(replies).filter((reply) => reply.is_active !== false), [replies]);
   const visibleReplies = useMemo(() => {
     const needle = clean(query).toLowerCase();
-    return activeReplies.filter((reply) => !needle || `${reply.name} ${reply.message}`.toLowerCase().includes(needle));
+    const hasExactShortcut = /^\d+$/.test(needle) && activeReplies.some((reply) => reply.shortcut === needle);
+    return activeReplies.filter((reply) => {
+      if (!needle) return true;
+      if (hasExactShortcut) return reply.shortcut === needle;
+      return `${reply.shortcut} ${reply.name} ${reply.message}`.toLowerCase().includes(needle);
+    });
   }, [activeReplies, query]);
 
   if (!activeReplies.length || !slashMatch) return null;
@@ -155,7 +160,7 @@ export function QuickRepliesPicker({ replies = [], customerName = "", value = ""
             onClick={() => onUse?.(resolveQuickReplyMessage(reply.message, customerName), reply)}
             className={`group flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition ${light ? "hover:bg-[#f8f0dd]" : "hover:bg-white/[0.06]"}`}
           >
-            <Search className={`mt-0.5 h-4 w-4 shrink-0 ${light ? "text-[#ad7b0b]" : "text-amber-300"}`} />
+            <span dir="ltr" className={`mt-0.5 inline-flex h-6 min-w-9 shrink-0 items-center justify-center rounded-lg px-1.5 font-mono text-[10px] font-black ${light ? "bg-[#f2dfad] text-[#805800]" : "bg-amber-400/10 text-amber-200 ring-1 ring-amber-300/15"}`}>/{reply.shortcut}</span>
             <span className="min-w-0 flex-1">
               <span className={`block text-xs font-black ${light ? "text-[#28251f]" : "text-white"}`}>{reply.name}</span>
               <span className={`mt-0.5 block truncate text-[11px] ${light ? "text-[#746c5e]" : "text-slate-400"}`}>{resolveQuickReplyMessage(reply.message, customerName)}</span>
@@ -174,34 +179,44 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
   const { theme } = useTheme();
   const light = typeof lightOverride === "boolean" ? lightOverride : theme?.mode === "light";
   const [editingId, setEditingId] = useState(null);
-  const [draft, setDraft] = useState({ name: "", message: "", is_active: true });
+  const [draft, setDraft] = useState({ shortcut: "", name: "", message: "", is_active: true });
   const [draggedId, setDraggedId] = useState(null);
 
   useEffect(() => {
     if (!open) {
       setEditingId(null);
-      setDraft({ name: "", message: "", is_active: true });
+      setDraft({ shortcut: "", name: "", message: "", is_active: true });
     }
   }, [open]);
 
   if (!open) return null;
+  const nextShortcut = () => {
+    const used = new Set(asArray(replies).map((reply) => Number(reply.shortcut)).filter((value) => Number.isInteger(value) && value > 0));
+    let candidate = 1;
+    while (used.has(candidate) && candidate < 9999) candidate += 1;
+    return String(candidate);
+  };
   const startCreate = () => {
     setEditingId("new");
-    setDraft({ name: "", message: "", is_active: true });
+    setDraft({ shortcut: nextShortcut(), name: "", message: "", is_active: true });
   };
   const startEdit = (reply) => {
     setEditingId(reply.id);
-    setDraft({ name: reply.name, message: reply.message, is_active: reply.is_active !== false });
+    setDraft({ shortcut: reply.shortcut, name: reply.name, message: reply.message, is_active: reply.is_active !== false });
   };
   const cancelEdit = () => {
     setEditingId(null);
-    setDraft({ name: "", message: "", is_active: true });
+    setDraft({ shortcut: "", name: "", message: "", is_active: true });
   };
   const saveDraft = async () => {
     if (!clean(draft.name) || !clean(draft.message)) return toast.error(t("aiSupport.quickReplies.required"));
+    if (!/^\d{1,4}$/.test(clean(draft.shortcut)) || Number(draft.shortcut) <= 0) return toast.error(t("aiSupport.quickReplies.shortcutInvalid"));
+    const duplicate = asArray(replies).some((reply) => reply.id !== editingId && reply.shortcut === String(Number(draft.shortcut)));
+    if (duplicate) return toast.error(t("aiSupport.quickReplies.shortcutDuplicate"));
     try {
-      if (editingId === "new") await onCreate?.(draft);
-      else await onUpdate?.(editingId, draft);
+      const payload = { ...draft, shortcut: String(Number(draft.shortcut)) };
+      if (editingId === "new") await onCreate?.(payload);
+      else await onUpdate?.(editingId, payload);
       cancelEdit();
     } catch (error) {
       toast.error(error?.message || t("aiSupport.quickReplies.saveError"));
@@ -265,7 +280,7 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
                   >
                     <GripVertical className={`mt-2 h-4 w-4 shrink-0 cursor-grab ${light ? "text-[#b1a58e]" : "text-slate-600"}`} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-black">{reply.name}</span>{reply.is_active === false ? <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[9px] font-black text-slate-400">{t("aiSupport.quickReplies.disabled")}</span> : null}</div>
+                      <div className="flex flex-wrap items-center gap-2"><span dir="ltr" className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-black ${light ? "bg-[#f2dfad] text-[#805800]" : "bg-amber-400/10 text-amber-200"}`}>/{reply.shortcut}</span><span className="text-xs font-black">{reply.name}</span>{reply.is_active === false ? <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[9px] font-black text-slate-400">{t("aiSupport.quickReplies.disabled")}</span> : null}</div>
                       <div className={`mt-1 line-clamp-2 text-[11px] leading-5 ${light ? "text-[#746c5e]" : "text-slate-400"}`}>{reply.message}</div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -285,6 +300,12 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
             {editingId ? (
               <div>
                 <div className="text-sm font-black">{editingId === "new" ? t("aiSupport.quickReplies.addTitle") : t("aiSupport.quickReplies.editTitle")}</div>
+                <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.shortcut")}</label>
+                <div dir="ltr" className={`mt-1 flex h-11 items-center overflow-hidden rounded-xl border transition ${light ? "border-[#ddd1b6] bg-white text-[#28251f] focus-within:border-[#b98508]" : "border-white/10 bg-black/20"}`}>
+                  <span className={`grid h-full w-10 place-items-center border-r font-mono text-sm font-black ${light ? "border-[#e6ddca] bg-[#f7f1e4] text-[#9a6a00]" : "border-white/10 bg-white/[0.04] text-amber-300"}`}>/</span>
+                  <input value={draft.shortcut} onChange={(event) => setDraft((current) => ({ ...current, shortcut: event.target.value.replace(/\D/g, "").slice(0, 4) }))} inputMode="numeric" maxLength={4} placeholder="1" className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 font-mono text-sm font-black outline-none" />
+                </div>
+                <div className={`mt-1 text-[10px] ${light ? "text-[#8b816f]" : "text-slate-500"}`}>{t("aiSupport.quickReplies.shortcutHint")}</div>
                 <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.name")}</label>
                 <input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} maxLength={120} placeholder={t("aiSupport.quickReplies.namePlaceholder")} className={`mt-1 h-11 w-full rounded-xl border px-3 text-sm outline-none transition ${light ? "border-[#ddd1b6] bg-white text-[#28251f] focus:border-[#b98508]" : "border-white/10 bg-black/20"}`} />
                 <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.message")}</label>

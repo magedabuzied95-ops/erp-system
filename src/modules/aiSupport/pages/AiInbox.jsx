@@ -2066,14 +2066,14 @@ function InboxChannelSidebar({
         ))}
       </div>
       {onOpenConfig ? (
-        <div className="mt-2 border-t border-white/10 pt-2">
+        <div className="mt-2 border-t border-[#d7c9a6] pt-2 dark:border-white/10">
           <button
             type="button"
             onClick={onOpenConfig}
             title="Config"
             aria-label="Config"
             aria-pressed={configActive}
-            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 text-center transition ${configActive ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/75 hover:text-white"}`}
+            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 rounded-xl text-center transition ${configActive ? "bg-[#f2dfad] text-[#8c6100] shadow-sm dark:bg-amber-400/15 dark:text-amber-200" : "text-[#9a6a00] hover:bg-[#f7efd9] hover:text-[#704d00] dark:text-white/75 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}
           >
             <Settings className="h-6 w-6" aria-hidden="true" />
             <span className="text-[8px] font-black uppercase tracking-wide">Config</span>
