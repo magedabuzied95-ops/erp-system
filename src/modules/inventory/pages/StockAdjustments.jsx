@@ -617,7 +617,7 @@ function StockAdjustments() {
 
   return (
     <InventoryShell
-      title={tt("inventory.adjustments")}
+      title={tt("inventory.adjustments.title")}
       subtitle={tt("inventory.adjustments.pageSubtitle")}
       actions={
         <div className="flex flex-wrap gap-2">

@@ -128,7 +128,7 @@ function InventoryHistory() {
 
   return (
     <InventoryShell
-      title={tt("inventory.history")}
+      title={tt("inventory.history.title")}
       subtitle={tt("inventory.history.pageSubtitle")}
       actions={
         <>
@@ -144,7 +144,7 @@ function InventoryHistory() {
             className="inline-flex items-center gap-2 rounded-[var(--radius-card)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary"
           >
             <History className="h-4 w-4" />
-            {tt("inventory.adjustments")}
+            {tt("inventory.actions.inventoryAdjustments")}
           </Link>
         </>
       }

@@ -2,6 +2,7 @@
   "title": "Inventory Dashboard",
   "subtitle": "Stock movement history, valuation cards, low stock alerts, warehouse overview, and in-transit items.",
   "history": {
+    "title": "Inventory history",
     "errors": {
       "load": "Unable to load the inventory history"
     },
@@ -14,6 +15,7 @@
     "details": "Movement details"
   },
   "adjustments": {
+    "title": "Inventory adjustments",
     "optionalNotes": "Optional notes",
     "change": "Change",
     "increase": "Increase stock",
