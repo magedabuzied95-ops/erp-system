@@ -611,3 +611,137 @@ Checkpoints deployed: **0**. Shared owners changed: **0**.
    consecutive readings this session with no empty-root recurrence.
 5. Re-fetch `origin/main` immediately before any push; Production has already
    moved twice mid-programme (`041a8a6` → `5c123e3` → `4362f27`).
+
+---
+
+## Session 4 — CHECKPOINT 1 SHIPPED AND PRODUCTION-VERIFIED
+
+### VisualUpload measured independently first — and deliberately NOT changed
+
+Before touching anything, `VisualUpload` was measured on its own, per instruction.
+Source: it already pairs a `min-w-0` column (line 3693) with a `truncate` value
+line (line 3695). Rendered proof on `/settings/storefront` (Dark/RTL @ 2288):
+**`boxCount: 0`**, and all four upload cards read `scrollWidth === clientWidth`
+(380/380, 380/380, 779/779, 779/779).
+
+**`VisualUpload` is clean and was left untouched.** Assuming a shared owner and
+patching both would have been wrong. The defect is confined to
+`BrandingUploadField`.
+
+### DEFECT 1 — FIXED_VERIFIED
+
+**Owner:** `src/modules/settings/pages/SettingsCenter.jsx`, `BrandingUploadField`.
+**Consumers:** exactly two, both in this file — line 1478 (company logo), line 1485 (favicon).
+
+**Fix (presentation only, 2 lines).** Mirrors the proven-correct sibling:
+
+- the right column `div.space-y-2` → `div.min-w-0 space-y-2` (a grid item cannot
+  shrink below content without `min-width: 0`)
+- the value span → `min-w-0 truncate`
+
+No behaviour, payload, upload flow, copy or localization change.
+
+**Validation.** Lint 0 errors (4 pre-existing warnings, none on the changed
+lines). `vite build` green, twice — once before and once after reconciling onto
+the moved `main`. Design/visual/navigation guards: **58/58 pass**
+(`design-tokens-guard`, `global-surface-normalization`, `dashboard-kpi-number-layout`,
+`main-layout-collapsed-sidebar`, `dashboard-redesign`, `i18n-navigation-guard`).
+
+**Failure identity.** `i18n-hardcoded-guard` fails — and fails *identically on the
+clean base*: `arabic: 1234 -> 1236`, `total: 2318 -> 2320`, attributed to
+`src/modules/aiSupport/pages/AiInbox.jsx`, another workstream's file. Verified by
+stashing the change and re-running. **Zero newly introduced failures.**
+
+**Safe Release.** Rollback ref `rollback/pre-layout-geometry-cp1-20260813` → `dc985f6`
+(the live Production SHA at push time). Re-fetched, rebased onto `dc985f6`,
+rebuilt, race-checked (`main` unmoved), pushed **MAIN ONLY**: `dc985f6..e7b5745`.
+
+**Production verified.** Deployed bundle `app-CeeNlxJy-e7b5745938c2.js`; ancestry
+of `e7b5745` in `origin/main` proven.
+
+**Post-deploy re-measurement — `/settings/company`, Dark/RTL @ 2288:**
+
+| Element | Before | After |
+|---|---|---|
+| `div.grid.gap-4.md:grid-cols-2` | 586 / **704** (+118) | — no longer overflowing |
+| branding card A | 283 / **394** (+111) | 283 / **283** (0) |
+| branding card B | 283 / **402** (+119) | 283 / **283** (0) |
+| right column `space-y-2` | 151 / **278** (+127) | 151 / **151** (0) |
+| overflowing boxes on route | **11** | **0** |
+| page-level horizontal overflow | 0 | 0 (unchanged) |
+
+Route re-audit after the fix: 8 peer rows, 16 cards, **0 flags, 0 overflow,
+0 escapes**. State: **FIXED_VERIFIED**.
+
+### Frozen-reference regression check
+
+| Route | Result |
+|---|---|
+| `/dashboard` | 2 rows, 10 cards, **0 flags** — identical to the trusted baseline |
+| `/products` | 0 peer rows, **0 flags**, page overflow 0 — see DEFECT 2 below |
+| `/settings/company` | 8 rows, 16 cards, 0 flags, 0 overflow |
+| `/settings/storefront` | 0 overflow, VisualUpload cards all `sw === cw` |
+| `/orders`, `/customers`, `/inventory` | **not re-checked** — session ended first |
+
+No regression attributable to the change. Blast radius is two call sites in one
+file; no shared primitive was touched.
+
+### DEFECT 2 — NEEDS_FIX — `/products` row-action cluster overflows by 42 px
+
+Found during the frozen-reference check. **Cannot be caused by checkpoint 1** —
+that change is confined to `SettingsCenter.jsx`, which `/products` does not use.
+Pre-existing, and newly surfaced only because the bidirectional probe now runs on
+frozen references too.
+
+**Measured** (`/products`, Dark/RTL @ 2288): `div.hidden.items-center.gap-1.5.lg:flex`
+— `clientWidth 184`, `scrollWidth 226`, **+42 px**, repeated on **10 rows**.
+`escCount 0`, `htmlOvf 0` — it does not break the page, but the per-row action
+buttons overflow their own cell container.
+
+Not yet traced to a source owner, and **not yet classified** intentional vs
+defect. `/products` is a frozen reference for the *colour* programme; geometry is
+owned by this programme, so it is in scope — but it must be traced and classified
+before any edit.
+
+### Automation note
+
+The empty-root condition recurred once, on `/settings/company`, after ~98 sweep
+transitions plus ~6 direct navigations in the session. Recorded per protocol; the
+new bundle had fetched correctly, so Production was **not** implicated and **not**
+rolled back. A fresh tab restored a healthy shell immediately and the auditor was
+re-validated against `/dashboard` before any further reading was trusted. The
+separate workstream owns that incident; no router/auth/bootstrap code was touched.
+
+### Programme state
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | **1** (`e7b5745`) |
+| Rollback refs | `rollback/pre-layout-geometry-cp1-20260813` → `dc985f6` |
+| Shared owners changed | 0 (one page-local component, 2 consumers) |
+| Defects found | 2 · fixed & verified **1** · open **1** |
+| Production at session end | `c7f2e51` (moved again by another workstream; `e7b5745` is an ancestor) |
+
+Combined trusted coverage across four sessions: **2186 peer cards, 763 peer groups**
+(Light/RTL @2288, Light/LTR @1430, Dark/RTL @1526), plus this session's targeted
+re-measurements.
+
+### RESUME MARKER (supersedes session 3)
+
+1. **DEFECT 2** — trace the `/products` row-action cluster owner, classify, and if
+   a defect run the same full cycle (it is a table row-action group, so check
+   whether the owner is a shared table primitive before editing).
+2. Finish the frozen-reference check: `/orders`, `/customers`, `/inventory`.
+3. Dark/LTR pass; responsive rungs A (1920) / C (1024) / D (768) — **note Chrome
+   still cannot resize width** (`outerWidth` pinned to screen width; only height
+   responds). The Claude Browser pane has exact emulation (1430×900 verified) and
+   is the correct tool for the responsive ladder.
+4. The 21 session-1 unverified routes; 4 open Dark routes (`/dashboard`,
+   `/accounting/audit-trail`, `/analytics`, `/users`); the 7 pathological
+   surfaces (bounded → `PASS_BOUNDED`); internal states; final regression sweep.
+5. Batch sweeps to ≤34 transitions with a real page load between, assert
+   `rootKids > 0` on every reading, and keep the **bidirectional** overflow rule
+   enabled — a right-edge-only probe is blind in RTL and nearly hid DEFECT 1.
+6. Re-fetch `origin/main` immediately before every push. Production moved four
+   times during this programme: `041a8a6` → `5c123e3` → `4362f27` → `dc985f6` →
+   `e7b5745` (ours) → `c7f2e51`.
