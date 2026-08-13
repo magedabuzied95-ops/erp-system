@@ -1664,3 +1664,166 @@ readings taken before each fix were discarded:
    distinct colours per page) and scans were narrowed to real containers. Per
    section 23 a timeout was never recorded as a PASS — every timed-out reading was
    re-run.
+
+---
+
+## POST-CLOSURE USER CORRECTION — AI_STUDIO_OVERVIEW_COLOR_CONVERGENCE
+
+**Classification:** POST-CLOSURE USER VISUAL REJECTION. Tools was named the
+authoritative visual reference; Overview had to adopt the same colour vocabulary
+without Tools being touched.
+
+| Field | Value |
+|---|---|
+| Route corrected | `/ai-studio` (Overview) |
+| Reference route | `/ai-studio/tools` |
+| Starting `main` | `57b9a4b` |
+| Starting Production SHA | `5c123e3` |
+| Rollback ref | `rollback/pre-overview-color-convergence-20260813` -> `5c123e3` (the actually-served SHA) |
+| Checkpoint released | **`4362f27`** |
+| Production verified on | `dc985f6` (contains `4362f27`; one later AI Inbox commit) |
+| Files changed | `src/modules/aiStudio/pages/AiStudio.jsx` — **+2 / -1** |
+| New CSS written | **none** |
+
+### Root cause
+
+Overview was the ONE AI Studio surface never given `.m1-ai-scope`. The earlier
+post-closure programme scoped four surfaces (Workflow Editor, Workflows, Restock
+Recovery, Tools) and explicitly recorded Overview as deliberately-excluded debt —
+"one line each (`.m1-ai-scope` plus the import) whenever they are approved". This
+is that line. Overview alone therefore never received the palette->token
+normalisation its siblings use, and rendered the raw dark-canvas idiom on the
+Light beige surface.
+
+**Section 4 traced, not assumed.** The reported "pale blue" is the **slate
+ladder** — `text-slate-100/200/300`, which computes to `rgb(226,232,240)`, a
+blue-grey. `AiStudio.jsx` contains **zero** blue/sky/indigo classes, so no blue
+was darkened and no global blue rule was written. Every utility the page uses was
+already covered by the shared sheet: slate 100/200/300 -> `--text`,
+400 -> `--text-secondary`, 500 -> `--muted`, `white/α` -> `--surface-soft`,
+`border-white/α` -> `--border`, `bg-slate-950/60` -> `--surface`.
+
+### Owners
+
+| Owner | Change |
+|---|---|
+| `src/modules/aiStudio/pages/AiStudio.jsx` | root gains `m1-ai-scope`; adds `import "../../../theme/ai-surface.css"` |
+| `src/theme/ai-surface.css` | **unchanged** — reused as-is |
+
+Shared blast radius: **nil, and proven structurally.** The emitted
+`ai-surface-ZjOt8SME.css` hash is byte-identical to the already-deployed one, so
+the shared sheet did not change; only one page opted into it.
+
+### Pre-release measurements — all four combinations at desktop width
+
+Measured on Production against the REAL deployed sheet: Tools was loaded first to
+pull the `ai-surface` chunk, then navigation to Overview happened **in-app** so the
+chunk stayed resident, then only the class was added. So these are measurements of
+the shipped stylesheet, not of a local re-implementation.
+
+| Combination | Overview before | Overview after | Tools reference |
+|---|---|---|---|
+| Light + Arabic RTL | 84 fails / **29 invisible** / 19 severe / min **1.01** | 11 / **0** / 1 / **2.95** | 16 / 0 / 0 / 3.03 |
+| Dark + Arabic RTL | 27 / 0 / 0 / 3.42 | **0 / 0 / 0** | 0 / 0 / 0 |
+| Light + English LTR | 84 / **29 invisible** / 19 / **1.01** | 11 / **0** / 1 / **2.95** | 16 / 0 / 0 / 3.03 |
+| Dark + English LTR | 27 / 0 / 0 / 3.42 | **0 / 0 / 0** | 0 / 0 / 0 |
+
+Surface offenders: **0 in every combination**, before and after — no dark island
+in Light, no light island in Dark. No horizontal overflow in any combination.
+
+Per region (section 3), after: assisted replies 0 invisible, min 2.95 · style
+learning 0 invisible, 0 severe, min 3.14 · KPI values now `--text` (were
+`text-slate-100` at **1.11**, i.e. invisible) · module-card and section
+descriptions on `--text-secondary` / `--muted`.
+
+The single residual severe (2.95) is `--primary` on `--primary-soft` — the global
+semantic pair that is also the floor on the Workflows list. Correcting it only
+here would create the page-specific colour treatment section 0 forbids, so it is
+recorded rather than fixed.
+
+### Post-deploy verification on the deployed build
+
+All four combinations re-verified on `dc985f6`. The class now comes **from source**
+and `ai-surface-ZjOt8SME.css` loads on a **cold** `/ai-studio` load (it did not
+before this change).
+
+| Combination | canvas | text | card | border | font | title |
+|---|---|---|---|---|---|---|
+| Light + AR RTL | `rgb(234,231,224)` | `rgb(27,25,21)` | `rgb(244,241,234)` | `rgb(222,216,203)` | Cairo | 22px |
+| Light + EN LTR | `rgb(234,231,224)` | `rgb(27,25,21)` | `rgb(244,241,234)` | `rgb(222,216,203)` | Inter | 22px |
+| Dark + AR RTL | `rgb(19,18,17)` | `rgb(243,241,236)` | `rgb(25,24,23)` | `rgb(51,49,45)` | Cairo | 22px |
+| Dark + EN LTR | `rgb(19,18,17)` | `rgb(243,241,236)` | `rgb(25,24,23)` | `rgb(51,49,45)` | Inter | 22px |
+
+Light values are **byte-identical to the Tools reference contract**. Dark is
+genuinely dark — the Light fix was not achieved by forcing light surfaces into
+both themes (section 8).
+
+Semantic roles stay differentiated in both themes, not flattened to grey:
+
+| Role | Light | Dark |
+|---|---|---|
+| success | `rgb(25,135,84)` | `rgb(66,184,131)` |
+| warning | `rgb(196,122,8)` | `rgb(224,162,58)` |
+| danger | `rgb(209,107,107)` -> Light `rgb(209,67,67)` | `rgb(239,107,107)` |
+| secondary text | `rgb(86,81,73)` | `rgb(201,196,186)` |
+| muted text | `rgb(106,102,94)` | `rgb(168,163,153)` |
+
+**Direct proof the reported defect is gone:** on the deployed build the
+`text-slate-200` elements that measured **1.01** now compute `rgb(27,25,21)` =
+`--text`.
+
+### Tools + frozen AI Studio regression
+
+Re-measured on the deployed build, Light + Arabic RTL:
+
+| Route | canvas | text | card | border | success / warning / danger | title | Result |
+|---|---|---|---|---|---|---|---|
+| `/ai-studio/tools` (reference) | `rgb(234,231,224)` | `rgb(27,25,21)` | `rgb(244,241,234)` | `rgb(222,216,203)` | identical | 22px | **UNCHANGED** |
+| `/ai-studio/workflows` | same | same | same | same | identical | 22px | **UNCHANGED** |
+| `/ai-studio/restock-recovery` | same | same | same | same | identical | 22px | **UNCHANGED** |
+| `/ai-studio/workflows/:id/edit` | `rgb(234,231,224)` | `rgb(27,25,21)` | header `--surface`, minimap `--card` | — | — | — | **UNCHANGED**, react-flow intact |
+
+### Behaviour and localization preservation
+
+Diff is a class string plus a stylesheet import. No assisted-reply mode,
+approval/send mode, kill switch, channel staging, counter, style-learning, reset,
+conflict-detection, statistic, navigation, permission, API, backend, AI logic or
+stored setting was touched. No `t()` call or dictionary modified — English copy
+that localization has not yet reached was left to localization and only made
+readable.
+
+### Validation
+
+- `npm run build` green; scope class present in the emitted `AiStudio-*.js`.
+- `eslint` clean on the changed file.
+- Full suite **2128 tests / 2100 pass / 28 fail**, failure-identity set
+  **byte-identical** to clean `origin/main` (both runs executed).
+- Focused **454/454**: `tests/ai-studio-builder/*`, `tests/ai-workflows/*`,
+  `tests/i18n-runtime-reachability`, `tests/canonical-table-adoption`.
+
+### Status
+
+**FIXED_VERIFIED** — Light and Dark, Arabic RTL and English LTR, Production-verified
+on `dc985f6`.
+
+### Recorded limitation, stated rather than glossed
+
+The four-combination **per-element contrast sweep** was executed **pre-release** at
+desktop width against the deployed stylesheet. Post-deploy, the automation pane was
+hidden and reported a 32 px layout viewport, at which all `md:`/`lg:` variants
+collapse — so a per-element sweep there would have described the mobile rendering,
+not desktop, and was **not** run rather than being passed off as the desktop
+result. What was verified post-deploy is viewport-independent: the semantic
+contract in all four combinations, the specific previously-invisible elements now
+resolving to `--text`, cold-load wiring of the sheet, and zero regression on Tools
+and the three frozen AI Studio surfaces.
+
+### Interaction with the Layout & Card Geometry programme
+
+A separate, concurrently-running session owns the Layout & Card Geometry
+Convergence ledger on the unpushed branch `visual/layout-geometry`. The
+workspace-width / fluidity defect class raised by the user belongs to that
+programme and was **deliberately not started here**, to avoid two sessions writing
+the same ledger and the same shared page-shell owners. Confirmed by inspection that
+the geometry ledger has no coverage of `workspaceUtilization`, `availableWorkspace`,
+`max-w-*` caps or gutters, so that dimension is genuinely additive there.
