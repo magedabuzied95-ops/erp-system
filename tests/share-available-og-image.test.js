@@ -33,6 +33,22 @@ test("available-products preview applies the requested size stock constraint in 
   });
 });
 
+test("available-products preview keeps the website offers scope", () => {
+  assert.deepEqual(buildShareAvailableStorefrontFilters({
+    filters: { offerStory: true, inStock: true },
+    normalizedSizes: ["43"],
+  }), {
+    brand: "",
+    gender: "",
+    productType: "",
+    grade: "",
+    quality: [],
+    size: "43",
+    inStock: true,
+    offerStory: true,
+  });
+});
+
 test("available-products page redirects browsers without sending social crawlers through a meta refresh", () => {
   const html = renderShareAvailableHtml({
     req: { originalUrl: "/share/available?size=40&type=sneakers&inStock=1&v=7" },

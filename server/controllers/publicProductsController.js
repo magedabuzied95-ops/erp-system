@@ -666,6 +666,9 @@ const normalizeSharePriceValue = (value = "") => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const normalizeShareFlag = (value = "") =>
+  ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
+
 const normalizeShareAvailableFilters = (query = {}) => {
   const sizes = [...new Set(
     parseShareParamList(query.size || query.sizes).map((item) => String(item).trim()).filter(Boolean)
@@ -679,6 +682,7 @@ const normalizeShareAvailableFilters = (query = {}) => {
     sizes,
     gender: normalizeShareFilterValue(query.gender || query.audience || query.target_audience),
     type: normalizeShareFilterValue(query.type || query.product_type || query.productType),
+    offerStory: normalizeShareFlag(query.offer_story || query.offerStory),
     brand: normalizeShareFilterValue(query.brand || query.brandId || query.brand_id),
     minPrice: normalizeSharePriceValue(query.minPrice || query.min_price),
     maxPrice: normalizeSharePriceValue(query.maxPrice || query.max_price),
@@ -693,6 +697,7 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
   parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
   if (filters.gender) params.set("gender", filters.gender);
   if (filters.type) params.set("type", filters.type);
+  if (filters.offerStory) params.set("offer_story", "1");
   if (filters.brand) params.set("brand", filters.brand);
   if (filters.minPrice !== null && filters.minPrice !== undefined && filters.minPrice !== "") params.set("min_price", String(filters.minPrice));
   if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
@@ -718,6 +723,7 @@ export const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png")
   parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
   if (filters.gender) params.set("gender", filters.gender);
   if (filters.type) params.set("type", filters.type);
+  if (filters.offerStory) params.set("offer_story", "1");
   if (filters.brand) params.set("brand", filters.brand);
   if (filters.minPrice !== null && filters.minPrice !== undefined && filters.minPrice !== "") params.set("min_price", String(filters.minPrice));
   if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
@@ -833,7 +839,7 @@ export const buildShareAvailableStorefrontFilters = ({ filters = {}, normalizedS
   quality: [],
   size: normalizedSizes.length === 1 ? String(normalizedSizes[0] || "").trim() : "",
   inStock: Boolean(filters.inStock),
-  offerStory: false,
+  offerStory: Boolean(filters.offerStory),
 });
 
 const loadShareAvailableProducts = async (req = {}, filters = {}) => {

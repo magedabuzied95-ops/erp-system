@@ -417,6 +417,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedLinkSizes, setSelectedLinkSizes] = useState([]);
   const [selectedLinkGender, setSelectedLinkGender] = useState("all");
   const [selectedLinkTypes, setSelectedLinkTypes] = useState([]);
+  const [selectedLinkOffers, setSelectedLinkOffers] = useState(false);
   const [selectedLinkBrand, setSelectedLinkBrand] = useState("all");
   const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
@@ -583,6 +584,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         brand: selectedLinkBrand,
         gender: selectedLinkGender,
         types: selectedLinkTypes,
+        offerStory: selectedLinkOffers,
         minPrice: selectedLinkMinPrice,
         maxPrice: selectedLinkMaxPrice,
         search,
@@ -605,7 +607,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, sizeMode, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
+  }, [open, sizeMode, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkOffers, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
 
   // sizeMode: fetch the match count for the currently selected size(s)+filters.
   useEffect(() => {
@@ -622,6 +624,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         brand: selectedLinkBrand,
         gender: selectedLinkGender,
         types: selectedLinkTypes,
+        offerStory: selectedLinkOffers,
         minPrice: selectedLinkMinPrice,
         maxPrice: selectedLinkMaxPrice,
         search,
@@ -637,7 +640,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, sizeMode, selectedLinkSizes, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
+  }, [open, sizeMode, selectedLinkSizes, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkOffers, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
 
   const smartClassificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
@@ -698,6 +701,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return products.filter((product) => {
       if (selectedBrandValue !== "all" && lower(product.brand || product.brand_name) !== selectedBrandValue) return false;
       if (selectedTypeValues.length && !selectedTypeValues.some((value) => productTypeValues(product).map(lower).includes(value))) return false;
+      if (selectedLinkOffers && !(product?.is_offer_story === true || String(product?.is_offer_story || product?.isOfferStory || "").toLowerCase() === "true")) return false;
       if (selectedGenderValue !== "all" && !productGenderValues(product).map(lower).includes(selectedGenderValue)) return false;
       if (!matchesQuery(product, searchValue)) return false;
       const price = Number(product?.price ?? product?.final_price ?? product?.sale_price ?? product?.selling_price ?? 0) || 0;
@@ -705,7 +709,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (maxPriceValue !== null && Number.isFinite(maxPriceValue) && price > maxPriceValue) return false;
       return true;
     });
-  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkTypes, sizeMode, sizeCatalogFallback]);
+  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkTypes, sizeMode, sizeCatalogFallback]);
 
   const availableSizes = useMemo(() => {
     if (sizeMode) {
@@ -848,6 +852,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       setSelectedLinkSizes([]);
       setSelectedLinkGender("all");
       setSelectedLinkTypes([]);
+      setSelectedLinkOffers(false);
       setSelectedLinkBrand("all");
       setSelectedLinkMinPrice("");
       setSelectedLinkMaxPrice("");
@@ -1032,6 +1037,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       sizes,
       gender: selectedLinkGender,
       type: selectedLinkTypes,
+      offerStory: selectedLinkOffers,
       brand: selectedLinkBrand,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -1040,6 +1046,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       sizes,
       gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
       type: selectedLinkTypes,
+      offerStory: selectedLinkOffers,
       brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -1050,14 +1057,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSubmitting(true);
     setError("");
     try {
-      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkTypes, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
+      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkTypes, offerStory: selectedLinkOffers, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
       else await onSubmit?.([{ url, storefront_url: url, product_url: url, share_url: url, name: message, product_name: message }]);
     } catch (err) {
       setError(err?.message || "تعذر إرسال الرابط");
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkSizes, selectedLinkTypes, submitting]);
+  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkSizes, selectedLinkTypes, submitting]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -1067,6 +1074,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       sizes: normalizedSelectedSizes,
       gender: selectedLinkGender,
       type: selectedLinkTypes,
+      offerStory: selectedLinkOffers,
       brand: selectedLinkBrand,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -1075,6 +1083,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       sizes: normalizedSelectedSizes,
       gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
       type: selectedLinkTypes,
+      offerStory: selectedLinkOffers,
       brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
@@ -1135,9 +1144,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setSelectedLinkTypes([])}
-                  aria-pressed={!selectedLinkTypes.length}
-                  className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${!selectedLinkTypes.length ? "is-active" : ""}`}
+                  onClick={() => { setSelectedLinkTypes([]); setSelectedLinkOffers(false); }}
+                  aria-pressed={!selectedLinkTypes.length && !selectedLinkOffers}
+                  className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${!selectedLinkTypes.length && !selectedLinkOffers ? "is-active" : ""}`}
                 >
                   <span aria-hidden="true">✨</span>
                   الكل
@@ -1157,6 +1166,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     </button>
                   );
                 })}
+                <button
+                  type="button"
+                  onClick={() => setSelectedLinkOffers((current) => !current)}
+                  aria-pressed={selectedLinkOffers}
+                  className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${selectedLinkOffers ? "is-active" : ""}`}
+                >
+                  <span className="text-base" aria-hidden="true">🏷️</span>
+                  العروض
+                </button>
               </div>
             </div>
 

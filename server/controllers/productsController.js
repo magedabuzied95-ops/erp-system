@@ -4246,6 +4246,10 @@ const buildPickerProductWhere = async (req, { includeSearch = true, includeFilte
       values.push(types.map((value) => value.toLowerCase()));
       whereSql = [whereSql, `${whereSql ? "AND" : "WHERE"} LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($${values.length}::text[])`].filter(Boolean).join("\n");
     }
+    const offerStory = ["1", "true", "yes", "on"].includes(String(req.query.offer_story ?? req.query.offerStory ?? "").trim().toLowerCase());
+    if (offerStory && columns.has("is_offer_story")) {
+      whereSql = [whereSql, `${whereSql ? "AND" : "WHERE"} COALESCE(p.is_offer_story, FALSE) = TRUE`].filter(Boolean).join("\n");
+    }
   }
   if (includePrice) {
     // Mirrors the client sizeMode min/max filter, which reads product.price with
