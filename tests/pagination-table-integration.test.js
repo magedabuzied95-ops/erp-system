@@ -204,9 +204,14 @@ test("both systems keep their own responsive block without cross-talk", () => {
 });
 
 test("RTL handling stays consistent across both systems", () => {
-  // Pagination sets dir="rtl" on its own nav; the table system relies on logical
-  // properties. Neither may hardcode a physical direction.
-  assert.match(jsx, /className=\{`m1-pagination \$\{className\}`\.trim\(\)\} aria-label="[^"]*" dir="rtl"/);
+  // Pagination sets the direction on its own nav; the table system relies on
+  // logical properties. Neither may hardcode a physical direction — which the
+  // nav itself used to do, with a pinned dir="rtl" that this assertion required.
+  assert.match(
+    jsx,
+    /className=\{`m1-pagination \$\{className\}`\.trim\(\)\} aria-label=\{t\("common\.m1\.pagination\.nav"\)\} dir=\{i18n\.dir\(\)\}/
+  );
+  assert.doesNotMatch(jsx, /dir="rtl"/);
   for (const physical of ["padding-left", "padding-right", "text-align: left", "text-align: right"]) {
     assert.ok(!stripComments(tableCss).includes(physical), `table system uses ${physical}`);
   }

@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+
+/** Resolves a dotted key inside the employeePortal bundle, for both locales. */
+const employeePortalValue = (key, locale) => {
+  const bundle = JSON.parse(readFileSync(new URL(`../src/locales/${locale}/employeePortal.json`, import.meta.url), "utf8"));
+  let node = bundle;
+  for (const part of key.split(".")) node = node?.[part];
+  return typeof node === "string" ? node : undefined;
+};
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -75,7 +84,9 @@ test("manager employee chat opens as a full-screen mobile conversation", async (
   assert.match(sharedChat, /mobileConversationOpen/);
   assert.match(sharedChat, /fixed inset-0 z-\[80\] h-\[100dvh\]/);
   assert.match(sharedChat, /data-mobile-conversation-open/);
-  assert.match(sharedChat, /الرجوع إلى محادثات الموظفين/);
+  assert.match(sharedChat, /aria-label=\{t\("employeePortal\.chat\.admin\.backToThreads"\)\}/);
+  assert.equal(employeePortalValue("chat.admin.backToThreads", "ar"), "الرجوع إلى محادثات الموظفين");
+  assert.ok(employeePortalValue("chat.admin.backToThreads", "en"), "the English back label is missing");
   assert.match(sharedChat, /setMobileConversationOpen\(false\)/);
   assert.match(sharedChat, /document\.body\.style\.overflow = "hidden"/);
   assert.match(sharedChat, /safe-area-inset-top/);
