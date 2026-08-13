@@ -1,8 +1,6 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
 import {
   BadgeDollarSign,
   BarChart3,
@@ -63,7 +61,7 @@ class WorkspaceErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || <div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{i18n.t("common.employeeHub.workspaceUnavailable")}</div>;
+      return this.props.fallback || <div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">مساحة العمل غير متاحة.</div>;
     }
     return this.props.children;
   }
@@ -159,7 +157,7 @@ export default function EmployeeHub() {
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
         {activeTab === "payroll" ? (
           <WorkspaceErrorBoundary
-            fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.employeeHub.payrollWorkspaceFailed")}</div>}
+            fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">تعذر تحميل مساحة الرواتب. يرجى تحديث الصفحة.</div>}
             onError={(error) => console.error("[employee-hub-payroll-boundary]", error)}
           >
             <SalesEmployees defaultTab="payroll" visibleTabs={payrollVisibleTabs} embedded />
@@ -168,7 +166,7 @@ export default function EmployeeHub() {
         {activeTab === "tasks" ? (
           canViewStaffTasks ? (
             <WorkspaceErrorBoundary
-              fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.employeeHub.staffTasksWorkspaceFailed")}</div>}
+              fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">تعذر تحميل مهام الموظفين. يرجى تحديث الصفحة.</div>}
               onError={(error) => console.error("[employee-hub-staff-tasks-boundary]", error)}
             >
               <StaffTasks />

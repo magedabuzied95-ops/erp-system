@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Clock, Loader2, LogIn, LogOut, MapPin, UserRound } from "lucide-react";
 
@@ -70,7 +69,6 @@ const formatDateTime = (value) => {
 };
 
 export default function PublicBranchAttendance() {
-  const { t } = useTranslation();
   const { token, branchKey } = useParams();
   const attendanceKey = branchKey || token;
   const [branch, setBranch] = useState(null);
@@ -222,7 +220,7 @@ export default function PublicBranchAttendance() {
               <Clock className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{t("attendance.public.attendance")}</div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Attendance</div>
               <h1 className="m1-page-title truncate">{loading ? "Loading..." : branch?.branch_name || "Branch check-in"}</h1>
             </div>
           </div>
@@ -234,7 +232,7 @@ export default function PublicBranchAttendance() {
           {branchHasCoordinates ? (
             <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white">
               <iframe
-                title={t("attendance.public.branchMapPreview")}
+                title="Branch map preview"
                 className="h-36 w-full border-0"
                 loading="lazy"
                 src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(branch.longitude) - 0.002}%2C${Number(branch.latitude) - 0.002}%2C${Number(branch.longitude) + 0.002}%2C${Number(branch.latitude) + 0.002}&layer=mapnik&marker=${Number(branch.latitude)}%2C${Number(branch.longitude)}`}
@@ -248,7 +246,7 @@ export default function PublicBranchAttendance() {
               {locationStatus === "success" ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" /> : null}
               {["denied", "unavailable"].includes(locationStatus) ? <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" /> : null}
               <div className="min-w-0">
-                <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("attendance.public.location")}</div>
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Location</div>
                 <div className="mt-1 text-sm font-bold text-slate-800">
                   {locationStatus === "loading" ? "Loading your location..." : null}
                   {locationStatus === "success" ? "Location permission granted." : null}
@@ -282,7 +280,7 @@ export default function PublicBranchAttendance() {
 
           <form className="mt-5 space-y-3" onSubmit={identifyEmployee}>
             <label>
-              <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("attendance.public.phoneOrEmployeeCode")}</div>
+              <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">Phone or employee code</div>
               <input
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
@@ -307,7 +305,7 @@ export default function PublicBranchAttendance() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-1 h-5 w-5 text-emerald-700" />
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700">{t("attendance.public.employeeIdentified")}</div>
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700">Employee identified</div>
                   <div className="mt-1 text-xl font-black text-slate-950">{employee.employee_name}</div>
                   <div className="mt-1 text-sm font-semibold text-slate-600">{employee.employee_code}</div>
                 </div>

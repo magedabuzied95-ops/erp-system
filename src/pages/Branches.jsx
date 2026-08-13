@@ -447,10 +447,10 @@ function Branches() {
     if (!shortUrl) return;
     try {
       await navigator.clipboard.writeText(shortUrl);
-      toast.success(translate("attendance.branchLinks.shortLinkCopied"));
+      toast.success("Short link copied");
     } catch (err) {
       console.log(err);
-      toast.error(translate("attendance.branchLinks.shortLinkCopyFailed"));
+      toast.error("Failed to copy short link");
     }
   };
 
@@ -785,7 +785,7 @@ function Branches() {
             {hasBranchGpsCoordinates(viewBranch) ? (
               <div className="mt-5 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
                 <iframe
-                  title={translate("attendance.public.branchMapPreview")}
+                  title="Branch map preview"
                   className="h-44 w-full border-0"
                   loading="lazy"
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(viewBranch.longitude) - 0.002}%2C${Number(viewBranch.latitude) - 0.002}%2C${Number(viewBranch.longitude) + 0.002}%2C${Number(viewBranch.latitude) + 0.002}&layer=mapnik&marker=${Number(viewBranch.latitude)}%2C${Number(viewBranch.longitude)}`}

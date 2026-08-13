@@ -22,13 +22,7 @@
     "whatsapp": "واتساب",
     "instagram": "إنستجرام",
     "manual": "يدوي",
-    "onlineOrder": "طلب أونلاين",
-    "onlineShipping": "طلب أونلاين · شحن",
-    "shippingOrder": "طلب شحن",
-    "directPos": "بيع مباشر · POS",
-    "directInvoice": "فاتورة مباشرة",
-    "directInvoiceHint": "فاتورة بيع مباشر — لا توجد خطوات شحن أو مراجعة تحويل مطلوبة",
-    "directInvoiceActions": "يمكنك طباعة الفاتورة أو إرجاع الأصناف مباشرة، وأضف الشحن فقط إذا طلب العميل توصيلها."
+    "onlineOrder": "طلب أونلاين"
   },
   "statusLabels": {
     "pending": "قيد الانتظار",
@@ -60,10 +54,7 @@
     "created": "تم الإنشاء",
     "picked_up": "تم الاستلام من المتجر",
     "failed": "فشل",
-    "failed_delivery": "فشل التسليم",
-    "outForDelivery": "خرج للتوصيل",
-    "partiallyPaid": "مدفوع جزئياً",
-    "partiallyRefunded": "مسترد جزئياً"
+    "failed_delivery": "فشل التسليم"
   },
   "kpis": {
     "totalOrders": "إجمالي الطلبات",
@@ -80,11 +71,7 @@
     "source": "المصدر",
     "branch": "الفرع",
     "all": "الكل",
-    "today": "اليوم",
-    "search": "البحث",
-    "orderStatus": "حالة الطلب",
-    "paymentStatus": "حالة الدفع",
-    "date": "التاريخ"
+    "today": "اليوم"
   },
   "bulk": {
     "markConfirmed": "تعيين كمؤكد",
@@ -116,8 +103,7 @@
     "items": "الأصناف",
     "paidAmount": "المبلغ المدفوع",
     "paymentStatus": "حالة الدفع",
-    "seller": "البائع",
-    "due": "المستحق"
+    "seller": "البائع"
   },
   "empty": {
     "title": "لا توجد طلبات",
@@ -159,16 +145,10 @@
   },
   "priority": {
     "awaitingVerification": "بانتظار التحقق",
-    "highValue": "قيمة مرتفعة",
+    "highValue": "قيمة عالية",
     "delayedPending": "طلب متأخر",
     "cod": "الدفع عند الاستلام",
-    "pending": "معلق",
-    "critical": "حرج",
-    "editRequested": "تعديل مطلوب",
-    "returnedCancelled": "مرتجع/ملغى",
-    "review": "مراجعة",
-    "late": "متأخر",
-    "normal": "عادي"
+    "pending": "معلق"
   },
   "payment": {
     "confirmed": "تم تأكيد الدفع",
@@ -233,200 +213,7 @@
     "checkItemCondition": "العميل أكد حالة المنتج",
     "checkRefundReviewed": "تمت مراجعة مبلغ الاسترداد",
     "checkRestockApplied": "تم تطبيق سياسة إعادة التخزين",
-    "checkShippingCaptured": "تم تسجيل ملاحظات الشحن والتسليم",
-    "customerReturns": "مرتجعات العملاء",
-    "supplierReturns": "مرتجعات الموردين",
-    "page": {
-      "toastLocalOnly": "يمكن تعديل المرتجعات المحلية فقط حالياً.",
-      "toastPickItem": "اختر منتجاً مرتجعاً واحداً على الأقل.",
-      "toastUpdated": "تم تحديث المرتجع.",
-      "toastDeleteUnavailable": "لا يمكن حذف هذا المرتجع من هذه الواجهة.",
-      "toastDeleted": "تم حذف المرتجع.",
-      "toastSupplierDelivered": "تم تسجيل تسليم القطعة للمورد.",
-      "toastSupplierDeliveryFailed": "تعذر تسجيل تسليم القطعة للمورد.",
-      "confirmDelete": "حذف المرتجع {{number}}؟",
-      "disposition": {
-        "restock": "سليم — إعادة للمخزون",
-        "manufacturingDefect": "عيب صناعة — حجز لمرتجع المورد",
-        "damaged": "تالف — لا يعاد للمخزون"
-      },
-      "stock": {
-        "reservedForSupplier": "محجوز للمورد",
-        "damagedNotReturned": "تالف — غير معاد",
-        "restocked": "تمت الإعادة",
-        "notRestocked": "غير معاد"
-      },
-      "unknownSupplier": "مورد غير محدد",
-      "unknownCustomer": "عميل غير محدد",
-      "noPhone": "بدون هاتف",
-      "notAvailable": "غير متاح",
-      "productFallback": "منتج {{index}}",
-      "noReturnedItems": "لا توجد بنود مرتجعة",
-      "noReturnedItemsRecorded": "لا توجد بنود مرتجعة مسجلة.",
-      "itemsSeparator": "، ",
-      "kpi": {
-        "total": "إجمالي مرتجعات العملاء",
-        "today": "مرتجعات اليوم",
-        "refundValue": "قيمة رد الأموال",
-        "restocked": "تمت إعادتها للمخزون"
-      },
-      "results": "النتائج",
-      "today": "اليوم",
-      "pageTitle": "مرتجعات الطلبات",
-      "pageSubtitle": "إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.",
-      "backToOrders": "العودة إلى الطلبات",
-      "createReturn": "إنشاء مرتجع",
-      "supplierKpi": {
-        "items": "إجمالي قطع الموردين",
-        "purchaseCost": "إجمالي سعر الشراء",
-        "pendingDelivery": "قطع بانتظار التسليم",
-        "suppliers": "عدد الموردين"
-      },
-      "currentResults": "النتائج الحالية {{shown}} من إجمالي {{total}} بند",
-      "clearFilters": "مسح الفلاتر",
-      "search": "البحث",
-      "supplierSearchPlaceholder": "المنتج، المورد، رقم المرتجع أو فاتورة الشراء",
-      "supplier": "المورد",
-      "allSuppliers": "كل الموردين",
-      "status": "الحالة",
-      "allStatuses": "كل الحالات",
-      "dateFrom": "من تاريخ",
-      "dateTo": "إلى تاريخ",
-      "col": {
-        "action": "الإجراء",
-        "supplier": "المورد",
-        "product": "المنتج",
-        "quantity": "الكمية",
-        "purchasePrice": "سعر الشراء",
-        "total": "الإجمالي",
-        "reference": "المرجع",
-        "status": "الحالة",
-        "date": "التاريخ"
-      },
-      "markDelivered": "تم التسليم",
-      "markDeliveredToSupplier": "تم التسليم للمورد",
-      "noSupplierReturns": "لا توجد مرتجعات موردين مطابقة للفلاتر الحالية.",
-      "supplierStatus": {
-        "returned": "تم التسليم",
-        "cancelled": "ملغي",
-        "pending": "بانتظار التسليم"
-      },
-      "defectQueueTitle": "قطع عيوب الصناعة المطلوب إرجاعها للموردين",
-      "totalItems": "إجمالي القطع",
-      "pieces": "{{count}} قطعة",
-      "moreItems": "+ {{count}} بنود أخرى",
-      "searchPlaceholder": "ابحث برقم الفاتورة أو العميل أو الهاتف أو رقم التتبع",
-      "returnStatusFilter": "حالة المرتجع",
-      "refundStatusFilter": "حالة الاسترداد",
-      "date": "التاريخ",
-      "loading": "جاري تحميل بيانات المرتجعات...",
-      "emptyTitle": "لا توجد مرتجعات مطابقة",
-      "emptyHint": "جرّب تعديل البحث أو الفلاتر الحالية.",
-      "cols": {
-        "action": "الإجراء",
-        "returnAndOrder": "رقم المرتجع / رقم الطلب",
-        "customer": "العميل",
-        "returnedProducts": "المنتجات المرتجعة",
-        "returnValue": "قيمة المرتجع",
-        "returnStatus": "حالة المرتجع",
-        "refundStatus": "حالة الاسترداد",
-        "restock": "إعادة للمخزون",
-        "date": "التاريخ"
-      },
-      "action": {
-        "view": "عرض التفاصيل",
-        "editReturn": "تعديل المرتجع",
-        "print": "طباعة / PDF",
-        "cancel": "إلغاء",
-        "delete": "حذف",
-        "edit": "تعديل"
-      },
-      "pill": {
-        "refund": "الاسترداد",
-        "stock": "المخزون",
-        "refundStatus": "حالة الاسترداد",
-        "refundMethod": "طريقة الاسترداد",
-        "date": "التاريخ"
-      },
-      "close": "إغلاق",
-      "drawer": {
-        "eyebrowEdit": "تعديل مرتجع",
-        "eyebrowCreate": "إنشاء مرتجع",
-        "editTitle": "تعديل المرتجع",
-        "createTitle": "إنشاء مرتجع",
-        "subtitle": "نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة."
-      },
-      "field": {
-        "customer": "العميل",
-        "refundMethod": "طريقة الاسترداد",
-        "refundStatus": "حالة الاسترداد",
-        "disposition": "مصير القطعة المرتجعة"
-      },
-      "saveEdits": "حفظ التعديلات",
-      "restockedBadge": "تمت الإعادة للمخزون",
-      "section": {
-        "summary": "ملخص المرتجع",
-        "originalOrder": "بيانات الطلب الأصلي",
-        "customer": "بيانات العميل",
-        "returnedProducts": "المنتجات المرتجعة",
-        "stockMovement": "حركة المخزون",
-        "refundPayment": "الاسترداد / الدفع",
-        "notes": "الملاحظات / السبب",
-        "timeline": "الخط الزمني"
-      },
-      "info": {
-        "returnNumber": "رقم المرتجع",
-        "returnValue": "قيمة المرتجع",
-        "returnStatus": "حالة المرتجع",
-        "refundStatus": "حالة الاسترداد",
-        "orderNumber": "رقم الطلب",
-        "tracking": "رقم التتبع",
-        "shippingProvider": "شركة الشحن",
-        "createdAt": "تاريخ الإنشاء",
-        "customer": "العميل",
-        "phone": "الهاتف",
-        "restock": "إعادة للمخزون",
-        "movementStatus": "حالة الحركة",
-        "refundMethod": "طريقة الاسترداد",
-        "amount": "المبلغ"
-      },
-      "movement": {
-        "done": "تم تنفيذ الإرجاع للمخزون",
-        "reserved": "تم حجز القطعة لمرتجع المورد",
-        "notDone": "لم يتم تنفيذ الإرجاع"
-      },
-      "reasonPrefix": "السبب:",
-      "noNotes": "لا توجد ملاحظات إضافية.",
-      "noTimestamp": "بدون توقيت",
-      "openOriginalOrder": "فتح الطلب الأصلي",
-      "cancelReturn": "إلغاء المرتجع",
-      "deleteReturn": "حذف المرتجع",
-      "itemsCount": "{{count}} منتج",
-      "timeline": {
-        "returnCreated": "تم إنشاء المرتجع",
-        "returnStatus": "حالة المرتجع: {{value}}",
-        "refundStatus": "حالة الاسترداد: {{value}}",
-        "refundMethod": "طريقة الاسترداد: {{value}}",
-        "orderCreated": "تم إنشاء الطلب",
-        "returnLogged": "تم تسجيل المرتجع",
-        "currentStatus": "الحالة الحالية: {{value}}"
-      },
-      "humanize": {
-        "cash": "نقدي",
-        "card": "بطاقة",
-        "same_payment_method": "نفس وسيلة الدفع",
-        "pending": "قيد الانتظار",
-        "processing": "قيد المعالجة",
-        "refunded": "تم الاسترداد",
-        "partial_refund": "استرداد جزئي",
-        "rejected": "مرفوض",
-        "draft": "مسودة",
-        "submitted": "مرسل",
-        "approved": "مقبول",
-        "returned": "مرتجع",
-        "unknown": "غير محدد"
-      }
-    }
+    "checkShippingCaptured": "تم تسجيل ملاحظات الشحن والتسليم"
   },
   "fallback": {
     "customer": "عميل",
@@ -451,11 +238,7 @@
     "qty": "الكمية",
     "noItemData": "لا توجد بيانات بنود",
     "noItemDataText": "هذا الطلب لا يحتوي على صفوف بنود في البيانات المحملة.",
-    "notes": "الملاحظات",
-    "seller": "البائع",
-    "invoiceEditPayment": "دفع تعديل الفاتورة",
-    "manualShipping": "يدوي",
-    "shippingPending": "قيد الانتظار"
+    "notes": "الملاحظات"
   },
   "edit": {
     "title": "تعديل الطلب",
@@ -497,7 +280,7 @@
     "shipmentCreated": "تم إنشاء الشحنة",
     "providerNotConfigured": "مزود الشحن غير مهيأ. الشحن اليدوي متاح.",
     "createFailed": "تعذر إنشاء الشحنة",
-    "provider": "المزود",
+    "provider": "مزود الشحن",
     "trackingNumber": "رقم التتبع",
     "shipment": "الشحنة",
     "courier": "المندوب",
@@ -517,51 +300,7 @@
     "cancelShipment": "إلغاء الشحنة",
     "shipmentUpdated": "تم تحديث الشحنة",
     "updateFailed": "تعذر تحديث الشحنة",
-    "timeline": "الخط الزمني للشحنة",
-    "zone": "المنطقة",
-    "district": "الحي",
-    "apartment": "الشقة",
-    "landmarkPlaceholder": "بجوار...",
-    "bostaTrackingNumber": "رقم شحنة Bosta",
-    "bostaPlanRequired": "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.",
-    "completeBostaFields": "أكمل هاتف العميل ومدينة ومنطقة وحي بوسطة واسم الشارع ورقم المبنى",
-    "enterPhoneAndAddress": "أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن",
-    "setUpForInvoice": "إعداد شحن للفاتورة",
-    "addToInvoice": "إضافة شحن للفاتورة",
-    "bostaAddress": "عنوان شحن Bosta",
-    "customerDelivery": "بيانات توصيل العميل",
-    "bostaDirectoryHint": "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة.",
-    "saveBeforeCreate": "احفظ بيانات التوصيل قبل إنشاء الشحنة.",
-    "customerPhone": "رقم هاتف العميل",
-    "bostaCity": "مدينة Bosta",
-    "loadingCities": "تحميل مدن Bosta...",
-    "selectCity": "اختر المدينة *",
-    "loadingZones": "تحميل المناطق...",
-    "selectZone": "اختر المنطقة *",
-    "loadingDistricts": "تحميل الأحياء...",
-    "selectDistrict": "اختر الحي *",
-    "streetAndAddress": "اسم الشارع والعنوان بالتفصيل",
-    "streetPlaceholder": "مثال: شارع التسعين الشمالي *",
-    "buildingNumber": "رقم المبنى",
-    "buildingNumberRequired": "رقم المبنى *",
-    "apartmentNumber": "رقم الشقة",
-    "cityOrZone": "المدينة أو المنطقة",
-    "fullAddress": "العنوان التفصيلي",
-    "addressPlaceholder": "الشارع، رقم المبنى، الدور والشقة",
-    "createBostaShipment": "إنشاء شحنة Bosta",
-    "refreshStatus": "تحديث الحالة",
-    "city": "المدينة",
-    "street": "الشارع",
-    "building": "المبنى",
-    "floor": "الطابق",
-    "bostaInternalId": "معرّف Bosta الداخلي",
-    "labelLink": "رابط الملصق",
-    "subscriptionRequired": "الاشتراك مطلوب",
-    "bostaError": "خطأ Bosta",
-    "providerSettings": "إعدادات مزود الشحن",
-    "appearsAfterCreate": "يظهر تلقائيًا بعد إنشاء الشحنة",
-    "delivered": "تم تسليم الشحنة",
-    "delivery": "توصيل"
+    "timeline": "الخط الزمني للشحنة"
   },
   "details": {
     "title": "تفاصيل الطلب",
@@ -668,60 +407,6 @@
       "COD amount mismatch": "مبلغ الدفع عند الاستلام غير مطابق",
       "One or more items are out of stock": "منتج واحد أو أكثر غير متوفر"
     },
-    "currentStatus": "الحالة الحالية",
-    "invoice": "فاتورة الطلب",
-    "activityLog": "سجل العملية",
-    "moreActions": "إجراءات إضافية",
-    "enterpriseOps": "إدارة عمليات المؤسسة والاشتراكات"
-  },
-  "channels": {
-    "instagramStory": "قصة إنستغرام",
-    "story": "قصة",
-    "facebookPost": "منشور فيسبوك",
-    "instagramPost": "منشور إنستغرام",
-    "whatsappCampaign": "حملة واتساب",
-    "tiktokCampaign": "حملة تيك توك"
-  },
-  "whatsapp": {
-    "cancelled": "ملغي عبر واتساب",
-    "confirmed": "مؤكد عبر واتساب",
-    "awaitingConfirmation": "بانتظار تأكيد واتساب",
-    "paymentReviewSent": "تم إرسال مراجعة الدفع عبر واتساب",
-    "invoiceSent": "تم إرسال فاتورة واتساب",
-    "shipmentSent": "تم إرسال الشحنة عبر واتساب",
-    "shippingNotified": "تم إشعار الشحن عبر واتساب",
-    "outForDeliveryNotified": "تم إشعار في الطريق للتسليم عبر واتساب",
-    "deliveryNotified": "تم إشعار التسليم عبر واتساب"
-  },
-  "links": {
-    "openInstagram": "فتح محادثة Instagram",
-    "openMessenger": "فتح محادثة Messenger",
-    "openWhatsapp": "فتح محادثة WhatsApp",
-    "openAiInbox": "فتح محادثة AI Inbox"
-  },
-  "customer": {
-    "walkIn": "عميل متجول"
-  },
-  "breadcrumb": {
-    "home": "الرئيسية"
-  },
-  "toasts": {
-    "created": "تم إنشاء الطلب",
-    "notesUpdated": "تم تحديث الملاحظات",
-    "shippingSet": "تم إعداد الشحن"
-  },
-  "timeline": {
-    "customerConfirmed": "تم التأكيد من العميل",
-    "customerRequestedEdit": "العميل طلب تعديل",
-    "customerCancelled": "ألغاه العميل",
-    "created": "تم إنشاء الطلب",
-    "paymentUploaded": "تم رفع إثبات الدفع",
-    "paymentRejected": "تم رفض الدفع",
-    "paymentVerified": "تم تأكيد الدفع",
-    "readyToShip": "جاهز للشحن",
-    "shipmentCreated": "تم إنشاء الشحنة",
-    "delivered": "تم التسليم",
-    "orderConfirmed": "تم تأكيد الطلب"
-  },
-  "aiInboxLink": "صندوق الذكاء الاصطناعي"
+    "currentStatus": "الحالة الحالية"
+  }
 }

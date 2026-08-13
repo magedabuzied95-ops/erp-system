@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { ArrowRightLeft, Building2, CreditCard, ShieldCheck } from "lucide-react";
@@ -9,7 +8,6 @@ import { PLANS } from "../lib/tenantStore";
 import { useTenant } from "../context/TenantContext";
 
 function Workspace() {
-  const { t } = useTranslation();
   const tenantApi = useTenant();
   const billing = tenantApi?.billing;
   const tenants = tenantApi?.tenants || [];
@@ -20,41 +18,41 @@ function Workspace() {
 
   return (
     <SaaSShell
-      title={t("saas.workspace.title")}
-      subtitle={t("saas.workspace.subtitle")}
+      title="Workspace"
+      subtitle="Switch tenants, inspect the active subscription, and keep the authenticated session aligned with the current workspace."
       actions={
         <>
           <Link to="/register-company" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
             <Building2 className="h-4 w-4" />
-            {t("saas.workspace.registerCompany")}
+            Register company
           </Link>
           <Link to="/billing" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <CreditCard className="h-4 w-4" />
-            {t("saas.tabs.billing")}
+            Billing
           </Link>
         </>
       }
       tabs={[
-        { to: "/workspace", label: t("saas.tabs.workspace"), end: true },
-        { to: "/billing", label: t("saas.tabs.billing") },
-        { to: "/settings/company", label: t("saas.tabs.companySettings") },
-        { to: "/admin/tenants", label: t("saas.tabs.adminTenants") },
+        { to: "/workspace", label: "Workspace", end: true },
+        { to: "/billing", label: "Billing" },
+        { to: "/settings/company", label: "Company settings" },
+        { to: "/admin/tenants", label: "Admin tenants" },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Metric label={t("saas.workspace.metrics.tenants")} value={kpis.total} />
-        <Metric label={t("saas.workspace.metrics.active")} value={kpis.active} />
-        <Metric label={t("saas.workspace.metrics.suspended")} value={kpis.suspended} />
-        <Metric label={t("saas.workspace.metrics.trial")} value={kpis.trial} />
-        <Metric label={t("saas.workspace.metrics.revenue")} value={`$${Number(kpis.revenue || 0).toLocaleString()}`} />
+        <Metric label="Tenants" value={kpis.total} />
+        <Metric label="Active" value={kpis.active} />
+        <Metric label="Suspended" value={kpis.suspended} />
+        <Metric label="Trial" value={kpis.trial} />
+        <Metric label="Revenue placeholder" value={`$${Number(kpis.revenue || 0).toLocaleString()}`} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="m1-section-title text-white">{t("saas.workspace.current")}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{t("saas.workspace.currentHint")}</p>
+              <h3 className="m1-section-title text-white">Current workspace</h3>
+              <p className="mt-1 text-sm text-zinc-400">Tenant-aware session persisted in local storage.</p>
             </div>
             <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               <ArrowRightLeft className="h-4 w-4" />
@@ -65,26 +63,26 @@ function Workspace() {
           <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">{t("saas.workspace.title")}</div>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Workspace</div>
                 <div className="mt-2 text-2xl font-black text-white">{currentTenant?.companyName || "No workspace selected"}</div>
                 <div className="mt-1 text-sm text-primary/80">{currentTenant?.ownerEmail || "Sign in to attach a tenant workspace."}</div>
               </div>
               <ShieldCheck className="h-10 w-10 text-primary" />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <Small label={t("saas.workspace.subscription")} value={billing?.status || "Active"} />
-              <Small label={t("saas.workspace.plan")} value={billing?.plan?.name || "Trial"} />
-              <Small label={t("saas.workspace.expires")} value={billing?.expiresAt ? new Date(billing.expiresAt).toLocaleDateString() : "n/a"} />
-              <Small label={t("saas.workspace.currency")} value={billing?.currency || "USD"} />
+              <Small label="Subscription" value={billing?.status || "Active"} />
+              <Small label="Plan" value={billing?.plan?.name || "Trial"} />
+              <Small label="Expires" value={billing?.expiresAt ? new Date(billing.expiresAt).toLocaleDateString() : "n/a"} />
+              <Small label="Currency" value={billing?.currency || "USD"} />
             </div>
           </div>
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="m1-section-title text-white">{t("saas.workspace.recent")}</h3>
+          <h3 className="m1-section-title text-white">Recent workspaces</h3>
           <div className="mt-4 space-y-3">
             {history.length === 0 ? (
-              <Empty label={t("saas.workspace.noHistory")} />
+              <Empty label="No workspace history yet." />
             ) : (
               history.map((tenant) => (
                 <button
@@ -106,7 +104,7 @@ function Workspace() {
           </div>
 
           <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("saas.workspace.supportedPlans")}</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Supported plans</div>
             <div className="mt-3 flex flex-wrap gap-2">
               {PLANS.map((plan) => (
                 <span key={plan.id} className="rounded-full border border-white/10 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-300">

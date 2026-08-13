@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 
 import { Building2, CircleDollarSign, ShieldCheck, ShieldOff } from "lucide-react";
 import toast from "react-hot-toast";
@@ -9,7 +8,6 @@ import SaaSShell from "../components/SaaSShell";
 import { buildTenantKpis, getTenants, updateTenant } from "../lib/tenantStore";
 
 function AdminTenants() {
-  const { t } = useTranslation();
   const tenants = getTenants();
   const kpis = buildTenantKpis(tenants);
 
@@ -27,8 +25,8 @@ function AdminTenants() {
 
   return (
     <SaaSShell
-      title={t("access.tenants.title")}
-      subtitle={t("access.tenants.subtitle")}
+      title="Super Admin Tenants"
+      subtitle="Monitor companies, active subscriptions, revenue placeholders, and tenant status management from one panel."
       actions={
         <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <Building2 className="h-4 w-4" />
@@ -36,30 +34,30 @@ function AdminTenants() {
         </Link>
       }
       tabs={[
-        { to: "/admin/tenants", label: t("access.tenants.tabs.tenants"), end: true },
-        { to: "/workspace", label: t("access.tenants.tabs.workspace") },
-        { to: "/billing", label: t("access.tenants.tabs.billing") },
-        { to: "/settings/company", label: t("access.tenants.tabs.companySettings") },
+        { to: "/admin/tenants", label: "Tenants", end: true },
+        { to: "/workspace", label: "Workspace" },
+        { to: "/billing", label: "Billing" },
+        { to: "/settings/company", label: "Company settings" },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label={t("access.tenants.metrics.tenants")} value={kpis.total} icon={<Building2 className="h-5 w-5" />} />
-        <Metric label={t("access.tenants.metrics.active")} value={kpis.active} icon={<ShieldCheck className="h-5 w-5" />} />
-        <Metric label={t("access.tenants.metrics.suspended")} value={kpis.suspended} icon={<ShieldOff className="h-5 w-5" />} />
-        <Metric label={t("access.tenants.metrics.revenuePlaceholder")} value={`$${Number(kpis.revenue || 0).toLocaleString()}`} icon={<CircleDollarSign className="h-5 w-5" />} />
+        <Metric label="Tenants" value={kpis.total} icon={<Building2 className="h-5 w-5" />} />
+        <Metric label="Active" value={kpis.active} icon={<ShieldCheck className="h-5 w-5" />} />
+        <Metric label="Suspended" value={kpis.suspended} icon={<ShieldOff className="h-5 w-5" />} />
+        <Metric label="Revenue placeholder" value={`$${Number(kpis.revenue || 0).toLocaleString()}`} icon={<CircleDollarSign className="h-5 w-5" />} />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="m1-section-title text-white">{t("access.tenants.listTitle")}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{t("access.tenants.listSubtitle")}</p>
+            <h3 className="m1-section-title text-white">Companies list</h3>
+            <p className="mt-1 text-sm text-zinc-400">Suspend or activate tenants without affecting the existing ERP modules.</p>
           </div>
         </div>
 
         <div className="mt-4 space-y-3">
           {tenants.length === 0 ? (
-            <Empty label={t("access.tenants.empty")} />
+            <Empty label="No tenants found." />
           ) : (
             tenants.map((tenant) => (
               <div key={tenant.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">

@@ -28,12 +28,10 @@ export const RISK_BADGE = {
 };
 
 // short human descriptors for risk (icon + label + line) — never colour alone
-// Keys are the RAW riskLevel enum. label/line stay as English fallbacks; the
-// *Key fields are resolved by the UI layer (nodeKit stays framework-free).
 export const RISK_INFO = {
-  READ: { label: "Read only", labelKey: "aiStudio.workflow.risk.READ.label", icon: "Eye", line: "No ERP changes.", lineKey: "aiStudio.workflow.risk.READ.line" },
-  WRITE: { label: "Writes data", labelKey: "aiStudio.workflow.risk.WRITE.label", icon: "Pencil", line: "Changes ERP data; may need permission.", lineKey: "aiStudio.workflow.risk.WRITE.line" },
-  SENSITIVE: { label: "Human approval required", labelKey: "aiStudio.workflow.risk.SENSITIVE.label", icon: "ShieldAlert", line: "Sensitive action — never runs without approval.", lineKey: "aiStudio.workflow.risk.SENSITIVE.line" },
+  READ: { label: "Read only", icon: "Eye", line: "No ERP changes." },
+  WRITE: { label: "Writes data", icon: "Pencil", line: "Changes ERP data; may need permission." },
+  SENSITIVE: { label: "Human approval required", icon: "ShieldAlert", line: "Sensitive action — never runs without approval." },
 };
 
 // execution state -> ring styling on the node

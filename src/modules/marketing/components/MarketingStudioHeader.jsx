@@ -3,16 +3,12 @@ import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { ResponsiveTabs } from "../../../shared/components/mobile/ResponsiveMobile";
-import i18n from "../../../i18n/i18n";
-
-/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
-const tt = (key, options) => i18n.t(key, options);
 
 const tabs = [
-  { to: "/marketing/social-media-publisher", get label() { return tt("marketing.studioHeader.tabs.publisher"); }, icon: Send, end: true },
-  { to: "/marketing/social-calendar", get label() { return tt("marketing.studioHeader.tabs.calendar"); }, icon: CalendarDays },
-  { to: "/marketing/analytics", get label() { return tt("marketing.studioHeader.tabs.analytics"); }, icon: BarChart3 },
-  { to: "/marketing/templates", get label() { return tt("marketing.studioHeader.tabs.templates"); }, icon: LayoutTemplate },
+  { to: "/marketing/social-media-publisher", label: "الناشر", icon: Send, end: true },
+  { to: "/marketing/social-calendar", label: "التقويم", icon: CalendarDays },
+  { to: "/marketing/analytics", label: "التحليلات", icon: BarChart3 },
+  { to: "/marketing/templates", label: "القوالب", icon: LayoutTemplate },
   { to: "/marketing/settings", label: "Meta", icon: Settings2 },
 ];
 
@@ -25,9 +21,9 @@ const tabClassName = ({ isActive }) =>
   ].join(" ");
 
 export default function MarketingStudioHeader({
-  eyebrow = "",
-  title = "",
-  description = "",
+  eyebrow = "Marketing Studio",
+  title = "Marketing Suite",
+  description = "Navigate the marketing workspace from one shared header.",
   size = "default",
 }) {
   const { t } = useTranslation();

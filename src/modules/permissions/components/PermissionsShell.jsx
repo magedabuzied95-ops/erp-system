@@ -1,13 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 
 export default function PermissionsShell({ title, subtitle, actions, tabs = [], children }) {
-  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--primary)]/70">{t("access.shell.title")}</div>
+          <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--primary)]/70">RBAC & Permissions</div>
           <h1 className="m1-display mt-2 text-[var(--text)]">{title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{subtitle}</p>
         </div>

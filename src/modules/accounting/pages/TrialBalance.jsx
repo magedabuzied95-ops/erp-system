@@ -7,16 +7,7 @@ import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
 
-import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
-
-/** Module-scope translator for helpers defined outside a component. */
-const tt = (key, options) => i18n.t(key, options);
-
 function TrialBalance() {
-  // Subscribes this screen to language changes; strings resolve through tt().
-  useTranslation();
   const [filters, setFilters] = useState({
     from_date: "",
     to_date: "",
@@ -55,7 +46,7 @@ function TrialBalance() {
           is_balanced: true,
         },
       });
-      setError(requestError?.message || tt("accounting.trialBalance.errors.load"));
+      setError(requestError?.message || "تعذر تحميل ميزان المراجعة.");
     } finally {
       setLoading(false);
     }
@@ -81,8 +72,8 @@ function TrialBalance() {
 
   return (
     <AccountingShell
-      title={tt("accounting.reports.tabs.trialBalance")}
-      subtitle={tt("accounting.trialBalance.subtitle")}
+      title="ميزان المراجعة"
+      subtitle="ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود"
       actions={
         <>
           <button
@@ -91,40 +82,40 @@ function TrialBalance() {
             className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            {tt("orders.details.refresh")}
+            تحديث
           </button>
           <Link
             to="/accounting"
             className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary"
           >
             <Scale className="h-4 w-4" />
-            {tt("accounting.dashboardTitle")}
+            لوحة المحاسبة
           </Link>
         </>
       }
       tabs={[
-        { to: "/accounting", label: tt("accounting.tabs.dashboard") },
-        { to: "/accounting/journal-entries", label: tt("accounting.tabs.journal") },
-        { to: "/accounting/accounts", label: tt("accounting.tabs.accounts") },
-        { to: "/accounting/general-ledger", label: tt("accounting.tabs.ledgers") },
-        { to: "/accounting/trial-balance", label: tt("accounting.reports.tabs.trialBalance"), end: true },
-        { to: "/accounting/reports", label: tt("accounting.tabs.reports") },
+        { to: "/accounting", label: "لوحة التحكم" },
+        { to: "/accounting/journal-entries", label: "القيود اليومية" },
+        { to: "/accounting/accounts", label: "دليل الحسابات" },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة", end: true },
+        { to: "/accounting/reports", label: "التقارير" },
       ]}
     >
       <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">
-        <Field label={tt("accounting.common.filters.fromDate")}>
+        <Field label="من تاريخ">
           <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
         </Field>
-        <Field label={tt("accounting.common.filters.toDate")}>
+        <Field label="إلى تاريخ">
           <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
         </Field>
-        <Field label={tt("orders.table.branch")}>
-          <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder={tt("accounting.common.labels.optional")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
+        <Field label="الفرع">
+          <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder="اختياري" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
         </Field>
         <div className="flex items-end">
           <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
             <Search className="h-4 w-4" />
-            {tt("accounting.trialBalance.view")}
+            عرض الميزان
           </button>
         </div>
       </form>
@@ -132,33 +123,33 @@ function TrialBalance() {
       {error ? <Banner text={error} /> : null}
 
       <div className="grid gap-3 md:grid-cols-3">
-        <FinanceMetricCard label={tt("accounting.common.metrics.totalDebit")} value={formatCurrency(report.totals.total_debits)} tone="emerald" icon={<Scale className="h-5 w-5" />} />
-        <FinanceMetricCard label={tt("accounting.common.metrics.totalCredit")} value={formatCurrency(report.totals.total_credits)} tone="rose" icon={<Scale className="h-5 w-5" />} />
-        <FinanceMetricCard label={tt("orders.table.status")} value={report.totals.is_balanced ? tt("accounting.journal.metrics.balanced") : tt("accounting.journal.metrics.unbalanced")} tone={report.totals.is_balanced ? "cyan" : "amber"} icon={<Scale className="h-5 w-5" />} />
+        <FinanceMetricCard label="إجمالي المدين" value={formatCurrency(report.totals.total_debits)} tone="emerald" icon={<Scale className="h-5 w-5" />} />
+        <FinanceMetricCard label="إجمالي الدائن" value={formatCurrency(report.totals.total_credits)} tone="rose" icon={<Scale className="h-5 w-5" />} />
+        <FinanceMetricCard label="الحالة" value={report.totals.is_balanced ? "متوازن" : "غير متوازن"} tone={report.totals.is_balanced ? "cyan" : "amber"} icon={<Scale className="h-5 w-5" />} />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
         <div className="flex items-center gap-3">
           <div className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${report.totals.is_balanced ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
-            {report.totals.is_balanced ? tt("accounting.journal.metrics.balanced") : tt("accounting.journal.metrics.unbalanced")}
+            {report.totals.is_balanced ? "متوازن" : "غير متوازن"}
           </div>
-          <div className="text-sm text-zinc-400">{tt("accounting.trialBalance.sourceNote")}</div>
+          <div className="text-sm text-zinc-400">يعتمد هذا التقرير فقط على `journal_entry_lines` المربوطة بقيود اليومية.</div>
         </div>
 
         {loading ? (
-          <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.trialBalance.loading")}</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 text-sm text-zinc-400">جارٍ تحميل ميزان المراجعة...</div>
         ) : nonZeroRows.length === 0 ? (
-          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.trialBalance.noBalances")}</div>
+          <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد أرصدة ضمن الفترة الحالية.</div>
         ) : (
           <div className="m1-table-container mt-5 overflow-x-auto">
             <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                 <tr>
-                  <Th>{tt("accounting.trialBalance.accountCode")}</Th>
-                  <Th>{tt("accounting.common.labels.accountName")}</Th>
-                  <Th>{tt("accounting.common.labels.accountType")}</Th>
-                  <Th align="right">{tt("accounting.common.metrics.totalDebit")}</Th>
-                  <Th align="right">{tt("accounting.common.metrics.totalCredit")}</Th>
+                  <Th>كود الحساب</Th>
+                  <Th>اسم الحساب</Th>
+                  <Th>نوع الحساب</Th>
+                  <Th align="right">إجمالي المدين</Th>
+                  <Th align="right">إجمالي الدائن</Th>
                 </tr>
               </thead>
               <tbody>
@@ -174,7 +165,7 @@ function TrialBalance() {
               </tbody>
               <tfoot className="bg-white/5">
                 <tr>
-                  <Th>{tt("orders.table.total")}</Th>
+                  <Th>الإجمالي</Th>
                   <Th />
                   <Th />
                   <Th align="right" className="text-emerald-300">{formatCurrency(report.totals.total_debits || 0)}</Th>
@@ -191,11 +182,11 @@ function TrialBalance() {
 
 function translateType(type) {
   const normalized = String(type || "").trim().toLowerCase();
-  if (normalized === "asset") return tt("accounting.accountTypes.asset");
-  if (normalized === "liability") return tt("accounting.accountTypes.liability");
-  if (normalized === "equity") return tt("accounting.accountTypes.equity");
-  if (normalized === "revenue") return tt("accounting.accountTypes.revenue");
-  if (normalized === "expense") return tt("accounting.common.labels.expense");
+  if (normalized === "asset") return "أصل";
+  if (normalized === "liability") return "التزام";
+  if (normalized === "equity") return "حقوق ملكية";
+  if (normalized === "revenue") return "إيراد";
+  if (normalized === "expense") return "مصروف";
   return normalized || "-";
 }
 

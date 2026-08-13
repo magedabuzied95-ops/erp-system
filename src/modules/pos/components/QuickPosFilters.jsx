@@ -2,13 +2,6 @@ import { createPortal } from "react-dom";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 
-import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
-
-/** Module-scope translator for helpers defined outside a component. */
-const tt = (key, options) => i18n.t(key, options);
-
 const normalizeText = (value = "") => String(value || "").trim().toLowerCase();
 
 function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChange, onToggle, onClear }) {
@@ -82,7 +75,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={tt("pos.filters.search")}
+          placeholder="بحث..."
           className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-xl border border-white/10 bg-black/60 px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/40"
         />
         {selectedSet.size ? (
@@ -92,7 +85,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
             className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1 rounded-xl border border-amber-200/20 bg-amber-400/10 px-2 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15"
           >
             <X className="h-3 w-3" />
-            {tt("pos.filters.clearAll")}
+            مسح الكل
           </button>
         ) : null}
       </div>
@@ -113,7 +106,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
             </button>
           );
         }) : (
-          <div className="px-3 py-5 text-center text-xs font-bold text-zinc-500">{tt("common.noResults")}</div>
+          <div className="px-3 py-5 text-center text-xs font-bold text-zinc-500">لا توجد نتائج</div>
         )}
       </div>
     </div>,
@@ -149,8 +142,6 @@ function QuickPosFilters({
   onToggleManufacturer,
   onClearManufacturers,
 }) {
-  // memo() component: subscribe so a language change re-renders it even when props are unchanged.
-  useTranslation();
   const [openMenu, setOpenMenu] = useState("");
   const genderCounts = useMemo(() => {
     const map = new Map((Array.isArray(genderOptions) ? genderOptions : []).map((option) => [String(option.id), option.count]));
@@ -158,9 +149,9 @@ function QuickPosFilters({
   }, [genderOptions]);
   const selectedGenderSet = useMemo(() => new Set(Array.isArray(selectedGenders) ? selectedGenders.map(String) : []), [selectedGenders]);
   const genders = [
-    { id: "men", label: tt("pos.audience.men") },
-    { id: "women", label: tt("pos.audience.women") },
-    { id: "kids", label: tt("pos.audience.kids") },
+    { id: "men", label: "رجالي" },
+    { id: "women", label: "حريمي" },
+    { id: "kids", label: "أطفال" },
   ];
 
   return (
@@ -184,7 +175,7 @@ function QuickPosFilters({
         })}
         <QuickMultiSelect
           id="manufacturer"
-          label={tt("inventory.purchaseAlerts.filters.manufacturer")}
+          label="المصنع"
           options={manufacturerOptions}
           selectedValues={selectedManufacturers}
           open={openMenu === "manufacturer"}
@@ -194,7 +185,7 @@ function QuickPosFilters({
         />
         <QuickMultiSelect
           id="brand"
-          label={tt("pos.filters.brand")}
+          label="الماركة"
           options={brandOptions}
           selectedValues={selectedBrands}
           open={openMenu === "brand"}

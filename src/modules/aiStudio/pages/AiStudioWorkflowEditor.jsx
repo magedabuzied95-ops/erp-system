@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import {
   ArrowLeft, Save, Play, Loader2, CheckCircle2, AlertTriangle, Undo2, Redo2, Circle, ShieldCheck,
   Maximize2, Minimize2, PanelLeft, PanelRight, Unlink, ChevronDown,
@@ -18,14 +17,12 @@ import NodePalette from "../components/editor/NodePalette";
 import NodeConfigPanel from "../components/editor/NodeConfigPanel";
 import ExecutionDrawer from "../components/editor/ExecutionDrawer";
 import { fmtTime } from "../components/editor/nodeKit";
-import { issueText } from "../lib/issueText";
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const RUN_TERMINAL = new Set(["completed", "failed", "rejected", "cancelled", "awaiting_approval"]);
 const ORIGIN = { x: 60, y: 60 };
 
 export default function AiStudioWorkflowEditor() {
-  const { t: tr, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const { headers } = useStudioHeaders();
@@ -155,18 +152,15 @@ export default function AiStudioWorkflowEditor() {
 
   // ---------- step options for "From previous step" selector ----------
   const stepOptions = useMemo(() => {
-    // `value` is the SERIALIZED context path and stays raw; only label is display.
-    const opts = [{ value: "trigger.input", label: tr("aiStudio.workflow.editor.triggerInputOption") }];
+    const opts = [{ value: "trigger.input", label: "Trigger input" }];
     for (const n of nodes) {
-      const t2 = n.data?.nodeType || n.type;
-      if (t2 === "trigger" || t2 === "end" || n.id === selectedId) continue;
-      const nm = n.data?.config?.label || (registry.tools.find((x) => x.id === n.data?.config?.tool)?.name) || (NODE_META[t2]?.labelKey ? tr(NODE_META[t2].labelKey, { defaultValue: NODE_META[t2].label }) : null) || n.id;
-      opts.push({ value: `steps.${n.id}.output`, label: tr("aiStudio.workflow.editor.stepOutput", { name: nm }) });
+      const t = n.data?.nodeType || n.type;
+      if (t === "trigger" || t === "end" || n.id === selectedId) continue;
+      const nm = n.data?.config?.label || (registry.tools.find((x) => x.id === n.data?.config?.tool)?.name) || NODE_META[t]?.label || n.id;
+      opts.push({ value: `steps.${n.id}.output`, label: `${nm} → output` });
     }
     return opts;
-    // language is a dependency: these are RESOLVED label strings.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, selectedId, registry, i18n.language]);
+  }, [nodes, selectedId, registry]);
 
   // ---------- display nodes (enriched) ----------
   const toolMetaFor = useCallback((toolId) => registry.tools.find((t) => t.id === toolId) || null, [registry]);
@@ -371,9 +365,9 @@ export default function AiStudioWorkflowEditor() {
   }, [isDirty]);
 
   const guardedBack = useCallback(() => {
-    if (isDirty && !window.confirm(tr("aiStudio.workflow.editor.discardConfirm"))) return;
+    if (isDirty && !window.confirm("You have unsaved changes. Leave the editor and discard them?")) return;
     navigate("/ai-studio/workflows");
-  }, [isDirty, navigate, tr]);
+  }, [isDirty, navigate]);
 
   // ---------- keyboard shortcuts (undo/redo) ----------
   useEffect(() => {
@@ -421,7 +415,7 @@ export default function AiStudioWorkflowEditor() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={!canEdit}
-          placeholder={tr("aiStudio.workflow.editor.workflowName")}
+          placeholder="Workflow name"
           className="h-[var(--control-height-md)] min-w-[180px] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-[14px] font-black text-white focus:border-primary/40 focus:outline-none disabled:opacity-60"
         />
         <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300 sm:inline">v{version}</span>
@@ -439,16 +433,16 @@ export default function AiStudioWorkflowEditor() {
           </button>
           {issuesOpen && (totalErrors || totalWarnings) ? (
             <div className="absolute left-0 top-full z-30 mt-1 w-80 max-h-80 overflow-y-auto rounded-xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur">
-              {totalErrors ? <div className="px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-rose-300">{tr("aiStudio.workflow.editor.errorsBlockSave")}</div> : null}
+              {totalErrors ? <div className="px-1 pb-1 text-[9px] font-black uppercase tracking-wide text-rose-300">Errors (block save)</div> : null}
               {errorIssues.map((it, i) => (
                 <button key={`e${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-[11px] text-rose-100 hover:bg-white/5">
-                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /><span>{issueText(tr, it)}</span>
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /><span>{it.message}</span>
                 </button>
               ))}
-              {totalWarnings ? <div className="px-1 pb-1 pt-1.5 text-[9px] font-black uppercase tracking-wide text-amber-300">{tr("aiStudio.workflow.editor.warningsAdvisory")}</div> : null}
+              {totalWarnings ? <div className="px-1 pb-1 pt-1.5 text-[9px] font-black uppercase tracking-wide text-amber-300">Warnings (advisory)</div> : null}
               {warningIssues.map((it, i) => (
                 <button key={`w${i}`} type="button" onClick={() => focusIssue(it.nodeId)} className="flex w-full items-start gap-1.5 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-[11px] text-amber-100 hover:bg-white/5">
-                  <Unlink className="mt-0.5 h-3 w-3 shrink-0" /><span>{issueText(tr, it)}</span>
+                  <Unlink className="mt-0.5 h-3 w-3 shrink-0" /><span>{it.message}</span>
                 </button>
               ))}
             </div>
@@ -462,13 +456,13 @@ export default function AiStudioWorkflowEditor() {
         </span>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <button type="button" onClick={() => canEdit && setEnabled((v) => !v)} disabled={!canEdit} title={tr("aiStudio.workflow.editor.toggleEnabled")}
+          <button type="button" onClick={() => canEdit && setEnabled((v) => !v)} disabled={!canEdit} title="Enable/disable this workflow"
             className={`inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border px-3 text-[11px] font-black ${enabled ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>
             <ShieldCheck className="h-3.5 w-3.5" /> {enabled ? "Enabled" : "Disabled"}
           </button>
 
-          <button type="button" onClick={undo} disabled={!undoStack.current.length} title={tr("aiStudio.workflow.editor.undo")} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Undo2 className="h-4 w-4" /></button>
-          <button type="button" onClick={redo} disabled={!redoStack.current.length} title={tr("aiStudio.workflow.editor.redo")} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Redo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Undo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 disabled:opacity-40"><Redo2 className="h-4 w-4" /></button>
 
           <button type="button" onClick={focusMode ? exitFocus : enterFocus} title={focusMode ? "Exit focus mode" : "Focus mode (maximize canvas)"} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20">
             {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -486,17 +480,17 @@ export default function AiStudioWorkflowEditor() {
       {status.msg ? (
         <div className={`px-3 py-1.5 text-[12px] font-bold ${status.kind === "error" ? "bg-rose-500/10 text-rose-100" : "bg-emerald-400/10 text-emerald-100"}`}>{status.msg}</div>
       ) : null}
-      {!canEdit ? <div className="bg-amber-300/10 px-3 py-1.5 text-[12px] font-bold text-amber-100">{tr("aiStudio.workflow.editor.readOnly")}</div> : null}
+      {!canEdit ? <div className="bg-amber-300/10 px-3 py-1.5 text-[12px] font-bold text-amber-100">Read-only — you need the settings.edit permission to change or run workflows.</div> : null}
 
       {/* ---- body ---- */}
       <div className="flex min-h-0 flex-1">
         {showPalette ? (
           <aside className="relative hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/50 lg:block">
             <NodePalette palette={palette} onAdd={(item) => addNode(item, null)} disabled={!canEdit} />
-            <button type="button" onClick={() => setShowPalette(false)} title={tr("aiStudio.workflow.editor.hidePalette")} className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelLeft className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => setShowPalette(false)} title="Hide palette" className="absolute right-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelLeft className="h-3.5 w-3.5" /></button>
           </aside>
         ) : (
-          <button type="button" onClick={() => setShowPalette(true)} title={tr("aiStudio.workflow.editor.showPalette")} className="hidden w-8 shrink-0 items-center justify-center border-r border-white/10 bg-slate-950/50 text-slate-400 hover:text-white lg:flex"><PanelLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setShowPalette(true)} title="Show palette" className="hidden w-8 shrink-0 items-center justify-center border-r border-white/10 bg-slate-950/50 text-slate-400 hover:text-white lg:flex"><PanelLeft className="h-4 w-4" /></button>
         )}
 
         <main className="relative min-w-0 flex-1">
@@ -528,10 +522,10 @@ export default function AiStudioWorkflowEditor() {
               onChange={updateSelectedConfig}
               onDelete={deleteSelected}
             />
-            <button type="button" onClick={() => setShowConfig(false)} title={tr("aiStudio.workflow.editor.hideConfig")} className="absolute left-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelRight className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => setShowConfig(false)} title="Hide config" className="absolute left-1.5 top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 text-slate-400 hover:text-white"><PanelRight className="h-3.5 w-3.5" /></button>
           </aside>
         ) : (
-          <button type="button" onClick={() => setShowConfig(true)} title={tr("aiStudio.workflow.editor.showConfig")} className="hidden w-8 shrink-0 items-center justify-center border-l border-white/10 bg-slate-950/50 text-slate-400 hover:text-white xl:flex"><PanelRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setShowConfig(true)} title="Show config" className="hidden w-8 shrink-0 items-center justify-center border-l border-white/10 bg-slate-950/50 text-slate-400 hover:text-white xl:flex"><PanelRight className="h-4 w-4" /></button>
         )}
 
         {drawerOpen ? (
@@ -552,10 +546,10 @@ export default function AiStudioWorkflowEditor() {
 
       {/* ---- validation / status bar ---- */}
       <footer className="flex items-center gap-3 border-t border-white/10 bg-slate-950/60 px-3 py-1.5 text-[11px]">
-        <button type="button" onClick={() => setDrawerOpen((v) => !v)} className="inline-flex items-center gap-1 font-black text-primary hover:text-primary"><Play className="h-3 w-3" /> {tr("aiStudio.workflow.editor.runPanel")}</button>
+        <button type="button" onClick={() => setDrawerOpen((v) => !v)} className="inline-flex items-center gap-1 font-black text-primary hover:text-primary"><Play className="h-3 w-3" /> Run panel</button>
         <span className="text-slate-600">·</span>
         {totalErrors === 0 && totalWarnings === 0 ? (
-          <span className="text-emerald-200">{tr("aiStudio.workflow.editor.noIssues")}</span>
+          <span className="text-emerald-200">No issues.</span>
         ) : (
           <button type="button" onClick={() => setIssuesOpen(true)} className="inline-flex items-center gap-2">
             {totalErrors ? <span className="text-rose-200">{totalErrors} error{totalErrors > 1 ? "s" : ""}</span> : null}

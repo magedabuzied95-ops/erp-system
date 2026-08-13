@@ -34,21 +34,12 @@ import {
   seedWarehouses,
 } from "../../purchases/lib/flowStore";
 
-import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
-
-/** Module-scope translator for helpers defined outside a component. */
-const tt = (key, options) => i18n.t(key, options);
-
 const APPROVAL_THRESHOLD_KEY = "erp.inventory.adjustment.approvalThreshold";
 const DEFAULT_APPROVAL_THRESHOLD = 25;
 
-// Module-scope array: stores translation KEYS and resolves them at render, so
-// the labels follow a language change instead of freezing at import time.
 const ADJUSTMENT_TYPES = [
-  { value: "increase", labelKey: "inventory.adjustments.increase", tone: "emerald" },
-  { value: "decrease", labelKey: "inventory.adjustments.decrease", tone: "rose" },
+  { value: "increase", label: "زيادة المخزون", tone: "emerald" },
+  { value: "decrease", label: "خفض المخزون", tone: "rose" },
 ];
 
 const REASON_OPTIONS = [
@@ -86,7 +77,7 @@ const getImageUrl = (product = {}, variant = {}) =>
   );
 
 const getProductDisplayName = (product = {}, variant = {}) =>
-  normalizeText(product.name || product.product_name || variant.product_name || variant.name || tt("inventory.adjustments.unnamedProduct"));
+  normalizeText(product.name || product.product_name || variant.product_name || variant.name || "منتج غير مسمى");
 
 const getWarehouseName = (variant = {}, warehouses = []) => {
   const direct = normalizeText(variant.warehouse_name || variant.warehouse || "");
@@ -97,7 +88,7 @@ const getWarehouseName = (variant = {}, warehouses = []) => {
 };
 
 const getVariantLabel = (variant = {}) =>
-  [normalizeText(variant.color || tt("inventory.labels.default")), normalizeText(variant.size || tt("inventory.labels.oneSize"))]
+  [normalizeText(variant.color || "افتراضي"), normalizeText(variant.size || "مقاس موحد")]
     .filter(Boolean)
     .join(" / ");
 
@@ -228,8 +219,6 @@ const getThresholdFromStorage = () => {
 };
 
 function StockAdjustments() {
-  // Subscribes this screen to language changes; strings resolve through tt().
-  useTranslation();
   const currentUser = getCurrentUser() || {};
   const canAdjust = hasPermission("inventory.edit");
   const isManager = Boolean(
@@ -279,8 +268,8 @@ function StockAdjustments() {
       } catch (error) {
         console.log(error);
         setWarehouses(seedWarehouses());
-        setWarehouseError(tt("inventory.adjustments.warehouseListUnavailable"));
-        toast.error(tt("inventory.adjustments.usingFallbackWarehouses"));
+        setWarehouseError("قائمة المخازن غير متاحة. سيستمر التعديل باستخدام المخزن المحدد محليًا.");
+        toast.error("جارٍ استخدام مخازن احتياطية");
       } finally {
         setWarehouseLoading(false);
       }
@@ -302,8 +291,8 @@ function StockAdjustments() {
       } catch (error) {
         if (!active) return;
         setCatalog([]);
-        setCatalogError(error?.message || tt("inventory.errors.loadProducts"));
-        toast.error(error?.message || tt("inventory.errors.loadProducts"));
+        setCatalogError(error?.message || "تعذر تحميل المنتجات");
+        toast.error(error?.message || "تعذر تحميل المنتجات");
       } finally {
         if (active) setCatalogLoading(false);
       }
@@ -399,9 +388,9 @@ function StockAdjustments() {
 
     if (exactMatch) {
       selectVariant(exactMatch);
-      toast.success(tt("inventory.adjustments.barcodeMatched"));
+      toast.success("تمت مطابقة الباركود مع أحد الاختيارات");
     } else {
-      toast(tt("inventory.adjustments.barcodeNoExactMatch"));
+      toast("لم يتم العثور على تطابق دقيق للباركود");
     }
 
     setScannerOpen(false);
@@ -409,23 +398,23 @@ function StockAdjustments() {
 
   const submitAdjustment = async () => {
     if (!canAdjust) {
-      toast.error(tt("inventory.adjustments.noPermission"));
+      toast.error("ليس لديك صلاحية تنفيذ تسويات المخزون");
       return;
     }
     if (!selectedVariant) {
-      toast.error(tt("inventory.adjustments.selectVariantFirst"));
+      toast.error("اختر اختيارًا للمنتج أولًا");
       return;
     }
     if (!quantityDelta || quantityDelta < 1) {
-      toast.error(tt("inventory.adjustments.minQuantity"));
+      toast.error("يجب أن تكون الكمية 1 على الأقل");
       return;
     }
     if (adjustmentType === "decrease" && requestedTargetStock < 0) {
-      toast.error(tt("inventory.adjustments.noNegativeStock"));
+      toast.error("لا يمكن أن ينخفض المخزون إلى أقل من صفر");
       return;
     }
     if (requiresManagerApproval && !approvalReady) {
-      toast.error(tt("inventory.adjustments.needsManagerApproval"));
+      toast.error("هذه التسوية تحتاج إلى اعتماد المدير");
       return;
     }
 
@@ -511,7 +500,7 @@ function StockAdjustments() {
         quantity_after: savedStock,
         reason: normalizeText(reason) || "تصحيح المخزون",
         notes: finalNotes,
-        user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || tt("inventory.adjustments.currentUser")),
+        user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || "المستخدم الحالي"),
         created_at: timestamp,
         approval_threshold: approvalThreshold,
         approval_required: requiresManagerApproval,
@@ -523,7 +512,7 @@ function StockAdjustments() {
       const nextMovements = [
         {
           ...savedRecord,
-        direction: actualDelta >= 0 ? tt("inventory.status.inbound") : tt("inventory.status.out"),
+        direction: actualDelta >= 0 ? "وارد" : "صادر",
         },
         ...localMovements,
       ];
@@ -533,7 +522,7 @@ function StockAdjustments() {
       setLocalAdjustments(nextAdjustments);
       setLocalMovements(nextMovements);
 
-      toast.success(tt("inventory.adjustments.toasts.stockUpdated"));
+      toast.success("تم تحديث المخزون وتسجيل الحركة");
       setNotes("");
       setReason(REASON_OPTIONS[0]);
       setQuantity(1);
@@ -543,7 +532,7 @@ function StockAdjustments() {
       setConfirmOpen(false);
     } catch (error) {
       console.log(error);
-      toast.error(error?.message || tt("inventory.adjustments.errors.updateStock"));
+      toast.error(error?.message || "تعذر تحديث المخزون");
     } finally {
       setSubmitting(false);
     }
@@ -551,19 +540,19 @@ function StockAdjustments() {
 
   const openConfirmation = () => {
     if (!canAdjust) {
-      toast.error(tt("inventory.adjustments.noPermission"));
+      toast.error("ليس لديك صلاحية تنفيذ تسويات المخزون");
       return;
     }
     if (!selectedVariant) {
-      toast.error(tt("inventory.adjustments.selectVariantFirst"));
+      toast.error("اختر اختيارًا للمنتج أولًا");
       return;
     }
     if (!quantityDelta || quantityDelta < 1) {
-      toast.error(tt("inventory.adjustments.minQuantity"));
+      toast.error("يجب أن تكون الكمية 1 على الأقل");
       return;
     }
     if (adjustmentType === "decrease" && requestedTargetStock < 0) {
-      toast.error(tt("inventory.adjustments.noNegativeStock"));
+      toast.error("لا يمكن أن ينخفض المخزون إلى أقل من صفر");
       return;
     }
     setConfirmOpen(true);
@@ -585,8 +574,8 @@ function StockAdjustments() {
     } catch (error) {
       console.log(error);
       setHistoryMovements([]);
-      setHistoryError(error?.message || tt("inventory.adjustments.errors.loadProductHistory"));
-      toast.error(error?.message || tt("inventory.adjustments.errors.loadProductHistory"));
+      setHistoryError(error?.message || "تعذر تحميل سجل المنتج");
+      toast.error(error?.message || "تعذر تحميل سجل المنتج");
     } finally {
       setHistoryLoading(false);
     }
@@ -603,22 +592,22 @@ function StockAdjustments() {
         );
         return {
           ...record,
-          product_name: normalizeText(record.product_name || matched?.product_name || tt("inventory.labels.unknownProduct")),
+          product_name: normalizeText(record.product_name || matched?.product_name || "منتج غير معروف"),
           image_url: normalizeText(record.image_url || matched?.image_url || ""),
           color: normalizeText(record.color || matched?.color || ""),
           size: normalizeText(record.size || matched?.size || ""),
           sku: normalizeText(record.sku || matched?.sku || ""),
           barcode: normalizeText(record.barcode || matched?.barcode || ""),
           warehouse_name: normalizeText(record.warehouse_name || matched?.warehouse_name || ""),
-          user_name: normalizeText(record.user_name || currentUser?.name || tt("inventory.adjustments.currentUser")),
+          user_name: normalizeText(record.user_name || currentUser?.name || "المستخدم الحالي"),
         };
       });
   }, [allVariants, currentUser?.name, localAdjustments]);
 
   return (
     <InventoryShell
-      title={tt("inventory.adjustments")}
-      subtitle={tt("inventory.adjustments.pageSubtitle")}
+      title="تسويات المخزون"
+      subtitle="ابحث عن المنتجات بالاسم أو SKU أو الباركود، وراجع الرصيد الحالي قبل التعديل، واحفظ كل تغيير داخل سجل حركات المخزون."
       actions={
         <div className="flex flex-wrap gap-2">
           <Link
@@ -626,30 +615,30 @@ function StockAdjustments() {
             className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             <Clock3 className="mr-2 inline h-4 w-4" />
-            {tt("inventory.actions.fullHistory")}
+            السجل الكامل
           </Link>
           <Link
             to="/inventory/movements"
             className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover"
           >
             <History className="mr-2 inline h-4 w-4" />
-            {tt("inventory.tabs.movements")}
+            الحركات
           </Link>
         </div>
       }
       tabs={[
-        { to: "/inventory", label: tt("inventory.table.stock"), end: true },
-        { to: "/inventory/movements", label: tt("inventory.tabs.movements") },
-        { to: "/inventory/adjustments", label: tt("inventory.tabs.adjustments"), end: true },
-        { to: "/inventory/count", label: tt("inventory.tabs.count") },
-        { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
-        { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
+        { to: "/inventory", label: "المخزون", end: true },
+        { to: "/inventory/movements", label: "الحركات" },
+        { to: "/inventory/adjustments", label: "التسويات", end: true },
+        { to: "/inventory/count", label: "الجرد" },
+        { to: "/stock-transfers", label: "التحويلات" },
+        { to: "/warehouses", label: "المخازن" },
       ]}
     >
       {!canAdjust ? (
         <div className="mb-4 rounded-[var(--radius-card)] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
           <ShieldAlert className="mr-2 inline h-4 w-4" />
-            {tt("inventory.adjustments.permissionHint")}
+            تسويات المخزون متاحة فقط للمستخدمين الذين لديهم صلاحية تعديل المخزون.
         </div>
       ) : null}
 
@@ -675,7 +664,7 @@ function StockAdjustments() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder={tt("inventory.adjustments.searchPlaceholder")}
+                  placeholder="ابحث بالاسم أو SKU أو الباركود"
                   className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted"
                 />
               </label>
@@ -687,7 +676,7 @@ function StockAdjustments() {
                   className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                 >
                   <Camera className="h-4 w-4" />
-                  {tt("inventory.scanner.scan")}
+                  مسح الباركود
                 </button>
                 <button
                   type="button"
@@ -698,20 +687,20 @@ function StockAdjustments() {
                   className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                 >
                   <X className="h-4 w-4" />
-                  {tt("inventory.actions.clear")}
+                  مسح
                 </button>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <PolicyCard label={tt("inventory.adjustments.policy")} value={`حد الاعتماد: ${approvalThreshold}`} tone="blue" />
+              <PolicyCard label="سياسة التسوية" value={`حد الاعتماد: ${approvalThreshold}`} tone="blue" />
               <PolicyCard
-                label={tt("inventory.adjustments.approvalMode")}
-                value={requiresManagerApproval ? tt("inventory.adjustments.managerRequired") : tt("inventory.adjustments.standardApproval")}
+                label="وضع الاعتماد"
+                value={requiresManagerApproval ? "يلزم اعتماد المدير" : "اعتماد عادي"}
                 tone={requiresManagerApproval ? "amber" : "emerald"}
               />
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.adjustments.approvalThreshold")}</div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">حد الاعتماد القابل للتعديل</div>
                 <input
                   type="number"
                   min="1"
@@ -722,14 +711,14 @@ function StockAdjustments() {
                 />
               </label>
             </div>
-            {warehouseLoading ? <div className="mt-3 text-xs text-text-muted">{tt("inventory.adjustments.loadingWarehouses")}</div> : null}
+            {warehouseLoading ? <div className="mt-3 text-xs text-text-muted">جارٍ تحميل المخازن...</div> : null}
           </div>
 
           <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h3 className="m1-section-title text-text">{tt("inventory.adjustments.searchResults")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.searchResultsHint")}</p>
+                <h3 className="m1-section-title text-text">نتائج البحث عن المنتجات</h3>
+                <p className="mt-1 text-sm text-text-muted">ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.</p>
               </div>
                 <div className="text-sm text-text-muted">{filteredVariants.length} نتيجة</div>
             </div>
@@ -737,12 +726,12 @@ function StockAdjustments() {
             {catalogLoading ? (
               <div className="flex items-center justify-center py-16 text-text-muted">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-                {tt("inventory.adjustments.loadingProducts")}
+                جارٍ تحميل المنتجات...
               </div>
             ) : filteredVariants.length === 0 ? (
               <div className="p-8 text-center text-text-muted">
                 <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-10">
-                  {tt("inventory.adjustments.searchPrompt")}
+                  اكتب كلمة بحث واحدة على الأقل للوصول إلى اختيار المنتج، أو امسح الباركود للانتقال مباشرة إلى نتيجة مطابقة.
                 </div>
               </div>
             ) : (
@@ -761,17 +750,17 @@ function StockAdjustments() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="truncate text-base font-semibold text-text">{variant.product_name}</div>
-                            <div className="mt-1 text-sm text-text-muted">{getVariantLabel(variant) || tt("inventory.labels.defaultOneSize")}</div>
+                            <div className="mt-1 text-sm text-text-muted">{getVariantLabel(variant) || "افتراضي / مقاس موحد"}</div>
                           </div>
                           <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-primary text-[var(--primary-contrast)]" : "border border-border bg-surface-soft text-[var(--primary-contrast)]"}`}>
-                            {selected ? tt("inventory.labels.selected") : tt("inventory.adjustments.select")}
+                            {selected ? "محدد" : "تحديد"}
                           </div>
                         </div>
                         <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
-                          <div>{tt("inventory.labels.sku")}: {variant.sku || tt("inventory.labels.notAvailable")}</div>
-                          <div>{tt("inventory.labels.barcode")}: {variant.barcode || tt("inventory.labels.notAvailable")}</div>
-                          <div>{tt("inventory.labels.balance")}: {asNumber(variant.stock, 0).toLocaleString()}</div>
-                          <div>{tt("inventory.labels.warehouse")}: {getWarehouseName(variant, warehouses) || tt("inventory.labels.notAvailable")}</div>
+                          <div>رمز الصنف: {variant.sku || "غير متاح"}</div>
+                          <div>الباركود: {variant.barcode || "غير متاح"}</div>
+                          <div>الرصيد: {asNumber(variant.stock, 0).toLocaleString()}</div>
+                          <div>المخزن: {getWarehouseName(variant, warehouses) || "غير متاح"}</div>
                         </div>
                       </div>
                     </button>
@@ -786,14 +775,14 @@ function StockAdjustments() {
           <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="m1-section-title text-text">{tt("inventory.adjustments.selectedProduct")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.balanceHint")}</p>
+                <h3 className="m1-section-title text-text">المنتج المحدد</h3>
+                <p className="mt-1 text-sm text-text-muted">يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.</p>
               </div>
             </div>
 
             {!selectedVariant ? (
               <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-sm text-text-muted">
-                {tt("inventory.adjustments.selectVariantHint")}
+                اختر اختيارًا من نتائج البحث لمراجعة الرصيد الحالي وإكمال التسوية.
               </div>
             ) : (
               <div className="space-y-4">
@@ -802,17 +791,17 @@ function StockAdjustments() {
                   <div className="min-w-0 flex-1">
                     <div className="text-2xl font-black text-text">{selectedVariant.product_name}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                        <InfoPill label={tt("inventory.purchaseAlerts.cards.color")} value={selectedVariant.color || tt("inventory.labels.default")} />
-                        <InfoPill label={tt("inventory.sizes.size")} value={selectedVariant.size || tt("inventory.labels.oneSize")} />
+                        <InfoPill label="اللون" value={selectedVariant.color || "افتراضي"} />
+                        <InfoPill label="المقاس" value={selectedVariant.size || "مقاس موحد"} />
                     </div>
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailCard label={tt("inventory.labels.sku")} value={selectedVariant.sku || tt("inventory.labels.notAvailable")} />
-                  <DetailCard label={tt("inventory.labels.barcode")} value={selectedVariant.barcode || tt("inventory.labels.notAvailable")} />
-                  <DetailCard label={tt("inventory.adjustments.currentBalance")} value={asNumber(selectedVariant.stock, 0).toLocaleString()} tone="emerald" />
-                  <DetailCard label={tt("inventory.labels.warehouse")} value={selectedWarehouseName || tt("inventory.labels.notAvailable")} />
+                  <DetailCard label="رمز الصنف" value={selectedVariant.sku || "غير متاح"} />
+                  <DetailCard label="الباركود" value={selectedVariant.barcode || "غير متاح"} />
+                  <DetailCard label="الرصيد الحالي" value={asNumber(selectedVariant.stock, 0).toLocaleString()} tone="emerald" />
+                  <DetailCard label="المخزن" value={selectedWarehouseName || "غير متاح"} />
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -822,7 +811,7 @@ function StockAdjustments() {
                     className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                   >
                     <History className="h-4 w-4" />
-                    {tt("inventory.adjustments.viewProductHistory")}
+                    عرض سجل المنتج
                   </button>
                   <button
                     type="button"
@@ -830,7 +819,7 @@ function StockAdjustments() {
                     className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover"
                   >
                     <Search className="h-4 w-4" />
-                    {tt("inventory.adjustments.searchAgain")}
+                    بحث من جديد
                   </button>
                 </div>
               </div>
@@ -839,14 +828,14 @@ function StockAdjustments() {
 
           <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="mb-4">
-                <h3 className="m1-section-title text-text">{tt("inventory.adjustments.form")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.formHint")}</p>
+                <h3 className="m1-section-title text-text">نموذج التسوية</h3>
+                <p className="mt-1 text-sm text-text-muted">حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.</p>
             </div>
 
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.adjustments.type")}</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">نوع التسوية</div>
                   <div className="grid grid-cols-2 gap-2">
                     {ADJUSTMENT_TYPES.map((type) => {
                       const active = adjustmentType === type.value;
@@ -857,7 +846,7 @@ function StockAdjustments() {
                           onClick={() => setAdjustmentType(type.value)}
                           className={`rounded-[var(--radius-control)] border px-4 py-3 text-sm font-semibold transition ${ active ? type.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-border bg-surface-soft text-text hover:bg-surface-hover" }`}
                         >
-                          {tt(type.labelKey)}
+                          {type.label}
                         </button>
                       );
                     })}
@@ -865,7 +854,7 @@ function StockAdjustments() {
                 </div>
 
                 <label className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.labels.quantity")}</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">الكمية</div>
                   <div className="flex items-stretch gap-2">
                     <button
                       type="button"
@@ -894,7 +883,7 @@ function StockAdjustments() {
               </div>
 
               <label className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.purchaseAlerts.cards.reason")}</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">السبب</div>
                 <select
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
@@ -909,21 +898,21 @@ function StockAdjustments() {
               </label>
 
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.adjustments.optionalNotes")}</div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">ملاحظات اختيارية</div>
                 <textarea
                   rows={4}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder={tt("inventory.adjustments.notesPlaceholder")}
+                  placeholder="أضف ملاحظة قصيرة لسجل حركة المخزون"
                   className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft p-4 text-sm text-text outline-none placeholder:text-text-muted"
                 />
               </label>
 
               <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <DetailCard label={tt("inventory.adjustments.balanceBefore")} value={asNumber(currentStock, 0).toLocaleString()} />
-                  <DetailCard label={tt("inventory.adjustments.change")} value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
-                  <DetailCard label={tt("inventory.adjustments.balanceAfter")} value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
+                  <DetailCard label="الرصيد قبل" value={asNumber(currentStock, 0).toLocaleString()} />
+                  <DetailCard label="التغيير" value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
+                  <DetailCard label="الرصيد بعد" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
                 </div>
 
                 {requiresManagerApproval ? (
@@ -940,7 +929,7 @@ function StockAdjustments() {
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  {tt("inventory.adjustments.apply")}
+                  تطبيق التسوية
                 </button>
               </div>
             </div>
@@ -949,8 +938,8 @@ function StockAdjustments() {
           <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h3 className="m1-section-title text-text">{tt("inventory.adjustments.recent")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.recentHint")}</p>
+                <h3 className="m1-section-title text-text">آخر التسويات</h3>
+                <p className="mt-1 text-sm text-text-muted">أحدث سجلات التسوية المحلية مع سياق المنتج.</p>
               </div>
               <div className="text-sm text-text-muted">{recentAdjustments.length} عنصر</div>
             </div>
@@ -958,7 +947,7 @@ function StockAdjustments() {
             <div className="space-y-3 p-4">
               {recentAdjustments.length === 0 ? (
                 <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-sm text-text-muted">
-                  {tt("inventory.adjustments.noneRecorded")}
+                  لم تُسجَّل أي تسويات بعد.
                 </div>
               ) : (
                 recentAdjustments.map((adjustment) => {
@@ -972,7 +961,7 @@ function StockAdjustments() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate font-semibold text-text">{adjustment.product_name}</div>
-                              <div className="mt-1 text-xs text-text-muted">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || tt("inventory.labels.default")}</div>
+                              <div className="mt-1 text-xs text-text-muted">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || "افتراضي"}</div>
                             </div>
                             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isIncrease ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
                               {isIncrease ? "+" : ""}
@@ -981,13 +970,13 @@ function StockAdjustments() {
                           </div>
 
                           <div className="mt-3 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
-                            <div>{tt("inventory.labels.type")}: {adjustment.adjustment_type === "decrease" ? tt("inventory.adjustments.decrease") : tt("inventory.adjustments.increase")}</div>
-                            <div>{tt("inventory.movements.userLabel")} {adjustment.user_name || tt("inventory.labels.notAvailable")}</div>
-                            <div>{tt("inventory.labels.time")}: {formatDateTime(adjustment.created_at)}</div>
-                            <div>{tt("inventory.labels.warehouse")}: {adjustment.warehouse_name || tt("inventory.labels.notAvailable")}</div>
+                            <div>النوع: {adjustment.adjustment_type === "decrease" ? "خفض المخزون" : "زيادة المخزون"}</div>
+                            <div>المستخدم: {adjustment.user_name || "غير متاح"}</div>
+                            <div>الوقت: {formatDateTime(adjustment.created_at)}</div>
+                            <div>المخزن: {adjustment.warehouse_name || "غير متاح"}</div>
                           </div>
 
-                          <div className="mt-3 text-sm text-text-muted">{adjustment.reason || tt("inventory.adjustments.noReason")}</div>
+                          <div className="mt-3 text-sm text-text-muted">{adjustment.reason || "لم يتم توفير سبب"}</div>
                         </div>
                       </div>
                     </div>
@@ -1049,7 +1038,7 @@ function StockAdjustments() {
       {historyOpen && selectedVariant ? (
         <ProductHistoryDrawer
           productName={selectedVariant.product_name}
-          variantLabel={getVariantLabel(selectedVariant) || tt("inventory.labels.defaultOneSize")}
+          variantLabel={getVariantLabel(selectedVariant) || "افتراضي / مقاس موحد"}
           movements={historyMovements}
           loading={historyLoading}
           error={historyError}
@@ -1119,21 +1108,21 @@ function ProductThumb({ imageUrl, productName, large = false, compact = false })
 function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label={tt("inventory.scanner.close")} />
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="إغلاق الماسح" />
       <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
         <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.scanner.title")}</div>
-              <h3 className="m1-section-title mt-1 text-text">{tt("inventory.scanner.scanProduct")}</h3>
+              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">ماسح الباركود</div>
+              <h3 className="m1-section-title mt-1 text-text">امسح باركود المنتج</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
-              {tt("common.close")}
+              إغلاق
             </button>
           </div>
           <div className="space-y-4 p-5">
             <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 text-sm text-text-muted">
-              {tt("inventory.scanner.cameraHint")}
+              سيتم استخدام الكاميرا عند توفرها. إذا كان الجهاز لا يدعم المسح، أدخل رمز الصنف أو الباركود في مربع البحث بدلًا من ذلك.
             </div>
             <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-black">
               <BarcodeScanner
@@ -1148,7 +1137,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)]">
                 <CheckCircle2 className="h-4 w-4" />
-                {tt("common.done")}
+                تم
               </button>
             </div>
           </div>
@@ -1186,16 +1175,16 @@ function ConfirmationModal({
 }) {
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label={tt("inventory.adjustments.closeConfirm")} />
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="إغلاق تأكيد التسوية" />
       <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
         <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.adjustments.confirm")}</div>
+              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">تأكيد التسوية</div>
               <h3 className="m1-section-title mt-1 text-text">{productName}</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
-              {tt("common.close")}
+              إغلاق
             </button>
           </div>
 
@@ -1204,34 +1193,34 @@ function ConfirmationModal({
 
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <DetailCard label={tt("inventory.tableHeaders.variant")} value={[color, size].filter(Boolean).join(" / ") || tt("inventory.labels.default")} />
-                <DetailCard label={tt("inventory.labels.warehouse")} value={warehouseName || tt("inventory.labels.notAvailable")} />
-                <DetailCard label={tt("inventory.labels.sku")} value={sku || tt("inventory.labels.notAvailable")} />
-                <DetailCard label={tt("inventory.labels.barcode")} value={barcode || tt("inventory.labels.notAvailable")} />
-                <DetailCard label={tt("inventory.adjustments.currentBalance")} value={currentStock.toLocaleString()} />
-                <DetailCard label={tt("inventory.adjustments.targetBalance")} value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
+                <DetailCard label="الاختيار" value={[color, size].filter(Boolean).join(" / ") || "افتراضي"} />
+                <DetailCard label="المخزن" value={warehouseName || "غير متاح"} />
+                <DetailCard label="رمز الصنف" value={sku || "غير متاح"} />
+                <DetailCard label="الباركود" value={barcode || "غير متاح"} />
+                <DetailCard label="الرصيد الحالي" value={currentStock.toLocaleString()} />
+                <DetailCard label="الرصيد المستهدف" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
               </div>
 
               <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-text-muted">{tt("inventory.adjustments.type")}</div>
+                  <div className="text-sm text-text-muted">نوع التسوية</div>
                   <div className="rounded-full border border-border bg-surface-soft px-3 py-1 text-sm font-semibold text-text">
-                    {adjustmentType === "decrease" ? tt("inventory.adjustments.decrease") : tt("inventory.adjustments.increase")}
+                    {adjustmentType === "decrease" ? "خفض المخزون" : "زيادة المخزون"}
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-sm text-text-muted">
-                  <span>{tt("inventory.adjustments.quantityChange")}</span>
+                  <span>التغيير في الكمية</span>
                   <span className={signedDelta >= 0 ? "text-emerald-200" : "text-rose-200"}>
                     {signedDelta >= 0 ? "+" : ""}
                     {signedDelta.toLocaleString()}
                   </span>
                 </div>
                 <div className="mt-2 text-sm text-text-muted">
-                  {tt("inventory.adjustments.reasonLabel")} <span className="font-semibold text-text">{reason || tt("inventory.labels.notAvailable")}</span>
+                  السبب: <span className="font-semibold text-text">{reason || "غير متاح"}</span>
                 </div>
                 {notes ? (
                   <div className="mt-2 text-sm text-text-muted">
-                    {tt("inventory.adjustments.notesLabel")} <span className="font-semibold text-text">{notes}</span>
+                    الملاحظات: <span className="font-semibold text-text">{notes}</span>
                   </div>
                 ) : null}
               </div>
@@ -1242,21 +1231,21 @@ function ConfirmationModal({
               هذا التغيير يتجاوز الحد المحدد وهو {approvalThreshold}. يلزم اعتماد المدير قبل الحفظ.
                   <div className="mt-4 grid gap-3">
                     <label className="block">
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">{tt("inventory.adjustments.approverName")}</div>
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">اسم المعتمد</div>
                       <input
                         value={approvalName}
                         onChange={(event) => setApprovalName(event.target.value)}
-                        placeholder={tt("inventory.adjustments.managerName")}
+                        placeholder="اسم المدير"
                         className="w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted"
                       />
                     </label>
                     <label className="block">
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">{tt("inventory.adjustments.approvalNotes")}</div>
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">ملاحظات الاعتماد</div>
                       <textarea
                         rows={3}
                         value={approvalNotes}
                         onChange={(event) => setApprovalNotes(event.target.value)}
-                        placeholder={tt("inventory.adjustments.approvalNotesPlaceholder")}
+                        placeholder="ملاحظة اعتماد اختيارية"
                         className="w-full rounded-[var(--radius-control)] border border-border bg-surface p-4 text-sm text-text outline-none placeholder:text-text-muted"
                       />
                     </label>
@@ -1267,20 +1256,20 @@ function ConfirmationModal({
                         onChange={(event) => setApprovalConfirmed(event.target.checked)}
                         className="h-4 w-4 rounded border-border bg-transparent text-primary"
                       />
-                      {tt("inventory.adjustments.managerApproved")}
+                      المدير اعتمد هذه التسوية
                     </label>
                   </div>
                 </div>
               ) : (
                 <div className="rounded-[var(--radius-card)] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-50">
                   <CheckCircle2 className="mr-2 inline h-4 w-4" />
-                  {tt("inventory.adjustments.noExtraApproval")}
+                  لا يلزم اعتماد إضافي لهذه التسوية.
                 </div>
               )}
 
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text">
-                  {tt("common.cancel")}
+                  إلغاء
                 </button>
                 <button
                   type="button"
@@ -1289,7 +1278,7 @@ function ConfirmationModal({
                   className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {requiresManagerApproval ? tt("inventory.adjustments.approveAndApply") : tt("inventory.adjustments.apply")}
+                  {requiresManagerApproval ? "اعتماد وتطبيق" : "تطبيق التسوية"}
                 </button>
               </div>
             </div>
@@ -1303,16 +1292,16 @@ function ConfirmationModal({
 function ProductHistoryDrawer({ productName, variantLabel, movements, loading, error, onClose, warehouseName }) {
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label={tt("inventory.adjustments.closeHistory")} />
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label="إغلاق سجل المنتج" />
       <div className="absolute right-0 top-0 h-full w-full max-w-[720px] border-l border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.adjustments.productHistory")}</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-text-muted">سجل المنتج</p>
             <h3 className="m1-section-title mt-1 text-text">{productName}</h3>
             <p className="mt-1 text-sm text-text-muted">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
-            {tt("common.close")}
+            إغلاق
           </button>
         </div>
 
@@ -1320,13 +1309,13 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
           {loading ? (
             <div className="flex items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft py-16 text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-              {tt("inventory.adjustments.loadingHistory")}
+              جارٍ تحميل سجل المنتج...
             </div>
           ) : error ? (
             <div className="rounded-[var(--radius-card)] border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
           ) : movements.length === 0 ? (
             <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-sm text-text-muted">
-              {tt("inventory.adjustments.noMovements")}
+              لا توجد حركات مخزون لهذا الاختيار.
             </div>
           ) : (
             movements.map((movement) => {
@@ -1337,7 +1326,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                 <div key={String(movement.id)} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-text">{movement.movement_type || tt("inventory.adjustments.adjustment")}</div>
+                      <div className="font-semibold text-text">{movement.movement_type || "تسوية"}</div>
                       <div className="mt-1 text-xs text-text-muted">{formatDateTime(movement.created_at)}</div>
                     </div>
                     <div className={`rounded-full px-3 py-1 text-xs font-semibold ${delta >= 0 ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
@@ -1347,12 +1336,12 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                   </div>
 
                   <div className="mt-4 grid gap-2 text-sm text-text-muted sm:grid-cols-2">
-                    <div>{tt("inventory.labels.before")}: {before.toLocaleString()}</div>
-                    <div>{tt("inventory.labels.after")}: {after.toLocaleString()}</div>
-                    <div>{tt("inventory.movements.userLabel")} {movement.created_by_name || movement.user_name || tt("inventory.labels.notAvailable")}</div>
-                    <div>{tt("inventory.labels.warehouse")}: {movement.warehouse_name || tt("inventory.labels.notAvailable")}</div>
-                    <div className="sm:col-span-2">{tt("inventory.adjustments.reasonLabel")} {movement.reason || movement.notes || tt("inventory.labels.notAvailable")}</div>
-                    <div className="sm:col-span-2">{tt("inventory.movements.referenceLabel")} {movement.reference_type || tt("inventory.labels.notAvailable")} #{movement.reference_id || tt("inventory.labels.notAvailable")}</div>
+                    <div>قبل: {before.toLocaleString()}</div>
+                    <div>بعد: {after.toLocaleString()}</div>
+                    <div>المستخدم: {movement.created_by_name || movement.user_name || "غير متاح"}</div>
+                    <div>المخزن: {movement.warehouse_name || "غير متاح"}</div>
+                    <div className="sm:col-span-2">السبب: {movement.reason || movement.notes || "غير متاح"}</div>
+                    <div className="sm:col-span-2">المرجع: {movement.reference_type || "غير متاح"} #{movement.reference_id || "غير متاح"}</div>
                   </div>
                 </div>
               );

@@ -1,10 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
-
-/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
-const tt = (key, options) => i18n.t(key, options);
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -30,16 +24,16 @@ import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
 
-/*
- * First element is the RAW shipping status enum: it is the statusLabel()
- * lookup key and the <option value> sent to the query. Only the second is
- * display, and it resolves per read so a module constant cannot freeze it.
- */
-const STATUS_KEYS = [
-  "ready_to_ship", "shipment_created", "picked_up", "in_transit",
-  "out_for_delivery", "delivered", "returned", "failed_delivery",
+const STATUSES = [
+  ["ready_to_ship", "Ready To Ship"],
+  ["shipment_created", "Shipment Created"],
+  ["picked_up", "Picked Up"],
+  ["in_transit", "In Transit"],
+  ["out_for_delivery", "Out For Delivery"],
+  ["delivered", "Delivered"],
+  ["returned", "Returned"],
+  ["failed_delivery", "Failed"],
 ];
-const STATUSES = STATUS_KEYS;
 
 const STATUS_META = {
   ready_to_ship: "border-sky-400/25 bg-sky-400/10 text-sky-100",
@@ -57,24 +51,12 @@ const PROVIDER_LABELS = {
   mylerz: "Mylerz",
   shipblu: "ShipBlu",
   aramex: "Aramex",
-  get in_store_delivery() { return tt("shipping.center.providers.inStoreDelivery"); },
+  in_store_delivery: "In Store Delivery",
 };
 
 const fmtMoney = (value) => `${Number(value || 0).toLocaleString()} EGP`;
 const fmtDate = (value) => (value ? new Date(value).toLocaleString() : "-");
-/* Literal keys keep these verifiable by the missing-key guard. */
-const STATUS_LABEL_KEY = {
-  ready_to_ship: "shipping.center.status.ready_to_ship",
-  shipment_created: "shipping.center.status.shipment_created",
-  picked_up: "shipping.center.status.picked_up",
-  in_transit: "shipping.center.status.in_transit",
-  out_for_delivery: "shipping.center.status.out_for_delivery",
-  delivered: "shipping.center.status.delivered",
-  returned: "shipping.center.status.returned",
-  failed_delivery: "shipping.center.status.failed_delivery",
-};
-const statusLabel = (status) =>
-  (STATUS_LABEL_KEY[status] ? i18n.t(STATUS_LABEL_KEY[status]) : status) || "-";
+const statusLabel = (status) => STATUSES.find(([key]) => key === status)?.[1] || status || "-";
 
 function StatusBadge({ status }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${STATUS_META[status] || "border-white/10 bg-white/5 text-slate-200"}`}>{statusLabel(status)}</span>;
@@ -97,7 +79,6 @@ function Select({ value, onChange, children }) {
 }
 
 function ShipmentDrawer({ order, onClose }) {
-  const { t } = useTranslation();
   if (!order) return null;
   const timeline = Array.isArray(order.shipment_timeline) ? order.shipment_timeline : [];
   const events = Array.isArray(order.webhook_events) ? order.webhook_events : [];
@@ -110,7 +91,7 @@ function ShipmentDrawer({ order, onClose }) {
       <aside className="ms-auto flex h-full w-full max-w-2xl flex-col border-s border-white/10 bg-slate-950 text-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-white/10 p-5">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{t("shipping.center.drawer.title")}</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Shipment Drawer</div>
             <h2 className="m1-section-title mt-1">{order.order_number}</h2>
           </div>
           <button onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 p-2 text-slate-300 hover:bg-white/10"><X className="h-5 w-5" /></button>
@@ -138,32 +119,32 @@ function ShipmentDrawer({ order, onClose }) {
             ))}
           </div>
           <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> {t("shipping.center.drawer.address")}</div>
+            <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> Address</div>
             <p className="text-sm font-semibold leading-6 text-slate-300">{address || "-"}</p>
             {order.shipping_label_url ? (
-              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">{t("shipping.center.drawer.printLabel")}</button>
+              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">Print Label</button>
             ) : null}
           </section>
           <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black"><Clock3 className="h-4 w-4 text-primary" /> {t("shipping.center.drawer.timeline")}</div>
+            <div className="mb-3 flex items-center gap-2 text-sm font-black"><Clock3 className="h-4 w-4 text-primary" /> Shipping Timeline</div>
             <div className="space-y-3">
               {timeline.length ? timeline.map((event, index) => (
                 <div key={`${event.at}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
                   <div className="flex flex-wrap items-center gap-2"><StatusBadge status={event.status} /><span className="text-xs font-bold text-slate-400">{fmtDate(event.at)}</span></div>
                   <div className="mt-1 text-xs font-semibold text-slate-400">{event.action || "shipment_event"}</div>
                 </div>
-              )) : <p className="text-sm font-bold text-slate-500">{t("shipping.center.drawer.noTimeline")}</p>}
+              )) : <p className="text-sm font-bold text-slate-500">No timeline events yet.</p>}
             </div>
           </section>
           <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black"><Layers3 className="h-4 w-4 text-violet-300" /> {t("shipping.center.drawer.webhookEvents")}</div>
+            <div className="mb-3 flex items-center gap-2 text-sm font-black"><Layers3 className="h-4 w-4 text-violet-300" /> Webhook Events</div>
             <div className="space-y-3">
               {events.length ? events.map((event) => (
                 <div key={event.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
                   <div className="flex flex-wrap items-center gap-2"><StatusBadge status={event.status} /><span className="text-xs font-bold text-slate-400">{fmtDate(event.created_at)}</span></div>
                   <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap text-[11px] leading-5 text-slate-400">{JSON.stringify(event.payload || {}, null, 2)}</pre>
                 </div>
-              )) : <p className="text-sm font-bold text-slate-500">{t("shipping.center.drawer.noWebhookEvents")}</p>}
+              )) : <p className="text-sm font-bold text-slate-500">No webhook events received.</p>}
             </div>
           </section>
         </div>
@@ -181,7 +162,6 @@ function useVirtualRows(rows, rowHeight = 58, viewportHeight = 620) {
 }
 
 export default function ShippingCenter() {
-  const { t } = useTranslation();
   const [filters, setFilters] = useState({ provider: "", branchId: "", shippingStatus: "", paymentStatus: "", paymentType: "", dateFrom: "", dateTo: "", search: "" });
   const [view, setView] = useState("table");
   const [data, setData] = useState({ orders: [], total: 0, summary: { statuses: {}, analytics: {} }, meta: { providers: [], branches: [], statuses: [] } });
@@ -228,7 +208,7 @@ export default function ShippingCenter() {
   const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(orders.map((order) => order.id)));
 
   const runBulk = async (action) => {
-    if (!selectedIds.length) return toast.error(t("shipping.center.bulk.selectFirst"));
+    if (!selectedIds.length) return toast.error("Select shipments first");
     try {
       const result = await api.post("/shipping/center/bulk", { action, order_ids: selectedIds });
       toast.success(action === "print_labels" ? "Labels prepared" : `Action finished${result.failed ? ` with ${result.failed} failed` : ""}`);
@@ -266,34 +246,34 @@ export default function ShippingCenter() {
     URL.revokeObjectURL(url);
   };
 
-  const boardGroups = useMemo(() => Object.fromEntries(STATUSES.map((status) => [status, orders.filter((order) => order.shipment_status === status)])), [orders]);
+  const boardGroups = useMemo(() => Object.fromEntries(STATUSES.map(([status]) => [status, orders.filter((order) => order.shipment_status === status)])), [orders]);
 
   return (
     <main className="min-h-screen bg-[#050816] p-4 text-white md:p-6">
       <div className="mx-auto max-w-[96rem] space-y-5">
         <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">{t("shipping.center.eyebrow")}</div>
-            <h1 className="m1-page-title mt-2">{t("shipping.center.title")}</h1>
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">Operations</div>
+            <h1 className="m1-page-title mt-2">Shipping Center</h1>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>{t("shipping.center.tableView")}</button>
-            <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>{t("shipping.center.boardView")}</button>
-            <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200"><RefreshCw className="h-4 w-4" /> {t("shipping.center.refresh")}</button>
+            <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>Table View</button>
+            <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>Board View</button>
+            <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200"><RefreshCw className="h-4 w-4" /> Refresh</button>
           </div>
         </header>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
-          {STATUSES.map((status) => <KpiCard key={status} label={statusLabel(status)} value={data.summary?.statuses?.[status] || 0} active={filters.shippingStatus === status} onClick={() => setFilter("shippingStatus", filters.shippingStatus === status ? "" : status)} />)}
+          {STATUSES.map(([status, label]) => <KpiCard key={status} label={label} value={data.summary?.statuses?.[status] || 0} active={filters.shippingStatus === status} onClick={() => setFilter("shippingStatus", filters.shippingStatus === status ? "" : status)} />)}
         </section>
 
         <section className="grid gap-3 lg:grid-cols-5">
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">{t("shipping.center.kpi.successRate")}</div><div className="mt-2 text-2xl font-black text-emerald-200">{analytics.delivery_success_rate || 0}%</div></div>
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">{t("shipping.center.kpi.returnRate")}</div><div className="mt-2 text-2xl font-black text-orange-200">{analytics.return_rate || 0}%</div></div>
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">{t("shipping.center.kpi.avgDeliveryTime")}</div><div className="mt-2 text-2xl font-black text-primary">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">{t("shipping.center.kpi.perProvider")}</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_provider || []).map((row) => `${PROVIDER_LABELS[row.provider] || row.provider}: ${row.orders}`).join(" · ") || "-"}</div></div>
-          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">{t("shipping.center.kpi.perCity")}</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_city || []).slice(0, 3).map((row) => `${row.city}: ${row.orders}`).join(" · ") || "-"}</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Delivery Success Rate</div><div className="mt-2 text-2xl font-black text-emerald-200">{analytics.delivery_success_rate || 0}%</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Return Rate</div><div className="mt-2 text-2xl font-black text-orange-200">{analytics.return_rate || 0}%</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Average Delivery Time</div><div className="mt-2 text-2xl font-black text-primary">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per Provider</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_provider || []).map((row) => `${PROVIDER_LABELS[row.provider] || row.provider}: ${row.orders}`).join(" · ") || "-"}</div></div>
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4"><div className="text-xs font-black uppercase text-slate-500">Orders Per City</div><div className="mt-2 text-sm font-bold text-slate-300">{(analytics.orders_per_city || []).slice(0, 3).map((row) => `${row.city}: ${row.orders}`).join(" · ") || "-"}</div></div>
         </section>
 
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
@@ -301,22 +281,22 @@ export default function ShippingCenter() {
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder={t("shipping.center.filters.search")} className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 pl-9 pr-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50" />
+                <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="Search order, customer, phone, tracking..." className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 pl-9 pr-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50" />
               </div>
-              <Select value={filters.provider} onChange={(value) => setFilter("provider", value)}><option value="">{t("shipping.center.filters.allProviders")}</option>{(data.meta?.providers || ["bosta"]).map((provider) => <option key={provider} value={provider}>{PROVIDER_LABELS[provider] || provider}</option>)}</Select>
-              <Select value={filters.branchId} onChange={(value) => setFilter("branchId", value)}><option value="">{t("shipping.center.filters.allBranches")}</option>{(data.meta?.branches || []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
-              <Select value={filters.shippingStatus} onChange={(value) => setFilter("shippingStatus", value)}><option value="">{t("shipping.center.filters.allShippingStatuses")}</option>{STATUSES.map((key) => <option key={key} value={key}>{statusLabel(key)}</option>)}</Select>
-              <Select value={filters.paymentStatus} onChange={(value) => setFilter("paymentStatus", value)}><option value="">{t("shipping.center.filters.allPaymentStatuses")}</option>{["paid", "unpaid", "partially_paid", "refunded"].map((status) => <option key={status} value={status}>{status}</option>)}</Select>
-              <Select value={filters.paymentType} onChange={(value) => setFilter("paymentType", value)}><option value="">{t("shipping.center.filters.codOrPrepaid")}</option><option value="cod">COD</option><option value="prepaid">{t("shipping.center.filters.prepaid")}</option></Select>
+              <Select value={filters.provider} onChange={(value) => setFilter("provider", value)}><option value="">All providers</option>{(data.meta?.providers || ["bosta"]).map((provider) => <option key={provider} value={provider}>{PROVIDER_LABELS[provider] || provider}</option>)}</Select>
+              <Select value={filters.branchId} onChange={(value) => setFilter("branchId", value)}><option value="">All branches</option>{(data.meta?.branches || []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
+              <Select value={filters.shippingStatus} onChange={(value) => setFilter("shippingStatus", value)}><option value="">All shipping statuses</option>{STATUSES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select>
+              <Select value={filters.paymentStatus} onChange={(value) => setFilter("paymentStatus", value)}><option value="">All payment statuses</option>{["paid", "unpaid", "partially_paid", "refunded"].map((status) => <option key={status} value={status}>{status}</option>)}</Select>
+              <Select value={filters.paymentType} onChange={(value) => setFilter("paymentType", value)}><option value="">COD / Prepaid</option><option value="cod">COD</option><option value="prepaid">Prepaid</option></Select>
               <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
               <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none" />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)]"><Send className="h-4 w-4" /> {t("shipping.center.bulk.createShipments")}</button>
-              <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> {t("shipping.center.bulk.refreshStatus")}</button>
-              <button onClick={() => runBulk("print_labels")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> {t("shipping.center.bulk.printLabels")}</button>
-              <button onClick={() => runBulk("mark_ready_to_ship")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><PackageCheck className="h-4 w-4" /> {t("shipping.center.bulk.markReady")}</button>
-              <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Download className="h-4 w-4" /> {t("shipping.center.bulk.exportCsv")}</button>
+              <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)]"><Send className="h-4 w-4" /> Create Shipments</button>
+              <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> Refresh Status</button>
+              <button onClick={() => runBulk("print_labels")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> Print Labels</button>
+              <button onClick={() => runBulk("mark_ready_to_ship")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><PackageCheck className="h-4 w-4" /> Mark Ready</button>
+              <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Download className="h-4 w-4" /> Export CSV</button>
             </div>
           </div>
 
@@ -351,7 +331,7 @@ export default function ShippingCenter() {
                       </tr>
                     ))}
                     {virtual.spacerBottom ? <tr><td colSpan={12} style={{ height: virtual.spacerBottom }} /></tr> : null}
-                    {!orders.length ? <tr><td colSpan={12} className="px-4 py-16 text-center text-sm font-bold text-slate-500">{t("shipping.center.emptyRows")}</td></tr> : null}
+                    {!orders.length ? <tr><td colSpan={12} className="px-4 py-16 text-center text-sm font-bold text-slate-500">No shipments match the current filters.</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -360,9 +340,9 @@ export default function ShippingCenter() {
 
           {!loading && view === "board" ? (
             <div className="grid gap-3 overflow-x-auto pb-2 xl:grid-cols-8">
-              {STATUSES.map((status) => (
+              {STATUSES.map(([status, label]) => (
                 <div key={status} className="min-w-64 rounded-2xl border border-white/10 bg-slate-950/55">
-                  <div className="sticky top-0 rounded-t-2xl border-b border-white/10 bg-white/[0.04] p-3"><div className="flex items-center justify-between gap-2"><span className="text-sm font-black">{statusLabel(status)}</span><span className="rounded-full bg-white/10 px-2 py-1 text-xs font-black">{boardGroups[status]?.length || 0}</span></div></div>
+                  <div className="sticky top-0 rounded-t-2xl border-b border-white/10 bg-white/[0.04] p-3"><div className="flex items-center justify-between gap-2"><span className="text-sm font-black">{label}</span><span className="rounded-full bg-white/10 px-2 py-1 text-xs font-black">{boardGroups[status]?.length || 0}</span></div></div>
                   <div className="max-h-[620px] space-y-2 overflow-auto p-2">
                     {(boardGroups[status] || []).map((order) => (
                       <button key={order.id} onClick={() => setDrawerOrder(order)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-3 text-start hover:bg-white/[0.08]">

@@ -7,8 +7,6 @@ import {
 } from "../server/services/employeeDisplayAuditService.js";
 
 const source = (path) => fs.readFile(path, "utf8");
-const dictionary = async (locale) =>
-  JSON.parse(await fs.readFile(`src/locales/${locale}/employeePortal.json`, "utf8"));
 
 test("employee display audit stays independent from display refill alerts", async () => {
   const [service, routes] = await Promise.all([
@@ -98,14 +96,7 @@ test("display audit persists each audience, stage and color independently", asyn
   assert.match(service, /ON CONFLICT \(product_id, audience_key, display_stage_key, color_group_key\)/);
   assert.match(routes, /audience: req\.body\?\.audience/);
   assert.match(routes, /colorGroupKey: req\.body\?\.color_group_key/);
-  // The "special" tab is an AUDIENCE, not a product category. The label is localized,
-  // so assert the key wiring plus the wording in both dictionaries: that pins the
-  // semantic domain harder than the old source literal did, because a drift into
-  // pos.categories.special would now fail here.
-  assert.match(panel, /key: "special", labelKey: "employeePortal\.display\.audiences\.special"/);
-  const [ar, en] = await Promise.all([dictionary("ar"), dictionary("en")]);
-  assert.equal(ar.display.audiences.special, "خاص");
-  assert.equal(en.display.audiences.special, "Special");
+  assert.match(panel, /key: "special", label: "خاص"/);
 });
 
 test("marking one display color leaves the model's other colors visible", async () => {
@@ -127,17 +118,10 @@ test("display audit exposes product, source, and audience navigation", async () 
   ]);
   assert.match(service, /product_group_counts/);
   assert.match(service, /normalizeProductGroup/);
-  // Product group tabs are localized; the wording lives in the dictionaries. Assert
-  // every group is wired AND present in both locales, so a tab cannot silently lose
-  // one language the way a single source literal allowed.
-  const [ar, en] = await Promise.all([dictionary("ar"), dictionary("en")]);
-  for (const group of ["sneakers", "crocs", "bags", "winter"]) {
-    assert.match(panel, new RegExp(`key: "${group}", labelKey: "employeePortal\\.display\\.groups\\.${group}"`));
-    assert.ok(ar.display.groups[group], `ar is missing display.groups.${group}`);
-    assert.ok(en.display.groups[group], `en is missing display.groups.${group}`);
-  }
-  assert.equal(ar.display.groups.sneakers, "اسنيكرز");
-  assert.equal(en.display.groups.sneakers, "Sneakers");
+  assert.match(panel, /اسنيكرز/);
+  assert.match(panel, /كروكس/);
+  assert.match(panel, /شنط/);
+  assert.match(panel, /شتوي/);
   assert.match(panel, /<select/);
   assert.match(panel, /AUDIENCE_TABS/);
 });

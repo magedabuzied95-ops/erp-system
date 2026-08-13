@@ -601,7 +601,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
 
   const saveExpense = async () => {
     if (!expenseForm.title.trim() || Number(expenseForm.amount || 0) <= 0) {
-      toast.error(t("accounting.expenses.toastTitleAmountRequired"));
+      toast.error("مطلوب عنوان المصروف والمبلغ");
       return;
     }
     if (expenseForm.expense_type === "employee_advance" && !expenseForm.employee_id) {
@@ -663,7 +663,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
       if (action.type === "approve") await api.post(`/expenses/${action.id}/approve`, {});
       if (action.type === "reject") await api.post(`/expenses/${action.id}/reject`, { reason: action.reason || "مرفوض من مركز المصروفات" });
       if (action.type === "paid") await api.post(`/expenses/${action.id}/mark-paid`, {});
-      toast.success(t("accounting.expenses.toastActionDone"));
+      toast.success("تم تنفيذ الإجراء");
       setConfirmAction(null);
       await loadAll();
     } catch (error) {
@@ -672,18 +672,18 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
   };
 
   const saveCategory = async () => {
-    if (!categoryForm.name.trim()) return toast.error(t("accounting.expenses.toastCategoryNameRequired"));
+    if (!categoryForm.name.trim()) return toast.error("اسم الفئة مطلوب");
     await api.post("/expenses/categories", categoryForm);
     setCategoryForm({ name: "", type_key: "other", description: "" });
-    toast.success(t("accounting.expenses.toastCategoryCreated"));
+    toast.success("تم إنشاء الفئة");
     await loadAll();
   };
 
   const saveAdvance = async () => {
-    if (!advanceForm.employee_id || Number(advanceForm.amount || 0) <= 0) return toast.error(t("accounting.expenses.toastAdvanceFieldsRequired"));
+    if (!advanceForm.employee_id || Number(advanceForm.amount || 0) <= 0) return toast.error("الموظف والمبلغ مطلوبان");
     await api.post("/expenses/employee-advances", { ...advanceForm, amount: Number(advanceForm.amount || 0) });
     setAdvanceForm(blankAdvance);
-    toast.success(t("accounting.expenses.toastAdvanceCreated"));
+    toast.success("تم إنشاء سلفة الموظف");
     await loadAll();
   };
 
@@ -694,10 +694,10 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
   };
 
   const saveRecurring = async () => {
-    if (!recurringForm.title.trim() || Number(recurringForm.amount || 0) <= 0) return toast.error(t("accounting.expenses.toastRecurringFieldsRequired"));
+    if (!recurringForm.title.trim() || Number(recurringForm.amount || 0) <= 0) return toast.error("عنوان المصروف المتكرر والمبلغ مطلوبان");
     await api.post("/expenses/recurring", { ...recurringForm, amount: Number(recurringForm.amount || 0) });
     setRecurringForm(blankRecurring);
-    toast.success(t("accounting.expenses.toastRecurringCreated"));
+    toast.success("تم إنشاء المصروف المتكرر");
     await loadAll();
   };
 
@@ -719,9 +719,9 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
       }
       tabs={[
         { to: "/expenses", label: copy.module, end: true },
-        { to: "/accounting/cashbox", label: t("accounting.tabs.cashDrawer") },
-        { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },
-        { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
+        { to: "/accounting/cashbox", label: "درج النقدية" },
+        { to: "/accounting/financial-accounts", label: "الحسابات" },
+        { to: "/accounting/journal-entries", label: "القيود اليومية" },
         { to: "/accounting/reports", label: copy.reports },
       ]}
     >
@@ -868,7 +868,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
               </div>
             </div>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
-              {editingExpenseId ? <button type="button" onClick={resetExpenseForm} className="theme-button-soft px-4 py-3 text-sm"><X className="h-4 w-4" />{t("accounting.common.actions.cancel")}</button> : null}
+              {editingExpenseId ? <button type="button" onClick={resetExpenseForm} className="theme-button-soft px-4 py-3 text-sm"><X className="h-4 w-4" />إلغاء</button> : null}
               <button type="button" onClick={saveExpense} disabled={saving} className="theme-button-primary min-h-[var(--control-height-lg)] px-5 py-3 text-sm disabled:opacity-50">
                 <Plus className="h-4 w-4" />
                 {saving ? "جارٍ الحفظ..." : editingExpenseId ? copy.updateExpense : copy.createExpense}
@@ -1036,8 +1036,7 @@ function employeeInitials(name = "") {
     .toUpperCase();
 }
 
-function SearchableSelect({ label, value, onChange, options, placeholder, emptyText = "", isRtl }) {
-  const { t } = useTranslation();
+function SearchableSelect({ label, value, onChange, options, placeholder, emptyText = "No employee found", isRtl }) {
   const generatedId = useId();
   const rootRef = useRef(null);
   const inputRef = useRef(null);
@@ -1175,7 +1174,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder, emptyT
               );
             })}
             {!filteredOptions.length ? (
-              <div className={`px-3 py-4 text-sm font-semibold text-zinc-500 ${rtl ? "text-right" : "text-left"}`}>{emptyText || t("accounting.expenses.noEmployeeFound")}</div>
+              <div className={`px-3 py-4 text-sm font-semibold text-zinc-500 ${rtl ? "text-right" : "text-left"}`}>{emptyText}</div>
             ) : null}
           </div>
         ) : null}
@@ -1231,7 +1230,7 @@ function ExpensesTable({ rows, copy, onEdit, onAction, t, language }) {
               <Td><div className="table-cell-stack text-xs text-zinc-500"><div>{expense.branch_name || (expense.branch_id ? `Branch #${expense.branch_id}` : "-")}</div><div>{expense.employee_name || (expense.employee_id ? `Employee #${expense.employee_id}` : "")}</div><div>{expense.supplier_name || (expense.supplier_id ? `Supplier #${expense.supplier_id}` : "")}</div></div></Td>
               <Td>
                 <div className="flex flex-wrap gap-1.5">
-                  <IconButton title={t("accounting.common.actions.edit")} onClick={() => onEdit(expense)}><Pencil className="h-3.5 w-3.5" /></IconButton>
+                  <IconButton title="تعديل" onClick={() => onEdit(expense)}><Pencil className="h-3.5 w-3.5" /></IconButton>
                   {["draft", "pending_approval", "rejected"].includes(expense.status) ? <IconButton title={copy.approve} onClick={() => onAction({ type: "approve", id: expense.id })}><CheckCircle2 className="h-3.5 w-3.5" /></IconButton> : null}
                   {["draft", "pending_approval", "approved"].includes(expense.status) ? <IconButton title={copy.reject} onClick={() => onAction({ type: "reject", id: expense.id })}><X className="h-3.5 w-3.5" /></IconButton> : null}
                   {expense.status !== "paid" ? <IconButton title={copy.markPaid} onClick={() => onAction({ type: "paid", id: expense.id })}><Wallet className="h-3.5 w-3.5" /></IconButton> : null}
@@ -1264,10 +1263,9 @@ function BreakdownCard({ title, rows, t, language, copy }) {
 }
 
 function TrendCard({ rows }) {
-  const { t } = useTranslation();
   const max = Math.max(1, ...rows.map((row) => Number(row.value || 0)));
   return (
-    <Panel title={t("accounting.expenses.trendTitle")}>
+    <Panel title="الاتجاه الشهري للمصروفات">
       <div className="flex h-48 items-end gap-2 overflow-x-auto">
         {rows.map((row) => (
           <div key={row.month} className="flex min-w-16 flex-1 flex-col items-center gap-2">
@@ -1275,7 +1273,7 @@ function TrendCard({ rows }) {
             <div className="text-[10px] font-bold text-zinc-500">{row.month}</div>
           </div>
         ))}
-        {!rows.length ? <div className="w-full rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-zinc-500">{t("accounting.expenses.trendEmpty")}</div> : null}
+        {!rows.length ? <div className="w-full rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-zinc-500">لا توجد بيانات للاتجاه</div> : null}
       </div>
     </Panel>
   );
@@ -1346,13 +1344,13 @@ function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100"><AlertTriangle className="h-5 w-5" /></span>
           <div>
-            <h3 className="m1-section-title text-white">{t("accounting.expenses.confirmActionTitle")}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{t("accounting.expenses.confirmAction", { action: statusLabel(t, language, action.type === "paid" ? "paid" : action.type), id: action.id })}</p>
+            <h3 className="m1-section-title text-white">تأكيد الإجراء</h3>
+            <p className="mt-1 text-sm text-zinc-400">This will {statusLabel(t, language, action.type === "paid" ? "paid" : action.type)} expense #{action.id}.</p>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="theme-button-soft px-4 py-2 text-sm">{t("accounting.common.actions.cancel")}</button>
-          <button type="button" onClick={onConfirm} className="theme-button-primary px-4 py-2 text-sm">{copy[ action.type === "paid" ? "markPaid" : action.type ] || t("accounting.expenses.confirm")}</button>
+          <button type="button" onClick={onClose} className="theme-button-soft px-4 py-2 text-sm">إلغاء</button>
+          <button type="button" onClick={onConfirm} className="theme-button-primary px-4 py-2 text-sm">{copy[ action.type === "paid" ? "markPaid" : action.type ] || "Confirm"}</button>
         </div>
       </section>
     </div>

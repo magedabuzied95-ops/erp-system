@@ -2,7 +2,6 @@
 import { createPortal } from "react-dom";
 import { memo } from "react";
 import { useCallback } from "react";
-import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
 import {
@@ -372,7 +371,7 @@ function CartSidebar({
   paymobTerminalLoading = false,
   checkoutLoading,
   offlineSyncPendingCount = 0,
-  checkoutLabel = "",
+  checkoutLabel = "Create order",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
   onItemPriceChange,
@@ -411,9 +410,6 @@ function CartSidebar({
   onAddInvoiceTab,
   onCloseInvoiceTab,
 }) {
-  // memo() component: without its own subscription the cart chrome keeps the
-  // previous language after an AR<->EN switch until an unrelated prop changes.
-  useTranslation();
   const renderCountRef = useRef(0);
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
   const [invoiceDiscountOpen, setInvoiceDiscountOpen] = useState(false);
@@ -479,10 +475,10 @@ function CartSidebar({
         ? normalizedPaymentMode
         : "";
   const paymentMethods = [
-    { key: "cash", label: editActive ? posLabel("payment.cashLabel", "Cash") : "CASH", fullLabel: editActive ? posLabel("payment.cashLabel", "Cash") : "CASH", tone: "green", icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
-    { key: "card", label: editActive ? posLabel("payment.visaLabel", "Visa") : "VISA", fullLabel: editActive ? posLabel("payment.visaLabel", "Visa") : "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
-    { key: "wallet", paymentMode: "instapay", label: editActive ? posLabel("payment.instapayLabel", "InstaPay") : "INSTAPAY", fullLabel: editActive ? posLabel("payment.instapayLabel", "InstaPay") : "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
-    { key: "vodafone_cash", label: editActive ? posLabel("payment.vodafoneCashLabel", "Vodafone Cash") : "V.CASH", fullLabel: editActive ? posLabel("payment.vodafoneCashLabel", "Vodafone Cash") : "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
+    { key: "cash", label: editActive ? "كاش" : "CASH", fullLabel: editActive ? "كاش" : "CASH", tone: "green", icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
+    { key: "card", label: editActive ? "فيزا" : "VISA", fullLabel: editActive ? "فيزا" : "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
+    { key: "wallet", paymentMode: "instapay", label: editActive ? "إنستاباي" : "INSTAPAY", fullLabel: editActive ? "إنستاباي" : "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
+    { key: "vodafone_cash", label: editActive ? "فودافون كاش" : "V.CASH", fullLabel: editActive ? "فودافون كاش" : "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
     ...(canUsePersonalTransaction
       ? [{ key: "personal", label: "PERSONAL", fullLabel: "PERSONAL", tone: "amber", icon: <BadgePercent className="h-4 w-4" /> }]
       : []),
@@ -591,16 +587,16 @@ function CartSidebar({
           >
             <button type="button" onClick={() => onSelectInvoiceTab?.(tab.id)} className="flex h-full items-center gap-2 px-3 text-xs font-black">
               <ReceiptText className="h-3.5 w-3.5" />
-              <span>{tab.customerName || posLabel("cart.invoiceTab", "Invoice {{index}}", { index: index + 1 })}</span>
+              <span>{tab.customerName || `فاتورة ${index + 1}`}</span>
               <span className="rounded-md bg-black/25 px-1.5 py-0.5 text-[9px] tabular-nums">{tab.itemCount || 0}</span>
               <span className="text-[9px] tabular-nums">{formatCurrency(tab.total || 0)}</span>
-              {tab.dirty ? <span className="h-1.5 w-1.5 rounded-full bg-amber-300" title={posLabel("cart.unsaved", "Unsaved")} /> : null}
+              {tab.dirty ? <span className="h-1.5 w-1.5 rounded-full bg-amber-300" title="غير محفوظة" /> : null}
             </button>
             <button
               type="button"
               onClick={() => onCloseInvoiceTab?.(tab.id)}
               className="inline-flex h-full w-7 items-center justify-center border-r border-white/10 text-zinc-500 transition hover:bg-red-400/10 hover:text-red-200"
-              aria-label={posLabel("cart.closeInvoice", "Close the invoice")}
+              aria-label="إغلاق الفاتورة"
             >
               <X className="h-3 w-3" />
             </button>
@@ -613,7 +609,7 @@ function CartSidebar({
           className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" />
-          {posLabel("cart.newInvoice", "Invoice")}
+          فاتورة
         </button>
       </div>
       <InvoiceCustomerPicker
@@ -933,7 +929,7 @@ function CartSidebar({
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
-                {editActive ? posLabel("payment.selectRemainingMethod", "Choose how to collect the remaining amount") : posLabel("cart.paymentMethods", "Payment Methods")}
+                {editActive ? "اختر طريقة تحصيل المبلغ المتبقي" : posLabel("cart.paymentMethods", "Payment Methods")}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {cartHasItems ? (
@@ -973,38 +969,38 @@ function CartSidebar({
                 active={splitPaymentOpen || String(paymentMode || "").toLowerCase() === "split"}
                 onClick={openSplitPayment}
                 icon={<ReceiptText className="h-4 w-4" />}
-                label={editActive ? posLabel("payment.split", "Split") : "SPLIT"}
+                label={editActive ? "تقسيم" : "SPLIT"}
                 tone="gold"
               />
             </div>
 
             {personalPaymentActive ? (
               <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3">
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100">{posLabel("personal.operation", "Personal operation")}</div>
+                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100">عملية شخصية</div>
                 <div className="mb-3 rounded-xl border border-amber-200/20 bg-black/20 px-3 py-2 text-xs font-semibold text-amber-50/90">
-                  {posLabel("personal.stockNotice", "This operation deducts from stock and is not treated as a normal cash collection.")}
+                  هذه العملية ستخصم من المخزون ولن تُعامل كتحصيل نقدي عادي.
                 </div>
                 <label className="block">
-                  <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("personal.type", "Personal operation type")}</div>
+                  <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">نوع العملية الشخصية</div>
                   <select
                     value={personalSettlementTypeValue}
                     onChange={(event) => setPersonalSettlementType?.(event.target.value)}
                     className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
                   >
-                    <option value="">{posLabel("personal.selectType", "Select the type")}</option>
-                    <option value="GIFT">{posLabel("personal.giftOrExpense", "Gift / expense")}</option>
-                    <option value="EMPLOYEE_ADVANCE">{posLabel("personal.advance", "Employee advance")}</option>
-                    <option value="OWNER_USE">{posLabel("personal.ownerPersonalUse", "Owner personal use")}</option>
+                    <option value="">اختر النوع</option>
+                    <option value="GIFT">هدية / مصروف</option>
+                    <option value="EMPLOYEE_ADVANCE">سلفة موظف</option>
+                    <option value="OWNER_USE">استخدام شخصي للمالك</option>
                   </select>
                 </label>
                 <label className="mt-3 block">
-                  <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.note", "Note")}</div>
+                  <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">ملاحظة</div>
                   <textarea
                     rows={3}
                     value={personalNote}
                     onChange={(event) => setPersonalNote?.(event.target.value)}
                     className="w-full resize-none rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-amber-300/50"
-                    placeholder={posLabel("cart.optional", "Optional")}
+                    placeholder="اختياري"
                   />
                 </label>
               </div>
@@ -1026,11 +1022,11 @@ function CartSidebar({
               </div>
             ) : personalPaymentActive ? (
               <div className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-bold text-amber-100">
-                {posLabel("personal.operation", "Personal operation")}{personalSettlementTypeValue ? ` • ${personalSettlementTypeValue}` : ""}{posLabel("personal.noCashImpact", " - does not affect cash")}
+                عملية شخصية{personalSettlementTypeValue ? ` • ${personalSettlementTypeValue}` : ""} - لا تؤثر على الكاش
               </div>
             ) : creditSaleActive ? (
               <div className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-bold text-amber-100">
-                {posLabel("payment.credit", "Credit - no cash collection needed now")}
+                آجل - لا يتطلب تحصيلاً نقدياً الآن
               </div>
             ) : (
               <div className="mt-2 rounded-lg border border-emerald-300/15 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-bold text-emerald-100">
@@ -1051,7 +1047,7 @@ function CartSidebar({
 
         {offlineSyncPendingCount > 0 ? (
           <div className="mb-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[10px] font-bold text-amber-100">
-            {posLabel("cart.offlinePending", "Invoices awaiting sync: {{count}}", { count: offlineSyncPendingCount })}
+            فواتير بانتظار المزامنة: {offlineSyncPendingCount}
           </div>
         ) : null}
         <div className="pos-checkout-actions sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
@@ -1068,7 +1064,7 @@ function CartSidebar({
             }
             className="pos-checkout-primary inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {checkoutLoading ? posLabel("cart.savingInvoice", "Saving the invoice...") : `${checkoutLabel || posLabel("cart.createOrder", "Create order")} • ${formatCurrency(totalAmount)}`}
+            {checkoutLoading ? posLabel("cart.savingInvoice", "جارِ حفظ الفاتورة...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
           </button>
           <button
             type="button"
@@ -1080,14 +1076,14 @@ function CartSidebar({
               onCreditSale?.();
             }}
             disabled={!hasSelectedCustomer || checkoutLoading || cart.length === 0 || editRefundSelectionMissing}
-            title={!hasSelectedCustomer ? posLabel("credit.selectCustomerFirst", "Select a customer first to create a credit sale") : hasPartialSplitCollection ? posLabel("credit.saveDepositRest", "Save the deposit and record the rest as credit") : posLabel("credit.createForCustomer", "Create a credit sale for the selected customer")}
+            title={!hasSelectedCustomer ? "اختر عميلاً أولاً لإنشاء بيع آجل" : hasPartialSplitCollection ? "حفظ العربون وتسجيل الباقي آجل" : "إنشاء بيع آجل للعميل المحدد"}
             className="pos-checkout-credit inline-flex min-h-[var(--control-height-md)] flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="inline-flex items-center justify-center gap-1.5">
               <Clock3 className="h-4 w-4" />
-              {hasPartialSplitCollection ? posLabel("credit.depositPlusCredit", "Deposit + remainder on credit") : posLabel("credit.short", "Credit")}
+              {hasPartialSplitCollection ? "العربون + الباقي آجل" : "آجل"}
             </span>
-            <span className="text-[10px] font-bold text-amber-100/70">{posLabel("credit.customerCreditSale", "Customer credit sale")}</span>
+            <span className="text-[10px] font-bold text-amber-100/70">بيع آجل للعميل</span>
           </button>
           <button
             type="button"
@@ -2521,14 +2517,14 @@ function EditPaymentDifferenceCard({
   return (
     <div className={`rounded-xl border border-cyan-300/25 bg-cyan-400/10 ${compact ? "p-2.5" : "mt-2 p-3"}`} dir="rtl">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-xs font-black text-cyan-50">{posLabel("cart.editInvoice", "Edit the invoice")}</div>
+        <div className="text-xs font-black text-cyan-50">تعديل الفاتورة</div>
         {invoiceNumber ? <div className="truncate text-[10px] font-black text-cyan-100">{invoiceNumber}</div> : null}
       </div>
       <div className="space-y-1">
-        <BreakdownTotalRow label={posLabel("payment.previouslyPaid", "Previously paid")} value={alreadyPaid} tone="emerald" />
+        <BreakdownTotalRow label="المدفوع سابقًا" value={alreadyPaid} tone="emerald" />
         {Array.isArray(originalPaymentBreakdown) && originalPaymentBreakdown.length ? (
           <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
-            <div className="mb-1 text-[9px] font-black text-zinc-500">{posLabel("payment.previousDetails", "Previous payment details")}</div>
+            <div className="mb-1 text-[9px] font-black text-zinc-500">تفاصيل الدفع السابق</div>
             {originalPaymentBreakdown.map((payment, index) => (
               <div key={payment?.id || `${payment?.method || payment?.payment_method || "payment"}-${index}`} className="flex items-center justify-between gap-2 py-0.5 text-[10px]">
                 <span className="font-black text-zinc-300">
@@ -2541,14 +2537,14 @@ function EditPaymentDifferenceCard({
             ))}
           </div>
         ) : null}
-        <BreakdownTotalRow label={posLabel("cart.invoiceTotal", "Invoice total")} value={newTotal} />
+        <BreakdownTotalRow label="إجمالي الفاتورة" value={newTotal} />
         <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-300/25 bg-amber-400/10 px-3 py-2">
-          <span className="text-xs font-black text-amber-50">{posLabel("payment.dueNow", "Due to collect now")}</span>
+          <span className="text-xs font-black text-amber-50">المطلوب تحصيله الآن</span>
           <span className="text-base font-black tabular-nums text-amber-200">{formatCurrency(amountDue)}</span>
         </div>
         {amountDue > 0 ? (
           <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-black text-cyan-100">
-            {posLabel("payment.methodHint", "Choose a collection method below. Press Cash if the whole amount is cash, or Split for more than one method.")}
+            اختر طريقة التحصيل بالأسفل. لو المبلغ كله كاش اضغط «كاش»، ولو أكثر من طريقة اضغط «تقسيم».
           </div>
         ) : null}
         {noExtraPayment ? (
@@ -2569,7 +2565,7 @@ function EditPaymentDifferenceCard({
                 active={String(refundMethod || "").toLowerCase() === "cash"}
                 onClick={() => onRefundMethodChange?.("cash")}
                 icon={<Banknote className="h-4 w-4" />}
-                label={posLabel("cart.cash", "Cash")}
+                label="نقدي"
                 tone="green"
               />
               <ModeButton
@@ -2601,11 +2597,11 @@ function EditPaymentDifferenceCard({
 
 function paymentMethodDisplayLabel(value = "") {
   const method = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (method === "cash") return posLabel("payment.cashLabel", "Cash");
-  if (method === "card" || method === "visa") return posLabel("payment.visaLabel", "Visa");
-  if (method === "instapay" || method === "wallet") return posLabel("payment.instapayLabel", "InstaPay");
-  if (method === "vodafone_cash" || method === "vodafone") return posLabel("payment.vodafoneCashLabel", "Vodafone Cash");
-  return method ? method.replaceAll("_", " ").toUpperCase() : posLabel("payment.pay", "Pay");
+  if (method === "cash") return "كاش";
+  if (method === "card" || method === "visa") return "فيزا";
+  if (method === "instapay" || method === "wallet") return "إنستاباي";
+  if (method === "vodafone_cash" || method === "vodafone") return "فودافون كاش";
+  return method ? method.replaceAll("_", " ").toUpperCase() : "دفع";
 }
 
 function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {
@@ -2795,9 +2791,9 @@ function SplitPaymentSheet({
           {splitRemaining > 0.009 ? (
             <label className={`mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 ${deferRemainder ? "border-amber-300/40 bg-amber-400/10" : "border-white/10 bg-white/[0.03]"}`}>
               <span>
-                <span className="block text-sm font-black text-white">{posLabel("credit.recordRemainder", "Record the remainder as credit")}</span>
+                <span className="block text-sm font-black text-white">تسجيل الباقي آجل</span>
                 <span className="mt-0.5 block text-[11px] font-bold text-zinc-400">
-                  {hasSelectedCustomer ? posLabel("credit.willRecordDebt", "{{amount}} will be recorded as customer debt", { amount: formatCurrency(splitRemaining) }) : posLabel("credit.selectCustomerForDebt", "Select the customer first to record the debt")}
+                  {hasSelectedCustomer ? `سيُسجل ${formatCurrency(splitRemaining)} مديونية على العميل` : "اختر العميل أولًا لتسجيل المديونية"}
                 </span>
               </span>
               <input
@@ -2825,7 +2821,7 @@ function SplitPaymentSheet({
             disabled={!isMatched && !canSaveAsPartialCredit}
             className="min-h-[var(--control-height-lg)] rounded-2xl bg-emerald-500 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isMatched ? posLabel("cart.done", "Done") : canSaveAsPartialCredit ? posLabel("credit.saveDepositAndCredit", "Save the deposit and the credit remainder") : posLabel("cart.remainingAmount", "Remaining")}
+            {isMatched ? posLabel("cart.done", "Done") : canSaveAsPartialCredit ? "حفظ العربون والباقي آجل" : posLabel("cart.remainingAmount", "Remaining")}
           </button>
         </div>
       </section>
@@ -2901,7 +2897,6 @@ function PaymentMetric({ label, value, tone = "white" }) {
 }
 
 function BreakdownRow({ label, value, onClear }) {
-  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-xs">
       <span className="min-w-0 truncate font-bold text-zinc-200">{label}</span>
@@ -2911,7 +2906,7 @@ function BreakdownRow({ label, value, onClear }) {
           type="button"
           onClick={onClear}
           className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
-          aria-label={t("pos.cart.clearPaymentAmount")}
+          aria-label="Clear payment amount"
         >
           <X className="h-3 w-3" />
         </button>
@@ -2931,7 +2926,6 @@ function BreakdownTotalRow({ label, value, tone = "white" }) {
 }
 
 function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
-  const { t } = useTranslation();
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustNotes, setAdjustNotes] = useState("");
@@ -2978,13 +2972,13 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
     );
   }
   const statusText = shortage > 0
-    ? posLabel("payment.insufficientBalance", "Insufficient balance (shortfall: {{amount}})", { amount: formatCurrency(shortage, "ar") })
+    ? `الرصيد غير كاف (العجز: ${formatCurrency(shortage, "ar")})`
     : `${accountName} • ${formatCurrency(balance, "ar")}`;
 
   const submitAdjustment = async (event) => {
     event.preventDefault();
     if (!account.id || Number(adjustAmount) <= 0) {
-      toast.error(t("pos.treasury.enterPositiveAmount"));
+      toast.error("Enter a positive recharge amount");
       return;
     }
     try {
@@ -2995,7 +2989,7 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
         amount: adjustAmount,
         notes: adjustNotes || `POS recharge for ${accountName}`,
       });
-      toast.success(t("pos.treasury.adjustmentRecorded"));
+      toast.success("Treasury adjustment recorded");
       setAdjustAmount("");
       setAdjustNotes("");
       setAdjustOpen(false);
@@ -3024,8 +3018,8 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
               setAdjustOpen(true);
             }}
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/8 text-white transition hover:bg-white/15"
-            aria-label={t("pos.treasury.recharge")}
-            title={t("pos.treasury.rechargeOrAdjustment")}
+            aria-label="Recharge treasury account"
+            title="Recharge / adjustment"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -3047,8 +3041,8 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
             <span className="text-zinc-500">{POS_ARABIC_TEXT.account}</span>
             <span className="truncate text-right">{accountName}</span>
           </div>
-          {status.allow_negative_balance && shortage > 0 ? <div className="text-amber-100">{posLabel("payment.negativeAllowed", "Negative balances are allowed for this account.")}</div> : null}
-          {!status.allow_negative_balance && fallback ? <div className="text-emerald-100">{posLabel("payment.fallbackHasBalance", "{{account}} has sufficient balance", { account: fallbackName })}</div> : null}
+          {status.allow_negative_balance && shortage > 0 ? <div className="text-amber-100">مسموح بالسالب لهذا الحساب.</div> : null}
+          {!status.allow_negative_balance && fallback ? <div className="text-emerald-100">يوجد رصيد كافٍ في {fallbackName}</div> : null}
         </div>
       </details>
 
@@ -3057,14 +3051,14 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
           <form onSubmit={submitAdjustment} className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black/50">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("pos.treasury.adjustment")}</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Treasury adjustment</div>
                 <div className="mt-1 truncate text-sm font-black text-white">{accountName}</div>
               </div>
               <button
                 type="button"
                 onClick={() => setAdjustOpen(false)}
                 className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                aria-label={t("pos.common.close")}
+                aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -3077,13 +3071,13 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
                 step="0.01"
                 value={adjustAmount}
                 onChange={(event) => setAdjustAmount(event.target.value)}
-                placeholder={t("pos.treasury.rechargeAmount")}
+                placeholder="Recharge amount"
               />
               <input
                 className="h-[var(--control-height-md)] rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300/60"
                 value={adjustNotes}
                 onChange={(event) => setAdjustNotes(event.target.value)}
-                placeholder={t("pos.treasury.auditNote")}
+                placeholder="Audit note"
               />
               <button
                 type="submit"

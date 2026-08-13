@@ -39,9 +39,7 @@
       "view": "عرض",
       "clear": "مسح",
       "delete": "حذف",
-      "save": "حفظ",
-      "selectAccount": "اختر الحساب",
-      "filter": "تصفية"
+      "save": "حفظ"
     },
     "labels": {
       "account": "الحساب",
@@ -74,14 +72,7 @@
       "noNotes": "لا توجد ملاحظات",
       "notAvailable": "غير متاح",
       "status": "الحالة",
-      "title": "العنوان",
-      "expense": "مصروف",
-      "order": "طلب",
-      "accountName": "اسم الحساب",
-      "settlement": "سداد",
-      "optional": "اختياري",
-      "negative": "سالب",
-      "healthy": "سليم"
+      "title": "العنوان"
     },
     "metrics": {
       "endingBalance": "الرصيد الختامي",
@@ -96,30 +87,21 @@
       "liveRows_plural": "{{count}} صفوف مباشرة",
       "rows": "{{count}} صف",
       "rows_plural": "{{count}} صفوف"
-    },
-    "filters": {
-      "fromDate": "من تاريخ",
-      "toDate": "إلى تاريخ"
-    },
-    "empty": {
-      "noMovements": "لا توجد حركات ضمن الفلاتر الحالية."
-    },
-    "loading": "جارٍ التحميل..."
+    }
   },
   "accountTypes": {
-    "asset": "أصل",
+    "asset": "الأصول",
     "bank": "بنك",
     "card_settlement": "تسويات البطاقات",
     "cash_drawer": "درج النقدية",
     "digital_wallet": "محفظة رقمية",
-    "equity": "حقوق ملكية",
+    "equity": "حقوق الملكية",
     "expense": "المصروفات",
     "ledger": "قيود الدفتر",
-    "liability": "التزام",
-    "revenue": "إيراد",
+    "liability": "الالتزامات",
+    "revenue": "الإيرادات",
     "safe": "خزنة",
-    "wallet": "محفظة",
-    "cash": "نقدية"
+    "wallet": "محفظة"
   },
   "kpis": {
     "revenue": "الإيرادات",
@@ -160,10 +142,7 @@
       "allAccounts": "كل الحسابات"
     },
     "errors": {
-      "loadFailed": "تعذر تحميل دفاتر الحسابات.",
-      "load": "تعذر تحميل دفتر الأستاذ",
-      "loadAccounts": "تعذر تحميل الحسابات المتاحة.",
-      "loadDot": "تعذر تحميل دفتر الأستاذ."
+      "loadFailed": "تعذر تحميل دفاتر الحسابات."
     },
     "states": {
       "loadingTitle": "جاري تحميل الدفاتر",
@@ -173,18 +152,7 @@
     "table": {
       "title": "دفتر المعاملات",
       "empty": "لا توجد صفوف دفتر للفلاتر المحددة."
-    },
-    "view": "عرض دفتر الأستاذ",
-    "loading": "جارٍ تحميل دفتر الأستاذ",
-    "loadingHint": "يتم الآن جلب الحركات المحاسبية الحالية.",
-    "ledger": "دفتر",
-    "selectAccountFirst": "اختر حسابًا أولاً لعرض دفتر الأستاذ.",
-    "generalLedger": "دفتر الأستاذ العام",
-    "generalLedgerSubtitle": "دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود",
-    "openingBalance": "الرصيد الافتتاحي",
-    "loadingMovements": "جارٍ تحميل الحركات...",
-    "selectAccount": "اختر حسابًا لعرض دفتر الأستاذ العام.",
-    "runningBalance": "الرصيد الجاري"
+    }
   },
   "reports": {
     "title": "التقارير المالية",
@@ -502,12 +470,11 @@
       "costSaved": "تم حفظ {{count}} تحديث تكلفة.",
       "overrideSaved": "تم حفظ {{count}} تجاوز تكلفة تاريخي.",
       "suggestedApplied": "تم تطبيق التكاليف المقترحة على الحقول القابلة للتعديل."
-    },
-    "lineNumber": "بند #"
+    }
   },
   "journal": {
     "title": "قيود اليومية",
-    "subtitle": "قيود اليومية مع إدخال يدوي ومعاينة Backfill فقط بدون تشغيل تلقائي",
+    "subtitle": "دفتر محاسبي متوازن مع فلاتر وبحث بالمرجع ومراجعة تفاصيل القيود.",
     "ledgerTitle": "دفتر اليومية",
     "ledgerSubtitle": "ابحث بالمرجع وفلتر حسب النوع وافحص كل قيد متوازن.",
     "detailTitle": "تفاصيل القيد",
@@ -519,12 +486,7 @@
     "errors": {
       "detailFailed": "تعذر تحميل تفاصيل قيد اليومية",
       "loadFailed": "تعذر تحميل قيود اليومية",
-      "loadFailedWithPeriod": "تعذر تحميل قيود اليومية.",
-      "loadPeriod": "تعذر تحميل القيود اليومية ضمن الفترة الحالية.",
-      "load": "فشل تحميل القيود اليومية",
-      "loadEntry": "تعذر تحميل تفاصيل القيد",
-      "create": "تعذر إنشاء القيد",
-      "preview": "تعذر تجهيز المعاينة"
+      "loadFailedWithPeriod": "تعذر تحميل قيود اليومية."
     },
     "fallbacks": {
       "journalEntry": "قيد يومية"
@@ -538,12 +500,7 @@
       "balanced": "متوازن",
       "credits": "دائن",
       "debits": "مدين",
-      "entries": "القيود اليومية",
-      "unbalanced": "غير متوازن",
-      "totalItems": "إجمالي العناصر",
-      "ready": "جاهزة",
-      "skipped": "متخطاة",
-      "alreadyPosted": "منشورة مسبقًا"
+      "entries": "القيود اليومية"
     },
     "placeholders": {
       "search": "ابحث بالمرجع أو الحساب أو الوصف أو الملاحظات..."
@@ -560,27 +517,7 @@
       "emptyRows": "لا توجد قيود يومية.",
       "loadingDetail": "جاري تحميل تفاصيل القيد...",
       "loadingRows": "جارٍ تحميل القيود اليومية..."
-    },
-    "postingPreview": "معاينة الترحيل",
-    "toasts": {
-      "created": "تم إنشاء القيد بنجاح"
-    },
-    "manualEntry": "إدخال يدوي",
-    "manualJournalEntry": "قيد يومي يدوي",
-    "unbalancedWarning": "القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.",
-    "addLine": "إضافة سطر",
-    "create": "إنشاء القيد",
-    "previewOnly": "هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.",
-    "purchases": "المشتريات",
-    "limit": "الحد الأقصى",
-    "preparingPreview": "جارٍ تجهيز المعاينة...",
-    "loadPreview": "تحميل المعاينة",
-    "noPreviewResults": "لا توجد نتائج معاينة حتى الآن.",
-    "debitColumn": "المدين",
-    "creditColumn": "الدائن",
-    "posted": "مرحّل",
-    "entry": "القيد",
-    "journalEntry": "قيد يومي"
+    }
   },
   "paymentMappings": {
     "title": "ربط طرق الدفع",
@@ -703,110 +640,5 @@
     "status": {
       "placeholder": "مؤقت"
     }
-  },
-  "treasury": {
-    "title": "الخزينة",
-    "in": "داخل",
-    "out": "خارج",
-    "errors": {
-      "load": "تعذر تحميل بيانات الخزينة",
-      "transferFields": "اختر حساب المصدر وحساب الوجهة ومبلغًا أكبر من صفر",
-      "transfer": "تعذر تسجيل التحويل",
-      "settlementFields": "اختر حسابًا ومبلغًا أكبر من صفر",
-      "settlement": "تعذر تسجيل التسوية"
-    },
-    "toasts": {
-      "transferRecorded": "تم تسجيل التحويل",
-      "settlementRecorded": "تم تسجيل التسوية"
-    },
-    "subtitle": "الأرصدة الفعلية للنقدية والبنوك والبطاقات والمحافظ وتسويات البطاقات، معززة بحركات مالية مرتبطة.",
-    "metrics": {
-      "totalCash": "إجمالي النقدية",
-      "totalBank": "إجمالي البنوك",
-      "totalWallets": "إجمالي المحافظ",
-      "inToday": "الداخل اليوم",
-      "outToday": "الخارج اليوم",
-      "netMovement": "صافي الحركة"
-    },
-    "reconciled": "مطابقة حسابات النقدية متوازنة",
-    "accountBalances": "أرصدة الحسابات",
-    "accountBalancesHint": "الحسابات النقدية والتشغيلية المستخدمة في نقاط البيع والمشتريات والمصروفات والاستردادات والرواتب.",
-    "topUp": "تعزيز",
-    "opening": "افتتاحي",
-    "cashTransfer": "تحويل نقدية",
-    "fromAccount": "من حساب",
-    "toAccount": "إلى حساب",
-    "recordTransfer": "تسجيل التحويل",
-    "auditNote": "ملاحظة تدقيقية",
-    "recordSettlement": "تسجيل التسوية",
-    "cashMovements": "حركات النقدية",
-    "cashMovementsHint": "حركات حسابات غير قابلة للتعديل من المبيعات والمشتريات والمصروفات والسلف والاستردادات والتحويلات والتسويات.",
-    "loadingMovements": "جارٍ تحميل حركات النقدية...",
-    "noMovements": "لا توجد حركات نقدية.",
-    "recorded": "المسجل"
-  },
-  "accounts": {
-    "loading": "جارٍ تحميل الحسابات...",
-    "errors": {
-      "loadTree": "تعذر تحميل شجرة الحسابات",
-      "load": "تعذر تحميل الحسابات"
-    },
-    "subtitle": "أساس محاسبي أولي مبني على دليل الحسابات مع الإبقاء على دفتر الأستاذ الحالي",
-    "metrics": {
-      "total": "إجمالي الحسابات",
-      "active": "الحسابات النشطة",
-      "assets": "حسابات الأصول",
-      "expenses": "حسابات المصروفات"
-    },
-    "tree": "شجرة الحسابات",
-    "defaultsHint": "الحسابات الافتراضية تُنشأ مرة واحدة فقط لكل مستأجر بدون تكرار.",
-    "searchPlaceholder": "ابحث بالكود أو الاسم",
-    "noMatches": "لا توجد حسابات مطابقة للبحث.",
-    "parent": "الحساب الأب",
-    "suspended": "موقوف"
-  },
-  "dashboardTitle": "لوحة المحاسبة",
-  "accountGroups": {
-    "assets": "أصول",
-    "liabilities": "التزامات",
-    "revenues": "إيرادات",
-    "expenses": "مصروفات"
-  },
-  "trialBalance": {
-    "errors": {
-      "load": "تعذر تحميل ميزان المراجعة."
-    },
-    "subtitle": "ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود",
-    "view": "عرض الميزان",
-    "sourceNote": "يعتمد هذا التقرير فقط على `journal_entry_lines` المربوطة بقيود اليومية.",
-    "loading": "جارٍ تحميل ميزان المراجعة...",
-    "noBalances": "لا توجد أرصدة ضمن الفترة الحالية.",
-    "accountCode": "كود الحساب"
-  },
-  "dashboard": {
-    "afterCogsAndExpenses": "بعد تكلفة البضاعة والمصروفات",
-    "unifiedReportsNote": "الأرقام من التقارير المالية الموحدة",
-    "exclusionsNote": "المبيعات الملغاة والمرتجعات والخصومات مستبعدة أو محسوبة حسب حالتها، مع عزل بيانات الشركة والفرع.",
-    "openExecutiveReports": "فتح التقارير التنفيذية",
-    "customerReceivables": "مديونيات العملاء",
-    "supplierPayables": "مستحقات الموردين",
-    "grossMargin": "هامش مجمل الربح",
-    "executiveReports": "التقارير التنفيذية"
-  },
-  "expenses": {
-    "noEmployeeFound": "لا يوجد موظف",
-    "confirmAction": "سيؤدي هذا إلى {{action}} المصروف رقم #{{id}}.",
-    "confirmActionTitle": "تأكيد الإجراء",
-    "toastTitleAmountRequired": "مطلوب عنوان المصروف والمبلغ",
-    "toastActionDone": "تم تنفيذ الإجراء",
-    "toastCategoryNameRequired": "اسم الفئة مطلوب",
-    "toastCategoryCreated": "تم إنشاء الفئة",
-    "toastAdvanceFieldsRequired": "الموظف والمبلغ مطلوبان",
-    "toastAdvanceCreated": "تم إنشاء سلفة الموظف",
-    "toastRecurringFieldsRequired": "عنوان المصروف المتكرر والمبلغ مطلوبان",
-    "toastRecurringCreated": "تم إنشاء المصروف المتكرر",
-    "trendTitle": "الاتجاه الشهري للمصروفات",
-    "trendEmpty": "لا توجد بيانات للاتجاه",
-    "confirm": "تأكيد"
   }
 }

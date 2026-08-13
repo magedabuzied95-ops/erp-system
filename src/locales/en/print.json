@@ -152,20 +152,5 @@
     "unknownProduct": "Unknown product",
     "uncategorized": "Uncategorized",
     "noRows": "No rows"
-  },
-  "receipt": {
-    "returnPolicy": "Exchange and return policy",
-    "bagsExcluded": "Bags cannot be exchanged or returned.",
-    "thanksForPurchase": "Thank you for your purchase.",
-    "noProducts": "No products.",
-    "scanToView": "Scan to view the invoice",
-    "storeLogo": "Store logo",
-    "salesInvoice": "Sales invoice",
-    "item": "Item",
-    "qtyShort": "Qty",
-    "totalQuantity": "Total quantity",
-    "productDiscount": "Product discount",
-    "officialWebsite": "Official website",
-    "thanksForVisit": "Thank you for visiting"
   }
 }

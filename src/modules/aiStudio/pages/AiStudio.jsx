@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   Sparkles,
@@ -48,48 +47,45 @@ function InboundAssistedRepliesCard() {
   useEffect(() => { load(); }, [load]);
   const change = async (next) => { setBusy(true); try { const r = await setInboundAiMode(next, headers); if (r?.mode) setMode(r.mode); } finally { setBusy(false); } };
   const toggleChannel = async (ch, enabled) => { setBusy(true); try { const r = await setInboundAiChannel(ch, enabled, headers); if (r?.channels) setChannels(r.channels); } finally { setBusy(false); } };
-  const { t } = useTranslation();
-  /* Left value is the API mode/channel VALUE and stays raw; right is display. */
-  const MODES = [["off", t("aiStudio.assisted.modes.off")], ["suggest_only", t("aiStudio.assisted.modes.suggestOnly")], ["approval_reply", t("aiStudio.assisted.modes.approvalReply")]];
+  const MODES = [["off", "Off"], ["suggest_only", "Suggest only"], ["approval_reply", "Approval + Send"]];
   const CHANNELS = [["facebook_messenger", "Messenger"], ["instagram", "Instagram"], ["whatsapp", "WhatsApp"]];
   const w = stats?.last7d || {};
   const d = stats?.last24h || {};
   return (
     <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" /><h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">{t("aiStudio.assisted.title")}</h2></div>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${capable ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/20 text-slate-300"}`}>{capable ? t("aiStudio.assisted.capabilityOn") : t("aiStudio.assisted.capabilityOff")}</span>
+        <div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" /><h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">Inbound Assisted Replies</h2></div>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${capable ? "bg-emerald-400/15 text-emerald-100" : "bg-slate-500/20 text-slate-300"}`}>{capable ? "Capability enabled" : "Capability off (server flag)"}</span>
       </div>
-      <p className="mt-1.5 text-[12px] text-slate-400">{t("aiStudio.assisted.explainerBefore")} <b className="text-slate-200">{t("aiStudio.assisted.explainerStrong")}</b> {t("aiStudio.assisted.explainerAfter")} <b className="text-slate-200">{t("aiStudio.assisted.neverAutonomous")}</b>{!capable ? t("aiStudio.assisted.capabilityOffNote") : ""}</p>
+      <p className="mt-1.5 text-[12px] text-slate-400">On an inbound customer text, AI drafts a <b className="text-slate-200">grounded reply suggestion</b> that a human approves, edits, or rejects in the AI Inbox. <b className="text-slate-200">It never sends autonomously.</b>{!capable ? " The server capability flag is off, so no suggestions are generated yet." : ""}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{t("aiStudio.assisted.mode")}</span>
+        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Mode</span>
         {MODES.map(([val, label]) => (
           <button key={val} type="button" disabled={busy} onClick={() => change(val)} className={`inline-flex h-[var(--control-height-sm)] items-center rounded-[var(--radius-control)] border px-3 text-[11px] font-black ${mode === val ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{label}</button>
         ))}
-        {mode !== "off" ? <button type="button" disabled={busy} onClick={() => change("off")} className="inline-flex h-8 items-center rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100">{t("aiStudio.assisted.pauseAll")}</button> : null}
+        {mode !== "off" ? <button type="button" disabled={busy} onClick={() => change("off")} className="inline-flex h-8 items-center rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100">⏸ Pause all (kill switch)</button> : null}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{t("aiStudio.assisted.channelsStaged")}</span>
+        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Channels (staged)</span>
         {CHANNELS.map(([val, label]) => (
           <button key={val} type="button" disabled={busy} onClick={() => toggleChannel(val, !channels[val])} className={`inline-flex h-8 items-center gap-1 rounded-lg border px-3 text-[11px] font-black ${channels[val] ? "border-emerald-300/50 bg-emerald-300/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-slate-400"}`}>{channels[val] ? "● " : "○ "}{label}</button>
         ))}
       </div>
       {stats ? (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
-          {[["generated", w.generated], ["approvedUnchanged", w.approved_unchanged], ["approvedEdited", w.approved_edited], ["stale", w.stale], ["skipped", w.skipped], ["errored", w.errored]].map(([id, val]) => (
-            <div key={id} className="rounded-xl border border-white/10 bg-white/[0.02] px-2.5 py-2"><div className="text-[9px] font-black uppercase tracking-wide text-slate-500">{t("aiStudio.assisted.stats.window7d", { label: t(`aiStudio.assisted.stats.${id}`) })}</div><div className="mt-0.5 text-lg font-black text-slate-100">{Number(val || 0)}</div></div>
+          {[["Generated", w.generated], ["Approved unchanged", w.approved_unchanged], ["Approved after edit", w.approved_edited], ["Stale", w.stale], ["Skipped", w.skipped], ["Errors", w.errored]].map(([label, val]) => (
+            <div key={label} className="rounded-xl border border-white/10 bg-white/[0.02] px-2.5 py-2"><div className="text-[9px] font-black uppercase tracking-wide text-slate-500">{label} 7d</div><div className="mt-0.5 text-lg font-black text-slate-100">{Number(val || 0)}</div></div>
           ))}
         </div>
       ) : null}
-      {mode !== "off" ? <div className="mt-2 text-[11px] text-amber-200">{t("aiStudio.assisted.enabledNote")}</div> : null}
-      <div className="mt-1 text-[10px] text-slate-500">{t("aiStudio.assisted.last24h", { generated: Number(d.generated || 0), approved: Number(d.approved || 0), stale: Number(d.stale || 0) })}</div>
+      {mode !== "off" ? <div className="mt-2 text-[11px] text-amber-200">Suggestions are generated on enabled channels. Review and send from the AI Inbox — nothing is sent without a human. A newer customer message blocks approving a stale suggestion (server-enforced).</div> : null}
+      <div className="mt-1 text-[10px] text-slate-500">Last 24h — generated {Number(d.generated || 0)} · approved {Number(d.approved || 0)} · stale {Number(d.stale || 0)}</div>
     </section>
   );
 }
 
 // Phase 11.2 — bounded Reply Style Learning inspector (learn presentation only; facts stay authoritative).
 function ReplyStyleLearningCard() {
-  const { t } = useTranslation();
   const { headers } = useStudioHeaders();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -97,24 +93,23 @@ function ReplyStyleLearningCard() {
   useEffect(() => { load(); }, [load]);
   const toggle = async (enabled) => { setBusy(true); try { await setStyleLearning(enabled, headers); await load(); } finally { setBusy(false); } };
   const reset = async () => { setBusy(true); try { await resetStyleLearning(headers); await load(); } finally { setBusy(false); } };
-  /* Keys are the raw signal/value ids from the API; only the values are display. */
-  const SIGNAL_LABEL = { brevity: t("aiStudio.style.signals.brevity"), exact_stock_count: t("aiStudio.style.signals.exactStockCount"), emoji: t("aiStudio.style.signals.emoji") };
-  const VALUE_LABEL = { concise: t("aiStudio.style.values.concise"), normal: t("aiStudio.style.values.normal"), usually_omit: t("aiStudio.style.values.usuallyOmit"), usually_include: t("aiStudio.style.values.usuallyInclude"), light: t("aiStudio.style.values.light"), heavy: t("aiStudio.style.values.heavy"), none: t("aiStudio.style.values.none") };
+  const SIGNAL_LABEL = { brevity: "Concise replies", exact_stock_count: "Exact stock counts", emoji: "Emoji usage" };
+  const VALUE_LABEL = { concise: "concise", normal: "normal", usually_omit: "usually omitted", usually_include: "usually included", light: "light", heavy: "heavy", none: "none" };
   const profile = data?.profile || {};
   const intents = Object.keys(profile);
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">{t("aiStudio.style.title")}</h2>
+        <h2 className="text-[12px] font-black uppercase tracking-[0.16em] text-slate-300">Reply Style Learning</h2>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={busy} onClick={() => toggle(!data?.learning_enabled)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${data?.learning_enabled ? "border-emerald-300/50 bg-emerald-300/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{data?.learning_enabled ? t("aiStudio.style.learningOn") : t("aiStudio.style.learningOff")}</button>
-          <button type="button" disabled={busy} onClick={reset} className="inline-flex h-8 items-center rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 text-[11px] font-black text-amber-100">{t("aiStudio.style.reset")}</button>
+          <button type="button" disabled={busy} onClick={() => toggle(!data?.learning_enabled)} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black ${data?.learning_enabled ? "border-emerald-300/50 bg-emerald-300/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>{data?.learning_enabled ? "Learning: ON" : "Learning: OFF"}</button>
+          <button type="button" disabled={busy} onClick={reset} className="inline-flex h-8 items-center rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 text-[11px] font-black text-amber-100">Reset learned style</button>
         </div>
       </div>
-      <p className="mt-1.5 text-[12px] text-slate-400">{t("aiStudio.style.explainer1")} <b className="text-slate-200">{t("aiStudio.style.explainerHow")}</b> {t("aiStudio.style.explainer2")} <b className="text-slate-200">{t("aiStudio.style.explainerNever")}</b> {t("aiStudio.style.explainer3")} <b className="text-slate-200">{t("aiStudio.style.explainerStable")}</b> {t("aiStudio.style.explainer4")}</p>
-      <p className="mt-1 text-[12px] text-slate-400">{t("aiStudio.style.factsNote")}</p>
+      <p className="mt-1.5 text-[12px] text-slate-400">Learns only <b className="text-slate-200">how</b> to phrase (brevity, stock-count omission, emoji) from repeated approved edits — <b className="text-slate-200">never</b> stock, price, size, product, or policy facts. A preference becomes <b className="text-slate-200">Stable</b> after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.</p>
+      <p className="mt-1 text-[12px] text-slate-400" dir="rtl">يتعلم أسلوب الصياغة فقط — السعر والمخزون والمقاسات تظل من بيانات النظام.</p>
       {!intents.length ? (
-        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-[12px] text-slate-400">{t("aiStudio.style.noPreference", { count: Number(data?.evidence_count || 0) })}</div>
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-[12px] text-slate-400">No stable style preference yet — evidence accumulating ({Number(data?.evidence_count || 0)} edits so far).</div>
       ) : intents.map((intent) => (
         <div key={intent} className="mt-3">
           <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{intent.replace(/_/g, " ")}</div>
@@ -125,7 +120,7 @@ function ReplyStyleLearningCard() {
                   <span className="text-[11px] font-bold text-slate-200">{SIGNAL_LABEL[signal] || signal}</span>
                   <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase ${info.status === "stable" ? "bg-emerald-400/15 text-emerald-100" : info.status === "conflicting" ? "bg-rose-400/15 text-rose-100" : "bg-slate-500/20 text-slate-300"}`}>{info.status}</span>
                 </div>
-                <div className="mt-0.5 text-[11px] text-slate-300">{info.status === "stable" ? (VALUE_LABEL[info.value] || info.value) : t("aiStudio.style.evidence", { have: info.evidence, need: info.threshold })}</div>
+                <div className="mt-0.5 text-[11px] text-slate-300">{info.status === "stable" ? (VALUE_LABEL[info.value] || info.value) : `evidence ${info.evidence}/${info.threshold}`}</div>
               </div>
             ))}
           </div>
@@ -156,51 +151,46 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 // sidebar so users only see what they can already open.
 const MODULE_GROUPS = [
   {
-    id: "conversations",
-    titleKey: "aiStudio.groups.conversations.title",
-    subtitleKey: "aiStudio.groups.conversations.subtitle",
+    title: "Conversations",
+    subtitle: "Operational AI conversation surfaces",
     modules: [
-      { id: "aiInbox", labelKey: "aiStudio.modules.aiInbox.label", descriptionKey: "aiStudio.modules.aiInbox.description", to: "/admin/ai-inbox", icon: Bot, permission: "settings.view", adminOnly: true },
-      { id: "inboxPwa", labelKey: "aiStudio.modules.inboxPwa.label", descriptionKey: "aiStudio.modules.inboxPwa.description", to: "/inbox", icon: MessageSquare, permission: "ai_inbox_messenger.view" },
-      { id: "followups", labelKey: "aiStudio.modules.followups.label", descriptionKey: "aiStudio.modules.followups.description", to: "/admin/ai-followups", icon: CalendarClock, permission: "settings.view", adminOnly: true },
+      { label: "AI Inbox", description: "Desktop omni-channel support inbox with AI drafts.", to: "/admin/ai-inbox", icon: Bot, permission: "settings.view", adminOnly: true },
+      { label: "Inbox (mobile / PWA)", description: "Mobile-optimized conversation inbox.", to: "/inbox", icon: MessageSquare, permission: "ai_inbox_messenger.view" },
+      { label: "AI Follow-ups", description: "Scheduled follow-up queue and takeovers.", to: "/admin/ai-followups", icon: CalendarClock, permission: "settings.view", adminOnly: true },
     ],
   },
   {
-    id: "agents",
-    titleKey: "aiStudio.groups.agents.title",
-    subtitleKey: "aiStudio.groups.agents.subtitle",
+    title: "Agents & Behaviour",
+    subtitle: "Configure how the AI agent replies",
     modules: [
-      { id: "agentSettings", labelKey: "aiStudio.modules.agentSettings.label", descriptionKey: "aiStudio.modules.agentSettings.description", to: "/admin/ai-agent-settings", icon: Settings2, permission: "settings.view", adminOnly: true },
-      { id: "replySettings", labelKey: "aiStudio.modules.replySettings.label", descriptionKey: "aiStudio.modules.replySettings.description", to: "/ai/settings", icon: Sparkles, permission: "settings.edit" },
-      { id: "knowledgeBase", labelKey: "aiStudio.modules.knowledgeBase.label", descriptionKey: "aiStudio.modules.knowledgeBase.description", to: "/admin/ai-support-knowledge-base", icon: BookOpen, permission: "settings.view", adminOnly: true },
+      { label: "AI Agent Settings", description: "Agent tone, phrases, follow-up templates.", to: "/admin/ai-agent-settings", icon: Settings2, permission: "settings.view", adminOnly: true },
+      { label: "AI Reply Settings", description: "Reply mode, tone and AI feature toggles.", to: "/ai/settings", icon: Sparkles, permission: "settings.edit" },
+      { label: "AI Knowledge Base", description: "Store info the AI uses to answer questions.", to: "/admin/ai-support-knowledge-base", icon: BookOpen, permission: "settings.view", adminOnly: true },
     ],
   },
   {
-    id: "channels",
-    titleKey: "aiStudio.groups.channels.title",
-    subtitleKey: "aiStudio.groups.channels.subtitle",
+    title: "Channels & Automation",
+    subtitle: "Where the AI operates and its triggers",
     modules: [
-      { id: "channels", labelKey: "aiStudio.modules.channels.label", descriptionKey: "aiStudio.modules.channels.description", to: "/admin/ai-channels", icon: Share2, permission: "settings.view", adminOnly: true },
-      { id: "marketingAutomation", labelKey: "aiStudio.modules.marketingAutomation.label", descriptionKey: "aiStudio.modules.marketingAutomation.description", to: "/marketing/automation", icon: Zap, permission: "marketing.view" },
-      { id: "socialComments", labelKey: "aiStudio.modules.socialComments.label", descriptionKey: "aiStudio.modules.socialComments.description", to: "/marketing/social-comments", icon: MessageSquare, permission: "marketing.view" },
+      { label: "AI Channels", description: "Messenger / Instagram / WhatsApp connection status.", to: "/admin/ai-channels", icon: Share2, permission: "settings.view", adminOnly: true },
+      { label: "Marketing Automation", description: "Comment → DM automation rules.", to: "/marketing/automation", icon: Zap, permission: "marketing.view" },
+      { label: "Social Comments", description: "Moderate and reply to social comments.", to: "/marketing/social-comments", icon: MessageSquare, permission: "marketing.view" },
     ],
   },
   {
-    id: "observability",
-    titleKey: "aiStudio.groups.observability.title",
-    subtitleKey: "aiStudio.groups.observability.subtitle",
+    title: "Observability & Approvals",
+    subtitle: "Understand and govern AI actions",
     modules: [
-      { id: "agentAnalytics", labelKey: "aiStudio.modules.agentAnalytics.label", descriptionKey: "aiStudio.modules.agentAnalytics.description", to: "/admin/ai-agent-analytics", icon: LineChart, permission: "settings.view", adminOnly: true },
+      { label: "AI Agent Analytics", description: "Replies, takeovers, intents and shadow analytics.", to: "/admin/ai-agent-analytics", icon: LineChart, permission: "settings.view", adminOnly: true },
     ],
   },
   {
-    id: "marketing",
-    titleKey: "aiStudio.groups.marketing.title",
-    subtitleKey: "aiStudio.groups.marketing.subtitle",
+    title: "Marketing AI",
+    subtitle: "Autonomous content and lead intelligence",
     modules: [
-      { id: "marketingCenter", labelKey: "aiStudio.modules.marketingCenter.label", descriptionKey: "aiStudio.modules.marketingCenter.description", to: "/marketing/ai-center", icon: Megaphone, permission: "marketing.view" },
-      { id: "leadCenter", labelKey: "aiStudio.modules.leadCenter.label", descriptionKey: "aiStudio.modules.leadCenter.description", to: "/marketing/ai-center/leads", icon: Users, permission: "marketing.view" },
-      { id: "marketingVideos", labelKey: "aiStudio.modules.marketingVideos.label", descriptionKey: "aiStudio.modules.marketingVideos.description", to: "/marketing/ai-center/videos", icon: Video, permission: "marketing.view" },
+      { label: "AI Marketing Center", description: "Autonomous social content generation & queue.", to: "/marketing/ai-center", icon: Megaphone, permission: "marketing.view" },
+      { label: "AI Lead Center", description: "Lead pipeline built from conversations.", to: "/marketing/ai-center/leads", icon: Users, permission: "marketing.view" },
+      { label: "AI Marketing Videos", description: "Autonomous video generation queue.", to: "/marketing/ai-center/videos", icon: Video, permission: "marketing.view" },
     ],
   },
 ];
@@ -225,7 +215,6 @@ function MetricCard({ icon: Icon, label, value, hint, tone = "cyan" }) {
 }
 
 export default function AiStudio() {
-  const { t } = useTranslation();
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
@@ -317,10 +306,10 @@ export default function AiStudio() {
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
               <Sparkles className="h-4 w-4" />
-              {t("aiStudio.page.eyebrow")}
+              AI Studio
             </div>
-            <h1 className="m1-page-title mt-1 text-white">{t("aiStudio.page.title")}</h1>
-            <p className="mt-1 text-sm text-slate-400">{t("aiStudio.page.subtitle")}</p>
+            <h1 className="m1-page-title mt-1 text-white">AI Studio</h1>
+            <p className="mt-1 text-sm text-slate-400">Central control plane for every AI capability in your store — configure agents, channels, knowledge and automations, and observe what the AI is doing.</p>
           </div>
           <button
             type="button"
@@ -329,7 +318,7 @@ export default function AiStudio() {
             className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white transition hover:border-white/20 disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {t("aiStudio.page.refresh")}
+            Refresh
           </button>
         </div>
         <div className="mt-3"><AiStudioNav /></div>
@@ -342,31 +331,31 @@ export default function AiStudio() {
       <section>
         <div className="mb-2 flex items-center gap-2 px-1">
           <Activity className="h-4 w-4 text-primary" />
-          <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">{t("aiStudio.page.overview")}</h2>
+          <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">Overview</h2>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <MetricCard icon={Bot} label={t("aiStudio.metrics.aiReplies")} value={metrics.aiReplies} hint={metrics.analyticsAvailable ? t("aiStudio.metrics.fromAnalytics") : t("aiStudio.metrics.notAvailable")} />
-          <MetricCard icon={MessageSquare} label={t("aiStudio.metrics.conversations")} value={metrics.conversations} hint={metrics.analyticsAvailable ? t("aiStudio.metrics.totalTracked") : t("aiStudio.metrics.notAvailable")} />
-          <MetricCard icon={Users} label={t("aiStudio.metrics.waiting")} value={metrics.waiting} tone="amber" hint={metrics.analyticsAvailable ? t("aiStudio.metrics.awaitingReply") : t("aiStudio.metrics.notAvailable")} />
-          <MetricCard icon={ShieldCheck} label={t("aiStudio.metrics.takeovers")} value={metrics.takeovers} tone="rose" hint={metrics.analyticsAvailable ? t("aiStudio.metrics.escalated") : t("aiStudio.metrics.notAvailable")} />
-          <MetricCard icon={CalendarClock} label={t("aiStudio.metrics.pendingFollowups")} value={metrics.pendingFollowups} tone="amber" hint={metrics.followupsAvailable ? t("aiStudio.metrics.openTasks") : t("aiStudio.metrics.notAvailable")} />
-          <MetricCard icon={Share2} label={t("aiStudio.metrics.connectedChannels")} value={metrics.connectedChannels} tone="emerald" hint={metrics.channelsAvailable ? t("aiStudio.metrics.liveChannels") : t("aiStudio.metrics.notAvailable")} />
+          <MetricCard icon={Bot} label="AI replies" value={metrics.aiReplies} hint={metrics.analyticsAvailable ? "From AI agent analytics" : "Not available"} />
+          <MetricCard icon={MessageSquare} label="Conversations" value={metrics.conversations} hint={metrics.analyticsAvailable ? "Total tracked" : "Not available"} />
+          <MetricCard icon={Users} label="Waiting customers" value={metrics.waiting} tone="amber" hint={metrics.analyticsAvailable ? "Awaiting a reply" : "Not available"} />
+          <MetricCard icon={ShieldCheck} label="Human takeovers" value={metrics.takeovers} tone="rose" hint={metrics.analyticsAvailable ? "Escalated to a human" : "Not available"} />
+          <MetricCard icon={CalendarClock} label="Pending follow-ups" value={metrics.pendingFollowups} tone="amber" hint={metrics.followupsAvailable ? "Open follow-up tasks" : "Not available"} />
+          <MetricCard icon={Share2} label="Connected channels" value={metrics.connectedChannels} tone="emerald" hint={metrics.channelsAvailable ? "Live AI channels" : "Not available"} />
         </div>
       </section>
 
       {/* Module directory (control-plane hub) */}
       {visibleGroups.map((group) => (
-        <section key={group.id}>
+        <section key={group.title}>
           <div className="mb-2 px-1">
-            <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">{t(group.titleKey)}</h2>
-            {group.subtitleKey ? <p className="text-[11px] font-medium text-slate-500">{t(group.subtitleKey)}</p> : null}
+            <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">{group.title}</h2>
+            {group.subtitle ? <p className="text-[11px] font-medium text-slate-500">{group.subtitle}</p> : null}
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {group.modules.map((module) => {
               const Icon = module.icon || Sparkles;
               return (
                 <Link
-                  key={module.to + module.id}
+                  key={module.to + module.label}
                   to={module.to}
                   className="group flex items-start gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition hover:border-primary/40 hover:bg-white/[0.06]"
                 >
@@ -375,10 +364,10 @@ export default function AiStudio() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 text-sm font-black text-white">
-                      {t(module.labelKey)}
+                      {module.label}
                       <ArrowUpRight className="h-3.5 w-3.5 text-slate-500 transition group-hover:text-primary" />
                     </span>
-                    <span className="mt-0.5 block text-[12px] font-medium leading-5 text-slate-400">{t(module.descriptionKey)}</span>
+                    <span className="mt-0.5 block text-[12px] font-medium leading-5 text-slate-400">{module.description}</span>
                   </span>
                 </Link>
               );

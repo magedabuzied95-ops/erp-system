@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Camera, CircleCheckBig, MapPin, RefreshCcw, ScanLine, ShieldAlert } from "lucide-react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 
@@ -47,7 +46,6 @@ const formatDistance = (value) => {
 };
 
 export default function StaffQrAttendance() {
-  const { t } = useTranslation();
   const [scannerVersion, setScannerVersion] = useState(0);
   const [isScanning, setIsScanning] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -161,7 +159,7 @@ export default function StaffQrAttendance() {
                 <ScanLine className="h-3.5 w-3.5" />
                 Staff QR attendance
               </div>
-              <h1 className="m1-display">{t("attendance.qr.scanThenConfirmGps")}</h1>
+              <h1 className="m1-display">Scan branch QR, then confirm GPS</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
                 The scanner only records attendance when the QR token matches a configured branch and the device is inside that branch radius.
               </p>
@@ -204,7 +202,7 @@ export default function StaffQrAttendance() {
                 </div>
               )}
             </div>
-            {processing ? <div className="mt-4 text-sm text-primary">{t("attendance.qr.processing")}</div> : null}
+            {processing ? <div className="mt-4 text-sm text-primary">Processing QR and GPS location...</div> : null}
             {error ? <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
           </section>
 
@@ -217,17 +215,17 @@ export default function StaffQrAttendance() {
                 </div>
                 <div className="mt-4 space-y-4">
                   <div>
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{t("attendance.qr.result")}</div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Result</div>
                   <div className="mt-1 text-2xl font-black text-white">
                       {isCheckout ? "Check out recorded" : "Check in recorded"}
                   </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                    <InfoRow label={t("attendance.qr.employee")} value={record.employee_name || "-"} />
-                    <InfoRow label={t("attendance.qr.branch")} value={record.branch_name || "-"} />
-                    <InfoRow label={t("attendance.qr.time")} value={formatDateTime(eventTime)} />
-                    <InfoRow label={t("attendance.qr.distance")} value={formatDistance(result?.distanceMeters)} />
-                    <InfoRow label={t("attendance.qr.allowedRadius")} value={formatDistance(result?.allowedRadiusMeters)} />
+                    <InfoRow label="Employee" value={record.employee_name || "-"} />
+                    <InfoRow label="Branch" value={record.branch_name || "-"} />
+                    <InfoRow label="Time" value={formatDateTime(eventTime)} />
+                    <InfoRow label="Distance" value={formatDistance(result?.distanceMeters)} />
+                    <InfoRow label="Allowed radius" value={formatDistance(result?.allowedRadiusMeters)} />
                   </div>
                 </div>
               </section>

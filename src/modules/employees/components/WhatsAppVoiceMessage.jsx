@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { CheckCheck, Pause, Play } from "lucide-react";
 
 import { normalizeAudioDuration } from "../lib/chatAttachments";
@@ -15,14 +14,13 @@ const formatDuration = (seconds = 0) => {
 export default function WhatsAppVoiceMessage({
   src,
   outgoing = false,
-  label = "",
+  label = "Voice message",
   timeText = "",
   showChecks = false,
   read = false,
   duration: messageDuration = 0,
   className = "",
 }) {
-  const { t } = useTranslation();
   const audioRef = useRef(null);
   const waveformRef = useRef(null);
   const metadataLoadRequestedRef = useRef(false);
@@ -130,7 +128,7 @@ export default function WhatsAppVoiceMessage({
           type="button"
           onClick={togglePlayback}
           className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${ outgoing ? "bg-[#d9fdd3] text-[#005c4b]" : "bg-[#e9edef] text-[#202c33]" }`}
-          aria-label={playing ? t("employeePortal.chrome.pauseVoiceMessage") : t("employeePortal.chrome.playVoiceMessage")}
+          aria-label={playing ? "Pause voice message" : "Play voice message"}
         >
           {playing ? <Pause className="h-[15px] w-[15px] fill-current" /> : <Play className="h-[15px] w-[15px] fill-current ps-0.5" />}
         </button>
@@ -139,7 +137,7 @@ export default function WhatsAppVoiceMessage({
           type="button"
           onClick={seekToWaveformPosition}
           className="flex h-5 min-w-0 flex-1 items-center gap-[2px] overflow-hidden"
-          aria-label={label || t("employeePortal.chrome.voiceMessage")}
+          aria-label={label}
         >
           {WAVEFORM_BARS.map((height, index) => {
             const active = index <= Math.round(progress * (WAVEFORM_BARS.length - 1));

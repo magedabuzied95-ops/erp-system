@@ -1,8 +1,4 @@
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
-import i18n from "../../../i18n/i18n";
-
-/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
-const tt = (key, options) => i18n.t(key, options);
 
 const unique = (items = []) => Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean)));
 
@@ -148,16 +144,9 @@ export const stripInternalSectionLabels = (value = "") =>
     .join("\n")
     .trim();
 
-/*
- * toneBank mixes GENERATED COPY with UI chrome: hooks/bodies/ctas are the
- * Arabic copy the generator emits and are never translated, while `label` is
- * only ever rendered in the tone picker. The label is a getter so a module
- * scope constant cannot freeze it at import time.
- */
 const toneBank = {
   premium: {
-    id: "premium",
-    get label() { return tt("marketing.socialTones.premium"); },
+    label: "Premium",
     hooks: [
       "ستايل متوازن يعطي حضور أنيق من أول نظرة.",
       "اختيار هادي يطلع التفاصيل بشكل مرتب وواضح.",
@@ -179,8 +168,7 @@ const toneBank = {
     ],
   },
   luxury: {
-    id: "luxury",
-    get label() { return tt("marketing.socialTones.luxury"); },
+    label: "Luxury",
     hooks: [
       "لمسة راقية بتطلع اللوك بشكل أنيق وموزون.",
       "تفاصيل هادئة بتدي إحساس luxury من أول نظرة.",
@@ -202,8 +190,7 @@ const toneBank = {
     ],
   },
   sport: {
-    id: "sport",
-    get label() { return tt("marketing.socialTones.sport"); },
+    label: "Sport",
     hooks: [
       "مريح ومتحرك معاك في اليوم الطويل.",
       "ستايل sport عملي وسهل يعتمد عليه.",
@@ -225,8 +212,7 @@ const toneBank = {
     ],
   },
   friendly: {
-    id: "friendly",
-    get label() { return tt("marketing.socialTones.friendly"); },
+    label: "Friendly",
     hooks: [
       "اختيار سهل يليق على أكتر من مناسبة.",
       "شكل بسيط ومريح يخليك تعتمد عليه كل يوم.",
@@ -248,8 +234,7 @@ const toneBank = {
     ],
   },
   sales: {
-    id: "sales",
-    get label() { return tt("marketing.socialTones.sales"); },
+    label: "Sales",
     hooks: [
       "فرصة سريعة قبل ما الكمية تتحرك.",
       "عرض واضح وسريع يستاهل الالتقاط الآن.",
@@ -355,7 +340,7 @@ export const buildSocialAICopy = ({
   const hook = selectedTone.hooks[hookVariant % selectedTone.hooks.length] || selectedTone.hooks[0];
   const body = selectedTone.bodies[hookVariant % selectedTone.bodies.length] || selectedTone.bodies[0];
   const cta = selectedTone.ctas[ctaVariant % selectedTone.ctas.length] || selectedTone.ctas[0];
-  const toneHint = selectedTone.id;
+  const toneHint = selectedTone.label;
 
   const stockStatus =
     availability.stock > 0
@@ -419,9 +404,4 @@ export const buildSocialAICopy = ({
 };
 
 export const defaultSocialTone = "premium";
-export const socialToneOptions = Object.entries(toneBank).map(([id, value]) => ({
-  id,
-  get label() {
-    return value.label;
-  },
-}));
+export const socialToneOptions = Object.entries(toneBank).map(([id, value]) => ({ id, label: value.label }));

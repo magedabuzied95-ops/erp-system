@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
 import { Gift, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
@@ -16,7 +15,6 @@ const tierStyles = {
 };
 
 function CustomerLoyaltyProfile() {
-  const { t } = useTranslation();
   const { customerId } = useParams();
   const [customer, setCustomer] = useState(null);
   const [loyalty, setLoyalty] = useState(null);
@@ -44,7 +42,7 @@ function CustomerLoyaltyProfile() {
       } catch (error) {
         if (!active) return;
         console.log(error);
-        toast.error(t("loyalty.profile.fallbackToast"));
+        toast.error("استخدام بيانات الولاء البديلة");
         setCustomer(loyaltyMockData.customerDetail.customer);
         setLoyalty(loyaltyMockData.customerDetail.loyalty);
         setTransactions(loyaltyMockData.customerDetail.transactions);
@@ -62,7 +60,7 @@ function CustomerLoyaltyProfile() {
   const handleRedeem = async () => {
     const redeemPoints = Number(points);
     if (!Number.isFinite(redeemPoints) || redeemPoints <= 0) {
-      toast.error(t("loyalty.profile.invalidPoints"));
+      toast.error("أدخل نقاطًا صحيحة");
       return;
     }
 
@@ -77,7 +75,7 @@ function CustomerLoyaltyProfile() {
       }));
       setTransactions((current) => [response?.transaction, ...current].filter(Boolean));
       setPoints("");
-      toast.success(t("loyalty.profile.redeemed"));
+      toast.success("تم استبدال النقاط");
     } catch (error) {
       console.log(error);
       toast.error(error.message || "تعذر استبدال النقاط");
@@ -94,8 +92,8 @@ function CustomerLoyaltyProfile() {
             <UserCircle2 className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-primary/80">{t("loyalty.profile.eyebrow")}</p>
-            <h1 className="m1-page-title mt-2">{loading ? t("loyalty.profile.loading") : customer?.name}</h1>
+            <p className="text-xs uppercase tracking-[0.3em] text-primary/80">ملف الولاء للعميل</p>
+            <h1 className="m1-page-title mt-2">{loading ? "Loading..." : customer?.name}</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">
               {customer?.phone || "No phone"} {customer?.email ? `| ${customer.email}` : ""}
             </p>
@@ -135,17 +133,17 @@ function CustomerLoyaltyProfile() {
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between">
-            <h2 className="m1-section-title">{t("loyalty.profile.history")}</h2>
+            <h2 className="m1-section-title">سجل المعاملات</h2>
             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[loyalty?.tier] || tierStyles.Bronze}`}>{loyalty?.tier || "Bronze"}</span>
           </div>
           <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-[var(--surface)] text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <tr>
-                  <th className="px-4 py-3">{t("loyalty.profile.type")}</th>
-                  <th className="px-4 py-3">{t("loyalty.profile.points")}</th>
-                  <th className="px-4 py-3">{t("loyalty.profile.value")}</th>
-                  <th className="px-4 py-3">{t("loyalty.profile.date")}</th>
+                  <th className="px-4 py-3">النوع</th>
+                  <th className="px-4 py-3">النقاط</th>
+                  <th className="px-4 py-3">القيمة</th>
+                  <th className="px-4 py-3">التاريخ</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,11 +161,11 @@ function CustomerLoyaltyProfile() {
         </div>
 
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
-          <h2 className="m1-section-title">{t("loyalty.profile.redeemTitle")}</h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">{t("loyalty.profile.redeemHint")}</p>
+          <h2 className="m1-section-title">استبدال النقاط</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">حوّل النقاط إلى قيمة عند إتمام شراء العميل.</p>
 
           <label className="mt-5 block space-y-2 text-sm text-[var(--muted)]">
-            <span className="block text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{t("loyalty.profile.pointsToRedeem")}</span>
+            <span className="block text-xs uppercase tracking-[0.2em] text-[var(--muted)]">النقاط المطلوب استبدالها</span>
             <input
               type="number"
               value={points}

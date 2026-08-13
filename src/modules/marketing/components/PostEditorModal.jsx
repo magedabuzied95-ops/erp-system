@@ -22,11 +22,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
-
-/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
-const tt = (key, options) => i18n.t(key, options);
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 
@@ -737,7 +732,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
     const storySlides = buildStoryCreativeSlides({ form, mediaUrls });
     return (
       <div className="mx-auto w-full max-w-[620px]">
-        <StoryCreativePreview slides={storySlides} showThumbnails={storySlides.length > 1} title={tt("marketing.postEditor.story.slidesTitle")} />
+        <StoryCreativePreview slides={storySlides} showThumbnails={storySlides.length > 1} title="شرائح القصة" />
       </div>
     );
   }
@@ -908,9 +903,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   );
 }
 
-export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "", compact = false }) {
-  const { t } = useTranslation();
-  const slidesTitle = title || t("marketing.postEditor.story.slidesTitle");
+export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "شرائح القصة", compact = false }) {
   const [activeStorySlideIndex, setActiveStorySlideIndex] = useState(0);
   const safeSlides = slides.length ? slides : [{}];
   const isControlled = Number.isInteger(activeIndex);
@@ -942,7 +935,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
       </div>
       {showThumbnails ? (
         <div className="min-w-0">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400">{slidesTitle}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400">{title}</div>
           <div className="grid grid-cols-3 gap-3 xl:grid-cols-2">
             {safeSlides.map((slide, index) => (
               <button
@@ -955,7 +948,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
                 className={`group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition ${ index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25" }`}
               >
                 <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} compact />
-                <div className="mt-2 truncate px-1 pb-1 text-[11px] font-black text-slate-200">{t("marketing.postEditor.story.slide", { number: index + 1 })}</div>
+                <div className="mt-2 truncate px-1 pb-1 text-[11px] font-black text-slate-200">Slide {index + 1}</div>
               </button>
             ))}
           </div>
@@ -1217,9 +1210,7 @@ export default function PostEditorModal({
                 >
                   <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                   <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
-                  <option value="tiktok" disabled>
-                    {t("marketing.postEditor.channel.platformComingSoon", { platform: t("marketing.social.platforms.tiktok") })}
-                  </option>
+                  <option value="tiktok" disabled>TikTok - Coming Soon</option>
                   <option value="whatsapp">{t("marketing.social.platforms.whatsapp")}</option>
                   <option value="all">{t("marketing.social.allChannels")}</option>
                 </select>
@@ -1227,10 +1218,8 @@ export default function PostEditorModal({
               {isTikTokChannel ? (
                 <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
                   <div className="font-black text-white">TikTok</div>
-                  <div className="mt-1 font-semibold">{t("marketing.postEditor.channel.comingSoon")}</div>
-                  <div className="mt-1 text-xs text-amber-100/90">
-                    {t("marketing.postEditor.channel.connectLater", { platform: t("marketing.social.platforms.tiktok") })}
-                  </div>
+                  <div className="mt-1 font-semibold">Coming Soon</div>
+                  <div className="mt-1 text-xs text-amber-100/90">Connect TikTok لاحقًا</div>
                 </div>
               ) : null}
               <label className="space-y-2">
@@ -1247,7 +1236,7 @@ export default function PostEditorModal({
             <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] p-4 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.postEditor.caption.tone")}</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Tone</span>
                   <select
                     value={captionTone}
                     onChange={(event) => setCaptionTone(event.target.value)}
@@ -1266,7 +1255,7 @@ export default function PostEditorModal({
                   className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-xs font-bold text-[var(--primary)] transition hover:brightness-110"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  {t("marketing.postEditor.caption.generate")}
+                  Generate
                 </button>
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -1275,7 +1264,7 @@ export default function PostEditorModal({
                   onClick={regenerateHook}
                   className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
-                  <div className="text-sm font-black text-white">{t("marketing.postEditor.caption.regenerateHook")}</div>
+                  <div className="text-sm font-black text-white">Regenerate Hook</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.hook}</div>
                 </button>
                 <button
@@ -1283,7 +1272,7 @@ export default function PostEditorModal({
                   onClick={regenerateCta}
                   className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
-                  <div className="text-sm font-black text-white">{t("marketing.postEditor.caption.regenerateCta")}</div>
+                  <div className="text-sm font-black text-white">Regenerate CTA</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.cta}</div>
                 </button>
                 <button
@@ -1291,7 +1280,7 @@ export default function PostEditorModal({
                   onClick={regenerateHashtags}
                   className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-left transition hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
                 >
-                  <div className="text-sm font-black text-white">{t("marketing.postEditor.caption.regenerateHashtags")}</div>
+                  <div className="text-sm font-black text-white">Regenerate Hashtags</div>
                   <div className="text-xs text-slate-400">{composedAiCopy.hashtags.join(" ")}</div>
                 </button>
               </div>
@@ -1341,8 +1330,8 @@ export default function PostEditorModal({
 
             <label className="space-y-2 rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
               <span className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
-                <span>{t("marketing.postEditor.firstComment.title")}</span>
-                <span className="normal-case tracking-normal text-slate-500">{t("marketing.postEditor.firstComment.samePublisher")}</span>
+                <span>التعليق الأول المقترح</span>
+                <span className="normal-case tracking-normal text-slate-500">نفس تعليق البابلشر</span>
               </span>
               <textarea
                 value={form.first_comment || ""}
@@ -1350,13 +1339,13 @@ export default function PostEditorModal({
                 rows={9}
                 dir="auto"
                 className="w-full resize-y rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-emerald-400"
-                placeholder={t("marketing.postEditor.firstComment.placeholder")}
+                placeholder="سيتم توليد التعليق من بيانات المنتج"
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <label className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.postEditor.fields.productUrl")}</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Product URL</span>
                 <input
                   value={form.product_url || ""}
                   onChange={(event) => updateField("product_url", event.target.value)}
@@ -1365,9 +1354,9 @@ export default function PostEditorModal({
                 />
               </label>
               <div className="grid grid-cols-3 gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                <MetaPill label={t("marketing.postEditor.fields.price")} value={form.price} />
-                <MetaPill label={t("marketing.postEditor.fields.color")} value={form.color_name} />
-                <MetaPill label={t("marketing.postEditor.fields.size")} value={form.size_name} />
+                <MetaPill label="Price" value={form.price} />
+                <MetaPill label="Color" value={form.color_name} />
+                <MetaPill label="Size" value={form.size_name} />
               </div>
             </div>
 

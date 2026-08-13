@@ -53,24 +53,18 @@ import {
   upsertOrderMeta,
 } from "../lib/ordersStore";
 
-import i18n from "../../../i18n/i18n";
-
-/** Module-scope translator for helpers defined outside a component. */
-const tt = (key, options) => i18n.t(key, options);
-
 const BOSTA_SUBSCRIPTION_REQUIRED_CODE = "BOSTA_SUBSCRIPTION_REQUIRED";
-// Resolved at call time, not import time, so it follows a language change.
-const bostaSubscriptionRequiredMessage = () => tt("orders.shipping.bostaPlanRequired");
+const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.";
 
 const getAttributionLabel = (order = {}) => {
   const source = String(order.attribution_type || order.marketing_source || "").toLowerCase();
   const platform = String(order.marketing_platform || order.marketing_source || "").toLowerCase();
-  if (source.includes("instagram") && source.includes("story")) return tt("orders.channels.instagramStory");
-  if (source.includes("story")) return tt("orders.channels.story");
-  if (platform === "facebook" || source.includes("facebook")) return tt("orders.channels.facebookPost");
-  if (platform === "instagram" || source.includes("instagram")) return tt("orders.channels.instagramPost");
-  if (platform === "whatsapp" || source.includes("whatsapp")) return tt("orders.channels.whatsappCampaign");
-  if (platform === "tiktok" || source.includes("tiktok")) return tt("orders.channels.tiktokCampaign");
+  if (source.includes("instagram") && source.includes("story")) return "قصة إنستغرام";
+  if (source.includes("story")) return "قصة";
+  if (platform === "facebook" || source.includes("facebook")) return "منشور فيسبوك";
+  if (platform === "instagram" || source.includes("instagram")) return "منشور إنستغرام";
+  if (platform === "whatsapp" || source.includes("whatsapp")) return "حملة واتساب";
+  if (platform === "tiktok" || source.includes("tiktok")) return "حملة تيك توك";
   if (order.marketing_campaign) return String(order.marketing_campaign);
   return "";
 };
@@ -78,25 +72,25 @@ const getAttributionLabel = (order = {}) => {
 const whatsappConfirmationBadge = (order = {}) => {
   if (order.whatsapp_cancelled_at) {
     return {
-      label: tt("orders.whatsapp.cancelled"),
+      label: "ملغي عبر واتساب",
       className: "border-rose-400/25 bg-rose-400/10 text-rose-200",
     };
   }
   if (order.whatsapp_confirmed_at) {
     return {
-      label: tt("orders.whatsapp.confirmed"),
+      label: "مؤكد عبر واتساب",
       className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
     };
   }
   if (order.whatsapp_confirmation_sent_at && String(order.status || "").toLowerCase() === "pending_confirmation") {
     return {
-      label: tt("orders.whatsapp.awaitingConfirmation"),
+      label: "بانتظار تأكيد واتساب",
       className: "border-amber-400/25 bg-amber-400/10 text-amber-200",
     };
   }
   if (order.whatsapp_payment_review_sent_at) {
     return {
-      label: tt("orders.whatsapp.paymentReviewSent"),
+      label: "تم إرسال مراجعة الدفع عبر واتساب",
       className: "border-primary/25 bg-primary/10 text-primary",
     };
   }
@@ -106,23 +100,23 @@ const whatsappConfirmationBadge = (order = {}) => {
 const invoiceWhatsappBadge = (order = {}) => {
   if (!order.whatsapp_invoice_sent_at) return null;
   return {
-    label: tt("orders.whatsapp.invoiceSent"),
+    label: "تم إرسال فاتورة واتساب",
     className: "border-violet-400/25 bg-violet-400/10 text-violet-200",
   };
 };
 
 const shipmentWhatsappBadges = (order = {}) => [
   order.whatsapp_shipment_created_sent_at
-    ? { label: tt("orders.whatsapp.shipmentSent"), className: "border-primary/25 bg-primary/10 text-primary" }
+    ? { label: "تم إرسال الشحنة عبر واتساب", className: "border-primary/25 bg-primary/10 text-primary" }
     : null,
   order.whatsapp_shipped_sent_at
-    ? { label: tt("orders.whatsapp.shippingNotified"), className: "border-primary/25 bg-primary/10 text-primary" }
+    ? { label: "تم إشعار الشحن عبر واتساب", className: "border-primary/25 bg-primary/10 text-primary" }
     : null,
   order.whatsapp_out_for_delivery_sent_at
-    ? { label: tt("orders.whatsapp.outForDeliveryNotified"), className: "border-amber-400/25 bg-amber-400/10 text-amber-200" }
+    ? { label: "تم إشعار في الطريق للتسليم عبر واتساب", className: "border-amber-400/25 bg-amber-400/10 text-amber-200" }
     : null,
   order.whatsapp_delivered_sent_at
-    ? { label: tt("orders.whatsapp.deliveryNotified"), className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" }
+    ? { label: "تم إشعار التسليم عبر واتساب", className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" }
     : null,
 ].filter(Boolean);
 
@@ -176,13 +170,13 @@ const resolveOrderExperience = (order = {}) => {
     order.delivery_method,
     order.order_type,
   ));
-  const pickupRequested = ["pickup", "store pickup", "branch pickup", tt("inventory.transfers.receiveFromBranch")]
+  const pickupRequested = ["pickup", "store pickup", "branch pickup", "استلام من الفرع"]
     .some((value) => fulfillment.includes(value));
-  const shippingRequested = ["shipping", "delivery", "courier", tt("orders.bulk.ship"), tt("orders.shipping.delivery")]
+  const shippingRequested = ["shipping", "delivery", "courier", "شحن", "توصيل"]
     .some((value) => fulfillment.includes(value));
   const websiteOrder = ["website", "storefront", "online", "web"]
     .some((value) => source === value || source.includes(value));
-  const posOrder = ["pos", "point of sale", tt("orders.sources.pos")]
+  const posOrder = ["pos", "point of sale", "نقطة البيع"]
     .some((value) => source === value || source.includes(value));
   const hasShippingData = Boolean(
     order.customer_address ||
@@ -196,12 +190,12 @@ const resolveOrderExperience = (order = {}) => {
     !["", "manual", "in store delivery", "in_store_delivery"].includes(normalizeComparable(order.shipping_provider))
   );
 
-  if (pickupRequested) return { mode: "pickup", label: tt("inventory.transfers.receiveFromBranch"), requiresShipping: false, isPos: false };
+  if (pickupRequested) return { mode: "pickup", label: "استلام من الفرع", requiresShipping: false, isPos: false };
   if (shippingRequested || websiteOrder || hasShippingData) {
-    return { mode: "shipping", label: websiteOrder ? tt("orders.sources.onlineShipping") : tt("orders.sources.shippingOrder"), requiresShipping: true, isPos: false };
+    return { mode: "shipping", label: websiteOrder ? "طلب أونلاين · شحن" : "طلب شحن", requiresShipping: true, isPos: false };
   }
-  if (posOrder || !source) return { mode: "pos", label: tt("orders.sources.directPos"), requiresShipping: false, isPos: true };
-  return { mode: "direct", label: tt("orders.sources.directInvoice"), requiresShipping: false, isPos: false };
+  if (posOrder || !source) return { mode: "pos", label: "بيع مباشر · POS", requiresShipping: false, isPos: true };
+  return { mode: "direct", label: "فاتورة مباشرة", requiresShipping: false, isPos: false };
 };
 
 const toMoneyNumber = (value, fallback = 0) => {
@@ -347,21 +341,21 @@ const getPaymentBadge = (order = {}, fallback = "") => {
     firstValue(order.payment_status, order.paymentStatus, order.transfer_proof_status, order.status, fallback)
   );
   if (["partially paid", "partially_paid", "partial"].includes(raw)) {
-    return { label: tt("orders.statusLabels.partiallyPaid"), className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
+    return { label: "مدفوع جزئياً", className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
   }
   if (["paid", "shipping paid", "confirmed", "approved"].includes(raw)) {
-    return { label: tt("orders.statusLabels.paid"), className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" };
+    return { label: "مدفوع", className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" };
   }
   if (["awaiting verification", "pending", "unpaid"].includes(raw)) {
-    return { label: tt("inventory.transfers.pendingReview"), className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
+    return { label: "بانتظار المراجعة", className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
   }
   if (raw === "rejected" || raw === "payment rejected") {
-    return { label: tt("orders.statusLabels.rejected"), className: "border-rose-500/25 bg-rose-500/10 text-rose-200" };
+    return { label: "مرفوض", className: "border-rose-500/25 bg-rose-500/10 text-rose-200" };
   }
   if (raw === "refunded") {
-    return { label: tt("orders.statusLabels.refunded"), className: "border-purple-500/25 bg-purple-500/10 text-purple-200" };
+    return { label: "مسترد", className: "border-purple-500/25 bg-purple-500/10 text-purple-200" };
   }
-  return { label: fallback || order.paymentStatus || tt("inventory.transfers.pendingReview"), className: "border-zinc-500/25 bg-zinc-500/10 text-zinc-200" };
+  return { label: fallback || order.paymentStatus || "بانتظار المراجعة", className: "border-zinc-500/25 bg-zinc-500/10 text-zinc-200" };
 };
 
 const buildSmartInsights = (order = {}, items = [], shipping = {}) => {
@@ -599,8 +593,8 @@ function OrderDetails() {
   const requiresShipping = orderExperience.requiresShipping || shippingSetupOpen;
   const normalizedShipmentState = normalizeComparable(shipping.shipment_status || shipping.shipping_status || "pending");
   const hasCreatedShipment = Boolean(shipping.shipment_id || shipping.tracking_number) || !["", "pending", "waiting"].includes(normalizedShipmentState);
-  const shipmentDelivered = ["delivered", tt("orders.fulfillment.delivered")].includes(normalizedShipmentState);
-  const shipmentInTransit = ["shipped", "out for delivery", "in transit", tt("orders.statusLabels.shipped"), tt("orders.statusLabels.outForDelivery")].includes(normalizedShipmentState);
+  const shipmentDelivered = ["delivered", "تم التسليم"].includes(normalizedShipmentState);
+  const shipmentInTransit = ["shipped", "out for delivery", "in transit", "تم الشحن", "خرج للتوصيل"].includes(normalizedShipmentState);
   const isCodOrder = [
     order?.payment_method,
     order?.payment_status,
@@ -649,11 +643,11 @@ function OrderDetails() {
       !String(shipping.building_number || "").trim()
     );
     if (bostaRequiredMissing) {
-      toast.error(tt("orders.shipping.completeBostaFields"));
+      toast.error("أكمل هاتف العميل ومدينة ومنطقة وحي بوسطة واسم الشارع ورقم المبنى");
       return false;
     }
     if (shippingSetupOpen && !isBostaShippingProvider(shipping.provider) && (!String(shipping.customer_phone || "").trim() || !String(shipping.shipping_address_line || "").trim())) {
-      toast.error(tt("orders.shipping.enterPhoneAndAddress"));
+      toast.error("أدخل رقم هاتف العميل والعنوان التفصيلي قبل حفظ الشحن");
       return false;
     }
     try {
@@ -770,7 +764,7 @@ function OrderDetails() {
     } catch (err) {
       const code = err?.responseBody?.code || err?.responseBody?.details?.errorCode || err?.responseBody?.details?.code || "";
       const message = code === BOSTA_SUBSCRIPTION_REQUIRED_CODE
-        ? bostaSubscriptionRequiredMessage()
+        ? BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE
         : (err?.responseBody?.message || err?.responseBody?.details?.message || err.message || "Bosta shipment action failed");
       setBostaActionError({ code, message });
       toast.error(message);
@@ -834,9 +828,9 @@ function OrderDetails() {
   const handlePdf = async () => {
     const invoice = {
       invoiceNumber: order.invoice_number,
-      invoiceLabel: tt("orders.details.invoice"),
-      companyName: tt("common.employeeHub.analytics.export.companyName"),
-      companyTagline: tt("orders.details.enterpriseOps"),
+      invoiceLabel: "فاتورة الطلب",
+      companyName: "نظام ERP",
+      companyTagline: "إدارة عمليات المؤسسة والاشتراكات",
       customerName: order.customer_name,
       customerPhone: order.customer_phone || "",
       customerEmail: order.customer_email || "",
@@ -915,7 +909,7 @@ function OrderDetails() {
 
   const shareWhatsApp = () => {
     const phone = normalizePhoneNumber(order.customer_phone || order.phone || "");
-    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: tt("common.employeeHub.analytics.export.companyName") }));
+    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: "نظام ERP" }));
     window.open(buildWhatsappDeepLink({ phone, message }), "_blank", "noopener,noreferrer");
   };
 
@@ -926,7 +920,7 @@ function OrderDetails() {
       return;
     }
 
-    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: tt("common.employeeHub.analytics.export.companyName") }));
+    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: "نظام ERP" }));
 
     window.open(buildWhatsappDeepLink({ phone, message }), "_blank", "noopener,noreferrer");
   };
@@ -988,7 +982,7 @@ function OrderDetails() {
                     </span>
                   ) : null}
                   <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${requiresShipping ? "border-primary/20 bg-primary/10 text-primary" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"}`}>
-                    {shippingSetupOpen ? tt("orders.shipping.setUpForInvoice") : orderExperience.label}
+                    {shippingSetupOpen ? "إعداد شحن للفاتورة" : orderExperience.label}
                   </span>
                 </div>
                 <h2 className="m1-section-title mt-3 text-white">{order.customer_name}</h2>
@@ -1072,8 +1066,8 @@ function OrderDetails() {
           {!requiresShipping ? (
             <div className="flex flex-col gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-sm font-black text-emerald-100">{tt("orders.sources.directInvoiceHint")}</div>
-                <div className="mt-1 text-xs font-semibold text-zinc-400">{tt("orders.sources.directInvoiceActions")}</div>
+                <div className="text-sm font-black text-emerald-100">فاتورة بيع مباشر — لا توجد خطوات شحن أو مراجعة تحويل مطلوبة</div>
+                <div className="mt-1 text-xs font-semibold text-zinc-400">يمكنك طباعة الفاتورة أو إرجاع الأصناف مباشرة، وأضف الشحن فقط إذا طلب العميل توصيلها.</div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <button type="button" onClick={() => {
@@ -1081,10 +1075,10 @@ function OrderDetails() {
                   setShippingSetupOpen(true);
                 }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   <Truck className="h-4 w-4" />
-                  {tt("orders.shipping.addToInvoice")}
+                  إضافة شحن للفاتورة
                 </button>
                 <button type="button" onClick={() => setStatusTimelineOpen(true)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
-                  {tt("orders.details.activityLog")}
+                  سجل العملية
                 </button>
               </div>
             </div>
@@ -1467,7 +1461,7 @@ function OrderDetails() {
               </button>
               {shippingSetupOpen ? (
                 <button type="button" onClick={() => setShippingSetupOpen(false)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/10">
-                  {tt("orders.bulk.cancel")}
+                  إلغاء
                 </button>
               ) : null}
             </div>
@@ -1495,66 +1489,66 @@ function OrderDetails() {
                 <div className="grid gap-3 2xl:grid-cols-2">
                   <div className="order-details-address-panel grid gap-3 rounded-2xl border p-4 sm:grid-cols-2 2xl:col-span-2">
                     <div className="sm:col-span-2">
-                      <div className="order-details-address-title text-sm font-black">{isBostaShippingProvider(shipping.provider) ? tt("orders.shipping.bostaAddress") : tt("orders.shipping.customerDelivery")}</div>
-                      <div className="order-details-address-description mt-1 text-xs font-semibold">{isBostaShippingProvider(shipping.provider) ? tt("orders.shipping.bostaDirectoryHint") : tt("orders.shipping.saveBeforeCreate")}</div>
+                      <div className="order-details-address-title text-sm font-black">{isBostaShippingProvider(shipping.provider) ? "عنوان شحن Bosta" : "بيانات توصيل العميل"}</div>
+                      <div className="order-details-address-description mt-1 text-xs font-semibold">{isBostaShippingProvider(shipping.provider) ? "اختيارات المدينة والمنطقة والحي مأخوذة مباشرة من دليل Bosta لضمان قبول الشحنة." : "احفظ بيانات التوصيل قبل إنشاء الشحنة."}</div>
                     </div>
-                    <FieldLabel label={tt("orders.shipping.customerPhone")}>
+                    <FieldLabel label="رقم هاتف العميل">
                       <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                     </FieldLabel>
                     {isBostaShippingProvider(shipping.provider) ? (
                       <>
-                        <FieldLabel label={tt("orders.shipping.bostaCity")}>
+                        <FieldLabel label="مدينة Bosta">
                           <select value={shipping.shipping_city_id} disabled={bostaLocations.loadingCities} onChange={(e) => {
                             const selected = bostaLocations.cities.find((item) => shippingLocationId(item) === e.target.value);
                             const label = shippingLocationLabel(selected);
                             setShipping((prev) => ({ ...prev, shipping_city_id: e.target.value, shipping_zone_id: "", shipping_district_id: "", governorate: label, city_area: "", shipping_city_name_ar: selected?.name_ar || "", shipping_city_name_en: selected?.name_en || "", shipping_zone_name_ar: "", shipping_zone_name_en: "", shipping_district_name_ar: "", shipping_district_name_en: "" }));
                           }} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
-                            <option value="" className="bg-zinc-950">{bostaLocations.loadingCities ? tt("orders.shipping.loadingCities") : tt("orders.shipping.selectCity")}</option>
+                            <option value="" className="bg-zinc-950">{bostaLocations.loadingCities ? "تحميل مدن Bosta..." : "اختر المدينة *"}</option>
                             {bostaLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
                           </select>
                         </FieldLabel>
-                        <FieldLabel label={tt("orders.shipping.zone")}>
+                        <FieldLabel label="المنطقة">
                           <select value={shipping.shipping_zone_id} disabled={!shipping.shipping_city_id || bostaLocations.loadingZones} onChange={(e) => {
                             const selected = bostaLocations.zones.find((item) => shippingLocationId(item) === e.target.value);
                             setShipping((prev) => ({ ...prev, shipping_zone_id: e.target.value, shipping_district_id: "", city_area: shippingLocationLabel(selected), shipping_zone_name_ar: selected?.name_ar || "", shipping_zone_name_en: selected?.name_en || "", shipping_district_name_ar: "", shipping_district_name_en: "" }));
                           }} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
-                            <option value="" className="bg-zinc-950">{bostaLocations.loadingZones ? tt("orders.shipping.loadingZones") : tt("orders.shipping.selectZone")}</option>
+                            <option value="" className="bg-zinc-950">{bostaLocations.loadingZones ? "تحميل المناطق..." : "اختر المنطقة *"}</option>
                             {bostaLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
                           </select>
                         </FieldLabel>
-                        <FieldLabel label={tt("orders.shipping.district")}>
+                        <FieldLabel label="الحي">
                           <select value={shipping.shipping_district_id} disabled={!shipping.shipping_zone_id || bostaLocations.loadingDistricts} onChange={(e) => {
                             const selected = bostaLocations.districts.find((item) => shippingLocationId(item) === e.target.value);
                             setShipping((prev) => ({ ...prev, shipping_district_id: e.target.value, city_area: shippingLocationLabel(selected) || prev.city_area, shipping_district_name_ar: selected?.name_ar || "", shipping_district_name_en: selected?.name_en || "" }));
                           }} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:opacity-50">
-                            <option value="" className="bg-zinc-950">{bostaLocations.loadingDistricts ? tt("orders.shipping.loadingDistricts") : tt("orders.shipping.selectDistrict")}</option>
+                            <option value="" className="bg-zinc-950">{bostaLocations.loadingDistricts ? "تحميل الأحياء..." : "اختر الحي *"}</option>
                             {bostaLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)} className="bg-zinc-950">{shippingLocationLabel(item)}</option>)}
                           </select>
                         </FieldLabel>
                         <div className="sm:col-span-2">
-                          <FieldLabel label={tt("orders.shipping.streetAndAddress")}>
-                            <input value={shipping.street_address} onChange={(e) => setShipping((prev) => ({ ...prev, street_address: e.target.value, shipping_address_line: e.target.value }))} placeholder={tt("orders.shipping.streetPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                          <FieldLabel label="اسم الشارع والعنوان بالتفصيل">
+                            <input value={shipping.street_address} onChange={(e) => setShipping((prev) => ({ ...prev, street_address: e.target.value, shipping_address_line: e.target.value }))} placeholder="مثال: شارع التسعين الشمالي *" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                           </FieldLabel>
                         </div>
-                        <FieldLabel label={tt("orders.shipping.buildingNumber")}>
-                          <input value={shipping.building_number} onChange={(e) => setShipping((prev) => ({ ...prev, building_number: e.target.value }))} placeholder={tt("orders.shipping.buildingNumberRequired")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        <FieldLabel label="رقم المبنى">
+                          <input value={shipping.building_number} onChange={(e) => setShipping((prev) => ({ ...prev, building_number: e.target.value }))} placeholder="رقم المبنى *" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
-                        <FieldLabel label={tt("common.employeeHub.analytics.table.role")}>
-                          <input value={shipping.floor_number} onChange={(e) => setShipping((prev) => ({ ...prev, floor_number: e.target.value }))} placeholder={tt("common.employeeHub.analytics.table.role")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        <FieldLabel label="الدور">
+                          <input value={shipping.floor_number} onChange={(e) => setShipping((prev) => ({ ...prev, floor_number: e.target.value }))} placeholder="الدور" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
-                        <FieldLabel label={tt("orders.shipping.apartmentNumber")}>
-                          <input value={shipping.apartment_number} onChange={(e) => setShipping((prev) => ({ ...prev, apartment_number: e.target.value }))} placeholder={tt("orders.shipping.apartment")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        <FieldLabel label="رقم الشقة">
+                          <input value={shipping.apartment_number} onChange={(e) => setShipping((prev) => ({ ...prev, apartment_number: e.target.value }))} placeholder="الشقة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
-                        <FieldLabel label={tt("orders.details.landmark")}>
-                          <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder={tt("orders.shipping.landmarkPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                        <FieldLabel label="علامة مميزة">
+                          <input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                         </FieldLabel>
                       </>
                     ) : (
                       <>
-                        <FieldLabel label={tt("orders.details.governorate")}><input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder={tt("orders.details.governorate")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
-                        <FieldLabel label={tt("orders.shipping.cityOrZone")}><input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder={tt("orders.details.cityArea")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
-                        <FieldLabel label={tt("orders.details.landmark")}><input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder={tt("orders.shipping.landmarkPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
-                        <div className="sm:col-span-2"><FieldLabel label={tt("orders.shipping.fullAddress")}><textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder={tt("orders.shipping.addressPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel></div>
+                        <FieldLabel label="المحافظة"><input value={shipping.governorate} onChange={(e) => setShipping((prev) => ({ ...prev, governorate: e.target.value }))} placeholder="المحافظة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <FieldLabel label="المدينة أو المنطقة"><input value={shipping.city_area} onChange={(e) => setShipping((prev) => ({ ...prev, city_area: e.target.value }))} placeholder="المدينة / المنطقة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <FieldLabel label="علامة مميزة"><input value={shipping.landmark} onChange={(e) => setShipping((prev) => ({ ...prev, landmark: e.target.value }))} placeholder="بجوار..." className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel>
+                        <div className="sm:col-span-2"><FieldLabel label="العنوان التفصيلي"><textarea value={shipping.shipping_address_line} onChange={(e) => setShipping((prev) => ({ ...prev, shipping_address_line: e.target.value }))} rows={3} placeholder="الشارع، رقم المبنى، الدور والشقة" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" /></FieldLabel></div>
                       </>
                     )}
                   </div>
@@ -1570,43 +1564,43 @@ function OrderDetails() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleBostaAction("create")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-zinc-950">{tt("orders.shipping.createBostaShipment")}</button>
-                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">{tt("orders.shipping.refreshStatus")}</button>
-                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">{tt("orders.bulk.cancel")}</button>
+                  <button type="button" onClick={() => handleBostaAction("create")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
+                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
+                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        <Info label={tt("orders.shipping.provider")} value="Bosta" />
-                        <Info label={tt("orders.shipping.city")} value={bostaCityName || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.zone")} value={bostaZoneName || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.district")} value={bostaDistrictName || t("orders.fallback.notAvailable")} />
+                        <Info label="المزود" value="Bosta" />
+                        <Info label="المدينة" value={bostaCityName || t("orders.fallback.notAvailable")} />
+                        <Info label="المنطقة" value={bostaZoneName || t("orders.fallback.notAvailable")} />
+                        <Info label="الحي" value={bostaDistrictName || t("orders.fallback.notAvailable")} />
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        <Info label={tt("orders.shipping.street")} value={shipping.street_address || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.building")} value={shipping.building_number || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.floor")} value={shipping.floor_number || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.apartment")} value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
+                        <Info label="الشارع" value={shipping.street_address || t("orders.fallback.notAvailable")} />
+                        <Info label="المبنى" value={shipping.building_number || t("orders.fallback.notAvailable")} />
+                        <Info label="الطابق" value={shipping.floor_number || t("orders.fallback.notAvailable")} />
+                        <Info label="الشقة" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        {order.landmark ? <Info label={tt("orders.details.landmark")} value={order.landmark} /> : null}
-                        <Info label={tt("orders.shipping.bostaInternalId")} value={shipping.shipping_provider_delivery_id || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.bostaTrackingNumber")} value={shipping.tracking_number || shipping.shipment_id || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.labelLink")} value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
+                        {order.landmark ? <Info label="علامة مميزة" value={order.landmark} /> : null}
+                        <Info label="معرّف Bosta الداخلي" value={shipping.shipping_provider_delivery_id || t("orders.fallback.notAvailable")} />
+                        <Info label="رقم شحنة Bosta" value={shipping.tracking_number || shipping.shipment_id || t("orders.fallback.notAvailable")} />
+                        <Info label="رابط الملصق" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
                       {shipping.shipping_label_url ? (
-                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">{tt("orders.shipping.printLabel")}</button>
+                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">طباعة الملصق</button>
                       ) : null}
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${ bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "border-amber-300/35 bg-amber-400/10 text-amber-100" : "border-rose-300/30 bg-rose-400/10 text-rose-100" }`}>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${ bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "bg-amber-300/20 text-amber-100" : "bg-rose-300/20 text-rose-100" }`}>
-                              {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? tt("orders.shipping.subscriptionRequired") : tt("orders.shipping.bostaError")}
+                              {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "الاشتراك مطلوب" : "خطأ Bosta"}
                             </span>
                             <span>{bostaActionError.message}</span>
                           </div>
                           {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? (
                             <Link to="/settings?category=shipping" className="mt-2 inline-flex items-center gap-1 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2 py-1 text-[11px] font-black text-amber-50 transition hover:bg-amber-200/20">
-                              {tt("orders.shipping.providerSettings")}
+                              إعدادات مزود الشحن
                               <ExternalLink className="h-3 w-3" />
                             </Link>
                           ) : null}
@@ -1640,12 +1634,12 @@ function OrderDetails() {
                       ))}
                     </select>
                   </FieldLabel>
-                  <FieldLabel label={isBostaShippingProvider(shipping.provider) ? tt("orders.shipping.bostaTrackingNumber") : t("orders.shipping.shipmentId")}>
+                  <FieldLabel label={isBostaShippingProvider(shipping.provider) ? "رقم شحنة Bosta" : t("orders.shipping.shipmentId")}>
                     <input
                       value={isBostaShippingProvider(shipping.provider) ? (shipping.tracking_number || shipping.shipment_id) : shipping.shipment_id}
                       onChange={(e) => setShipping((prev) => ({ ...prev, shipment_id: e.target.value }))}
                       readOnly={isBostaShippingProvider(shipping.provider)}
-                      placeholder={isBostaShippingProvider(shipping.provider) ? tt("orders.shipping.appearsAfterCreate") : t("orders.shipping.shipmentId")}
+                      placeholder={isBostaShippingProvider(shipping.provider) ? "يظهر تلقائيًا بعد إنشاء الشحنة" : t("orders.shipping.shipmentId")}
                       className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 read-only:cursor-not-allowed read-only:opacity-70"
                     />
                   </FieldLabel>
@@ -1720,14 +1714,14 @@ function OrderDetails() {
                 </button>
               ) : !shipmentDelivered && !shipmentInTransit ? (
                 <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
-                  {t("orders.shipping.markShipped", tt("orders.statusLabels.shipped"))}
+                  {t("orders.shipping.markShipped", "تم الشحن")}
                 </button>
               ) : !shipmentDelivered ? (
                 <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-primary">
-                  {t("orders.shipping.markDelivered", tt("orders.fulfillment.delivered"))}
+                  {t("orders.shipping.markDelivered", "تم التسليم")}
                 </button>
               ) : (
-                <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">{tt("orders.shipping.delivered")}</div>
+                <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">تم تسليم الشحنة</div>
               )}
               {shipping.tracking_url ? (
                 <button type="button" onClick={() => window.open(shipping.tracking_url, "_blank", "noopener,noreferrer")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
@@ -1736,10 +1730,10 @@ function OrderDetails() {
               ) : null}
               {hasCreatedShipment && !shipmentDelivered ? (
                 <details className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
-                  <summary className="cursor-pointer list-none px-4 py-3 text-center text-xs font-semibold text-zinc-400">{tt("orders.details.moreActions")}</summary>
+                  <summary className="cursor-pointer list-none px-4 py-3 text-center text-xs font-semibold text-zinc-400">إجراءات إضافية</summary>
                   <div className="grid gap-2 border-t border-white/10 p-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", tt("accounting.common.actions.retry"))}</button>
-                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", tt("orders.shipping.cancelShipment"))}</button>
+                    <button type="button" onClick={() => handleShipmentAction("retry")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">{t("orders.shipping.retryShipment", "إعادة المحاولة")}</button>
+                    <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">{t("orders.shipping.cancelShipment", "إلغاء الشحنة")}</button>
                   </div>
                 </details>
               ) : null}

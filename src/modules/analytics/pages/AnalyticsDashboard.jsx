@@ -152,12 +152,12 @@ const buildAnalyticsParams = (filters) => {
 };
 
 const createKpisFromBackend = ({ summary = {}, profit = {}, inventory = {}, customers = {}, bestSeller = {} }) => [
-  { label: "Revenue", labelKey: "analytics.kpis.revenue", value: summary.revenue || 0, delta: 0, trend: "flat" },
-  { label: "Profit", labelKey: "analytics.kpis.profit", value: profit.profit || summary.profit || 0, delta: 0, trend: "flat" },
-  { label: "Orders", labelKey: "analytics.kpis.orders", value: summary.orders || 0, delta: 0, trend: "flat" },
-  { label: "Customers", labelKey: "analytics.kpis.customers", value: summary.customers || customers.summary?.totalCustomers || 0, delta: 0, trend: "flat" },
-  { label: "Low Stock", labelKey: "analytics.kpis.lowStock", value: summary.lowStockCount ?? inventory.lowStockItems?.length ?? 0, delta: 0, trend: "flat" },
-  { label: "Best Seller", labelKey: "analytics.kpis.bestSeller", value: summary.bestSeller || bestSeller.name || "n/a", delta: 0, trend: "flat" },
+  { label: "Revenue", value: summary.revenue || 0, delta: 0, trend: "flat" },
+  { label: "Profit", value: profit.profit || summary.profit || 0, delta: 0, trend: "flat" },
+  { label: "Orders", value: summary.orders || 0, delta: 0, trend: "flat" },
+  { label: "Customers", value: summary.customers || customers.summary?.totalCustomers || 0, delta: 0, trend: "flat" },
+  { label: "Low Stock", value: summary.lowStockCount ?? inventory.lowStockItems?.length ?? 0, delta: 0, trend: "flat" },
+  { label: "Best Seller", value: summary.bestSeller || bestSeller.name || "n/a", delta: 0, trend: "flat" },
 ];
 
 const mapBackendBundle = (responses = {}) => {
@@ -434,7 +434,7 @@ function AnalyticsDashboard() {
   );
   const selectedWarehouseLabel = useMemo(
     () => warehouseOptions.find((warehouse) => String(warehouse.id) === String(filters.warehouseId))?.name || t("analytics.labels.allWarehouses"),
-    [filters.warehouseId, warehouseOptions, t]
+    [filters.warehouseId, warehouseOptions]
   );
 
   const exportPayload = useMemo(
@@ -453,7 +453,7 @@ function AnalyticsDashboard() {
         fileName: "ai-analytics-report",
       },
     }),
-    [data, filters, selectedBranchLabel, selectedWarehouseLabel, t]
+    [data, filters, selectedBranchLabel, selectedWarehouseLabel]
   );
 
   const handleExportPdf = async () => {
@@ -685,7 +685,7 @@ function AnalyticsDashboard() {
         {data.kpis.length > 0 ? data.kpis.map((kpi) => (
           <AnalyticsKpiCard
             key={kpi.label}
-            label={kpi.labelKey ? t(kpi.labelKey) : kpi.label}
+            label={kpi.label}
             value={kpi.value}
             delta={kpi.delta}
             trend={kpi.trend}
@@ -745,7 +745,7 @@ function AnalyticsDashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Panel title={t("analytics.labels.aiInsights")} subtitle={t("analytics.labels.aiInsightsSubtitle")}>
+        <Panel title="AI insights" subtitle="Narrative intelligence generated from the latest ERP signals.">
           <div className="grid gap-4">
             {data.aiInsights.length > 0 ? (
               data.aiInsights.map((item, index) => (
@@ -765,7 +765,7 @@ function AnalyticsDashboard() {
         </Panel>
 
         <div className="grid gap-4">
-          <Panel title={t("analytics.labels.predictedSales")} subtitle={t("analytics.labels.predictedSalesSubtitle")}>
+          <Panel title="Predicted sales" subtitle="Forecasted demand with confidence scoring.">
             <div className="grid gap-4 sm:grid-cols-2">
               {data.predictedSales.length > 0 ? (
                 data.predictedSales.map((item) => (
@@ -890,13 +890,13 @@ function AnalyticsDashboard() {
               <table className="m1-table m1-table--compact min-w-full">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                    <th className="px-4 py-3">{t("analytics.labels.product")}</th>
-                    <th className="px-4 py-3">{t("analytics.labels.variant")}</th>
-                    <th className="px-4 py-3">{t("analytics.labels.stock")}</th>
-                    <th className="px-4 py-3">{t("analytics.labels.avgDailySales")}</th>
-                    <th className="px-4 py-3">{t("analytics.labels.daysRemaining")}</th>
-                    <th className="px-4 py-3">{t("analytics.labels.reorderQty")}</th>
-                    <th className="px-4 py-3">{t("analytics.labels.risk")}</th>
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-4 py-3">Variant</th>
+                    <th className="px-4 py-3">Stock</th>
+                    <th className="px-4 py-3">Avg daily sales</th>
+                    <th className="px-4 py-3">Days remaining</th>
+                    <th className="px-4 py-3">Reorder qty</th>
+                    <th className="px-4 py-3">Risk</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -929,21 +929,21 @@ function AnalyticsDashboard() {
         )}
       </Panel>
 
-      <Panel title={t("analytics.labels.deadStockTableTitle")} subtitle={t("analytics.sections.deadStockSubtitle")}>
+      <Panel title="AI Dead Stock Intelligence" subtitle="Identify slow-moving inventory with blocked capital and clear action recommendations.">
         {data.deadStockAnalysis.length > 0 ? (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-4">
-              <Stat label={t("analytics.labels.itemsFlagged")} value={data.deadStockAnalysis.length} />
+              <Stat label="Items flagged" value={data.deadStockAnalysis.length} />
               <Stat
-                label={t("analytics.labels.blockedCapital")}
+                label="Blocked capital"
               value={formatCurrency(data.deadStockAnalysis.reduce((sum, item) => sum + Number(item.estimated_blocked_capital || 0), 0))}
               />
               <Stat
-                label={t("analytics.labels.criticalRisks")}
+                label="Critical risks"
                 value={data.deadStockAnalysis.filter((item) => Number(item.risk_score || 0) >= 80).length}
               />
               <Stat
-                label={t("analytics.labels.clearanceTargets")}
+                label="Clearance targets"
                 value={data.deadStockAnalysis.filter((item) => item.recommendation === "clearance").length}
               />
             </div>
@@ -952,14 +952,14 @@ function AnalyticsDashboard() {
                 <table className="m1-table m1-table--compact min-w-full">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                      <th className="px-4 py-3">{t("analytics.labels.product")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.variant")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.stock")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.lastSold")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.daysWithoutSales")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.blockedCapital")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.risk")}</th>
-                      <th className="px-4 py-3">{t("analytics.labels.recommendation")}</th>
+                      <th className="px-4 py-3">Product</th>
+                      <th className="px-4 py-3">Variant</th>
+                      <th className="px-4 py-3">Stock</th>
+                      <th className="px-4 py-3">Last sold</th>
+                      <th className="px-4 py-3">Days without sales</th>
+                      <th className="px-4 py-3">Blocked capital</th>
+                      <th className="px-4 py-3">Risk</th>
+                      <th className="px-4 py-3">Recommendation</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -995,7 +995,7 @@ function AnalyticsDashboard() {
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <Panel title={t("analytics.labels.deadStockPanelTitle")} subtitle={t("analytics.labels.deadStockPanelSubtitle")}>
+        <Panel title="Dead stock detection" subtitle="Items that are moving slowly and are tying up working capital.">
           <div className="grid gap-4 lg:grid-cols-2">
             {data.deadStockItems.length > 0 ? (
               data.deadStockItems.map((item) => (
@@ -1011,10 +1011,10 @@ function AnalyticsDashboard() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <Stat label={t("analytics.labels.color")} value={item.color} />
-                    <Stat label={t("analytics.labels.size")} value={item.size} />
-                    <Stat label={t("analytics.labels.stock")} value={item.stock} />
-                    <Stat label={t("analytics.labels.reason")} value={item.reason} />
+                    <Stat label="Color" value={item.color} />
+                    <Stat label="Size" value={item.size} />
+                    <Stat label="Stock" value={item.stock} />
+                    <Stat label="Reason" value={item.reason} />
                   </div>
                 </div>
               ))
@@ -1026,12 +1026,12 @@ function AnalyticsDashboard() {
           </div>
         </Panel>
 
-        <Panel title={t("analytics.labels.inventoryRiskTitle")} subtitle="System-wide risk signals for proactive replenishment.">
+        <Panel title="Inventory risk snapshot" subtitle="System-wide risk signals for proactive replenishment.">
           <div className="grid gap-4">
             <RiskCard
               title={t("analytics.kpis.lowStock")}
               value={`${data.summary.lowStockCount} SKUs`}
-              description={t("analytics.labels.stockAtThreshold")}
+              description="Items at or below reorder thresholds."
               icon={PackageSearch}
             />
             <RiskCard
@@ -1043,13 +1043,13 @@ function AnalyticsDashboard() {
             <RiskCard
               title={t("analytics.sections.customers")}
               value="Top 20% of customers"
-              description={t("analytics.labels.customersDriving")}
+              description="Driving a disproportionate share of monthly revenue."
               icon={Users}
             />
             <RiskCard
-              title={t("analytics.labels.cashEfficiency")}
+              title="Cash efficiency"
               value="Healthy"
-              description={t("analytics.labels.collections")}
+              description="Collections are tracking within acceptable operating range."
               icon={WalletCards}
             />
           </div>
@@ -1057,10 +1057,10 @@ function AnalyticsDashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MiniInsight icon={ShoppingCart} title={t("analytics.labels.orderVelocity")} value="Stable" />
-        <MiniInsight icon={BrainCircuit} title={t("analytics.labels.aiScore")} value="92 / 100" />
-        <MiniInsight icon={Clock3} title={t("analytics.labels.deadStockRatio")} value="4.8%" />
-        <MiniInsight icon={AlertTriangle} title={t("analytics.labels.smartAlerts")} value="3 active" />
+        <MiniInsight icon={ShoppingCart} title="Order velocity" value="Stable" />
+        <MiniInsight icon={BrainCircuit} title="AI score" value="92 / 100" />
+        <MiniInsight icon={Clock3} title="Dead stock ratio" value="4.8%" />
+        <MiniInsight icon={AlertTriangle} title="Smart alerts" value="3 active" />
       </div>
     </div>
   );

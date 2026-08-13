@@ -43,48 +43,5 @@
     "excelExported": "Excel exported",
     "csvExported": "CSV exported",
     "pdfExported": "PDF exported"
-  },
-  "center": {
-    "tabs": {
-      "insights": "AI Insights",
-      "sales": "Sales",
-      "employees": "Employees",
-      "inventory": "Inventory",
-      "customers": "Customers & Loyalty",
-      "financial": "Financial"
-    },
-    "presetPrompt": "Preset name",
-    "presetDefaultName": "{{report}} preset",
-    "presetSaved": "Report preset saved",
-    "actions": {
-      "refresh": "Refresh",
-      "savePreset": "Save preset",
-      "print": "Print"
-    },
-    "searchRows": "Search report rows",
-    "filters": {
-      "range": "Range",
-      "today": "Today",
-      "week": "Week",
-      "month": "Month",
-      "custom": "Custom",
-      "start": "Start",
-      "end": "End",
-      "warehouseId": "Warehouse ID",
-      "employeeId": "Employee ID",
-      "productId": "Product ID",
-      "categoryId": "Category ID",
-      "paymentMethod": "Payment Method",
-      "customerId": "Customer ID",
-      "shiftId": "Shift ID",
-      "salespersonId": "Salesperson ID"
-    },
-    "insights": {
-      "heading": "Business Intelligence & Smart Recommendations",
-      "recommendations": "Smart Recommendations",
-      "restock": "Restock Predictions",
-      "people": "People & Customers"
-    },
-    "emptyRows": "No report rows match the current filters."
   }
 }

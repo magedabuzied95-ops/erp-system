@@ -68,39 +68,6 @@ const EMPLOYEE_PORTAL_SALARY_ENABLED = false;
 
 const labels = {
   ar: {
-    chatDeleteForEveryone: "حذف هذه الرسالة لدى الجميع؟",
-    profileSettings: "إعدادات الملف الشخصي",
-    profileSettingsSubtitle: "حدّث صورتك ورقم الموبايل",
-    warehouseRequest: "طلب من المخزن",
-    inventoryTab: "الجرد",
-    portalAsApp: "بوابة الموظف كتطبيق",
-    enablePortalNotifications: "تفعيل إشعارات بوابة الموظف",
-    resetNotifications: "إعادة ضبط الإشعارات",
-    displayRefillTitle: "نواقص العرض",
-    displayRefillSubtitle: "المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.",
-    displayRefillPending: "قيد التنفيذ",
-    displayRefillOnDisplay: "قيد العرض",
-    displayRefillDone: "تم التنفيذ",
-    displayRefillDisplayed: "تم العرض",
-    soldSize: "تم بيع مقاس:",
-    showSize: "اعرض مقاس:",
-    availableLabel: "المتاح:",
-    sizeLabel: "المقاس:",
-    advancePayoutMethod: "طريقة استلام السلفة",
-    payoutLabel: "الاستلام:",
-    back: "رجوع",
-    storeInfo: "معلومات M1 Store",
-    businessAccount: "حساب أعمال",
-    searchMessages: "بحث في الرسائل",
-    searchMessagesPlaceholder: "ابحث في الرسائل",
-    clearSearch: "مسح البحث",
-    closeLabel: "إغلاق",
-    photoPreview: "معاينة الصورة",
-    photoHint: "JPG أو PNG أو WebP — بحد أقصى 5MB",
-    salesOpportunitiesEyebrow: "فرص البيع",
-    salesOpportunitiesSubtitle: "بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.",
-    salesOpportunitiesTitle: "فرص البيع اليوم",
-    today: "اليوم",
     title: "محفظة الموظف",
     subtitle: "رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.",
     secure: "يتم التحقق من هذا الرابط بأمان.",
@@ -154,39 +121,6 @@ const labels = {
     },
   },
   en: {
-    chatDeleteForEveryone: "Delete this message for everyone?",
-    profileSettings: "Profile settings",
-    profileSettingsSubtitle: "Update your photo and mobile number",
-    warehouseRequest: "Request from warehouse",
-    inventoryTab: "Stocktake",
-    portalAsApp: "Employee portal as an app",
-    enablePortalNotifications: "Enable employee portal notifications",
-    resetNotifications: "Reset notifications",
-    displayRefillTitle: "Display shortages",
-    displayRefillSubtitle: "Sizes required for the current display, and the completion date.",
-    displayRefillPending: "In progress",
-    displayRefillOnDisplay: "On display",
-    displayRefillDone: "Completed",
-    displayRefillDisplayed: "Displayed",
-    soldSize: "Size sold:",
-    showSize: "Put out size:",
-    availableLabel: "Available:",
-    sizeLabel: "Size:",
-    advancePayoutMethod: "Advance payout method",
-    payoutLabel: "Payout:",
-    back: "Back",
-    storeInfo: "M1 Store info",
-    businessAccount: "Business account",
-    searchMessages: "Search messages",
-    searchMessagesPlaceholder: "Search messages",
-    clearSearch: "Clear search",
-    closeLabel: "Close",
-    photoPreview: "Photo preview",
-    photoHint: "JPG, PNG or WebP — 5MB max",
-    salesOpportunitiesEyebrow: "Sales opportunities",
-    salesOpportunitiesSubtitle: "Quick cards revealing the last piece, last two pieces, or last size in your branch.",
-    salesOpportunitiesTitle: "Today's sales opportunities",
-    today: "Today",
     title: "Employee Portal",
     subtitle: "Your secure employee link opens payroll, attendance, and requests.",
     secure: "This private link is validated securely.",
@@ -3131,7 +3065,7 @@ export default function EmployeePayrollPortal() {
   };
 
   const deleteChatMessage = async (message) => {
-    if (!message?.id || !window.confirm(text.chatDeleteForEveryone)) return;
+    if (!message?.id || !window.confirm("حذف هذه الرسالة لدى الجميع؟")) return;
     try {
       setChatError("");
       await api.delete(`/employee-portal/${encodeURIComponent(token)}/chat/messages/${encodeURIComponent(message.id)}`);
@@ -3443,7 +3377,7 @@ export default function EmployeePayrollPortal() {
                   type="button"
                   onClick={openProfileSettings}
                   className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 text-slate-700"
-                  aria-label={text.profileSettings}
+                  aria-label="إعدادات الملف الشخصي"
                 >
                   <Settings className="h-5 w-5" />
                 </button>
@@ -3457,7 +3391,7 @@ export default function EmployeePayrollPortal() {
                 className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
               >
                 <Package2 className="h-4 w-4" />
-                <span>{text.warehouseRequest}</span>
+                <span>طلب من المخزن</span>
               </a>
 
               <a
@@ -3468,7 +3402,7 @@ export default function EmployeePayrollPortal() {
                 className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <ClipboardList className="h-4 w-4" />
-                <span>{text.inventoryTab}</span>
+                <span>الجرد</span>
               </a>
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -3517,12 +3451,12 @@ export default function EmployeePayrollPortal() {
               <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">{text.salesOpportunitiesEyebrow}</div>
-                    <h2 className="m1-section-title mt-1">{text.salesOpportunitiesTitle}</h2>
-                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">{text.salesOpportunitiesSubtitle}</p>
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">Sales Opportunities</div>
+                    <h2 className="m1-section-title mt-1">فرص البيع اليوم</h2>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.</p>
                   </div>
                   <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{text.today}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">Today</div>
                     <div className="mt-0.5 text-lg font-black text-primary">{salesOpportunities.length}</div>
                   </div>
                 </div>
@@ -3617,7 +3551,7 @@ export default function EmployeePayrollPortal() {
                     <Smartphone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="m1-section-title">{text.portalAsApp}</h3>
+                    <h3 className="m1-section-title">بوابة الموظف كتطبيق</h3>
                     <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">
                       {isIosDevice()
                         ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
@@ -3645,7 +3579,7 @@ export default function EmployeePayrollPortal() {
                   {notificationSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-black">{text.enablePortalNotifications}</span>
+                  <span className="block text-sm font-black">تفعيل إشعارات بوابة الموظف</span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
                     {notificationMessage || "اضغط هنا لاستقبال رسائل الإدارة والمهام حتى عند إغلاق التطبيق."}
                   </span>
@@ -3676,7 +3610,7 @@ export default function EmployeePayrollPortal() {
               {notificationsReady ? (
                 <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50">
                   {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  <span className="text-xs">{text.resetNotifications}</span>
+                  <span className="text-xs">إعادة ضبط الإشعارات</span>
                 </button>
               ) : null}
             </div> : null}
@@ -3739,8 +3673,8 @@ export default function EmployeePayrollPortal() {
               <div className="rounded-[var(--radius-card)] border border-amber-200 bg-white p-3.5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="m1-section-title text-slate-950">{text.displayRefillTitle}</h3>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{text.displayRefillSubtitle}</p>
+                    <h3 className="m1-section-title text-slate-950">نواقص العرض</h3>
+                    <p className="mt-1 text-xs font-bold text-slate-500">المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.</p>
                   </div>
                   <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] bg-slate-100 px-3 text-[11px] font-black text-slate-700">
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -3749,7 +3683,7 @@ export default function EmployeePayrollPortal() {
                 <div className="mt-3 grid gap-3">
                   <section className="grid gap-2">
                     <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-black text-slate-950">{text.displayRefillPending}</h4>
+                      <h4 className="text-sm font-black text-slate-950">قيد التنفيذ</h4>
                       <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-900">{pendingDisplayRefillAlerts.length}</span>
                     </div>
                     {pendingDisplayRefillAlerts.length ? pendingDisplayRefillAlerts.map((alert) => {
@@ -3765,7 +3699,7 @@ export default function EmployeePayrollPortal() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
-                                <div className="inline-flex rounded-full bg-amber-200 px-2 py-1 text-[10px] font-black text-amber-950">{text.displayRefillOnDisplay}</div>
+                                <div className="inline-flex rounded-full bg-amber-200 px-2 py-1 text-[10px] font-black text-amber-950">قيد العرض</div>
                                 {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-slate-400">{alert.invoice_number}</div> : null}
                               </div>
                               <h4
@@ -3776,14 +3710,14 @@ export default function EmployeePayrollPortal() {
                                 {alert.product_name}
                               </h4>
                               <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">{text.soldSize} {alert.sold_size || "-"}</span>
-                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">{text.showSize} {alert.replacement_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">تم بيع مقاس: {alert.sold_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">اعرض مقاس: {alert.replacement_size || "-"}</span>
                               </div>
                               <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
                                 {alert.color_name ? <span>{alert.color_name}</span> : null}
                                 {alert.color_name ? <span className="text-slate-300">•</span> : null}
                                 <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
-                                {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>{text.availableLabel} {alert.remaining_stock}</span></> : null}
+                                {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>المتاح: {alert.remaining_stock}</span></> : null}
                               </div>
                             </div>
                           </div>
@@ -3815,7 +3749,7 @@ export default function EmployeePayrollPortal() {
                   {completedAlerts.length ? (
                     <section className="grid gap-2">
                       <div className="flex items-center justify-between gap-3">
-                        <h4 className="text-sm font-black text-slate-950">{text.displayRefillDone}</h4>
+                        <h4 className="text-sm font-black text-slate-950">تم التنفيذ</h4>
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{completedAlerts.length}</span>
                       </div>
                       {visibleCompletedAlerts.map((alert) => {
@@ -3830,7 +3764,7 @@ export default function EmployeePayrollPortal() {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-700">{text.displayRefillDisplayed}</div>
+                                  <div className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-700">تم العرض</div>
                                   {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-slate-400">{alert.invoice_number}</div> : null}
                                 </div>
                                 <h4
@@ -3841,14 +3775,14 @@ export default function EmployeePayrollPortal() {
                                   {alert.product_name}
                                 </h4>
                                 <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
-                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">{text.soldSize} {alert.sold_size || "-"}</span>
-                                  <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">{text.showSize} {alert.replacement_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">تم بيع مقاس: {alert.sold_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">اعرض مقاس: {alert.replacement_size || "-"}</span>
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
                                   {alert.color_name ? <span>{alert.color_name}</span> : null}
                                   {alert.color_name ? <span className="text-slate-300">•</span> : null}
                                   <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
-                                  {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>{text.availableLabel} {alert.remaining_stock}</span></> : null}
+                                  {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>المتاح: {alert.remaining_stock}</span></> : null}
                                 </div>
                               </div>
                             </div>
@@ -4228,7 +4162,7 @@ export default function EmployeePayrollPortal() {
                                 {task.task_type === "daily_inventory_count" ? (
                                   <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black text-slate-600">
                                     {task.variant_color ? <span className="rounded-full bg-white px-2 py-1">{task.variant_color}</span> : null}
-                                    {task.variant_size ? <span className="rounded-full bg-white px-2 py-1">{text.sizeLabel} {task.variant_size}</span> : null}
+                                    {task.variant_size ? <span className="rounded-full bg-white px-2 py-1">المقاس: {task.variant_size}</span> : null}
                                     {task.variant_article_code || task.variant_sku ? <span className="rounded-full bg-white px-2 py-1" dir="ltr">{task.variant_article_code || task.variant_sku}</span> : null}
                                     {task.product_grade ? <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">{task.product_grade}</span> : null}
                                   </div>
@@ -4294,7 +4228,7 @@ export default function EmployeePayrollPortal() {
                   <>
                     <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
                     <div>
-                      <div className="mb-2 text-xs font-black text-slate-600">{text.advancePayoutMethod}</div>
+                      <div className="mb-2 text-xs font-black text-slate-600">طريقة استلام السلفة</div>
                       <div className="grid grid-cols-3 gap-2">
                         {[
                           ["cash", "كاش"],
@@ -4335,7 +4269,7 @@ export default function EmployeePayrollPortal() {
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
                       <div>{text.requestType}: <span>{requestTypeLabel(item, text)}</span></div>
                       <div>{text.requestDate}: <DateSafe>{formatEmployeePortalDate(item.request_date || item.created_at, language)}</DateSafe></div>
-                      {String(item.request_type || "").toLowerCase() === "advance" ? <div>{text.payoutLabel} <span>{item.payment_method === "vodafone_cash" ? "فودافون كاش" : item.payment_method === "instapay" ? "إنستاباي" : "كاش"}</span></div> : null}
+                      {String(item.request_type || "").toLowerCase() === "advance" ? <div>الاستلام: <span>{item.payment_method === "vodafone_cash" ? "فودافون كاش" : item.payment_method === "instapay" ? "إنستاباي" : "كاش"}</span></div> : null}
                     </div>
                       {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
                       {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
@@ -4375,19 +4309,19 @@ export default function EmployeePayrollPortal() {
               <div className="employee-chat-status-safe-area" aria-hidden="true" />
               <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
                 <div className="employee-chat-header-identity flex shrink-0 items-center gap-0.5">
-                  <button type="button" onClick={closeEmployeeChat} className="flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label={text.back}>
+                  <button type="button" onClick={closeEmployeeChat} className="flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
                     <ArrowRight className="h-5 w-5" />
                   </button>
-                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label={text.storeInfo}>
+                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label="معلومات M1 Store">
                     <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" />
                     <img src="/branding/m-one-logo-white-m.png" alt="" aria-hidden="true" className="employee-chat-m1-moving-part absolute inset-0 h-full w-full object-contain" />
                   </button>
                 </div>
-                <button type="button" onClick={() => setChatContactInfoOpen(true)} className="min-w-0 flex-1 text-start" aria-label={text.storeInfo}>
+                <button type="button" onClick={() => setChatContactInfoOpen(true)} className="min-w-0 flex-1 text-start" aria-label="معلومات M1 Store">
                   <h2 className="m1-section-title truncate text-[16px]">M1 Store</h2>
-                  <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">{text.businessAccount}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </button>
-                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label={text.searchMessages}>
+                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label="بحث في الرسائل">
                   {chatSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </button>
               </header>
@@ -4395,8 +4329,8 @@ export default function EmployeePayrollPortal() {
                 <div className="border-b border-white/10 bg-[#1f2c33] px-3 pb-2">
                   <label className="flex h-10 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-200">
                     <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                    <input autoFocus value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} data-employee-chat-search="" placeholder={text.searchMessagesPlaceholder} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-400" />
-                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-[var(--control-height-sm)] w-7 place-items-center rounded-full hover:bg-white/10" aria-label={text.clearSearch}><X className="h-4 w-4" /></button> : null}
+                    <input autoFocus value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="ابحث في الرسائل" className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-400" />
+                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-[var(--control-height-sm)] w-7 place-items-center rounded-full hover:bg-white/10" aria-label="مسح البحث"><X className="h-4 w-4" /></button> : null}
                   </label>
                 </div>
               ) : null}
@@ -4480,7 +4414,7 @@ export default function EmployeePayrollPortal() {
                 about: "متجر M1 Store الرسمي",
               }}
               messages={chatMessages}
-              onSearch={() => { setChatSearchOpen(true); window.setTimeout(() => document.querySelector("input[data-employee-chat-search]")?.focus?.(), 40); }}
+              onSearch={() => { setChatSearchOpen(true); window.setTimeout(() => document.querySelector('input[placeholder="ابحث في الرسائل"]')?.focus?.(), 40); }}
             />
           </section>
         </div>
@@ -4514,20 +4448,20 @@ export default function EmployeePayrollPortal() {
           <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="m1-section-title text-slate-950">{text.profileSettings}</h2>
-                <p className="mt-1 text-xs font-bold text-slate-500">{text.profileSettingsSubtitle}</p>
+                <h2 className="m1-section-title text-slate-950">إعدادات الملف الشخصي</h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">حدّث صورتك ورقم الموبايل</p>
               </div>
-              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label={text.closeLabel}>
+              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label="إغلاق">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <label className="mt-5 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3">
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
-                {profilePhotoPreview ? <img src={profilePhotoPreview} alt={text.photoPreview} className="h-full w-full object-cover" /> : <UserRound className="m-5 h-10 w-10 text-slate-400" />}
+                {profilePhotoPreview ? <img src={profilePhotoPreview} alt="معاينة الصورة" className="h-full w-full object-cover" /> : <UserRound className="m-5 h-10 w-10 text-slate-400" />}
               </div>
               <div className="min-w-0 text-sm font-black text-slate-800">
                 اختر صورة جديدة
-                <div className="mt-1 text-xs font-bold text-slate-500">{text.photoHint}</div>
+                <div className="mt-1 text-xs font-bold text-slate-500">JPG أو PNG أو WebP — بحد أقصى 5MB</div>
               </div>
               <input
                 type="file"

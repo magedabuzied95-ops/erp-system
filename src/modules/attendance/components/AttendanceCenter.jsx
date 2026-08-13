@@ -387,7 +387,6 @@ function ManualTimeInput({ hour, minute, period, onChange, isArabic, periodDefau
 }
 
 function DayFirstDateInput({ value, onChange, min, max, required = false }) {
-  const { t } = useTranslation();
   const [draft, setDraft] = useState(() => formatDayFirstDate(value));
   const pickerRef = useRef(null);
 
@@ -433,7 +432,7 @@ function DayFirstDateInput({ value, onChange, min, max, required = false }) {
           }
         }}
         className="absolute end-1 top-1 grid h-[var(--control-height-sm)] w-8 place-items-center rounded-[var(--radius-control)] text-[var(--muted)] hover:bg-[var(--card)]"
-        aria-label={t("attendance.center.openCalendar")}
+        aria-label="Open calendar"
       >
         <CalendarDays className="h-4 w-4" />
       </button>
@@ -808,7 +807,7 @@ export default function AttendanceCenter() {
           <Field label={text.startDate}><DayFirstDateInput value={filters.startDate} max={filters.endDate} onChange={(event) => updateFilter("startDate", event.target.value)} /></Field>
           <Field label={text.endDate}><DayFirstDateInput value={filters.endDate} min={filters.startDate} onChange={(event) => updateFilter("endDate", event.target.value)} /></Field>
           <Field label={text.status}><NativeSelect value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="">{text.allStatuses}</option>{Object.entries(text.statusLabels).filter(([key]) => key !== "still_working").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</NativeSelect></Field>
-          <Field label={text.source}><NativeSelect value={filters.source} onChange={(event) => updateFilter("source", event.target.value)}><option value="">{text.allSources}</option><option value="qr">QR</option><option value="qr_branch">{t("attendance.center.qrBranch")}</option><option value="manual">{t("attendance.center.manual")}</option><option value="imported">{t("attendance.center.imported")}</option></NativeSelect></Field>
+          <Field label={text.source}><NativeSelect value={filters.source} onChange={(event) => updateFilter("source", event.target.value)}><option value="">{text.allSources}</option><option value="qr">QR</option><option value="qr_branch">QR Branch</option><option value="manual">Manual</option><option value="imported">Imported</option></NativeSelect></Field>
         </div>
         <div className="mt-3 flex flex-wrap gap-3 text-xs font-black text-[var(--muted)]">
           {[["lateOnly", text.lateOnly], ["missingOnly", text.missingOnly], ["payrollAffectedOnly", text.payrollAffectedOnly]].map(([key, label]) => (
@@ -834,10 +833,10 @@ export default function AttendanceCenter() {
           <HrSettingsPanel settings={hrSettings} isArabic={isArabic} saving={savingHrSettings} onChange={handleHrSettingsChange} onSave={handleSaveHrSettings} />
           <OpeningSchedulePanel rows={openingSchedules} isArabic={isArabic} onGenerate={handleGenerateOpeningSchedule} canGenerate={Boolean(filters.branchId)} />
           <div className="grid gap-4 xl:grid-cols-2">
-            <ChartPanel title={t("attendance.center.attendanceTrend")} data={dashboard?.trends?.attendance || []} type="line" lines={["present", "absent"]} />
-            <ChartPanel title={t("attendance.center.lateArrivalsTrend")} data={dashboard?.trends?.late_arrivals || []} type="bar" bars={["late"]} />
-            <ChartPanel title={t("attendance.center.branchComparison")} data={dashboard?.branches || []} xKey="branch_name" type="bar" bars={["present", "absent", "late"]} />
-            <ChartPanel title={t("attendance.center.employeeRanking")} data={dashboard?.employee_ranking || []} xKey="employee_name" type="bar" bars={["present", "absent"]} />
+            <ChartPanel title="Attendance trend" data={dashboard?.trends?.attendance || []} type="line" lines={["present", "absent"]} />
+            <ChartPanel title="Late arrivals trend" data={dashboard?.trends?.late_arrivals || []} type="bar" bars={["late"]} />
+            <ChartPanel title="Branch attendance comparison" data={dashboard?.branches || []} xKey="branch_name" type="bar" bars={["present", "absent", "late"]} />
+            <ChartPanel title="Employee attendance ranking" data={dashboard?.employee_ranking || []} xKey="employee_name" type="bar" bars={["present", "absent"]} />
           </div>
         </div>
       ) : null}

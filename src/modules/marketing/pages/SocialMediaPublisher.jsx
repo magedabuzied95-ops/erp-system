@@ -30,8 +30,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-
-import i18n from "../../../i18n/i18n";
 import { resolveStorefrontPriceBreakdown } from "../../../shared/lib/storefrontPricing.js";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 
@@ -70,9 +68,6 @@ const platformOptions = [
   },
 ];
 
-/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
-const tt = (key, options) => i18n.t(key, options);
-
 const statusStyles = {
   draft: "border-white/10 bg-white/5 text-slate-200",
   scheduled: "border-amber-400/20 bg-amber-400/10 text-amber-100",
@@ -83,11 +78,11 @@ const statusStyles = {
 
 const statusLabel = (value) => {
   const normalized = String(value || "draft").toLowerCase();
-  if (normalized === "scheduled") return tt("marketing.socialPublisher.postStatus.scheduled");
-  if (normalized === "published") return tt("marketing.socialPublisher.postStatus.published");
-  if (normalized === "partial_success") return tt("marketing.socialPublisher.postStatus.partialSuccess");
-  if (normalized === "failed") return tt("marketing.socialPublisher.postStatus.failed");
-  return tt("marketing.socialPublisher.postStatus.draft");
+  if (normalized === "scheduled") return "Scheduled";
+  if (normalized === "published") return "Published";
+  if (normalized === "partial_success") return "Partial success";
+  if (normalized === "failed") return "Failed";
+  return "Draft";
 };
 
 const normalizeHistoryStatus = (value) => String(value || "").trim().toLowerCase();
@@ -96,28 +91,28 @@ const getHistoryStatusDetails = (status, errorMessage = "") => {
   const normalized = normalizeHistoryStatus(status);
   if (normalized === "published") {
     return {
-      label: tt("marketing.socialPublisher.postStatus.publishedCheck"),
+      label: "Published ✓",
       toneClass: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
       detail: "",
     };
   }
   if (normalized === "failed") {
     return {
-      label: tt("marketing.socialPublisher.postStatus.failed"),
+      label: "Failed",
       toneClass: "border-rose-400/20 bg-rose-400/10 text-rose-100",
-      detail: String(errorMessage || tt("marketing.socialPublisher.postStatus.unknownReason")).trim(),
+      detail: String(errorMessage || "Unknown reason").trim(),
     };
   }
   if (normalized === "scheduled") {
     return {
-      label: tt("marketing.socialPublisher.postStatus.scheduled"),
+      label: "Scheduled",
       toneClass: "border-amber-400/20 bg-amber-400/10 text-amber-100",
       detail: "",
     };
   }
   if (normalized === "skipped") {
     return {
-      label: tt("marketing.socialPublisher.postStatus.skipped"),
+      label: "Skipped",
       toneClass: "border-slate-400/20 bg-slate-400/10 text-slate-200",
       detail: String(errorMessage || "").trim(),
     };
@@ -1134,7 +1129,7 @@ export default function SocialMediaPublisher() {
 
   const generateNewCollectionCaption = async ({ force = false, product = selectedCatalogProduct, applyToCaption = false, openPreview = true } = {}) => {
     if (!product?.id) {
-      toast.error(t("marketing.socialPublisher.toasts.selectProductFirst"));
+      toast.error("Select a product first");
       return;
     }
     setAiTemplateOpen(openPreview);
@@ -1279,17 +1274,17 @@ export default function SocialMediaPublisher() {
       void refreshSuggestedFirstComment();
       return;
     }
-    toast.success(t("marketing.socialPublisher.toasts.firstCommentSaved"));
+    toast.success("First comment saved to draft.");
   };
   const copyTextToClipboard = async (text) => {
     const normalized = String(text || "").trim();
     if (!normalized) return false;
     try {
       await navigator.clipboard.writeText(normalized);
-      toast.success(t("marketing.socialPublisher.toasts.copied"));
+      toast.success("Copied successfully.");
       return true;
     } catch {
-      toast.error(t("marketing.socialPublisher.toasts.copyFailed"));
+      toast.error("Copy failed.");
       return false;
     }
   };
@@ -1469,11 +1464,11 @@ export default function SocialMediaPublisher() {
       return;
     }
     if (!hasFacebookAccount) {
-      toast.error(t("marketing.socialPublisher.toasts.connectFacebookFirst"));
+      toast.error("Connect Facebook first");
       return;
     }
     if (selectedPlatforms.includes("instagram") && !hasInstagramAccount) {
-      toast.error(t("marketing.socialPublisher.toasts.connectInstagramFirst"));
+      toast.error("Connect Instagram first");
       return;
     }
 
@@ -1507,11 +1502,11 @@ export default function SocialMediaPublisher() {
       return;
     }
     if (!hasFacebookAccount) {
-      toast.error(t("marketing.socialPublisher.toasts.connectFacebookFirst"));
+      toast.error("Connect Facebook first");
       return;
     }
     if (selectedPlatforms.includes("instagram") && !hasInstagramAccount) {
-      toast.error(t("marketing.socialPublisher.toasts.connectInstagramFirst"));
+      toast.error("Connect Instagram first");
       return;
     }
 
@@ -1588,17 +1583,17 @@ export default function SocialMediaPublisher() {
       tiktok: safeArray(post.platforms).includes("tiktok"),
     });
     setSelectedCatalogProduct(null);
-    toast.success(t("marketing.socialPublisher.toasts.draftDuplicated"));
+    toast.success("Draft duplicated.");
   };
 
   const handleDeleteHistoryPost = (post) => {
-    const confirmDelete = window.confirm(t("marketing.socialPublisher.confirm.deleteFromHistory"));
+    const confirmDelete = window.confirm("Delete this post from the current history view?");
     if (!confirmDelete) return;
     setPosts((current) => current.filter((item) => String(item.id) !== String(post.id)));
     if (String(historyDetailPost?.id) === String(post.id)) {
       setHistoryDetailPost(null);
     }
-    toast.success(t("marketing.socialPublisher.toasts.postRemoved"));
+    toast.success("Post removed from view.");
   };
 
   const renderPreviewCard = (platformName, accentClass, platformHint) => (
@@ -1618,13 +1613,13 @@ export default function SocialMediaPublisher() {
             mediaType === "video" ? (
               <video src={resolvedMediaPreview} controls className="h-full w-full object-cover bg-black" />
             ) : (
-              <img src={resolvedMediaPreview} alt={t("marketing.socialPublisher.previewCard.mediaAlt", { platform: platformName })} className="h-full w-full object-cover bg-black" />
+              <img src={resolvedMediaPreview} alt={`${platformName} preview media`} className="h-full w-full object-cover bg-black" />
             )
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center text-slate-500">
               <div className="space-y-2">
                 <ImageIcon className="mx-auto h-10 w-10 text-slate-600" />
-                <div className="text-sm font-semibold">{t("marketing.socialPublisher.previewCard.mediaPlaceholder")}</div>
+                <div className="text-sm font-semibold">Media preview will show here</div>
               </div>
             </div>
           )}
@@ -1633,8 +1628,8 @@ export default function SocialMediaPublisher() {
           <div className="flex items-center gap-3">
             <div className="h-11 w-11 rounded-full bg-gradient-to-br from-amber-300 via-orange-400 to-amber-500" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-black text-white">{selectedFacebookPageLabel || t("marketing.socialPublisher.previewCard.noFacebookPage")}</div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{selectedInstagramAccountLabel || t("marketing.socialPublisher.previewCard.noInstagramAccount")}</div>
+              <div className="truncate text-sm font-black text-white">{selectedFacebookPageLabel || "No Facebook page selected"}</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{selectedInstagramAccountLabel || "No Instagram account selected"}</div>
             </div>
             <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
               {platformName}
@@ -1643,15 +1638,15 @@ export default function SocialMediaPublisher() {
           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{previewTitle}</p>
           <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-300">
             <div className="flex items-center gap-4">
-              <span className="font-semibold text-white">{t("marketing.socialPublisher.previewCard.sampleLikes")}</span>
-              <span>{t("marketing.socialPublisher.previewCard.sampleComments")}</span>
-              <span>{t("marketing.socialPublisher.previewCard.sampleShares")}</span>
+              <span className="font-semibold text-white">1.2K likes</span>
+              <span>84 comments</span>
+              <span>21 shares</span>
             </div>
             <span className="text-slate-500">{previewSubtitle}</span>
           </div>
           <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">{t("marketing.socialPublisher.previewCard.page", { value: selectedFacebookPageLabel || t("marketing.socialPublisher.previewCard.notSelected") })}</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">{t("marketing.socialPublisher.previewCard.platforms", { value: selectedPlatforms.length ? selectedPlatforms.join(", ") : t("marketing.socialPublisher.previewCard.none") })}</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Page: {selectedFacebookPageLabel || "Not selected"}</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Platforms: {selectedPlatforms.length ? selectedPlatforms.join(", ") : "none"}</span>
           </div>
         </div>
       </div>
@@ -1662,9 +1657,9 @@ export default function SocialMediaPublisher() {
     <div className="min-h-screen w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 pb-32 pt-5 md:px-6 md:pb-10 lg:px-7 lg:pb-12">
         <MarketingStudioHeader
-          eyebrow={t("marketing.socialPublisher.header.eyebrow")}
-          title={t("marketing.socialPublisher.header.title")}
-          description={t("marketing.socialPublisher.header.description")}
+          eyebrow="Marketing Studio"
+          title="Campaign Studio"
+          description="أنشئ حملاتك التسويقية، راجع المحتوى، ثم انشر أو جدوله من مكان واحد."
         />
 
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
@@ -1688,8 +1683,8 @@ export default function SocialMediaPublisher() {
                     <Upload className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="text-sm font-black text-white">{t("marketing.socialPublisher.createFrom.title")}</div>
-                    <div className="text-xs text-slate-400">{t("marketing.socialPublisher.createFrom.hint")}</div>
+                    <div className="text-sm font-black text-white">Create Post From</div>
+                    <div className="text-xs text-slate-400">Choose how you want to start this post.</div>
                   </div>
                 </div>
 
@@ -1704,8 +1699,8 @@ export default function SocialMediaPublisher() {
                         : "border-white/10 bg-slate-950/60 text-slate-200 hover:border-white/20 hover:bg-white/[0.05]",
                     ].join(" ")}
                   >
-                    <div className="text-sm font-black text-white">{t("marketing.socialPublisher.createFrom.device")}</div>
-                    <div className="mt-2 text-xs text-slate-400">{t("marketing.socialPublisher.createFrom.deviceHint")}</div>
+                    <div className="text-sm font-black text-white">Upload From Device</div>
+                    <div className="mt-2 text-xs text-slate-400">Active now</div>
                   </button>
 
                   <button
@@ -1713,8 +1708,8 @@ export default function SocialMediaPublisher() {
                     onClick={openProductCatalog}
                     className="rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-4 text-start text-emerald-50 transition hover:border-emerald-300/35 hover:bg-emerald-400/15"
                   >
-                    <div className="text-sm font-black">{t("marketing.socialPublisher.createFrom.catalog")}</div>
-                    <div className="mt-2 text-xs text-emerald-100/80">{t("marketing.socialPublisher.createFrom.catalogHint")}</div>
+                    <div className="text-sm font-black">Product Catalog</div>
+                    <div className="mt-2 text-xs text-emerald-100/80">Select from ERP products</div>
                   </button>
 
                   <button
@@ -1722,8 +1717,8 @@ export default function SocialMediaPublisher() {
                     disabled
                     className="cursor-not-allowed rounded-[1.5rem] border border-white/5 bg-white/[0.03] p-4 text-start text-slate-500 opacity-70"
                   >
-                    <div className="text-sm font-black">{t("marketing.socialPublisher.createFrom.aiMarketing")}</div>
-                    <div className="mt-2 text-xs text-slate-500">{t("marketing.socialPublisher.createFrom.comingSoon")}</div>
+                    <div className="text-sm font-black">AI Marketing</div>
+                    <div className="mt-2 text-xs text-slate-500">Coming Soon</div>
                   </button>
                 </div>
 
@@ -1735,7 +1730,7 @@ export default function SocialMediaPublisher() {
                       onChange={(event) => setIncludeLocation(event.target.checked)}
                       className="h-4 w-4 rounded border-white/20 bg-slate-950 text-amber-400 focus:ring-amber-400/20"
                     />
-                    <span>{t("marketing.socialPublisher.options.includeLocation")}</span>
+                    <span>إضافة الموقع</span>
                   </label>
                   <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
                     <input
@@ -1744,7 +1739,7 @@ export default function SocialMediaPublisher() {
                       onChange={(event) => setIncludeShipping(event.target.checked)}
                       className="h-4 w-4 rounded border-white/20 bg-slate-950 text-amber-400 focus:ring-amber-400/20"
                     />
-                    <span>{t("marketing.socialPublisher.options.includeShipping")}</span>
+                    <span>إضافة الشحن</span>
                   </label>
                 </div>
 
@@ -1753,7 +1748,7 @@ export default function SocialMediaPublisher() {
                     <div className="flex items-start gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                         {selectedCatalogResolvedMediaUrl ? (
-                          <img src={selectedCatalogResolvedMediaUrl} alt={selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")} className="h-full w-full object-cover" />
+                          <img src={selectedCatalogResolvedMediaUrl} alt={selectedCatalogProduct.name || "Selected product"} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-slate-500">
                             <ImageIcon className="h-6 w-6" />
@@ -1762,46 +1757,46 @@ export default function SocialMediaPublisher() {
                       </div>
                       <div className="min-w-0 flex-1 space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="truncate text-sm font-black text-white">{selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")}</div>
+                          <div className="truncate text-sm font-black text-white">{selectedCatalogProduct.name || "Selected product"}</div>
                           {selectedCatalogProductDiscount ? <span className={`${sharedBadgeClass} border-emerald-300/20 bg-emerald-300/15 text-emerald-100`}>{selectedCatalogProductDiscount}</span> : null}
                         </div>
                         <div className="grid gap-2 text-xs text-emerald-100/85 sm:grid-cols-2 xl:grid-cols-3">
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.productName")}</div>
-                            <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">اسم المنتج</div>
+                            <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{selectedCatalogProduct.name || "Selected product"}</div>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.currentPrice")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">السعر الحالي</div>
                             <div className="mt-1 text-sm font-semibold text-white">
                               {Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0) > 0
                                 ? `${formatCompactCurrency(selectedCatalogProduct.current_price || selectedCatalogProduct.price)} EGP`
-                                : t("marketing.socialPublisher.catalog.priceUnavailable")}
+                                : "Price not available"}
                             </div>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.stock")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">المخزون</div>
                             <div className="mt-1 text-sm font-semibold text-white">
                               {Number(selectedCatalogProductAvailability.stock || selectedCatalogProduct.stock_quantity || 0) > 0
-                                ? t("marketing.socialPublisher.catalog.inStock", { count: selectedCatalogProductAvailability.stock || selectedCatalogProduct.stock_quantity })
-                                : t("marketing.socialPublisher.catalog.outOfStock")}
+                                ? `${selectedCatalogProductAvailability.stock || selectedCatalogProduct.stock_quantity} in stock`
+                                : "Out of stock"}
                             </div>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.sizeCount")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">عدد المقاسات</div>
                             <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductAvailability.sizes.length}</div>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.colorCount")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">عدد الألوان</div>
                             <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductAvailability.colors.length}</div>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.discountRate")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">نسبة الخصم</div>
                             <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductDiscount || "—"}</div>
                           </div>
                         </div>
                         {selectedCatalogMediaItems.length > 1 ? (
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.availableColorImages")}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">صور الألوان المتاحة</div>
                             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5 xl:grid-cols-6">
                               {selectedCatalogMediaItems.map((item) => {
                                 const isActive = item.url === selectedCatalogResolvedMediaUrl;

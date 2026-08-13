@@ -354,7 +354,7 @@ function CostFixCenter() {
                     <tr key={key} className="bg-zinc-950/80 text-sm text-zinc-200 transition hover:bg-white/[0.04]">
                       <td className="px-4 py-4">
                         <div className="font-black text-white">{row.order_reference || `ORD-${row.order_id}`}</div>
-                        <div className="mt-1 text-xs text-zinc-500">{t("accounting.costFix.lineNumber")}{row.order_item_id || row.unresolved_order_item_id}</div>
+                        <div className="mt-1 text-xs text-zinc-500">Line #{row.order_item_id || row.unresolved_order_item_id}</div>
                       </td>
                       <td className="px-4 py-4">
                         <div className="font-semibold text-zinc-100">{row.item_name || row.product_name_snapshot || row.product_name}</div>

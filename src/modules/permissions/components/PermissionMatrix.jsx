@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 import { Check, Save, ShieldCheck } from "lucide-react";
 
@@ -37,7 +36,6 @@ const actionLabels = {
 };
 
 export default function PermissionMatrix({ role, onSave, saving = false }) {
-  const { t } = useTranslation();
   const [selected, setSelected] = useState([]);
 
   useEffect(() => {
@@ -98,7 +96,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
             className="grid gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500"
             style={{ gridTemplateColumns: `180px repeat(${headerActions.length}, minmax(110px, 1fr))` }}
           >
-            <div>{t("access.shell.module")}</div>
+            <div>Module</div>
             {headerActions.map((action) => (
               <div key={action}>{actionLabels[action]}</div>
             ))}

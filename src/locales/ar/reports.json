@@ -1,90 +1,47 @@
 {
-  "title": "التقارير والتحليلات",
-  "subtitle": "لوحة ذكاء الأعمال",
-  "loading": "جارٍ تحميل التقارير...",
-  "walkIn": "عميل مباشر",
-  "payment": {
-    "cash": "نقدًا"
-  },
-  "buttons": {
-    "excel": "إكسل",
-    "csv": "CSV",
-    "pdf": "PDF"
-  },
-  "kpis": {
-    "revenue": "الإيرادات",
-    "orders": "الطلبات",
-    "averageOrder": "متوسط الطلب",
-    "paidOrders": "الطلبات المدفوعة"
-  },
-  "sections": {
-    "revenueAnalytics": "تحليلات الإيرادات",
-    "orderStatus": "حالة الطلبات",
-    "table": "جدول التقارير"
-  },
-  "table": {
-    "id": "المعرف",
-    "customer": "العميل",
-    "payment": "الدفع",
-    "status": "الحالة",
-    "total": "الإجمالي"
-  },
-  "charts": {
-    "revenue": "الإيرادات",
-    "averageOrder": "متوسط الطلب",
-    "paid": "مدفوع",
-    "pending": "قيد الانتظار"
-  },
-  "export": {
-    "sheetName": "التقارير"
-  },
-  "toasts": {
-    "loadFailed": "تعذر تحميل التقارير",
-    "excelExported": "تم تصدير إكسل",
-    "csvExported": "تم تصدير CSV",
-    "pdfExported": "تم تصدير PDF"
-  },
-  "center": {
-    "tabs": {
-      "insights": "رؤى ذكية",
-      "sales": "المبيعات",
-      "employees": "الموظفون",
-      "inventory": "المخزون",
-      "customers": "العملاء والولاء",
-      "financial": "المالية"
-    },
-    "presetPrompt": "اسم الإعداد المسبق",
-    "presetDefaultName": "إعداد {{report}}",
-    "presetSaved": "تم حفظ الإعداد المسبق",
-    "actions": {
-      "refresh": "تحديث",
-      "savePreset": "حفظ الإعداد",
-      "print": "طباعة"
-    },
-    "searchRows": "ابحث في صفوف التقرير",
-    "filters": {
-      "range": "النطاق",
-      "today": "اليوم",
-      "week": "الأسبوع",
-      "month": "الشهر",
-      "custom": "مخصص",
-      "start": "من",
-      "end": "إلى",
-      "warehouseId": "معرّف المخزن",
-      "employeeId": "معرّف الموظف",
-      "productId": "معرّف المنتج",
-      "categoryId": "معرّف الفئة",
-      "paymentMethod": "طريقة الدفع",
-      "customerId": "معرّف العميل",
-      "shiftId": "معرّف الوردية",
-      "salespersonId": "معرّف البائع"
-    },
-    "insights": {
-      "heading": "ذكاء الأعمال والتوصيات الذكية",
-      "recommendations": "توصيات ذكية",
-      "restock": "توقعات إعادة التوفير",
-      "people": "الموظفون والعملاء"
-    },
-    "emptyRows": "لا توجد صفوف مطابقة لعوامل التصفية الحالية."
-  }
+    "title":  "التقارير والتحليلات",
+    "subtitle":  "لوحة ذكاء الأعمال",
+    "loading":  "جارٍ تحميل التقارير...",
+    "walkIn":  "عميل مباشر",
+    "payment":  {
+                    "cash":  "نقدًا"
+                },
+    "buttons":  {
+                    "excel":  "إكسل",
+                    "csv":  "CSV",
+                    "pdf":  "PDF"
+                },
+    "kpis":  {
+                 "revenue":  "الإيرادات",
+                 "orders":  "الطلبات",
+                 "averageOrder":  "متوسط الطلب",
+                 "paidOrders":  "الطلبات المدفوعة"
+             },
+    "sections":  {
+                     "revenueAnalytics":  "تحليلات الإيرادات",
+                     "orderStatus":  "حالة الطلبات",
+                     "table":  "جدول التقارير"
+                 },
+    "table":  {
+                  "id":  "المعرف",
+                  "customer":  "العميل",
+                  "payment":  "الدفع",
+                  "status":  "الحالة",
+                  "total":  "الإجمالي"
+              },
+    "charts":  {
+                   "revenue":  "الإيرادات",
+                   "averageOrder":  "متوسط الطلب",
+                   "paid":  "مدفوع",
+                   "pending":  "قيد الانتظار"
+               },
+    "export":  {
+                   "sheetName":  "التقارير"
+               },
+    "toasts":  {
+                   "loadFailed":  "تعذر تحميل التقارير",
+                   "excelExported":  "تم تصدير إكسل",
+                   "csvExported":  "تم تصدير CSV",
+                   "pdfExported":  "تم تصدير PDF"
+               }
 }

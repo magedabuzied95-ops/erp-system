@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import i18n from "../../../i18n/i18n";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -69,14 +68,12 @@ const resolveLowStockCardImageUrl = (rows = []) => {
 
 const getLowStockCardPriority = (stock) => (Number(stock || 0) <= 0 ? 0 : 1);
 
-const tt = (key, options) => i18n.t(key, options);
-
 const getLowStockRowStatus = (stock, threshold) => {
   const currentStock = Number(stock || 0);
   const lowStockThreshold = Number(threshold || 0);
-  if (currentStock <= 0) return { label: tt("inventory.status.outOfStock"), tone: "critical" };
-  if (currentStock <= lowStockThreshold) return { label: tt("inventory.status.low"), tone: "warning" };
-  return { label: tt("inventory.status.available"), tone: "safe" };
+  if (currentStock <= 0) return { label: "نفد", tone: "critical" };
+  if (currentStock <= lowStockThreshold) return { label: "منخفض", tone: "warning" };
+  return { label: "متاح", tone: "safe" };
 };
 
 const formatInventoryStatusLabel = (value) => {
@@ -298,7 +295,7 @@ function InventoryDashboard() {
           )
         );
         const threshold = Number(rows.find((row) => Number.isFinite(Number(row.low_stock_alert)) && Number(row.low_stock_alert) > 0)?.low_stock_alert || alertRows[0]?.threshold || 2);
-        const cardStatus = totalStock <= 0 ? { label: t("inventory.status.outOfStock"), tone: "critical" } : { label: t("inventory.status.low"), tone: "warning" };
+        const cardStatus = totalStock <= 0 ? { label: "نفد", tone: "critical" } : { label: "منخفض", tone: "warning" };
         const cardKey = String(group.product_slug || group.product_id || group.product_name || "").trim();
 
         return {
@@ -446,12 +443,12 @@ function InventoryDashboard() {
         </>
       }
       tabs={[
-        { to: "/inventory", label: t("inventory.tabs.inventory"), end: true },
-        { to: "/inventory/movements", label: t("inventory.tabs.movements") },
-        { to: "/inventory/adjustments", label: t("inventory.tabs.adjustments") },
+        { to: "/inventory", label: "المخزون", end: true },
+        { to: "/inventory/movements", label: "الحركات" },
+        { to: "/inventory/adjustments", label: "التسويات" },
         { to: "/inventory/count", label: t("inventory.tabs.count", "الجرد") },
-        { to: "/stock-transfers", label: t("inventory.tabs.transfers") },
-        { to: "/warehouses", label: t("inventory.tabs.warehouses") },
+        { to: "/stock-transfers", label: "التحويلات" },
+        { to: "/warehouses", label: "المخازن" },
       ]}
     >
       {error ? (
@@ -830,15 +827,15 @@ function InventoryDashboard() {
 
                         <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-text sm:grid-cols-3">
                           <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{t("inventory.purchaseAlerts.cards.totalStock")}</span>
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">إجمالي المخزون</span>
                             <span className="mt-1 block text-base font-black text-text"><InlineLtrValue>{card.total_stock}</InlineLtrValue></span>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{t("inventory.labels.totalValue")}</span>
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">إجمالي القيمة</span>
                             <span className="mt-1 block text-base font-black text-text"><InlineLtrValue>{formatCurrency(card.total_value)}</InlineLtrValue></span>
                           </div>
                           <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{t("inventory.labels.status")}</span>
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">الحالة</span>
                             <span className="mt-1 block text-base font-black text-text">{card.card_status?.label || "تنبيه"}</span>
                           </div>
                         </div>
@@ -856,11 +853,11 @@ function InventoryDashboard() {
 
                         <div className="mt-4 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                           <div className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 border-b border-border bg-surface-soft px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-text-muted">
-                            <div>{t("inventory.labels.size")}</div>
+                            <div>المقاس</div>
                             <div>SKU</div>
-                            <div>{t("inventory.tabs.inventory")}</div>
-                            <div>{t("inventory.labels.value")}</div>
-                            <div>{t("inventory.labels.status")}</div>
+                            <div>المخزون</div>
+                            <div>القيمة</div>
+                            <div>الحالة</div>
                           </div>
                           <div className="divide-y divide-border">
                             {card.rows.map((row) => {
@@ -946,7 +943,7 @@ function InventoryDashboard() {
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-muted">
                           <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
-                            <span className="block text-text-muted">{t("inventory.purchaseAlerts.cards.totalStock")}</span>
+                            <span className="block text-text-muted">إجمالي المخزون</span>
                             <span className="font-black text-text">{totalStock}</span>
                           </div>
                           <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
@@ -956,11 +953,11 @@ function InventoryDashboard() {
                           {isProductTotalAlert ? (
                             <>
                               <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
-                                <span className="block text-text-muted">{t("inventory.labels.activeSizes")}</span>
+                                <span className="block text-text-muted">المقاسات النشطة</span>
                                 <span className="font-black text-text">{activeSizesCount}</span>
                               </div>
                               <div className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2">
-                                <span className="block text-text-muted">{t("inventory.labels.minActiveSizes")}</span>
+                                <span className="block text-text-muted">الحد الأدنى للمقاسات النشطة</span>
                                 <span className="font-black text-text">{minimumSizesRequired}</span>
                               </div>
                             </>

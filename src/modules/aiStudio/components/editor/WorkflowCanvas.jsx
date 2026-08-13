@@ -14,7 +14,6 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Zap } from "lucide-react";
-import { useTranslation } from "react-i18next";
 
 // Interaction/execution styling that xyflow's base CSS doesn't cover. Scoped to .wf-canvas.
 const CANVAS_CSS = `
@@ -45,7 +44,6 @@ const miniMapColor = (n) => {
 };
 
 function CanvasInner({ nodes, edges, setNodes, setEdges, onCommit, onSelect, onDropItem, isEmpty, onAddTrigger }) {
-  const { t } = useTranslation();
   const wrapperRef = useRef(null);
   const dragSnapshot = useRef(null);
   const { screenToFlowPosition } = useReactFlow();
@@ -137,12 +135,12 @@ function CanvasInner({ nodes, edges, setNodes, setEdges, onCommit, onSelect, onD
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
           <div className="pointer-events-none flex flex-col items-center gap-2 text-slate-400">
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10"><Zap className="h-6 w-6 text-primary" /></span>
-            <div className="text-[15px] font-black text-white">{t("aiStudio.workflow.canvas.emptyTitle")}</div>
-            <div className="max-w-[280px] text-[12px] text-slate-500">{t("aiStudio.workflow.canvas.emptyHint")}</div>
+            <div className="text-[15px] font-black text-white">Start with a Trigger</div>
+            <div className="max-w-[280px] text-[12px] text-slate-500">Every workflow begins with a trigger. Drag one from the left, or add a manual trigger to begin.</div>
           </div>
           {onAddTrigger ? (
             <button type="button" onClick={onAddTrigger} className="pointer-events-auto inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 text-[12px] font-black text-primary hover:bg-primary/25">
-              <Zap className="h-4 w-4" /> {t("aiStudio.workflow.canvas.addManualTrigger")}
+              <Zap className="h-4 w-4" /> Add Manual Trigger
             </button>
           ) : null}
         </div>

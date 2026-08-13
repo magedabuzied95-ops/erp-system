@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { Building2, FileText, Globe, Printer, Save, ShipWheel, Warehouse } from "lucide-react";
@@ -9,7 +8,6 @@ import SaaSShell from "../components/SaaSShell";
 import { useTenant } from "../context/TenantContext";
 
 function CompanySettings() {
-  const { t } = useTranslation();
   const tenantApi = useTenant();
   const current = tenantApi?.currentTenant || {};
   const [companyName, setCompanyName] = useState(current.companyName || "");
@@ -22,7 +20,7 @@ function CompanySettings() {
 
   const save = () => {
     if (!current.id) {
-      toast.error(t("saas.company.selectWorkspaceFirst"));
+      toast.error("Select or create a workspace first");
       return;
     }
 
@@ -39,13 +37,13 @@ function CompanySettings() {
       },
     });
 
-    toast.success(t("saas.company.savedLocally"));
+    toast.success("Company settings saved locally");
   };
 
   return (
     <SaaSShell
-      title={t("saas.company.title")}
-      subtitle={t("saas.company.subtitle")}
+      title="Company Settings"
+      subtitle="Company profile, currency, language placeholder, invoice settings, branch settings, and POS settings."
       actions={
         <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <Building2 className="h-4 w-4" />
@@ -53,42 +51,42 @@ function CompanySettings() {
         </Link>
       }
       tabs={[
-        { to: "/workspace", label: t("saas.tabs.workspace") },
-        { to: "/billing", label: t("saas.tabs.billing") },
-        { to: "/settings/company", label: t("saas.tabs.companySettings"), end: true },
-        { to: "/admin/tenants", label: t("saas.tabs.adminTenants") },
+        { to: "/workspace", label: "Workspace" },
+        { to: "/billing", label: "Billing" },
+        { to: "/settings/company", label: "Company settings", end: true },
+        { to: "/admin/tenants", label: "Admin tenants" },
       ]}
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="m1-section-title text-white">{t("saas.company.profile")}</h3>
+          <h3 className="m1-section-title text-white">Profile settings</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label={t("saas.company.name")} value={companyName} onChange={setCompanyName} icon={<Building2 className="h-4 w-4" />} />
-            <Field label={t("saas.company.currency")} value={currency} onChange={setCurrency} icon={<FileText className="h-4 w-4" />} />
-            <Field label={t("saas.company.language")} value={language} onChange={setLanguage} icon={<Globe className="h-4 w-4" />} />
+            <Field label="Company name" value={companyName} onChange={setCompanyName} icon={<Building2 className="h-4 w-4" />} />
+            <Field label="Currency" value={currency} onChange={setCurrency} icon={<FileText className="h-4 w-4" />} />
+            <Field label="Language placeholder" value={language} onChange={setLanguage} icon={<Globe className="h-4 w-4" />} />
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label={t("saas.company.invoicePrefix")} value={invoicePrefix} onChange={setInvoicePrefix} icon={<Printer className="h-4 w-4" />} />
-            <Field label={t("saas.company.posReceiptNote")} value={posReceipt} onChange={setPosReceipt} icon={<ShipWheel className="h-4 w-4" />} />
+            <Field label="Invoice prefix" value={invoicePrefix} onChange={setInvoicePrefix} icon={<Printer className="h-4 w-4" />} />
+            <Field label="POS receipt note" value={posReceipt} onChange={setPosReceipt} icon={<ShipWheel className="h-4 w-4" />} />
           </div>
           <label className="mt-4 block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("saas.company.invoiceFooter")}</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Invoice footer</div>
             <textarea value={invoiceFooter} onChange={(e) => setInvoiceFooter(e.target.value)} rows={4} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" />
           </label>
           <button type="button" onClick={save} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
             <Save className="h-4 w-4" />
-            {t("saas.company.save")}
+            Save company settings
           </button>
         </div>
 
         <div className="space-y-4">
-          <Section title={t("saas.company.branchSettings")} icon={<Warehouse className="h-4 w-4" />} value={branchNames} onChange={setBranchNames} placeholder={t("saas.company.branchPlaceholder")} />
-          <Section title={t("saas.company.posSettings")} icon={<ShipWheel className="h-4 w-4" />} value={posReceipt} onChange={setPosReceipt} placeholder={t("saas.company.posPlaceholder")} />
+          <Section title="Branch settings" icon={<Warehouse className="h-4 w-4" />} value={branchNames} onChange={setBranchNames} placeholder="Main, North, Warehouse..." />
+          <Section title="POS settings" icon={<ShipWheel className="h-4 w-4" />} value={posReceipt} onChange={setPosReceipt} placeholder="Receipt footer / POS note" />
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-white">{t("saas.company.logo")}</h3>
+            <h3 className="m1-section-title text-white">Company logo placeholder</h3>
             <div className="mt-4 flex h-44 items-center justify-center rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 text-zinc-500">
-              {t("saas.company.uploadLogo")}
+              Upload logo placeholder
             </div>
           </div>
         </div>

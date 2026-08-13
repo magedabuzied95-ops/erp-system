@@ -26,22 +26,11 @@ test("publish_failed rows show Retry Publish and published rows keep lifecycle a
 });
 
 test("archived rows show Restore and bulk action bar appears when rows are selected", () => {
-  // These labels are localized now, so assert the key wiring plus the wording in
-  // BOTH dictionaries. That is stronger than the old source literal, which could
-  // not catch a control losing one language.
-  assert.match(source, /marketing\.aiCenter\.queue\.restore/);
+  assert.match(source, /استعادة/);
   assert.match(source, /selectedCount/);
-  assert.match(source, /marketing\.aiCenter\.queue\.archiveSelected/);
-  assert.match(source, /marketing\.aiCenter\.queue\.deleteSelected/);
-  assert.match(source, /marketing\.aiCenter\.queue\.publishSelected/);
-
-  const ar = JSON.parse(fs.readFileSync(new URL("../../src/locales/ar/marketing.json", import.meta.url), "utf8"));
-  const en = JSON.parse(fs.readFileSync(new URL("../../src/locales/en/marketing.json", import.meta.url), "utf8"));
-  assert.equal(ar.aiCenter.queue.restore, "استعادة");
-  assert.equal(ar.aiCenter.queue.archiveSelected, "أرشفة المحدد");
-  assert.equal(ar.aiCenter.queue.publishSelected, "نشر المحدد");
-  assert.match(en.aiCenter.queue.restore, /restore/i);
-  assert.match(en.aiCenter.queue.deleteSelected, /delete/i);
+  assert.match(source, /أرشفة المحدد/);
+  assert.match(source, /Delete Selected/);
+  assert.match(source, /نشر المحدد/);
 });
 
 test("delete published modal includes required production warning", () => {

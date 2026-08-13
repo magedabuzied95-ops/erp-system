@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { CalendarClock, Download, Filter, RefreshCcw, Table2, TimerReset } from "lucide-react";
 
 import { getAttendanceReports } from "../attendanceApi";
@@ -100,7 +99,6 @@ function MiniPanel({ title, icon: Icon, children }) {
 }
 
 export default function AttendanceReports() {
-  const { t } = useTranslation();
   const [filters, setFilters] = useState({
     from: defaultFrom,
     to: today,
@@ -156,7 +154,7 @@ export default function AttendanceReports() {
                 <Table2 className="h-3.5 w-3.5" />
                 Attendance reports
               </div>
-              <h1 className="m1-display">{t("attendance.reports.exportReady")}</h1>
+              <h1 className="m1-display">Export-ready attendance reports</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
                 Filter by date and employee, then export a clean operational table with monthly totals.
               </p>
@@ -189,7 +187,7 @@ export default function AttendanceReports() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("attendance.reports.from")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">From</span>
               <input
                 type="date"
                 value={filters.from}
@@ -207,12 +205,12 @@ export default function AttendanceReports() {
               />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("attendance.reports.employeeId")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Employee ID</span>
               <input
                 type="text"
                 value={filters.employeeId}
                 onChange={(event) => setFilters((prev) => ({ ...prev, employeeId: event.target.value }))}
-                placeholder={t("attendance.reports.allEmployees")}
+                placeholder="All employees"
                 className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-primary"
               />
             </label>
@@ -222,30 +220,30 @@ export default function AttendanceReports() {
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <StatCard label={t("attendance.reports.present")} value={loading ? "-" : summary.present ?? 0} hint={t("attendance.reports.allLogsInRange")} />
-          <StatCard label={t("attendance.reports.checkedOut")} value={loading ? "-" : summary.checkedOut ?? 0} hint={t("attendance.reports.completedRows")} />
-          <StatCard label={t("attendance.reports.missingCheckout")} value={loading ? "-" : summary.missingCheckout ?? 0} hint={t("attendance.reports.openRowsWithoutCheckout")} />
-          <StatCard label={t("attendance.reports.late")} value={loading ? "-" : summary.late ?? 0} hint={t("attendance.reports.rowsWithLateMinutes")} />
-          <StatCard label={t("attendance.reports.workedHours")} value={loading ? "-" : summary.totalWorkedHours || "00:00"} hint={`Range ${payload?.from || filters.from} to ${payload?.to || filters.to}`} />
+          <StatCard label="Present" value={loading ? "-" : summary.present ?? 0} hint="All logs in the filtered range" />
+          <StatCard label="Checked out" value={loading ? "-" : summary.checkedOut ?? 0} hint="Completed attendance rows" />
+          <StatCard label="Missing checkout" value={loading ? "-" : summary.missingCheckout ?? 0} hint="Open rows without a checkout" />
+          <StatCard label="Late" value={loading ? "-" : summary.late ?? 0} hint="Rows with late minutes" />
+          <StatCard label="Worked hours" value={loading ? "-" : summary.totalWorkedHours || "00:00"} hint={`Range ${payload?.from || filters.from} to ${payload?.to || filters.to}`} />
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label={t("attendance.reports.scheduledShifts")} value={loading ? "-" : summary.schedules ?? schedules.length} hint={t("attendance.reports.manualAndGeneratedSchedules")} />
-          <StatCard label={t("attendance.reports.openingAssignments")} value={loading ? "-" : summary.openingAssignments ?? openingAssignments.length} hint={t("attendance.reports.nextOpenerRows")} />
-          <StatCard label={t("attendance.reports.approvedOvertime")} value={loading ? "-" : formatMinutes(overtimeSummary.approvedMinutes)} hint={`${overtimeSummary.approved || 0} approved requests`} />
-          <StatCard label={t("attendance.reports.pendingOvertime")} value={loading ? "-" : formatMinutes(overtimeSummary.pendingMinutes)} hint={`${overtimeSummary.pending || 0} waiting approvals`} />
+          <StatCard label="Scheduled shifts" value={loading ? "-" : summary.schedules ?? schedules.length} hint="Manual and generated schedules" />
+          <StatCard label="Opening assignments" value={loading ? "-" : summary.openingAssignments ?? openingAssignments.length} hint="Next opener rows" />
+          <StatCard label="Approved overtime" value={loading ? "-" : formatMinutes(overtimeSummary.approvedMinutes)} hint={`${overtimeSummary.approved || 0} approved requests`} />
+          <StatCard label="Pending overtime" value={loading ? "-" : formatMinutes(overtimeSummary.pendingMinutes)} hint={`${overtimeSummary.pending || 0} waiting approvals`} />
         </section>
 
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="m1-section-title text-white">{t("attendance.reports.monthlyTotals")}</h2>
+              <h2 className="m1-section-title text-white">Monthly totals</h2>
               <p className="text-sm text-slate-400">Grouped by month for the active filter range.</p>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {loading ? (
-              <div className="col-span-full rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">{t("attendance.reports.loadingMonthlyTotals")}</div>
+              <div className="col-span-full rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading monthly totals...</div>
             ) : monthlyTotals.length === 0 ? (
               <div className="col-span-full rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No totals available for this range.</div>
             ) : (
@@ -262,11 +260,11 @@ export default function AttendanceReports() {
         </section>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <MiniPanel title={t("attendance.reports.openingAssignments")} icon={CalendarClock}>
+          <MiniPanel title="Opening assignments" icon={CalendarClock}>
             {loading ? (
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">{t("attendance.reports.loadingOpeningAssignments")}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading opening assignments...</div>
             ) : openingAssignments.length === 0 ? (
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">{t("attendance.reports.noOpeningAssignments")}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No opening assignments in this range.</div>
             ) : (
               <div className="space-y-3">
                 {openingAssignments.slice(0, 8).map((item) => (
@@ -284,11 +282,11 @@ export default function AttendanceReports() {
             )}
           </MiniPanel>
 
-          <MiniPanel title={t("attendance.reports.overtimeApprovals")} icon={TimerReset}>
+          <MiniPanel title="Overtime approvals" icon={TimerReset}>
             {loading ? (
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">{t("attendance.reports.loadingOvertimeApprovals")}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading overtime approvals...</div>
             ) : overtimeApprovals.length === 0 ? (
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">{t("attendance.reports.noOvertimeApprovals")}</div>
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No overtime approval requests in this range.</div>
             ) : (
               <div className="space-y-3">
                 {overtimeApprovals.slice(0, 8).map((item) => (
@@ -312,8 +310,8 @@ export default function AttendanceReports() {
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="m1-section-title text-white">{t("attendance.reports.tableTitle")}</h2>
-              <p className="text-sm text-slate-400">{t("attendance.reports.tableSubtitle")}</p>
+              <h2 className="m1-section-title text-white">Attendance table</h2>
+              <p className="text-sm text-slate-400">Employee, branch, worked hours, and checkout status.</p>
             </div>
             <div className="text-sm text-slate-400">{rows.length} rows</div>
           </div>
@@ -322,16 +320,16 @@ export default function AttendanceReports() {
             <table className="m1-table m1-table--compact min-w-full">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.employee")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.branch")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.date")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.scheduledShift")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.checkIn")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.checkOut")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.worked")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.lateOt")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.otApproval")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("attendance.reports.status")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Employee</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Branch</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Date</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Scheduled shift</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Check in</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Check out</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Worked</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Late / OT</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">OT approval</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>

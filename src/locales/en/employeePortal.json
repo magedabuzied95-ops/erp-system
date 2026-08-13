@@ -1,40 +1,4 @@
 {
-  "chrome": {
-    "stock": "Stock",
-    "noSizes": "No sizes",
-    "variantSelection": "Variant selection",
-    "skuArticle": "SKU / Article",
-    "colors": "Colors",
-    "noColors": "No colors",
-    "sizes": "Sizes",
-    "onlyAvailableSizes": "Only available sizes appear",
-    "employeeScanner": "Employee scanner",
-    "portalProducts": "Employee Portal Products",
-    "inventory": "Inventory",
-    "products": "Products",
-    "differences": "Differences",
-    "salesOpportunities": "Sales opportunities",
-    "appointment": "Appointment",
-    "image": "Image",
-    "imageUnavailable": "Image unavailable",
-    "openImage": "Open image",
-    "name": "Name",
-    "email": "Email",
-    "password": "Password",
-    "deleteRecording": "Delete recording",
-    "sendRecording": "Send recording",
-    "roleName": "Role Name",
-    "searchLogs": "Search logs...",
-    "voiceMessage": "Voice message",
-    "playVoiceMessage": "Play voice message",
-    "pauseVoiceMessage": "Pause voice message",
-    "gender": "Gender",
-    "productType": "Product type",
-    "grade": "Grade",
-    "size": "Size",
-    "brand": "Brand",
-    "manufacturer": "Manufacturer"
-  },
   "status": {
     "inProgress": "In progress",
     "completed": "Completed",
@@ -392,24 +356,7 @@
     "recordedAt": "Checked in at",
     "activeNow": "Active now",
     "openingTomorrow": "You are opening the branch tomorrow",
-    "tomorrowShift": "Tomorrow's shift",
-    "errors": {
-      "loadToday": "Unable to load today's attendance"
-    },
-    "dashboardTitle": "Check-in and check-out dashboard",
-    "todaySummary": "Today's attendance summary",
-    "dashboardSubtitle": "Live tracking of check-ins and check-outs, current status, open attendance sessions, and late arrivals in one place.",
-    "presentToday": "Employees checked in today",
-    "lateToday": "Late today",
-    "arrivedAfterGrace": "Arrived after the grace period",
-    "earlyLeaveToday": "Early leave today",
-    "leftBeforeShiftEnd": "Left before the shift ended",
-    "outsideGpsToday": "Outside the GPS range today",
-    "gpsOutOfRange": "GPS verification out of range",
-    "liveEmployeeTable": "Live employee table",
-    "earlyLeaveMinutes": "Early leave minutes",
-    "loadingToday": "Loading today's attendance...",
-    "noRecordsToday": "There are no attendance records for today."
+    "tomorrowShift": "Tomorrow's shift"
   },
   "requests": {
     "leave": "Leave request",
@@ -529,34 +476,7 @@
     "completeDisplay": "Complete the display",
     "allowPopup": "Allow the print window to open, then try again",
     "showMoreOutlet": "Show more from the outlet",
-    "hideOutlet": "Hide the outlet",
-    "independentManagement": "Independent display management",
-    "confirmDisplay": "Confirm the display",
-    "unconfirmedModels": "Models held in the warehouse whose display on the stand has not been confirmed.",
-    "totalNotDisplayed": "Total models not on display",
-    "allDisplayed": "Every model held in the warehouse is on display",
-    "smallestSize": "Smallest size",
-    "quantity": "Quantity",
-    "markDisplayed": "On display",
-    "stageSizesFrom": "Display sizes from {{range}}",
-    "noStageSizes": "No sizes available at this stage",
-    "groups": {
-      "sneakers": "Sneakers",
-      "crocs": "Crocs",
-      "bags": "Bags",
-      "winter": "Winter"
-    },
-    "audiences": {
-      "men": "Men",
-      "women": "Women",
-      "kids": "Kids",
-      "special": "Special"
-    },
-    "stages": {
-      "baby": "Baby",
-      "middle": "Middle",
-      "boys": "Boys"
-    }
+    "hideOutlet": "Hide the outlet"
   },
   "opportunities": {
     "item": "Sales opportunity",

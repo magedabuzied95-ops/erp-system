@@ -446,7 +446,7 @@ function ScannerModal({ onClose, onScan }) {
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 text-white">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">{tt("employeePortal.chrome.inventory")}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Inventory</div>
             <h3 className="m1-section-title mt-1">{tt("employeePortal.scanner.scanNow")}</h3>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-300">
@@ -532,9 +532,7 @@ function ScannerModal({ onClose, onScan }) {
 
 export default function EmployeePortalInventory() {
   // Subscribes this screen to language changes; strings resolve through tt().
-  // language is a real dependency of filterGroups below: its titles resolve
-  // through tt(), so without it they freeze on an AR<->EN switch.
-  const { i18n: i18nRuntime } = useTranslation();
+  useTranslation();
   const { token, sessionId: routeSessionId } = useParams();
   const [searchParams] = useSearchParams();
   usePageTitle(routeSessionId ? "Inventory Count Session" : "Employee Inventory Count");
@@ -880,14 +878,14 @@ export default function EmployeePortalInventory() {
   const filterGroups = useMemo(() => {
     const sizeCount = new Set(inventoryCatalogSource.map((record) => clean(record.size)).filter(Boolean)).size;
     return [
-      { key: "gender", title: tt("employeePortal.chrome.gender"), count: smartFilterOptions.gender?.length || 0 },
-      { key: "productType", title: tt("employeePortal.chrome.productType"), count: smartFilterOptions.productType?.length || 0 },
-      { key: "grade", title: tt("employeePortal.chrome.grade"), count: smartFilterOptions.grade?.length || 0 },
-      { key: "size", title: tt("employeePortal.chrome.size"), count: sizeCount },
-      { key: "brand", title: tt("employeePortal.chrome.brand"), count: brandOptions.length },
-      { key: "manufacturer", title: tt("employeePortal.chrome.manufacturer"), count: manufacturerOptions.length },
+      { key: "gender", title: "Gender", count: smartFilterOptions.gender?.length || 0 },
+      { key: "productType", title: "Product type", count: smartFilterOptions.productType?.length || 0 },
+      { key: "grade", title: "Grade", count: smartFilterOptions.grade?.length || 0 },
+      { key: "size", title: "Size", count: sizeCount },
+      { key: "brand", title: "Brand", count: brandOptions.length },
+      { key: "manufacturer", title: "Manufacturer", count: manufacturerOptions.length },
     ];
-  }, [inventoryCatalogSource, brandOptions.length, manufacturerOptions.length, smartFilterOptions.gender, smartFilterOptions.productType, smartFilterOptions.grade, i18nRuntime.language]);
+  }, [inventoryCatalogSource, brandOptions.length, manufacturerOptions.length, smartFilterOptions.gender, smartFilterOptions.productType, smartFilterOptions.grade]);
   const filterDebugText = useMemo(() => {
     const sizeCount = new Set(inventoryCatalogSource.map((record) => clean(record.size)).filter(Boolean)).size;
     return `Filters debug: gender=${smartFilterOptions.gender?.length || 0}, productType=${smartFilterOptions.productType?.length || 0}, grade=${smartFilterOptions.grade?.length || 0}, size=${sizeCount}, brand=${brandOptions.length}, manufacturer=${manufacturerOptions.length}`;
@@ -1647,9 +1645,9 @@ export default function EmployeePortalInventory() {
 
                 <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-black text-slate-600">
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{tt("employeePortal.chrome.products")}: {groupedItems.length}</span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{tt("employeePortal.display.quantity")}: {countedTotal}</span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{tt("employeePortal.chrome.differences")}: {differenceTotal}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">المنتجات: {groupedItems.length}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الكمية: {countedTotal}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الفروقات: {differenceTotal}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-black text-slate-500 sm:mt-3">
                     <span>{countedTotal} قطعة معدودة</span>

@@ -34,6 +34,15 @@ const metricItems = [
 const kanbanStatuses = ["pending", "in_progress", "overdue", "completed", "cancelled", "rejected"];
 const frequencyOptions = ["one_time", "daily", "weekly", "monthly"];
 const assignmentStrategies = ["first_checked_in", "round_robin", "least_tasks_today", "fixed_employee"];
+const weekdayOptions = [
+  { value: 0, label: "الأحد" },
+  { value: 1, label: "الاثنين" },
+  { value: 2, label: "الثلاثاء" },
+  { value: 3, label: "الأربعاء" },
+  { value: 4, label: "الخميس" },
+  { value: 5, label: "الجمعة" },
+  { value: 6, label: "السبت" },
+];
 const emptyForm = {
   id: "",
   title: "",
@@ -134,7 +143,6 @@ const formatEmployeeJobLabel = (employee = {}, language = "en") => {
 };
 const STAFF_TASK_COPY = {
   en: {
-    taskNumber: "Task #",
     pageTitle: "Employee Tasks", pageDescription: "Attendance-aware task assignment, redistribution, inventory counts, and performance tracking.",
     realtimeLive: "Realtime live", realtimeReconnecting: "Realtime reconnecting", realtimeOffline: "Realtime offline",
     newTask: "New task", addDailyTask: "Add daily task", addWeeklyTask: "Add weekly task", dailyCounts: "Daily counts", redistribute: "Redistribute", reassignOverdue: "Reassign overdue",
@@ -152,7 +160,6 @@ const STAFF_TASK_COPY = {
     low: "Low", medium: "Medium", high: "High", critical: "Critical",
   },
   ar: {
-    taskNumber: "مهمة #",
     pageTitle: "مهام الموظفين", pageDescription: "إسناد المهام حسب الحضور، إعادة التوزيع، جرد المخزون، ومتابعة الأداء.",
     realtimeLive: "التحديث المباشر يعمل", realtimeReconnecting: "إعادة الاتصال بالتحديث المباشر", realtimeOffline: "التحديث المباشر غير متصل",
     newTask: "مهمة جديدة", addDailyTask: "إضافة مهمة يومية", addWeeklyTask: "إضافة مهمة أسبوعية", dailyCounts: "الجرد اليومي", redistribute: "إعادة التوزيع", reassignOverdue: "إعادة إسناد المتأخر",
@@ -988,7 +995,7 @@ function StaffTasks() {
                 <div key={item.id} className="border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">
                   <div className="text-sm font-black text-[var(--text)]" dir="auto">{item.action}</div>
                   <div className="mt-1 text-xs text-[var(--muted)]">
-                    <span dir="ltr">{taskLabel(language, "taskNumber")}{item.task_id}</span> {item.employee_name ? <span dir="auto">• {item.employee_name}</span> : null} <span aria-hidden="true">•</span> <span dir="auto">{formatDate(item.created_at, language)}</span>
+                    <span dir="ltr">Task #{item.task_id}</span> {item.employee_name ? <span dir="auto">• {item.employee_name}</span> : null} <span aria-hidden="true">•</span> <span dir="auto">{formatDate(item.created_at, language)}</span>
                   </div>
                 </div>
               ))}

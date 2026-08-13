@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { X, Play, Loader2, ExternalLink, ShieldAlert, ChevronRight } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { STATUS_TONE, fmtTime, fmtMs } from "./nodeKit";
 
 // Compact run/execution panel launched from the builder. Reuses the server's redacted
 // step data; it does NOT reconstruct secrets or duplicate the full Executions page.
 export default function ExecutionDrawer({ open, run, steps = [], running, inputText, onInputChange, onRun, onClose, onViewFull, onFocusNode }) {
-  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(null);
   if (!open) return null;
   const awaiting = run?.status === "awaiting_approval";
@@ -14,24 +12,24 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
   return (
     <div className="flex h-full w-[340px] flex-col border-l border-white/10 bg-slate-950/70 backdrop-blur">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
-        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-300">{t("aiStudio.workflow.drawer.title")}</div>
+        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-300">Run / Test</div>
         <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-white/10 text-slate-400 hover:text-white"><X className="h-3.5 w-3.5" /></button>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiStudio.workflow.drawer.triggerInput")}</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Trigger input (JSON)</div>
           <textarea value={inputText} onChange={(e) => onInputChange(e.target.value)} rows={3} dir="ltr" spellCheck={false} placeholder='{ "query": "nike" }' className="mt-1 w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/60 px-2.5 py-2 font-mono text-[11px] text-slate-200 focus:border-primary/40 focus:outline-none" />
           <button type="button" onClick={onRun} disabled={running} className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary/15 text-[12px] font-black text-primary hover:bg-primary/25 disabled:opacity-50">
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} {running ? t("aiStudio.workflow.drawer.running") : t("aiStudio.workflow.drawer.runTest")}
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} {running ? "Running…" : "Run test"}
           </button>
-          <p className="mt-1 text-[10px] text-slate-500">{t("aiStudio.workflow.drawer.serverNote")}</p>
+          <p className="mt-1 text-[10px] text-slate-500">Runs on the server using real ERP data. Nothing executes in the browser.</p>
         </div>
 
         {run ? (
           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-2.5 text-[11px]">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">{t("aiStudio.workflow.drawer.run", { id: run.id })}</span>
+              <span className="text-slate-500">Run #{run.id}</span>
               <span className={`font-black uppercase ${STATUS_TONE(run.status)}`}>{run.status}</span>
             </div>
             <div className="mt-1 grid grid-cols-2 gap-1 text-slate-400">
@@ -54,7 +52,7 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
 
         {steps.length ? (
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiStudio.workflow.drawer.steps")}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Steps</div>
             <div className="mt-1 space-y-1">
               {steps.map((s) => (
                 <div key={s.seq} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.02]">
@@ -68,9 +66,9 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
                   {expanded === s.seq ? (
                     <div className="space-y-1 border-t border-white/10 p-2 text-[10px]">
                       {s.error ? <div className="rounded bg-rose-500/10 px-1.5 py-1 text-rose-200">{s.error}</div> : null}
-                      <div className="text-slate-500">{t("aiStudio.workflow.drawer.input")}</div>
+                      <div className="text-slate-500">Input</div>
                       <pre dir="ltr" className="max-h-28 overflow-auto rounded bg-slate-950/60 p-1.5 font-mono text-[10px] text-slate-300">{JSON.stringify(s.input, null, 1)}</pre>
-                      <div className="text-slate-500">{t("aiStudio.workflow.drawer.output")}</div>
+                      <div className="text-slate-500">Output</div>
                       <pre dir="ltr" className="max-h-28 overflow-auto rounded bg-slate-950/60 p-1.5 font-mono text-[10px] text-slate-300">{JSON.stringify(s.output, null, 1)}</pre>
                     </div>
                   ) : null}

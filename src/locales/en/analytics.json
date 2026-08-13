@@ -106,23 +106,9 @@
     "stockAtThreshold": "Items at or below reorder thresholds.",
     "bestSellerForecast": "Forecasted growth: {{value}}%",
     "unavailable": "Analytics endpoints are unavailable. No placeholder data is shown.",
-    "unavailableToast": "Unable to load analytics data",
-    "aiInsights": "AI insights",
-    "aiInsightsSubtitle": "Narrative intelligence generated from the latest ERP signals.",
-    "predictedSales": "Predicted sales",
-    "predictedSalesSubtitle": "Forecasted demand with confidence scoring.",
-    "deadStockPanelSubtitle": "Items that are moving slowly and are tying up working capital.",
-    "cashEfficiency": "Cash efficiency"
+    "unavailableToast": "Unable to load analytics data"
   },
   "empty": {
     "noSalesData": "No sales data"
-  },
-  "charts": {
-    "aiInsight": "AI insight",
-    "salesTrend": "Sales trend",
-    "salesTrendSubtitle": "Order movement and sales velocity using backend chart data.",
-    "channelMix": "Channel mix",
-    "channelMixSubtitle": "Sales distribution across commerce channels.",
-    "noChannelData": "No sales channel data available."
   }
 }

@@ -195,40 +195,9 @@ const NOTIFY_RE =
   /\b(?:toast|notify)\s*(?:\.\s*(?:success|error|info|warning|loading|message|warn))?\s*\(\s*(?:"([^"\n]*)"|'([^'\n]*)'|`([^`\n$]*)`)/g;
 const DIALOG_RE =
   /\b(?:window\s*\.\s*)?(?:confirm|alert|prompt)\s*\(\s*(?:"([^"\n]*)"|'([^'\n]*)'|`([^`\n$]*)`)/g;
-/**
- * JSX text nodes.
- *
- * The text run may END at `{` as well as at `<`, so that the extremely common
- * "label followed by an interpolation" shape is counted:
- *
- *   <div>\u0627\u0644\u0625\u064A\u0631\u0627\u062F: {formatCurrency(x)}</div>
- *
- * The previous form required the whole run to be brace-free, so every such node
- * was skipped and the file reported zero debt while leaking real chrome.
- *
- * The opening `>` must genuinely close a JSX tag: it has to follow an
- * identifier, quote, `}`, `]` or `/`, and must not be part of `=>` or `>=`.
- * Without that anchor a plain comparison like `if (a > b) {` matches and the
- * metric fills with false positives.
- */
-const JSX_TEXT_RE = /(?<=[A-Za-z0-9_"'}\])\/])>(?!=)([^<>{}\n]*[A-Za-z\u0600-\u06FF][^<>{}\n]*)[<{]/g;
+const JSX_TEXT_RE = />([^<>{}\n]*[A-Za-z\u0600-\u06FF][^<>{}\n]*)</g;
 const TERNARY_LOCALE_RE =
   /\b(?:isArabic|isAr|isRtl|isRTL|lang|language|locale|currentLanguage)\b[^\n;]{0,40}\?\s*(?:"[^"\n]*"|'[^'\n]*'|`[^`\n$]*`)\s*:\s*(?:"[^"\n]*"|'[^'\n]*'|`[^`\n$]*`)/g;
-
-/**
- * A well-formed BCP-47 language tag: "ar", "en-US", "ar-EG". These are locale
- * IDENTIFIERS handed to formatting APIs, never user-visible text, so a ternary
- * that only picks between them is configuration rather than a translation leak.
- */
-const BCP47_TAG_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/;
-
-/**
- * Locale-consuming APIs. The exclusion additionally requires one of these next
- * to the ternary, so a construct that merely happens to yield two short Latin
- * words - `? "ar" : "en"` feeding a dictionary lookup, say - is still reported.
- */
-const LOCALE_API_RE =
-  /\b(?:Intl\s*\.\s*(?:DateTimeFormat|NumberFormat|Collator|RelativeTimeFormat|ListFormat|PluralRules|Segmenter)|toLocaleString|toLocaleDateString|toLocaleTimeString|toLocaleLowerCase|toLocaleUpperCase)\b/;
 
 const PATTERNS = [
   { type: "jsx-text", regex: JSX_TEXT_RE, checkTranslationCall: false },
@@ -308,24 +277,6 @@ export function scanFile(file) {
       normalise(m[1] ?? m[2] ?? m[3] ?? "")
     );
     if (branches.length && branches.every((branch) => isNoise(branch))) continue;
-    // A ternary that only chooses between BCP-47 tags next to a locale-consuming
-    // API is configuration, not chrome: `Intl.DateTimeFormat(isAr ? "ar-EG" : "en-US")`
-    // must stay literal, and reporting it as debt makes the metric untruthful.
-    // A tag carrying a region/extension subtag ("en-US", "ar-EG-u-nu-latn") is
-    // unambiguously a locale id, so it stands on its own. A bare "ar"/"en" is
-    // also an ordinary word, so it additionally needs a locale API in view.
-    const allTags = branches.length && branches.every((branch) => BCP47_TAG_RE.test(branch));
-    // `some`, not `every`: the matched span often also picks up a default param
-    // or the comparison operand (`(language = "en") => language === "ar" ? ...`),
-    // which are bare tags. One qualified tag among all-valid tags is decisive.
-    const allQualified = allTags && branches.some((branch) => branch.includes("-"));
-    if (
-      allTags &&
-      (allQualified ||
-        LOCALE_API_RE.test(text.slice(Math.max(0, index - 200), index + match[0].length + 60)))
-    ) {
-      continue;
-    }
     const line = lineNumberAt(text, index);
     const value = normalise(match[0]).slice(0, 120);
     const id = `${line}:inline-ternary:${value}`;

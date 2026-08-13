@@ -185,7 +185,7 @@ function FinancialReports() {
         }
         tabs={[
           { to: "/accounting", label: t("accounting.tabs.dashboard"), end: true },
-          { to: "/accounting/treasury", label: t("accounting.treasury.title") },
+          { to: "/accounting/treasury", label: "الخزينة" },
           { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
           { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
           { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },

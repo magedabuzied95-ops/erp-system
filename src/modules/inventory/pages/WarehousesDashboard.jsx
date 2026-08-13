@@ -99,7 +99,7 @@ function WarehousesDashboard() {
       setDeleteError("");
       await api.delete(`/warehouses/${deleteTarget.id}`);
       setWarehouses((current) => current.filter((warehouse) => String(warehouse.id) !== String(deleteTarget.id)));
-      toast.success(t("warehouses.toasts.deleted"));
+      toast.success("تم حذف المخزن");
       setDeleteTarget(null);
     } catch (err) {
       const message = err?.responseBody?.message || err?.message || "تعذر حذف المخزن";
@@ -178,7 +178,7 @@ function WarehousesDashboard() {
         { to: "/inventory", label: t("warehouses.tabs.inventory"), end: true },
         { to: "/inventory/movements", label: t("warehouses.tabs.movements") },
         { to: "/inventory/adjustments", label: t("warehouses.tabs.adjustments") },
-        { to: "/inventory/count", label: t("inventory.tabs.count") },
+        { to: "/inventory/count", label: "الجرد" },
         { to: "/stock-transfers", label: t("warehouses.tabs.transfers") },
         { to: "/warehouses", label: t("warehouses.tabs.warehouses"), end: true },
       ]}
@@ -230,9 +230,9 @@ function WarehousesDashboard() {
                 <div className="mt-4 space-y-2 text-sm text-zinc-300">
                   <div>{t("warehouses.row.branch")}: {warehouse.branch || "غير متاح"}</div>
                   <div className="grid grid-cols-3 gap-2">
-                    <MiniStat label={t("warehouses.metrics.products")} value={warehouse.products_count || 0} />
-                    <MiniStat label={t("warehouses.metrics.balance")} value={warehouse.stock_qty ?? warehouse.stock_quantity ?? 0} />
-                    <MiniStat label={t("warehouses.metrics.transfers")} value={warehouse.transfers_count ?? warehouse.transfer_references ?? 0} />
+                    <MiniStat label="المنتجات" value={warehouse.products_count || 0} />
+                    <MiniStat label="الرصيد" value={warehouse.stock_qty ?? warehouse.stock_quantity ?? 0} />
+                    <MiniStat label="التحويلات" value={warehouse.transfers_count ?? warehouse.transfer_references ?? 0} />
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -307,21 +307,21 @@ function MiniStat({ label, value }) {
 }
 
 function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, onClose, onSave }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const isProtected = Boolean(warehouse.is_protected || warehouse.default_references);
   const setField = (field, value) => onChange((current) => ({ ...current, [field]: value }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("common.close")} />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="إغلاق" />
       <div className="relative w-full max-w-xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{labels.edit}</div>
             <h3 className="m1-section-title mt-1 text-white">{labels.editWarehouse}</h3>
             {isProtected ? (
-              <p className="mt-2 text-sm leading-6 text-amber-100">{t("warehouses.protectedNotice")}</p>
+              <p className="mt-2 text-sm leading-6 text-amber-100">هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط.</p>
             ) : null}
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
@@ -376,7 +376,7 @@ function EditField({ label, value, onChange, required = false }) {
 }
 
 function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const stockQuantity = Number(warehouse.stock_qty ?? warehouse.stock_quantity ?? 0);
   const productsCount = Number(warehouse.products_count || 0);
@@ -399,11 +399,11 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("common.close")} />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="إغلاق" />
       <div className="relative w-full max-w-xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-300">{t("warehouses.deleteWarehouse")}</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-300">حذف المخزن</div>
             <h3 className="m1-section-title mt-1 text-white">{warehouse.name}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
               راجع استخدام المخزن قبل الحذف. يمكن حذف المخازن المكررة الفارغة بأمان.
@@ -415,19 +415,19 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MiniStat label={t("warehouses.metrics.products")} value={productsCount} />
-          <MiniStat label={t("warehouses.metrics.stockQuantity")} value={stockQuantity} />
-          <MiniStat label={t("warehouses.metrics.transfers")} value={transferReferences} />
-          <MiniStat label={t("warehouses.metrics.active")} value={activeTransferReferences} />
+          <MiniStat label="المنتجات" value={productsCount} />
+          <MiniStat label="كمية المخزون" value={stockQuantity} />
+          <MiniStat label="التحويلات" value={transferReferences} />
+          <MiniStat label="النشطة" value={activeTransferReferences} />
         </div>
 
         <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 text-sm text-zinc-300">
           <div className="flex items-center justify-between gap-3">
-            <span>{t("warehouses.row.id")}</span>
+            <span>معرّف المخزن</span>
             <span className="font-black text-white">{warehouse.id}</span>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3">
-            <span>{t("warehouses.defaultReferences")}</span>
+            <span>المرجعيات الافتراضية</span>
             <span className={isProtected ? "font-black text-amber-200" : "font-black text-emerald-200"}>{warehouse.default_references || 0}</span>
           </div>
         </div>

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { Award, ChevronRight, Coins, Gift, RefreshCw, TrendingUp, UsersRound } from "lucide-react";
@@ -30,7 +29,6 @@ const StatCard = ({ label, value, icon: Icon, hint }) => (
 );
 
 function LoyaltyDashboard() {
-  const { t } = useTranslation();
   const [customersData, setCustomersData] = useState(null);
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,8 +95,8 @@ function LoyaltyDashboard() {
     <div className="space-y-6 text-[var(--text)]">
       <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)] xl:flex-row xl:items-center">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-primary/80">{t("loyalty.dashboard.eyebrow")}</p>
-          <h1 className="m1-page-title mt-2">{t("loyalty.dashboard.title")}</h1>
+          <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Loyalty</p>
+          <h1 className="m1-page-title mt-2">Customer Loyalty Intelligence</h1>
           <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
             Track points issuance, redemptions, tier movement, and customer value from one operational dashboard.
           </p>
@@ -117,18 +115,18 @@ function LoyaltyDashboard() {
       {error ? <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{error}</div> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t("loyalty.dashboard.stats.totalCustomers")} value={loading ? "..." : summary.totalCustomers || 0} icon={UsersRound} hint={t("loyalty.dashboard.stats.totalCustomersHint")} />
-        <StatCard label={t("loyalty.dashboard.stats.pointsIssued")} value={loading ? "..." : Number(summary.totalPointsIssued || 0).toLocaleString()} icon={Coins} hint={t("loyalty.dashboard.stats.pointsIssuedHint")} />
-        <StatCard label={t("loyalty.dashboard.stats.pointsRedeemed")} value={loading ? "..." : Number(summary.totalPointsRedeemed || 0).toLocaleString()} icon={Gift} hint={t("loyalty.dashboard.stats.pointsRedeemedHint")} />
-        <StatCard label={t("loyalty.dashboard.stats.activeRules")} value={loading ? "..." : rules.filter((rule) => rule.is_active !== false).length} icon={Award} hint={t("loyalty.dashboard.stats.activeRulesHint")} />
+        <StatCard label="Total loyalty customers" value={loading ? "..." : summary.totalCustomers || 0} icon={UsersRound} hint="Customers enrolled in the program" />
+        <StatCard label="Total points issued" value={loading ? "..." : Number(summary.totalPointsIssued || 0).toLocaleString()} icon={Coins} hint="Lifetime earned points" />
+        <StatCard label="Total points redeemed" value={loading ? "..." : Number(summary.totalPointsRedeemed || 0).toLocaleString()} icon={Gift} hint="Points spent at checkout" />
+        <StatCard label="Active rules" value={loading ? "..." : rules.filter((rule) => rule.is_active !== false).length} icon={Award} hint="Current point and tier policies" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="m1-section-title">{t("loyalty.dashboard.top.title")}</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">{t("loyalty.dashboard.top.subtitle")}</p>
+              <h2 className="m1-section-title">Top Loyalty Customers</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">Highest value and point balance customers</p>
             </div>
             <TrendingUp className="h-5 w-5 text-primary" />
           </div>
@@ -159,7 +157,7 @@ function LoyaltyDashboard() {
         </div>
 
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
-          <h2 className="m1-section-title">{t("loyalty.dashboard.tiers.title")}</h2>
+          <h2 className="m1-section-title">Tier Distribution</h2>
           <div className="mt-5 space-y-3">
             {Object.entries(tierCounts).map(([tier, count]) => (
               <div key={tier} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -178,16 +176,16 @@ function LoyaltyDashboard() {
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
-          <h2 className="m1-section-title">{t("loyalty.dashboard.history.title")}</h2>
+          <h2 className="m1-section-title">Transaction History</h2>
           <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-[var(--surface)] text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <tr>
-                  <th className="px-4 py-3">{t("loyalty.dashboard.history.type")}</th>
-                  <th className="px-4 py-3">{t("loyalty.dashboard.history.customer")}</th>
-                  <th className="px-4 py-3">{t("loyalty.dashboard.history.points")}</th>
-                  <th className="px-4 py-3">{t("loyalty.dashboard.history.value")}</th>
-                  <th className="px-4 py-3">{t("loyalty.dashboard.history.date")}</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Points</th>
+                  <th className="px-4 py-3">Value</th>
+                  <th className="px-4 py-3">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,7 +204,7 @@ function LoyaltyDashboard() {
         </div>
 
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
-          <h2 className="m1-section-title">{t("loyalty.dashboard.rules.title")}</h2>
+          <h2 className="m1-section-title">Rules Snapshot</h2>
           <div className="mt-5 space-y-3">
             {rules.map((rule) => (
               <div key={rule.id} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -222,10 +220,10 @@ function LoyaltyDashboard() {
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--muted)]">
-                  <div>{t("loyalty.dashboard.rules.minOrder", { value: Number(rule.minimum_order_amount || 0).toLocaleString() })}</div>
-                  <div>{t("loyalty.dashboard.rules.redeemValue", { value: Number(rule.redeem_value || 0).toLocaleString() })}</div>
-                  <div>{t("loyalty.dashboard.rules.silver", { value: Number(rule.silver_threshold || 0).toLocaleString() })}</div>
-                  <div>{t("loyalty.dashboard.rules.platinum", { value: Number(rule.platinum_threshold || 0).toLocaleString() })}</div>
+                  <div>Min order: {Number(rule.minimum_order_amount || 0).toLocaleString()}</div>
+                  <div>Redeem value: {Number(rule.redeem_value || 0).toLocaleString()}</div>
+                  <div>Silver: {Number(rule.silver_threshold || 0).toLocaleString()}</div>
+                  <div>Platinum: {Number(rule.platinum_threshold || 0).toLocaleString()}</div>
                 </div>
               </div>
             ))}

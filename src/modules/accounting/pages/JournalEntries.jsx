@@ -20,11 +20,6 @@ import { formatCurrency, formatDateTime } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
 import { Pagination } from "../../../shared/ui";
 
-import i18n from "../../../i18n/i18n";
-
-/** Module-scope translator for helpers defined outside a component. */
-const tt = (key, options) => i18n.t(key, options);
-
 const emptyLine = () => ({
   account_code: "",
   debit: "",
@@ -94,8 +89,8 @@ function JournalEntries() {
       setPagination(result?.pagination || { total: 0, limit: pageSize, offset: (page - 1) * pageSize });
     } catch (err) {
       console.log(err);
-      setError(tt("accounting.journal.errors.loadPeriod"));
-      toast.error(tt("accounting.journal.errors.load"));
+      setError("تعذر تحميل القيود اليومية ضمن الفترة الحالية.");
+      toast.error("فشل تحميل القيود اليومية");
       setEntries([]);
     } finally {
       setLoading(false);
@@ -123,14 +118,14 @@ function JournalEntries() {
       setDrawerLoading(true);
       setSelectedEntry({
         id: entryId,
-        entry_number: tt("accounting.common.loading"),
+        entry_number: "جارٍ التحميل...",
         lines: [],
       });
       const result = await accountingApi.getJournalEntryDetail(entryId);
       setSelectedEntry(result?.entry || null);
     } catch (err) {
       console.log(err);
-      toast.error(tt("accounting.journal.errors.loadEntry"));
+      toast.error("تعذر تحميل تفاصيل القيد");
       setSelectedEntry(null);
     } finally {
       setDrawerLoading(false);
@@ -204,7 +199,7 @@ function JournalEntries() {
           .filter((line) => line.account_code),
       };
       const result = await accountingApi.createJournalEntry(payload);
-      toast.success(tt("accounting.journal.toasts.created"));
+      toast.success("تم إنشاء القيد بنجاح");
       setFormState({
         description: "",
         notes: "",
@@ -219,7 +214,7 @@ function JournalEntries() {
       }
     } catch (err) {
       console.log(err);
-      toast.error(err?.message || tt("accounting.journal.errors.create"));
+      toast.error(err?.message || "تعذر إنشاء القيد");
     } finally {
       setFormSubmitting(false);
     }
@@ -237,7 +232,7 @@ function JournalEntries() {
       });
     } catch (err) {
       console.log(err);
-      setPreviewError(err?.message || tt("accounting.journal.errors.preview"));
+      setPreviewError(err?.message || "تعذر تجهيز المعاينة");
       setPreviewResult({ items: [], summary: { total: 0, ready: 0, skipped: 0, already_posted: 0 } });
     } finally {
       setPreviewLoading(false);
@@ -250,7 +245,7 @@ function JournalEntries() {
   return (
     <AccountingShell
       title={t("accounting.journal.title")}
-      subtitle={tt("accounting.journal.subtitle")}
+      subtitle="قيود اليومية مع إدخال يدوي ومعاينة Backfill فقط بدون تشغيل تلقائي"
       actions={
         <>
           <button
@@ -274,8 +269,8 @@ function JournalEntries() {
         { to: "/accounting", label: t("accounting.tabs.dashboard") },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal"), end: true },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
-        { to: "/accounting/general-ledger", label: tt("accounting.tabs.ledgers") },
-        { to: "/accounting/trial-balance", label: tt("accounting.reports.tabs.trialBalance") },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
         { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}
@@ -292,21 +287,21 @@ function JournalEntries() {
           onClick={() => setActiveTab("list")}
           className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          {tt("accounting.tabs.journal")}
+          القيود اليومية
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("manual")}
           className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          {tt("accounting.journal.manualEntry")}
+          إدخال يدوي
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("preview")}
           className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          {tt("accounting.journal.postingPreview")}
+          معاينة الترحيل
         </button>
       </div>
 
@@ -432,29 +427,29 @@ function JournalEntries() {
         <form onSubmit={submitJournalEntry} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h3 className="m1-section-title text-white">{tt("accounting.journal.manualJournalEntry")}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{tt("accounting.journal.unbalancedWarning")}</p>
+              <h3 className="m1-section-title text-white">قيد يومي يدوي</h3>
+              <p className="mt-1 text-sm text-zinc-400">القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
-              <MiniStat label={tt("accounting.common.metrics.totalDebit")} value={formatCurrency(debitPreview)} tone="emerald" />
-              <MiniStat label={tt("accounting.common.metrics.totalCredit")} value={formatCurrency(creditPreview)} tone="rose" />
-              <MiniStat label={tt("orders.table.status")} value={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? tt("accounting.journal.metrics.balanced") : tt("accounting.journal.metrics.unbalanced")} tone={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "cyan" : "amber"} />
+              <MiniStat label="إجمالي المدين" value={formatCurrency(debitPreview)} tone="emerald" />
+              <MiniStat label="إجمالي الدائن" value={formatCurrency(creditPreview)} tone="rose" />
+              <MiniStat label="الحالة" value={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "متوازن" : "غير متوازن"} tone={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "cyan" : "amber"} />
             </div>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <Field label={tt("accounting.common.labels.description")}>
+            <Field label="الوصف">
               <input value={formState.description} onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
-            <Field label={tt("orders.table.date")}>
+            <Field label="التاريخ">
               <input type="date" value={formState.entry_date} onChange={(event) => setFormState((current) => ({ ...current, entry_date: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
-            <Field label={tt("orders.table.branch")}>
+            <Field label="الفرع">
               <input type="number" min="1" value={formState.branch_id} onChange={(event) => setFormState((current) => ({ ...current, branch_id: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
           </div>
 
-          <Field className="mt-3" label={tt("accounting.common.labels.notes")}>
+          <Field className="mt-3" label="ملاحظات">
             <textarea value={formState.notes} onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))} rows={2} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
           </Field>
 
@@ -462,11 +457,11 @@ function JournalEntries() {
             <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
-                  <Th className="text-right">{tt("accounting.common.labels.account")}</Th>
-                  <Th className="text-right">{tt("accounting.common.labels.debit")}</Th>
-                  <Th className="text-right">{tt("accounting.common.labels.credit")}</Th>
-                  <Th className="text-right">{tt("accounting.common.labels.notes")}</Th>
-                  <Th className="text-right">{tt("accounting.common.actions.delete")}</Th>
+                  <Th className="text-right">الحساب</Th>
+                  <Th className="text-right">مدين</Th>
+                  <Th className="text-right">دائن</Th>
+                  <Th className="text-right">ملاحظات</Th>
+                  <Th className="text-right">حذف</Th>
                 </tr>
               </thead>
               <tbody>
@@ -474,7 +469,7 @@ function JournalEntries() {
                   <tr key={index}>
                     <Td className="text-right">
                       <select value={line.account_code} onChange={(event) => updateLine(index, "account_code", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
-                        <option value="">{tt("accounting.common.actions.selectAccount")}</option>
+                        <option value="">اختر الحساب</option>
                         {accounts.map((account) => (
                           <option key={account.id} value={account.account_code}>
                             {account.account_code} - {account.account_name}
@@ -505,11 +500,11 @@ function JournalEntries() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" onClick={addLine} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
               <Plus className="h-4 w-4" />
-              {tt("accounting.journal.addLine")}
+              إضافة سطر
             </button>
             <button type="submit" disabled={formSubmitting} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
               <BookOpenText className="h-4 w-4" />
-              {formSubmitting ? tt("orders.edit.saving") : tt("accounting.journal.create")}
+              {formSubmitting ? "جارٍ الحفظ..." : "إنشاء القيد"}
             </button>
           </div>
         </form>
@@ -518,41 +513,41 @@ function JournalEntries() {
       {activeTab === "preview" ? (
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div>
-            <h3 className="m1-section-title text-white">{tt("accounting.journal.postingPreview")}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{tt("accounting.journal.previewOnly")}</p>
+            <h3 className="m1-section-title text-white">معاينة الترحيل</h3>
+            <p className="mt-1 text-sm text-zinc-400">هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.</p>
           </div>
 
           <form onSubmit={loadBackfillPreview} className="mt-5 grid gap-3 md:grid-cols-4">
-            <Field label={tt("orders.filters.source")}>
+            <Field label="المصدر">
               <select value={previewState.source_type} onChange={(event) => setPreviewState((current) => ({ ...current, source_type: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
-                <option value="">{tt("orders.filters.all")}</option>
-                <option value="order">{tt("orders.header.title")}</option>
-                <option value="purchase">{tt("accounting.journal.purchases")}</option>
-                <option value="expense">{tt("accounting.tabs.expenses")}</option>
+                <option value="">الكل</option>
+                <option value="order">الطلبات</option>
+                <option value="purchase">المشتريات</option>
+                <option value="expense">المصروفات</option>
               </select>
             </Field>
-            <Field label={tt("accounting.common.filters.fromDate")}>
+            <Field label="من تاريخ">
               <input type="date" value={previewState.from_date} onChange={(event) => setPreviewState((current) => ({ ...current, from_date: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
-            <Field label={tt("accounting.common.filters.toDate")}>
+            <Field label="إلى تاريخ">
               <input type="date" value={previewState.to_date} onChange={(event) => setPreviewState((current) => ({ ...current, to_date: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
-            <Field label={tt("accounting.journal.limit")}>
+            <Field label="الحد الأقصى">
               <input type="number" min="1" max="100" value={previewState.limit} onChange={(event) => setPreviewState((current) => ({ ...current, limit: event.target.value }))} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
             </Field>
             <div className="md:col-span-4">
               <button type="submit" disabled={previewLoading} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
                 <WandSparkles className="h-4 w-4" />
-                {previewLoading ? tt("accounting.journal.preparingPreview") : tt("accounting.journal.loadPreview")}
+                {previewLoading ? "جارٍ تجهيز المعاينة..." : "تحميل المعاينة"}
               </button>
             </div>
           </form>
 
           <div className="mt-5 grid gap-3 md:grid-cols-4">
-            <MiniStat label={tt("accounting.journal.metrics.totalItems")} value={previewResult.summary.total || 0} tone="zinc" />
-            <MiniStat label={tt("accounting.journal.metrics.ready")} value={previewResult.summary.ready || 0} tone="emerald" />
-            <MiniStat label={tt("accounting.journal.metrics.skipped")} value={previewResult.summary.skipped || 0} tone="amber" />
-            <MiniStat label={tt("accounting.journal.metrics.alreadyPosted")} value={previewResult.summary.already_posted || 0} tone="rose" />
+            <MiniStat label="إجمالي العناصر" value={previewResult.summary.total || 0} tone="zinc" />
+            <MiniStat label="جاهزة" value={previewResult.summary.ready || 0} tone="emerald" />
+            <MiniStat label="متخطاة" value={previewResult.summary.skipped || 0} tone="amber" />
+            <MiniStat label="منشورة مسبقًا" value={previewResult.summary.already_posted || 0} tone="rose" />
           </div>
 
           {previewError ? (
@@ -560,19 +555,19 @@ function JournalEntries() {
           ) : null}
 
           {previewResult.items.length === 0 ? (
-            <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.journal.noPreviewResults")}</div>
+            <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد نتائج معاينة حتى الآن.</div>
           ) : (
             <div className="m1-table-container mt-5 overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-[1120px] w-full text-right text-sm" dir="rtl">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
-                    <Th className="text-right">{tt("orders.filters.source")}</Th>
-                    <Th className="text-right">{tt("accounting.common.labels.description")}</Th>
-                    <Th className="text-right">{tt("orders.table.date")}</Th>
-                    <Th className="text-right">{tt("accounting.journal.debitColumn")}</Th>
-                    <Th className="text-right">{tt("accounting.journal.creditColumn")}</Th>
-                    <Th className="text-right">{tt("orders.table.status")}</Th>
-                    <Th className="text-right">{tt("orders.returns.reason")}</Th>
+                    <Th className="text-right">المصدر</Th>
+                    <Th className="text-right">الوصف</Th>
+                    <Th className="text-right">التاريخ</Th>
+                    <Th className="text-right">المدين</Th>
+                    <Th className="text-right">الدائن</Th>
+                    <Th className="text-right">الحالة</Th>
+                    <Th className="text-right">السبب</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -715,32 +710,32 @@ function FilterChip({ value, onChange, options }) {
 
 function movementTypes() {
   return [
-    { value: "", label: tt("orders.filters.all") },
-    { value: "purchase", label: tt("accounting.journal.referenceTypes.purchase") },
-    { value: "order", label: tt("accounting.common.labels.order") },
-    { value: "return", label: tt("orders.statusLabels.returned") },
-    { value: "manual", label: tt("orders.sources.manual") },
-    { value: "expense", label: tt("accounting.common.labels.expense") },
+    { value: "", label: "الكل" },
+    { value: "purchase", label: "شراء" },
+    { value: "order", label: "طلب" },
+    { value: "return", label: "مرتجع" },
+    { value: "manual", label: "يدوي" },
+    { value: "expense", label: "مصروف" },
   ];
 }
 
 function translateReferenceType(type) {
   const normalized = String(type || "").trim().toLowerCase();
-  if (normalized === "purchase") return tt("accounting.journal.referenceTypes.purchase");
-  if (normalized === "order") return tt("accounting.common.labels.order");
-  if (normalized === "return") return tt("orders.statusLabels.returned");
-  if (normalized === "manual") return tt("orders.sources.manual");
-  if (normalized === "expense") return tt("accounting.common.labels.expense");
-  if (normalized === "inventory") return tt("inventory.matrix.stock");
-  return tt("inventory.labels.unknown");
+  if (normalized === "purchase") return "شراء";
+  if (normalized === "order") return "طلب";
+  if (normalized === "return") return "مرتجع";
+  if (normalized === "manual") return "يدوي";
+  if (normalized === "expense") return "مصروف";
+  if (normalized === "inventory") return "مخزون";
+  return "غير معروف";
 }
 
 function translateStatus(status) {
   const normalized = String(status || "").trim().toLowerCase();
-  if (normalized === "posted") return tt("accounting.journal.posted");
-  if (normalized === "draft") return tt("orders.statusLabels.draft");
-  if (normalized === "void") return tt("orders.statusLabels.canceled");
-  return tt("inventory.labels.unknown");
+  if (normalized === "posted") return "مرحّل";
+  if (normalized === "draft") return "مسودة";
+  if (normalized === "void") return "ملغي";
+  return "غير معروف";
 }
 
 function MiniStat({ label, value, tone = "zinc" }) {

@@ -1,10 +1,4 @@
 {
-  "createTitle": "Create New Branch",
-  "apiHint": "Saved branches are returned by GET /api/branches and used by employee forms.",
-  "nameRequired": "Branch name is required",
-  "deletePrompt": "Delete this branch?",
-  "withManagers": "With managers",
-  "gpsRadius": "GPS radius",
   "title": "Branches",
   "eyebrow": "Branch network",
   "subtitle": "Manage branch identities backed by PostgreSQL. Default warehouses are stored only as explicit branch mappings.",
