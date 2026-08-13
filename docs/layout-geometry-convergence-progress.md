@@ -745,3 +745,144 @@ re-measurements.
 6. Re-fetch `origin/main` immediately before every push. Production moved four
    times during this programme: `041a8a6` → `5c123e3` → `4362f27` → `dc985f6` →
    `e7b5745` (ours) → `c7f2e51`.
+
+---
+
+## Session 5 — DEFECT 2 dismissed on evidence; Fluid Workspace Width dimension; DEFECT 3 found
+
+### DEFECT 2 (`/products` row actions) — **NOT_A_DEFECT**, no code change
+
+Diagnosed read-only, as instructed. The arithmetic settled it before any edit:
+
+| Quantity | Value |
+|---|---|
+| action buttons | 5 × 32 px (`h-8 w-8 shrink-0`, `flex-shrink: 0`) = 160 |
+| column gaps | 4 × 6 px = 24 |
+| **intrinsic width required** | **184** |
+| **container `clientWidth`** | **184** |
+
+The cluster fits its column **exactly**. The reported `scrollWidth` of 226 comes
+from **five `position: absolute`, `opacity: 0`, `pointer-events: none` hover
+tooltips** (تعديل / الأسعار / المخزون …), one per button, centred on their button
+and therefore overhanging the cluster edge. They are out of flow, invisible until
+hover, and non-interactive. `escCount 0`, `htmlOvf 0`.
+
+**Root cause was the auditor, not the UI.** `scrollWidth` counts out-of-flow
+boxes. Had this been "fixed" by clipping, hiding actions or shrinking the 32 px
+targets, it would have damaged working, accessible UI to satisfy a bad metric.
+
+**Auditor fix #6 — `__ovf2`.** Overflow is now computed from **in-flow
+descendants only**: any element with an `absolute`/`fixed` ancestor inside the
+shell is excluded, and overflow is measured against the container's *padding
+box* rather than read from `scrollWidth`.
+
+**Validation that the corrected probe is not blind.** A DOM-only regression
+experiment on `/settings/company` (this browser only; Production untouched):
+
+| State | `boxCount` | Culprit named |
+|---|---|---|
+| shipped fix present | 1 | — |
+| fix classes removed in DOM | **5** | `span.text-xs` / `/uploads/products/cloudinary/…` overflowing **126–128 px** |
+| classes restored | 1 | — |
+
+The probe still catches genuine in-flow overflow and names the exact offending
+node and text. `/products` under `__ovf2`: **`boxCount: 0`**.
+
+**Auditor fix #7 — scrollport-aware escapes.** Elements inside an ancestor with
+`overflow-x: auto|scroll` legitimately extend past the shell. The escape counter
+now separates `escInScrollport` from `escNotInScrollport`; only the latter counts.
+
+**Full-bleed idiom classified.** Symmetric negative margins that exactly cancel
+the parent's padding (`header.sticky` with `margin: 0 -32px` inside `padding: 32px`;
+the dashboard's `-mx-2` rows) are intentional edge-to-edge treatments, not
+overflow. Recognised, not "fixed".
+
+### NEW DIMENSION — Fluid Workspace Width, full matrix
+
+`__ws` records per route: `availableWorkspaceWidth` (shell content box, inside its
+own padding), `pageContentWidth` (widest in-flow content subtree),
+`workspaceUtilization`, **logical** start/end gutters (RTL-aware), gutter symmetry,
+the first genuinely binding width-capping ancestor, and the content owner.
+
+**Run across the full 97-route matrix, Dark / Arabic RTL / 2288 px, Production
+`c7f2e51`. 96 of 97 trusted.**
+
+| Metric | Value |
+|---|---|
+| utilization — median | **100 %** |
+| utilization — min | 76.4 % |
+| utilization — max | **175 %** |
+| routes with asymmetric gutters | **1** |
+| routes with page-level horizontal overflow | **0** |
+| routes with in-flow escapes | **1** (see DEFECT 3) |
+
+**Marketing family — intentional cap, not a defect.** 20 `/marketing/*` routes sit
+at **76.4 %** utilization: content 1480 px inside 1937 px available, capped by a
+binding `max-width: 1480px` shared across the whole family, with symmetric
+gutters. A deliberate reading-measure cap on a studio surface, applied
+consistently — recorded as intentional, left alone.
+
+**`/settings/permissions` — NOT a defect.** 696 elements extend past the shell,
+but **all 696 are inside a legitimate horizontal scrollport**
+(`escNotInScrollport: 0`) and the widest in-flow element is 1937 px — exactly the
+available workspace. A wide permissions matrix in a proper scroller. Reachable,
+not clipped.
+
+### DEFECT 3 — `NEEDS_FIX` — `/marketing/posts` content is ~1.7× the workspace and is clipped
+
+| Quantity | Value |
+|---|---|
+| available workspace | 1937 px |
+| page content width | **3389 px** |
+| workspace utilization | **175 %** |
+| logical gutters (start / end) | **+382 / −1833** — grossly asymmetric |
+| in-flow elements escaping the shell | **124** |
+| inside a scrollport? | **No** — `escInScrollport: 0` |
+| page-level horizontal overflow | 0 |
+
+`htmlOvf: 0` with no scrollport is the damning combination: the shell's
+`overflow-x-hidden` **clips** the excess, so roughly 1400 px of content is not
+merely off-screen but **unreachable** — it cannot be scrolled to. Contrast
+`/settings/permissions`, where the same raw escape signal is fully explained by a
+scroller.
+
+Owner chain (RTL, overflowing **leftward** by up to 1803 px):
+
+```
+article.rounded-[var(--radius-card)].border…      3389
+  div.flex.flex-col.gap-4.lg:flex-row             3354
+    div.min-w-0.flex-1                            3241   <- min-w-0 present yet still 3241
+      div.flex.flex-wrap.items-center.gap-2       3241   <- flex-wrap not wrapping
+```
+
+`min-w-0` is already present on the flex child and the wrap container is not
+wrapping, so the width is being forced by an intrinsic-width child inside the
+chip/tag row. **Not yet traced to the source component and not yet classified** —
+the next session must find what establishes the 3241 px intrinsic width before
+proposing any correction. Do **not** fix by clipping or hiding.
+
+### Programme state
+
+| Item | Value |
+|---|---|
+| Checkpoints deployed | 1 (`e7b5745`, verified) |
+| Defects: found / fixed+verified / dismissed on evidence / open | 3 / 1 / 1 / **1** |
+| Code changed this session | **none** |
+| Production at session end | `c7f2e51` |
+| Auditor fixes to date | **7** |
+
+### RESUME MARKER (supersedes session 4)
+
+1. **DEFECT 3** — trace what forces 3241 px inside `div.flex.flex-wrap.items-center.gap-2`
+   on `/marketing/posts`; enumerate consumers; classify; minimal presentation-only
+   fix; full Safe Release + post-deploy re-measure (expect utilization → ≈100 %,
+   `escNotInScrollport` → 0, gutters symmetric).
+2. Re-run the Fluid Workspace matrix at the other rungs — **Claude Browser pane**
+   (exact emulation, 1430×900 verified) for wide 1920 / normal 1440 / narrow 1024
+   / 768; Chrome cannot control width.
+3. Finish frozen references `/orders`, `/customers`, `/inventory`; Dark/LTR;
+   internal states; 7 pathological surfaces (bounded → `PASS_BOUNDED`); 21
+   session-1 unverified routes; 4 open Dark routes; final regression sweep.
+4. Keep the **bidirectional** overflow rule, the **in-flow-only** rule (#6) and the
+   **scrollport-aware** escape rule (#7) enabled — each one prevented a false
+   defect this session.
