@@ -506,5 +506,90 @@
     "baby": "بيبي",
     "medium": "وسط",
     "boys": "أولادي"
+  },
+  "recentOps": {
+    "title": "العمليات الأخيرة",
+    "subtitle": "عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.",
+    "close": "إغلاق",
+    "searchPlaceholder": "بحث برقم الفاتورة أو العميل أو الهاتف",
+    "refresh": "تحديث",
+    "errorTitle": "حدث خطأ",
+    "retry": "إعادة المحاولة",
+    "emptyTitle": "لا توجد عمليات",
+    "emptyNoMatches": "لا توجد نتائج مطابقة للبحث.",
+    "emptyHint": "ستظهر آخر فواتير POS هنا بعد البيع.",
+    "shownCount": "تم عرض {{shown}} من {{total}}",
+    "status": {
+      "cancelled": "ملغاة",
+      "returned": "مرتجعة",
+      "inReview": "قيد المراجعة",
+      "paid": "مدفوعة"
+    },
+    "lock": {
+      "cancelled": "الفاتورة ملغاة",
+      "returned": "الفاتورة مرتجعة",
+      "noPermission": "لا تملك صلاحية التعديل",
+      "windowExpired": "تجاوزت مهلة التعديل {{hours}} ساعة"
+    },
+    "actions": {
+      "details": "تفاصيل",
+      "print": "طباعة",
+      "return": "مرتجع",
+      "edit": "تعديل",
+      "permanentDelete": "حذف نهائي",
+      "cancel": "إلغاء"
+    },
+    "toasts": {
+      "reprintQueued": "تم تجهيز الفاتورة للطباعة مرة أخرى",
+      "cannotReturn": "لا يمكن عمل مرتجع لهذه الفاتورة",
+      "deleteConfirmRequired": "اكتب DELETE أو حذف للتأكيد",
+      "deleted": "تم حذف الفاتورة نهائيًا",
+      "selectItemsToReturn": "اختر المنتجات المراد إرجاعها"
+    },
+    "deleteModal": {
+      "title": "حذف نهائي",
+      "warning": "سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.",
+      "detail": "سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.",
+      "invoice": "الفاتورة",
+      "total": "الإجمالي",
+      "confirmHint": "اكتب DELETE أو حذف للتأكيد"
+    },
+    "returnModal": {
+      "eyebrow": "مرتجع POS",
+      "title": "إنشاء مرتجع / استبدال",
+      "originalInvoice": "الفاتورة القديمة:",
+      "reasonLabel": "سبب المرتجع",
+      "customReasonPlaceholder": "اكتب السبب",
+      "refundMethodLabel": "طريقة رد المبلغ",
+      "pickItems": "اختيار المنتجات المراد إرجاعها",
+      "returnedQty": "الكمية المرتجعة",
+      "returnTotal": "إجمالي المرتجع"
+    },
+    "returnReasons": {
+      "wrongSize": "مقاس غير مناسب",
+      "defect": "عيب صناعة",
+      "changedMind": "تغيير رأي العميل",
+      "exchange": "استبدال",
+      "other": "أخرى"
+    },
+    "returnModes": {
+      "full": "مرتجع كامل",
+      "partial": "مرتجع جزئي",
+      "exchange": "استبدال"
+    },
+    "refundMethods": {
+      "cash": "نقدي"
+    },
+    "detailsModal": {
+      "eyebrow": "تفاصيل الفاتورة",
+      "product": "المنتج",
+      "quantity": "الكمية",
+      "price": "السعر",
+      "subtotal": "الإجمالي الفرعي",
+      "noItems": "لا توجد منتجات في هذه الفاتورة",
+      "total": "الإجمالي",
+      "history": "سجل الفاتورة",
+      "noHistory": "لا يوجد سجل متاح لهذه الفاتورة"
+    }
   }
 }

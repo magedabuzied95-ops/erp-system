@@ -1,4 +1,9 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import i18nInstance from "../../../i18n/i18n";
+
+const tt = (key, options) => i18nInstance.t(key, options);
 import {
   AlertTriangle,
   Eye,
@@ -157,19 +162,19 @@ const canDeleteInvoices = (user = {}) => isCashierUser(user) || hasPermission("o
 const canEditOldInvoices = (user = {}) => isCashierUser(user) || isManagerUser(user) || hasPermission("pos.edit_old", user) || hasPermission("orders.approve", user);
 
 const getInvoiceLock = (order = {}, user = getCurrentUser(), limitHours = readEditLockHours()) => {
-  if (isCancelledOrder(order)) return { locked: true, reason: "الفاتورة ملغاة" };
-  if (isReturnedOrder(order)) return { locked: true, reason: "الفاتورة مرتجعة" };
-  if (!canEditInvoices(user)) return { locked: true, reason: "لا تملك صلاحية التعديل" };
-  if (isOldOrder(order, limitHours) && !canEditOldInvoices(user)) return { locked: true, reason: `تجاوزت مهلة التعديل ${limitHours} ساعة` };
+  if (isCancelledOrder(order)) return { locked: true, reason: tt("pos.recentOps.lock.cancelled") };
+  if (isReturnedOrder(order)) return { locked: true, reason: tt("pos.recentOps.lock.returned") };
+  if (!canEditInvoices(user)) return { locked: true, reason: tt("pos.recentOps.lock.noPermission") };
+  if (isOldOrder(order, limitHours) && !canEditOldInvoices(user)) return { locked: true, reason: tt("pos.recentOps.lock.windowExpired", { hours: limitHours }) };
   return { locked: false, reason: "" };
 };
 
 const getStatusBadges = (order = {}) => {
   const badges = [];
-  if (isCancelledOrder(order)) badges.push({ label: "ملغاة", className: "border-rose-400/25 bg-rose-500/10 text-rose-100" });
-  else if (isReturnedOrder(order)) badges.push({ label: "مرتجعة", className: "border-amber-400/25 bg-amber-500/10 text-amber-100" });
-  else if (isReviewOrder(order)) badges.push({ label: "قيد المراجعة", className: "border-sky-400/25 bg-sky-500/10 text-sky-100" });
-  else if (isPaidOrder(order)) badges.push({ label: "مدفوعة", className: "border-emerald-400/25 bg-emerald-500/10 text-emerald-100" });
+  if (isCancelledOrder(order)) badges.push({ id: "cancelled", labelKey: "pos.recentOps.status.cancelled", className: "border-rose-400/25 bg-rose-500/10 text-rose-100" });
+  else if (isReturnedOrder(order)) badges.push({ id: "returned", labelKey: "pos.recentOps.status.returned", className: "border-amber-400/25 bg-amber-500/10 text-amber-100" });
+  else if (isReviewOrder(order)) badges.push({ id: "review", labelKey: "pos.recentOps.status.inReview", className: "border-sky-400/25 bg-sky-500/10 text-sky-100" });
+  else if (isPaidOrder(order)) badges.push({ id: "paid", labelKey: "pos.recentOps.status.paid", className: "border-emerald-400/25 bg-emerald-500/10 text-emerald-100" });
   return badges;
 };
 
@@ -212,16 +217,23 @@ const getItemVariantInfo = (item = {}) => {
   return colorSize || item.variant_name || item.variant?.name || "";
 };
 
-const returnReasons = ["مقاس غير مناسب", "عيب صناعة", "تغيير رأي العميل", "استبدال", "أخرى"];
+const RETURN_REASON_OTHER = "أخرى";
+const returnReasons = [
+  { value: "مقاس غير مناسب", labelKey: "pos.recentOps.returnReasons.wrongSize" },
+  { value: "عيب صناعة", labelKey: "pos.recentOps.returnReasons.defect" },
+  { value: "تغيير رأي العميل", labelKey: "pos.recentOps.returnReasons.changedMind" },
+  { value: "استبدال", labelKey: "pos.recentOps.returnReasons.exchange" },
+  { value: RETURN_REASON_OTHER, labelKey: "pos.recentOps.returnReasons.other" },
+];
 
 const returnModes = [
-  { key: "full", label: "مرتجع كامل" },
-  { key: "partial", label: "مرتجع جزئي" },
-  { key: "exchange", label: "استبدال" },
+  { key: "full", labelKey: "pos.recentOps.returnModes.full" },
+  { key: "partial", labelKey: "pos.recentOps.returnModes.partial" },
+  { key: "exchange", labelKey: "pos.recentOps.returnModes.exchange" },
 ];
 
 const refundMethods = [
-  { key: "cash", label: "نقدي" },
+  { key: "cash", labelKey: "pos.recentOps.refundMethods.cash" },
   { key: "vodafone_cash", label: "Vodafone Cash" },
   { key: "instapay", label: "InstaPay" },
 ];
@@ -264,6 +276,7 @@ const buildAuditTimeline = (order = {}) => {
 };
 
 function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "", onClose, onEditOrder, onExchangeStarted, onPrintOrder, currentCartTotal = 0 }) {
+  const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -513,7 +526,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
         void api.post(`/orders/${order.id}/reprint-log`, {}).catch((error) => {
           console.warn("[RecentOperationsDrawer] reprint log failed", error);
         });
-        toast.success("تم تجهيز الفاتورة للطباعة مرة أخرى");
+        toast.success(tt("pos.recentOps.toasts.reprintQueued"));
       } catch (err) {
         toast.error(err.message || "تعذر إعادة الطباعة");
       }
@@ -572,7 +585,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
 
   const handleReturn = async (order) => {
     if (!canReturnOrder(order)) {
-      toast.error("لا يمكن عمل مرتجع لهذه الفاتورة");
+      toast.error(tt("pos.recentOps.toasts.cannotReturn"));
       return;
     }
     await runOrderAction(order, "return", async () => {
@@ -593,7 +606,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     if (!permanentDeleteOrder?.id) return;
     const confirmation = permanentDeleteConfirm.trim();
     if (confirmation !== "DELETE" && confirmation !== "حذف") {
-      toast.error("اكتب DELETE أو حذف للتأكيد");
+      toast.error(tt("pos.recentOps.toasts.deleteConfirmRequired"));
       return;
     }
     await runOrderAction(permanentDeleteOrder, "permanent-delete", async () => {
@@ -605,7 +618,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
         setReturnOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
         setPermanentDeleteOrder(null);
         setPermanentDeleteConfirm("");
-        toast.success("تم حذف الفاتورة نهائيًا");
+        toast.success(tt("pos.recentOps.toasts.deleted"));
       } catch (err) {
         toast.error(err.responseBody?.message || err.message || "تعذر حذف الفاتورة نهائيًا");
       }
@@ -649,17 +662,17 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
 
   return createPortal(
     <div className="pos-recent-operations-overlay fixed inset-0 z-[2147483000] isolate h-[100dvh] w-screen overflow-hidden bg-black/70 backdrop-blur-sm" dir="rtl">
-      <button type="button" className="absolute inset-0 z-0 h-full w-full cursor-default" onClick={onClose} aria-label="إغلاق" />
+      <button type="button" className="absolute inset-0 z-0 h-full w-full cursor-default" onClick={onClose} aria-label={t("pos.recentOps.close")} />
       <aside
-        aria-label="العمليات الأخيرة"
+        aria-label={t("pos.recentOps.title")}
         className="pos-recent-operations-drawer absolute inset-y-0 right-0 z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-l border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/60 sm:w-[min(42rem,92vw)] sm:rounded-l-[2rem]"
       >
         <div className="shrink-0 border-b border-white/10 p-3 sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">POS</div>
-              <h2 className="mt-1 text-2xl font-black">العمليات الأخيرة</h2>
-              <p className="mt-1 text-sm text-zinc-400">عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.</p>
+              <h2 className="mt-1 text-2xl font-black">{t("pos.recentOps.title")}</h2>
+              <p className="mt-1 text-sm text-zinc-400">{t("pos.recentOps.subtitle")}</p>
             </div>
             <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300">
               <X className="h-4 w-4" />
@@ -671,11 +684,11 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
               <input
                 value={search}
                 onChange={handleSearchChange}
-                placeholder="بحث برقم الفاتورة أو العميل أو الهاتف"
+                placeholder={t("pos.recentOps.searchPlaceholder")}
                 className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/40 pr-11 pl-4 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             </div>
-            <button type="button" onClick={() => loadOrders({ reset: true })} className="inline-flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]" title="تحديث">
+            <button type="button" onClick={() => loadOrders({ reset: true })} className="inline-flex h-[var(--control-height-lg)] w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]" title={t("pos.recentOps.refresh")}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
@@ -689,9 +702,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
               ))}
             </div>
           ) : error ? (
-            <State icon={AlertTriangle} title="حدث خطأ" text={error} actionLabel="إعادة المحاولة" onAction={() => loadOrders({ reset: true })} />
+            <State icon={AlertTriangle} title={t("pos.recentOps.errorTitle")} text={error} actionLabel={t("pos.recentOps.retry")} onAction={() => loadOrders({ reset: true })} />
           ) : filteredOrders.length === 0 ? (
-            <State icon={RotateCcw} title="لا توجد عمليات" text={debouncedSearch ? "لا توجد نتائج مطابقة للبحث." : "ستظهر آخر فواتير POS هنا بعد البيع."} />
+            <State icon={RotateCcw} title={t("pos.recentOps.emptyTitle")} text={t(debouncedSearch ? "pos.recentOps.emptyNoMatches" : "pos.recentOps.emptyHint")} />
           ) : (
             <div className="space-y-3">
               {filteredOrders.map((order) => (
@@ -720,7 +733,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
                   {loadingMore ? "جار التحميل..." : "تحميل المزيد"}
                 </button>
               ) : totalCount !== null ? (
-                <div className="py-2 text-center text-xs font-bold text-zinc-500">تم عرض {orders.length} من {totalCount}</div>
+                <div className="py-2 text-center text-xs font-bold text-zinc-500">{t("pos.recentOps.shownCount", { shown: orders.length, total: totalCount })}</div>
               ) : null}
             </div>
           )}
@@ -759,6 +772,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
 }
 
 function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprint, onViewDetails, onEdit, onReturn, onPermanentDelete, onPrefetch }) {
+  const { t } = useTranslation();
   const lock = getInvoiceLock(order, currentUser, editLockHours);
   const badges = getStatusBadges(order);
   const isActionLoading = (action) => Boolean(loadingActions[getOrderActionKey(order, action)]);
@@ -794,7 +808,7 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
                       <CurrencyText value={formatDrawerCurrency(getOrderTotal(order))} />
                     </div>
                     <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${statusBadge.className}`}>
-                      {statusBadge.label}
+                      {statusBadge.labelKey ? t(statusBadge.labelKey) : statusBadge.label}
                     </span>
                   </div>
 
@@ -811,18 +825,19 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
                   ) : null}
 
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                    <Action icon={Eye} label="تفاصيل" loading={detailsLoading} disabled={detailsLoading} onClick={() => onViewDetails(order)} />
-                    <Action icon={Printer} label="طباعة" loading={printLoading} disabled={printLoading} onClick={() => onReprint(order)} />
-                    <Action icon={RotateCcw} label="مرتجع" loading={returnLoading} disabled={!canReturnOrder(order) || returnLoading || isCashierUser(currentUser)} onClick={() => onReturn(order)} />
-                    <Action icon={Pencil} label="تعديل" loading={editLoading} disabled={lock.locked || editLoading} title={lock.reason} onClick={() => onEdit(order)} />
+                    <Action icon={Eye} label={t("pos.recentOps.actions.details")} loading={detailsLoading} disabled={detailsLoading} onClick={() => onViewDetails(order)} />
+                    <Action icon={Printer} label={t("pos.recentOps.actions.print")} loading={printLoading} disabled={printLoading} onClick={() => onReprint(order)} />
+                    <Action icon={RotateCcw} label={t("pos.recentOps.actions.return")} loading={returnLoading} disabled={!canReturnOrder(order) || returnLoading || isCashierUser(currentUser)} onClick={() => onReturn(order)} />
+                    <Action icon={Pencil} label={t("pos.recentOps.actions.edit")} loading={editLoading} disabled={lock.locked || editLoading} title={lock.reason} onClick={() => onEdit(order)} />
                     <span className="mx-0.5 h-5 w-px bg-white/10" />
-                    <Action icon={Trash2} label="حذف نهائي" loading={deleteLoading} disabled={deleteLoading || !canDeleteInvoices(currentUser)} danger onClick={() => onPermanentDelete(order)} />
+                    <Action icon={Trash2} label={t("pos.recentOps.actions.permanentDelete")} loading={deleteLoading} disabled={deleteLoading || !canDeleteInvoices(currentUser)} danger onClick={() => onPermanentDelete(order)} />
                   </div>
     </article>
   );
 }
 
 function PermanentDeleteModal({ order, value, loading, onChange, onClose, onConfirm }) {
+  const { t } = useTranslation();
   const canConfirm = value.trim() === "DELETE" || value.trim() === "حذف";
   return (
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center" dir="rtl">
@@ -830,17 +845,17 @@ function PermanentDeleteModal({ order, value, loading, onChange, onClose, onConf
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <h3 className="text-lg font-black">حذف نهائي</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-rose-100">سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.</p>
-            <p className="mt-1 text-sm leading-6 text-zinc-300">سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.</p>
+            <h3 className="text-lg font-black">{t("pos.recentOps.deleteModal.title")}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-rose-100">{t("pos.recentOps.deleteModal.warning")}</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-300">{t("pos.recentOps.deleteModal.detail")}</p>
           </div>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <Info label="الفاتورة" value={getOrderInvoiceNumber(order)} />
-          <Info label="الإجمالي" value={formatDrawerCurrency(getOrderTotal(order))} />
+          <Info label={t("pos.recentOps.deleteModal.invoice")} value={getOrderInvoiceNumber(order)} />
+          <Info label={t("pos.recentOps.deleteModal.total")} value={formatDrawerCurrency(getOrderTotal(order))} />
         </div>
         <label className="mt-4 block">
-          <div className="mb-1.5 text-xs font-black text-rose-100">اكتب DELETE أو حذف للتأكيد</div>
+          <div className="mb-1.5 text-xs font-black text-rose-100">{t("pos.recentOps.deleteModal.confirmHint")}</div>
           <input
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -850,7 +865,7 @@ function PermanentDeleteModal({ order, value, loading, onChange, onClose, onConf
           />
         </label>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={loading} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-white disabled:opacity-60">إلغاء</button>
+          <button type="button" onClick={onClose} disabled={loading} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-white disabled:opacity-60">{t("pos.recentOps.actions.cancel")}</button>
           <button
             type="button"
             onClick={onConfirm}
@@ -866,8 +881,9 @@ function PermanentDeleteModal({ order, value, loading, onChange, onClose, onConf
 }
 
 function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState("partial");
-  const [reason, setReason] = useState("مقاس غير مناسب");
+  const [reason, setReason] = useState(returnReasons[0].value);
   const [refundMethod, setRefundMethod] = useState("cash");
   const [customReason, setCustomReason] = useState("");
   const [quantities, setQuantities] = useState(() =>
@@ -924,13 +940,13 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
       }));
 
     if (selectedItems.length === 0) {
-      toast.error("اختر المنتجات المراد إرجاعها");
+      toast.error(tt("pos.recentOps.toasts.selectItemsToReturn"));
       return;
     }
 
     try {
       setSubmitting(true);
-      const resolvedReason = reason === "أخرى" ? customReason.trim() : reason;
+      const resolvedReason = reason === RETURN_REASON_OTHER ? customReason.trim() : reason;
       const response = await api.post(`/orders/${order.id}/return`, {
         mode,
         refund_method: refundMethod,
@@ -960,11 +976,11 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
       <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">مرتجع POS</div>
-            <h3 className="mt-1 text-xl font-black">إنشاء مرتجع / استبدال</h3>
-            <p className="mt-1 text-sm font-semibold text-zinc-400">الفاتورة القديمة: {getOrderInvoiceNumber(order)}</p>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">{t("pos.recentOps.returnModal.eyebrow")}</div>
+            <h3 className="mt-1 text-xl font-black">{t("pos.recentOps.returnModal.title")}</h3>
+            <p className="mt-1 text-sm font-semibold text-zinc-400">{t("pos.recentOps.returnModal.originalInvoice")} {getOrderInvoiceNumber(order)}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm">إغلاق</button>
+          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm">{t("pos.recentOps.close")}</button>
         </div>
 
         <div className="max-h-[70vh] overflow-y-auto p-4">
@@ -976,22 +992,22 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                 onClick={() => handleMode(option.key)}
                 className={`h-[var(--control-height-lg)] rounded-2xl border px-3 text-sm font-black ${ mode === option.key ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-50" : "border-white/10 bg-white/[0.04] text-zinc-300" }`}
               >
-                {option.label}
+                {t(option.labelKey)}
               </button>
             ))}
           </div>
 
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <label className="text-sm font-black text-white">سبب المرتجع</label>
+            <label className="text-sm font-black text-white">{t("pos.recentOps.returnModal.reasonLabel")}</label>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {returnReasons.map((item) => (
                 <button
-                  key={item}
+                  key={item.value}
                   type="button"
-                  onClick={() => setReason(item)}
-                  className={`h-[var(--control-height-md)] rounded-2xl border px-3 text-xs font-black ${ reason === item ? "border-sky-300/40 bg-sky-500/15 text-sky-50" : "border-white/10 bg-black/20 text-zinc-300" }`}
+                  onClick={() => setReason(item.value)}
+                  className={`h-[var(--control-height-md)] rounded-2xl border px-3 text-xs font-black ${ reason === item.value ? "border-sky-300/40 bg-sky-500/15 text-sky-50" : "border-white/10 bg-black/20 text-zinc-300" }`}
                 >
-                  {item}
+                  {t(item.labelKey)}
                 </button>
               ))}
             </div>
@@ -999,14 +1015,14 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
               <input
                 value={customReason}
                 onChange={(event) => setCustomReason(event.target.value)}
-                placeholder="اكتب السبب"
+                placeholder={t("pos.recentOps.returnModal.customReasonPlaceholder")}
                 className="mt-3 h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             ) : null}
           </div>
 
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <label className="text-sm font-black text-white">طريقة رد المبلغ</label>
+            <label className="text-sm font-black text-white">{t("pos.recentOps.returnModal.refundMethodLabel")}</label>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {refundMethods.map((item) => (
                 <button
@@ -1015,14 +1031,14 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                   onClick={() => setRefundMethod(item.key)}
                   className={`h-[var(--control-height-md)] rounded-2xl border px-3 text-xs font-black ${ refundMethod === item.key ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-50" : "border-white/10 bg-black/20 text-zinc-300" }`}
                 >
-                  {item.label}
+                  {item.labelKey ? t(item.labelKey) : item.label}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-            <div className="bg-white/[0.06] px-3 py-2 text-sm font-black text-zinc-200">اختيار المنتجات المراد إرجاعها</div>
+            <div className="bg-white/[0.06] px-3 py-2 text-sm font-black text-zinc-200">{t("pos.recentOps.returnModal.pickItems")}</div>
             <div className="divide-y divide-white/10">
               {lines.map(({ item, max, selected }) => (
                 <div key={item.id} className="grid gap-3 p-3 sm:grid-cols-[56px_minmax(0,1fr)_150px] sm:items-center">
@@ -1046,7 +1062,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                     </div>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-zinc-500">الكمية المرتجعة</label>
+                    <label className="text-[11px] font-bold text-zinc-500">{t("pos.recentOps.returnModal.returnedQty")}</label>
                     <input
                       type="number"
                       min="0"
@@ -1063,7 +1079,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <SummaryBox label="إجمالي المرتجع" value={formatDrawerCurrency(returnTotal)} />
+            <SummaryBox label={t("pos.recentOps.returnModal.returnTotal")} value={formatDrawerCurrency(returnTotal)} />
             {mode === "exchange" ? (
               <SummaryBox
                 label={exchangeDifference >= 0 ? "فرق يدفعه العميل" : "رصيد مستحق للعميل"}
@@ -1107,6 +1123,7 @@ function SummaryBox({ label, value, tone = "emerald" }) {
 }
 
 function DetailsModal({ order, onClose }) {
+  const { t } = useTranslation();
   const timeline = buildAuditTimeline(order);
   const isRtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
   const labels = {
@@ -1121,10 +1138,10 @@ function DetailsModal({ order, onClose }) {
           <div className="max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">تفاصيل الفاتورة</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">{t("pos.recentOps.detailsModal.eyebrow")}</div>
                 <h3 className="mt-1 text-xl font-black">{getOrderInvoiceNumber(order)}</h3>
               </div>
-              <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm">إغلاق</button>
+              <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm">{t("pos.recentOps.close")}</button>
             </div>
             <div className="max-h-[65vh] overflow-y-auto p-4">
               <div className="mb-4 grid gap-2 sm:grid-cols-4">
@@ -1135,10 +1152,10 @@ function DetailsModal({ order, onClose }) {
               </div>
               <div className="overflow-hidden rounded-2xl border border-white/10">
                 <div className="grid grid-cols-[minmax(0,2.1fr)_0.65fr_0.85fr_0.95fr] gap-2 bg-white/[0.06] px-3 py-2 text-xs font-bold text-zinc-400">
-                  <div>المنتج</div>
-                  <div className="text-center">الكمية</div>
-                  <div className="text-left">السعر</div>
-                  <div className="text-left">الإجمالي الفرعي</div>
+                  <div>{t("pos.recentOps.detailsModal.product")}</div>
+                  <div className="text-center">{t("pos.recentOps.detailsModal.quantity")}</div>
+                  <div className="text-left">{t("pos.recentOps.detailsModal.price")}</div>
+                  <div className="text-left">{t("pos.recentOps.detailsModal.subtotal")}</div>
                 </div>
                 {(order.items || []).length > 0 ? (
                   (order.items || []).map((item, index) => {
@@ -1161,17 +1178,17 @@ function DetailsModal({ order, onClose }) {
                     );
                   })
                 ) : (
-                  <div className="border-t border-white/10 px-3 py-6 text-center text-sm font-semibold text-zinc-400">لا توجد منتجات في هذه الفاتورة</div>
+                  <div className="border-t border-white/10 px-3 py-6 text-center text-sm font-semibold text-zinc-400">{t("pos.recentOps.detailsModal.noItems")}</div>
                 )}
               </div>
               <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold text-emerald-100/70">الإجمالي</span>
+                  <span className="text-sm font-semibold text-emerald-100/70">{t("pos.recentOps.detailsModal.total")}</span>
                   <span className="text-lg font-black text-emerald-50"><CurrencyText value={formatDrawerCurrency(getOrderTotal(order))} /></span>
                 </div>
               </div>
               <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <h4 className="text-sm font-black text-white">سجل الفاتورة</h4>
+                <h4 className="text-sm font-black text-white">{t("pos.recentOps.detailsModal.history")}</h4>
                 <div className="mt-3 space-y-3">
                   {timeline.length > 0 ? (
                     timeline.map((event, index) => (
@@ -1187,7 +1204,7 @@ function DetailsModal({ order, onClose }) {
                       </div>
                     ))
                   ) : (
-                    <div className="text-sm font-semibold text-zinc-400">لا يوجد سجل متاح لهذه الفاتورة</div>
+                    <div className="text-sm font-semibold text-zinc-400">{t("pos.recentOps.detailsModal.noHistory")}</div>
                   )}
                 </div>
               </div>

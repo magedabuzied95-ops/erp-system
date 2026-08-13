@@ -506,5 +506,90 @@
     "baby": "Baby",
     "medium": "Medium",
     "boys": "Boys"
+  },
+  "recentOps": {
+    "title": "Recent operations",
+    "subtitle": "View, reprint, edit or return recent invoices.",
+    "close": "Close",
+    "searchPlaceholder": "Search by invoice number, customer or phone",
+    "refresh": "Refresh",
+    "errorTitle": "Something went wrong",
+    "retry": "Retry",
+    "emptyTitle": "No operations",
+    "emptyNoMatches": "No results match the search.",
+    "emptyHint": "The latest POS invoices will appear here after a sale.",
+    "shownCount": "Showing {{shown}} of {{total}}",
+    "status": {
+      "cancelled": "Cancelled",
+      "returned": "Returned",
+      "inReview": "In review",
+      "paid": "Paid"
+    },
+    "lock": {
+      "cancelled": "The invoice is cancelled",
+      "returned": "The invoice is returned",
+      "noPermission": "You do not have edit permission",
+      "windowExpired": "The {{hours}}-hour edit window has passed"
+    },
+    "actions": {
+      "details": "Details",
+      "print": "Print",
+      "return": "Return",
+      "edit": "Edit",
+      "permanentDelete": "Permanent delete",
+      "cancel": "Cancel"
+    },
+    "toasts": {
+      "reprintQueued": "The invoice was queued for printing again",
+      "cannotReturn": "This invoice cannot be returned",
+      "deleteConfirmRequired": "Type DELETE to confirm",
+      "deleted": "The invoice was permanently deleted",
+      "selectItemsToReturn": "Select the products to return"
+    },
+    "deleteModal": {
+      "title": "Permanent delete",
+      "warning": "The invoice will be permanently deleted and this cannot be undone.",
+      "detail": "Linked records are removed and stock is returned if it was not returned already.",
+      "invoice": "Invoice",
+      "total": "Total",
+      "confirmHint": "Type DELETE to confirm"
+    },
+    "returnModal": {
+      "eyebrow": "POS return",
+      "title": "Create return / exchange",
+      "originalInvoice": "Original invoice:",
+      "reasonLabel": "Return reason",
+      "customReasonPlaceholder": "Write the reason",
+      "refundMethodLabel": "Refund method",
+      "pickItems": "Select the products to return",
+      "returnedQty": "Returned quantity",
+      "returnTotal": "Return total"
+    },
+    "returnReasons": {
+      "wrongSize": "Wrong size",
+      "defect": "Manufacturing defect",
+      "changedMind": "Customer changed their mind",
+      "exchange": "Exchange",
+      "other": "Other"
+    },
+    "returnModes": {
+      "full": "Full return",
+      "partial": "Partial return",
+      "exchange": "Exchange"
+    },
+    "refundMethods": {
+      "cash": "Cash"
+    },
+    "detailsModal": {
+      "eyebrow": "Invoice details",
+      "product": "Product",
+      "quantity": "Quantity",
+      "price": "Price",
+      "subtotal": "Subtotal",
+      "noItems": "This invoice has no products",
+      "total": "Total",
+      "history": "Invoice history",
+      "noHistory": "No history is available for this invoice"
+    }
   }
 }
