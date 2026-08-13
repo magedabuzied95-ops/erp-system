@@ -334,6 +334,7 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
     <NavLink
       key={item.to}
       to={item.to}
+      aria-current={active ? "page" : "false"}
       title={collapsed ? displayLabel : undefined}
       aria-label={displayLabel}
       onClick={onNavigate}
