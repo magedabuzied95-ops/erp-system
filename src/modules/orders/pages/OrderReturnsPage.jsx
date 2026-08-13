@@ -405,7 +405,7 @@ function OrderReturnsPage() {
       }
     >
       {error ? (
-        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-200">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {error}
         </div>
@@ -422,15 +422,15 @@ function OrderReturnsPage() {
             <KpiCard label={t("orders.returns.page.kpi.restocked")} value={kpis.restocked} icon={PackageOpen} accent="violet" />
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)]">
             <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{t("orders.returns.customerReturns")}</div>
-                <h2 className="m1-section-title mt-1 text-white">{t("orders.returns.customerReturns")}</h2>
+                <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("orders.returns.customerReturns")}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <MiniStat label={t("orders.returns.page.results")} value={filteredReturns.length} />
-                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>{t("orders.returns.page.today")}</button>
+                <button type="button" onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} className={`rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold transition ${dateFilter === getDateInputValue() ? "border-primary/40 bg-primary/10 text-primary" : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--surface)]"}`}>{t("orders.returns.page.today")}</button>
               </div>
             </div>
             <ReturnsFilters search={search} setSearch={setSearch} returnStatusFilter={returnStatusFilter} setReturnStatusFilter={setReturnStatusFilter} refundStatusFilter={refundStatusFilter} setRefundStatusFilter={setRefundStatusFilter} dateFilter={dateFilter} setDateFilter={setDateFilter} />
@@ -504,7 +504,7 @@ function PageHeader({ onCreate }) {
           <button
             type="button"
             onClick={onCreate}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-2 text-sm font-black text-white transition hover:brightness-110"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:brightness-110"
           >
             <Plus className="h-4 w-4" />
             {t("orders.returns.page.createReturn")}
@@ -518,19 +518,19 @@ function PageHeader({ onCreate }) {
 function KpiCard({ label, value, icon: Icon, accent }) {
   const accents = {
     cyan: "from-primary/20 to-primary/5 text-primary",
-    amber: "from-amber-400/20 to-amber-400/5 text-amber-100",
-    emerald: "from-emerald-400/20 to-emerald-400/5 text-emerald-100",
-    violet: "from-violet-400/20 to-violet-400/5 text-violet-100",
+    amber: "from-amber-400/20 to-amber-400/5 text-amber-700 dark:text-amber-200",
+    emerald: "from-emerald-400/20 to-emerald-400/5 text-emerald-700 dark:text-emerald-200",
+    violet: "from-violet-400/20 to-violet-400/5 text-violet-700 dark:text-violet-200",
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-xl shadow-black/10">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-bold text-zinc-400">{label}</div>
-          <div className="mt-2 text-2xl font-black text-white">{value}</div>
+          <div className="text-[11px] font-bold text-[var(--muted)]">{label}</div>
+          <div className="mt-2 text-2xl font-black text-[var(--text)]">{value}</div>
         </div>
-        <div className={`rounded-2xl border border-white/10 bg-gradient-to-br p-3 ${accents[accent] || accents.cyan}`}>
+        <div className={`rounded-2xl border border-[var(--border)] bg-gradient-to-br p-3 ${accents[accent] || accents.cyan}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -545,16 +545,16 @@ function ReturnsPanelTabs({ activePanel, onChange, customerCount, supplierCount 
     { value: "suppliers", label: t("orders.returns.supplierReturns"), count: supplierCount, tone: "amber" },
   ];
   return (
-    <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 md:grid-cols-2">
+    <div className="grid gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 md:grid-cols-2">
       {tabs.map((tab) => {
         const active = activePanel === tab.value;
         const activeClass = tab.tone === "amber"
-          ? "border-amber-400/35 bg-amber-400/12 text-amber-100"
+          ? "border-amber-500/40 bg-amber-500/12 text-amber-700 dark:text-amber-200"
           : "border-primary/35 bg-primary/12 text-primary";
         return (
-          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-white/[0.03] text-zinc-400 hover:bg-white/[0.07] hover:text-white"}`}>
+          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-[var(--card)] text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--text)]"}`}>
             <span>{tab.label}</span>
-            <span className="rounded-full border border-current/20 bg-black/20 px-2 py-0.5 text-xs">{tab.count}</span>
+            <span className="rounded-full border border-current/20 bg-[var(--surface)] px-2 py-0.5 text-xs">{tab.count}</span>
           </button>
         );
       })}
@@ -617,52 +617,52 @@ function SupplierReturnsPanel({
         <KpiCard label={t("orders.returns.page.supplierKpi.suppliers")} value={summary.suppliers} icon={FileText} accent="violet" />
       </section>
 
-      <section className="rounded-2xl border border-amber-400/20 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+      <section className="rounded-2xl border border-amber-400/30 bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">{t("orders.returns.supplierReturns")}</div>
-            <h2 className="m1-section-title mt-1 text-white">{t("orders.returns.supplierReturns")}</h2>
-            <p className="mt-1 text-xs text-zinc-400">{t("orders.returns.page.currentResults", { shown: items.length, total: allItems.length })}</p>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{t("orders.returns.supplierReturns")}</div>
+            <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("orders.returns.supplierReturns")}</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">{t("orders.returns.page.currentResults", { shown: items.length, total: allItems.length })}</p>
           </div>
-          <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">{t("orders.returns.page.clearFilters")}</button>
+          <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-bold text-[var(--text)] hover:bg-[var(--surface)]">{t("orders.returns.page.clearFilters")}</button>
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(18rem,2fr)_repeat(4,minmax(10rem,1fr))]">
           <label className="block">
-            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.search")}</div>
+            <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.search")}</div>
             <div className="relative">
-              <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("orders.returns.page.supplierSearchPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-amber-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm text-white outline-none placeholder:text-zinc-500" />
+              <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("orders.returns.page.supplierSearchPlaceholder")} className="w-full rounded-[var(--radius-control)] border border-amber-400/30 bg-[var(--card)] py-2.5 pe-3 ps-10 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]" />
             </div>
           </label>
           <label className="block">
-            <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.supplier")}</div>
-            <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
-              <option value="all" className="bg-zinc-950">{t("orders.returns.page.allSuppliers")}</option>
-              {supplierOptions.map((option) => <option key={option.value} value={option.value} className="bg-zinc-950">{option.label}</option>)}
+            <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.supplier")}</div>
+            <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--text)] outline-none">
+              <option value="all">{t("orders.returns.page.allSuppliers")}</option>
+              {supplierOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <FilterSelect label={t("orders.returns.page.status")} value={statusFilter} onChange={setStatusFilter} options={["pending", "returned", "cancelled"]} allLabel={t("orders.returns.page.allStatuses")} />
-          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.dateFrom")}</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
-          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.dateTo")}</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" /></label>
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.dateFrom")}</div><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--text)] outline-none" /></label>
+          <label className="block"><div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.dateTo")}</div><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--text)] outline-none" /></label>
         </div>
 
         {items.length ? (
           <>
             <div className="mt-3 hidden overflow-auto xl:block">
               <div className="min-w-[1180px]">
-                <div className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-center text-[10px] font-bold text-zinc-400`}>
+                <div className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-center text-[10px] font-bold text-[var(--muted)]`}>
                   <div>{t("orders.returns.page.col.action")}</div><div>{t("orders.returns.page.col.supplier")}</div><div>{t("orders.returns.page.col.product")}</div><div>{t("orders.returns.page.col.quantity")}</div>{showPurchaseCost ? <><div>{t("orders.returns.page.col.purchasePrice")}</div><div>{t("orders.returns.page.col.total")}</div></> : null}<div>{t("orders.returns.page.col.reference")}</div><div>{t("orders.returns.page.col.status")}</div><div>{t("orders.returns.page.col.date")}</div>
                 </div>
                 <div className="mt-1.5 space-y-1.5">
                   {items.map((item) => (
-                    <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-[var(--radius-card)] border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs text-zinc-300`}>
-                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">{t("orders.returns.page.markDelivered")}</button> : <span className="text-zinc-500">—</span>}</div>
-                      <div className="truncate font-bold text-white">{item.supplier_name}</div>
-                      <div><div className="font-bold text-white">{item.product_name}</div><div className="text-[10px] text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
+                    <div key={item.id} className={`grid ${showPurchaseCost ? "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_9rem_10rem_11rem_9rem_10rem]" : "grid-cols-[9rem_13rem_minmax(14rem,1fr)_6rem_11rem_9rem_10rem]"} items-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-center text-xs text-[var(--text)]`}>
+                      <div>{lower(item.status) === "pending" ? <button type="button" onClick={() => onMarkReturned(item.id)} className="rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-bold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200">{t("orders.returns.page.markDelivered")}</button> : <span className="text-[var(--muted)]">—</span>}</div>
+                      <div className="truncate font-bold text-[var(--text)]">{item.supplier_name}</div>
+                      <div><div className="font-bold text-[var(--text)]">{item.product_name}</div><div className="text-[10px] text-[var(--muted)]">{[item.color, item.size].filter(Boolean).join(" / ")}</div></div>
                       <div className="font-black">{item.quantity}</div>
-                      {showPurchaseCost ? <><div>{formatCurrency(item.purchase_unit_cost)}</div><div className="font-black text-amber-100">{formatCurrency(item.purchase_total_cost)}</div></> : null}
-                      <div><div>{item.return_number}</div><div className="text-[10px] text-zinc-500">{item.purchase_number || item.invoice_number}</div></div>
+                      {showPurchaseCost ? <><div>{formatCurrency(item.purchase_unit_cost)}</div><div className="font-black text-amber-700 dark:text-amber-200">{formatCurrency(item.purchase_total_cost)}</div></> : null}
+                      <div><div>{item.return_number}</div><div className="text-[10px] text-[var(--muted)]">{item.purchase_number || item.invoice_number}</div></div>
                       <SupplierReturnStatus status={item.status} />
                       <div>{formatShortDate(item.created_at)}</div>
                     </div>
@@ -673,7 +673,7 @@ function SupplierReturnsPanel({
             <div className="mt-3 xl:hidden"><SupplierReturnQueue groups={groups} onMarkReturned={onMarkReturned} showPurchaseCost={showPurchaseCost} /></div>
           </>
         ) : (
-          <div className="mt-3 rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-400">{t("orders.returns.page.noSupplierReturns")}</div>
+          <div className="mt-3 rounded-2xl border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">{t("orders.returns.page.noSupplierReturns")}</div>
         )}
       </section>
     </>
@@ -684,7 +684,7 @@ function SupplierReturnStatus({ status }) {
   const { t } = useTranslation();
   const key = lower(status);
   const label = t(key === "returned" ? "orders.returns.page.supplierStatus.returned" : key === "cancelled" ? "orders.returns.page.supplierStatus.cancelled" : "orders.returns.page.supplierStatus.pending");
-  const tone = key === "returned" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : key === "cancelled" ? "border-rose-400/25 bg-rose-400/10 text-rose-100" : "border-amber-400/25 bg-amber-400/10 text-amber-100";
+  const tone = key === "returned" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200" : key === "cancelled" ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200" : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200";
   return <div><span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${tone}`}>{label}</span></div>;
 }
 
@@ -694,31 +694,31 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
     <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">{t("orders.returns.supplierReturns")}</div>
-          <h2 className="m1-section-title mt-1 text-white">{t("orders.returns.page.defectQueueTitle")}</h2>
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{t("orders.returns.supplierReturns")}</div>
+          <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("orders.returns.page.defectQueueTitle")}</h2>
         </div>
         <MiniStat label={t("orders.returns.page.totalItems")} value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => (
-          <div key={String(group.supplierId || "unassigned")} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+          <div key={String(group.supplierId || "unassigned")} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="font-black text-white">{group.supplierName}</div>
-              <div className="text-end"><span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-100">{t("orders.returns.page.pieces", { count: group.totalQuantity })}</span>{showPurchaseCost ? <div className="mt-1 text-[10px] font-bold text-zinc-400">{formatCurrency(group.totalPurchaseCost)}</div> : null}</div>
+              <div className="font-black text-[var(--text)]">{group.supplierName}</div>
+              <div className="text-end"><span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-200">{t("orders.returns.page.pieces", { count: group.totalQuantity })}</span>{showPurchaseCost ? <div className="mt-1 text-[10px] font-bold text-[var(--muted)]">{formatCurrency(group.totalPurchaseCost)}</div> : null}</div>
             </div>
             <div className="mt-2 space-y-1.5">
               {group.items.slice(0, 4).map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-card)] border border-white/5 bg-white/[0.03] p-2 text-xs text-zinc-300">
+                <div key={item.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 text-xs text-[var(--text)]">
                   <div className="min-w-0">
                     <div className="truncate">{item.product_name}{[item.color, item.size].filter(Boolean).length ? ` — ${[item.color, item.size].filter(Boolean).join(" / ")}` : ""}</div>
-                    <div className="mt-1 text-[10px] text-zinc-500">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
+                    <div className="mt-1 text-[10px] text-[var(--muted)]">{item.return_number || item.invoice_number || ""} · × {item.quantity}</div>
                   </div>
                   {lower(item.status) === "pending" ? (
-                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-[var(--radius-control)] border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100 hover:bg-emerald-400/20">{t("orders.returns.page.markDeliveredToSupplier")}</button>
+                    <button type="button" onClick={() => onMarkReturned(item.id)} className="shrink-0 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-bold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200">{t("orders.returns.page.markDeliveredToSupplier")}</button>
                   ) : <SupplierReturnStatus status={item.status} />}
                 </div>
               ))}
-              {group.items.length > 4 ? <div className="text-[11px] text-zinc-500">{t("orders.returns.page.moreItems", { count: group.items.length - 4 })}</div> : null}
+              {group.items.length > 4 ? <div className="text-[11px] text-[var(--muted)]">{t("orders.returns.page.moreItems", { count: group.items.length - 4 })}</div> : null}
             </div>
           </div>
         ))}
@@ -729,8 +729,8 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
 
 function MiniStat({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200">
-      {label}: <span className="text-white">{value}</span>
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-bold text-[var(--muted)]">
+      {label}: <span className="text-[var(--text)]">{value}</span>
     </div>
   );
 }
@@ -752,14 +752,14 @@ function ReturnsFilters(props) {
     <>
       <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.4fr)_repeat(3,minmax(10rem,1fr))]">
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.search")}</div>
+          <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.search")}</div>
           <div className="relative">
-            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("orders.returns.page.searchPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-primary/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-primary/20 bg-[var(--card)] py-2.5 pe-3 ps-10 text-sm font-medium text-[var(--text)] outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-[var(--muted)] focus:border-primary/40"
             />
           </div>
         </label>
@@ -768,12 +768,12 @@ function ReturnsFilters(props) {
         <FilterSelect label={t("orders.returns.page.refundStatusFilter")} value={refundStatusFilter} onChange={setRefundStatusFilter} options={REFUND_STATUS_OPTIONS} allLabel={t("orders.returns.page.allStatuses")} />
 
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{t("orders.returns.page.date")}</div>
+          <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.date")}</div>
           <input
             type="date"
             value={dateFilter}
             onChange={(event) => setDateFilter(event.target.value)}
-            className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none"
+            className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--text)] outline-none"
           />
         </label>
       </div>
@@ -784,11 +784,11 @@ function ReturnsFilters(props) {
 function FilterSelect({ label, value, onChange, options, allLabel }) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-[11px] font-bold text-zinc-300">{label}</div>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
-        <option value="all" className="bg-zinc-950 text-white">{allLabel}</option>
+      <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{label}</div>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--text)] outline-none">
+        <option value="all">{allLabel}</option>
         {options.map((option) => (
-          <option key={option} value={option} className="bg-zinc-950 text-white">
+          <option key={option} value={option}>
             {humanizeKey(option)}
           </option>
         ))}
@@ -801,7 +801,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
   const { t } = useTranslation();
   if (loading) {
     return (
-      <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+      <div className="mt-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 text-center text-sm text-[var(--muted)]">
         {t("orders.returns.page.loading")}
       </div>
     );
@@ -809,10 +809,10 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
 
   if (!records.length) {
     return (
-      <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center">
-        <RefreshCcw className="mx-auto h-8 w-8 text-zinc-500" />
-        <div className="mt-3 text-lg font-black text-white">{t("orders.returns.page.emptyTitle")}</div>
-        <div className="mt-1 text-sm text-zinc-400">{t("orders.returns.page.emptyHint")}</div>
+      <div className="mt-3 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-10 text-center">
+        <RefreshCcw className="mx-auto h-8 w-8 text-[var(--muted)]" />
+        <div className="mt-3 text-lg font-black text-[var(--text)]">{t("orders.returns.page.emptyTitle")}</div>
+        <div className="mt-1 text-sm text-[var(--muted)]">{t("orders.returns.page.emptyHint")}</div>
       </div>
     );
   }
@@ -821,7 +821,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
     <>
       <div className="mt-3 hidden overflow-auto pb-1 xl:block">
         <div className="min-w-[1560px]">
-          <div className="sticky top-0 z-20 grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl" dir={dir}>
+          <div className="sticky top-0 z-20 grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[var(--muted)] shadow-lg shadow-[var(--shadow)] backdrop-blur-xl" dir={dir}>
             <CellHeader>{t("orders.returns.page.cols.action")}</CellHeader>
             <CellHeader>{t("orders.returns.page.cols.returnAndOrder")}</CellHeader>
             <CellHeader>{t("orders.returns.page.cols.customer")}</CellHeader>
@@ -835,7 +835,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
 
           <div className="mt-1.5 space-y-1.5">
             {records.map((record) => (
-              <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/75 px-3 py-2 shadow-xl transition hover:border-primary/30 hover:bg-white/[0.03]" dir={dir}>
+              <div key={record.id} className="grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] items-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 shadow-xl shadow-[var(--shadow)] transition hover:border-primary/30 hover:bg-[var(--surface)]" dir={dir}>
                 <div className="flex flex-wrap items-center justify-center gap-1.5 px-1 text-center">
                   <RowAction icon={Eye} label={t("orders.returns.page.action.view")} onClick={() => onView(record)} />
                   <RowAction icon={Pencil} label={t("orders.returns.page.action.editReturn")} onClick={() => onEdit(record)} disabled={!record.allowEdit} />
@@ -854,7 +854,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
                   </span>
                 </div>
                 <div className="flex justify-center px-2">
-                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${record.restock ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : record.disposition === "manufacturing_defect" ? "border-amber-400/25 bg-amber-400/10 text-amber-100" : "border-zinc-500/25 bg-zinc-500/10 text-zinc-300"}`}>
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${record.restock ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200" : record.disposition === "manufacturing_defect" ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"}`}>
                     {stockDispositionLabel(record)}
                   </span>
                 </div>
@@ -867,16 +867,16 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
 
       <div className="mt-3 grid gap-3 xl:hidden">
         {records.map((record) => (
-          <div key={record.id} className="rounded-2xl border border-white/10 bg-zinc-950/80 p-4 shadow-xl shadow-black/10">
+          <div key={record.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl shadow-[var(--shadow)]">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black text-white">{record.returnNumber}</div>
-                <div className="mt-2 text-sm font-bold text-white">{record.customerName || tt("orders.returns.page.unknownCustomer")}</div>
-                <div className="mt-1 text-xs text-zinc-400">{record.orderNumber}</div>
+                <div className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[11px] font-black text-[var(--text)]">{record.returnNumber}</div>
+                <div className="mt-2 text-sm font-bold text-[var(--text)]">{record.customerName || tt("orders.returns.page.unknownCustomer")}</div>
+                <div className="mt-1 text-xs text-[var(--muted)]">{record.orderNumber}</div>
               </div>
               <StatusBadge value={record.returnStatus} />
             </div>
-            <div className="mt-3 text-sm text-zinc-300">{record.itemsSummary}</div>
+            <div className="mt-3 text-sm text-[var(--text)]">{record.itemsSummary}</div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <InfoPill label={t("orders.returns.page.pill.refund")} value={formatCurrency(record.refundAmount)} />
               <InfoPill label={t("orders.returns.page.pill.stock")} value={stockDispositionLabel(record)} />
@@ -935,14 +935,14 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" aria-label={t("orders.returns.page.close")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute right-0 top-0 flex h-full w-full max-w-[46rem] flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl">
-        <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+      <section className="absolute right-0 top-0 flex h-full w-full max-w-[46rem] flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-2xl">
+        <header className="flex items-start justify-between gap-3 border-b border-[var(--border)] p-4">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{t(mode === "edit" ? "orders.returns.page.drawer.eyebrowEdit" : "orders.returns.page.drawer.eyebrowCreate")}</div>
             <h2 className="m1-section-title mt-1">{t(mode === "edit" ? "orders.returns.page.drawer.editTitle" : "orders.returns.page.drawer.createTitle")}</h2>
-            <p className="mt-1 text-sm text-zinc-400">{t("orders.returns.page.drawer.subtitle")}</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">{t("orders.returns.page.drawer.subtitle")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)] hover:bg-[var(--surface)]">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -953,10 +953,10 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.selectedOrderId}
                 onChange={(event) => setForm((current) => ({ ...current, selectedOrderId: event.target.value, returnItems: {} }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 {orders.map((order) => (
-                  <option key={String(order.id)} value={String(order.id)} className="bg-zinc-950 text-white">
+                  <option key={String(order.id)} value={String(order.id)}>
                     {getOrderCode(order)} • {order.customer_name}
                   </option>
                 ))}
@@ -964,17 +964,17 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
             </Field>
 
             <Field label={t("orders.returns.page.field.customer")}>
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">{customerLabel}</div>
+              <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)]">{customerLabel}</div>
             </Field>
 
             <Field label={t("orders.returns.returnStatus")}>
               <select
                 value={form.status}
                 onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 {RETURN_STATUS_OPTIONS.map((option) => (
-                  <option key={option} value={option} className="bg-zinc-950 text-white">{humanizeKey(option)}</option>
+                  <option key={option} value={option}>{humanizeKey(option)}</option>
                 ))}
               </select>
             </Field>
@@ -983,7 +983,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <input
                 value={form.trackingNumber}
                 onChange={(event) => setForm((current) => ({ ...current, trackingNumber: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
                 placeholder={t("orders.returns.trackingPlaceholder")}
               />
             </Field>
@@ -992,7 +992,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <input
                 value={form.shippingProvider}
                 onChange={(event) => setForm((current) => ({ ...current, shippingProvider: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
                 placeholder={t("orders.returns.providerPlaceholder")}
               />
             </Field>
@@ -1001,10 +1001,10 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.refundMethod}
                 onChange={(event) => setForm((current) => ({ ...current, refundMethod: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 {REFUND_METHOD_OPTIONS.map((option) => (
-                  <option key={option} value={option} className="bg-zinc-950 text-white">{humanizeKey(option)}</option>
+                  <option key={option} value={option}>{humanizeKey(option)}</option>
                 ))}
               </select>
             </Field>
@@ -1013,16 +1013,16 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
               <select
                 value={form.refundStatus}
                 onChange={(event) => setForm((current) => ({ ...current, refundStatus: event.target.value }))}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 {REFUND_STATUS_OPTIONS.map((option) => (
-                  <option key={option} value={option} className="bg-zinc-950 text-white">{humanizeKey(option)}</option>
+                  <option key={option} value={option}>{humanizeKey(option)}</option>
                 ))}
               </select>
             </Field>
 
             <Field label={t("orders.returns.refundAmount")}>
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-100">
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-700 dark:text-emerald-200">
                 {formatCurrency(form.refundAmount)}
               </div>
             </Field>
@@ -1034,19 +1034,19 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                   const disposition = event.target.value;
                   setForm((current) => ({ ...current, disposition, restock: disposition === "restock" }));
                 }}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 {RETURN_DISPOSITION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-zinc-950 text-white">{option.label}</option>
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </Field>
           </div>
 
-          <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+          <section className="mt-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="m1-section-title text-white">{t("orders.returns.returnedItems")}</h3>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-200">
+              <h3 className="m1-section-title text-[var(--text)]">{t("orders.returns.returnedItems")}</h3>
+              <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]">
                 <input type="checkbox" checked={form.restock} disabled={form.disposition !== "restock"} onChange={(event) => setForm((current) => ({ ...current, restock: event.target.checked }))} />
                 {t("orders.returns.restockReturnedItems")}
               </label>
@@ -1054,7 +1054,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
 
             <div className="mt-4 space-y-3">
               {selectedItems.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-sm text-zinc-400">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">
                   {t("orders.returns.noItemsFound")}
                 </div>
               ) : (
@@ -1062,22 +1062,22 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                   const checked = Boolean(form.returnItems[item.id]);
                   const selectedItem = form.returnItems[item.id];
                   return (
-                    <div key={String(item.id || index)} className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
+                    <div key={String(item.id || index)} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <button
                           type="button"
                           onClick={() => toggleItem(item)}
-                          className={`rounded-[var(--radius-control)] px-3 py-2 text-sm font-semibold ${checked ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-[var(--primary-contrast)]"}`}
+                          className={`rounded-[var(--radius-control)] px-3 py-2 text-sm font-semibold ${checked ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}
                         >
                           {checked ? t("orders.returns.included") : t("orders.returns.select")}
                         </button>
                         <div className="flex-1">
-                          <div className="font-semibold text-white">{item.product_name || item.name}</div>
-                          <div className="mt-1 text-sm text-zinc-400">
+                          <div className="font-semibold text-[var(--text)]">{item.product_name || item.name}</div>
+                          <div className="mt-1 text-sm text-[var(--muted)]">
                             {[item.color, item.size].filter(Boolean).join(" / ") || t("orders.fallback.variant")} - {t("orders.drawer.qty")} {item.quantity || 0}
                           </div>
                         </div>
-                        <div className="text-sm font-semibold text-white">{formatCurrency(resolveOrderItemUnitPrice(item) * Number(item.quantity || 0))}</div>
+                        <div className="text-sm font-semibold text-[var(--text)]">{formatCurrency(resolveOrderItemUnitPrice(item) * Number(item.quantity || 0))}</div>
                       </div>
 
                       {checked ? (
@@ -1089,7 +1089,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                               max={item.quantity}
                               value={selectedItem?.quantity ?? 1}
                               onChange={(event) => updateItem(item.id, { quantity: Number(event.target.value || 0) })}
-                              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                              className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
                             />
                           </Field>
                           <div className="md:col-span-2">
@@ -1103,7 +1103,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                                     setForm((current) => ({ ...current, disposition: "manufacturing_defect", restock: false }));
                                   }
                                 }}
-                                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
                                 placeholder={t("orders.returns.reasonPlaceholder")}
                               />
                             </Field>
@@ -1130,18 +1130,18 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                   }));
                 }}
                 rows={5}
-                className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none"
+                className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-4 text-sm text-[var(--text)] outline-none"
                 placeholder={t("orders.returns.overallReasonPlaceholder")}
               />
             </Field>
           </div>
         </div>
 
-        <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
+        <footer className="grid gap-2 border-t border-[var(--border)] p-4 sm:grid-cols-2">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-bold hover:bg-[var(--surface)]">
             {t("orders.returns.page.close")}
           </button>
-          <button type="button" onClick={onSubmit} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black">
+          <button type="button" onClick={onSubmit} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)]">
             {mode === "edit" ? t("orders.returns.page.saveEdits") : t("orders.returns.saveReturn")}
           </button>
         </footer>
@@ -1155,18 +1155,18 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" aria-label={t("orders.returns.page.close")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <section className="absolute right-0 top-0 flex h-full w-full max-w-[42rem] flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl">
-        <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+      <section className="absolute right-0 top-0 flex h-full w-full max-w-[42rem] flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-2xl">
+        <header className="flex items-start justify-between gap-3 border-b border-[var(--border)] p-4">
           <div className="min-w-0">
-            <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black">{record.returnNumber}</div>
+            <div className="inline-flex rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[11px] font-black">{record.returnNumber}</div>
             <h2 className="m1-section-title mt-2 truncate">{record.customerName || tt("orders.returns.page.unknownCustomer")}</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               <StatusBadge value={record.returnStatus} />
               <StatusBadge value={record.refundStatusLabel} />
-              {record.restock ? <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-100">{t("orders.returns.page.restockedBadge")}</span> : null}
+              {record.restock ? <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-200">{t("orders.returns.page.restockedBadge")}</span> : null}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)] hover:bg-[var(--surface)]">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -1206,18 +1206,18 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           <DrawerSection title={t("orders.returns.page.section.returnedProducts")}>
             <div className="space-y-2">
               {record.items.length ? record.items.map((item) => (
-                <div key={item.key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
+                <div key={item.key} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-white">{item.name}</div>
-                      <div className="mt-1 text-xs text-zinc-400">{item.variantLabel}</div>
+                      <div className="truncate text-sm font-black text-[var(--text)]">{item.name}</div>
+                      <div className="mt-1 text-xs text-[var(--muted)]">{item.variantLabel}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-black text-white">x{item.quantity}</div>
-                      <div className="mt-0.5 text-[11px] text-zinc-500">{formatCurrency(item.refundAmount)}</div>
+                      <div className="text-sm font-black text-[var(--text)]">x{item.quantity}</div>
+                      <div className="mt-0.5 text-[11px] text-[var(--muted)]">{formatCurrency(item.refundAmount)}</div>
                     </div>
                   </div>
-                  {item.reason ? <div className="mt-2 text-xs text-zinc-400">{t("orders.returns.page.reasonPrefix")} {item.reason}</div> : null}
+                  {item.reason ? <div className="mt-2 text-xs text-[var(--muted)]">{t("orders.returns.page.reasonPrefix")} {item.reason}</div> : null}
                 </div>
               )) : <EmptyDrawerText text={t("orders.returns.page.noReturnedItemsRecorded")} />}
             </div>
@@ -1243,7 +1243,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           </DrawerSection>
 
           <DrawerSection title={t("orders.returns.page.section.notes")}>
-            <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 text-sm leading-6 text-[var(--text)]">
               {record.reason || t("orders.returns.page.noNotes")}
             </div>
           </DrawerSection>
@@ -1254,8 +1254,8 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
                 <div key={item.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
                   <div className="mt-1 h-3 w-3 rounded-full bg-primary" />
                   <div>
-                    <div className="text-sm font-black text-white">{item.label}</div>
-                    <div className="mt-0.5 text-xs text-zinc-500">{item.at ? formatDateTime(item.at) : t("orders.returns.page.noTimestamp")}</div>
+                    <div className="text-sm font-black text-[var(--text)]">{item.label}</div>
+                    <div className="mt-0.5 text-xs text-[var(--muted)]">{item.at ? formatDateTime(item.at) : t("orders.returns.page.noTimestamp")}</div>
                   </div>
                 </div>
               ))}
@@ -1263,17 +1263,17 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           </DrawerSection>
         </div>
 
-        <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
-          <button type="button" onClick={() => navigate(`/orders/${record.orderId}`)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
+        <footer className="grid gap-2 border-t border-[var(--border)] p-4 sm:grid-cols-2">
+          <button type="button" onClick={() => navigate(`/orders/${record.orderId}`)} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-bold hover:bg-[var(--surface)]">
             {t("orders.returns.page.openOriginalOrder")}
           </button>
-          <button type="button" onClick={onEdit} disabled={!record.allowEdit} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={onEdit} disabled={!record.allowEdit} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-bold hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-45">
             {t("orders.returns.page.action.editReturn")}
           </button>
-          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold hover:bg-white/10">
+          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-bold hover:bg-[var(--surface)]">
             {t("orders.returns.page.action.print")}
           </button>
-          <button type="button" onClick={onDelete} disabled={!record.allowDelete} className="rounded-[var(--radius-control)] bg-rose-500 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={onDelete} disabled={!record.allowDelete} className="rounded-[var(--radius-control)] bg-rose-600 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">
             {t(record.returnStatus === "Draft" ? "orders.returns.page.cancelReturn" : "orders.returns.page.deleteReturn")}
           </button>
         </footer>
@@ -1285,7 +1285,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
 function Field({ label, children }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
       {children}
     </label>
   );
@@ -1294,7 +1294,7 @@ function Field({ label, children }) {
 function DrawerSection({ title, children }) {
   return (
     <section className="mt-4">
-      <h3 className="m1-section-title mb-3 text-white">{title}</h3>
+      <h3 className="m1-section-title mb-3 text-[var(--text)]">{title}</h3>
       {children}
     </section>
   );
@@ -1304,9 +1304,9 @@ function InfoGrid({ items }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {items.map(([label, value]) => (
-        <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-          <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+        <div key={label} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--text)]">{value}</div>
         </div>
       ))}
     </div>
@@ -1314,7 +1314,7 @@ function InfoGrid({ items }) {
 }
 
 function EmptyDrawerText({ text: value }) {
-  return <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{value}</div>;
+  return <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 text-sm text-[var(--muted)]">{value}</div>;
 }
 
 function CellHeader({ children }) {
@@ -1324,10 +1324,10 @@ function CellHeader({ children }) {
 function ReturnCodeCell({ record }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black text-white">
+      <div className="inline-flex max-w-full items-center truncate rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[11px] font-black text-[var(--text)]">
         {record.returnNumber}
       </div>
-      <div className="mt-1 truncate text-[11px] font-semibold text-zinc-500">{record.orderNumber}</div>
+      <div className="mt-1 truncate text-[11px] font-semibold text-[var(--muted)]">{record.orderNumber}</div>
     </div>
   );
 }
@@ -1335,8 +1335,8 @@ function ReturnCodeCell({ record }) {
 function CustomerCell({ record }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="truncate text-sm font-semibold text-white">{record.customerName || tt("orders.returns.page.unknownCustomer")}</div>
-      <div className="mt-1 truncate text-[11px] text-zinc-500">{record.customerPhone || tt("orders.returns.page.noPhone")}</div>
+      <div className="truncate text-sm font-semibold text-[var(--text)]">{record.customerName || tt("orders.returns.page.unknownCustomer")}</div>
+      <div className="mt-1 truncate text-[11px] text-[var(--muted)]">{record.customerPhone || tt("orders.returns.page.noPhone")}</div>
     </div>
   );
 }
@@ -1344,34 +1344,34 @@ function CustomerCell({ record }) {
 function ItemsCell({ record }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="text-center text-sm font-semibold text-white">{tt("orders.returns.page.itemsCount", { count: record.itemsCount })}</div>
-      <div className="mt-1 text-center text-[11px] leading-5 text-zinc-400">{record.itemsSummary}</div>
+      <div className="text-center text-sm font-semibold text-[var(--text)]">{tt("orders.returns.page.itemsCount", { count: record.itemsCount })}</div>
+      <div className="mt-1 text-center text-[11px] leading-5 text-[var(--muted)]">{record.itemsSummary}</div>
     </div>
   );
 }
 
 function AmountCell({ value }) {
-  return <div className="px-2 text-center text-sm font-bold text-white">{formatCurrency(value)}</div>;
+  return <div className="px-2 text-center text-sm font-bold text-[var(--text)]">{formatCurrency(value)}</div>;
 }
 
 function DateCell({ value }) {
   return (
     <div className="table-cell-stack px-2">
-      <div className="text-xs font-black text-zinc-100">{formatShortDate(value)}</div>
-      <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{formatShortTime(value)}</div>
+      <div className="text-xs font-black text-[var(--text)]">{formatShortDate(value)}</div>
+      <div className="mt-0.5 text-[11px] font-semibold text-[var(--muted)]">{formatShortTime(value)}</div>
     </div>
   );
 }
 
 function RowAction({ icon: Icon, label, onClick, disabled = false, tone = "default" }) {
-  const toneClass = tone === "danger" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-white/10 bg-white/5 text-white";
+  const toneClass = tone === "danger" ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       title={label}
-      className={`inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-2 py-1 text-[10px] font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
+      className={`inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-2 py-1 text-[10px] font-bold transition hover:bg-[var(--card)] disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
     >
       <Icon className="h-3.5 w-3.5" />
       <span className="hidden 2xl:inline">{label}</span>
@@ -1385,7 +1385,7 @@ function MobileAction({ icon: Icon, label, onClick, disabled = false, danger = f
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-white/10 bg-white/5 text-white"}`}
+      className={`inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]"}`}
     >
       <Icon className="h-3.5 w-3.5" />
       {label}
@@ -1395,9 +1395,9 @@ function MobileAction({ icon: Icon, label, onClick, disabled = false, danger = f
 
 function InfoPill({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2">
-      <div className="text-[10px] text-zinc-500">{label}</div>
-      <div className="mt-1 font-bold text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2">
+      <div className="text-[10px] text-[var(--muted)]">{label}</div>
+      <div className="mt-1 font-bold text-[var(--text)]">{value}</div>
     </div>
   );
 }
