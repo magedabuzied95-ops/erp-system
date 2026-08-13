@@ -1442,8 +1442,8 @@ approval or tool-grant path was touched. No `t()` call or dictionary modified.
 | B `/ai-studio/workflows` | **COMPLETE** |
 | C `/ai-studio/restock-recovery` | **COMPLETE** |
 | D `/ai-studio/tools` | **COMPLETE** |
-| E `/pos` | PENDING |
-| F `/ai/settings` | PENDING |
+| E `/pos` | **COMPLETE** (cp4) |
+| F `/ai/settings` | **COMPLETE** (cp5) |
 
 Page F's route was resolved from the router, not from the screenshot:
 `/ai/settings` -> `src/modules/aiSupport/pages/AiSettings.jsx`, the only AI
@@ -1455,3 +1455,212 @@ settings route carrying tone + channel + product-id + textarea together.
 fixed-dark idiom and were **not** given the scope class, because section 1 listed
 four AI Studio surfaces and widening was explicitly forbidden. They are one-line
 changes each (`.m1-ai-scope` plus the import) whenever they are approved.
+
+## Checkpoint 4 — Page E, POS
+
+**Structural root cause: POS renders outside the shell.** There is no
+`.m1-shell-root` on `/pos` — the root is `.pos-pro-shell` — and the whole of
+`foundation.css`'s palette -> token normalisation is scoped to
+`.m1-shell-root .m1-shell-content`. None of it has ever reached POS, so every
+emerald/amber/rose/cyan class there is raw Tailwind. Same class of blind spot as
+the portaled-modal case: a surface that escapes the scope the normaliser assumes.
+
+Measured in Light, 10 invisible nodes:
+
+| Node | Colours | Contrast |
+|---|---|---|
+| invoice pill + total | amber-50 on amber tint | 1.02 |
+| "مطلوب" | amber-100 on amber-500/15 | 1.02 |
+| invoice button | emerald-100 on emerald tint | 1.04 |
+| catalog count badge | emerald-100 on emerald-400/15 | 1.06 |
+| "خصم الفاتورة" | amber-100 on amber-300/10 | 1.07 |
+| discount total | amber-100 on white | 1.11 |
+| "مصروف" | amber-100 | 1.15 |
+| "العمليات الأخيرة" | emerald-100 | 1.16 |
+| invoice count chip | amber-50 on bg-black/25 | 1.87 |
+
+Owner: `src/modules/pos/pages/POSPro.m1.css`. Light only — Dark measured 0
+failures, so the commercial dark palette is untouched and cannot regress.
+
+Three scoping decisions, each measured rather than assumed:
+
+- **Positively scoped to the five containers that own the defects**
+  (`pos-desktop-toolbar`, `pos-catalog-toolbar`, `pos-cart-panel`,
+  `pos-cart-totals`, `pos-customer-picker`), not to `.pos-pro-shell`. A
+  shell-wide rule with a `:not([class*="bg-zinc-950"] *)` carve-out was tried and
+  **rejected by measurement**: POS has a `bg-zinc-950` ancestor inside the cart
+  panel, so the carve-out swallowed legitimate targets.
+- **The shared mobile action bar keeps its dark plate.** `ResponsiveMobile.jsx`
+  is `xl:hidden` with `bg-zinc-950/95`; its light tint text is correct on that
+  plate, and a shell-wide rule would have dragged it from ~12 to ~3.6 at mobile
+  widths. It is a shared component with consumers outside POS — reported, not
+  changed.
+- **`:is()` not `:where()`** for the container list. `:where()` contributes zero
+  specificity and the rule lost; verified by measurement.
+
+After, per container in Light: **0 invisible everywhere**, minimum 2.66. Dark
+re-verified on the deployed build: 0 failures in all five containers.
+
+POS behaviour freeze honoured: no cart state, quantity, discount, stock,
+barcode, customer assignment, payment id, split allocation, formatter, checkout
+payload, order creation, shift or terminal path touched. All 41 POS focused
+guards pass, including `pos-light-theme`, `pos-payment-integrity`,
+`pos-payment-routing` and `pos-invoice-selection-guard`.
+
+The green checkout CTA is deliberately unchanged: a saturated action colour whose
+label contrast is fine. Recolouring it would be a redesign, not a correction.
+
+### Concurrent main during this checkpoint
+
+`main` moved to `a505ddd` mid-checkpoint (AI Inbox Phase 13.4.1, two commits).
+Reconciled with a `--no-ff` merge — disjoint by inspection, zero conflicts — and
+**revalidated after the merge**: suite grew to 2113 tests (their +24) and the
+failure-identity set stayed byte-identical. Merge `3400140`.
+
+Vercel then **stalled**: `main` was `3400140` but Production kept serving
+`a505ddd` for ~10 minutes. Not rolled back — the checkpoint-5 push provided a new
+SHA and the build went out 20s later, which is the same remedy already recorded
+in `041a8a6`.
+
+## Checkpoint 5 — Page F, `/ai/settings`
+
+Route resolved from the router, not from the screenshot: the only AI settings
+route carrying tone + channel + product-id + textarea together.
+`/admin/ai-agent-settings` is a different page and was not in scope.
+
+The most literal instance of the reported defect. The page root painted its own
+near-black canvas:
+
+    bg-[radial-gradient(...rgba(34,211,238,0.13)...),linear-gradient(180deg,#020617,#0f172a)]
+
+plus `text-white` — a hardcoded slate-950 gradient and a cyan wash, so the shell
+could switch to Light while the whole settings body stayed dark.
+
+Fixed by reusing the checkpoint-1 owner rather than adding a second mechanism:
+the gradient is dropped and the root opts into `.m1-ai-scope`, which already owns
+`text-white`, the `text-slate-*` ladder, `bg-white/α` controls, `bg-slate-950/55`
+cards, `border-white/10` and the `shadow-[0_18px_60px…]` literal. **One shared
+sheet now serves five of the six approved surfaces.**
+
+Two further corrections in the same file:
+
+- Page title was `m1-display` (30px). The programme's own ruling reserves 30px
+  for genuine display/hero surfaces, so it becomes `m1-page-title` (22px,
+  verified on Production).
+- Toggle knob was `bg-slate-950`, which the shared sheet maps to `--surface` — a
+  white knob on a near-white track in Light. Now `--primary-contrast`, near-black
+  in both themes. Strictly better in Light; the Dark unchecked knob was already
+  low-contrast before this change, so nothing regresses.
+
+| State | Light | Dark |
+|---|---|---|
+| root canvas | `rgb(234,231,224)` = `--bg`, `background-image: none` | `rgb(19,18,17)` = `--bg` |
+| cards | `--surface`/`--surface-soft` | `rgb(25,24,23)` = `--surface-soft` |
+| text failures | 2 marginal, **0 invisible**, 0 surface offenders | **0 failures** |
+
+**Honest gap:** the Light "before" state on this route was never measured on
+Production — the checkpoint-5 build went live before the measurement ran. The
+defect is evidenced by the source literal and by the gradient's confirmed absence
+from the emitted chunk, not by a live before/after pair. Every other surface in
+this programme has a measured before and after.
+
+## Checkpoints
+
+| # | Scope | Rollback ref | Released | Production | Suite |
+|---|---|---|---|---|---|
+| 4 | POS status-tint text in Light | `rollback/pre-postclosure-cp4-pos-20260813` -> `a505ddd` | `3400140` (merge) | served via `01bf264` | 2113 / 28 fail, identity-identical |
+| 5 | `/ai/settings` fixed-dark island + title + knob | `rollback/pre-postclosure-cp5-aisettings-20260813` -> `a505ddd` | `01bf264` | `01bf264` verified Light + Dark + RTL + LTR | 2113 / 28 fail, identity-identical |
+
+## Frozen-reference regression (section 24)
+
+Checked on the final build `01bf264`, Light:
+
+| Route | AI scope leak | POS scope leak | My sheets loaded | Surface offenders | Text profile |
+|---|---|---|---|---|---|
+| `/products` | 0 | 0 | none | 1 | **byte-identical to baseline**: 73 fails / 1 inv / 10 severe / 62 marginal / min 1.46 |
+| `/dashboard` | 0 | 0 | none | 0 | — |
+| `/orders` | 0 | 0 | none | 0 | — |
+| `/customers` | 0 | 0 | none | 0 | — |
+| `/inventory` | 0 | 0 | none | 1 (pre-existing) | — |
+
+The structural reason the blast radius is nil: both stylesheets are lazy-loaded
+with their own module chunks, so on any route that does not render AI Studio,
+AI Settings or POS they are **not present in the document at all**. Confirmed by
+enumerating `document.styleSheets` on each route.
+
+## Final state
+
+| Target | Route | State |
+|---|---|---|
+| A | `/ai-studio/workflows/:id/edit` | **COMPLETE** |
+| B | `/ai-studio/workflows` | **COMPLETE** |
+| C | `/ai-studio/restock-recovery` | **COMPLETE** |
+| D | `/ai-studio/tools` | **COMPLETE** |
+| E | `/pos` | **COMPLETE** |
+| F | `/ai/settings` | **COMPLETE** |
+
+Final `main` and Production SHA: **`01bf264`**.
+
+## Findings held OUT of scope — reported, not changed
+
+1. **`POSPro.m1.css` defines a private light palette.** `--pos-light-bg`,
+   `--pos-light-surface`, `--pos-light-emerald` and ~60 raw hex literals, parallel
+   to the M1 tokens (`#f3f1ec` vs `--bg #eae7e0`, `#25231f` vs `--text #1b1915`).
+   This is a real section-0 violation and the largest found in this programme —
+   the same defect Checkpoint 10 fixed for `--picker-*`. Retargeting it rewrites
+   the entire POS Light appearance on a business-critical surface, so it needs its
+   own approved checkpoint rather than a silent ride-along.
+
+2. **`/products` frozen-reference tab defect.** `ProductsShell.css` has
+   `.m1-products-catalog > div:first-child > button { color: var(--muted)
+   !important }`, forcing every segmented-tab button to muted including the active
+   gold-filled one. Measured **1.46** — the worst single contrast value found
+   anywhere in this programme, and it is on a frozen reference.
+
+3. **The global semantic pairs are the contrast floor system-wide.**
+   `--warning` on `--warning-soft` (2.66–3.03), `--primary` on `--primary-soft`
+   (2.95–3.47), `--success` on `--success-soft` (~4.0). Every residual failure on
+   all six surfaces is one of these. They are a property of the shipped palette,
+   shared with the frozen references; fixing them only inside the corrected pages
+   would create exactly the page-specific colour system section 0 forbids.
+
+4. **`foundation.css` normaliser gaps.** It covers emerald, green, cyan, sky,
+   blue, amber, yellow, orange, rose and red — but not `violet` (fixed locally in
+   cp2), and its button-to-gold rule matches `bg-emerald-400/500` but not
+   `bg-emerald-300`, which is why the `/ai/settings` "Test reply" CTA stays a
+   bright green in Dark. Left as an intentional saturated action colour,
+   consistent with the POS checkout decision.
+
+5. **The shared mobile action bar** (`ResponsiveMobile.jsx`) is a fixed-dark
+   surface in Light at mobile widths. `xl:hidden`, so invisible at the audited
+   desktop viewport, and shared with consumers outside POS.
+
+6. **`/ai-studio`, `/ai-studio/executions`, `/ai-studio/approvals`** share the
+   AI Studio fixed-dark idiom and were deliberately NOT scoped — section 1 listed
+   four AI Studio surfaces and widening was forbidden. One line each
+   (`.m1-ai-scope` + the import) whenever approved.
+
+7. **Responsive caveat.** The automation browser runs at page zoom 0.83, so the
+   CSS viewport stays ~2288px and OS-level window resizing never crossed the
+   `lg`/`xl` breakpoints. Narrow-viewport chrome was therefore verified by
+   exercising the collapsed states directly (both editor rails collapse, render on
+   `--surface` with `--text-secondary` icons, and stay reachable) rather than by
+   true viewport emulation. No horizontal page overflow on any corrected surface.
+
+## Auditor integrity notes
+
+Two further tooling defects were found and corrected during this programme, and
+readings taken before each fix were discarded:
+
+1. **The oklch parse bug** (see above) — the first auditor's numbers were wrong.
+2. **Deferred style recalculation.** When a stylesheet is injected or removed,
+   the first `getComputedStyle` sweep in the same CDP call can still reflect the
+   previous state. Several intermediate POS readings were self-contradictory
+   because of this, including one that appeared to show a regression that did not
+   exist. Fixed by settling across two animation frames plus a timeout before
+   scanning, and by re-verifying single elements directly.
+3. **CDP timeouts** on the largest routes (`/pos` at 3,179 elements,
+   `/inventory` at 29,863). The canvas-based colour parser was memoised (47
+   distinct colours per page) and scans were narrowed to real containers. Per
+   section 23 a timeout was never recorded as a PASS — every timed-out reading was
+   re-run.
