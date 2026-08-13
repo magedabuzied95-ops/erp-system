@@ -959,21 +959,13 @@ outside application ownership.
 ## RESUME MARKER
 
 **GLOBAL_DROPDOWN_TYPOGRAPHY: COMPLETE — checkpoint 9 Production-verified at
-`6683536`. NEXT ROUTE/STATE: `/accounting/treasury`, DARK.**
+`6683536`.**
 
-**Phase 3 Light pass: COMPLETE** for all session-3 routes (22 routes upgraded to
-PASS). **Phase 3 Dark pass: IN PROGRESS.**
+**Phase 3 Light pass: COMPLETE. Accounting + session-1 Dark pass: COMPLETE.**
 
-**NEXT ROUTE/STATE: `/accounting/treasury`, DARK.**
+**NEXT ROUTE/STATE: `/products/barcode-labels`, DARK.**
 
-Then the rest of the accounting Dark pass: `general-ledger`, `trial-balance`,
-`profit-loss`, `cashbox`, `reports`, `accounts`, `income`, `cost-fix`,
-`audit-trail`, `financial-accounts`, `payment-method-mappings`.
-
-Then the Dark pass for the session-1 routes (`/workspace`, `/suppliers`,
-`/warehouses`, `/stock-transfers`, `/smart-warehouse`, `/expenses`, `/billing`,
-`/roles`, `/purchases`, `/purchases/reorder-suggestions`) and the session-4
-routes, which were measured in Light only (barcode pages, `/operations/shipping`,
+Continue the session-4 Dark pass (barcode pages, `/operations/shipping`,
 `/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`,
 `/ai-studio` subroutes, and the ID-bound detail routes incl.
 `/inventory/count/6`).
