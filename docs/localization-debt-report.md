@@ -10,10 +10,10 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 116
+- Files with debt: 114
 - Hardcoded Arabic UI strings: 1006
-- Hardcoded English UI strings: 806
-- Total hardcoded UI strings: 1812
+- Hardcoded English UI strings: 802
+- Total hardcoded UI strings: 1808
 - Mixed-language files (both scripts hardcoded): 28
 
 ### By surface
@@ -21,7 +21,7 @@ of scope. The scanner is conservative and can still contain false positives.
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 58 | 725 | 446 | 1171 | 18 |
-| shared | 42 | 81 | 277 | 358 | 6 |
+| shared | 40 | 81 | 273 | 354 | 6 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -1520,12 +1520,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 179 [inline-ternary/ar] isArabic ? "أطفال" : "Kids"
 - 500 [inline-ternary/ar] isArabic ? "غير متاح" : "n/a"
 
-### src/components/ai/AILiveLogs.jsx (shared — ar:0 en:3)
-
-- 74 [jsx-text/en] Live AI Logs
-- 75 [jsx-text/en] Operational event stream, kept in memory only.
-- 93 [jsx-text/en] Product:
-
 ### src/modules/aiStudio/components/editor/nodeKit.js (shared — ar:0 en:3)
 
 - 34 [object-key/en] Read only
@@ -1633,10 +1627,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/accounting/components/AccountingShell.jsx (shared — ar:1 en:0)
 
 - 21 [inline-ternary/ar] isArabic ? "أقسام الحسابات" : "Accounting sections"
-
-### src/modules/aiSupport/components/AppleEmojiPicker.jsx (shared — ar:0 en:1)
-
-- 23 [attribute/en] Choose emoji
 
 ### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:0 en:1)
 

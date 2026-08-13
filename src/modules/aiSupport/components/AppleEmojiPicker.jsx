@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import EmojiPicker, { Emoji, EmojiStyle, Theme } from "emoji-picker-react";
 
 import { useTheme } from "../../../theme/useTheme";
@@ -20,7 +21,8 @@ export function AppleEmoji({ emoji = "", size = 24, className = "", title = "" }
   );
 }
 
-export function AppleEmojiPicker({ open = false, anchorRef, onClose, onSelect, title = "Choose emoji" }) {
+export function AppleEmojiPicker({ open = false, anchorRef, onClose, onSelect, title = "" }) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const pickerRef = useRef(null);
   const [position, setPosition] = useState({ left: 8, top: 8, width: 350, height: 390 });
@@ -71,7 +73,7 @@ export function AppleEmojiPicker({ open = false, anchorRef, onClose, onSelect, t
     <div
       ref={pickerRef}
       role="dialog"
-      aria-label={title}
+      aria-label={title || t("aiSupport.inbox.emoji.choose")}
       data-ai-inbox-apple-emoji-picker="true"
       className="fixed z-[2147483000] overflow-hidden rounded-[22px] border border-black/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.3)] dark:border-white/10 dark:bg-[#20231f]"
       style={{ left: position.left, top: position.top }}
@@ -83,7 +85,7 @@ export function AppleEmojiPicker({ open = false, anchorRef, onClose, onSelect, t
         emojiStyle={EmojiStyle.APPLE}
         theme={theme?.mode === "dark" ? Theme.DARK : Theme.LIGHT}
         lazyLoadEmojis
-        searchPlaceHolder="Search emoji"
+        searchPlaceHolder={t("aiSupport.inbox.emoji.search")}
         previewConfig={{ showPreview: false }}
         onEmojiClick={(emojiData) => onSelect?.(emojiData.emoji, emojiData)}
       />

@@ -942,6 +942,21 @@
       "fmtLink": "لينك المنتج",
       "templateHint": "نص القالب باستخدام {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
     },
+    "emoji": {
+      "choose": "اختر إيموجي",
+      "search": "ابحث عن إيموجي"
+    },
+    "liveLogs": {
+      "title": "سجل الذكاء المباشر",
+      "subtitle": "تدفق الأحداث التشغيلية، محفوظ في الذاكرة فقط.",
+      "unavailable": "السجل المباشر غير متاح",
+      "polling": "تحديث دوري",
+      "paused": "متوقف مؤقتًا",
+      "product": "المنتج: {{product}}",
+      "memory": "الذاكرة",
+      "size": "المقاس {{size}}",
+      "waiting": "في انتظار أحداث الذكاء..."
+    },
     "pwaOrder": {
       "aiInboxOrder": "طلب صندوق الذكاء",
       "createFromConversation": "إنشاء طلب من المحادثة",

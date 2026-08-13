@@ -942,6 +942,21 @@
       "fmtLink": "Product link",
       "templateHint": "Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
     },
+    "emoji": {
+      "choose": "Choose emoji",
+      "search": "Search emoji"
+    },
+    "liveLogs": {
+      "title": "Live AI Logs",
+      "subtitle": "Operational event stream, kept in memory only.",
+      "unavailable": "Live logs unavailable",
+      "polling": "Polling",
+      "paused": "Paused",
+      "product": "Product: {{product}}",
+      "memory": "Memory",
+      "size": "size {{size}}",
+      "waiting": "Waiting for AI events..."
+    },
     "pwaOrder": {
       "aiInboxOrder": "AI Inbox Order",
       "createFromConversation": "Create order from conversation",

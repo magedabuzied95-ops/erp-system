@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api } from "../../shared/api/api";
 
@@ -21,6 +22,7 @@ const shortId = (value = "") => {
 };
 
 export default function AILiveLogs({ tenantId, headers, enabled = true }) {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
   const panelRef = useRef(null);
@@ -47,7 +49,7 @@ export default function AILiveLogs({ tenantId, headers, enabled = true }) {
         setError("");
       } catch (err) {
         if (!active || seq !== requestSeqRef.current) return;
-        setError(err?.responseBody?.message || err?.message || "Live logs unavailable");
+        setError(err?.responseBody?.message || err?.message || t("aiSupport.inbox.liveLogs.unavailable"));
       }
     };
     loadLogs();
@@ -59,7 +61,7 @@ export default function AILiveLogs({ tenantId, headers, enabled = true }) {
         intervalRef.current = null;
       }
     };
-  }, [tenantId, headers, enabled]);
+  }, [tenantId, headers, enabled, t]);
 
   useEffect(() => {
     if (panelRef.current) {
@@ -71,12 +73,12 @@ export default function AILiveLogs({ tenantId, headers, enabled = true }) {
     <section className="rounded-2xl border border-emerald-300/15 bg-slate-950/80 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="m1-section-title uppercase tracking-[0.14em] text-emerald-100">Live AI Logs</h2>
-          <p className="text-xs font-bold text-slate-500">Operational event stream, kept in memory only.</p>
+          <h2 className="m1-section-title uppercase tracking-[0.14em] text-emerald-100">{t("aiSupport.inbox.liveLogs.title")}</h2>
+          <p className="text-xs font-bold text-slate-500">{t("aiSupport.inbox.liveLogs.subtitle")}</p>
         </div>
         <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${enabled ? "border-emerald-300/15 bg-emerald-300/10 text-emerald-100" : "border-white/10 bg-white/[0.055] text-slate-400"}`}>
           <span className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.8)]" : "bg-slate-500"}`} />
-          {enabled ? "Polling" : "Paused"}
+          {enabled ? t("aiSupport.inbox.liveLogs.polling") : t("aiSupport.inbox.liveLogs.paused")}
         </div>
       </div>
       <div ref={panelRef} className="max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-black/35 font-mono text-xs">
@@ -90,19 +92,19 @@ export default function AILiveLogs({ tenantId, headers, enabled = true }) {
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-black ${style}`}>{item.type || "AI_EVENT"}</span>
                 {item.intent ? <span className="text-yellow-100">({item.intent})</span> : null}
                 {item.reason ? <span className="text-yellow-100">{item.reason}</span> : null}
-                {item.productName ? <span className="text-emerald-100">Product: {item.productName}</span> : null}
+                {item.productName ? <span className="text-emerald-100">{t("aiSupport.inbox.liveLogs.product", { product: item.productName })}</span> : null}
                 {item.platform ? <span className="text-cyan-200">{item.platform}</span> : null}
                 {item.conversationId ? <span className="min-w-0 truncate text-slate-400">{shortId(item.conversationId)}</span> : null}
               </div>
               {item.memory ? (
                 <div className="mt-1 break-words pl-0 text-slate-400 sm:pl-24">
-                  Memory: {[item.memory.lastIntent, item.memory.lastProduct, item.memory.lastSize ? `size ${item.memory.lastSize}` : ""].filter(Boolean).join(" / ")}
+                  {t("aiSupport.inbox.liveLogs.memory")}: {[item.memory.lastIntent, item.memory.lastProduct, item.memory.lastSize ? t("aiSupport.inbox.liveLogs.size", { size: item.memory.lastSize }) : ""].filter(Boolean).join(" / ")}
                 </div>
               ) : null}
               {item.error ? <div className="mt-1 break-words pl-0 text-red-200 sm:pl-24">{item.error}</div> : null}
             </div>
           );
-        }) : !error ? <div className="px-3 py-4 text-slate-500">Waiting for AI events...</div> : null}
+        }) : !error ? <div className="px-3 py-4 text-slate-500">{t("aiSupport.inbox.liveLogs.waiting")}</div> : null}
       </div>
     </section>
   );

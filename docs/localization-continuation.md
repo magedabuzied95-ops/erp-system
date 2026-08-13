@@ -100,9 +100,11 @@ checkpoint deployed and verified in both AR/RTL and EN/LTR before the next owner
 | 2 | `TranscriptMessage.jsx` | COMPLETE (`65a1c02`) |
 | 3 | `ProductCardPicker.jsx` | COMPLETE (`3cbf3ab`); scanner 37 → 0; AR/RTL + EN/LTR runtime verified |
 | 4 | `ProductCardMessage.jsx` | COMPLETE (`7b1983e`); scanner 5 → 0 |
-| 5 | `PwaOrderComposer.jsx` | COMPLETE in the current checkpoint; scanner 20 → 0 |
+| 5 | `PwaOrderComposer.jsx` | COMPLETE (`6e8814e`); scanner 20 → 0 |
+| 6 | `AppleEmojiPicker.jsx` | COMPLETE in the current checkpoint; scanner 1 → 0 |
+| 7 | `AILiveLogs.jsx` | COMPLETE in the current checkpoint; scanner 2 → 0 |
 
-**RESUME MARKER:** owner 6 — `AppleEmojiPicker.jsx`. Do not restart owners 1–5.
+**RESUME MARKER:** owner 8 — `AiInboxPwa.jsx`. Do not restart owners 1–7.
 The final zero gate still requires a deployed bidirectional runtime sweep and a
 separate multi-line JSX check, because the legacy scanner only counts same-line
 JSX text.
