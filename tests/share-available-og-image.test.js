@@ -6,6 +6,7 @@ import {
   buildShareAvailableOgImageUrl,
   buildShareAvailablePreviewSvg,
   buildShareAvailableStorefrontFilters,
+  buildShareAvailableTargetUrl,
   renderShareAvailableHtml,
   resolveShareAvailablePreviewImage,
 } from "../server/controllers/publicProductsController.js";
@@ -47,6 +48,20 @@ test("available-products preview keeps the website offers scope", () => {
     inStock: true,
     offerStory: true,
   });
+});
+
+test("available-products offers link redirects to the canonical offers page", () => {
+  const target = buildShareAvailableTargetUrl({}, {
+    sizes: [44],
+    offerStory: true,
+    inStock: true,
+  });
+
+  const url = new URL(target);
+  assert.equal(url.pathname, "/offers");
+  assert.equal(url.searchParams.get("size"), "44");
+  assert.equal(url.searchParams.get("offer_story"), "1");
+  assert.equal(url.searchParams.get("inStock"), "1");
 });
 
 test("available-products page redirects browsers without sending social crawlers through a meta refresh", () => {

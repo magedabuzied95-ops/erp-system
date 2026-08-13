@@ -692,7 +692,7 @@ const normalizeShareAvailableFilters = (query = {}) => {
   };
 };
 
-const buildShareAvailableTargetUrl = (req, filters = {}) => {
+export const buildShareAvailableTargetUrl = (req, filters = {}) => {
   const params = new URLSearchParams();
   parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
   if (filters.gender) params.set("gender", filters.gender);
@@ -704,7 +704,11 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
   if (filters.q) params.set("q", filters.q);
   if (filters.quality) params.set("quality", filters.quality);
   params.set("inStock", filters.inStock === false ? "0" : "1");
-  const pathname = `/shop/products${params.toString() ? `?${params.toString()}` : ""}`;
+  // The deployed storefront treats /offers as the canonical offers catalog.
+  // Keep offer_story in the query as well so both current and older clients
+  // preserve the scope while applying the remaining filters (size, stock, ...).
+  const catalogPath = filters.offerStory ? "/offers" : "/shop/products";
+  const pathname = `${catalogPath}${params.toString() ? `?${params.toString()}` : ""}`;
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
   const targetUrl = publicBaseUrl ? new URL(pathname, publicBaseUrl).toString() : pathname;
   return targetUrl;
