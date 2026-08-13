@@ -5,6 +5,7 @@ import { Bot, CheckCircle2, Loader2, PlayCircle, Save, ShieldCheck, SlidersHoriz
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { useTenant } from "../../saas/context/TenantContext";
+import "../../../theme/ai-surface.css";
 
 const defaultSettings = {
   autoReplyMode: "suggest_only",
@@ -63,7 +64,7 @@ function Toggle({ label, checked, onChange }) {
     <button type="button" onClick={() => onChange(!checked)} className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${checked ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}>
       <span className="text-sm font-black text-white">{label}</span>
       <span className={`h-6 w-11 rounded-full p-1 transition ${checked ? "bg-emerald-300" : "bg-white/10"}`}>
-        <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${checked ? "translate-x-5" : ""}`} />
+        <span className={`block h-4 w-4 rounded-full bg-[var(--primary-contrast)] transition ${checked ? "translate-x-5" : ""}`} />
       </span>
     </button>
   );
@@ -165,13 +166,13 @@ export default function AiSettings() {
   };
 
   return (
-    <div dir="ltr" className="min-h-full bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.13),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
+    <div dir="ltr" className="m1-ai-scope min-h-full p-3 text-white md:p-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />{t("aiSupport.aiSettings.eyebrow")}</div>
-              <h1 className="m1-display mt-3">{t("aiSupport.aiSettings.title")}</h1>
+              <h1 className="m1-page-title mt-3">{t("aiSupport.aiSettings.title")}</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{t("aiSupport.aiSettings.subtitle")}</p>
               <p className="mt-3 max-w-3xl rounded-xl border border-primary/15 bg-primary/10 px-3 py-2 text-xs font-bold leading-5 text-primary">
                 {t("aiSupport.aiSettings.masterNote")}
