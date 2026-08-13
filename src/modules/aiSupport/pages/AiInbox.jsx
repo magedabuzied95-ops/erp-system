@@ -1841,6 +1841,7 @@ function ProductCards({ products = [] }) {
 }
 
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
+  const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -1953,7 +1954,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                       </span>
                     </Pill>
                     <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
-                    {needsHumanAttention(item) ? <Pill tone="amber">Needs Human</Pill> : null}
+                    {needsHumanAttention(item) ? <Pill tone="amber">{t("aiSupport.inbox.ui.needsHuman")}</Pill> : null}
                   </div>
                 </>
               ) : (
@@ -2134,8 +2135,8 @@ function InboxChannelSidebar({
           <button
             type="button"
             onClick={onSelectSocialComments}
-            title="Social Comments"
-            aria-label="Social Comments"
+            title={t("aiSupport.inbox.ui.socialComments")}
+            aria-label={t("aiSupport.inbox.ui.socialComments")}
             aria-pressed={socialCommentsActive}
             className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
               socialCommentsActive
@@ -2256,7 +2257,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                       </span>
                     </Pill>
                     <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
-                    {needsHumanAttention(item) ? <Pill tone="amber">Needs Human</Pill> : null}
+                    {needsHumanAttention(item) ? <Pill tone="amber">{t("aiSupport.inbox.ui.needsHuman")}</Pill> : null}
                   </div>
                 </>
               ) : (
@@ -2338,10 +2339,10 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
 
   return (
     <div className="fixed inset-0 z-[2147482600] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose?.(); }}>
-      <section dir="rtl" role="dialog" aria-modal="true" aria-label="Conversation Labels" className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#20231f] text-white shadow-2xl">
+      <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.ui.conversationLabels")} className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#20231f] text-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-amber-300" /><div><h3 className="text-base font-black">Conversation Labels</h3><p className="text-[11px] text-slate-400">أضف أكثر من Label للعميل</p></div></div>
-          <button type="button" onClick={onClose} disabled={saving} aria-label="Close labels" className="grid h-9 w-9 place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"><XCircle className="h-5 w-5" /></button>
+          <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-amber-300" /><div><h3 className="text-base font-black">{t("aiSupport.inbox.ui.conversationLabels")}</h3><p className="text-[11px] text-slate-400">{t("aiSupport.inbox.ui.labelsHint")}</p></div></div>
+          <button type="button" onClick={onClose} disabled={saving} aria-label={t("aiSupport.inbox.ui.closeLabels")} className="grid h-9 w-9 place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"><XCircle className="h-5 w-5" /></button>
         </header>
 
         <div className="space-y-4 p-5">
@@ -2364,14 +2365,14 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
             {editingLabel ? (
               <div className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3">
                 <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-amber-200">{t("aiSupport.inbox.labels.edit")}</div>
-                <input value={editingLabel.name} onChange={(event) => setEditingLabel((current) => ({ ...current, name: event.target.value }))} maxLength={40} aria-label="Label name" className="h-9 w-full rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/40" />
+                <input value={editingLabel.name} onChange={(event) => setEditingLabel((current) => ({ ...current, name: event.target.value }))} maxLength={40} aria-label={t("aiSupport.inbox.ui.labelName")} className="h-9 w-full rounded-lg border border-white/10 bg-black/25 px-3 text-sm font-bold text-white outline-none focus:border-amber-300/40" />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {Object.keys(CONVERSATION_LABEL_DOT_CLASSES).map((color) => (
                     <button key={color} type="button" onClick={() => setEditingLabel((current) => ({ ...current, color }))} aria-label={`Label color ${color}`} className={`grid h-7 w-7 place-items-center rounded-full border ${editingLabel.color === color ? "border-white bg-white/10" : "border-transparent"}`}><span className={`h-3 w-3 rounded-full ${conversationLabelDotClass(color)}`} /></button>
                   ))}
                   <div className="mr-auto flex gap-1.5">
-                    <button type="button" onClick={() => setEditingLabel(null)} className="h-8 rounded-lg border border-white/10 px-3 text-[11px] font-bold text-slate-300">Cancel</button>
-                    <button type="button" onClick={saveLabelEdit} disabled={!clean(editingLabel.name)} className="h-8 rounded-lg bg-amber-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-40">Save edit</button>
+                    <button type="button" onClick={() => setEditingLabel(null)} className="h-8 rounded-lg border border-white/10 px-3 text-[11px] font-bold text-slate-300">{t("aiSupport.inbox.ui.cancel")}</button>
+                    <button type="button" onClick={saveLabelEdit} disabled={!clean(editingLabel.name)} className="h-8 rounded-lg bg-amber-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-40">{t("aiSupport.inbox.ui.saveEdit")}</button>
                   </div>
                 </div>
               </div>
@@ -4465,12 +4466,13 @@ function Info({ label, value, fallback = "Not set yet" }) {
 }
 
 function TagRow({ label, values = [] }) {
+  const { t } = useTranslation();
   const items = asArray(values).filter(Boolean);
   return (
     <div>
       <div className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
       <div className="flex flex-wrap gap-1.5">
-        {items.length ? items.slice(0, 8).map((item) => <Pill key={item}>{item}</Pill>) : <span className="text-sm text-slate-500">Not set yet</span>}
+        {items.length ? items.slice(0, 8).map((item) => <Pill key={item}>{item}</Pill>) : <span className="text-sm text-slate-500">{t("aiSupport.inbox.ui.notSetYet")}</span>}
       </div>
     </div>
   );
@@ -4599,7 +4601,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
           <div className="mt-2 flex flex-wrap gap-1.5">
             {reasons.slice(0, 3).map((reason) => <Pill key={reason} tone="zinc">{reason}</Pill>)}
           </div>
-          {risks.length ? <div className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-slate-500">Risk flags</div> : null}
+          {risks.length ? <div className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.inbox.ui.riskFlags")}</div> : null}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {risks.slice(0, 3).map((risk) => <Pill key={risk} tone="amber">{risk}</Pill>)}
           </div>
@@ -4611,7 +4613,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
             <div className="text-sm font-black text-white">Follow-up</div>
             <Pill tone={followUp.follow_up_needed ? "amber" : "zinc"}>{followUp.follow_up_needed ? "Needed" : "Not needed"}</Pill>
           </div>
-          {followUp.follow_up_reason ? <div className="mt-2 text-sm text-slate-300">{followUp.follow_up_reason}</div> : <div className="mt-2 text-sm text-slate-500">No follow-up recommendation right now.</div>}
+          {followUp.follow_up_reason ? <div className="mt-2 text-sm text-slate-300">{followUp.follow_up_reason}</div> : <div className="mt-2 text-sm text-slate-500">{t("aiSupport.inbox.ui.noFollowup")}</div>}
           {followUp.suggested_follow_up_message ? <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-100">{followUp.suggested_follow_up_message}</div> : null}
           {followUp.suggested_follow_up_at ? <div className="mt-3 text-xs font-bold text-slate-500">Suggested at {absoluteTime(followUp.suggested_follow_up_at)}</div> : null}
         </div>
@@ -4632,13 +4634,13 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
                 </div>
                 <div className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(event.created_at)}</div>
               </div>
-            )) : <div className="text-sm text-slate-500">No sales journey events yet.</div>}
+            )) : <div className="text-sm text-slate-500">{t("aiSupport.inbox.ui.noJourney")}</div>}
           </div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-black text-white">Cross-sell / Upsell</div>
+            <div className="text-sm font-black text-white">{t("aiSupport.inbox.ui.crossSell")}</div>
             <Pill tone="zinc">{suggestions.length}</Pill>
           </div>
           <div className="mt-3 space-y-2">
@@ -4651,7 +4653,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
                 <div className="mt-1 text-xs text-slate-400">{item.reason || "catalog suggestion"}</div>
                 {item.suggested_message ? <div className="mt-2 text-sm leading-6 text-slate-200">{item.suggested_message}</div> : null}
               </div>
-            )) : <div className="text-sm text-slate-500">No cross-sell suggestions right now.</div>}
+            )) : <div className="text-sm text-slate-500">{t("aiSupport.inbox.ui.noCrossSell")}</div>}
           </div>
         </div>
       </div>
@@ -4754,7 +4756,7 @@ function RightToolsTabsPanel({
               saving={modeSaving}
             />
             <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-              <SectionTitle icon={Bot} title="محرك رد الذكاء الاصطناعي" action={aiTrace?.loading ? <Pill tone="cyan">جاري الكتابة...</Pill> : null} />
+              <SectionTitle icon={Bot} title={t("aiSupport.inbox.ui.aiReplyEngine")} action={aiTrace?.loading ? <Pill tone="cyan">{t("aiSupport.inbox.ui.typing")}</Pill> : null} />
               <div className="mt-3 grid gap-2">
                 <button type="button" onClick={() => onOpenAiTrace?.()} disabled={aiTrace?.loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
                   {aiTrace?.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
@@ -4804,24 +4806,24 @@ function RightToolsTabsPanel({
               salesCloserPlan={salesCloser?.sessionId === conversation.session_id ? salesCloser.plan : {}}
             />
             <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-              <SectionTitle icon={MessageSquareText} title="Notes" />
+              <SectionTitle icon={MessageSquareText} title={t("aiSupport.inbox.ui.notes")} />
               <div className="mt-3 space-y-2">
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Summary</div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.summary")}</div>
                   <div className="mt-1 text-sm font-black leading-6 text-white">{profile.conversation_summary || conversation.customer_note || "No notes yet."}</div>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Recent memory notes</div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.recentMemory")}</div>
                   <div className="mt-2 space-y-2">
                     {notes.length ? notes.slice(0, 5).map((note) => (
                       <div key={note.id || note.key || JSON.stringify(note)} className="rounded-lg border border-white/10 bg-white/[0.03] p-2 text-xs leading-5 text-slate-300">
                         {note.key || note.type || "note"}: {JSON.stringify(note.value || {})}
                       </div>
-                    )) : <div className="text-sm text-slate-500">No memory notes yet.</div>}
+                    )) : <div className="text-sm text-slate-500">{t("aiSupport.inbox.ui.noMemoryNotes")}</div>}
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer snapshot</div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.customerSnapshot")}</div>
                   <div className="mt-2 space-y-1 text-sm text-slate-300">
                     <div className="font-black text-white">{getConversationDisplayName(conversation) || "Customer"}</div>
                     <div dir="ltr">{clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone) || "No phone"}</div>
@@ -8167,7 +8169,7 @@ export default function AiInbox({ reviewerMode = false }) {
             : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
         }`}
         >
-        <span>Social Comments</span>
+        <span>{t("aiSupport.inbox.ui.socialComments")}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isSocialMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
           {socialCommentsPanelCount}
         </span>
@@ -8623,7 +8625,7 @@ export default function AiInbox({ reviewerMode = false }) {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <SectionTitle icon={ArrowUpRight} title="خط متابعة العملاء" />
+                <SectionTitle icon={ArrowUpRight} title={t("aiSupport.inbox.ui.leadPipeline")} />
                 <Pill tone="zinc">{leadPipelineSummary.total}</Pill>
               </div>
               <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
@@ -8720,9 +8722,9 @@ export default function AiInbox({ reviewerMode = false }) {
 	                  <div className="flex items-center gap-2">
 	                    <label className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-950/70 h-10">
 	                      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو الرسالة" className="h-10 w-full min-w-0 rounded-xl bg-transparent pr-9 pl-3 text-sm font-bold text-white outline-none placeholder:text-slate-600" />
+	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiSupport.inbox.ui.searchCustomerMessage")} className="h-10 w-full min-w-0 rounded-xl bg-transparent pr-9 pl-3 text-sm font-bold text-white outline-none placeholder:text-slate-600" />
 	                    </label>
-	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title="المفضلة" aria-label="المفضلة" aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
+	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title={t("aiSupport.inbox.ui.favorites")} aria-label={t("aiSupport.inbox.ui.favorites")} aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
 	                      </button>
 	                  </div>
@@ -8811,7 +8813,7 @@ export default function AiInbox({ reviewerMode = false }) {
 
                       <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 p-3">
                         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">نص التعليق</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.commentText")}</div>
                           <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white">
                             {clean(selectedSocialCommentPost.message) || "بدون نص"}
                           </div>
@@ -8822,7 +8824,7 @@ export default function AiInbox({ reviewerMode = false }) {
                             {selectedSocialCommentPost.productName ? <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">{clean(selectedSocialCommentPost.productName)}</span> : null}
                           </div>
                           <details className="mt-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
-                            <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer Info</summary>
+                            <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.developerInfo")}</summary>
                             <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-400">
                               {selectedSocialCommentPost.postId ? <span className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">post_id: {selectedSocialCommentPost.postId}</span> : null}
                               {selectedSocialCommentPost.id ? <span className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">comment_id: {selectedSocialCommentPost.id}</span> : null}
@@ -8854,11 +8856,11 @@ export default function AiInbox({ reviewerMode = false }) {
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الرد المقترح</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.suggestedReply")}</div>
                           <textarea
                             value={replyText}
                             onChange={(event) => setReplyText(event.target.value)}
-                            placeholder="اكتب ردًا على التعليق..."
+                            placeholder={t("aiSupport.inbox.ui.writeCommentReply")}
                             className="mt-2 h-28 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600"
                           />
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -9002,7 +9004,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       type="button"
                       onClick={() => setProfileOpen(false)}
                       className="absolute -left-11 top-3 grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-slate-950/95 text-slate-100 shadow-xl"
-                      aria-label="إغلاق لوحة التفاصيل"
+                      aria-label={t("aiSupport.inbox.ui.closeDetails")}
                     >
                       <PanelRightClose className="h-4 w-4" />
                     </button>
@@ -9053,7 +9055,7 @@ export default function AiInbox({ reviewerMode = false }) {
         customer={customerDrawer.customer}
         customerId={customerDrawer.customerId}
         context={customerDrawer.context}
-        title="Customer 360"
+        title={t("aiSupport.inbox.ui.customer360")}
         portalTarget={fullscreenOverlayTarget}
       />
       <InboxOrderComposer
@@ -9109,8 +9111,8 @@ export default function AiInbox({ reviewerMode = false }) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100"><Bot className="h-4 w-4" />AI Inbox Pro</div>
-              <h1 className="mt-3 text-3xl font-black md:text-4xl">Sales Command Center</h1>
-              <p className="mt-2 text-sm text-slate-400">Live Meta conversations, AI replies, human takeover, and customer context in one workspace.</p>
+              <h1 className="mt-3 text-3xl font-black md:text-4xl">{t("aiSupport.inbox.ui.salesCommandCenter")}</h1>
+              <p className="mt-2 text-sm text-slate-400">{t("aiSupport.inbox.ui.proSubtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white/[0.07] px-4 text-sm font-black text-slate-100 ring-1 ring-white/10">
@@ -9137,20 +9139,20 @@ export default function AiInbox({ reviewerMode = false }) {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو رقم الهاتف أو اسم الصفحة أو محتوى الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiSupport.inbox.ui.searchByNamePhonePage")} className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
               <ArrowUpDown className="h-4 w-4 text-slate-500" />
-              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sortLabel")}</span>
               <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                <option value="recent">الأحدث</option>
-                <option value="lead_score_desc">الأعلى في درجة العميل</option>
-                <option value="favorites_first">المفضلة أولاً</option>
+                <option value="recent">{t("aiSupport.inbox.ui.sortNewest")}</option>
+                <option value="lead_score_desc">{t("aiSupport.inbox.ui.sortTopLead")}</option>
+                <option value="favorites_first">{t("aiSupport.inbox.ui.sortFavoritesFirst")}</option>
               </select>
             </label>
               <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
   <Star className="h-4 w-4 text-amber-300" />
-  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المفضلة</span>
+  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.favorites")}</span>
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>
@@ -9238,7 +9240,7 @@ export default function AiInbox({ reviewerMode = false }) {
             <aside className="min-h-0 min-w-0 space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
               <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.kpi.socialCenter")}</div>
-                <div className="mt-1 text-sm font-black text-white">Social Comments</div>
+                <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.socialComments")}</div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-black sm:grid-cols-3 xl:grid-cols-2">
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Facebook <span className="ml-2 text-cyan-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</span></div>
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Instagram <span className="ml-2 text-rose-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</span></div>
@@ -9882,21 +9884,21 @@ export default function AiInbox({ reviewerMode = false }) {
 	                <div className="flex flex-col gap-3">
 	                  <label className="relative min-w-0">
 	                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو رقم الهاتف أو اسم الصفحة أو محتوى الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiSupport.inbox.ui.searchByNamePhonePage")} className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
 	                  </label>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
                       <ArrowUpDown className="h-4 w-4 text-slate-500" />
-                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sortLabel")}</span>
                       <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                        <option value="recent">الأحدث</option>
-                        <option value="lead_score_desc">الأعلى في درجة العميل</option>
-                        <option value="favorites_first">المفضلة أولاً</option>
+                        <option value="recent">{t("aiSupport.inbox.ui.sortNewest")}</option>
+                        <option value="lead_score_desc">{t("aiSupport.inbox.ui.sortTopLead")}</option>
+                        <option value="favorites_first">{t("aiSupport.inbox.ui.sortFavoritesFirst")}</option>
                       </select>
                     </label>
                       <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
   <Star className="h-4 w-4 text-amber-300" />
-  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المفضلة</span>
+  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.favorites")}</span>
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>

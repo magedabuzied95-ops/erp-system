@@ -38,7 +38,7 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
 });
 
 test("desktop workspace keeps search while channel filters stay out of the top bar", () => {
-  assert.match(desktopSource, /ابحث عن العميل أو الرسالة/);
+  assert.match(desktopSource, /aiSupport\.inbox\.ui\.searchCustomerMessage/);
   assert.doesNotMatch(desktopSource, /fixedChannelSummaries\.map/);
   assert.match(desktopSource, /channels=\{fixedChannelSummaries\}/);
   assert.match(desktopSource, /AI \{aiAssistantGlobalEnabled \? "ON" : "OFF"\}/);

@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1125
-- Hardcoded English UI strings: 934
-- Total hardcoded UI strings: 2059
+- Hardcoded Arabic UI strings: 1103
+- Hardcoded English UI strings: 907
+- Total hardcoded UI strings: 2010
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 777 | 552 | 1329 | 19 |
+| main-erp | 58 | 755 | 525 | 1280 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,8 +29,8 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 52 | 111 | 163 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 30 | 84 | 114 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
@@ -63,50 +63,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/shared/lib/crocsSizes.js | shared | 1 | 1 | 2 |
 
 ## Per-file detail
-
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:52 en:111)
-
-- 1635 [attribute/en] Not set yet
-- 1956 [jsx-text/en] Needs Human
-- 2016 [jsx-text/ar] غير مقروء
-- 2137 [attribute/en] Social Comments
-- 2138 [attribute/en] Social Comments
-- 2259 [jsx-text/en] Needs Human
-- 2302 [jsx-text/en] Unread
-- 2341 [attribute/en] Conversation Labels
-- 2343 [jsx-text/ar] أضف أكثر من Label للعميل
-- 2343 [jsx-text/en] Conversation Labels
-- 2344 [attribute/en] Close labels
-- 2367 [attribute/en] Label name
-- 2373 [jsx-text/en] Cancel
-- 2374 [jsx-text/en] Save edit
-- 3359 [attribute/en] Choose emoji
-- 3578 [object-key/en] Mylerz
-- 3579 [object-key/en] ShipBlu
-- 3843 [attribute/en] AI Next Step
-- 3848 [jsx-text/en] Recommended next step
-- 3854 [jsx-text/en] Confidence
-- 3858 [jsx-text/en] Reason
-- 3862 [jsx-text/en] Suggested action
-- 3874 [jsx-text/en] Purchase intent:
-- 3924 [jsx-text/en] Size
-- 4184 [attribute/en] Visual candidates
-- 4215 [attribute/en] Unified reply payload
-- 4226 [attribute/en] Recent AI decisions
-- 4236 [jsx-text/ar] تم الإرسال
-- 4236 [jsx-text/ar] متخطى
-- 4324 [jsx-text/en] Trace error
-- 4343 [jsx-text/ar] المحدد
-- 4344 [jsx-text/en] Rejected
-- 4406 [jsx-text/en] Location
-- 4430 [jsx-text/ar] مزيد من ذاكرة العميل
-- 4433 [jsx-text/ar] المقاس المفضل
-- 4439 [attribute/en] No viewed products.
-- 4439 [attribute/en] Viewed products
-- 4440 [attribute/en] Abandoned products
-- 4440 [attribute/en] No abandoned products.
-- 4441 [attribute/en] No previous orders in memory.
-- ... 123 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 
@@ -239,6 +195,50 @@ of scope. The scanner is conservative and can still contain false positives.
 - 888 [object-key/en] All Messages
 - 892 [object-key/en] Web
 - ... 89 more
+
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:30 en:84)
+
+- 1635 [attribute/en] Not set yet
+- 2017 [jsx-text/ar] غير مقروء
+- 2303 [jsx-text/en] Unread
+- 3360 [attribute/en] Choose emoji
+- 3579 [object-key/en] Mylerz
+- 3580 [object-key/en] ShipBlu
+- 3844 [attribute/en] AI Next Step
+- 3849 [jsx-text/en] Recommended next step
+- 3855 [jsx-text/en] Confidence
+- 3859 [jsx-text/en] Reason
+- 3863 [jsx-text/en] Suggested action
+- 3875 [jsx-text/en] Purchase intent:
+- 3925 [jsx-text/en] Size
+- 4185 [attribute/en] Visual candidates
+- 4216 [attribute/en] Unified reply payload
+- 4227 [attribute/en] Recent AI decisions
+- 4237 [jsx-text/ar] تم الإرسال
+- 4237 [jsx-text/ar] متخطى
+- 4325 [jsx-text/en] Trace error
+- 4344 [jsx-text/ar] المحدد
+- 4345 [jsx-text/en] Rejected
+- 4407 [jsx-text/en] Location
+- 4431 [jsx-text/ar] مزيد من ذاكرة العميل
+- 4434 [jsx-text/ar] المقاس المفضل
+- 4440 [attribute/en] No viewed products.
+- 4440 [attribute/en] Viewed products
+- 4441 [attribute/en] Abandoned products
+- 4441 [attribute/en] No abandoned products.
+- 4442 [attribute/en] No previous orders in memory.
+- 4442 [attribute/en] Previous orders
+- 4444 [attribute/ar] المشاعر والذاكرة
+- 4459 [attribute/en] Not set yet
+- 4503 [attribute/en] Order draft panel
+- 4538 [jsx-text/en] Confirm Order
+- 4539 [jsx-text/en] Edit Draft
+- 4540 [jsx-text/en] Reject / Cancel
+- 4541 [jsx-text/en] Assign to human
+- 4542 [jsx-text/en] Resume AI
+- 4586 [attribute/en] Sales intelligence
+- 4597 [jsx-text/en] Conversion probability
+- ... 74 more
 
 ### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
 
