@@ -2855,14 +2855,14 @@ function SocialCommentsWorkspace({
       return Array.from(new Set(values.map((value) => clean(value).toLowerCase()).filter((value) => value === "facebook" || value === "instagram")));
     };
     return (
-      <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 text-white shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
+      <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">
         <div className="grid h-full min-h-0 w-full min-w-0 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/10 bg-slate-950/60">
-            <div className="flex min-h-[86px] flex-col justify-center gap-2 border-b border-white/10 px-3 py-2">
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
+            <div className="flex min-h-[86px] flex-col justify-center gap-2 border-b border-[var(--border)] px-3 py-2">
               <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.posts")}</div>
-                <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                <div className="text-sm font-black text-[var(--text)]">{t("aiSupport.inbox.socialWorkspace.posts")}</div>
+                <div className="mt-0.5 text-[11px] font-semibold text-[var(--muted)]">
                   {t("aiSupport.inbox.socialWorkspace.commentsCount", { count: normalizedPosts.reduce((sum, post) => sum + Number(post.commentsCount || 0), 0) })}
                 </div>
               </div>
@@ -2871,14 +2871,14 @@ function SocialCommentsWorkspace({
                 onClick={() => void handleRefresh()}
                 disabled={loading || refreshing}
                 aria-label={t("aiSupport.inbox.socialWorkspace.refresh")}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-200 disabled:opacity-50"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)] hover:border-[var(--primary)] disabled:opacity-50"
               >
                 {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </button>
               </div>
-              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+              <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-1">
                 {platformFilterButtons.map((filterItem) => (
-                  <button key={filterItem.key} type="button" onClick={() => onPostPlatformFilterChange?.(filterItem.key)} className={`min-w-0 flex-1 rounded-lg px-2 py-1 text-[10px] font-black transition ${postPlatformFilter === filterItem.key ? "bg-[#a47a12] text-white" : "text-slate-400 hover:bg-white/[0.05]"}`}>
+                  <button key={filterItem.key} type="button" onClick={() => onPostPlatformFilterChange?.(filterItem.key)} className={`min-w-0 flex-1 rounded-lg px-2 py-1 text-[10px] font-black transition ${postPlatformFilter === filterItem.key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-[var(--muted)] hover:bg-[var(--surface-hover)]"}`}>
                     {filterItem.label}
                   </button>
                 ))}
@@ -2887,11 +2887,11 @@ function SocialCommentsWorkspace({
 
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
               {!normalizedPosts.length && !loading ? (
-                <div className="grid min-h-56 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.025] p-5 text-center">
+                <div className="grid min-h-56 place-items-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-5 text-center">
                   <div>
-                    <MessageSquareText className="mx-auto h-6 w-6 text-slate-500" />
-                    <div className="mt-3 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.noPosts")}</div>
-                    <div className="mt-1 text-xs leading-5 text-slate-500">{t("aiSupport.inbox.socialWorkspace.noPostsHint")}</div>
+                    <MessageSquareText className="mx-auto h-6 w-6 text-[var(--muted)]" />
+                    <div className="mt-3 text-sm font-black text-[var(--text)]">{t("aiSupport.inbox.socialWorkspace.noPosts")}</div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--muted)]">{t("aiSupport.inbox.socialWorkspace.noPostsHint")}</div>
                   </div>
                 </div>
               ) : null}
@@ -2908,25 +2908,25 @@ function SocialCommentsWorkspace({
                     onMouseEnter={() => onPrefetchPost?.(post.raw || post, key)}
                     className={`flex w-full items-start gap-2.5 rounded-2xl border p-2.5 text-start transition ${
                       active
-                        ? "border-[#a47a12]/70 bg-[#a47a12]/20 ring-1 ring-[#a47a12]/20"
-                        : "border-white/10 bg-white/[0.035] hover:border-white/20 hover:bg-white/[0.055]"
+                        ? "border-[var(--primary)] bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/20"
+                        : "border-[var(--border)] bg-[var(--surface-soft)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
                     }`}
                   >
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
                       {post.thumbnailUrl ? (
                         <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
                       ) : (
-                        <div className="grid h-full w-full place-items-center text-slate-500"><ImageIcon className="h-4 w-4" /></div>
+                        <div className="grid h-full w-full place-items-center text-[var(--muted)]"><ImageIcon className="h-4 w-4" /></div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="line-clamp-2 text-xs font-black leading-5 text-white">{post.caption || t("aiSupport.inbox.socialWorkspace.posts")}</div>
+                        <div className="line-clamp-2 text-xs font-black leading-5 text-[var(--text)]">{post.caption || t("aiSupport.inbox.socialWorkspace.posts")}</div>
                         {Number(post.newCount || 0) > 0 ? (
                           <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#d9aa20] px-1.5 py-0.5 text-[9px] font-black text-slate-950">{post.newCount}</span>
                         ) : null}
                       </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-[var(--muted)]">
                         {postPlatforms(post).map((platform) => {
                           const meta = platformMeta(platform);
                           return <span key={platform} className={`rounded-full border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>;
@@ -2944,7 +2944,7 @@ function SocialCommentsWorkspace({
                   type="button"
                   onClick={onLoadMore}
                   disabled={loadingMore}
-                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] text-xs font-black text-slate-200 disabled:opacity-50"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] text-xs font-black text-[var(--text-secondary)] disabled:opacity-50"
                 >
                   {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   {t("aiSupport.inbox.socialWorkspace.loadMore")}
@@ -2953,15 +2953,15 @@ function SocialCommentsWorkspace({
             </div>
           </aside>
 
-          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#1f201e]">
-            <header className="flex min-h-[62px] items-center justify-between gap-3 border-b border-white/10 px-3 py-2">
+          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
+            <header className="flex min-h-[62px] items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2">
               <div className="flex min-w-0 items-center gap-2.5">
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
-                  {activePostImage ? <img src={activePostImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-slate-500"><MessageSquareText className="h-4 w-4" /></div>}
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface-soft)]">
+                  {activePostImage ? <img src={activePostImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[var(--muted)]"><MessageSquareText className="h-4 w-4" /></div>}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="line-clamp-1 text-sm font-black text-white">{activePostCaption || t("aiSupport.inbox.socialWorkspace.noPosts")}</h2>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                  <h2 className="line-clamp-1 text-sm font-black text-[var(--text)]">{activePostCaption || t("aiSupport.inbox.socialWorkspace.noPosts")}</h2>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-[var(--muted)]">
                     {postPlatforms(activePostDetails).map((platform) => {
                       const meta = platformMeta(platform);
                       return <span key={platform} className={`rounded-full border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>;
@@ -2974,16 +2974,16 @@ function SocialCommentsWorkspace({
                 type="button"
                 onClick={handleOpenPost}
                 disabled={!activePostLink || openingPost}
-                className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-black text-slate-200 disabled:opacity-40"
+                className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 text-xs font-black text-[var(--text)] hover:border-[var(--primary)] disabled:opacity-40"
               >
                 {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                 {t("aiSupport.inbox.socialWorkspace.openPost")}
               </button>
             </header>
 
-            <div className="flex items-center justify-center gap-1 border-b border-white/10 bg-black/10 px-3 py-2">
+            <div className="flex items-center justify-center gap-1 border-b border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2">
               {platformFilterButtons.map((filterItem) => (
-                <button key={filterItem.key} type="button" onClick={() => onCommentPlatformFilterChange?.(filterItem.key)} className={`rounded-full border px-3 py-1 text-[10px] font-black transition ${commentPlatformFilter === filterItem.key ? "border-[#d9aa20]/70 bg-[#a47a12]/30 text-[#f2cb58]" : "border-white/10 bg-white/[0.03] text-slate-400"}`}>
+                <button key={filterItem.key} type="button" onClick={() => onCommentPlatformFilterChange?.(filterItem.key)} className={`rounded-full border px-3 py-1 text-[10px] font-black transition ${commentPlatformFilter === filterItem.key ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-contrast)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--primary)]"}`}>
                   {filterItem.label}
                 </button>
               ))}
@@ -2997,16 +2997,16 @@ function SocialCommentsWorkspace({
               {!displayComments.length && !activeThread.loading ? (
                 <div className="grid h-full min-h-64 place-items-center text-center">
                   <div>
-                    <MessageSquareText className="mx-auto h-7 w-7 text-slate-600" />
-                    <div className="mt-3 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.noComments")}</div>
-                    <div className="mt-1 text-xs text-slate-500">{t("aiSupport.inbox.socialWorkspace.noCommentsHint")}</div>
+                    <MessageSquareText className="mx-auto h-7 w-7 text-[var(--muted)]" />
+                    <div className="mt-3 text-sm font-black text-[var(--text)]">{t("aiSupport.inbox.socialWorkspace.noComments")}</div>
+                    <div className="mt-1 text-xs text-[var(--muted)]">{t("aiSupport.inbox.socialWorkspace.noCommentsHint")}</div>
                   </div>
                 </div>
               ) : null}
 
               <div className="flex w-full flex-col gap-3">
                 {hasMoreComments ? (
-                  <button type="button" onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))} className="mx-auto rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
+                  <button type="button" onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))} className="mx-auto rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1.5 text-[11px] font-black text-[var(--text-secondary)]">
                     {t("aiSupport.inbox.socialWorkspace.loadOlderComments")}
                   </button>
                 ) : null}
@@ -3038,9 +3038,9 @@ function SocialCommentsWorkspace({
                         registerCommentNode={registerCommentNode}
                       />
                       {replyText ? (
-                        <div className="max-w-[78%] self-end rounded-2xl border border-emerald-300/20 bg-emerald-950/55 px-3.5 py-2.5 text-start">
-                          <div className="text-[10px] font-black text-emerald-300">{t("aiSupport.inbox.socialWorkspace.sent")}</div>
-                          <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-white">{replyText}</div>
+                        <div className="max-w-[78%] self-end rounded-2xl border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3.5 py-2.5 text-start">
+                          <div className="text-[10px] font-black text-[var(--primary)]">{t("aiSupport.inbox.socialWorkspace.sent")}</div>
+                          <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--text)]">{replyText}</div>
                         </div>
                       ) : null}
                     </div>
@@ -3049,8 +3049,8 @@ function SocialCommentsWorkspace({
               </div>
             </div>
 
-            <footer className="border-t border-white/10 bg-[#191a18] p-2.5">
-              <div className="flex items-end gap-2 rounded-2xl border border-[#a47a12]/55 bg-[#22231f] p-1.5 focus-within:border-[#d9aa20]">
+            <footer className="border-t border-[var(--border)] bg-[var(--surface-raised)] p-2.5">
+              <div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-1.5 focus-within:border-[var(--primary)]">
                 <textarea
                   ref={composerRef}
                   value={replyDraft}
@@ -3062,7 +3062,7 @@ function SocialCommentsWorkspace({
                     }
                   }}
                   rows={1}
-                  className="max-h-28 min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 text-white outline-none"
+                  className="max-h-28 min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   placeholder={t("aiSupport.inbox.socialWorkspace.replyDraft")}
                 />
                 <button
@@ -3070,7 +3070,7 @@ function SocialCommentsWorkspace({
                   onClick={() => void submitReply(actionableComment, replyDraft)}
                   disabled={!actionableComment || !clean(replyDraft) || Boolean(replyLoadingKey)}
                   aria-label={t("aiSupport.inbox.socialWorkspace.reply")}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#a47a12] text-white transition hover:bg-[#c39418] disabled:opacity-40"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:opacity-40"
                 >
                   {replyLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
