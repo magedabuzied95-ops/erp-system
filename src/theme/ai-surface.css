@@ -86,6 +86,18 @@
   background: var(--card);
 }
 
+/* Solid and translucent mid-slate fills were neutral chips and status pills on
+   a dark canvas — `bg-slate-500` with `text-white` measured 3.68 in Light once
+   the text token landed. They become the neutral surface step, which the
+   normalised text ladder above then sits on correctly. */
+.m1-ai-scope :where(
+  [class^="bg-slate-700"], [class*=" bg-slate-700"],
+  [class^="bg-slate-600"], [class*=" bg-slate-600"],
+  [class^="bg-slate-500"], [class*=" bg-slate-500"]
+) {
+  background: var(--surface-soft);
+}
+
 /* Controls and nested groups were white-alpha washes, which are invisible on a
    light canvas. They become a real surface step. */
 .m1-ai-scope :where(
@@ -98,6 +110,24 @@
 /* Hover feedback stays a state rather than becoming a permanent fill. */
 .m1-ai-scope :where([class*="hover:bg-white/"]):hover {
   background: var(--surface-hover);
+}
+
+/* ---------- violet: the one family the global normaliser misses ---------- */
+
+/* foundation.css normalises emerald, green, cyan, sky, blue, amber, yellow,
+   orange, rose and red inside the shell — but not violet, and these modules use
+   it to mark an AUTOMATIC (non-manual) trigger, paired against slate for
+   manual. So this family reached Light completely untouched and was the worst
+   remaining defect after the first pass: violet-100 on a violet-300/15 fill
+   measured 1.02 on the Workflows list, and a 24px violet-200 KPI number
+   measured 1.23 on Restock Recovery.
+
+   It lands on the info pair rather than collapsing into muted, so "automatic"
+   keeps a hue of its own and stays distinguishable from "manual". */
+.m1-ai-scope :where([class*="text-violet-"]) { color: var(--info); }
+.m1-ai-scope :where([class*="bg-violet-"]) { background: var(--info-soft); }
+.m1-ai-scope :where([class*="border-violet-"]) {
+  border-color: color-mix(in srgb, var(--info) 38%, var(--border));
 }
 
 /* ---------- borders ----------------------------------------------------- */
