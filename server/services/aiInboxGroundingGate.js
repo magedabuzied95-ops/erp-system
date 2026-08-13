@@ -331,6 +331,33 @@ export const guardNoFalseAvailability = (action = "", rendered = "", neutral = "
   return claimsAvailable ? neutral : rendered;
 };
 
+// Batch 1A-2 — ONE deterministic price-question signal. The previous inline regex
+// (/بكام|بكم|السعر|سعره|كام\s*سعر|price/) matched "الجوردن فور بكام؟" but NOT the equally common
+// "سعر الجوردن فور كام؟" (bare سعر, and the كام…سعر order reversed), so that phrasing never even resolved a
+// product — the concrete reason Phase 14 saw changed=false. Bare "كام" only counts on its own, so a stray number
+// question ("المقاس كام") cannot masquerade as a price ask.
+export const isPriceQuestion = (message = "") => {
+  const text = String(message || "").trim();
+  if (!text) return false;
+  return /بكام|بكم|سعر|price|how much/i.test(text) || /(^|\s)كام\s*[؟?]?$/.test(text);
+};
+
+// Batch 1A-2 — reads the CURRENT canonical customer price for a grounded product/variant. Raw DB rows are passed
+// to the authority on purpose: a serialized API object may have had regular_price overwritten with the resolved
+// normal price, so it is not a trustworthy pricing input. Sale Mode semantics are NOT duplicated here — the shared
+// resolver owns them.
+const defaultLoadProductPricing = async ({ tenantId, productId, variantId = null }) => {
+  const { resolveEffectiveCustomerPrice } = await import("../../src/shared/lib/effectiveCustomerPrice.js");
+  const { loadTenantSaleModeSettings } = await import("../utils/customerDisplayPrice.js");
+  const product = (await db.query("SELECT * FROM products WHERE tenant_id = $1 AND id = $2 LIMIT 1", [tenantId, productId]).catch(() => ({ rows: [] }))).rows[0];
+  if (!product) return null;
+  const variant = variantId
+    ? (await db.query("SELECT * FROM product_variants WHERE tenant_id = $1 AND id = $2 LIMIT 1", [tenantId, variantId]).catch(() => ({ rows: [] }))).rows[0] || null
+    : null;
+  const saleModeSettings = await loadTenantSaleModeSettings({ tenantId });
+  return resolveEffectiveCustomerPrice({ product, variant, saleModeSettings });
+};
+
 export const decideGrounding = ({ entities, compatibleProducts = [], variantGrounding = null, styleProfile = null } = {}) => {
   const typeLabel = entities.typeLabel || "المنتج";
   const colorTxt = entities.colorLabel ? ` باللون ${entities.colorLabel}` : "";
@@ -451,7 +478,7 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // residual brandModelTerm is NOT a request — whether it is a real product NAME is decided by
     // hasExplicitProductMention (which ignores fillers/greetings/farewells), so a conversational word like "ماشي"
     // is not mistaken for a product here.
-    const priceAsk = /بكام|بكم|السعر|سعره|كام\s*سعر|price/i.test(String(message || ""));
+    const priceAsk = isPriceQuestion(message);
     const productDependentRequest = Boolean(entities.productType || entities.size || entities.color || entities.wantsAvailability || entities.wantsRestock || priceAsk);
     if (!hasExplicitProductMention(entities) && !productDependentRequest) {
       const rp = reply || {};
@@ -474,7 +501,11 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // existing size/variant/availability machinery + labels apply). No match → fall through to clarify (never
     // hallucinate a product). Failure-isolated by the outer try/catch.
     let brandModelProducts = null;
-    if (!entities.productType && entities.brandModelTerm && (requestedIntent === "PRODUCT_AVAILABILITY" || entities.wantsRestock)) {
+    // Batch 1A-2 — a PRICE question about a NAMED product ("سعر الجوردن فور كام؟") must resolve the catalog row
+    // too. Phase 14 found changed=false on every price turn precisely because this gate only ran for
+    // PRODUCT_AVAILABILITY/restock: a price intent never resolved a product, so nothing downstream could ground a
+    // price and the LLM's number passed through untouched.
+    if (!entities.productType && entities.brandModelTerm && (requestedIntent === "PRODUCT_AVAILABILITY" || entities.wantsRestock || priceAsk)) {
       const resolveByBrandModel = deps.resolveByBrandModel || (async (term) => {
         const terms = buildBrandModelTerms(term);
         if (!terms.length) return [];
@@ -664,6 +695,46 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       && colorChoiceProductIds.length === 1
       && (decision.color_choices || []).length > 1;
     const ev = variantGrounding?.exactVariant || null;
+
+    // ---- Batch 1A-2 — DETERMINISTIC PRICE GROUNDING ------------------------------------------------------
+    // A price question is answered from the ONE canonical authority (resolveEffectiveCustomerPrice, Batch 1A-1) —
+    // the same rule POS charges by. The LLM may phrase the sentence; it never supplies, keeps or picks the number.
+    // The price is read NOW from current ERP state, so a sale toggled on/off between two customer messages changes
+    // the next answer. Durable context may carry the product SUBJECT; it never carries a price.
+    let priceGrounding = null;
+    if (priceAsk && compatibleProducts.length && !productAmbiguous) {
+      const loadPricing = deps.loadProductPricing || defaultLoadProductPricing;
+      const target = compatibleProducts[0];
+      const variantId = ev?.variantId
+        || ((decision.color_choices || []).length === 1 ? decision.color_choices[0].variant_id : null);
+      const priced = await loadPricing({ tenantId, productId: target.id, variantId }).catch(() => null);
+      if (priced) {
+        priceGrounding = {
+          product_id: target.id,
+          variant_id: variantId || null,
+          active_price: priced.active_price,
+          price_source: priced.price_source,
+          sale_mode_applied: priced.sale_mode_applied === true,
+          has_price: priced.has_price === true,
+          price_grounded: true,
+        };
+        const label = entities.typeLabel && entities.typeLabel !== "المنتج" ? entities.typeLabel : String(target.name || "المنتج");
+        const colorTxtP = ev?.color ? ` باللون ${ev.color}` : "";
+        const sizeTxtP = ev?.displaySize || entities.size ? ` مقاس ${ev?.displaySize || entities.size}` : "";
+        decision.answer = priced.has_price
+          ? `سعر ${label}${colorTxtP}${sizeTxtP} حاليًا ${Math.round(priced.active_price)} جنيه.`
+          // 112 catalogue rows have no canonical normal price. Never fall back to the dormant sale price, the
+          // compare price, cost or wholesale — and never let the model invent one.
+          : `السعر المؤكد مش متاح عندي حاليًا. تحب أشيكلك عليه وأرد عليك؟`;
+        decision.action = "price_grounded";
+      }
+    }
+    // Ambiguous identity + a price question: never quote whichever row happened to sort first.
+    if (priceAsk && productAmbiguous) {
+      decision.answer = `فيه أكتر من موديل بالاسم ده — تحب أنهي واحد فيهم وأقولك سعره؟`;
+      decision.action = "price_ambiguous";
+    }
+
     let sendReadyCard = null;
     let cardChoices = [];
     if (productAmbiguous) {
@@ -704,6 +775,8 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
             : null),
       color_choices: Array.isArray(decision.color_choices) ? decision.color_choices : [],
       color_choice_required: decision.action === "color_choice_required",
+      // Batch 1A-2 — internal price evidence for audit (never rendered in the compact operator UI).
+      price_grounding: priceGrounding,
       grounding: {
         requested: { productType: entities.productType, productTerm: entities.productTerm, color: entities.color || null, size: entities.size || null, brandModel: Boolean(brandModelProducts) },
         resolved: (decision.action === "available" || decision.action === "unavailable")
