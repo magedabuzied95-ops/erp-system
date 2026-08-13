@@ -3573,6 +3573,7 @@ const AI_INBOX_SHIPPING_PROVIDERS = [
 ];
 
 function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null }) {
+  const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -3669,29 +3670,29 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">AI Inbox Order</div>
-            <h2 className="mt-1 text-2xl font-black text-white">إنشاء طلب من المحادثة</h2>
-            <p className="mt-1 text-sm text-slate-400">راجع بيانات العميل والمنتج قبل إنشاء المسودة. لن يُخصم المخزون قبل تأكيد الطلب.</p>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{t("aiSupport.inbox.order.orderTitle")}</div>
+            <h2 className="mt-1 text-2xl font-black text-white">{t("aiSupport.inbox.order.orderHeading")}</h2>
+            <p className="mt-1 text-sm text-slate-400">{t("aiSupport.inbox.order.orderNote")}</p>
           </div>
           <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-white"><XCircle className="h-5 w-5" /></button>
         </div>
 
         <div className="mt-5 space-y-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />بيانات العميل</div>
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />{t("aiSupport.inbox.order.customerData")}</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="اسم العميل *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="رقم الهاتف *" inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t("aiSupport.inbox.order.customerName")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t("aiSupport.inbox.order.phone")} inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />شركة الشحن وبيانات التوصيل</div>
-            <p className="mb-3 text-xs text-slate-400">اختار شركة الشحن. مع Bosta هنستخدم قائمة المدن والمناطق والأحياء المعتمدة عند الشركة لضمان قبول الشحنة.</p>
+            <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />{t("aiSupport.inbox.order.shippingSection")}</div>
+            <p className="mb-3 text-xs text-slate-400">{t("aiSupport.inbox.order.shippingNote")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-xs font-black text-slate-300">شركة الشحن *</span>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="شركة الشحن">
+                <span className="mb-1.5 block text-xs font-black text-slate-300">{t("aiSupport.inbox.order.courierRequired")}</span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label={t("aiSupport.inbox.order.courier")}>
                   {AI_INBOX_SHIPPING_PROVIDERS.map((provider) => {
                     const active = shippingProvider === provider.id;
                     return (
@@ -3722,46 +3723,46 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                     {shippingLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                   <select value={shippingZoneId} onChange={(event) => { setShippingZoneId(event.target.value); setShippingDistrictId(""); }} disabled={!shippingCityId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
-                    <option value="">المنطقة *</option>
+                    <option value="">{t("aiSupport.inbox.order.zone")}</option>
                     {shippingLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                   <select value={shippingDistrictId} onChange={(event) => setShippingDistrictId(event.target.value)} disabled={!shippingZoneId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50 sm:col-span-2">
-                    <option value="">الحي *</option>
+                    <option value="">{t("aiSupport.inbox.order.district")}</option>
                     {shippingLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                 </>
               ) : (
                 <>
-                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المدينة / المنطقة *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder={t("aiSupport.inbox.order.governorate")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder={t("aiSupport.inbox.order.cityArea")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
                 </>
               )}
 
-              <div className="sm:col-span-2 flex items-center gap-2 pt-1 text-xs font-black text-slate-300"><MapPin className="h-4 w-4 text-rose-300" />العنوان التفصيلي</div>
-              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder="اسم الشارع والعنوان بالتفصيل *" className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
+              <div className="sm:col-span-2 flex items-center gap-2 pt-1 text-xs font-black text-slate-300"><MapPin className="h-4 w-4 text-rose-300" />{t("aiSupport.inbox.order.addressSection")}</div>
+              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder={t("aiSupport.inbox.order.streetAddress")} className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
               <input value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} placeholder={shippingProvider === "bosta" ? "رقم المبنى *" : "رقم المبنى"} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder="الدور" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder="رقم الشقة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder="علامة مميزة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.floor")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.apartment")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={t("aiSupport.inbox.order.landmark")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />المنتج والمخزون</div>
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />{t("aiSupport.inbox.order.productSection")}</div>
             <select value={productId} onChange={(e) => setProductId(e.target.value)} className="h-12 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none">
-              <option value="">اختر منتجًا من المنتجات المطابقة</option>
+              <option value="">{t("aiSupport.inbox.order.chooseMatched")}</option>
               {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? 0) || 0}</option>)}
             </select>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="المقاس" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="اللون" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder={t("aiSupport.inbox.order.size")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={color} onChange={(e) => setColor(e.target.value)} placeholder={t("aiSupport.inbox.order.colour")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} min="1" type="number" placeholder={t("aiSupport.inbox.order.quantity")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
-            {selectedProduct ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black"><span className={safeQuantity <= stock ? "text-emerald-100" : "text-rose-200"}>المخزون: {stock} — المطلوب: {safeQuantity}</span><span className="text-white">الإجمالي: {money(unitPrice * safeQuantity)}</span></div> : null}
+            {selectedProduct ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black"><span className={safeQuantity <= stock ? "text-emerald-100" : "text-rose-200"}>{t("aiSupport.inbox.order.stock")} {stock} — {t("aiSupport.inbox.order.required")} {safeQuantity}</span><span className="text-white">{t("aiSupport.inbox.order.total")} {money(unitPrice * safeQuantity)}</span></div> : null}
           </div>
 
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
-          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">أكمل بيانات الشحن المطلوبة لتفعيل إنشاء المسودة.</div> : null}
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
+          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.completeShipping")}</div> : null}
           <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, {
             quantity: safeQuantity,
             size,
@@ -3783,7 +3784,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
             apartment_number: apartmentNumber,
             landmark,
             notes,
-          })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
+          })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.createDraft")}</button>
         </div>
       </section>
     </div>
@@ -9654,7 +9655,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onAssignNameChange={updateAssignName}
                     onAction={updateConversationAction}
                   />
-                  <button type="button" onClick={() => setOrderComposerOpen(true)} className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 shadow-[0_14px_35px_rgba(52,211,153,0.18)]"><ShoppingCart className="h-5 w-5" />إنشاء طلب من المحادثة</button>
+                  <button type="button" onClick={() => setOrderComposerOpen(true)} className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 shadow-[0_14px_35px_rgba(52,211,153,0.18)]"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.orderHeading")}</button>
 
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

@@ -664,6 +664,38 @@
       "leadScore": "Lead score",
       "models": "Models",
       "colours": "Colours"
+    },
+    "order": {
+      "orderTitle": "AI Inbox Order",
+      "orderHeading": "Create an order from this conversation",
+      "orderNote": "Review the customer and product details before creating the draft. Stock is not deducted until the order is confirmed.",
+      "customerData": "Customer details",
+      "customerName": "Customer name *",
+      "phone": "Phone number *",
+      "shippingSection": "Courier and delivery details",
+      "shippingNote": "Choose the courier. With Bosta we use the approved city, zone and district lists so the shipment is accepted.",
+      "courierRequired": "Courier *",
+      "courier": "Courier",
+      "zone": "Zone *",
+      "district": "District *",
+      "governorate": "Governorate *",
+      "cityArea": "City / area *",
+      "addressSection": "Full address",
+      "streetAddress": "Street name and full address *",
+      "floor": "Floor",
+      "apartment": "Apartment number",
+      "landmark": "Landmark",
+      "productSection": "Product and stock",
+      "chooseMatched": "Choose a product from the matched products",
+      "size": "Size",
+      "colour": "Colour",
+      "quantity": "Quantity",
+      "orderNotes": "Order notes",
+      "completeShipping": "Complete the required shipping details to enable draft creation.",
+      "createDraft": "Create order draft",
+      "stock": "Stock:",
+      "required": "Required:",
+      "total": "Total:"
     }
   }
 }
