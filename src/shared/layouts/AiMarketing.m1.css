@@ -1,5 +1,5 @@
 .m1-ai-marketing-scope .m1-shell-content{background:var(--bg)!important;color:var(--text)!important;font-family:var(--app-font)}
-.m1-ai-marketing-scope .m1-shell-content>div{max-width:1480px;margin-inline:auto;background:var(--bg)!important;color:var(--text)!important;font-family:var(--app-font)}
+.m1-ai-marketing-scope .m1-shell-content>div{background:var(--bg)!important;color:var(--text)!important;font-family:var(--app-font)}
 .m1-ai-marketing-scope .m1-shell-content :where([class*="bg-[#0"],[class*="bg-slate-9"],[class*="bg-slate-950"],[class*="bg-zinc-9"],[class*="bg-black/"]){background:var(--card)!important;background-image:none!important}
 .m1-ai-marketing-scope .m1-shell-content :where([class*="bg-[radial-gradient"],[class*="bg-[linear-gradient"],[class*="from-[#0"],[class*="via-[#0"],[class*="to-[#0"]){background:var(--bg)!important;background-image:none!important}
 .m1-ai-marketing-scope .m1-shell-content :where([class*="bg-[#060816"],[class*="bg-[#050816"],[class*="bg-[#07111f"],[class*="bg-[#0b1020"],[class*="bg-[#090d17"]){background:var(--bg)!important;background-image:none!important}
