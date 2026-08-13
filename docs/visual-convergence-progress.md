@@ -723,6 +723,74 @@ The gradient rule now ignores gradients containing an alpha stop or
 corrected rule both routes report **0**. No source change was made — this was a
 detector defect, not a product defect.
 
+### Phase 3 — Session-4 Dark pass COMPLETE
+
+Measured on Production at `bed1588`, Dark / Arabic RTL. Auditor re-validated
+against frozen `/products` (Dark, 0 offenders) before recording. All routes
+below: 0 offenders, 0 **opaque** dark gradients.
+
+`/ai-studio/workflows` · `executions` · `approvals` · `tools` ·
+`restock-recovery` · `/operations/shipping` · `/website/settings` ·
+`/orders/returns` · `/staff/tasks` · `/products/print-list` ·
+`/products/barcode-print-queue` (45,429 nodes, full walk) ·
+`/admin/tenants` · `ai-channels` · `ai-agent-settings` · `ai-agent-analytics` ·
+`ai-support-knowledge-base` · `ai-followups` · `ai-support-console` ·
+`ai-inbox` (observe only) · `/pos`
+
+**ID-bound detail routes (Dark):** `/orders/365` · `/suppliers/6` ·
+`/purchases/92` · `/suppliers/6/statement` · `/customers/3176/statement` ·
+`/products/740` · `/inventory/count/6` — all clean. These are now **PASS (both
+themes)**.
+
+`/ai-studio/tools` and `/operations/shipping` first reported **NOSET**; both were
+re-measured after a longer settle and only then recorded.
+
+#### `/pos` — 61 dark gradients in Dark are NOT a defect
+
+Dark reported 61 opaque dark gradients. Re-measured in **Light: 0 offenders,
+0 dark gradients**, body `rgb(234,231,224)` = `--bg`. They are `dark:`-variant
+gradients that only apply in the Dark theme, i.e. theme-appropriate. No change
+made. (The session-4 Light POS audit had no gradient probe, so this was a
+genuine gap that the Dark pass closed.)
+
+### The barcode/label routes are ONE large-DOM surface
+
+`/products/labels`, `/products/barcode-labels` and `/products/barcodes` all
+render **327,119 nodes** — identical counts, the same label-sheet component.
+They are treated as a single special surface.
+
+### Phase 4 — bounded verification COMPLETE
+
+**`/products/labels` Dark: PASS_BOUNDED.** 3,044 nodes checked (structural walk
+to depth 8 + header/footer/actions/buttons + first/middle/last repeated-item
+samples), **0 offenders, 0 opaque dark gradients**, shell `rgb(19,18,17)` =
+`--bg`, route == landed. Stability was established by two independent tool calls
+returning an identical node count, because any in-page timer on this route
+saturates the renderer and times out CDP.
+
+`/products/barcode-labels` and `/products/barcodes` received the same bounded
+Dark verification: 3,044 checked, 0 offenders each.
+
+**These remain PASS_BOUNDED, not PASS** — they have never received exhaustive
+per-node coverage and must not be recorded as if they had.
+
+### Phase 5 — frozen-reference sweep (Light) COMPLETE
+
+Verified only; **nothing modified**.
+
+| Frozen reference | Light | Offenders | Opaque dark gradients |
+|---|---|---|---|
+| `/dashboard` | ✓ | 0 | 0 |
+| `/orders` | ✓ | 0 | 0 |
+| `/products` | ✓ | 0 | 0 |
+| `/customers` | ✓ | 0 | 0 |
+| `/inventory` | ✓ | 0 | 0 |
+| `/products/add` | ✓ | 0 | 0 |
+| `/products/740/edit` | ✓ | 0 | 0 |
+
+No regression from any checkpoint in this project. Product Form remains hard
+frozen and was inspected read-only.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
