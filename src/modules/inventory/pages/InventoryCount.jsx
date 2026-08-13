@@ -1371,9 +1371,9 @@ function InventoryCountPage() {
         }
         tabs={[
           { to: "/inventory", label: tt("inventory.table.stock"), end: true },
-          { to: "/inventory/count", label: tt("inventory.tabs.count"), end: true },
           { to: "/inventory/movements", label: tt("inventory.tabs.movements") },
           { to: "/inventory/adjustments", label: tt("inventory.tabs.adjustments") },
+          { to: "/inventory/count", label: tt("inventory.tabs.count"), end: true },
           { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
           { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
         ]}
