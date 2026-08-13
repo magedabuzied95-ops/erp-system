@@ -466,6 +466,9 @@ const normalizeSocialCommentPost = (raw) => {
     });
   }
   return {
+    group_key: String(post.group_key || post.groupKey || "").trim(),
+    platforms: asArray(post.platforms).map((value) => String(value || "").trim().toLowerCase()).filter(Boolean),
+    platformPosts: asArray(post.platformPosts || post.platform_posts),
     id: resolvedIdentityId || String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || post.permalink_url || ""),
     postId: String(post.post_id || post.id || post.canonical_post_id || post.platform_post_id || post.source_post_id || metadata.post_id || post.permalink_url || ""),
     conversationId: String(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
@@ -4950,6 +4953,8 @@ export default function AiInbox({ reviewerMode = false }) {
   const [selectedSocialTemplate, setSelectedSocialTemplate] = useState({ template: null, loading: false, error: "" });
   const [socialCommentActionLoading, setSocialCommentActionLoading] = useState("");
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
+  const [socialPostsPlatformFilter, setSocialPostsPlatformFilter] = useState("all");
+  const [socialThreadPlatformFilter, setSocialThreadPlatformFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [inboxSection, setInboxSection] = useState("conversations");
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
@@ -5625,10 +5630,46 @@ export default function AiInbox({ reviewerMode = false }) {
   );
   const visibleSocialComments = useMemo(() => {
     if (inboxSection !== "social_comments") return [];
-    return [...asArray(socialComments.items)]
+    const normalizedCaption = (value = "") => clean(value)
+      .toLowerCase()
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+    const mergeBuckets = new Map();
+    for (const item of asArray(socialComments.items)) {
+      const post = normalizeSocialCommentPost(item);
+      const captionKey = normalizedCaption(post.caption);
+      const parsedTime = Date.parse(post.displayPostTime || post.lastActivity || "");
+      const dayKey = Number.isFinite(parsedTime) ? new Date(parsedTime).toISOString().slice(0, 10) : "unknown";
+      const fallbackKey = `${post.platform}:${post.postId || post.id}`;
+      const groupKey = captionKey ? `${dayKey}:${captionKey}` : fallbackKey;
+      const current = mergeBuckets.get(groupKey);
+      if (!current) {
+        mergeBuckets.set(groupKey, {
+          ...post,
+          group_key: `social-group:${groupKey}`,
+          platforms: [post.platform],
+          platformPosts: [post],
+        });
+        continue;
+      }
+      const platforms = Array.from(new Set([...asArray(current.platforms), post.platform].filter(Boolean)));
+      mergeBuckets.set(groupKey, {
+        ...current,
+        platform: platforms.length > 1 ? "multi" : platforms[0],
+        platforms,
+        platformPosts: [...asArray(current.platformPosts), post],
+        commentsCount: Number(current.commentsCount || 0) + Number(post.commentsCount || 0),
+        newCount: Number(current.newCount || 0) + Number(post.newCount || 0),
+        thumbnailUrl: current.thumbnailUrl || post.thumbnailUrl,
+        permalinkUrl: current.permalinkUrl || post.permalinkUrl,
+      });
+    }
+    return [...mergeBuckets.values()]
+      .filter((item) => socialPostsPlatformFilter === "all" || asArray(item.platforms).includes(socialPostsPlatformFilter))
       .filter((item) => labelMatchesFilter(item, socialCommentsFilter))
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-  }, [inboxSection, socialComments.items, socialCommentsFilter]);
+      .sort((a, b) => new Date(b.displayPostTime || b.lastActivity || 0).getTime() - new Date(a.displayPostTime || a.lastActivity || 0).getTime());
+  }, [inboxSection, socialComments.items, socialCommentsFilter, socialPostsPlatformFilter]);
   const channelSummaries = useMemo(() => {
     const buckets = new Map();
     const totalUnread = activePanelConversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
@@ -5716,6 +5757,8 @@ export default function AiInbox({ reviewerMode = false }) {
   const socialCommentIdentity = useCallback((item) => {
     const safeItem = item || {};
     return clean(
+      safeItem.group_key ||
+      safeItem.groupKey ||
       safeItem.post_link_key ||
       safeItem.postLinkKey ||
       safeItem.product_link_identity?.post_link_key ||
@@ -5775,7 +5818,12 @@ export default function AiInbox({ reviewerMode = false }) {
       selectedSocialCommentPost.id ||
       ""
   );
-  const selectedSocialCommentPlatform = clean(selectedSocialCommentPost.platform || "facebook");
+  const selectedSocialCommentPlatform = clean(
+    asArray(selectedSocialCommentPost.platforms)[0] ||
+    asArray(selectedSocialComment?.platforms)[0] ||
+    selectedSocialCommentPost.platform ||
+    "facebook"
+  );
   const selectedSocialCommentFetchKey = useMemo(
     () =>
       clean(
@@ -5876,25 +5924,42 @@ export default function AiInbox({ reviewerMode = false }) {
             comments_count: 0,
           });
         }
-        const threadData = cachedWorkspace?.thread
+        const groupedPlatformPosts = asArray(selectedSocialComment?.platformPosts).length
+          ? asArray(selectedSocialComment.platformPosts)
+          : [selectedSocialCommentPost];
+        const requestedPlatformPosts = socialThreadPlatformFilter === "all"
+          ? groupedPlatformPosts
+          : groupedPlatformPosts.filter((item) => clean(item.platform).toLowerCase() === socialThreadPlatformFilter);
+        const effectivePlatformPosts = requestedPlatformPosts.length ? requestedPlatformPosts : groupedPlatformPosts.slice(0, 1);
+        const threadData = cachedWorkspace?.thread && socialThreadPlatformFilter === "all"
           ? cachedWorkspace.thread
-          : await api.get(`/social-comments/posts/${encodeURIComponent(postId)}/comments`, {
-              params: {
-                tenant_id: tenantId,
-                platform: platformValue,
-              },
-              headers,
-              perfComponent: "AiInbox.socialCommentThread",
-            }).then((threadPayload) => {
+          : await Promise.all(effectivePlatformPosts.map(async (platformPost) => {
+              const normalizedPlatformPost = normalizeSocialCommentPost(platformPost);
+              const platformPostId = clean(normalizedPlatformPost.post_link_key || normalizedPlatformPost.platform_post_id || normalizedPlatformPost.postId || normalizedPlatformPost.id);
+              const platformName = clean(normalizedPlatformPost.platform || platformValue || "facebook");
+              if (!platformPostId) return { post: normalizedPlatformPost, comments: [] };
+              const payload = await api.get(`/social-comments/posts/${encodeURIComponent(platformPostId)}/comments`, {
+                params: { tenant_id: tenantId, platform: platformName },
+                headers,
+                perfComponent: `AiInbox.socialCommentThread.${platformName}`,
+              });
+              return {
+                post: payload.post || normalizedPlatformPost,
+                comments: asArray(payload.comments).map((comment) => ({ ...comment, platform: clean(comment.platform || platformName) })),
+              };
+            })).then((threadPayloads) => {
+              const dedupedComments = new Map();
+              threadPayloads.flatMap((entry) => asArray(entry.comments)).forEach((comment) => {
+                const normalized = normalizeSocialCommentThreadComment(comment);
+                const key = clean(normalized.comment_id || normalized.id || `${normalized.platform}:${normalized.created_at}:${normalized.message}`);
+                if (key && !dedupedComments.has(key)) dedupedComments.set(key, normalized);
+              });
               const nextThread = {
-                post: threadPayload.post || selectedSocialCommentPost || null,
-                comments: asArray(threadPayload.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
+                post: { ...selectedSocialCommentPost, platforms: selectedSocialComment?.platforms, platformPosts: groupedPlatformPosts },
+                comments: [...dedupedComments.values()].sort((left, right) => (Date.parse(left.createdTime || "") || 0) - (Date.parse(right.createdTime || "") || 0)),
               };
               const currentCache = readSocialWorkspaceCache(workspaceCacheKey) || {};
-              primeSocialWorkspaceCache(workspaceCacheKey, {
-                ...currentCache,
-                thread: nextThread,
-              });
+              if (socialThreadPlatformFilter === "all") primeSocialWorkspaceCache(workspaceCacheKey, { ...currentCache, thread: nextThread });
               logPerf("WORKSPACE_STAGE_2_MS");
               return nextThread;
             });
@@ -5969,7 +6034,7 @@ export default function AiInbox({ reviewerMode = false }) {
     return () => {
       cancelled = true;
     };
-  }, [headers, isSocialMode, selectedSocialCommentFetchKey, selectedSocialCommentPlatform, selectedSocialCommentPost, selectedSocialCommentPostId, tenantId]);
+  }, [headers, isSocialMode, selectedSocialComment, selectedSocialCommentFetchKey, selectedSocialCommentPlatform, selectedSocialCommentPost, selectedSocialCommentPostId, socialThreadPlatformFilter, tenantId]);
 
   useEffect(() => {
     if (!DEBUG_SOCIAL_COMMENTS || !isSocialMode || !selectedSocialCommentPostId) return;
@@ -8396,6 +8461,10 @@ export default function AiInbox({ reviewerMode = false }) {
         selectedThread={selectedSocialThread}
         selectedTemplate={selectedSocialTemplate}
         globalSettings={socialReplySettings}
+        postPlatformFilter={socialPostsPlatformFilter}
+        onPostPlatformFilterChange={setSocialPostsPlatformFilter}
+        commentPlatformFilter={socialThreadPlatformFilter}
+        onCommentPlatformFilterChange={setSocialThreadPlatformFilter}
         onRefresh={() => void requestRefresh("manual", { silent: true })}
         onSelectPost={openSocialCommentThread}
         onGlobalSettingsChange={setSocialReplySettings}
@@ -8779,6 +8848,10 @@ export default function AiInbox({ reviewerMode = false }) {
                     selectedThread={selectedSocialThread}
                     selectedTemplate={selectedSocialTemplate}
                     globalSettings={socialReplySettings}
+                    postPlatformFilter={socialPostsPlatformFilter}
+                    onPostPlatformFilterChange={setSocialPostsPlatformFilter}
+                    commentPlatformFilter={socialThreadPlatformFilter}
+                    onCommentPlatformFilterChange={setSocialThreadPlatformFilter}
                     onRefresh={() => void requestRefresh("manual", { silent: true })}
                     onSelectPost={openSocialCommentThread}
                     onGlobalSettingsChange={setSocialReplySettings}

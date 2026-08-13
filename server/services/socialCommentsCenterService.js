@@ -42,6 +42,7 @@ const getSocialCommentsMetaIntegrationDeps = async () => {
         fetchMetaPageFeedPostsForTenant: module.fetchMetaPageFeedPostsForTenant,
         fetchMetaInstagramMediaForTenant: module.fetchMetaInstagramMediaForTenant,
         syncMetaInstagramCommentsForTenant: module.syncMetaInstagramCommentsForTenant,
+        syncMetaFacebookCommentsForTenant: module.syncMetaFacebookCommentsForTenant,
         fetchMetaPostPreviewDetails: module.fetchMetaPostPreviewDetails,
       }))
       .catch((error) => {
@@ -3583,7 +3584,7 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
 
   const commentsByPostId = new Map();
   if (feedPostIds.length) {
-    const commentsResult = await db.query(
+    const [commentsResult, automationCommentsResult] = await Promise.all([db.query(
       `
       SELECT
         COALESCE(NULLIF(c.metadata->>'post_id', ''), NULLIF(c.metadata->>'platform_post_id', ''), NULLIF(c.metadata->>'external_post_id', ''), NULLIF(c.external_conversation_id, '')) AS post_id,
@@ -3599,11 +3600,34 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
       GROUP BY 1
       `,
       [safeTenantId, feedPostIds]
-    ).catch(() => ({ rows: [] }));
+    ).catch(() => ({ rows: [] })), db.query(
+      `
+      SELECT post_id, COUNT(DISTINCT comment_id)::int AS comments_count
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND post_id <> ''
+      GROUP BY post_id
+      `,
+      [safeTenantId, normalizedPlatform]
+    ).catch(() => ({ rows: [] }))]);
     for (const row of commentsResult.rows || []) {
       const key = text(row.post_id || "");
       if (!key) continue;
       commentsByPostId.set(key, Number(row.comments_count || 0) || 0);
+    }
+    const postIdSuffix = (value = "") => text(value).split("_").pop() || text(value);
+    for (const row of automationCommentsResult.rows || []) {
+      const storedPostId = text(row.post_id || "");
+      if (!storedPostId) continue;
+      const matchingFeedPostId = feedPostIds.find((feedPostId) => (
+        feedPostId === storedPostId || postIdSuffix(feedPostId) === postIdSuffix(storedPostId)
+      ));
+      if (!matchingFeedPostId) continue;
+      commentsByPostId.set(
+        matchingFeedPostId,
+        Math.max(commentsByPostId.get(matchingFeedPostId) || 0, Number(row.comments_count || 0) || 0)
+      );
     }
   }
 
@@ -4004,6 +4028,19 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
         message: error?.message || "",
       });
     });
+  } else {
+    const { syncMetaFacebookCommentsForTenant } = await getSocialCommentsMetaIntegrationDeps();
+    await syncMetaFacebookCommentsForTenant({
+      tenantId: safeTenantId,
+      postIds: [safePostId],
+      limit: 50,
+    }).catch((error) => {
+      console.warn("SOCIAL_FACEBOOK_THREAD_SYNC_FAILED", {
+        tenant_id: safeTenantId,
+        post_id: safePostId,
+        message: error?.message || "",
+      });
+    });
   }
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
@@ -4092,7 +4129,53 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     sqlParams: [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId],
     returnedRows: result.rows?.length || 0,
   });
-  const normalizedRows = await Promise.all((result.rows || []).map((row) => normalizeSocialCommentTimelineRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+  // Webhook/polling ingestion persists every Meta comment in the automation
+  // ledger. Older imports did not always create the matching ai_support_messages
+  // row, so reading only that table made real comments disappear from the UI.
+  const automationResult = await db.query(
+    `
+    SELECT
+      source.*,
+      source.original_comment_text AS customer_message,
+      COALESCE(source.processed_at, source.created_at) AS comment_created_time,
+      auto_run.reply_status,
+      auto_run.mode AS auto_reply_mode,
+      auto_run.decision_reason,
+      auto_run.error_message AS automation_error_message,
+      auto_run.template_source,
+      auto_run.rendered_reply,
+      auto_run.sent_at
+    FROM social_comment_automation_runs source
+    LEFT JOIN social_comment_auto_reply_runs auto_run
+      ON auto_run.tenant_id = source.tenant_id
+     AND auto_run.platform = source.platform
+     AND auto_run.comment_id = source.comment_id
+    WHERE source.tenant_id = $1::bigint
+      AND source.platform = $2::text
+      AND (
+        source.post_id = $3::text
+        OR regexp_replace(source.post_id, '^.*_', '') = regexp_replace($3::text, '^.*_', '')
+        OR source.resolved_post_id = $3::text
+        OR source.resolved_platform_post_id = $3::text
+      )
+    ORDER BY COALESCE(source.processed_at, source.created_at) ASC, source.id ASC
+    `,
+    [safeTenantId, normalizedPlatform, canonicalPostId || safePostId]
+  ).catch(() => ({ rows: [] }));
+  const mergedRows = [];
+  const seenCommentIds = new Set();
+  for (const row of [...(result.rows || []), ...(automationResult.rows || [])]) {
+    const rowCommentId = text(row.comment_id || row.external_message_id || row.id || "");
+    if (rowCommentId && seenCommentIds.has(rowCommentId)) continue;
+    if (rowCommentId) seenCommentIds.add(rowCommentId);
+    mergedRows.push(row);
+  }
+  mergedRows.sort((left, right) => {
+    const leftTime = Date.parse(left.comment_created_time || left.processed_at || left.created_at || "") || 0;
+    const rightTime = Date.parse(right.comment_created_time || right.processed_at || right.created_at || "") || 0;
+    return leftTime - rightTime;
+  });
+  const normalizedRows = await Promise.all(mergedRows.map((row) => normalizeSocialCommentTimelineRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
   if (isSocialCommentsDebugEnabled() && normalizedRows.length) {
     console.log("SOCIAL_COMMENT_TIMELINE_NORMALIZED_SAMPLE", {
       tenant_id: safeTenantId,

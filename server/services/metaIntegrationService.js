@@ -8066,6 +8066,60 @@ export const resubscribeMetaPageFeedDebug = async ({ tenantId } = {}) => {
   }
 };
 
+export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postIds = [], limit = 50 } = {}) => {
+  await ensureSocialCommentAutomationSchema();
+  const safeTenantId = numberOrNull(tenantId);
+  const safePostIds = Array.from(new Set(asArray(postIds).map((value) => text(value)).filter(Boolean))).slice(0, 4);
+  if (!safeTenantId || !safePostIds.length) return { success: false, comments_seen: 0, comments_saved: 0 };
+  const config = await getMetaIntegrationConfig({ tenantId: safeTenantId });
+  if (!config) return { success: false, comments_seen: 0, comments_saved: 0, graph_error: "Meta integration is not configured" };
+  const pageId = text(config.facebook_page_id || config.page_id || "");
+  const token = getTokenForConfig(config);
+  if (!pageId || !token) return { success: false, comments_seen: 0, comments_saved: 0, graph_error: "Facebook connection is incomplete" };
+
+  let commentsSeen = 0;
+  let commentsSaved = 0;
+  for (const postId of safePostIds) {
+    const post = await fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId, pageId }).catch(() => ({ id: postId }));
+    const resolvedPost = { ...(post || {}), id: text(post?.id || postId), post_id: text(post?.post_id || post?.id || postId) };
+    const feedIndex = buildMetaFeedPostAttributionIndex([resolvedPost]);
+    const comments = await fetchMetaPostCommentsForPolling({ postId, token }).catch((error) => {
+      console.warn("SOCIAL_FACEBOOK_THREAD_SYNC_FAILED", {
+        tenant_id: safeTenantId,
+        post_id: postId,
+        message: error?.message || "",
+      });
+      return [];
+    });
+    for (const comment of comments.slice(0, Math.min(50, Math.max(1, Number(limit) || 50)))) {
+      commentsSeen += 1;
+      const commentId = text(comment?.id || "");
+      if (!commentId) continue;
+      const alreadyStored = await commentAlreadyInSocialRuns({ tenantId: safeTenantId, platform: "facebook", commentId }).catch(() => false);
+      if (alreadyStored) continue;
+      const enrichedComment = await fetchMetaCommentDetailsForPolling({ commentId, token }).catch(() => null);
+      const effectiveComment = enrichedComment || comment;
+      if (text(effectiveComment?.from?.id || comment?.from?.id || "") === pageId) continue;
+      const attribution = resolveMetaPolledCommentAttribution({
+        feedPost: resolvedPost,
+        comment: effectiveComment,
+        pageId,
+        feedIndex,
+      });
+      const event = buildMetaPolledCommentEvent({
+        tenantId: safeTenantId,
+        pageId,
+        post: attribution.selectedFeedPost || resolvedPost,
+        comment: effectiveComment,
+        attribution,
+      });
+      await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
+      commentsSaved += 1;
+    }
+  }
+  return { success: true, comments_seen: commentsSeen, comments_saved: commentsSaved };
+};
+
 export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "scheduler", force = false } = {}) => {
   await ensureSocialCommentAutomationSchema();
   if (!getMetaPollingEnabled()) {

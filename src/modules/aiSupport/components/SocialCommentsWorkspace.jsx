@@ -36,6 +36,7 @@ import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialComm
 import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
+const asArray = (value) => (Array.isArray(value) ? value : []);
 const isGenericCommenterName = (value = "") => /^(customer|unknown|guest|anonymous|عميل|العميل|\d+)$/i.test(clean(value));
 const firstCommenterName = (...values) => values.map((value) => clean(value)).find((value) => value && !isGenericCommenterName(value)) || "";
 const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
@@ -389,6 +390,10 @@ function normalizePost(raw) {
       ""
   );
   return {
+    groupKey: clean(post.group_key || post.groupKey || ""),
+    group_key: clean(post.group_key || post.groupKey || ""),
+    platforms: Array.from(new Set(asArray(post.platforms).map((value) => clean(value).toLowerCase()).filter(Boolean))),
+    platformPosts: asArray(post.platformPosts || post.platform_posts),
     id: resolvedIdentityId || clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.canonical_post_id || metadata.post_id || post.permalink_url || ""),
     postId: clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.canonical_post_id || metadata.post_id || post.permalink_url || ""),
     sourcePostId: clean(post.post_id || post.id || post.platform_post_id || metadata.post_id || metadata.platform_post_id || ""),
@@ -1533,6 +1538,10 @@ function SocialCommentsWorkspace({
   onLoadMore,
   loadingMore = false,
   streamlined = true,
+  postPlatformFilter = "all",
+  onPostPlatformFilterChange,
+  commentPlatformFilter = "all",
+  onCommentPlatformFilterChange,
 }) {
   const { t } = useTranslation();
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
@@ -2795,11 +2804,21 @@ function SocialCommentsWorkspace({
   };
 
   if (streamlined) {
+    const platformFilterButtons = [
+      { key: "all", label: t("aiSupport.inbox.filters.all") },
+      { key: "facebook", label: "Facebook" },
+      { key: "instagram", label: "Instagram" },
+    ];
+    const postPlatforms = (post) => {
+      const values = asArray(post.platforms).length ? post.platforms : [post.platform];
+      return Array.from(new Set(values.map((value) => clean(value).toLowerCase()).filter((value) => value === "facebook" || value === "instagram")));
+    };
     return (
       <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 text-white shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
         <div className="grid h-full min-h-0 w-full min-w-0 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
           <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/10 bg-slate-950/60">
-            <div className="flex h-[62px] items-center justify-between gap-3 border-b border-white/10 px-3">
+            <div className="flex min-h-[86px] flex-col justify-center gap-2 border-b border-white/10 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.posts")}</div>
                 <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
@@ -2815,6 +2834,14 @@ function SocialCommentsWorkspace({
               >
                 {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </button>
+              </div>
+              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+                {platformFilterButtons.map((filterItem) => (
+                  <button key={filterItem.key} type="button" onClick={() => onPostPlatformFilterChange?.(filterItem.key)} className={`min-w-0 flex-1 rounded-lg px-2 py-1 text-[10px] font-black transition ${postPlatformFilter === filterItem.key ? "bg-[#a47a12] text-white" : "text-slate-400 hover:bg-white/[0.05]"}`}>
+                    {filterItem.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
@@ -2831,7 +2858,6 @@ function SocialCommentsWorkspace({
               {normalizedPosts.map((post) => {
                 const key = postKey(post);
                 const active = activePostKey === key;
-                const meta = platformMeta(post.platform);
                 const visibleTime = getPostVisibleTime(post);
                 return (
                   <button
@@ -2860,7 +2886,10 @@ function SocialCommentsWorkspace({
                         ) : null}
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                        <span className={`rounded-full border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>
+                        {postPlatforms(post).map((platform) => {
+                          const meta = platformMeta(platform);
+                          return <span key={platform} className={`rounded-full border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>;
+                        })}
                         <span>{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: post.commentsCount || 0 })}</span>
                         {visibleTime ? <span>{absoluteTime(visibleTime)}</span> : null}
                       </div>
@@ -2891,8 +2920,11 @@ function SocialCommentsWorkspace({
                 </div>
                 <div className="min-w-0">
                   <h2 className="line-clamp-1 text-sm font-black text-white">{activePostCaption || t("aiSupport.inbox.socialWorkspace.noPosts")}</h2>
-                  <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                    <span className={`rounded-full border px-2 py-0.5 ${activePlatform.className}`}>{activePlatform.label}</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                    {postPlatforms(activePostDetails).map((platform) => {
+                      const meta = platformMeta(platform);
+                      return <span key={platform} className={`rounded-full border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>;
+                    })}
                     <span>{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: displayComments.length })}</span>
                   </div>
                 </div>
@@ -2907,6 +2939,14 @@ function SocialCommentsWorkspace({
                 {t("aiSupport.inbox.socialWorkspace.openPost")}
               </button>
             </header>
+
+            <div className="flex items-center justify-center gap-1 border-b border-white/10 bg-black/10 px-3 py-2">
+              {platformFilterButtons.map((filterItem) => (
+                <button key={filterItem.key} type="button" onClick={() => onCommentPlatformFilterChange?.(filterItem.key)} className={`rounded-full border px-3 py-1 text-[10px] font-black transition ${commentPlatformFilter === filterItem.key ? "border-[#d9aa20]/70 bg-[#a47a12]/30 text-[#f2cb58]" : "border-white/10 bg-white/[0.03] text-slate-400"}`}>
+                  {filterItem.label}
+                </button>
+              ))}
+            </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
               {activeThread.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{activeThread.error}</div> : null}
@@ -2945,6 +2985,7 @@ function SocialCommentsWorkspace({
                             {comment.customerAvatar ? <img src={comment.customerAvatar} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><UserRound className="h-3.5 w-3.5 text-slate-400" /></div>}
                           </div>
                           <span className="min-w-0 truncate text-xs font-black text-white">{comment.customerName || "عميل"}</span>
+                          {comment.platform ? (() => { const meta = platformMeta(comment.platform); return <span className={`rounded-full border px-1.5 py-0.5 text-[8px] ${meta.className}`}>{meta.label}</span>; })() : null}
                           <span className="text-[9px] font-semibold text-slate-500">{comment.createdTime ? absoluteTime(comment.createdTime) : ""}</span>
                         </div>
                         <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-100">{comment.message || "—"}</div>
