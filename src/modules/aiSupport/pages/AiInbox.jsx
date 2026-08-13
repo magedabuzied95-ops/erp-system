@@ -602,40 +602,52 @@ const tenantIdFrom = (tenantApi) => {
   return String(currentTenant.id || currentTenant.tenant_id || currentUser.tenant_id || currentUser.tenantId || "1");
 };
 
+/*
+ * `key` is the RAW filter enum: it is written to state and compared against
+ * throughout. Only the DISPLAY moves to a translation key. Entries whose label
+ * is a BRAND keep a literal `label` -- WhatsApp/Instagram/Messenger/Facebook/
+ * TikTok are product names, not application chrome.
+ */
+/*
+ * Filter entries carry either a `labelKey` (application chrome, translated
+ * at render) or a literal `label` (a brand name, rendered verbatim). This is
+ * called from render, so switching language re-resolves it immediately.
+ */
+const filterLabel = (t, item = {}) => (item.labelKey ? t(item.labelKey) : item.label || "");
 const filters = [
-  { key: "all", label: "All" },
-  { key: "messages", label: "Messages" },
-  { key: "comments", label: "Comments" },
-  { key: "needs_reply", label: "Needs Reply" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.all" },
+  { key: "messages", labelKey: "aiSupport.inbox.filters.messages" },
+  { key: "comments", labelKey: "aiSupport.inbox.filters.comments" },
+  { key: "needs_reply", labelKey: "aiSupport.inbox.filters.needsReply" },
 ];
 
 const FAVORITE_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "favorites", label: "Favorites" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.all" },
+  { key: "favorites", labelKey: "aiSupport.inbox.filters.favorites" },
 ];
 
 const MESSAGE_PLATFORM_FILTERS = [
-  { key: "all", label: "All Messages" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.allMessages" },
   { key: "messenger", label: "Messenger" },
   { key: "instagram", label: "Instagram" },
   { key: "whatsapp", label: "WhatsApp" },
-  { key: "web", label: "Web" },
+  { key: "web", labelKey: "aiSupport.inbox.filters.web" },
   { key: "tiktok", label: "TikTok" },
 ];
 
 const COMMENT_PLATFORM_FILTERS = [
-  { key: "all", label: "All Comments" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.allComments" },
   { key: "facebook", label: "Facebook" },
   { key: "instagram", label: "Instagram" },
   { key: "tiktok", label: "TikTok" },
 ];
 
 const leadFilters = [
-  { key: "all", label: "الكل" },
-  { key: "ready_to_buy", label: "جاهز للشراء" },
-  { key: "hot", label: "ساخن" },
-  { key: "warm", label: "دافئ" },
-  { key: "needs_human", label: "يحتاج تدخلًا بشريًا" },
+  { key: "all", labelKey: "aiSupport.inbox.lead.all" },
+  { key: "ready_to_buy", labelKey: "aiSupport.inbox.lead.readyToBuy" },
+  { key: "hot", labelKey: "aiSupport.inbox.lead.hot" },
+  { key: "warm", labelKey: "aiSupport.inbox.lead.warm" },
+  { key: "needs_human", labelKey: "aiSupport.inbox.lead.needsHuman" },
 ];
 
 const leadTemperatureMeta = {
@@ -1729,11 +1741,12 @@ const commentAutomationStatusLabel = (value = "") => {
 };
 
 function CommentAutomationBadges({ automationState = {} }) {
+  const { t } = useTranslation();
   const state = automationState && typeof automationState === "object" ? automationState : {};
   const badges = [
-    { key: "like_status", label: "Like" },
-    { key: "public_reply_status", label: "Public reply" },
-    { key: "dm_status", label: "Private message" },
+    { key: "like_status", labelKey: "aiSupport.inbox.badges.like" },
+    { key: "public_reply_status", labelKey: "aiSupport.inbox.badges.publicReply" },
+    { key: "dm_status", labelKey: "aiSupport.inbox.badges.privateMessage" },
   ];
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1741,7 +1754,7 @@ function CommentAutomationBadges({ automationState = {} }) {
         const status = commentAutomationStatusLabel(state[item.key]);
         return (
           <Pill key={item.key} tone={commentAutomationBadgeTone(status)}>
-            {item.label}
+            {filterLabel(t, item)}
             <span className="opacity-70">{status}</span>
           </Pill>
         );
@@ -3458,10 +3471,10 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
 }
 
 const autoReplyModes = [
-  { key: "off", label: "Off" },
-  { key: "suggest_only", label: "Suggest only" },
-  { key: "auto_reply_after_approval", label: "Approval" },
-  { key: "fully_automatic", label: "Automatic" },
+  { key: "off", labelKey: "aiSupport.inbox.autoReply.off" },
+  { key: "suggest_only", labelKey: "aiSupport.inbox.autoReply.suggestOnly" },
+  { key: "auto_reply_after_approval", labelKey: "aiSupport.inbox.autoReply.approval" },
+  { key: "fully_automatic", labelKey: "aiSupport.inbox.autoReply.automatic" },
 ];
 
 const resolveChannelAutoReplyMode = (channelStatus = {}) => {
@@ -3489,14 +3502,15 @@ const isHiddenAiReplyTranscriptMessage = (message = {}) => {
 };
 
 function AutoReplyModePanel({ channelStatus = {}, mode, onChange, saving }) {
+  const { t } = useTranslation();
   const channelReady = channelStatus.live_operational === true || channelStatus.effective_enabled === true || channelStatus.last_webhook_received_at || ["sent", "test_sent"].includes(channelStatus.last_send_status);
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <SectionTitle icon={Bot} title="Auto reply mode" action={<Pill tone={channelReady ? "emerald" : "amber"}>{channelReady ? "Channel active" : "Setup needed"}</Pill>} />
+      <SectionTitle icon={Bot} title={t("aiSupport.inbox.autoReply.mode")} action={<Pill tone={channelReady ? "emerald" : "amber"}>{t(channelReady ? "aiSupport.inbox.autoReply.channelActive" : "aiSupport.inbox.autoReply.setupNeeded")}</Pill>} />
       <div className="grid gap-2 sm:grid-cols-4">
         {autoReplyModes.map((item) => (
           <button key={item.key} type="button" onClick={() => onChange(item.key)} disabled={saving} className={`h-10 rounded-xl border px-2 text-xs font-black transition disabled:opacity-50 ${mode === item.key ? "border-cyan-300/40 bg-cyan-300 text-slate-950" : "border-white/10 bg-slate-950/70 text-slate-100 hover:border-cyan-300/30"}`}>
-            {item.label}
+            {filterLabel(t, item)}
           </button>
         ))}
       </div>
@@ -9118,7 +9132,7 @@ export default function AiInbox({ reviewerMode = false }) {
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>
-        {item.label}
+        {filterLabel(t, item)}
       </option>
     ))}
   </select>
@@ -9137,7 +9151,7 @@ export default function AiInbox({ reviewerMode = false }) {
                   }}
                   className={`h-10 shrink-0 rounded-xl px-3 text-xs font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}
                 >
-                  {item.label}
+                  {filterLabel(t, item)}
                 </button>
               ))}
             </div>
@@ -9150,7 +9164,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onClick={() => setMessagePlatformFilter(item.key)}
                     className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${messagePlatformFilter === item.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.04] text-white hover:border-white/20"}`}
                   >
-                    {item.label}
+                    {filterLabel(t, item)}
                   </button>
                 ))}
               </div>
@@ -9164,7 +9178,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onClick={() => setCommentPlatformFilter(item.key)}
                     className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${commentPlatformFilter === item.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.04] text-white hover:border-white/20"}`}
                   >
-                    {item.label}
+                    {filterLabel(t, item)}
                   </button>
                 ))}
               </div>
@@ -9189,7 +9203,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
                     }`}
                   >
-                    {item.label}
+                    {filterLabel(t, item)}
                   </button>
                 ))}
               </div>
@@ -9864,7 +9878,7 @@ export default function AiInbox({ reviewerMode = false }) {
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>
-        {item.label}
+        {filterLabel(t, item)}
       </option>
     ))}
   </select>

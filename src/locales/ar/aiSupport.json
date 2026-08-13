@@ -575,7 +575,14 @@
       "suggestOnly": "اقتراح فقط",
       "approval": "موافقة",
       "automatic": "تلقائي",
-      "mode": "وضع الرد التلقائي"
+      "mode": "وضع الرد التلقائي",
+      "channelActive": "القناة نشطة",
+      "setupNeeded": "يلزم الإعداد"
+    },
+    "badges": {
+      "like": "إعجاب",
+      "publicReply": "رد عام",
+      "privateMessage": "رسالة خاصة"
     }
   }
 }

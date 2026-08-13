@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1231
-- Hardcoded English UI strings: 1071
-- Total hardcoded UI strings: 2302
+- Hardcoded Arabic UI strings: 1226
+- Hardcoded English UI strings: 1054
+- Total hardcoded UI strings: 2280
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 883 | 689 | 1572 | 19 |
+| main-erp | 58 | 878 | 672 | 1550 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 158 | 248 | 406 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 153 | 231 | 384 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -64,49 +64,49 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:158 en:248)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:153 en:231)
 
-- 606 [object-key/en] All
-- 607 [object-key/en] Messages
-- 608 [object-key/en] Comments
-- 609 [object-key/en] Needs Reply
-- 613 [object-key/en] All
-- 614 [object-key/en] Favorites
-- 618 [object-key/en] All Messages
-- 622 [object-key/en] Web
-- 627 [object-key/en] All Comments
-- 634 [object-key/ar] الكل
-- 635 [object-key/ar] جاهز للشراء
-- 636 [object-key/ar] ساخن
-- 637 [object-key/ar] دافئ
-- 638 [object-key/ar] يحتاج تدخلًا بشريًا
-- 642 [object-key/ar] بارد
-- 643 [object-key/ar] دافئ
-- 644 [object-key/ar] ساخن
-- 645 [object-key/ar] جاهز للشراء
-- 1300 [object-key/en] New
-- 1301 [object-key/en] Contacted
-- 1302 [object-key/en] Interested
-- 1303 [object-key/en] Negotiation
-- 1304 [object-key/en] Won
-- 1623 [attribute/en] Not set yet
-- 1734 [object-key/en] Like
-- 1735 [object-key/en] Public reply
-- 1736 [object-key/en] Private message
-- 1943 [jsx-text/en] Needs Human
-- 2003 [jsx-text/ar] غير مقروء
-- 2124 [attribute/en] Social Comments
-- 2125 [attribute/en] Social Comments
-- 2246 [jsx-text/en] Needs Human
-- 2289 [jsx-text/en] Unread
-- 2328 [attribute/en] Conversation Labels
-- 2330 [jsx-text/ar] أضف أكثر من Label للعميل
-- 2330 [jsx-text/en] Conversation Labels
-- 2331 [attribute/en] Close labels
-- 2354 [attribute/en] Label name
-- 2360 [jsx-text/en] Cancel
-- 2361 [jsx-text/en] Save edit
-- ... 366 more
+- 654 [object-key/ar] بارد
+- 655 [object-key/ar] دافئ
+- 656 [object-key/ar] ساخن
+- 657 [object-key/ar] جاهز للشراء
+- 1312 [object-key/en] New
+- 1313 [object-key/en] Contacted
+- 1314 [object-key/en] Interested
+- 1315 [object-key/en] Negotiation
+- 1316 [object-key/en] Won
+- 1635 [attribute/en] Not set yet
+- 1956 [jsx-text/en] Needs Human
+- 2016 [jsx-text/ar] غير مقروء
+- 2137 [attribute/en] Social Comments
+- 2138 [attribute/en] Social Comments
+- 2259 [jsx-text/en] Needs Human
+- 2302 [jsx-text/en] Unread
+- 2341 [attribute/en] Conversation Labels
+- 2343 [jsx-text/ar] أضف أكثر من Label للعميل
+- 2343 [jsx-text/en] Conversation Labels
+- 2344 [attribute/en] Close labels
+- 2367 [attribute/en] Label name
+- 2373 [jsx-text/en] Cancel
+- 2374 [jsx-text/en] Save edit
+- 2617 [jsx-text/en] No transcript yet.
+- 2642 [jsx-text/ar] بوست التعليق
+- 2723 [jsx-text/ar] ذكاء واتساب نشط
+- 2735 [attribute/en] Assign to employee / admin
+- 2800 [jsx-text/ar] رسالة خاصة، فرصة بيع، تعيين موظف
+- 2858 [jsx-text/ar] مسودة رد على التعليق
+- 2859 [jsx-text/ar] يمكنك تحميل المسودة إلى المحرر ثم تعديلها قبل الإرسال.
+- 2914 [jsx-text/ar] اختار الألوان اللي هتتبعت
+- 2940 [jsx-text/ar] مقاس
+- 2954 [jsx-text/ar] المقاس متاح بأكتر من لون — اختار اللون
+- 2972 [jsx-text/ar] اختار المنتجات اللي هتتبعت
+- 2993 [jsx-text/ar] فتح المنتج ↗
+- 3004 [jsx-text/ar] فيه أكتر من منتج مطابق — اختر المنتج
+- 3022 [jsx-text/ar] المنتج اللي هيتبعت
+- 3026 [jsx-text/ar] لا صورة
+- 3029 [jsx-text/ar] اللون:
+- 3030 [jsx-text/ar] المقاس:
+- ... 344 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 

@@ -575,7 +575,14 @@
       "suggestOnly": "Suggest only",
       "approval": "Approval",
       "automatic": "Automatic",
-      "mode": "Auto reply mode"
+      "mode": "Auto reply mode",
+      "channelActive": "Channel active",
+      "setupNeeded": "Setup needed"
+    },
+    "badges": {
+      "like": "Like",
+      "publicReply": "Public reply",
+      "privateMessage": "Private message"
     }
   }
 }
