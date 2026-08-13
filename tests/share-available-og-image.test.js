@@ -42,6 +42,9 @@ test("available-products page redirects browsers without sending social crawlers
   });
 
   assert.match(html, /property="og:image" content="https:\/\/api\.m1store-egy\.com\/uploads\/products\/first\.jpg"/);
+  assert.match(html, /background: #050505/);
+  assert.doesNotMatch(html, /#0c1220/);
+  assert.ok(html.indexOf("window.location.replace") < html.indexOf("<body>"));
   assert.match(html, /window\.location\.replace/);
   assert.doesNotMatch(html, /http-equiv="refresh"/i);
 });

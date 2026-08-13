@@ -1002,12 +1002,12 @@ export const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImage
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
     <link rel="canonical" href="${fallbackTarget}" />
+    <script>window.location.replace(${JSON.stringify(String(targetUrl || fallbackTarget))});</script>
     <style>
-      html, body { margin: 0; min-height: 100%; background: #0c1220; }
+      html, body { margin: 0; min-height: 100%; background: #050505; color-scheme: dark; }
     </style>
   </head>
   <body>
-    <script>window.location.replace(${JSON.stringify(String(targetUrl || fallbackTarget))});</script>
     <noscript><a href="${fallbackTarget}">Open products</a></noscript>
   </body>
 </html>`;
