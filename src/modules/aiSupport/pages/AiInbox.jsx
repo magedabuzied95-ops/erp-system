@@ -651,10 +651,10 @@ const leadFilters = [
 ];
 
 const leadTemperatureMeta = {
-  cold: { label: "بارد", tone: "zinc", icon: Snowflake, emphasis: "subtle" },
-  warm: { label: "دافئ", tone: "amber", icon: Sparkles, emphasis: "moderate" },
-  hot: { label: "ساخن", tone: "rose", icon: Flame, emphasis: "clear" },
-  ready_to_buy: { label: "جاهز للشراء", tone: "emerald", icon: CheckCircle2, emphasis: "maximum" },
+  cold: { labelKey: "aiSupport.inbox.action.cold", tone: "zinc", icon: Snowflake, emphasis: "subtle" },
+  warm: { labelKey: "aiSupport.inbox.action.warm", tone: "amber", icon: Sparkles, emphasis: "moderate" },
+  hot: { labelKey: "aiSupport.inbox.action.hot", tone: "rose", icon: Flame, emphasis: "clear" },
+  ready_to_buy: { labelKey: "aiSupport.inbox.action.readyToBuy", tone: "emerald", icon: CheckCircle2, emphasis: "maximum" },
 };
 
 const normalizeLeadTemperature = (value = "") => {
@@ -1309,12 +1309,12 @@ const buildLeadCommentReplyText = (conversation = {}, comment = {}) => {
 };
 
 const LEAD_STATUS_META = {
-  new: { label: "New", tone: "cyan" },
-  contacted: { label: "Contacted", tone: "amber" },
-  interested: { label: "Interested", tone: "emerald" },
-  negotiation: { label: "Negotiation", tone: "violet" },
-  won: { label: "Won", tone: "emerald" },
-  lost: { label: "? Lost", tone: "rose" },
+  new: { labelKey: "aiSupport.inbox.action.statusNew", tone: "cyan" },
+  contacted: { labelKey: "aiSupport.inbox.action.contacted", tone: "amber" },
+  interested: { labelKey: "aiSupport.inbox.action.interested", tone: "emerald" },
+  negotiation: { labelKey: "aiSupport.inbox.action.negotiation", tone: "violet" },
+  won: { labelKey: "aiSupport.inbox.action.won", tone: "emerald" },
+  lost: { labelKey: "aiSupport.inbox.action.lost", tone: "rose" },
 };
 
 const CONVERSATION_LABEL_CLASSES = {
@@ -1347,7 +1347,7 @@ const normalizeLeadStatus = (value = "") => {
   return Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, key) ? key : "new";
 };
 
-const leadStatusLabel = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.label || "New";
+const leadStatusLabelKey = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.labelKey || "aiSupport.inbox.action.statusNew";
 const leadStatusTone = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.tone || "cyan";
 const conversationLeadStatus = (conversation = {}) =>
   normalizeLeadStatus(
@@ -3818,15 +3818,15 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
         ? "Ask the customer for product name or photo."
         : "Ask for size before recommending stock.";
   const practicalActions = [
-    { key: "ask_size", label: "Ask for size", enabled: !intent.size, action: () => onUseText(intent.product_model ? `تمام، المتوفر على ${intent.product_model}، تقولي المقاس اللي محتاجه؟` : "تمام، تقولي المقاس اللي محتاجه؟") },
-    { key: "ask_product", label: "Ask for product clarification", enabled: !primary, action: () => onUseText("ممكن تبعتلي اسم المنتج أو صورة أوضح عشان أجيب لك الأنسب؟") },
-    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "لو المقاس أو اللون ده غير متوفر، أقدر أرشح لك بديل قريب جدًا.") },
-    { key: "escalate_human", label: "Escalate to human", enabled: true, action: onTakeover },
-    { key: "draft_order", label: "Draft order", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
-    { key: "reserve_stock", label: "Reserve stock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
-    { key: "available_by_size", label: "المتاح بالمقاس", enabled: true, action: () => onOpenProductPicker?.({ sizeMode: true, allowMultiple: true }) },
-    { key: "payment_link", label: "Send payment link", enabled: true, action: () => onPaymentAction?.("payment_link") },
-    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "هتابع معاك أول ما يتوفر المقاس المناسب.") },
+    { key: "ask_size", labelKey: "aiSupport.inbox.action.askSize", enabled: !intent.size, action: () => onUseText(intent.product_model ? `تمام، المتوفر على ${intent.product_model}، تقولي المقاس اللي محتاجه؟` : "تمام، تقولي المقاس اللي محتاجه؟") },
+    { key: "ask_product", labelKey: "aiSupport.inbox.action.askProduct", enabled: !primary, action: () => onUseText("ممكن تبعتلي اسم المنتج أو صورة أوضح عشان أجيب لك الأنسب؟") },
+    { key: "recommend_alternative", labelKey: "aiSupport.inbox.action.recommendAlternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "لو المقاس أو اللون ده غير متوفر، أقدر أرشح لك بديل قريب جدًا.") },
+    { key: "escalate_human", labelKey: "aiSupport.inbox.action.escalateHuman", enabled: true, action: onTakeover },
+    { key: "draft_order", labelKey: "aiSupport.inbox.action.draftOrderAction", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
+    { key: "reserve_stock", labelKey: "aiSupport.inbox.action.reserveStock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
+    { key: "available_by_size", labelKey: "aiSupport.inbox.action.availableBySize", enabled: true, action: () => onOpenProductPicker?.({ sizeMode: true, allowMultiple: true }) },
+    { key: "payment_link", labelKey: "aiSupport.inbox.action.paymentLink", enabled: true, action: () => onPaymentAction?.("payment_link") },
+    { key: "follow_up", labelKey: "aiSupport.inbox.action.followUp", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "هتابع معاك أول ما يتوفر المقاس المناسب.") },
   ];
   const chips = [
     intent.product_model ? `Model: ${intent.product_model}` : "",
@@ -3882,7 +3882,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
               return (
                 <button key={action.key} type="button" onClick={action.action || (() => {})} disabled={loading || action.enabled === false} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100 disabled:text-slate-500 disabled:opacity-60">
                   <Icon className="h-4 w-4" />
-                  {action.label}
+                  {filterLabel(t, action)}
                 </button>
               );
             })}
@@ -3911,7 +3911,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
             {actions.slice(0, 4).map((action) => (
               <div key={action.key} className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-black text-slate-100">{action.label}</span>
+                  <span className="text-xs font-black text-slate-100">{filterLabel(t, action)}</span>
                   <Pill tone={action.priority === "high" ? "rose" : action.priority === "low" ? "zinc" : "cyan"}>{action.priority || "normal"}</Pill>
                 </div>
                 <div className="mt-1 text-[11px] text-slate-500">{action.enabled === false ? "Needs more data" : clean(action.reason || action.description || action.summary || "Suggested")}</div>
@@ -4304,7 +4304,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh
             </button>
-            <button type="button" onClick={onClose} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+            <button type="button" onClick={onClose} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">{t("aiSupport.inbox.kpi.close")}</button>
           </div>
         </div>
 
@@ -4544,6 +4544,7 @@ function DraftCard({ draft, onAction, busy }) {
 }
 
 function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null, salesCloserPlan = {} }) {
+  const { t } = useTranslation();
   const state = conversation.sales_conversation_state || conversation.sales_intelligence?.state || {};
   const journeyEvents = asArray(conversation.sales_journey_events || conversation.sales_intelligence?.journeyEvents);
   const conversion = conversation.conversion_probability || conversation.sales_intelligence?.conversion || recommendationIntel?.conversion_probability || {};
@@ -4619,7 +4620,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-black text-white">Sales journey</div>
+            <div className="text-sm font-black text-white">{t("aiSupport.inbox.kpi.salesJourney")}</div>
             <Pill tone="zinc">{journeyEvents.length} events</Pill>
           </div>
           <div className="mt-3 space-y-2">
@@ -4690,14 +4691,15 @@ function RightToolsTabsPanel({
   onResetAiState,
   resettingAiState = false,
 }) {
+  const { t } = useTranslation();
   if (!conversation) return null;
   const profile = conversation.customer_profile || {};
   const notes = asArray(profile.memory_notes);
   const tabItems = [
-    { key: "customer", label: "Customer", icon: User },
-    { key: "ai", label: "AI", icon: Bot },
-    { key: "orders", label: "Orders", icon: ShoppingCart },
-    { key: "notes", label: "Notes", icon: MessageSquareText },
+    { key: "customer", labelKey: "aiSupport.inbox.action.tabCustomer", icon: User },
+    { key: "ai", labelKey: "aiSupport.inbox.action.tabAi", icon: Bot },
+    { key: "orders", labelKey: "aiSupport.inbox.action.tabOrders", icon: ShoppingCart },
+    { key: "notes", labelKey: "aiSupport.inbox.action.tabNotes", icon: MessageSquareText },
   ];
 
   return (
@@ -4717,7 +4719,7 @@ function RightToolsTabsPanel({
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {tab.label}
+                {filterLabel(t, tab)}
               </button>
             );
           })}
@@ -8198,7 +8200,7 @@ export default function AiInbox({ reviewerMode = false }) {
             <Bot className="h-4 w-4" />
             AI Social Media Center
           </div>
-          <div className="mt-1 text-base font-black text-white">AI Social Media Center</div>
+          <div className="mt-1 text-base font-black text-white">{t("aiSupport.inbox.kpi.socialCenter")}</div>
         </div>
         {renderModeTabs()}
       </div>
@@ -8231,7 +8233,7 @@ export default function AiInbox({ reviewerMode = false }) {
           <Sparkles className="h-4 w-4" />
           Automation
         </div>
-        <div className="mt-2 text-2xl font-black text-white">قريبًا</div>
+        <div className="mt-2 text-2xl font-black text-white">{t("aiSupport.inbox.kpi.comingSoon")}</div>
         <p className="mt-2 text-sm leading-7 text-slate-300">
           هذا التبويب محجوز لاحقًا لإعدادات الأتمتة العامة بدون تغيير أي منطق backend حالي.
         </p>
@@ -8288,7 +8290,7 @@ export default function AiInbox({ reviewerMode = false }) {
             </div>
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
               <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
-                <SectionTitle icon={ArrowUpRight} title="Sales journey" action={<Pill tone="zinc">{leadPipelineSummary.total}</Pill>} />
+                <SectionTitle icon={ArrowUpRight} title={t("aiSupport.inbox.kpi.salesJourney")} action={<Pill tone="zinc">{leadPipelineSummary.total}</Pill>} />
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   {leadPipelineSummary.funnel.map((item) => (
                     <div key={item.key} className={`rounded-2xl border px-3 py-2 ${leadStatusTone(item.key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(item.key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(item.key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
@@ -8308,43 +8310,43 @@ export default function AiInbox({ reviewerMode = false }) {
               </div>
               <div className="space-y-3">
                 <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
-                  <SectionTitle icon={Sparkles} title="Performance snapshot" />
+                  <SectionTitle icon={Sparkles} title={t("aiSupport.inbox.kpi.performanceSnapshot")} />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Reply rate</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.replyRate")}</div>
                       <div className="mt-1.5 text-2xl font-black text-emerald-100">{replyRate ? `${replyRate.toFixed(0)}%` : "—"}</div>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Revenue</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.revenue")}</div>
                       <div className="mt-1.5 text-2xl font-black text-emerald-100">{revenue ? money(revenue) : "—"}</div>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Performance</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.performance")}</div>
                       <div className="mt-1.5 text-2xl font-black text-white">{performance ? `${Number(performance).toFixed(0)}%` : "—"}</div>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Engagement</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.engagement")}</div>
                       <div className="mt-1.5 text-2xl font-black text-violet-100">{engagement ? `${Number(engagement).toFixed(0)}%` : "—"}</div>
                     </div>
                   </div>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
-                  <SectionTitle icon={MessageSquareText} title="Comment stats" />
+                  <SectionTitle icon={MessageSquareText} title={t("aiSupport.inbox.kpi.commentStats")} />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Comments</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.comments")}</div>
                       <div className="mt-1.5 text-2xl font-black text-white">{totalComments}</div>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">New</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.newLabel")}</div>
                       <div className="mt-1.5 text-2xl font-black text-white">{newComments}</div>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.needsReply")}</div>
                       <div className="mt-1.5 text-2xl font-black text-amber-100">{needsReply}</div>
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Replied</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.kpi.replied")}</div>
                       <div className="mt-1.5 text-2xl font-black text-cyan-100">{replied}</div>
                     </div>
                   </div>
@@ -8354,15 +8356,15 @@ export default function AiInbox({ reviewerMode = false }) {
           </section>
           <aside className="space-y-3 overflow-hidden">
             <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
-              <SectionTitle icon={Bot} title="Workspace focus" />
+              <SectionTitle icon={Bot} title={t("aiSupport.inbox.kpi.workspaceFocus")} />
               <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-                <p>Analytics now owns every KPI, performance, reply rate, lead funnel, and revenue summary.</p>
-                <p>AI Inbox stays dedicated to WhatsApp, Messenger, Instagram DM, and Web Chat only.</p>
+                <p>{t("aiSupport.inbox.kpi.analyticsOwns")}</p>
+                <p>{t("aiSupport.inbox.kpi.inboxScope")}</p>
                 <p>Social Comments becomes a dedicated post-thread workspace for comments only.</p>
               </div>
             </div>
             <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
-              <SectionTitle icon={ShieldBan} title="Operational note" />
+              <SectionTitle icon={ShieldBan} title={t("aiSupport.inbox.kpi.operationalNote")} />
               <div className="mt-3 text-sm leading-6 text-slate-300">
                 The yellow assistant warning is only shown when the setting is actually off.
               </div>
@@ -8424,10 +8426,10 @@ export default function AiInbox({ reviewerMode = false }) {
             <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
-                  <div className="text-xs text-slate-500">Live AI operational logs</div>
+                  <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.kpi.devConsole")}</div>
+                  <div className="text-xs text-slate-500">{t("aiSupport.inbox.kpi.devConsoleSub")}</div>
                 </div>
-                <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+                <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">{t("aiSupport.inbox.kpi.close")}</button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
@@ -8460,10 +8462,10 @@ export default function AiInbox({ reviewerMode = false }) {
             <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
-                  <div className="text-xs text-slate-500">Live AI operational logs</div>
+                  <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.kpi.devConsole")}</div>
+                  <div className="text-xs text-slate-500">{t("aiSupport.inbox.kpi.devConsoleSub")}</div>
                 </div>
-                <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+                <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">{t("aiSupport.inbox.kpi.close")}</button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
@@ -8543,10 +8545,10 @@ export default function AiInbox({ reviewerMode = false }) {
           <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
-                <div className="text-xs text-slate-500">Live AI operational logs</div>
+                <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.kpi.devConsole")}</div>
+                <div className="text-xs text-slate-500">{t("aiSupport.inbox.kpi.devConsoleSub")}</div>
               </div>
-              <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+              <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">{t("aiSupport.inbox.kpi.close")}</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
@@ -8601,8 +8603,8 @@ export default function AiInbox({ reviewerMode = false }) {
         <details className="hidden rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">ملخص مركز المحادثات</div>
-              <div className="mt-1 text-sm font-black text-white">مطوية افتراضيًا</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.kpi.centerSummary")}</div>
+              <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.kpi.collapsedByDefault")}</div>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
               <ChevronDown className="h-4 w-4" />
@@ -8610,8 +8612,8 @@ export default function AiInbox({ reviewerMode = false }) {
             </span>
           </summary>
           <div className="grid gap-3 border-t border-white/10 p-3 md:grid-cols-4">
-            <Metric icon={Radio} label="إجمالي Meta النشطة" value={realMetaCount} tone="emerald" />
-            <Metric icon={MessageSquareText} label="عدد المحادثات" value={conversations.length} tone="cyan" />
+            <Metric icon={Radio} label={t("aiSupport.inbox.kpi.totalMetaActive")} value={realMetaCount} tone="emerald" />
+            <Metric icon={MessageSquareText} label={t("aiSupport.inbox.kpi.conversationCount")} value={conversations.length} tone="cyan" />
             <Metric icon={Clock3} label="تحتاج متابعة / رد" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
             <Metric icon={EyeOff} label="لوحة قيد التجربة" value="قريبًا" tone="violet" />
           </div>
@@ -9083,10 +9085,10 @@ export default function AiInbox({ reviewerMode = false }) {
           <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
-                <div className="text-xs text-slate-500">Live AI operational logs</div>
+                <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.kpi.devConsole")}</div>
+                <div className="text-xs text-slate-500">{t("aiSupport.inbox.kpi.devConsoleSub")}</div>
               </div>
-              <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+              <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">{t("aiSupport.inbox.kpi.close")}</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
@@ -9125,8 +9127,8 @@ export default function AiInbox({ reviewerMode = false }) {
         </section>
 
         <section className="hidden grid gap-3 md:grid-cols-4">
-          <Metric icon={Radio} label="إجمالي Meta النشطة" value={realMetaCount} tone="emerald" />
-          <Metric icon={MessageSquareText} label="عدد المحادثات" value={conversations.length} tone="cyan" />
+          <Metric icon={Radio} label={t("aiSupport.inbox.kpi.totalMetaActive")} value={realMetaCount} tone="emerald" />
+          <Metric icon={MessageSquareText} label={t("aiSupport.inbox.kpi.conversationCount")} value={conversations.length} tone="cyan" />
           <Metric icon={Clock3} label="غير مقروء / يحتاج تدخل" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
           <Metric icon={EyeOff} label="لوحة قيد التجربة" value="قريبًا" tone="violet" />
         </section>
@@ -9235,7 +9237,7 @@ export default function AiInbox({ reviewerMode = false }) {
           <section dir="ltr" className="grid min-h-0 flex-1 gap-3 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,28%)_minmax(0,72%)]">
             <aside className="min-h-0 min-w-0 space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
               <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">AI Social Media Center</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.kpi.socialCenter")}</div>
                 <div className="mt-1 text-sm font-black text-white">Social Comments</div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-black sm:grid-cols-3 xl:grid-cols-2">
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Facebook <span className="ml-2 text-cyan-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</span></div>
