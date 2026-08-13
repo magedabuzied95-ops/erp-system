@@ -450,9 +450,11 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       {...rest}
       className={[
         compact
-          ? "w-full rounded-2xl border border-white/10 bg-slate-950/70 p-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition"
-          : "rounded-[22px] border border-white/10 bg-slate-950/70 p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition",
-        selected ? "ring-1 ring-cyan-300/30" : "hover:border-white/20 hover:bg-slate-900/80",
+          ? "w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-[var(--shadow-card)] transition"
+          : "rounded-[22px] border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-[var(--shadow-card)] transition",
+        selected
+          ? "border-[var(--primary)] ring-1 ring-[var(--primary)]/35"
+          : "hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
         className,
       ]
         .filter(Boolean)
@@ -467,7 +469,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 event.stopPropagation();
                 onCustomerSelect?.(comment, data);
               }}
-              className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/30"
+              className="overflow-hidden rounded-full ring-1 ring-[var(--border)] transition hover:ring-[var(--primary)]/40"
               aria-label={t("aiSupport.inbox.commentTimeline.openCustomerDetails", { name: data.customerName || t("aiSupport.inbox.commentTimeline.customer") })}
             >
               <img
@@ -484,13 +486,13 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 event.stopPropagation();
                 onCustomerSelect?.(comment, data);
               }}
-              className={`grid place-items-center rounded-full bg-white/[0.05] font-black text-slate-100 ring-1 ring-white/10 transition hover:bg-white/[0.08] ${compact ? "h-9 w-9 text-xs" : "h-12 w-12 text-sm"}`}
+              className={`grid place-items-center rounded-full bg-[var(--surface-soft)] font-black text-[var(--text)] ring-1 ring-[var(--border)] transition hover:bg-[var(--surface-hover)] ${compact ? "h-9 w-9 text-xs" : "h-12 w-12 text-sm"}`}
               aria-label={t("aiSupport.inbox.commentTimeline.openCustomerDetails", { name: data.customerName || t("aiSupport.inbox.commentTimeline.customer") })}
             >
               {data.initials || <UserRound className="h-5 w-5" />}
             </button>
           )}
-          <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border border-white bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.18)]">
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] shadow-[var(--shadow-card)]">
             <MessageSquareText className="h-3 w-3" />
           </span>
         </div>
@@ -504,15 +506,15 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                   event.stopPropagation();
                   onCustomerSelect?.(comment, data);
                 }}
-                className={`truncate text-left font-black text-white hover:underline ${compact ? "text-[13px] leading-5" : "text-[15px] leading-6"}`}
+                className={`truncate text-left font-black text-[var(--text)] hover:text-[var(--primary)] hover:underline ${compact ? "text-[13px] leading-5" : "text-[15px] leading-6"}`}
               >
                 {data.customerName || t("aiSupport.inbox.commentTimeline.customer")}
               </button>
-              <div className={`flex flex-wrap items-center font-black uppercase tracking-[0.08em] text-slate-500 ${compact ? "mt-0.5 gap-1.5 text-[9px]" : "mt-1 gap-2 text-[11px]"}`}>
+              <div className={`flex flex-wrap items-center font-black uppercase tracking-[0.08em] text-[var(--muted)] ${compact ? "mt-0.5 gap-1.5 text-[9px]" : "mt-1 gap-2 text-[11px]"}`}>
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
                   {data.platformMeta.label}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-300">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 py-1 text-[var(--text-secondary)]">
                   <Clock3 className="h-3.5 w-3.5" />
                   {data.createdAt ? getRelativeTimeLabel(data.createdAt, new Date(), language) : "—"}
                 </span>
@@ -542,7 +544,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
             </div> : null}
           </div>
 
-          <div className={`rounded-xl border border-white/10 bg-white/[0.04] text-slate-100 ${compact ? "mt-1.5 p-2 text-[13px] leading-6" : "mt-2 p-3 text-[14px] leading-7"}`}>
+          <div className={`rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] ${compact ? "mt-1.5 p-2 text-[13px] leading-6" : "mt-2 p-3 text-[14px] leading-7"}`}>
             <div
               className="whitespace-pre-wrap"
               style={canCollapse && !expanded ? { maxHeight: "4.5rem", overflow: "hidden" } : undefined}
@@ -556,7 +558,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                   event.stopPropagation();
                   setExpanded((current) => !current);
                 }}
-                className="mt-1.5 text-[11px] font-black text-cyan-300 hover:text-cyan-200"
+                className="mt-1.5 text-[11px] font-black text-[var(--primary)] hover:text-[var(--primary-hover)]"
               >
                 {expanded
                   ? t("aiSupport.inbox.commentTimeline.showLess", { defaultValue: "عرض أقل" })

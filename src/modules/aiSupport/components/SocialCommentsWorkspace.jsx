@@ -1396,13 +1396,9 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
     (event) => {
       event.stopPropagation();
       handleSelect();
-      if (!nextReplyText) {
-        onCompose?.(comment, "reply");
-        return;
-      }
-      onReply?.(comment, nextReplyText);
+      onCompose?.(comment, "reply");
     },
-    [comment, handleSelect, nextReplyText, onCompose, onReply]
+    [comment, handleSelect, onCompose]
   );
   const handleLike = useCallback(
     (event) => {
@@ -1450,7 +1446,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   return (
     <div
       ref={setCommentRef}
-      className={`rounded-[22px] transition ${isHighlighted ? "ring-2 ring-cyan-300/70 ring-offset-2 ring-offset-slate-950" : ""}`}
+      className={`w-full rounded-[22px] transition ${isHighlighted ? "ring-2 ring-[var(--primary)]/70 ring-offset-2 ring-offset-[var(--bg)]" : ""}`}
     >
       <CommentTimelineCard
         comment={cardComment}
@@ -1476,12 +1472,12 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
           </a>
         ) : null}
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-2">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
           <button
             type="button"
             onClick={handleLike}
             disabled={busy || likeStatus === "sent" || Boolean(likeLoadingKey)}
-            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black disabled:opacity-60 ${likeStatus === "sent" ? "border-blue-400/30 bg-blue-400/15 text-blue-200" : "border-white/10 bg-white/[0.04] text-slate-200"}`}
+            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black disabled:opacity-60 ${likeStatus === "sent" ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]" : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] hover:border-[var(--primary)]"}`}
           >
             {likeLoadingKey === actionKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className={`h-4 w-4 ${likeStatus === "sent" ? "fill-current" : ""}`} />}
             {likeStatus === "sent" ? "تم الإعجاب" : "إعجاب"}
@@ -1490,7 +1486,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             type="button"
             onClick={handleReply}
             disabled={busy || Boolean(replyLoadingKey)}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-cyan-300 px-2.5 text-[11px] font-black text-slate-950 disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[var(--primary-active)] bg-[var(--primary)] px-2.5 text-[11px] font-black text-[var(--primary-contrast)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {t("aiSupport.inbox.socialWorkspace.reply")}
@@ -1500,7 +1496,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             onClick={handlePrivateMessage}
             disabled={busy || !privateMessageSupported || Boolean(privateMessageLoadingKey)}
             title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-200 disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] disabled:opacity-50"
           >
             {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
@@ -2631,6 +2627,8 @@ function SocialCommentsWorkspace({
       last_comment_text: messageText,
       last_activity_at: new Date().toISOString(),
     });
+    setReplyStatusOverrides((current) => ({ ...current, [actionId]: "pending" }));
+    setReplyDraft("");
     setReplyLoadingKey(actionId);
     try {
       await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/reply`, {
@@ -2645,6 +2643,7 @@ function SocialCommentsWorkspace({
       notify("emerald", "تم إرسال الرد");
     } catch (error) {
       setReplyStatusOverrides((current) => ({ ...current, [actionId]: "failed" }));
+      setReplyDraft((current) => clean(current) || messageText);
       upsertOptimisticCommentEntry(comment, {
         reply_status: "failed",
         automation_status: "failed",
@@ -2664,18 +2663,19 @@ function SocialCommentsWorkspace({
       notify("amber", "تعذر تحديد معرف التعليق");
       return;
     }
+    const localCommentId = clean(comment?.id || actionId);
     setLikeLoadingKey(actionId);
-    setSelectedCommentKey(clean(comment?.id || actionId));
+    setSelectedCommentKey(localCommentId);
+    setLikeStatusOverrides((current) => ({ ...current, [localCommentId]: "sent", [actionId]: "sent" }));
+    upsertOptimisticCommentEntry(comment, {
+      like_status: "sent",
+      updated_at: new Date().toISOString(),
+    });
     try {
       await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/like`, {});
-      setLikeStatusOverrides((current) => ({ ...current, [clean(comment?.id || actionId)]: "sent", [actionId]: "sent" }));
-      upsertOptimisticCommentEntry(comment, {
-        like_status: "sent",
-        updated_at: new Date().toISOString(),
-      });
       notify("emerald", "تم تسجيل الإعجاب على التعليق");
     } catch (error) {
-      setLikeStatusOverrides((current) => ({ ...current, [clean(comment?.id || actionId)]: "failed", [actionId]: "failed" }));
+      setLikeStatusOverrides((current) => ({ ...current, [localCommentId]: "failed", [actionId]: "failed" }));
       notify("rose", error?.message || "تعذر تسجيل الإعجاب على التعليق");
     } finally {
       setLikeLoadingKey("");
@@ -3004,7 +3004,7 @@ function SocialCommentsWorkspace({
                 </div>
               ) : null}
 
-              <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
+              <div className="flex w-full flex-col gap-3">
                 {hasMoreComments ? (
                   <button type="button" onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))} className="mx-auto rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
                     {t("aiSupport.inbox.socialWorkspace.loadOlderComments")}
