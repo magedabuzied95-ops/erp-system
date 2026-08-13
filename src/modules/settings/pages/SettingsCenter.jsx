@@ -1408,7 +1408,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
             </div>
           )}
         </div>
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <input
             value={safeValue}
             onChange={(event) => onChange(event.target.value)}
@@ -1421,7 +1421,8 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
               {uploading ? "Uploading..." : "Upload image"}
               <input type="file" accept={accept} className="hidden" onChange={handleFileUpload} />
             </label>
-            <span className={`text-xs ${mutedText}`}>{safeValue || "Paste image URL or upload a file"}</span>
+            {/* The stored path is one unbreakable token; it must be allowed to shrink and clip. */}
+            <span className={`min-w-0 truncate text-xs ${mutedText}`}>{safeValue || "Paste image URL or upload a file"}</span>
           </div>
         </div>
       </div>
