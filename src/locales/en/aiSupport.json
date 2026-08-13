@@ -323,7 +323,8 @@
       "saved": "The AI support knowledge base was saved",
       "saveFailed": "Could not save the settings",
       "reset": "The knowledge base was cleared",
-      "resetFailed": "Could not clear the settings"
+      "resetFailed": "Could not clear the settings",
+      "checkMapsUrl": "The location link must start with http or https"
     },
     "confirmReset": "Reset the AI support knowledge base for this tenant?",
     "validation": {
@@ -334,7 +335,8 @@
       "valid": "Valid",
       "invalid": "Invalid",
       "unsaved": "Unsaved changes",
-      "savedState": "Saved"
+      "savedState": "Saved",
+      "mapsUrl": "Location link:"
     },
     "fields": {
       "store_name": {
@@ -378,7 +380,28 @@
       "brand_tone_instructions": {
         "label": "Brand tone in replies",
         "placeholder": "Example: friendly Arabic replies, concise, no uncertain promises"
+      },
+      "maps_url": {
+        "label": "Location / Google Maps link"
+      },
+      "store_address": {
+        "label": "Store address",
+        "placeholder": "Example: New Damietta - ... Street - next to ..."
       }
+    },
+    "badge": "AI Support",
+    "subtitle": "This information is public and may be used in AI support replies. Do not add internal data or unconfirmed prices here.",
+    "actions": {
+      "reset": "Reset",
+      "save": "Save"
+    },
+    "errors": {
+      "noTenant": "No tenant is assigned to this user.",
+      "loadFailed": "Could not load the knowledge base settings"
+    },
+    "scope": {
+      "title": "Usage scope",
+      "body": "This data is stored inside `website_settings.settings` for this tenant only, and surfaces in `source_previews` inside the AI support module."
     }
   },
   "followups": {
