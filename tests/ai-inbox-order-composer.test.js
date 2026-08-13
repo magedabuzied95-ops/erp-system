@@ -12,9 +12,11 @@ const pwaStyles = readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPw
 
 test("AI Inbox exposes an in-conversation order composer", () => {
   assert.match(inbox, /function InboxOrderComposer/);
-  assert.match(inbox, /إنشاء طلب من المحادثة/);
-  assert.match(inbox, /المخزون:/);
-  assert.match(inbox, /إنشاء مسودة الطلب/);
+  // Localized: the heading, the stock line and the submit control are pinned by
+  // translation key now rather than by one locale's copy.
+  assert.match(inbox, /aiSupport\.inbox\.order\.orderHeading/);
+  assert.match(inbox, /aiSupport\.inbox\.order\.stock/);
+  assert.match(inbox, /aiSupport\.inbox\.order\.createDraft/);
 });
 
 test("desktop AI Inbox mounts the order composer in the active workspace", () => {
@@ -41,10 +43,10 @@ test("desktop order composer loads Bosta hierarchy and supports shipping provide
   assert.match(inbox, /shipping\/zones\?provider=bosta&dropoff=1&cityId=/);
   assert.match(inbox, /shipping\/districts\?provider=bosta&dropoff=1&zoneId=/);
   assert.match(inbox, /shipping_provider_id: shippingProvider/);
-  assert.match(inbox, /role="radiogroup" aria-label="شركة الشحن"/);
-  assert.match(inbox, /المدينة \*/);
-  assert.match(inbox, /المنطقة \*/);
-  assert.match(inbox, /الحي \*/);
+  assert.match(inbox, /role="radiogroup" aria-label=\{t\("aiSupport\.inbox\.order\.courier"\)\}/);
+  assert.match(inbox, /aiSupport\.inbox\.order\.cityArea/);
+  assert.match(inbox, /aiSupport\.inbox\.order\.zone/);
+  assert.match(inbox, /aiSupport\.inbox\.order\.district/);
   assert.doesNotMatch(inbox, /مدينة Bosta|منطقة Bosta|حي Bosta/);
 });
 

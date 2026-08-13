@@ -602,40 +602,52 @@ const tenantIdFrom = (tenantApi) => {
   return String(currentTenant.id || currentTenant.tenant_id || currentUser.tenant_id || currentUser.tenantId || "1");
 };
 
+/*
+ * `key` is the RAW filter enum: it is written to state and compared against
+ * throughout. Only the DISPLAY moves to a translation key. Entries whose label
+ * is a BRAND keep a literal `label` -- WhatsApp/Instagram/Messenger/Facebook/
+ * TikTok are product names, not application chrome.
+ */
+/*
+ * Filter entries carry either a `labelKey` (application chrome, translated
+ * at render) or a literal `label` (a brand name, rendered verbatim). This is
+ * called from render, so switching language re-resolves it immediately.
+ */
+const filterLabel = (t, item = {}) => (item.labelKey ? t(item.labelKey) : item.label || "");
 const filters = [
-  { key: "all", label: "All" },
-  { key: "messages", label: "Messages" },
-  { key: "comments", label: "Comments" },
-  { key: "needs_reply", label: "Needs Reply" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.all" },
+  { key: "messages", labelKey: "aiSupport.inbox.filters.messages" },
+  { key: "comments", labelKey: "aiSupport.inbox.filters.comments" },
+  { key: "needs_reply", labelKey: "aiSupport.inbox.filters.needsReply" },
 ];
 
 const FAVORITE_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "favorites", label: "Favorites" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.all" },
+  { key: "favorites", labelKey: "aiSupport.inbox.filters.favorites" },
 ];
 
 const MESSAGE_PLATFORM_FILTERS = [
-  { key: "all", label: "All Messages" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.allMessages" },
   { key: "messenger", label: "Messenger" },
   { key: "instagram", label: "Instagram" },
   { key: "whatsapp", label: "WhatsApp" },
-  { key: "web", label: "Web" },
+  { key: "web", labelKey: "aiSupport.inbox.filters.web" },
   { key: "tiktok", label: "TikTok" },
 ];
 
 const COMMENT_PLATFORM_FILTERS = [
-  { key: "all", label: "All Comments" },
+  { key: "all", labelKey: "aiSupport.inbox.filters.allComments" },
   { key: "facebook", label: "Facebook" },
   { key: "instagram", label: "Instagram" },
   { key: "tiktok", label: "TikTok" },
 ];
 
 const leadFilters = [
-  { key: "all", label: "الكل" },
-  { key: "ready_to_buy", label: "جاهز للشراء" },
-  { key: "hot", label: "ساخن" },
-  { key: "warm", label: "دافئ" },
-  { key: "needs_human", label: "يحتاج تدخلًا بشريًا" },
+  { key: "all", labelKey: "aiSupport.inbox.lead.all" },
+  { key: "ready_to_buy", labelKey: "aiSupport.inbox.lead.readyToBuy" },
+  { key: "hot", labelKey: "aiSupport.inbox.lead.hot" },
+  { key: "warm", labelKey: "aiSupport.inbox.lead.warm" },
+  { key: "needs_human", labelKey: "aiSupport.inbox.lead.needsHuman" },
 ];
 
 const leadTemperatureMeta = {
@@ -1729,11 +1741,12 @@ const commentAutomationStatusLabel = (value = "") => {
 };
 
 function CommentAutomationBadges({ automationState = {} }) {
+  const { t } = useTranslation();
   const state = automationState && typeof automationState === "object" ? automationState : {};
   const badges = [
-    { key: "like_status", label: "Like" },
-    { key: "public_reply_status", label: "Public reply" },
-    { key: "dm_status", label: "Private message" },
+    { key: "like_status", labelKey: "aiSupport.inbox.badges.like" },
+    { key: "public_reply_status", labelKey: "aiSupport.inbox.badges.publicReply" },
+    { key: "dm_status", labelKey: "aiSupport.inbox.badges.privateMessage" },
   ];
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1741,7 +1754,7 @@ function CommentAutomationBadges({ automationState = {} }) {
         const status = commentAutomationStatusLabel(state[item.key]);
         return (
           <Pill key={item.key} tone={commentAutomationBadgeTone(status)}>
-            {item.label}
+            {filterLabel(t, item)}
             <span className="opacity-70">{status}</span>
           </Pill>
         );
@@ -3458,10 +3471,10 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
 }
 
 const autoReplyModes = [
-  { key: "off", label: "Off" },
-  { key: "suggest_only", label: "Suggest only" },
-  { key: "auto_reply_after_approval", label: "Approval" },
-  { key: "fully_automatic", label: "Automatic" },
+  { key: "off", labelKey: "aiSupport.inbox.autoReply.off" },
+  { key: "suggest_only", labelKey: "aiSupport.inbox.autoReply.suggestOnly" },
+  { key: "auto_reply_after_approval", labelKey: "aiSupport.inbox.autoReply.approval" },
+  { key: "fully_automatic", labelKey: "aiSupport.inbox.autoReply.automatic" },
 ];
 
 const resolveChannelAutoReplyMode = (channelStatus = {}) => {
@@ -3489,14 +3502,15 @@ const isHiddenAiReplyTranscriptMessage = (message = {}) => {
 };
 
 function AutoReplyModePanel({ channelStatus = {}, mode, onChange, saving }) {
+  const { t } = useTranslation();
   const channelReady = channelStatus.live_operational === true || channelStatus.effective_enabled === true || channelStatus.last_webhook_received_at || ["sent", "test_sent"].includes(channelStatus.last_send_status);
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <SectionTitle icon={Bot} title="Auto reply mode" action={<Pill tone={channelReady ? "emerald" : "amber"}>{channelReady ? "Channel active" : "Setup needed"}</Pill>} />
+      <SectionTitle icon={Bot} title={t("aiSupport.inbox.autoReply.mode")} action={<Pill tone={channelReady ? "emerald" : "amber"}>{t(channelReady ? "aiSupport.inbox.autoReply.channelActive" : "aiSupport.inbox.autoReply.setupNeeded")}</Pill>} />
       <div className="grid gap-2 sm:grid-cols-4">
         {autoReplyModes.map((item) => (
           <button key={item.key} type="button" onClick={() => onChange(item.key)} disabled={saving} className={`h-10 rounded-xl border px-2 text-xs font-black transition disabled:opacity-50 ${mode === item.key ? "border-cyan-300/40 bg-cyan-300 text-slate-950" : "border-white/10 bg-slate-950/70 text-slate-100 hover:border-cyan-300/30"}`}>
-            {item.label}
+            {filterLabel(t, item)}
           </button>
         ))}
       </div>
@@ -3559,6 +3573,7 @@ const AI_INBOX_SHIPPING_PROVIDERS = [
 ];
 
 function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null }) {
+  const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -3655,29 +3670,29 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">AI Inbox Order</div>
-            <h2 className="mt-1 text-2xl font-black text-white">إنشاء طلب من المحادثة</h2>
-            <p className="mt-1 text-sm text-slate-400">راجع بيانات العميل والمنتج قبل إنشاء المسودة. لن يُخصم المخزون قبل تأكيد الطلب.</p>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{t("aiSupport.inbox.order.orderTitle")}</div>
+            <h2 className="mt-1 text-2xl font-black text-white">{t("aiSupport.inbox.order.orderHeading")}</h2>
+            <p className="mt-1 text-sm text-slate-400">{t("aiSupport.inbox.order.orderNote")}</p>
           </div>
           <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-white"><XCircle className="h-5 w-5" /></button>
         </div>
 
         <div className="mt-5 space-y-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />بيانات العميل</div>
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />{t("aiSupport.inbox.order.customerData")}</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="اسم العميل *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="رقم الهاتف *" inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t("aiSupport.inbox.order.customerName")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t("aiSupport.inbox.order.phone")} inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />شركة الشحن وبيانات التوصيل</div>
-            <p className="mb-3 text-xs text-slate-400">اختار شركة الشحن. مع Bosta هنستخدم قائمة المدن والمناطق والأحياء المعتمدة عند الشركة لضمان قبول الشحنة.</p>
+            <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />{t("aiSupport.inbox.order.shippingSection")}</div>
+            <p className="mb-3 text-xs text-slate-400">{t("aiSupport.inbox.order.shippingNote")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-xs font-black text-slate-300">شركة الشحن *</span>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="شركة الشحن">
+                <span className="mb-1.5 block text-xs font-black text-slate-300">{t("aiSupport.inbox.order.courierRequired")}</span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label={t("aiSupport.inbox.order.courier")}>
                   {AI_INBOX_SHIPPING_PROVIDERS.map((provider) => {
                     const active = shippingProvider === provider.id;
                     return (
@@ -3708,46 +3723,46 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                     {shippingLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                   <select value={shippingZoneId} onChange={(event) => { setShippingZoneId(event.target.value); setShippingDistrictId(""); }} disabled={!shippingCityId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
-                    <option value="">المنطقة *</option>
+                    <option value="">{t("aiSupport.inbox.order.zone")}</option>
                     {shippingLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                   <select value={shippingDistrictId} onChange={(event) => setShippingDistrictId(event.target.value)} disabled={!shippingZoneId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50 sm:col-span-2">
-                    <option value="">الحي *</option>
+                    <option value="">{t("aiSupport.inbox.order.district")}</option>
                     {shippingLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                 </>
               ) : (
                 <>
-                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المدينة / المنطقة *" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder={t("aiSupport.inbox.order.governorate")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder={t("aiSupport.inbox.order.cityArea")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
                 </>
               )}
 
-              <div className="sm:col-span-2 flex items-center gap-2 pt-1 text-xs font-black text-slate-300"><MapPin className="h-4 w-4 text-rose-300" />العنوان التفصيلي</div>
-              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder="اسم الشارع والعنوان بالتفصيل *" className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
+              <div className="sm:col-span-2 flex items-center gap-2 pt-1 text-xs font-black text-slate-300"><MapPin className="h-4 w-4 text-rose-300" />{t("aiSupport.inbox.order.addressSection")}</div>
+              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder={t("aiSupport.inbox.order.streetAddress")} className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
               <input value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} placeholder={shippingProvider === "bosta" ? "رقم المبنى *" : "رقم المبنى"} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder="الدور" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder="رقم الشقة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder="علامة مميزة" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.floor")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.apartment")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={t("aiSupport.inbox.order.landmark")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />المنتج والمخزون</div>
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />{t("aiSupport.inbox.order.productSection")}</div>
             <select value={productId} onChange={(e) => setProductId(e.target.value)} className="h-12 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none">
-              <option value="">اختر منتجًا من المنتجات المطابقة</option>
+              <option value="">{t("aiSupport.inbox.order.chooseMatched")}</option>
               {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? 0) || 0}</option>)}
             </select>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="المقاس" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="اللون" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder={t("aiSupport.inbox.order.size")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={color} onChange={(e) => setColor(e.target.value)} placeholder={t("aiSupport.inbox.order.colour")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} min="1" type="number" placeholder={t("aiSupport.inbox.order.quantity")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
             </div>
-            {selectedProduct ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black"><span className={safeQuantity <= stock ? "text-emerald-100" : "text-rose-200"}>المخزون: {stock} — المطلوب: {safeQuantity}</span><span className="text-white">الإجمالي: {money(unitPrice * safeQuantity)}</span></div> : null}
+            {selectedProduct ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black"><span className={safeQuantity <= stock ? "text-emerald-100" : "text-rose-200"}>{t("aiSupport.inbox.order.stock")} {stock} — {t("aiSupport.inbox.order.required")} {safeQuantity}</span><span className="text-white">{t("aiSupport.inbox.order.total")} {money(unitPrice * safeQuantity)}</span></div> : null}
           </div>
 
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
-          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">أكمل بيانات الشحن المطلوبة لتفعيل إنشاء المسودة.</div> : null}
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
+          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.completeShipping")}</div> : null}
           <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, {
             quantity: safeQuantity,
             size,
@@ -3769,7 +3784,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
             apartment_number: apartmentNumber,
             landmark,
             notes,
-          })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
+          })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.createDraft")}</button>
         </div>
       </section>
     </div>
@@ -3919,6 +3934,7 @@ const confirmationStatusMeta = (status = "") => {
 };
 
 function CustomerContextCard({ conversation = {} }) {
+  const { t } = useTranslation();
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
@@ -3973,18 +3989,18 @@ function CustomerContextCard({ conversation = {} }) {
         </div>
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        <Info label="Matched CRM customer" value={profile.id ? `Profile #${profile.id}` : "No CRM match yet"} />
-        <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
-        <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
-        <Info label="المقاس المفضل" value={profile.preferred_size || channelMemory.last_selected_size || "غير محدد بعد"} />
-        <Info label="آخر منتج" value={lastProductLabel} />
-        <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
+        <Info label={t("aiSupport.inbox.field.matchedCrmCustomer")} value={profile.id ? `Profile #${profile.id}` : "No CRM match yet"} />
+        <Info label={t("aiSupport.inbox.field.phoneExternalId")} value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
+        <Info label={t("aiSupport.inbox.field.channel")} value={channelLabel(conversation?.channel || conversation?.source)} />
+        <Info label={t("aiSupport.inbox.field.preferredSize")} value={profile.preferred_size || channelMemory.last_selected_size || "غير محدد بعد"} />
+        <Info label={t("aiSupport.inbox.field.lastProduct")} value={lastProductLabel} />
+        <Info label={t("aiSupport.inbox.field.lastIntent")} value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-4">
-        <Info label="Sentiment" value={profile.customer_sentiment || "neutral"} />
-        <Info label="درجة الذاكرة" value={Number(memoryScore || 0).toFixed(0)} />
-        <Info label="Last order" value={lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id || "No order yet"} />
-        <Info label="Last size" value={lastSize || "Not set yet"} />
+        <Info label={t("aiSupport.inbox.field.sentiment")} value={profile.customer_sentiment || "neutral"} />
+        <Info label={t("aiSupport.inbox.field.memoryScore")} value={Number(memoryScore || 0).toFixed(0)} />
+        <Info label={t("aiSupport.inbox.field.lastOrder")} value={lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id || "No order yet"} />
+        <Info label={t("aiSupport.inbox.field.lastSize")} value={lastSize || "Not set yet"} />
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
@@ -4046,6 +4062,7 @@ function DebugStatusBadge({ type = "neutral", children }) {
 }
 
 function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
+  const { t } = useTranslation();
   const [showRaw, setShowRaw] = useState(false);
   const memory = data?.memory || {};
   const events = asArray(data?.debug_events);
@@ -4087,8 +4104,8 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
         <div className="flex items-center gap-2">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-300/10 text-violet-100 ring-1 ring-violet-300/20"><Brain className="h-4 w-4" /></span>
           <div>
-            <div className="text-sm font-black text-white">AI Debug</div>
-            <div className="text-xs text-slate-500">Intent, route, memory, and recent decisions</div>
+            <div className="text-sm font-black text-white">{t("aiSupport.inbox.debug.title")}</div>
+            <div className="text-xs text-slate-500">{t("aiSupport.inbox.debug.subtitle")}</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -4116,36 +4133,36 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <DebugStatusBadge type={latestEvent.graph_api_called ? "called" : "none"}>{latestEvent.graph_api_called ? "تم استدعاء Graph API" : "لا يوجد استدعاء Graph"}</DebugStatusBadge>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                <DebugField label="Intent" value={data.current_intent} />
-                <DebugField label="Confidence" value={confidence} />
-                <DebugField label="Route / brain" value={data.route} />
-                <DebugField label="Outbound status" value={outboundStatus} />
-                <DebugField label="Outbound decision" value={outboundDecision} />
-                <DebugField label="Skip reason" value={skipReason} />
-                <DebugField label="Meta send result" value={metaSendResult || (data.tokenPresent === true ? "Token present" : data.tokenPresent === false ? "Token missing" : "")} />
-                <DebugField label="Active product" value={memory.activeProductId} />
-                <DebugField label="Active size" value={memory.activeSize} />
-                <DebugField label="Active color" value={memory.activeColor} />
-                <DebugField label="Buying stage" value={memory.buyingStage} />
-                <DebugField label="Last reply preview" value={lastReplyPreview} />
-                <DebugField label="Unified reply preview" value={data.unified_reply_preview || lastReplyPreview} />
-                <DebugField label="Unified intent" value={unifiedReply.intent || data.current_intent || ""} />
-                <DebugField label="المنتجات الموحّدة" value={`${unifiedProducts.length} بطاقة`} />
-                <DebugField label="بطاقات الصور الموحّدة" value={`${unifiedImageCards.length} بطاقة`} />
-                <DebugField label="Unified quick replies" value={`${unifiedQuickReplies.length} items`} />
-                <DebugField label="Unified actions" value={`${unifiedActions.length} items`} />
-                <DebugField label="Handoff state" value={unifiedHandoff?.needs_human_support ? `handoff / ${unifiedHandoff.reason || "human_review"}` : unifiedHandoff?.conversation_status || "ai_active"} />
-                <DebugField label="Visual confidence" value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
-                <DebugField label="Brand guess" value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
-                <DebugField label="Model guess" value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
-                <DebugField label="الألوان" value={visualColors} />
-                <DebugField label="Correction used" value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
-                <DebugField label="Top rank reason" value={visualPro.reason_why_candidate_ranked_first || ""} />
-                <DebugField label="درجة تفضيل العميل" value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
-                <DebugField label="المقاسات المفضلة" value={preferredSizes} />
-                <DebugField label="Preferred brands" value={preferredBrands} />
-                <DebugField label="الألوان المفضلة" value={preferredColors} />
-                <DebugField label="Boost reason" value={visualPro.why_candidate_was_boosted || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.intent")} value={data.current_intent} />
+                <DebugField label={t("aiSupport.inbox.debug.confidence")} value={confidence} />
+                <DebugField label={t("aiSupport.inbox.debug.routeBrain")} value={data.route} />
+                <DebugField label={t("aiSupport.inbox.debug.outboundStatus")} value={outboundStatus} />
+                <DebugField label={t("aiSupport.inbox.debug.outboundDecision")} value={outboundDecision} />
+                <DebugField label={t("aiSupport.inbox.debug.skipReason")} value={skipReason} />
+                <DebugField label={t("aiSupport.inbox.debug.metaSendResult")} value={metaSendResult || (data.tokenPresent === true ? "Token present" : data.tokenPresent === false ? "Token missing" : "")} />
+                <DebugField label={t("aiSupport.inbox.debug.activeProduct")} value={memory.activeProductId} />
+                <DebugField label={t("aiSupport.inbox.debug.activeSize")} value={memory.activeSize} />
+                <DebugField label={t("aiSupport.inbox.debug.activeColor")} value={memory.activeColor} />
+                <DebugField label={t("aiSupport.inbox.debug.buyingStage")} value={memory.buyingStage} />
+                <DebugField label={t("aiSupport.inbox.debug.lastReplyPreview")} value={lastReplyPreview} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedReplyPreview")} value={data.unified_reply_preview || lastReplyPreview} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedIntent")} value={unifiedReply.intent || data.current_intent || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedProducts")} value={`${unifiedProducts.length} بطاقة`} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedImageCards")} value={`${unifiedImageCards.length} بطاقة`} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedQuickReplies")} value={`${unifiedQuickReplies.length} items`} />
+                <DebugField label={t("aiSupport.inbox.debug.unifiedActions")} value={`${unifiedActions.length} items`} />
+                <DebugField label={t("aiSupport.inbox.debug.handoffState")} value={unifiedHandoff?.needs_human_support ? `handoff / ${unifiedHandoff.reason || "human_review"}` : unifiedHandoff?.conversation_status || "ai_active"} />
+                <DebugField label={t("aiSupport.inbox.debug.visualConfidence")} value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
+                <DebugField label={t("aiSupport.inbox.debug.brandGuess")} value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.modelGuess")} value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.colors")} value={visualColors} />
+                <DebugField label={t("aiSupport.inbox.debug.correctionUsed")} value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
+                <DebugField label={t("aiSupport.inbox.debug.topRankReason")} value={visualPro.reason_why_candidate_ranked_first || ""} />
+                <DebugField label={t("aiSupport.inbox.debug.customerPreferenceScore")} value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
+                <DebugField label={t("aiSupport.inbox.debug.preferredSizes")} value={preferredSizes} />
+                <DebugField label={t("aiSupport.inbox.debug.preferredBrands")} value={preferredBrands} />
+                <DebugField label={t("aiSupport.inbox.debug.preferredColors")} value={preferredColors} />
+                <DebugField label={t("aiSupport.inbox.debug.boostReason")} value={visualPro.why_candidate_was_boosted || ""} />
               </div>
 
               {visualTopCandidates.length ? (
@@ -4161,16 +4178,16 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                             <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[11px] font-black text-cyan-100">{Number(candidate?.score || candidate?.finalScore || breakdown.finalScore || 0).toFixed(2)}</span>
                           </div>
                           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            <DebugField label="Variant" value={candidate?.variant_id || candidate?.variantId || ""} />
-                            <DebugField label="Color" value={candidate?.color || ""} />
-                            <DebugField label="Source image product" value={candidate?.sourceImageProductId || candidate?.source_image_product_id || candidate?.product_id || candidate?.productId || ""} />
-                            <DebugField label="Source title" value={candidate?.sourceTitle || candidate?.source_title || ""} />
-                            <DebugField label="Final title" value={candidate?.finalTitle || candidate?.final_title || ""} />
-                            <DebugField label="Final URL" value={candidate?.finalUrl || candidate?.final_url || ""} />
-                            <DebugField label="Score breakdown" value={shortText(JSON.stringify(breakdown), 220)} />
-                            <DebugField label="Rank reason" value={breakdown.reasonWhyRankedFirst || candidate?.reasonWhyRankedFirst || ""} />
-                            <DebugField label="Preference score" value={breakdown.customerPreferenceScore !== undefined ? Number(breakdown.customerPreferenceScore || 0).toFixed(2) : ""} />
-                            <DebugField label="Boosted by" value={breakdown.whyCandidateWasBoosted || candidate?.whyCandidateWasBoosted || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.variant")} value={candidate?.variant_id || candidate?.variantId || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.color")} value={candidate?.color || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.sourceImageProduct")} value={candidate?.sourceImageProductId || candidate?.source_image_product_id || candidate?.product_id || candidate?.productId || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.sourceTitle")} value={candidate?.sourceTitle || candidate?.source_title || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.finalTitle")} value={candidate?.finalTitle || candidate?.final_title || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.finalUrl")} value={candidate?.finalUrl || candidate?.final_url || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.scoreBreakdown")} value={shortText(JSON.stringify(breakdown), 220)} />
+                            <DebugField label={t("aiSupport.inbox.debug.rankReason")} value={breakdown.reasonWhyRankedFirst || candidate?.reasonWhyRankedFirst || ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.preferenceScore")} value={breakdown.customerPreferenceScore !== undefined ? Number(breakdown.customerPreferenceScore || 0).toFixed(2) : ""} />
+                            <DebugField label={t("aiSupport.inbox.debug.boostedBy")} value={breakdown.whyCandidateWasBoosted || candidate?.whyCandidateWasBoosted || ""} />
                           </div>
                         </div>
                       );
@@ -4183,10 +4200,10 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                   <SectionTitle icon={MessageSquareText} title="Unified reply payload" />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {unifiedProducts.length ? <DebugField label="بطاقات المنتجات" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} بطاقة`} /> : null}
-                    {unifiedImageCards.length ? <DebugField label="بطاقات الصور" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} بطاقة`} /> : null}
-                    {unifiedQuickReplies.length ? <DebugField label="Quick replies" value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" آ· ") || `${unifiedQuickReplies.length} items`} /> : null}
-                    {unifiedActions.length ? <DebugField label="Actions" value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" آ· ") || `${unifiedActions.length} items`} /> : null}
+                    {unifiedProducts.length ? <DebugField label={t("aiSupport.inbox.debug.productCards")} value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} بطاقة`} /> : null}
+                    {unifiedImageCards.length ? <DebugField label={t("aiSupport.inbox.debug.imageCards")} value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} بطاقة`} /> : null}
+                    {unifiedQuickReplies.length ? <DebugField label={t("aiSupport.inbox.debug.quickReplies")} value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" آ· ") || `${unifiedQuickReplies.length} items`} /> : null}
+                    {unifiedActions.length ? <DebugField label={t("aiSupport.inbox.debug.actions")} value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" آ· ") || `${unifiedActions.length} items`} /> : null}
                   </div>
                 </div>
               ) : null}
@@ -4205,13 +4222,13 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                           {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">متخطى</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">تم الإرسال</DebugStatusBadge> : null}
                         </div>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                          <DebugField label="Intent" value={event.classified_intent} />
-                          <DebugField label="Route" value={event.selected_route} />
-                          <DebugField label="Confidence" value={event.confidence !== null && event.confidence !== undefined ? Number(event.confidence).toFixed(2) : ""} />
+                          <DebugField label={t("aiSupport.inbox.debug.intent")} value={event.classified_intent} />
+                          <DebugField label={t("aiSupport.inbox.debug.route")} value={event.selected_route} />
+                          <DebugField label={t("aiSupport.inbox.debug.confidence")} value={event.confidence !== null && event.confidence !== undefined ? Number(event.confidence).toFixed(2) : ""} />
                         </div>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                          <DebugField label="حالة الإرسال" value={eventStatus === "neutral" ? "لا يوجد استدعاء Graph" : eventStatus} />
-                          <DebugField label="Outbound decision" value={eventDecision} />
+                          <DebugField label={t("aiSupport.inbox.debug.sendStatus")} value={eventStatus === "neutral" ? "لا يوجد استدعاء Graph" : eventStatus} />
+                          <DebugField label={t("aiSupport.inbox.debug.outboundDecision")} value={eventDecision} />
                         </div>
                         {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{shortText(event.reply_preview, 180)}</p> : null}
                       </div>
@@ -4248,6 +4265,7 @@ function TraceJsonBlock({ value }) {
 }
 
 function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
+  const { t } = useTranslation();
   if (!open) return null;
   const latestTrace = data?.latestTrace || asArray(data?.traces)[0] || null;
   const steps = asArray(latestTrace?.trace?.steps);
@@ -4283,9 +4301,9 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
           {latestTrace ? (
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-3">
-                <DebugField label="Trace ID" value={latestTrace.id} />
-                <DebugField label="External message" value={latestTrace.external_message_id} />
-                <DebugField label="Summary" value={shortText(JSON.stringify(summary), 180)} />
+                <DebugField label={t("aiSupport.inbox.debug.traceId")} value={latestTrace.id} />
+                <DebugField label={t("aiSupport.inbox.debug.externalMessage")} value={latestTrace.external_message_id} />
+                <DebugField label={t("aiSupport.inbox.debug.summary")} value={shortText(JSON.stringify(summary), 180)} />
               </div>
               {latestTrace.error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3">
@@ -4326,6 +4344,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
 }
 
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
+  const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const identityName = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
@@ -4400,9 +4419,9 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المقاس المفضل</div>
             <div className="mt-1 text-sm font-black text-white">{profile.preferred_size || "غير معروف"}</div>
           </div>
-          <TagRow label="الألوان" values={profile.preferred_colors} />
-          <TagRow label="Models" values={profile.preferred_models} />
-          <Info label="Memory score" value={profile.memory_score ?? conversation?.lead_score ?? 0} />
+          <TagRow label={t("aiSupport.inbox.field.colours")} values={profile.preferred_colors} />
+          <TagRow label={t("aiSupport.inbox.field.models")} values={profile.preferred_models} />
+          <Info label={t("aiSupport.inbox.field.memoryScore")} value={profile.memory_score ?? conversation?.lead_score ?? 0} />
           <MiniList title="Viewed products" items={asArray(profile.viewed_products)} empty="No viewed products." />
           <MiniList title="Abandoned products" items={asArray(profile.abandoned_products)} empty="No abandoned products." />
           <MiniList title="Previous orders" items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
@@ -4474,6 +4493,7 @@ function OrderDraftPanel({ conversation, drafts, onAction, busy }) {
 }
 
 function DraftCard({ draft, onAction, busy }) {
+  const { t } = useTranslation();
   const item = asArray(draft.items)[0] || {};
   const metadata = draft.ai_agent_metadata || {};
   const stockStatus = item.stock_status || metadata.stock_status || "unknown";
@@ -4488,14 +4508,14 @@ function DraftCard({ draft, onAction, busy }) {
         <Pill tone={draft.ai_agent_status === "confirmed" ? "emerald" : draft.ai_agent_status === "cancelled" ? "rose" : draft.ai_agent_status === "human_handoff" ? "amber" : "cyan"}>{draft.ai_agent_status || draft.status}</Pill>
       </div>
       <div className="mt-3 grid gap-2 text-sm text-slate-300">
-        <Info label="المنتج" value={item.product_name || metadata.product_name || "غير معروف"} />
+        <Info label={t("aiSupport.inbox.field.product")} value={item.product_name || metadata.product_name || "غير معروف"} />
         <div className="grid gap-2 sm:grid-cols-2">
-          <Info label="المتغير / المقاس / اللون" value={item.variant_name || [metadata.size, metadata.color].filter(Boolean).join(" / ") || "غير معروف"} />
-          <Info label="Quantity" value={item.quantity || metadata.quantity || 1} />
-          <Info label="Price" value={money(item.price || draft.total_amount || draft.total || item.total_amount)} />
-          <Info label="Stock" value={stockStatus} />
-          <Info label="Confidence" value={confidence ? confidence.toFixed(2) : "n/a"} />
-          <Info label="Customer data" value={[draft.customer_name, draft.customer_phone, draft.city_area || draft.governorate].filter(Boolean).join(" / ") || "Incomplete"} />
+          <Info label={t("aiSupport.inbox.field.variantSizeColour")} value={item.variant_name || [metadata.size, metadata.color].filter(Boolean).join(" / ") || "غير معروف"} />
+          <Info label={t("aiSupport.inbox.field.quantity")} value={item.quantity || metadata.quantity || 1} />
+          <Info label={t("aiSupport.inbox.field.price")} value={money(item.price || draft.total_amount || draft.total || item.total_amount)} />
+          <Info label={t("aiSupport.inbox.field.stock")} value={stockStatus} />
+          <Info label={t("aiSupport.inbox.field.confidence")} value={confidence ? confidence.toFixed(2) : "n/a"} />
+          <Info label={t("aiSupport.inbox.field.customerData")} value={[draft.customer_name, draft.customer_phone, draft.city_area || draft.governorate].filter(Boolean).join(" / ") || "Incomplete"} />
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -9118,7 +9138,7 @@ export default function AiInbox({ reviewerMode = false }) {
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>
-        {item.label}
+        {filterLabel(t, item)}
       </option>
     ))}
   </select>
@@ -9137,7 +9157,7 @@ export default function AiInbox({ reviewerMode = false }) {
                   }}
                   className={`h-10 shrink-0 rounded-xl px-3 text-xs font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}
                 >
-                  {item.label}
+                  {filterLabel(t, item)}
                 </button>
               ))}
             </div>
@@ -9150,7 +9170,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onClick={() => setMessagePlatformFilter(item.key)}
                     className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${messagePlatformFilter === item.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.04] text-white hover:border-white/20"}`}
                   >
-                    {item.label}
+                    {filterLabel(t, item)}
                   </button>
                 ))}
               </div>
@@ -9164,7 +9184,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onClick={() => setCommentPlatformFilter(item.key)}
                     className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${commentPlatformFilter === item.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.04] text-white hover:border-white/20"}`}
                   >
-                    {item.label}
+                    {filterLabel(t, item)}
                   </button>
                 ))}
               </div>
@@ -9189,7 +9209,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
                     }`}
                   >
-                    {item.label}
+                    {filterLabel(t, item)}
                   </button>
                 ))}
               </div>
@@ -9608,9 +9628,9 @@ export default function AiInbox({ reviewerMode = false }) {
                   </div>
 
                   <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/65 p-2 lg:grid-cols-4">
-                    <Info label="درجة العميل المحتمل" value={conversationLeadScore(safeConversation)} />
-                    <Info label="حرارة العميل" value={conversationLeadTemperature(safeConversation)} />
-                    <Info label="الإجراء المقترح" value={conversationRecommendedSalesAction(safeConversation)} />
+                    <Info label={t("aiSupport.inbox.field.leadScore")} value={conversationLeadScore(safeConversation)} />
+                    <Info label={t("aiSupport.inbox.field.leadTemperature")} value={conversationLeadTemperature(safeConversation)} />
+                    <Info label={t("aiSupport.inbox.field.suggestedAction")} value={conversationRecommendedSalesAction(safeConversation)} />
                     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
                       <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب التقييم</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -9635,7 +9655,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onAssignNameChange={updateAssignName}
                     onAction={updateConversationAction}
                   />
-                  <button type="button" onClick={() => setOrderComposerOpen(true)} className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 shadow-[0_14px_35px_rgba(52,211,153,0.18)]"><ShoppingCart className="h-5 w-5" />إنشاء طلب من المحادثة</button>
+                  <button type="button" onClick={() => setOrderComposerOpen(true)} className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 shadow-[0_14px_35px_rgba(52,211,153,0.18)]"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.orderHeading")}</button>
 
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -9864,7 +9884,7 @@ export default function AiInbox({ reviewerMode = false }) {
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
     {FAVORITE_FILTERS.map((item) => (
       <option key={item.key} value={item.key}>
-        {item.label}
+        {filterLabel(t, item)}
       </option>
     ))}
   </select>
