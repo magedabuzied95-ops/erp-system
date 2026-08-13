@@ -820,7 +820,14 @@
     "uploadImages": "رفع الصور",
     "multipleSupported": "يدعم عدة صور",
     "moveDown": "تحريك الصورة لأسفل",
-    "moveUp": "تحريك الصورة لأعلى"
+    "moveUp": "تحريك الصورة لأعلى",
+    "productImage": "صورة المنتج",
+    "filter": {
+      "all": "الكل",
+      "complete": "الصور مكتملة",
+      "incomplete": "صور ناقصة",
+      "none": "بدون صور"
+    }
   },
   "toasts": {
     "productDuplicated": "تم نسخ المنتج بنجاح",
@@ -936,7 +943,11 @@
     "saved": "تم تحديث الأسعار",
     "saveFailed": "تعذر تحديث الأسعار",
     "saving": "جارٍ الحفظ...",
-    "variantPrices": "أسعار الاختيارات"
+    "variantPrices": "أسعار الاختيارات",
+    "purchasePrice": "سعر الشراء",
+    "bulkPurchasePrice": "سعر الشراء الجماعي",
+    "mixedPrices": "أسعار مختلفة",
+    "sizesCount": "{{count}} مقاس"
   },
   "statusModal": {
     "activateDescription": "سيظهر هذا المنتج مرة أخرى في المتجر ونقاط البيع.",
@@ -951,5 +962,10 @@
   "tabs": {
     "offers": "العروض",
     "products": "المنتجات"
+  },
+  "printList": {
+    "nav": "قائمة الطباعة",
+    "addAction": "إضافة إلى قائمة الطباعة",
+    "added": "تمت إضافة المنتج إلى قائمة الطباعة"
   }
 }

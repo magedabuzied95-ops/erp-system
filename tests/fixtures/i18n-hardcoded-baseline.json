@@ -1,10 +1,10 @@
 {
   "note": "Localization debt baseline. New hardcoded UI strings are blocked by tests/i18n-hardcoded-guard.test.js. This baseline may only shrink — regenerate with `node scripts/i18n-audit.mjs --write-baseline` after reducing debt.",
   "totals": {
-    "arabic": 1298,
-    "english": 1145,
-    "total": 2443,
-    "mixedFiles": 37
+    "arabic": 1280,
+    "english": 1143,
+    "total": 2423,
+    "mixedFiles": 36
   },
   "files": {
     "src/App.jsx": {
@@ -402,11 +402,6 @@
       "english": 0,
       "total": 7
     },
-    "src/modules/products/components/ImageThumbnailActions.jsx": {
-      "arabic": 0,
-      "english": 1,
-      "total": 1
-    },
     "src/modules/products/components/MultiVersionGenerator.jsx": {
       "arabic": 0,
       "english": 10,
@@ -416,11 +411,6 @@
       "arabic": 10,
       "english": 0,
       "total": 10
-    },
-    "src/modules/products/components/ProductsShell.jsx": {
-      "arabic": 1,
-      "english": 0,
-      "total": 1
     },
     "src/modules/products/lib/barcodeLabels.js": {
       "arabic": 2,
@@ -454,8 +444,8 @@
     },
     "src/modules/products/pages/ProductDetails.jsx": {
       "arabic": 4,
-      "english": 1,
-      "total": 5
+      "english": 0,
+      "total": 4
     },
     "src/modules/products/pages/ProductEdit.jsx": {
       "arabic": 3,
@@ -468,9 +458,9 @@
       "total": 17
     },
     "src/modules/products/pages/ProductsList.jsx": {
-      "arabic": 18,
+      "arabic": 1,
       "english": 0,
-      "total": 18
+      "total": 1
     },
     "src/modules/purchases/pages/PurchaseOrder.jsx": {
       "arabic": 28,

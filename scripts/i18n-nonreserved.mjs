@@ -129,6 +129,23 @@ export const PRODUCT_FORM_HOLD = new Map([
 ]);
 
 /**
+ * Bucket C/F — catalogue values, not chrome.
+ *
+ * The ARABIC classifier already excludes these as data (DATA_FILES in
+ * i18n-classify.mjs). The ENGLISH scanner did not, purely because a Latin
+ * `label_ar` carries no Arabic for the bilingual detector to key on — so
+ * `{ value: "bags", label_ar: "Bags", label_en: "Bags" }` reads as an English
+ * leak when it is in fact a deliberate parallel pair whose Arabic side keeps the
+ * Latin word, exactly like the "Crocs" row beside it. Translating them would
+ * rewrite a catalogue value that products are matched against.
+ */
+export const CATALOGUE_VALUES = new Map([
+  ["src/modules/products/lib/productClassifications.js", "Canonical product-type values; the Arabic labels are deliberately Latin."],
+  ["src/shared/lib/crocsSizes.js", "Footwear size tables matched against catalogue data."],
+  ["src/shared/lib/categorySeo.js", "SEO slugs and category copy stored as catalogue data."],
+]);
+
+/**
  * Bucket E — print/export/thermal/barcode artwork.
  *
  * The scanner already buckets the files it recognises by name; these are the
@@ -151,6 +168,7 @@ const RESERVED = [
   ["H. AI Inbox reserved", AI_INBOX_RESERVED],
   ["I. Inbox-sensitive shared", INBOX_SENSITIVE],
   ["J. Product Form hold", PRODUCT_FORM_HOLD],
+  ["C. catalogue values", CATALOGUE_VALUES],
   ["E. print/export artwork", PRINT_RESERVED],
   ["K. product-decision debt", PRODUCT_DECISION],
 ];

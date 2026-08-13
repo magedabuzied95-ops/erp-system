@@ -1359,11 +1359,12 @@ function formatPrice(value) {
 }
 
 function PriceField({ label, value, onChange, current, placeholder = "", compact = false }) {
+  const { t } = useTranslation();
   return (
     <label className="block">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</span>
-        {current !== undefined ? <span className="text-[10px] font-semibold text-text-muted">الحالي: {current}</span> : null}
+        {current !== undefined ? <span className="text-[10px] font-semibold text-text-muted">{t("products.priceEditor.current")}: {current}</span> : null}
       </div>
       <input
         type="number"
@@ -1387,11 +1388,12 @@ function formatEditorCurrency(value) {
 }
 
 function AdvancedPriceField({ label, value, onChange, onBlur, current, placeholder = "", compact = false, changed = false }) {
+  const { t } = useTranslation();
   return (
     <label className="block">
       <div className={compact ? "sr-only" : "mb-1 flex items-center justify-between gap-2"}>
         <span className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</span>
-        {current !== undefined ? <span className="text-[10px] font-semibold text-text-muted">الحالي: {current}</span> : null}
+        {current !== undefined ? <span className="text-[10px] font-semibold text-text-muted">{t("products.priceEditor.current")}: {current}</span> : null}
       </div>
       <input
         type="number"
@@ -1720,7 +1722,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
           {error ? <div className="mb-3 rounded-[var(--radius-control)] border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
           <div className="mb-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
             <div className={`grid gap-2 md:items-end ${canEditPurchasePrice ? "md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]" : "md:grid-cols-[1fr_1fr_auto_auto_auto]"}`}>
-              {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء الجماعي" value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
+              {canEditPurchasePrice ? <AdvancedPriceField label={t("products.priceEditor.bulkPurchasePrice")} value={bulkPurchasePrice} onBlur={normalizeFormInputs} onChange={setBulkPurchasePrice} placeholder={t("products.priceEditor.empty", "Empty")} /> : null}
               <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
               <AdvancedPriceField label={t("products.priceEditor.bulkSalePrice", "Bulk Sale Price")} value={bulkSalePrice} onBlur={normalizeFormInputs} onChange={setBulkSalePrice} placeholder={t("products.priceEditor.empty", "Empty")} />
               <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
@@ -1741,7 +1743,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                 <div className="text-xs font-semibold text-text-muted">{productPriceChanged ? t("products.priceEditor.changed", "changed") : t("products.priceEditor.noChanges", "No price changes")}</div>
               </div>
               <div className={productPriceChanged ? "grid gap-3 rounded-[var(--radius-control)] border border-emerald-300/30 bg-emerald-400/[0.06] p-3 md:grid-cols-3" : "grid gap-3 rounded-[var(--radius-control)] border border-border bg-black/10 p-3 md:grid-cols-3"}>
-                {canEditPurchasePrice ? <AdvancedPriceField label="سعر الشراء" value={form.product.purchase_price} changed={productPriceChanged} current={formatPrice(form.product.current_purchase_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ purchase_price: value })} /> : null}
+                {canEditPurchasePrice ? <AdvancedPriceField label={t("products.priceEditor.purchasePrice")} value={form.product.purchase_price} changed={productPriceChanged} current={formatPrice(form.product.current_purchase_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ purchase_price: value })} /> : null}
                 <AdvancedPriceField label={t("products.priceEditor.salePrice", "سعر البيع")} value={form.product.sale_price} changed={productPriceChanged} current={formatPrice(form.product.current_sale_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ sale_price: value })} />
                 <AdvancedPriceField label={t("products.priceEditor.discountPrice", "سعر السيل")} value={form.product.discount_price} changed={productPriceChanged} current={form.product.current_discount_price === "" ? t("products.priceEditor.empty", "Empty") : formatPrice(form.product.current_discount_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
               </div>
@@ -1755,10 +1757,10 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
               </div>
               <div className="max-h-[46vh] space-y-2 overflow-auto p-2">
                 <div className={`hidden items-center gap-2 px-2 pb-1 text-[11px] font-black text-text-muted md:grid ${canEditPurchasePrice ? "md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(130px,180px))_auto]" : "md:grid-cols-[minmax(180px,1fr)_minmax(150px,190px)_minmax(150px,190px)_auto]"}`}>
-                  <span>اللون</span>
-                  {canEditPurchasePrice ? <span className="text-center">سعر الشراء</span> : null}
-                  <span className="text-center">سعر البيع</span>
-                  <span className="text-center">سعر السيل</span>
+                  <span>{t("products.fields.color")}</span>
+                  {canEditPurchasePrice ? <span className="text-center">{t("products.priceEditor.purchasePrice")}</span> : null}
+                  <span className="text-center">{t("products.priceEditor.salePrice")}</span>
+                  <span className="text-center">{t("products.priceEditor.discountPrice")}</span>
                   <span aria-hidden="true" />
                 </div>
                 {colorGroups.map((group) => {
@@ -1770,12 +1772,12 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                           {group.image ? <img src={group.image} alt={group.label} className="h-14 w-14 shrink-0 rounded-[var(--radius-card)] border border-border bg-surface object-cover" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted"><Package2 size={20} /></span>}
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-black text-text">{group.label}</span>
-                            <span className="mt-1 block text-xs font-semibold text-text-muted">{group.variants.length} مقاس</span>
+                            <span className="mt-1 block text-xs font-semibold text-text-muted">{t("products.priceEditor.sizesCount", { count: group.variants.length })}</span>
                           </span>
                         </button>
-                        {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={group.purchasePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { purchase_price: value })} placeholder={group.hasMixedPurchasePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} /> : null}
-                        <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
-                        <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? "أسعار مختلفة" : t("products.priceEditor.empty", "Empty")} />
+                        {canEditPurchasePrice ? <AdvancedPriceField compact label={t("products.priceEditor.purchasePrice")} value={group.purchasePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { purchase_price: value })} placeholder={group.hasMixedPurchasePrice ? t("products.priceEditor.mixedPrices") : t("products.priceEditor.empty", "Empty")} /> : null}
+                        <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={group.salePrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { sale_price: value })} placeholder={group.hasMixedSalePrice ? t("products.priceEditor.mixedPrices") : t("products.priceEditor.empty", "Empty")} />
+                        <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={group.discountPrice} changed={group.changed} onBlur={normalizeFormInputs} onChange={(value) => setColorGroupPrice(group.key, { discount_price: value })} placeholder={group.hasMixedDiscountPrice ? t("products.priceEditor.mixedPrices") : t("products.priceEditor.empty", "Empty")} />
                         <button type="button" onClick={() => toggleColorGroup(group.key)} aria-expanded={expanded} className="grid h-[var(--control-height-md)] w-10 place-items-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover">
                           <ChevronDown size={18} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
                         </button>
@@ -1784,7 +1786,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                         <div className="border-t border-border bg-black/20 p-2">
                           <div className={`mb-2 grid gap-2 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-text-muted ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"}`}>
                             <span>{t("products.fields.size", "Size")}</span>
-                            {canEditPurchasePrice ? <span>سعر الشراء</span> : null}
+                            {canEditPurchasePrice ? <span>{t("products.priceEditor.purchasePrice")}</span> : null}
                             <span>{t("products.priceEditor.salePrice", "سعر البيع")}</span>
                             <span>{t("products.priceEditor.discountPrice", "سعر السيل")}</span>
                           </div>
@@ -1794,7 +1796,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
                               return (
                                 <div key={variant.id || index} className={`grid items-center gap-2 rounded-[var(--radius-control)] p-2 ${canEditPurchasePrice ? "grid-cols-[5rem_1fr_1fr_1fr]" : "grid-cols-[5rem_1fr_1fr]"} ${changed ? "bg-emerald-400/[0.06]" : "bg-surface-soft"}`}>
                                   <span className="font-black text-text">{variant.size}</span>
-                                  {canEditPurchasePrice ? <AdvancedPriceField compact label="سعر الشراء" value={variant.purchase_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { purchase_price: value })} /> : null}
+                                  {canEditPurchasePrice ? <AdvancedPriceField compact label={t("products.priceEditor.purchasePrice")} value={variant.purchase_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { purchase_price: value })} /> : null}
                                   <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { sale_price: value })} />
                                   <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
                                 </div>
@@ -2429,7 +2431,7 @@ function ProductsList() {
     try {
       const detailedRow = await loadProductDetails(row.id);
       addProductsToPrintList([detailedRow || row]);
-      toast.success("تمت إضافة المنتج إلى قائمة الطباعة");
+      toast.success(t("products.printList.added"));
       setOpenActionId(null);
       setActionMenuPosition(null);
     } catch (error) {
@@ -2530,7 +2532,7 @@ function ProductsList() {
       {
         key: "add-to-print-list",
         icon: Printer,
-        label: "إضافة إلى قائمة الطباعة",
+        label: t("products.printList.addAction"),
         placement: "dropdown",
         onClick: () => handleAddToProductPrintList(row),
       },
@@ -3044,10 +3046,10 @@ function ProductsList() {
             }}
             className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-text outline-none"
           >
-            <option value="all">الكل</option>
-            <option value="complete">الصور مكتملة</option>
-            <option value="incomplete">صور ناقصة</option>
-            <option value="none">بدون صور</option>
+            <option value="all">{t("products.images.filter.all")}</option>
+            <option value="complete">{t("products.images.filter.complete")}</option>
+            <option value="incomplete">{t("products.images.filter.incomplete")}</option>
+            <option value="none">{t("products.images.filter.none")}</option>
           </select>
 
           <div className="relative" data-products-filter-popover>

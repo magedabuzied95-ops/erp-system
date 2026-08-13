@@ -16,7 +16,7 @@ const imageSource = (image = {}) =>
 
 function ImageThumbnailActions({
   image,
-  alt = "Product image",
+  alt = "",
   isPrimary = false,
   onDelete,
   onPrimary,
@@ -46,7 +46,7 @@ function ImageThumbnailActions({
       className={`group relative h-24 w-24 overflow-hidden rounded-[var(--radius-control)] border bg-surface-soft shadow-[var(--shadow-card)] ${ isPrimary ? "border-primary" : "border-border" } ${className}`}
     >
       {src ? (
-        <img src={src} alt={alt} className={`h-full w-full transition duration-200 group-hover:scale-[1.03] ${imageClassName}`} />
+        <img src={src} alt={alt || t("products.images.productImage")} className={`h-full w-full transition duration-200 group-hover:scale-[1.03] ${imageClassName}`} />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-surface-soft text-xs font-bold text-text-muted">
           {t("products.images.noImage", "No image")}

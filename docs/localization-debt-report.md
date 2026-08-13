@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 134
-- Hardcoded Arabic UI strings: 1298
-- Hardcoded English UI strings: 1145
-- Total hardcoded UI strings: 2443
-- Mixed-language files (both scripts hardcoded): 37
+- Files with debt: 132
+- Hardcoded Arabic UI strings: 1280
+- Hardcoded English UI strings: 1143
+- Total hardcoded UI strings: 2423
+- Mixed-language files (both scripts hardcoded): 36
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 66 | 934 | 748 | 1682 | 24 |
-| shared | 52 | 164 | 314 | 478 | 9 |
+| main-erp | 66 | 917 | 747 | 1664 | 23 |
+| shared | 50 | 163 | 313 | 476 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -61,7 +61,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
 | src/components/ai/AISuggestedReplies.jsx | shared | 1 | 4 | 5 |
 | src/modules/products/lib/productClassifications.js | main-erp | 1 | 4 | 5 |
-| src/modules/products/pages/ProductDetails.jsx | main-erp | 4 | 1 | 5 |
 | src/modules/aiSupport/components/socialAutomation/AutomationMessageTemplates.jsx | shared | 2 | 2 | 4 |
 | src/modules/products/lib/barcodeLabels.js | main-erp | 2 | 1 | 3 |
 | src/pages/Login.jsx | main-erp | 1 | 2 | 3 |
@@ -1107,27 +1106,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 178 [inline-ternary/ar] isArabic ? "مشاركة واتساب" : "WhatsApp Share"
 - 182 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 
-### src/modules/products/pages/ProductsList.jsx (main-erp — ar:18 en:0)
-
-- 399 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
-- 1366 [jsx-text/ar] الحالي:
-- 1394 [jsx-text/ar] الحالي:
-- 1723 [attribute/ar] سعر الشراء الجماعي
-- 1744 [attribute/ar] سعر الشراء
-- 1758 [jsx-text/ar] اللون
-- 1759 [jsx-text/ar] سعر الشراء
-- 1760 [jsx-text/ar] سعر البيع
-- 1761 [jsx-text/ar] سعر السيل
-- 1776 [attribute/ar] سعر الشراء
-- 1787 [jsx-text/ar] سعر الشراء
-- 1797 [attribute/ar] سعر الشراء
-- 2432 [notification/ar] تمت إضافة المنتج إلى قائمة الطباعة
-- 2533 [object-key/ar] إضافة إلى قائمة الطباعة
-- 3047 [jsx-text/ar] الكل
-- 3048 [jsx-text/ar] الصور مكتملة
-- 3049 [jsx-text/ar] صور ناقصة
-- 3050 [jsx-text/ar] بدون صور
-
 ### src/modules/aiSupport/components/socialAutomation/SocialAutomationDrawer.jsx (shared — ar:0 en:17)
 
 - 37 [object-key/en] Comments
@@ -1741,14 +1719,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 12 [object-key/ar] كولكشن الشتوي
 - 13 [object-key/en] Slippers
 
-### src/modules/products/pages/ProductDetails.jsx (main-erp — ar:4 en:1)
-
-- 58 [attribute/en] Product image
-- 177 [inline-ternary/ar] isArabic ? "رجالي" : "Men"
-- 178 [inline-ternary/ar] isArabic ? "حريمي" : "Women"
-- 179 [inline-ternary/ar] isArabic ? "أطفال" : "Kids"
-- 500 [inline-ternary/ar] isArabic ? "غير متاح" : "n/a"
-
 ### src/shared/lib/currency.js (shared — ar:0 en:5)
 
 - 4 [object-key/en] Egyptian Pound
@@ -1805,6 +1775,13 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1502 [jsx-text/en] Mood:
 - 1503 [jsx-text/en] Platform:
 - 1504 [jsx-text/en] Search:
+
+### src/modules/products/pages/ProductDetails.jsx (main-erp — ar:4 en:0)
+
+- 177 [inline-ternary/ar] isArabic ? "رجالي" : "Men"
+- 178 [inline-ternary/ar] isArabic ? "حريمي" : "Women"
+- 179 [inline-ternary/ar] isArabic ? "أطفال" : "Kids"
+- 500 [inline-ternary/ar] isArabic ? "غير متاح" : "n/a"
 
 ### src/modules/sales/pages/SalesEmployees.jsx (main-erp — ar:0 en:4)
 
@@ -1973,17 +1950,13 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 9 [attribute/ar] مثال: SM17
 
-### src/modules/products/components/ImageThumbnailActions.jsx (shared — ar:0 en:1)
-
-- 19 [attribute/en] Product image
-
-### src/modules/products/components/ProductsShell.jsx (shared — ar:1 en:0)
-
-- 38 [object-key/ar] قائمة الطباعة
-
 ### src/modules/products/lib/barcodePdfGenerator.js (main-erp — ar:0 en:1)
 
 - 183 [attribute/en] No Image
+
+### src/modules/products/pages/ProductsList.jsx (main-erp — ar:1 en:0)
+
+- 399 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
 
 ### src/modules/purchases/pages/ReorderSuggestions.jsx (main-erp — ar:0 en:1)
 
