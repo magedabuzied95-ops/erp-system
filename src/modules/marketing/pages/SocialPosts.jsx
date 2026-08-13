@@ -144,8 +144,10 @@ function HistoryRow({ item, t }) {
           </div>
 
           <div className="mt-3 flex items-center gap-2 text-sm font-black text-[var(--text)]">
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--muted)]">#{item.id}</span>
-            <span className="truncate">{caption || t("marketing.socialHistory.untitled")}</span>
+            <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--muted)]">#{item.id}</span>
+            {/* min-w-0: without it this flex item's min size is the caption's max-content
+                width, which defeats truncate and stretches the whole card. */}
+            <span className="min-w-0 truncate">{caption || t("marketing.socialHistory.untitled")}</span>
           </div>
 
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
