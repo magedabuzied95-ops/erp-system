@@ -3009,6 +3009,20 @@ const expandProductsToColorCards = (products = []) => {
   return cards;
 };
 
+export const storefrontCardHasAvailableSize = (product = {}, size = "") => {
+  const targetSize = queryText(size).toLowerCase();
+  if (!targetSize) return true;
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  if (variants.length) {
+    return variants.some((variant) =>
+      queryText(variant?.size ?? variant?.size_value).toLowerCase() === targetSize &&
+      toNumber(variant?.stock ?? variant?.quantity) > 0
+    );
+  }
+  return queryText(product?.size ?? product?.size_value).toLowerCase() === targetSize &&
+    toNumber(product?.total_stock ?? product?.stock) > 0;
+};
+
 const normalizeStorefrontProductsQuery = (query = {}) => {
   const rawSearch = queryText(query.q).toLowerCase();
   const audienceSearch = normalizeAudienceValue(rawSearch);
@@ -3202,10 +3216,13 @@ export const listProducts = async (req, res) => {
       const imagedProducts = await perf.step("hydrate_images", () => hydrateProductsWithImages(products, { compact: true }));
       const hydratedProducts = await perf.step("scrub_classifications", () => scrubInactiveClassifications(imagedProducts));
       const expandedProducts = perf.sync("color_expansion", () => (groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts)));
+      const sizeAvailableProducts = size && effectiveInStockOnly
+        ? expandedProducts.filter((product) => storefrontCardHasAvailableSize(product, size))
+        : expandedProducts;
       if (randomSeed) {
         console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
-      const sortedExpandedProducts = perf.sync("sort_cards", () => (shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts));
+      const sortedExpandedProducts = perf.sync("sort_cards", () => (shouldOrderAfterExpansion ? sortStorefrontCards(sizeAvailableProducts, sort, randomSeed) : sizeAvailableProducts));
       const orderedExpandedProducts = perf.sync("offer_ordering", () => keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || Boolean(size)));
       const categoryProducts = largeSizes
         ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
