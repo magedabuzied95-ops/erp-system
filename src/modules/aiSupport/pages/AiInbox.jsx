@@ -5633,8 +5633,16 @@ export default function AiInbox({ reviewerMode = false }) {
     const normalizedCaption = (value = "") => clean(value)
       .toLowerCase()
       .replace(/https?:\/\/\S+/g, "")
+      .replace(/#[\p{L}\p{N}_]+/gu, "")
       .replace(/[^\p{L}\p{N}]+/gu, " ")
       .trim();
+    const captionSimilarity = (left = "", right = "") => {
+      const leftTokens = new Set(left.split(" ").filter(Boolean));
+      const rightTokens = new Set(right.split(" ").filter(Boolean));
+      if (!leftTokens.size || !rightTokens.size) return 0;
+      const intersection = [...leftTokens].filter((token) => rightTokens.has(token)).length;
+      return (2 * intersection) / (leftTokens.size + rightTokens.size);
+    };
     const mergeBuckets = new Map();
     for (const item of asArray(socialComments.items)) {
       const post = normalizeSocialCommentPost(item);
@@ -5642,8 +5650,25 @@ export default function AiInbox({ reviewerMode = false }) {
       const parsedTime = Date.parse(post.displayPostTime || post.lastActivity || "");
       const dayKey = Number.isFinite(parsedTime) ? new Date(parsedTime).toISOString().slice(0, 10) : "unknown";
       const fallbackKey = `${post.platform}:${post.postId || post.id}`;
-      const groupKey = captionKey ? `${dayKey}:${captionKey}` : fallbackKey;
-      const current = mergeBuckets.get(groupKey);
+      let groupKey = captionKey ? `${dayKey}:${captionKey}` : fallbackKey;
+      let current = mergeBuckets.get(groupKey);
+      if (!current && captionKey && Number.isFinite(parsedTime)) {
+        let nearestMatch = null;
+        for (const [candidateKey, candidate] of mergeBuckets.entries()) {
+          if (asArray(candidate.platforms).includes(post.platform)) continue;
+          const candidateCaption = normalizedCaption(candidate.caption);
+          const candidateTime = Date.parse(candidate.displayPostTime || candidate.lastActivity || "");
+          if (!Number.isFinite(candidateTime) || Math.abs(candidateTime - parsedTime) > 5 * 60 * 1000) continue;
+          const similarity = captionSimilarity(captionKey, candidateCaption);
+          if (similarity < 0.82) continue;
+          const distance = Math.abs(candidateTime - parsedTime);
+          if (!nearestMatch || distance < nearestMatch.distance) nearestMatch = { candidateKey, candidate, distance };
+        }
+        if (nearestMatch) {
+          groupKey = nearestMatch.candidateKey;
+          current = nearestMatch.candidate;
+        }
+      }
       if (!current) {
         mergeBuckets.set(groupKey, {
           ...post,

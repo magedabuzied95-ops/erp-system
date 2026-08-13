@@ -1450,6 +1450,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
         selected={key === selectedCommentKey || isHighlighted}
         onSelect={handleSelect}
         onCustomerSelect={onSelectCustomer}
+        compact
       >
         {attachmentPreview ? (
           <a
@@ -1468,12 +1469,12 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
           </a>
         ) : null}
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={handleReply}
             disabled={busy || !nextReplyText || Boolean(replyLoadingKey)}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-cyan-300 px-2.5 text-[11px] font-black text-slate-950 disabled:opacity-50"
           >
             {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {t("aiSupport.inbox.socialWorkspace.reply")}
@@ -1483,7 +1484,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             onClick={handlePrivateMessage}
             disabled={busy || !privateMessageSupported || !nextReplyText || Boolean(privateMessageLoadingKey)}
             title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-200 disabled:opacity-50"
           >
             {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
@@ -1492,7 +1493,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             type="button"
             onClick={handleCreateLead}
             disabled={busy}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-200 disabled:opacity-50"
           >
             {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
             {t("aiSupport.inbox.socialWorkspace.createLead")}
@@ -1501,7 +1502,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             type="button"
             onClick={handleIgnore}
             disabled={busy}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-black text-slate-300 disabled:opacity-50"
           >
             {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
             {t("aiSupport.inbox.socialWorkspace.ignore")}

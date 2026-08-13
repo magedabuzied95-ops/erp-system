@@ -418,6 +418,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   onCustomerSelect,
   onKeyDown,
   fallbackPlatform = "facebook",
+  compact = false,
   className = "",
   children = null,
   ...rest
@@ -446,14 +447,16 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       onKeyDown={handleKeyDown}
       {...rest}
       className={[
-        "rounded-[22px] border border-white/10 bg-slate-950/70 p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition",
+        compact
+          ? "rounded-2xl border border-white/10 bg-slate-950/70 p-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition"
+          : "rounded-[22px] border border-white/10 bg-slate-950/70 p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition",
         selected ? "ring-1 ring-cyan-300/30" : "hover:border-white/20 hover:bg-slate-900/80",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      <div className="flex items-start gap-3.5">
+      <div className={`flex items-start ${compact ? "gap-2.5" : "gap-3.5"}`}>
         <div className="relative shrink-0">
           {hasAvatar ? (
             <button
@@ -468,7 +471,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
               <img
                 src={data.customerAvatarUrl}
                 alt={data.customerName}
-                className="h-12 w-12 rounded-full object-cover"
+                className={`${compact ? "h-9 w-9" : "h-12 w-12"} rounded-full object-cover`}
                 loading="lazy"
               />
             </button>
@@ -479,7 +482,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 event.stopPropagation();
                 onCustomerSelect?.(comment, data);
               }}
-              className="grid h-12 w-12 place-items-center rounded-full bg-white/[0.05] text-sm font-black text-slate-100 ring-1 ring-white/10 transition hover:bg-white/[0.08]"
+              className={`grid place-items-center rounded-full bg-white/[0.05] font-black text-slate-100 ring-1 ring-white/10 transition hover:bg-white/[0.08] ${compact ? "h-9 w-9 text-xs" : "h-12 w-12 text-sm"}`}
               aria-label={t("aiSupport.inbox.commentTimeline.openCustomerDetails", { name: data.customerName || t("aiSupport.inbox.commentTimeline.customer") })}
             >
               {data.initials || <UserRound className="h-5 w-5" />}
@@ -499,11 +502,11 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                   event.stopPropagation();
                   onCustomerSelect?.(comment, data);
                 }}
-                className="truncate text-left text-[15px] font-black leading-6 text-white hover:underline"
+                className={`truncate text-left font-black text-white hover:underline ${compact ? "text-[13px] leading-5" : "text-[15px] leading-6"}`}
               >
                 {data.customerName || t("aiSupport.inbox.commentTimeline.customer")}
               </button>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
+              <div className={`flex flex-wrap items-center font-black uppercase tracking-[0.08em] text-slate-500 ${compact ? "mt-0.5 gap-1.5 text-[9px]" : "mt-1 gap-2 text-[11px]"}`}>
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
                   {data.platformMeta.label}
                 </span>
@@ -524,7 +527,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end gap-1.5">
+            {!compact ? <div className="flex flex-wrap justify-end gap-1.5">
               {data.statuses.map((status) => (
                 <span
                   key={status.key}
@@ -534,14 +537,14 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                   {t(`aiSupport.inbox.commentTimeline.${status.labelKey}`)}
                 </span>
               ))}
-            </div>
+            </div> : null}
           </div>
 
-          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[14px] leading-7 text-slate-100">
+          <div className={`rounded-xl border border-white/10 bg-white/[0.04] text-slate-100 ${compact ? "mt-1.5 p-2 text-[13px] leading-6" : "mt-2 p-3 text-[14px] leading-7"}`}>
             <div className="whitespace-pre-wrap">{data.text || t("aiSupport.inbox.commentTimeline.noCommentText")}</div>
           </div>
 
-          {data.generatedPublicReply || data.generatedPrivateReply ? (
+          {!compact && (data.generatedPublicReply || data.generatedPrivateReply) ? (
             <div className="mt-3 grid gap-2 lg:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{t("aiSupport.inbox.commentTimeline.generatedPublicReply")}</div>

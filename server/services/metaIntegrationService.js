@@ -8099,7 +8099,7 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
       if (alreadyStored) continue;
       const enrichedComment = await fetchMetaCommentDetailsForPolling({ commentId, token }).catch(() => null);
       const effectiveComment = enrichedComment || comment;
-      if (text(effectiveComment?.from?.id || comment?.from?.id || "") === pageId) continue;
+      const isPageOwnedComment = text(effectiveComment?.from?.id || comment?.from?.id || "") === pageId;
       const attribution = resolveMetaPolledCommentAttribution({
         feedPost: resolvedPost,
         comment: effectiveComment,
@@ -8113,7 +8113,11 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
         comment: effectiveComment,
         attribution,
       });
-      await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
+      await storeSocialCommentAutomationRuns({
+        tenantId: safeTenantId,
+        events: [event],
+        skipAutomation: isPageOwnedComment,
+      });
       commentsSaved += 1;
     }
   }
@@ -8368,9 +8372,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             text_length: text(effectiveComment.message || comment.message || "").length,
           });
 
-          if (commenterId && commenterId === pageId) {
-            continue;
-          }
+          const isPageOwnedComment = Boolean(commenterId && commenterId === pageId);
 
           try {
             const alreadyStored = await commentAlreadyInSocialRuns({
@@ -8389,7 +8391,11 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
               continue;
             }
 
-            await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
+            await storeSocialCommentAutomationRuns({
+              tenantId: safeTenantId,
+              events: [event],
+              skipAutomation: isPageOwnedComment,
+            });
             totals.comments_saved += 1;
             console.log("META_COMMENTS_POLL_COMMENT_SAVED", {
               tenant_id: safeTenantId,
