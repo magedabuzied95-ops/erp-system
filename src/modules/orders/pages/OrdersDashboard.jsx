@@ -925,19 +925,7 @@ function OrdersDashboard() {
 
       <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
         <main className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-2xl shadow-black/10">
-          <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <BulkActions
-              t={t}
-              selectedCount={selectedCount}
-              onConfirm={() => bulkSetStatus("Confirmed")}
-              onShip={() => bulkSetStatus("Shipped")}
-              onPrint={() => window.print()}
-              onExport={exportSelected}
-              onWhatsapp={bulkWhatsapp}
-            />
-          </div>
-
-            <Filters
+          <Filters
             t={t}
             search={search}
             setSearch={(value) => updateFilter(setSearch, value)}
@@ -949,6 +937,17 @@ function OrdersDashboard() {
             setChannelFilter={(value) => updateFilter(setChannelFilter, value)}
             dateFilter={dateFilter}
             setDateFilter={(value) => updateFilter(setDateFilter, value)}
+            actions={(
+              <BulkActions
+                t={t}
+                selectedCount={selectedCount}
+                onConfirm={() => bulkSetStatus("Confirmed")}
+                onShip={() => bulkSetStatus("Shipped")}
+                onPrint={() => window.print()}
+                onExport={exportSelected}
+                onWhatsapp={bulkWhatsapp}
+              />
+            )}
           />
 
           {loading ? <TableSkeleton /> : null}
@@ -1066,7 +1065,7 @@ function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) 
 
 function Filters(props) {
   const {
-    t, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter, dateFilter, setDateFilter,
+    t, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter, dateFilter, setDateFilter, actions,
   } = props;
 
   return (
@@ -1094,6 +1093,7 @@ function Filters(props) {
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <QuickFilterButton active={dateFilter === getDateInputValue()} onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} label={t("orders.filters.today")} />
+        {actions}
       </div>
     </>
   );
