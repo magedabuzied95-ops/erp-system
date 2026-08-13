@@ -366,6 +366,46 @@ export const isPriceQuestion = (message = "") => {
   return /بكام|بكم|سعر|price|how much/i.test(text) || /(^|\s)كام\s*[؟?]?$/.test(text);
 };
 
+// ---- Batch 1A-3 — AUTHORITATIVE category availability ---------------------------------------------------
+// ONE indexed SQL question: "does ANY customer-visible, in-stock variant of this category match the requested
+// size and colour family?" Every eligibility predicate (tenant, visibility, type, size, colour, stock) is applied
+// in PostgreSQL; the LIMIT caps only how many POSITIVE rows come back. Zero rows is therefore a real negative,
+// not a sample. Size and colour reuse the existing canonical semantics: the same size regex shape as
+// matchesRequestedSize, and the same COLOR_ALIASES family table as matchesRequestedColor (so "اسود" keeps
+// matching "ALL BLACK" / "Black & White" / "Black & Red").
+export const buildColorFamilyPatterns = (requested = "") => {
+  const want = clean(requested);
+  if (!want) return null;
+  const alias = COLOR_ALIASES.find(([c]) => c === want);
+  const words = alias ? [want, ...alias[1]] : [want];
+  return [...new Set(words.map((w) => `%${clean(w).toLowerCase()}%`))];
+};
+
+export const defaultFindCategoryAvailability = async ({ tenantId, productType, size, color, limit = 24, dbClient = db } = {}) => {
+  if (!tenantId || !productType) return [];
+  const sizePattern = size ? `(^|[^0-9])${String(size).replace(/[^0-9a-z]/gi, "")}([^0-9]|$)` : null;
+  const colorPatterns = buildColorFamilyPatterns(color);
+  const r = await dbClient.query(
+    `SELECT p.id, p.name, p.product_type, v.id AS variant_id, v.color, v.size, v.stock
+       FROM products p
+       JOIN product_variants v ON v.product_id = p.id AND v.tenant_id = p.tenant_id
+      WHERE p.tenant_id = $1
+        AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
+        AND LOWER(TRIM(COALESCE(p.product_type, ''))) = $2
+        AND COALESCE(v.stock, 0) > 0
+        AND ($3::text IS NULL OR REPLACE(LOWER(COALESCE(v.size, '')), ' ', '') ~ $3::text)
+        AND ($4::text[] IS NULL OR LOWER(COALESCE(v.color, '')) LIKE ANY($4::text[]))
+      ORDER BY p.id ASC
+      LIMIT $5`,
+    [tenantId, String(productType).toLowerCase().trim(), sizePattern, colorPatterns, limit]
+  ).catch((e) => {
+    console.error("[inbox-grounding-gate] authoritative availability query failed", { err: String(e?.message || e).slice(0, 120) });
+    return null;
+  });
+  // null (query failed) is NOT "no stock" — the caller must not turn an error into a definitive negative.
+  return r ? (r.rows || []) : null;
+};
+
 // Batch 1A-2 — reads the CURRENT canonical customer price for a grounded product/variant. Raw DB rows are passed
 // to the authority on purpose: a serialized API object may have had regular_price overwritten with the resolved
 // normal price, so it is not a trustworthy pricing input. Sale Mode semantics are NOT duplicated here — the shared
@@ -698,6 +738,38 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
       decision.answer = guardNoFalseAvailability(decision.action, decision.answer, neutralUnavail);
     }
 
+    // ---- Batch 1A-3 — AUTHORITATIVE CATEGORY AVAILABILITY (false-negative guard) -------------------------
+    // The bounded discovery path (LIMIT 8 → slice(0,5)) is fine for finding POSITIVE matches, but it may never be
+    // the sole evidence for a CATEGORY-WIDE negative: Phase 14 proved "عايز كوتشي اسود مقاس 43" answered
+    // "مش متوفر" from 5 of 465 visible sneakers while products 3/4/6/7 held real size-43 black stock.
+    // So before any category-wide negative is spoken, ONE indexed SQL query asks the authoritative question.
+    // Explicit single-product turns are untouched — a "size 47 not available in THIS product" answer is a
+    // product-level fact, not a category claim.
+    let effectiveProducts = compatibleProducts;
+    let authoritativeAvailability = null;
+    const categoryWideNegative = ["unavailable", "clarify_size"].includes(decision.action)
+      && !brandModelProducts && Boolean(entities.productType) && entities.productType !== "resolved";
+    if (categoryWideNegative) {
+      const findAvailable = deps.findCategoryAvailability || defaultFindCategoryAvailability;
+      const rows = await findAvailable({ tenantId, productType: entities.productType, size: entities.size, color: entities.color }).catch(() => null);
+      if (Array.isArray(rows)) {
+        authoritativeAvailability = { checked: true, matches: rows.length, scope: { productType: entities.productType, size: entities.size || null, color: entities.color || null } };
+        if (rows.length) {
+          // The bounded sample was incomplete — real stock exists. Never say unavailable.
+          // Dedupe to PRODUCTS (one shoe with five black-family variants is one recommendation, not five) and
+          // keep the operator-facing set inside the existing recommendation UX bound.
+          const byProduct = new Map();
+          for (const r of rows) if (!byProduct.has(String(r.id))) byProduct.set(String(r.id), { id: r.id, name: r.name, product_type: r.product_type });
+          effectiveProducts = [...byProduct.values()].slice(0, 6);
+          decision.action = "soft_match";
+          decision.cards = effectiveProducts;
+          const colorLbl = entities.colorLabel ? ` باللون ${entities.colorLabel}` : "";
+          const sizeLbl = entities.size ? ` مقاس ${entities.size}` : "";
+          decision.answer = `أيوه عندنا ${entities.typeLabel || "المنتج"}${colorLbl}${sizeLbl} متاح 👇 بص على الاختيارات ولو عايز موديل معين قولّي.`;
+        }
+      }
+    }
+
     // Build grounded product cards from compatible catalog products only (never incompatible ones).
     const groundedCards = (decision.cards || []).map((p) => ({ id: p.id, product_id: p.id, name: p.name, product_type: p.product_type, grounded: true }));
     const detectedIntent = CANONICAL_LABELS[requestedIntent] || "PRODUCT_AVAILABILITY";
@@ -706,7 +778,7 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // the canonical services). Grounding is authoritative: a card may be auto-attached ONLY when EXACTLY ONE
     // catalog product resolved. When the term matched >1 distinct product (e.g. "Jordan 4" → 208 + 39), we do
     // NOT silently attach one — we surface choices for the employee to pick. Never attach remembered/popular.
-    const distinctProductIds = [...new Set(compatibleProducts.map((p) => p.id))];
+    const distinctProductIds = [...new Set(effectiveProducts.map((p) => p.id))];
     const productAmbiguous = distinctProductIds.length > 1;
     // Phase 13.4.1 — VARIANT OPTIONS mode. Identity counts as GROUNDED when the in-stock colour choices for the
     // requested size all belong to ONE product — that is the variant evidence resolving identity, which is
@@ -762,7 +834,7 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     let sendReadyCard = null;
     let cardChoices = [];
     if (productAmbiguous) {
-      cardChoices = compatibleProducts.slice(0, 6).map((p) => ({ product_id: p.id, id: p.id, name: p.name, product_type: p.product_type, grounded: true }));
+      cardChoices = effectiveProducts.slice(0, 6).map((p) => ({ product_id: p.id, id: p.id, name: p.name, product_type: p.product_type, grounded: true }));
     } else if (compatibleProducts.length === 1 && ["available", "unavailable", "soft_match"].includes(decision.action)) {
       const p = compatibleProducts[0];
       sendReadyCard = {
@@ -809,6 +881,9 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
         action: decision.action,
         // Phase 12.1 — provenance: how the product SUBJECT was chosen (explicit new mention vs recalled context).
         product_resolution: productContextResolution || { source: "explicit_message" },
+        // Batch 1A-3 — evidence that a category-wide negative was proven authoritatively (or that real stock was
+        // found outside the bounded sample). Absent when no category negative was ever on the table.
+        authoritative_availability: authoritativeAvailability,
       },
     };
   } catch (e) {
