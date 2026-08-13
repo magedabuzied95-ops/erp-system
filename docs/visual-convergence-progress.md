@@ -18,7 +18,7 @@ Started from `origin/main` @ `3ca9c07`.
 | 7 | Page-title convergence to 22px (shared MarketingStudioHeader / 5 routes) | `pre-visual-convergence-cp7-20260813` -> `d64e591` | `f955760` | REVERTED in `8304aed` (automation-session failure, not a real outage) | build green |
 | 7b | Re-apply of cp7 after the incident was cleared | `pre-visual-convergence-cp7b-20260813` -> `21ba628` | `c950a77` | `c950a77` verified Light + Dark (5 routes) | build green |
 | 8 | `/analytics` fixed-dark dashboard (1 file / 1 route) | `pre-visual-convergence-cp8-20260813` -> `8909fc4` | `907cf92` | `907cf92` verified Light + Dark | build green |
-| 9 | `GLOBAL_DROPDOWN_TYPOGRAPHY` (native inheritance + custom/listbox/portal owners) | `pre-visual-convergence-cp9-dropdown-20260813` -> `25a6dac` | `11cb40b` | PENDING RELEASE VERIFICATION | 1944 tests, 24 existing unrelated failures; targeted 10/10; build green |
+| 9 | `GLOBAL_DROPDOWN_TYPOGRAPHY` (native inheritance + custom/listbox/portal owners) | `pre-visual-convergence-cp9-dropdown-20260813` -> `25a6dac` | `6683536` | `6683536` verified Light/RTL + Dark/LTR | 1944 tests, 24 existing unrelated failures; targeted 10/10; build green |
 
 ## Method
 
@@ -723,6 +723,173 @@ The gradient rule now ignores gradients containing an alpha stop or
 corrected rule both routes report **0**. No source change was made — this was a
 detector defect, not a product defect.
 
+### Phase 3 — Session-4 Dark pass COMPLETE
+
+Measured on Production at `bed1588`, Dark / Arabic RTL. Auditor re-validated
+against frozen `/products` (Dark, 0 offenders) before recording. All routes
+below: 0 offenders, 0 **opaque** dark gradients.
+
+`/ai-studio/workflows` · `executions` · `approvals` · `tools` ·
+`restock-recovery` · `/operations/shipping` · `/website/settings` ·
+`/orders/returns` · `/staff/tasks` · `/products/print-list` ·
+`/products/barcode-print-queue` (45,429 nodes, full walk) ·
+`/admin/tenants` · `ai-channels` · `ai-agent-settings` · `ai-agent-analytics` ·
+`ai-support-knowledge-base` · `ai-followups` · `ai-support-console` ·
+`ai-inbox` (observe only) · `/pos`
+
+**ID-bound detail routes (Dark):** `/orders/365` · `/suppliers/6` ·
+`/purchases/92` · `/suppliers/6/statement` · `/customers/3176/statement` ·
+`/products/740` · `/inventory/count/6` — all clean. These are now **PASS (both
+themes)**.
+
+`/ai-studio/tools` and `/operations/shipping` first reported **NOSET**; both were
+re-measured after a longer settle and only then recorded.
+
+#### `/pos` — 61 dark gradients in Dark are NOT a defect
+
+Dark reported 61 opaque dark gradients. Re-measured in **Light: 0 offenders,
+0 dark gradients**, body `rgb(234,231,224)` = `--bg`. They are `dark:`-variant
+gradients that only apply in the Dark theme, i.e. theme-appropriate. No change
+made. (The session-4 Light POS audit had no gradient probe, so this was a
+genuine gap that the Dark pass closed.)
+
+### The barcode/label routes are ONE large-DOM surface
+
+`/products/labels`, `/products/barcode-labels` and `/products/barcodes` all
+render **327,119 nodes** — identical counts, the same label-sheet component.
+They are treated as a single special surface.
+
+### Phase 4 — bounded verification COMPLETE
+
+**`/products/labels` Dark: PASS_BOUNDED.** 3,044 nodes checked (structural walk
+to depth 8 + header/footer/actions/buttons + first/middle/last repeated-item
+samples), **0 offenders, 0 opaque dark gradients**, shell `rgb(19,18,17)` =
+`--bg`, route == landed. Stability was established by two independent tool calls
+returning an identical node count, because any in-page timer on this route
+saturates the renderer and times out CDP.
+
+`/products/barcode-labels` and `/products/barcodes` received the same bounded
+Dark verification: 3,044 checked, 0 offenders each.
+
+**These remain PASS_BOUNDED, not PASS** — they have never received exhaustive
+per-node coverage and must not be recorded as if they had.
+
+### Phase 5 — frozen-reference sweep (Light) COMPLETE
+
+Verified only; **nothing modified**.
+
+| Frozen reference | Light | Offenders | Opaque dark gradients |
+|---|---|---|---|
+| `/dashboard` | ✓ | 0 | 0 |
+| `/orders` | ✓ | 0 | 0 |
+| `/products` | ✓ | 0 | 0 |
+| `/customers` | ✓ | 0 | 0 |
+| `/inventory` | ✓ | 0 | 0 |
+| `/products/add` | ✓ | 0 | 0 |
+| `/products/740/edit` | ✓ | 0 | 0 |
+
+No regression from any checkpoint in this project. Product Form remains hard
+frozen and was inspected read-only.
+
+## FINAL VERIFICATION AND MATRIX RECONCILIATION
+
+Measured on Production, Arabic RTL, both themes. Auditor re-validated against
+the frozen `/products` reference before recording.
+
+### The six remaining states — all clean
+
+| State | Result |
+|---|---|
+| `/warehouse/live-picks` DARK | 0 offenders, body `rgb(19,18,17)` = `--bg` |
+| `/orders` DARK | 0 offenders, 0 opaque dark gradients |
+| `/customers` DARK | 0 offenders |
+| `/inventory` DARK | 0 offenders |
+| `/products/add` DARK | 0 offenders |
+| `/products/740/edit` DARK | 1 flagged element — explained below, not a defect |
+
+`/dashboard` and `/products` were already Dark-verified and were re-confirmed
+(0 offenders each).
+
+#### `/products/:id/edit` — the flagged element is NOT a defect
+
+`div.relative.w-full.aspect-[1.91/1].overflow-hidden.bg-white`, 1249 x 654,
+`rgb(255,255,255)`. It **contains a live `<img>`** (a `blob:` preview of the
+uploaded social/Open-Graph image; 1.91:1 is the OG aspect ratio). The white
+background is the deliberate canvas *behind* a user image, rendered as it will
+appear externally — it is content, not application chrome.
+
+The auditor excludes elements *under* `img/svg/video/canvas` but not the direct
+parent container of an image. This is a **detector edge case, not a product
+defect**. Product Form is hard frozen and was inspected read-only; **no change
+was made**.
+
+#### Two more translucent-gradient false positives resolved
+
+`/warehouse/live-picks` flagged an opaque dark gradient in **both** themes. It is
+`radial-gradient(circle at 50% 0%, rgba(251,191,36,0.14), rgba(0,0,0,0))` — an
+amber decorative wash at **alpha 0.14**. The previous filter only rejected
+single-digit alphas (`0.1`), so `0.14` slipped through. The rule now rejects any
+`rgba(...,0.NN)` or `/ 0.NN` alpha stop and `transparent`. Re-measured: **0
+opaque dark gradients**. No source change — detector defect again.
+
+`/pos` reported 61 dark gradients in Dark and **0 in Light**: theme-appropriate
+`dark:` variants, not defects.
+
+### GLOBAL_DROPDOWN_TYPOGRAPHY — reconciled, not redone
+
+Checkpoint present in `main`: `11cb40b fix(ui): converge ERP dropdown typography`,
+documented in `6683536` and closed in `63a7e46`. Delivered by another workstream.
+Confirmed live on representative routes — `select` computes **14px** on
+`/orders`, `/inventory`, `/products`, `/products/add`, `/products/:id/edit` and
+**12px** on `/customers` (its denser table filter). No regression observed on any
+route audited in this final pass. **Not re-implemented.**
+
+### FINAL MATRIX
+
+| State | Count |
+|---|---|
+| PASS (both themes, RTL) | 91 |
+| PASS_BOUNDED | 3 |
+| FIXED_VERIFIED | 15 |
+| FROZEN_REFERENCE_VERIFIED | 7 |
+| ALIAS (no own surface) | 12 |
+| BLOCKED_FUNCTIONAL | 1 |
+| PENDING_NO_READONLY_ID | 1 |
+| **PARTIAL_PASS** | **0** |
+| **TYPOGRAPHY_DEBT** | **0** |
+| **Unclassified / unexplained** | **0** |
+| **Total route entries** | **130** |
+
+### The three accepted exceptions, with proof
+
+1. **`/products/labels`, `/products/barcode-labels`, `/products/barcodes` —
+   PASS_BOUNDED.** One shared label-sheet surface rendering **327,119 nodes**
+   (identical counts on all three). A full computed-style walk saturates the
+   renderer. Verified bounded in Light and Dark: 3,044 nodes each (structural
+   walk to depth 8 + header/footer/actions/buttons + first/middle/last repeated
+   item samples), 0 offenders, 0 opaque dark gradients. Recorded as
+   PASS_BOUNDED, never as PASS.
+
+2. **`/ai-studio/workflows/:id/edit` — BLOCKED_FUNCTIONAL.** Mounts nothing:
+   `#root.childElementCount === 0`, zero body text, no console errors, after a
+   9s settle on a clean full navigation. Reproduced on **two valid workflow ids
+   (11 and 10)**; the list route renders normally. A non-mounting route is a
+   functional failure, not a presentation defect, and fixing it would mean
+   touching AI Studio behaviour. Left for separate investigation.
+
+3. **`/inventory/variant/:id/history` — PENDING_NO_READONLY_ID.** No variant id
+   is exposed in the DOM and `/api/products/:id`, `/api/product-variants` and
+   `/api/variants` all return 404. **No record was created or mutated to
+   manufacture one**, per instruction.
+
+### Freezes honoured
+
+AI Inbox observed only (audited clean, source untouched). Product Form hard
+frozen (inspected read-only; the one flagged element is an image canvas). No
+locale file, `t()`/`tt()` or visible copy was modified in any checkpoint. No API,
+DB, payload, calculation, permission, workflow, accounting, inventory, POS or AI
+behaviour was changed — every checkpoint was class-strings only.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
@@ -927,21 +1094,45 @@ disabled behaviour. AI Inbox was observed only and not modified.
   Products, Dark/LTR native Orders + portal/custom owner, then frozen-reference
   mount/overflow checks.
 
+### Checkpoint 9 Production verification (`6683536`)
+
+Vercel deployment `dpl_3AChJsqmFfqTXeSMVtzB5mZf5iTw` reached READY and the
+custom ERP domain served the new build marker `178657969451`.
+
+- Orders native open popup, **Dark/LTR/English**: control and option both
+  Inter stack, 14px/700; control `rgb(25,24,23)`, option
+  `rgb(29,28,26)`, LTR.
+- Orders native open popup, **Light/RTL/Arabic**: control and option both Cairo
+  stack, 14px/700; control `rgb(244,241,234)`, option white, RTL.
+- Products brand custom menu, **Dark/LTR**: Inter, 13px/20.15px, semantic dark
+  card, 14px radius; selected option 700 and 38px minimum row height. ArrowDown
+  moved active descendant from option 0 to 1; Escape closed the menu and
+  restored the collapsed trigger.
+- Language portal, **Dark/LTR**: Inter, 13px/20.15px, semantic card, 14px
+  radius; options 600 / 38px. No fixed-light portal surface.
+- Add Product manufacturer `react-select` portal, **Light/RTL**: Cairo stack,
+  13px/20.15px, RTL; semantic white card/border, 14px radius; option 700 / 38px.
+  The Product Form was not edited and no form value was changed.
+- Frozen references `/dashboard`, `/orders`, `/products`, `/customers`,
+  `/inventory`, `/products/add`, `/products/726/edit` all landed on the intended
+  route, mounted their M1 shell, reported no screen crash and no document-level
+  horizontal overflow. `/admin/ai-inbox` passed the same observe-only check and
+  was not modified.
+
+State: **FIXED_VERIFIED (Light + Dark, RTL + LTR, native + custom + portal)**.
+Only the explicitly documented Windows/Chrome native popup geometry remains
+outside application ownership.
+
 ## RESUME MARKER
 
-**Phase 3 Light pass: COMPLETE** for all session-3 routes (22 routes upgraded to
-PASS). **Phase 3 Dark pass: IN PROGRESS.**
+**GLOBAL_DROPDOWN_TYPOGRAPHY: COMPLETE — checkpoint 9 Production-verified at
+`6683536`.**
 
-**NEXT ROUTE/STATE: `/accounting/treasury`, DARK.**
+**Phase 3 Light pass: COMPLETE. Accounting + session-1 Dark pass: COMPLETE.**
 
-Then the rest of the accounting Dark pass: `general-ledger`, `trial-balance`,
-`profit-loss`, `cashbox`, `reports`, `accounts`, `income`, `cost-fix`,
-`audit-trail`, `financial-accounts`, `payment-method-mappings`.
+**NEXT ROUTE/STATE: `/products/barcode-labels`, DARK.**
 
-Then the Dark pass for the session-1 routes (`/workspace`, `/suppliers`,
-`/warehouses`, `/stock-transfers`, `/smart-warehouse`, `/expenses`, `/billing`,
-`/roles`, `/purchases`, `/purchases/reorder-suggestions`) and the session-4
-routes, which were measured in Light only (barcode pages, `/operations/shipping`,
+Continue the session-4 Dark pass (barcode pages, `/operations/shipping`,
 `/website/settings`, `/orders/returns`, `/pos`, `/staff/tasks`, `/admin/*`,
 `/ai-studio` subroutes, and the ID-bound detail routes incl.
 `/inventory/count/6`).

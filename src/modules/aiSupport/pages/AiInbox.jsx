@@ -743,6 +743,36 @@ const instagramShareText = (card = {}) => {
   ].filter(Boolean).join("\n");
 };
 
+// Phase 13.2 — MONOTONIC AI-draft reconciliation. A completed assisted send clears the server draft to a
+// versioned TOMBSTONE (status "sent" + the completed source_message_id). When merging a refreshed / cached /
+// socket conversation row over an existing one, the AUTHORITATIVE draft is chosen deterministically so a stale
+// payload can NEVER resurrect a completed suggestion:
+//   1. a NEWER source_message_id (a fresh not_sent Y) beats an older draft/tombstone X
+//   2. same source_message_id: a completed/cleared tombstone beats a pending draft (older pending X can't win)
+//   3. else the newer server timestamp wins
+const draftOf = (row) => row?.ai_reply_draft || row?.last_ai_reply_draft || null;
+const draftMetaOf = (row) => {
+  const d = draftOf(row);
+  const src = Number(d?.metadata?.source_message_id || d?.source_message_id || 0) || 0;
+  const status = String(d?.status || "").toLowerCase();
+  const t = row?.last_ai_reply_draft_updated_at || d?.updated_at || d?.metadata?.updated_at || "";
+  const ts = t ? new Date(t).getTime() : 0;
+  return { src, completed: status === "sent" || status === "cleared", ts: Number.isFinite(ts) ? ts : 0 };
+};
+const reconcileConversationDraft = (existing, incoming) => {
+  const e = draftMetaOf(existing);
+  const i = draftMetaOf(incoming);
+  let winner;
+  if (i.src !== e.src) winner = i.src > e.src ? incoming : existing;
+  else if (i.completed !== e.completed) winner = i.completed ? incoming : existing;
+  else winner = i.ts >= e.ts ? incoming : existing;
+  return {
+    ai_reply_draft: winner?.ai_reply_draft ?? winner?.last_ai_reply_draft ?? null,
+    last_ai_reply_draft: winner?.last_ai_reply_draft ?? winner?.ai_reply_draft ?? null,
+    last_ai_reply_draft_updated_at: winner?.last_ai_reply_draft_updated_at || draftOf(winner)?.updated_at || "",
+  };
+};
+
 const channelLabel = (value = "") => {
   const key = clean(value).toLowerCase();
   if (key === "facebook_messenger") return "ماسنجر فيسبوك";
@@ -4942,6 +4972,8 @@ export default function AiInbox() {
           return {
             ...existing,
             ...summary,
+            // Phase 13.2 — never let a stale list/cache page overwrite a newer/cleared AI draft (monotonic).
+            ...reconcileConversationDraft(existing, summary),
             messages: mergedMessages,
             message_count: Math.max(Number(existing.message_count || 0), Number(summary.message_count || 0), mergedMessages.length),
             older_messages_available: existing.older_messages_available ?? summary.older_messages_available,
@@ -6185,7 +6217,10 @@ export default function AiInbox() {
     // it resets inline edit / product-selection state via the reset effect below.
     return `${selectedConversation.session_id}:${suggestionSourceId || 0}:${stamp || activeAiSuggestionText.length}`;
   }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id, suggestionSourceId]);
-  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;
+  // Phase 13.2 — a completed/cleared TOMBSTONE (status "sent"/"cleared") is never actionable, even if a stale
+  // payload still carried text (belt-and-suspenders alongside the monotonic merge + empty tombstone text).
+  const draftCompleted = ["sent", "cleared"].includes(String(activeAiReplyDraft?.status || "").toLowerCase());
+  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && !draftCompleted && dismissedAiSuggestionKey !== activeAiSuggestionKey && !suggestionStale;
   // Grounding facts for the suggestion card (product/size/color/stock/action) so the operator reviews WHY the
   // AI answered as it did before approving. Derived from the persisted draft; null when absent.
   const activeAiSuggestionFacts = useMemo(() => {
@@ -7227,7 +7262,8 @@ export default function AiInbox() {
     // and EVERY derived surface (reply card, validation, confidence, grounding facts, product/colour choices,
     // Product-to-Send preview, send-package) collapses immediately — no refetch/cache race can re-show the
     // completed suggestion. Only reached after result.ok (a stale/failed TEXT send returns above and stays actionable).
-    patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conv) => ({ ...conv, ai_reply_draft: {}, last_ai_reply_draft: {} }));
+    const completedTombstone = { status: "sent", text: "", source_message_id: suggestionSourceId || null, metadata: { source_message_id: suggestionSourceId || null }, updated_at: new Date().toISOString() };
+    patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conv) => ({ ...conv, ai_reply_draft: completedTombstone, last_ai_reply_draft: completedTombstone, last_ai_reply_draft_updated_at: completedTombstone.updated_at }));
     if (cardOk) setToast({ tone: "emerald", text: card ? "✓ تم اعتماد وإرسال اقتراح AI مع المنتج" : "✓ تم اعتماد وإرسال اقتراح AI" });
   };
 
