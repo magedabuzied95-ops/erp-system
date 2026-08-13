@@ -88,7 +88,7 @@ export const buildMessengerGuidedShoppingUrl = (selections = {}, { baseUrl = sto
   if (selections.grade) params.set("quality", selections.grade);
   if (selections.size) params.set("size", selections.size);
   params.set("inStock", "1");
-  params.set("v", "4");
+  params.set("v", "5");
   return `${text(baseUrl).replace(/\/+$/g, "")}/share/available?${params.toString().replace(/\+/g, "%20")}`;
 };
 

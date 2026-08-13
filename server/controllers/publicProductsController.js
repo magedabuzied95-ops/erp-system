@@ -30,7 +30,7 @@ import {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
-const SHARE_AVAILABLE_OG_VERSION = "V4";
+const SHARE_AVAILABLE_OG_VERSION = "V5";
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -707,6 +707,12 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
 
 const buildShareAvailableFallbackImageUrl = (req) => buildAbsolutePublicUrl(req, "/favicon.svg");
 
+export const resolveShareAvailablePreviewImage = (products = []) =>
+  firstPublicImageCandidate(
+    products[0]?.public_image_url,
+    products[0]?.image_url
+  );
+
 export const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
   const params = new URLSearchParams();
   parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
@@ -993,9 +999,6 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta property="og:title" content="${title}" />
     <meta property="og:image" content="${absoluteImage}" />
     <meta property="og:image:secure_url" content="${absoluteImage}" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:type" content="image/png" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
@@ -1018,7 +1021,7 @@ export const getPublicAvailableSharePage = async (req, res) => {
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(req, filters);
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
-    const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
+    const ogImageUrl = resolveShareAvailablePreviewImage(products) || buildShareAvailableOgImageUrl(req, filters, "png");
     console.log("shareAvailableTargetUrl", targetUrl);
     console.log("[share-available]", {
       query: req.query,

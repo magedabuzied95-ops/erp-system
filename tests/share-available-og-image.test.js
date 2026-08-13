@@ -5,7 +5,15 @@ import sharp from "sharp";
 import {
   buildShareAvailableOgImageUrl,
   buildShareAvailablePreviewSvg,
+  resolveShareAvailablePreviewImage,
 } from "../server/controllers/publicProductsController.js";
+
+test("available-products page publishes the first filtered product image directly", () => {
+  assert.equal(resolveShareAvailablePreviewImage([
+    { public_image_url: "https://api.m1store-egy.com/uploads/products/first.jpg" },
+    { public_image_url: "https://api.m1store-egy.com/uploads/products/second.jpg" },
+  ]), "https://api.m1store-egy.com/uploads/products/first.jpg");
+});
 
 test("available-products social preview renders only the first filtered product image", async () => {
   const sourceImage = await sharp({
@@ -47,7 +55,7 @@ test("available-products preview contains no Arabic overlay when there is no ima
   assert.doesNotMatch(svg, /<image href="https?:\/\//);
 });
 
-test("available-products page publishes a V4 preview URL for social cache invalidation", () => {
+test("available-products page publishes a V5 preview URL for social cache invalidation", () => {
   const previousPublicAppUrl = process.env.PUBLIC_APP_URL;
   process.env.PUBLIC_APP_URL = "https://m1store-egy.com";
   try {
@@ -59,7 +67,7 @@ test("available-products page publishes a V4 preview URL for social cache invali
     assert.equal(previewUrl.pathname, "/share/available/og-image.png");
     assert.equal(previewUrl.searchParams.get("size"), "39");
     assert.equal(previewUrl.searchParams.get("type"), "sneakers");
-    assert.equal(previewUrl.searchParams.get("v"), "v4");
+    assert.equal(previewUrl.searchParams.get("v"), "v5");
   } finally {
     if (previousPublicAppUrl === undefined) delete process.env.PUBLIC_APP_URL;
     else process.env.PUBLIC_APP_URL = previousPublicAppUrl;
