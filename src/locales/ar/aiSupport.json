@@ -941,6 +941,37 @@
       "fmtTextLink": "نص + لينك المنتج",
       "fmtLink": "لينك المنتج",
       "templateHint": "نص القالب باستخدام {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
+    },
+    "message": {
+      "pinnedMessages": "الرسائل المثبتة",
+      "unpinMessage": "إلغاء تثبيت الرسالة",
+      "unpin": "إلغاء التثبيت",
+      "reply": "رد",
+      "info": "معلومات",
+      "pinned": "مثبتة",
+      "starred": "مميزة",
+      "addReaction": "إضافة تفاعل",
+      "showAllEmoji": "عرض كل الإيموجي",
+      "pickReaction": "اختيار تفاعل",
+      "messageActions": "إجراءات الرسالة",
+      "messageInfo": "تفاصيل الرسالة",
+      "sender": "المرسل",
+      "channel": "القناة",
+      "time": "الوقت",
+      "type": "النوع",
+      "status": "الحالة",
+      "identifier": "المعرف",
+      "attachment": "مرفق",
+      "openFile": "فتح الملف",
+      "customer": "العميل",
+      "draftReply": "مسودة رد",
+      "copy": "نسخ",
+      "copied": "تم النسخ",
+      "pin": "تثبيت",
+      "star": "تمييز",
+      "unstar": "إلغاء التمييز",
+      "select": "تحديد",
+      "deselect": "إلغاء التحديد"
     }
   }
 }

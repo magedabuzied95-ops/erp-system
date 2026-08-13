@@ -182,6 +182,7 @@ const dispatchMessagePinChange = (messageKey, pinned) => {
 };
 
 export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
+  const { t } = useTranslation();
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -214,7 +215,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   return (
     <section
       dir="rtl"
-      aria-label="Pinned messages"
+      aria-label={t("aiSupport.inbox.message.pinnedMessages")}
       className={`sticky top-0 z-30 rounded-2xl border p-2 shadow-lg backdrop-blur-xl ${isPwa ? "border-amber-200 bg-white/95 text-slate-900" : "border-amber-300/20 bg-[#24251f]/95 text-white"}`}
     >
       <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
@@ -237,8 +238,8 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
             </button>
             <button
               type="button"
-              aria-label="Unpin message"
-              title="Unpin"
+              aria-label={t("aiSupport.inbox.message.unpinMessage")}
+              title={t("aiSupport.inbox.message.unpin")}
               className={`mx-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${isPwa ? "text-slate-500 hover:bg-slate-200" : "text-slate-400 hover:bg-white/10"}`}
               onClick={() => {
                 writeStoredMessageFlag(MESSAGE_PIN_STORAGE_KEY, item.key, false);
@@ -255,6 +256,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
 }
 
 function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
+  const { t } = useTranslation();
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -387,12 +389,12 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   };
 
   const menuItems = [
-    { label: "Reply", icon: ReplyIcon, action: replyToMessage, disabled: !text },
-    { label: copied ? "Copied" : "Copy", icon: Copy, action: copyMessage, disabled: !text },
-    { label: pinned ? "Unpin" : "Pin", icon: pinned ? PinOff : Pin, action: togglePinned },
-    { label: starred ? "Unstar" : "Star", icon: Star, action: toggleStarred, active: starred },
-    { label: selected ? "Deselect" : "Select", icon: CheckSquare, action: () => { setSelected((current) => !current); setMenuOpen(false); }, active: selected },
-    { label: "Info", icon: Info, action: () => { setInfoOpen(true); setMenuOpen(false); } },
+    { label: t("aiSupport.inbox.message.reply"), icon: ReplyIcon, action: replyToMessage, disabled: !text },
+    { label: t(copied ? "aiSupport.inbox.message.copied" : "aiSupport.inbox.message.copy"), icon: Copy, action: copyMessage, disabled: !text },
+    { label: t(pinned ? "aiSupport.inbox.message.unpin" : "aiSupport.inbox.message.pin"), icon: pinned ? PinOff : Pin, action: togglePinned },
+    { label: t(starred ? "aiSupport.inbox.message.unstar" : "aiSupport.inbox.message.star"), icon: Star, action: toggleStarred, active: starred },
+    { label: t(selected ? "aiSupport.inbox.message.deselect" : "aiSupport.inbox.message.select"), icon: CheckSquare, action: () => { setSelected((current) => !current); setMenuOpen(false); }, active: selected },
+    { label: t("aiSupport.inbox.message.info"), icon: Info, action: () => { setInfoOpen(true); setMenuOpen(false); } },
   ];
 
   return (
@@ -405,8 +407,8 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     >
       {(pinned || starred) ? (
         <div className={`mb-1 flex items-center gap-1.5 px-2 text-[10px] font-black text-amber-400 ${align === "right" ? "justify-end" : "justify-start"}`}>
-          {pinned ? <span className="inline-flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</span> : null}
-          {starred ? <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 fill-current" /> Starred</span> : null}
+          {pinned ? <span className="inline-flex items-center gap-1"><Pin className="h-3 w-3" /> {t("aiSupport.inbox.message.pinned")}</span> : null}
+          {starred ? <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 fill-current" /> {t("aiSupport.inbox.message.starred")}</span> : null}
         </div>
       ) : null}
       {children}
@@ -414,8 +416,8 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         <div className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <button
             type="button"
-            aria-label="إضافة تفاعل"
-            title="إضافة تفاعل"
+            aria-label={t("aiSupport.inbox.message.addReaction")}
+            title={t("aiSupport.inbox.message.addReaction")}
             onClick={() => setReactionPickerOpen((current) => !current)}
             className={`grid h-7 w-7 place-items-center rounded-full border shadow-sm transition hover:-translate-y-0.5 ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300"}`}
           >
@@ -429,7 +431,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
             {reactionOptions.map((emoji) => (
               <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-9 w-9 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}><AppleEmoji emoji={emoji} size={25} /></button>
             ))}
-            {reactionOptions.length > 1 ? <button ref={reactionPickerAnchorRef} type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-9 w-9 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label="عرض كل الإيموجي">+</button> : null}
+            {reactionOptions.length > 1 ? <button ref={reactionPickerAnchorRef} type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-9 w-9 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label={t("aiSupport.inbox.message.showAllEmoji")}>+</button> : null}
           </div>
         </div>
       ) : null}
@@ -438,7 +440,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         anchorRef={reactionPickerAnchorRef}
         onClose={() => setReactionPickerExpanded(false)}
         onSelect={(emoji) => void submitReaction(emoji)}
-        title="اختيار تفاعل"
+        title={t("aiSupport.inbox.message.pickReaction")}
       />
       {displayedReactions.length ? (
         <div data-ai-message-reactions="true" className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
@@ -455,7 +457,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         <div
           dir="ltr"
           role="menu"
-          aria-label="Message actions"
+          aria-label={t("aiSupport.inbox.message.messageActions")}
           style={{ left: menuPosition.left, top: menuPosition.top }}
           className="absolute z-40 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-slate-800 shadow-[0_18px_55px_rgba(0,0,0,0.28)]"
         >
@@ -469,18 +471,18 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
       ) : null}
       {infoOpen ? (
         <div className="fixed inset-0 z-[2147482500] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setInfoOpen(false); }}>
-          <section dir="rtl" role="dialog" aria-modal="true" aria-label="Message info" className="w-full max-w-md rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
+          <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.messageInfo")} className="w-full max-w-md rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">Message info</div><h3 className="mt-1 text-lg font-black">تفاصيل الرسالة</h3></div>
+              <div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">{t("aiSupport.inbox.message.messageInfo")}</div><h3 className="mt-1 text-lg font-black">{t("aiSupport.inbox.message.messageInfo")}</h3></div>
               <button type="button" onClick={() => setInfoOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5"><X className="h-4 w-4" /></button>
             </div>
             <dl className="mt-4 grid grid-cols-[110px_1fr] gap-x-3 gap-y-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm">
-              <dt className="text-slate-400">المرسل</dt><dd className="font-bold">{sender}</dd>
-              <dt className="text-slate-400">القناة</dt><dd className="font-bold">{channelLabel || message.channel || "—"}</dd>
-              <dt className="text-slate-400">الوقت</dt><dd className="font-bold">{createdAt || "—"}</dd>
-              <dt className="text-slate-400">النوع</dt><dd className="font-bold">{message.message_type || row.kind || "message"}</dd>
-              <dt className="text-slate-400">الحالة</dt><dd className="font-bold">{message.delivery_status || "—"}</dd>
-              <dt className="text-slate-400">المعرف</dt><dd dir="ltr" className="truncate text-left font-mono text-xs">{key || "—"}</dd>
+              <dt className="text-slate-400">{t("aiSupport.inbox.message.sender")}</dt><dd className="font-bold">{sender}</dd>
+              <dt className="text-slate-400">{t("aiSupport.inbox.message.channel")}</dt><dd className="font-bold">{channelLabel || message.channel || "—"}</dd>
+              <dt className="text-slate-400">{t("aiSupport.inbox.message.time")}</dt><dd className="font-bold">{createdAt || "—"}</dd>
+              <dt className="text-slate-400">{t("aiSupport.inbox.message.type")}</dt><dd className="font-bold">{message.message_type || row.kind || "message"}</dd>
+              <dt className="text-slate-400">{t("aiSupport.inbox.message.status")}</dt><dd className="font-bold">{message.delivery_status || "—"}</dd>
+              <dt className="text-slate-400">{t("aiSupport.inbox.message.identifier")}</dt><dd dir="ltr" className="truncate text-left font-mono text-xs">{key || "—"}</dd>
             </dl>
           </section>
         </div>
@@ -511,6 +513,7 @@ function LinkifiedText({ text = "", className = "" }) {
 // single attachment swallow the whole transcript, so keep the real aspect ratio
 // and cap the footprint. The full image is one click away.
 function MessageImageGrid({ urls = [], variant = "desktop", className = "mt-3" }) {
+  const { t } = useTranslation();
   if (!urls.length) return null;
   const size = variant === "pwa" ? "max-h-44 max-w-[180px]" : "max-h-56 max-w-[220px]";
   return (
@@ -523,7 +526,7 @@ function MessageImageGrid({ urls = [], variant = "desktop", className = "mt-3" }
           rel="noreferrer"
           className="inline-block overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60"
         >
-          <img src={url} alt="Attachment" className={`${size} w-auto object-contain`} loading="lazy" decoding="async" />
+          <img src={url} alt={t("aiSupport.inbox.message.attachment")} className={`${size} w-auto object-contain`} loading="lazy" decoding="async" />
         </a>
       ))}
     </div>
@@ -636,7 +639,7 @@ function TranscriptMessage({
               <MessageImageGrid urls={mediaUrls} variant="pwa" className="mt-2" />
               {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-2 w-full" />)}
               {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-2 max-h-72 w-full rounded-xl" />)}
-              {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">فتح الملف</a>)}
+              {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">{t("aiSupport.inbox.message.openFile")}</a>)}
             </div>
           </div>
         </div>
@@ -738,7 +741,7 @@ function TranscriptMessage({
         <div className="flex justify-start">
           <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-              <span>العميل</span>
+              <span>{t("aiSupport.inbox.message.customer")}</span>
               <span>/</span>
               <span>{channelLabel}</span>
               <span>/</span>
@@ -748,7 +751,7 @@ function TranscriptMessage({
             <MessageImageGrid urls={mediaUrls} />
             {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
             {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
-            {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">فتح الملف</a>)}
+            {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">{t("aiSupport.inbox.message.openFile")}</a>)}
           </div>
         </div>
       ) : null}
@@ -758,7 +761,7 @@ function TranscriptMessage({
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
               <Bot className="h-3.5 w-3.5" />
               <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
-              {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
+              {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">{t("aiSupport.inbox.message.draftReply")}</span> : null}
               <span className="text-slate-500">{createdAt}</span>
               <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
               {message.message_type !== "comment_suggestion" ? (
@@ -799,7 +802,7 @@ function TranscriptMessage({
             <MessageImageGrid urls={mediaUrls} />
             {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
             {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
-            {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">فتح الملف</a>)}
+            {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">{t("aiSupport.inbox.message.openFile")}</a>)}
             {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
           </div>
         </div>

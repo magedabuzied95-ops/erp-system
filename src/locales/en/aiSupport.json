@@ -941,6 +941,37 @@
       "fmtTextLink": "Text + product link",
       "fmtLink": "Product link",
       "templateHint": "Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
+    },
+    "message": {
+      "pinnedMessages": "Pinned messages",
+      "unpinMessage": "Unpin message",
+      "unpin": "Unpin",
+      "reply": "Reply",
+      "info": "Info",
+      "pinned": "Pinned",
+      "starred": "Starred",
+      "addReaction": "Add reaction",
+      "showAllEmoji": "Show all emoji",
+      "pickReaction": "Pick a reaction",
+      "messageActions": "Message actions",
+      "messageInfo": "Message info",
+      "sender": "Sender",
+      "channel": "Channel",
+      "time": "Time",
+      "type": "Type",
+      "status": "Status",
+      "identifier": "ID",
+      "attachment": "Attachment",
+      "openFile": "Open file",
+      "customer": "Customer",
+      "draftReply": "Draft reply",
+      "copy": "Copy",
+      "copied": "Copied",
+      "pin": "Pin",
+      "star": "Star",
+      "unstar": "Unstar",
+      "select": "Select",
+      "deselect": "Deselect"
     }
   }
 }

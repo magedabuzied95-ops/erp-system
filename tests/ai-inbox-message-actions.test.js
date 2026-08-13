@@ -12,7 +12,7 @@ test("message action menu is shared by desktop and PWA transcript messages", () 
   assert.match(messageSource, /variant="pwa"/);
   assert.match(messageSource, /onClick=\{openActionsFromMessage\}/);
   assert.doesNotMatch(messageSource, /MoreVertical/);
-  assert.match(messageSource, /aria-label="Message actions"/);
+  assert.match(messageSource, /aria-label=\{t\("aiSupport\.inbox\.message\.messageActions"\)\}/);
 });
 
 test("pinning renders a sticky pinned-message bar in desktop and PWA", () => {
@@ -25,15 +25,15 @@ test("pinning renders a sticky pinned-message bar in desktop and PWA", () => {
 });
 
 test("message menu exposes reply, copy, pin, star, select, and info", () => {
-  assert.match(messageSource, /label: "Reply"/);
-  assert.match(messageSource, /copied \? "Copied" : "Copy"/);
-  assert.match(messageSource, /pinned \? "Unpin" : "Pin"/);
-  assert.match(messageSource, /starred \? "Unstar" : "Star"/);
-  assert.match(messageSource, /selected \? "Deselect" : "Select"/);
-  assert.match(messageSource, /label: "Info"/);
+  assert.match(messageSource, /label: t\("aiSupport\.inbox\.message\.reply"\)/);
+  assert.match(messageSource, /copied \? "aiSupport\.inbox\.message\.copied" : "aiSupport\.inbox\.message\.copy"/);
+  assert.match(messageSource, /pinned \? "aiSupport\.inbox\.message\.unpin" : "aiSupport\.inbox\.message\.pin"/);
+  assert.match(messageSource, /starred \? "aiSupport\.inbox\.message\.unstar" : "aiSupport\.inbox\.message\.star"/);
+  assert.match(messageSource, /selected \? "aiSupport\.inbox\.message\.deselect" : "aiSupport\.inbox\.message\.select"/);
+  assert.match(messageSource, /label: t\("aiSupport\.inbox\.message\.info"\)/);
   assert.match(messageSource, /m1:ai-inbox:pinned-messages:v1/);
   assert.match(messageSource, /m1:ai-inbox:starred-messages:v1/);
-  assert.match(messageSource, /aria-label="Message info"/);
+  assert.match(messageSource, /aria-label=\{t\("aiSupport\.inbox\.message\.messageInfo"\)\}/);
 });
 
 test("reply action focuses and fills both inbox composers", () => {

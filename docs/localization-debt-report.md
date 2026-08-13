@@ -10,18 +10,18 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 119
-- Hardcoded Arabic UI strings: 1073
-- Hardcoded English UI strings: 828
-- Total hardcoded UI strings: 1901
-- Mixed-language files (both scripts hardcoded): 31
+- Files with debt: 118
+- Hardcoded Arabic UI strings: 1058
+- Hardcoded English UI strings: 816
+- Total hardcoded UI strings: 1874
+- Mixed-language files (both scripts hardcoded): 30
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | main-erp | 58 | 725 | 446 | 1171 | 18 |
-| shared | 45 | 148 | 299 | 447 | 9 |
+| shared | 44 | 133 | 287 | 420 | 8 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
 
@@ -40,7 +40,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 28 | 3 | 31 |
-| src/modules/aiSupport/components/TranscriptMessage.jsx | shared | 15 | 12 | 27 |
 | src/pages/AppShellPreview.jsx | main-erp | 25 | 2 | 27 |
 | src/modules/settings/pages/SettingsCenter.jsx | main-erp | 17 | 7 | 24 |
 | src/modules/aiSupport/components/PwaOrderComposer.jsx | shared | 19 | 1 | 20 |
@@ -797,36 +796,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 899 [jsx-text/en] Add one or more ERP products from the search panel.
 - 939 [jsx-text/en] Price
 - 956 [jsx-text/en] Primary
-
-### src/modules/aiSupport/components/TranscriptMessage.jsx (shared — ar:15 en:12)
-
-- 217 [attribute/en] Pinned messages
-- 240 [attribute/en] Unpin message
-- 241 [attribute/en] Unpin
-- 390 [object-key/en] Reply
-- 395 [object-key/en] Info
-- 408 [jsx-text/en] Pinned
-- 409 [jsx-text/en] Starred
-- 417 [attribute/ar] إضافة تفاعل
-- 418 [attribute/ar] إضافة تفاعل
-- 432 [attribute/ar] عرض كل الإيموجي
-- 441 [attribute/ar] اختيار تفاعل
-- 458 [attribute/en] Message actions
-- 472 [attribute/en] Message info
-- 474 [jsx-text/ar] تفاصيل الرسالة
-- 474 [jsx-text/en] Message info
-- 478 [jsx-text/ar] المرسل
-- 479 [jsx-text/ar] القناة
-- 480 [jsx-text/ar] الوقت
-- 481 [jsx-text/ar] النوع
-- 482 [jsx-text/ar] الحالة
-- 483 [jsx-text/ar] المعرف
-- 526 [attribute/en] Attachment
-- 639 [jsx-text/ar] فتح الملف
-- 741 [jsx-text/ar] العميل
-- 751 [jsx-text/ar] فتح الملف
-- 761 [jsx-text/en] Draft reply
-- 802 [jsx-text/ar] فتح الملف
 
 ### src/pages/AppShellPreview.jsx (main-erp — ar:25 en:2)
 
