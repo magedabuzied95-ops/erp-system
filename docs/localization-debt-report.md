@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 617
-- Files with debt: 114
-- Hardcoded Arabic UI strings: 1006
-- Hardcoded English UI strings: 802
-- Total hardcoded UI strings: 1808
-- Mixed-language files (both scripts hardcoded): 28
+- Files with debt: 113
+- Hardcoded Arabic UI strings: 946
+- Hardcoded English UI strings: 733
+- Total hardcoded UI strings: 1679
+- Mixed-language files (both scripts hardcoded): 27
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 725 | 446 | 1171 | 18 |
+| main-erp | 57 | 665 | 377 | 1042 | 17 |
 | shared | 40 | 81 | 273 | 354 | 6 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,6 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
@@ -147,50 +146,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 330 [inline-ternary/ar] isArabic ? "العميل" : "Customer"
 - 331 [inline-ternary/ar] isArabic ? "الرصيد" : "Outstanding"
 - ... 99 more
-
-### src/modules/aiSupport/pages/AiInboxPwa.jsx (main-erp — ar:60 en:69)
-
-- 198 [jsx-text/en] AI Inbox Order
-- 199 [jsx-text/ar] إنشاء طلب من المحادثة
-- 200 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
-- 202 [attribute/ar] إغلاق
-- 207 [jsx-text/ar] بيانات العميل
-- 209 [attribute/ar] اسم العميل
-- 210 [attribute/ar] رقم الهاتف
-- 211 [attribute/ar] المحافظة
-- 212 [attribute/ar] المنطقة
-- 213 [attribute/ar] العنوان بالتفصيل
-- 218 [jsx-text/ar] المنتج والمخزون
-- 224 [attribute/ar] المقاس
-- 225 [attribute/ar] اللون
-- 226 [attribute/ar] الكمية
-- 228 [jsx-text/ar] الإجمالي:
-- 228 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
-- 228 [jsx-text/ar] المتاح:
-- 231 [attribute/ar] ملاحظات الطلب
-- 232 [jsx-text/ar] إنشاء مسودة الطلب
-- 281 [jsx-text/en] AI Inbox Order
-- 282 [jsx-text/ar] إنشاء طلب من المحادثة
-- 283 [jsx-text/ar] راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.
-- 285 [attribute/ar] إغلاق
-- 290 [jsx-text/ar] بيانات العميل
-- 292 [attribute/ar] اسم العميل
-- 293 [attribute/ar] رقم الهاتف
-- 294 [attribute/ar] المحافظة
-- 295 [attribute/ar] المنطقة
-- 296 [attribute/ar] العنوان بالتفصيل
-- 301 [jsx-text/ar] المنتج والمخزون
-- 307 [attribute/ar] المقاس
-- 308 [attribute/ar] اللون
-- 309 [attribute/ar] الكمية
-- 311 [jsx-text/ar] الإجمالي:
-- 311 [jsx-text/ar] الكمية المطلوبة أكبر من المخزون المتاح.
-- 311 [jsx-text/ar] المتاح:
-- 314 [attribute/ar] ملاحظات الطلب
-- 315 [jsx-text/ar] إنشاء مسودة الطلب
-- 888 [object-key/en] All Messages
-- 892 [object-key/en] Web
-- ... 89 more
 
 ### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
 

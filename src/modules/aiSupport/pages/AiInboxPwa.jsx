@@ -154,6 +154,17 @@ const transcriptRowTime = (row = {}) =>
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 
+/*
+ * Order composition is owned by EnhancedPwaOrderComposer below. The two former
+ * inline implementations duplicated the same UI, were unreachable, and kept a
+ * second Arabic-only copy outside the canonical i18n path.
+ */
+/* c8 ignore start */
+function PwaOrderComposerLegacy_REMOVED() {
+  return null;
+}
+/* c8 ignore stop */
+/*
 function PwaOrderComposerLegacy({ open, conversation = {}, products = [], loading = false, busy = false, onClose, onSubmit }) {
   const profile = conversation?.customer_profile || {};
   const [productId, setProductId] = useState("");
@@ -319,6 +330,7 @@ function PwaOrderComposer({ open, conversation = {}, products = [], loading = fa
     document.body
   );
 }
+*/
 const customerIdentifier = (...values) => {
   const value = values.map((item) => clean(item)).find(Boolean) || "";
   return value
@@ -885,12 +897,12 @@ const matchesMessagePlatform = (item = {}, activeMessagePlatformFilter = "all") 
 const getInboxItemKind = (item = {}) => (isSocialCommentThread(item) ? "comment" : "message");
 
 const MESSAGE_PLATFORM_FILTERS = [
-  { key: "all", label: "All Messages" },
-  { key: "messenger", label: "Messenger" },
-  { key: "instagram", label: "Instagram" },
-  { key: "whatsapp", label: "WhatsApp" },
-  { key: "web", label: "Web" },
-  { key: "tiktok", label: "TikTok" },
+  { key: "all", labelKey: "aiSupport.inbox.pwa.allMessages" },
+  { key: "messenger", labelKey: "aiSupport.inbox.pwa.messenger" },
+  { key: "instagram", labelKey: "aiSupport.inbox.pwa.instagram" },
+  { key: "whatsapp", labelKey: "aiSupport.inbox.pwa.whatsapp" },
+  { key: "web", labelKey: "aiSupport.inbox.pwa.web" },
+  { key: "tiktok", labelKey: "aiSupport.inbox.pwa.tiktok" },
 ];
 
 const latestCommentMessage = (conversation = {}) =>
@@ -947,15 +959,15 @@ const commentThreadCustomerAvatarUrl = (conversation = {}) => {
   );
 };
 
-const getConversationSourceLabel = (item = {}) => {
+const getConversationSourceLabel = (item = {}, translate = (key) => key) => {
   const { channelMetadata, metadata } = getConversationThreadMetadata(item);
   const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || channelMetadata.platform || metadata.platform || "").toLowerCase();
   if (isSocialCommentThread(item)) {
-    if (platform.includes("instagram")) return "Instagram Comment";
-    if (platform.includes("facebook")) return "Facebook Comment";
-    return "Comment";
+    if (platform.includes("instagram")) return translate("aiSupport.inbox.pwa.instagramComment");
+    if (platform.includes("facebook")) return translate("aiSupport.inbox.pwa.facebookComment");
+    return translate("aiSupport.inbox.pwa.comment");
   }
-  return channelMeta(item?.channel || item?.source || item?.provider || item?.platform || "").label;
+  return translate(channelMeta(item?.channel || item?.source || item?.provider || item?.platform || "").labelKey);
 };
 
 const getConversationSourceIcon = (item = {}) => {
@@ -1083,10 +1095,10 @@ const buildLeadCommentReplyText = (conversation = {}, comment = {}) => {
 };
 
 const LEAD_STATUS_META = {
-  new: { label: "New", tone: "blue" },
-  contacted: { label: "Contacted", tone: "amber" },
-  interested: { label: "Interested", tone: "emerald" },
-  won: { label: "Won", tone: "emerald" },
+  new: { labelKey: "aiSupport.inbox.action.statusNew", tone: "blue" },
+  contacted: { labelKey: "aiSupport.inbox.action.contacted", tone: "amber" },
+  interested: { labelKey: "aiSupport.inbox.action.interested", tone: "emerald" },
+  won: { labelKey: "aiSupport.inbox.action.won", tone: "emerald" },
 };
 
 const LEAD_STATUS_ORDER = ["new", "contacted", "interested", "won"];
@@ -1098,7 +1110,7 @@ const normalizeLeadStatus = (value = "") => {
   return Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, key) ? key : "new";
 };
 
-const leadStatusLabel = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.label || "New";
+const leadStatusLabel = (value = "", translate = (key) => key) => translate(LEAD_STATUS_META[normalizeLeadStatus(value)]?.labelKey || "aiSupport.inbox.action.statusNew");
 const leadStatusTone = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.tone || "blue";
 
 const conversationLeadStatus = (conversation = {}) =>
@@ -1724,10 +1736,10 @@ const conversationMatchesRealtimeKeys = (conversation = {}, keys = {}) => {
 
 const channelMeta = (value = "") => {
   const key = normalizeConversationChannel({ channel: value });
-  if (key === "whatsapp") return { label: "WhatsApp", icon: FaWhatsapp, tone: "text-emerald-600" };
-  if (key === "instagram" || key === "instagram_comment") return { label: key === "instagram" ? "Instagram DM" : "Instagram", icon: FaInstagram, tone: "text-rose-500" };
-  if (key === "messenger" || key === "facebook_comment") return { label: "Messenger", icon: FaFacebookMessenger, tone: "text-blue-600" };
-  return { label: "Web", icon: Globe, tone: "text-slate-500" };
+  if (key === "whatsapp") return { labelKey: "aiSupport.inbox.pwa.whatsapp", icon: FaWhatsapp, tone: "text-emerald-600" };
+  if (key === "instagram" || key === "instagram_comment") return { labelKey: key === "instagram" ? "aiSupport.inbox.pwa.instagramDm" : "aiSupport.inbox.pwa.instagram", icon: FaInstagram, tone: "text-rose-500" };
+  if (key === "messenger" || key === "facebook_comment") return { labelKey: "aiSupport.inbox.pwa.messenger", icon: FaFacebookMessenger, tone: "text-blue-600" };
+  return { labelKey: "aiSupport.inbox.pwa.web", icon: Globe, tone: "text-slate-500" };
 };
 
 const isLikelyMessengerExternalId = (value = "") => {
@@ -1933,11 +1945,11 @@ const productCardPreviewText = (cards = []) => {
 
 const confirmationStatusMeta = (status = "") => {
   const key = clean(status).toLowerCase();
-  if (key === "confirmed") return { label: "تم التأكيد من العميل", tone: "emerald" };
-  if (key === "edit_requested") return { label: "العميل طلب تعديل", tone: "amber" };
-  if (key === "cancelled_by_customer") return { label: "ألغاه العميل", tone: "rose" };
-  if (key === "pending_confirmation") return { label: "بانتظار التأكيد", tone: "cyan" };
-  return { label: key || "Unknown", tone: "zinc" };
+  if (key === "confirmed") return { labelKey: "aiSupport.inbox.detail.confirmed", tone: "emerald" };
+  if (key === "edit_requested") return { labelKey: "aiSupport.inbox.detail.editRequested", tone: "amber" };
+  if (key === "cancelled_by_customer") return { labelKey: "aiSupport.inbox.detail.cancelledByCustomer", tone: "rose" };
+  if (key === "pending_confirmation") return { labelKey: "aiSupport.inbox.detail.pendingConfirmation", tone: "cyan" };
+  return { labelKey: "aiSupport.inbox.pwa.unknown", tone: "zinc" };
 };
 
 const buildProductCardPayload = (
@@ -2109,11 +2121,11 @@ const findVariant = (product = {}, color = "", size = "") => {
 };
 
 const NAV_ITEMS = [
-  { key: "conversations", label: "AI Inbox", icon: MessageCircleMore },
-  { key: "leads", label: "Leads", icon: Layers3 },
+  { key: "conversations", labelKey: "aiSupport.inbox.ui.aiInbox", icon: MessageCircleMore },
+  { key: "leads", labelKey: "aiSupport.inbox.pwa.leads", icon: Layers3 },
   { key: "config", labelKey: "aiSupport.quickReplies.config", icon: Settings },
-  { key: "social_comments", label: "Social Comments", icon: MessageSquareText },
-  { key: "more", label: "More", icon: MoreHorizontal },
+  { key: "social_comments", labelKey: "aiSupport.inbox.ui.socialComments", icon: MessageSquareText },
+  { key: "more", labelKey: "aiSupport.inbox.pwa.more", icon: MoreHorizontal },
 ];
 
 function PwaChip({ children, tone = "slate" }) {
@@ -2154,7 +2166,7 @@ function MessageText({ text = "" }) {
   );
 }
 
-function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "Type a reply", disabled = false, editorRef: externalEditorRef = null }) {
+function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null }) {
   const internalEditorRef = useRef(null);
   const editorRef = externalEditorRef || internalEditorRef;
   const allowLineBreakRef = useRef(false);
@@ -2218,9 +2230,10 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "Type a 
 }
 
 function ConversationListItem({ conversation, active, onSelect }) {
+  const { t } = useTranslation();
   const isSocialComment = isSocialCommentThread(conversation);
   const inboxKind = getInboxItemKind(conversation);
-  const sourceLabel = getConversationSourceLabel(conversation);
+  const sourceLabel = getConversationSourceLabel(conversation, t);
   const SourceIcon = getConversationSourceIcon(conversation);
   const unreadCount = conversationUnreadCount(conversation);
   const isCommentThread = isCommentConversation(conversation) || isSocialComment;
@@ -2228,7 +2241,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
   const postImage = isCommentThread ? commentThreadPostImageUrl(conversation) : "";
   const title = isCommentThread ? commentThreadCommenterName(conversation) : conversationName(conversation);
   const commenterName = isCommentThread ? commentThreadCommenterName(conversation) : "";
-  const preview = isCommentThread ? commentThreadLastComment(conversation) || "No comments yet" : conversationPreview(conversation) || "No messages yet";
+  const preview = isCommentThread ? commentThreadLastComment(conversation) || t("aiSupport.inbox.pwa.noCommentsYet") : conversationPreview(conversation) || t("aiSupport.inbox.pwa.noMessagesYet");
   const commentCount = isCommentThread ? commentThreadCommentCount(conversation) : 0;
   const lastActivity = renderPwaCardTime(conversation);
   if (import.meta.env.DEV && (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment")) {
@@ -2284,11 +2297,11 @@ function ConversationListItem({ conversation, active, onSelect }) {
                     {sourceLabel}
                   </span>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-blue-50 text-blue-700"}`}>
-                    {commentCount ? `${commentCount} تعليق` : "تعليق"}
+                    {commentCount ? t("aiSupport.inbox.pwa.commentCount", { count: commentCount }) : t("aiSupport.inbox.pwa.comment")}
                   </span>
                   {needsHumanAttention(conversation) ? (
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
-                      Needs Human
+                      {t("aiSupport.inbox.ui.needsHuman")}
                     </span>
                   ) : null}
                 </div>
@@ -2303,7 +2316,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
                   </span>
                   {needsHumanAttention(conversation) ? (
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
-                      Needs Human
+                      {t("aiSupport.inbox.ui.needsHuman")}
                     </span>
                   ) : null}
                 </div>
@@ -2340,6 +2353,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
   );
 }
 
+/* Legacy transcript renderer retained only for history; the live PWA uses OptimizedTranscript.
 const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder }) {
   const messages = uniqueMessages(conversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message));
   if (!messages.length) {
@@ -2429,6 +2443,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
     </div>
   );
 });
+*/
 
 const OptimizedTranscript = memo(function OptimizedTranscript({
   conversation = null,
@@ -2441,11 +2456,12 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onReact,
   reactionOptions,
 }) {
+  const { t } = useTranslation();
   const isCommentThread = isCommentConversation(conversation || {});
   if (!rows.length && !isCommentThread) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-        No messages yet.
+        {t("aiSupport.inbox.pwa.noMessagesYet")}
       </div>
     );
   }
@@ -2462,7 +2478,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-60"
           >
             {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock3 className="h-3.5 w-3.5" />}
-          Load older
+            {t("aiSupport.inbox.pwa.loadOlder")}
           </button>
         </div>
       ) : null}
@@ -2477,7 +2493,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               </span>
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-700">Post</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-700">{t("aiSupport.inbox.pwa.post")}</div>
               <div className="mt-1 line-clamp-2 text-[16px] font-black leading-6 text-slate-900">{commentThreadDisplayName(conversation || {})}</div>
               {commentThreadPostTime(conversation || {}) ? (
                 <div className="mt-1 text-[11px] font-medium text-slate-500">{commentThreadPostTime(conversation || {})}</div>
@@ -2486,17 +2502,17 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
                 {commentThreadPostUrl(conversation || {}) ? (
                   <a href={commentThreadPostUrl(conversation || {})} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-black text-emerald-700">
                     <ExternalLink className="h-3.5 w-3.5" />
-                    فتح البوست
+                    {t("aiSupport.inbox.pwa.openPost")}
                   </a>
                 ) : null}
                 <button type="button" onClick={() => onPrivateMessage?.(conversation)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-[11px] font-black text-cyan-700">
                   <MessageSquareText className="h-3.5 w-3.5" />
-                  إرسال رسالة خاصة
+                  {t("aiSupport.inbox.pwa.sendPrivateMessage")}
                 </button>
               </div>
               {commentThreadCommentCount(conversation || {}) ? (
                 <div className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-700">
-                  {commentThreadCommentCount(conversation || {})} تعليق
+                  {t("aiSupport.inbox.pwa.commentCount", { count: commentThreadCommentCount(conversation || {}) })}
                 </div>
               ) : null}
             </div>
@@ -2541,6 +2557,7 @@ function ProductSheet({
   sending,
   selectedConversation,
 }) {
+  const { t } = useTranslation();
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
@@ -2838,13 +2855,13 @@ function ProductSheet({
           <div className={mobileFullscreenMode ? "ai-pwa-product-sheet__toolbar sticky top-0 z-20 shrink-0 border-b border-slate-200 bg-white px-4 pb-3 pt-3" : "ai-pwa-product-sheet__toolbar sticky top-0 z-10 shrink-0 border-b border-slate-200 bg-white/95 px-4 pb-2 pt-3 backdrop-blur"}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-[17px] font-semibold text-slate-900">Send Product</h3>
+                <h3 className="text-[17px] font-semibold text-slate-900">{t("aiSupport.inbox.picker.sendProduct")}</h3>
                 <p className="text-xs text-slate-500">
-                  {selectedConversation ? `Sending to ${conversationName(selectedConversation)}` : "Select a product card"}
+                  {selectedConversation ? t("aiSupport.inbox.pwa.sendingTo", { name: conversationName(selectedConversation) }) : t("aiSupport.inbox.pwa.selectProductCard")}
                 </p>
               </div>
               <button type="button" onClick={onClose} className="ai-pwa-product-sheet__close rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
-                Close
+                {t("aiSupport.inbox.kpi.close")}
               </button>
             </div>
           </div>
@@ -2859,7 +2876,7 @@ function ProductSheet({
                       <input
                         value={query}
                         onChange={(event) => onQueryChange(event.target.value)}
-                        placeholder="ابحث باسم المنتج أو الكود"
+                        placeholder={t("aiSupport.inbox.picker.searchPlaceholder")}
                         className="ai-pwa-product-sheet__search h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
                       />
                     </label>
@@ -2869,17 +2886,17 @@ function ProductSheet({
                       className={`ai-pwa-product-sheet__filter-trigger relative inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition ${filtersOpen || activeProductFilterCount ? "is-active border-amber-400 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"}`}
                     >
                       <SlidersHorizontal className="h-4 w-4" />
-                      فلاتر
+                      {t("aiSupport.inbox.pwa.filters")}
                       {activeProductFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-slate-950">{activeProductFilterCount}</span> : null}
                     </button>
                   </div>
 
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
-                      ["all", "الكل"],
-                      ["men", "رجالي"],
-                      ["women", "حريمي"],
-                      ["kids", "أطفال"],
+                      ["all", t("aiSupport.inbox.pwa.all")],
+                      ["men", t("aiSupport.inbox.pwa.men")],
+                      ["women", t("aiSupport.inbox.pwa.women")],
+                      ["kids", t("aiSupport.inbox.pwa.kids")],
                     ].map(([value, label]) => (
                       <button
                         key={value}
@@ -2916,7 +2933,7 @@ function ProductSheet({
                         }`}
                       >
                         {previewImage ? (
-                          <img src={previewImage} alt={product.name || "Product"} className="h-14 w-14 rounded-xl object-cover" loading="lazy" />
+                          <img src={previewImage} alt={product.name || t("aiSupport.inbox.ui.product")} className="h-14 w-14 rounded-xl object-cover" loading="lazy" />
                         ) : (
                           <div className={`grid h-14 w-14 place-items-center rounded-xl ${active ? "bg-white/10" : "bg-slate-100"}`}>
                             <ShoppingBag className="h-4 w-4" />
@@ -2933,7 +2950,7 @@ function ProductSheet({
                   })
                 ) : (
                   <div className="ai-pwa-product-sheet__state rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                    لا توجد منتجات مطابقة للبحث والفلاتر.
+                    {t("aiSupport.inbox.pwa.noFilteredProducts")}
                   </div>
                 )}
               </div>
@@ -2946,7 +2963,7 @@ function ProductSheet({
                       onClick={() => setView("list")}
                       className="ai-pwa-product-sheet__subtle-action inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
                     >
-                      Back to products
+                      {t("aiSupport.inbox.pwa.backToProducts")}
                     </button>
                     <a
                       href={selectedProduct?.storefront_url || selectedProduct?.product_url || selectedProduct?.url || productUrl(selectedProduct)}
@@ -2954,37 +2971,37 @@ function ProductSheet({
                       rel="noreferrer"
                       className="ai-pwa-product-sheet__subtle-action inline-flex items-center rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700"
                     >
-                      Open Product
+                      {t("aiSupport.inbox.productCard.openProduct")}
                     </a>
                   </div>
 
                   <div className="ai-pwa-product-sheet__detail-card overflow-hidden rounded-3xl border border-slate-200 bg-white">
                     {previewImage ? (
-                      <img src={previewImage} alt={selectedProduct?.name || selectedProduct?.product_name || "Product"} className="h-[170px] w-full object-contain bg-slate-50 p-2" loading="lazy" />
+                      <img src={previewImage} alt={selectedProduct?.name || selectedProduct?.product_name || t("aiSupport.inbox.ui.product")} className="h-[170px] w-full object-contain bg-slate-50 p-2" loading="lazy" />
                     ) : (
                       <div className="grid h-[170px] w-full place-items-center bg-slate-50">
                         <ShoppingBag className="h-6 w-6 text-slate-400" />
                       </div>
                     )}
                     <div className="space-y-1.5 p-3">
-                      <div className="text-base font-semibold text-slate-900">{selectedProduct?.name || selectedProduct?.product_name || "Select a product"}</div>
+                      <div className="text-base font-semibold text-slate-900">{selectedProduct?.name || selectedProduct?.product_name || t("aiSupport.inbox.pwa.selectProduct")}</div>
                       {previewPrice > 0 ? <div className="text-sm font-medium text-emerald-700">{money(previewPrice)}</div> : null}
                       <div className="flex flex-wrap gap-2">
                         {selectedSize ? <PwaChip>{selectedSize}</PwaChip> : null}
                         {!selectedSize && selectedColor && availableSizesForColor.length ? (
-                          <PwaChip>{`Available sizes: ${availableSizesForColor.join(", ")}`}</PwaChip>
+                          <PwaChip>{t("aiSupport.inbox.pwa.availableSizes", { sizes: availableSizesForColor.join(", ") })}</PwaChip>
                         ) : null}
                         {variant?.available !== undefined ? (
-                          <PwaChip tone={variant.available ? "emerald" : "rose"}>{variant.available ? `In stock ${previewStock}` : "Out of stock"}</PwaChip>
+                          <PwaChip tone={variant.available ? "emerald" : "rose"}>{variant.available ? t("aiSupport.inbox.pwa.inStockCount", { count: previewStock }) : t("aiSupport.inbox.pwa.outOfStock")}</PwaChip>
                         ) : previewStock > 0 ? (
-                          <PwaChip tone="emerald">{`In stock ${previewStock}`}</PwaChip>
+                          <PwaChip tone="emerald">{t("aiSupport.inbox.pwa.inStockCount", { count: previewStock })}</PwaChip>
                         ) : null}
                       </div>
                     </div>
                   </div>
 
                   <div className="ai-pwa-product-sheet__option-card rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="text-sm font-medium text-slate-700">Color</div>
+                    <div className="text-sm font-medium text-slate-700">{t("aiSupport.inbox.picker.color")}</div>
                     <div className="mt-3 grid grid-cols-4 gap-2.5">
                       {colorOptions.length ? (
                         colorOptions.map((option) => {
@@ -2994,7 +3011,7 @@ function ProductSheet({
                               key={option.color}
                               type="button"
                               title={option.color}
-                              aria-label={`Select color ${option.color}`}
+                              aria-label={t("aiSupport.inbox.pwa.selectColor", { color: option.color })}
                               aria-pressed={active}
                               onClick={() => {
                                 setSelectedColor(option.color);
@@ -3031,15 +3048,15 @@ function ProductSheet({
                           );
                         })
                       ) : (
-                        <div className="text-xs text-slate-500">No color data available.</div>
+                        <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.noColorData")}</div>
                       )}
                     </div>
                   </div>
 
                   <div className="ai-pwa-product-sheet__option-card rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-medium text-slate-700">Size</div>
-                      {needsColorSelection ? <div className="text-xs text-slate-500">Optional</div> : null}
+                      <div className="text-sm font-medium text-slate-700">{t("aiSupport.inbox.picker.size")}</div>
+                      {needsColorSelection ? <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.optional")}</div> : null}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {sizeOptions.length ? (
@@ -3051,8 +3068,8 @@ function ProductSheet({
                               type="button"
                               disabled={!available}
                               onClick={() => setSelectedSize(size)}
-                              aria-label={`${size} - ${available ? `${stock} in stock` : "out of stock"}`}
-                              title={available ? `${stock} in stock` : "Out of stock"}
+                              aria-label={available ? t("aiSupport.inbox.pwa.sizeInStock", { size, count: stock }) : t("aiSupport.inbox.pwa.sizeOutOfStock", { size })}
+                              title={available ? t("aiSupport.inbox.pwa.inStockCount", { count: stock }) : t("aiSupport.inbox.pwa.outOfStock")}
                               className={`ai-pwa-product-sheet__size-option relative min-w-11 rounded-full border px-3 py-2 text-sm font-medium transition ${
                                 active
                                   ? "is-active border-slate-900 bg-slate-900 text-white shadow-sm"
@@ -3066,11 +3083,11 @@ function ProductSheet({
                           );
                         })
                       ) : (
-                        <div className="text-xs text-slate-500">No size data available.</div>
+                        <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.noSizeData")}</div>
                       )}
                     </div>
                     {needsColorSelection && !clean(selectedColor) ? (
-                      <div className="mt-2 text-xs text-slate-500">Select a color to see its available sizes.</div>
+                      <div className="mt-2 text-xs text-slate-500">{t("aiSupport.inbox.pwa.selectColorForSizes")}</div>
                     ) : null}
                   </div>
                 </div>
@@ -3086,13 +3103,13 @@ function ProductSheet({
               className="ai-pwa-product-sheet__send inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"
             >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send Product
+              {t("aiSupport.inbox.picker.sendProduct")}
             </button>
             {!selectedConversation ? (
-              <div className="mt-2 text-xs text-slate-500">Open a conversation first to send a product card.</div>
+              <div className="mt-2 text-xs text-slate-500">{t("aiSupport.inbox.pwa.openConversationFirst")}</div>
             ) : (needsColorSelection && !clean(selectedColor)) || (!needsColorSelection && needsSizeSelection && !clean(selectedSize)) ? (
               <div className="mt-2 text-xs text-slate-500">
-                {needsColorSelection ? "Select a color to enable Send Product. Size is optional." : "Select a size to enable Send Product."}
+                {needsColorSelection ? t("aiSupport.inbox.pwa.selectColorToSend") : t("aiSupport.inbox.pwa.selectSizeToSend")}
               </div>
             ) : null}
           </div>
@@ -3129,6 +3146,7 @@ function ProductSheet({
 }
 
 function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLeadFilterChange }) {
+  const { t } = useTranslation();
   const filtered = useMemo(() => {
     const normalized = clean(search).toLowerCase();
     return conversations.filter((conversation) => {
@@ -3137,14 +3155,14 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
         conversation.external_customer_id,
         conversation.phone,
         conversation.latest_message_preview,
-        leadStatusLabel(conversationLeadStatus(conversation)),
+        leadStatusLabel(conversationLeadStatus(conversation), t),
       ]
         .map((item) => clean(item).toLowerCase())
         .some((item) => item.includes(normalized));
       if (!matchesSearch) return false;
       return conversationLeadBucket(conversation) === leadFilter;
     });
-  }, [conversations, leadFilter, search]);
+  }, [conversations, leadFilter, search, t]);
 
   return (
     <div className="space-y-3 pb-28">
@@ -3161,7 +3179,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
                 active ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"
               }`}
             >
-              {leadStatusLabel(status)}
+              {leadStatusLabel(status, t)}
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>
                 {count}
               </span>
@@ -3185,12 +3203,12 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-slate-900">{conversationName(conversation)}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span>{getConversationSourceLabel(conversation)}</span>
+                      <span>{getConversationSourceLabel(conversation, t)}</span>
                       <span className="h-1 w-1 rounded-full bg-slate-300" />
                       <span>{renderPwaCardTime(conversation)}</span>
                     </div>
                   </div>
-                  <PwaChip tone={leadStatusTone(status)}>{leadStatusLabel(status)}</PwaChip>
+                  <PwaChip tone={leadStatusTone(status)}>{leadStatusLabel(status, t)}</PwaChip>
                 </div>
               </button>
             );
@@ -3198,7 +3216,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
         </div>
       ) : (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">
-          No lead conversations in this filter.
+          {t("aiSupport.inbox.pwa.noLeadConversations")}
         </div>
       )}
     </div>
@@ -3206,6 +3224,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
 }
 
 function MoreView({ installAvailable, onInstall }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3 pb-28">
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -3214,8 +3233,8 @@ function MoreView({ installAvailable, onInstall }) {
             <SmartphoneIcon />
           </div>
           <div className="flex-1">
-            <div className="text-sm font-semibold text-slate-900">Standalone PWA Shell</div>
-            <div className="mt-1 text-sm text-slate-500">This route is isolated from the ERP chrome and optimized for mobile conversation work.</div>
+            <div className="text-sm font-semibold text-slate-900">{t("aiSupport.inbox.pwa.standaloneShell")}</div>
+            <div className="mt-1 text-sm text-slate-500">{t("aiSupport.inbox.pwa.standaloneShellHint")}</div>
           </div>
         </div>
       </div>
@@ -3226,15 +3245,15 @@ function MoreView({ installAvailable, onInstall }) {
         className="flex w-full items-center justify-between rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm disabled:opacity-50"
       >
         <div>
-          <div className="text-sm font-semibold text-slate-900">Install App</div>
-          <div className="text-xs text-slate-500">Add AI Inbox to the home screen.</div>
+          <div className="text-sm font-semibold text-slate-900">{t("aiSupport.inbox.pwa.installApp")}</div>
+          <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.installAppHint")}</div>
         </div>
         <Download className="h-4 w-4 text-slate-500" />
       </button>
       <Link to="/admin/ai-inbox" className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm">
         <div>
-          <div className="text-sm font-semibold text-slate-900">Open Admin Inbox</div>
-          <div className="text-xs text-slate-500">Go back to the full ERP console when needed.</div>
+          <div className="text-sm font-semibold text-slate-900">{t("aiSupport.inbox.pwa.openAdminInbox")}</div>
+          <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.openAdminInboxHint")}</div>
         </div>
         <ChevronLeft className="h-4 w-4 rotate-180 text-slate-500" />
       </Link>
@@ -3247,6 +3266,7 @@ function SmartphoneIcon() {
 }
 
 function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
+  const { t } = useTranslation();
   const [menuStyle, setMenuStyle] = useState(null);
 
   useLayoutEffect(() => {
@@ -3302,7 +3322,7 @@ function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
       <div
         id="ai-inbox-pwa-header-menu"
         role="menu"
-        aria-label="Conversation actions"
+        aria-label={t("aiSupport.inbox.pwa.conversationActions")}
         className="isolate overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.28)] ring-1 ring-black/5"
         style={menuStyle}
         onClick={(event) => event.stopPropagation()}
@@ -4719,7 +4739,7 @@ export default function AiInboxPwa() {
             },
           }));
         }
-        if (!silent) toast.success("Messenger profile synced");
+        if (!silent) toast.success(t("aiSupport.inbox.pwa.messengerProfileSynced"));
         return true;
       } catch (error) {
         console.warn("[AiInboxPwa][messenger-profile-sync-failed]", {
@@ -4727,7 +4747,7 @@ export default function AiInboxPwa() {
           external_customer_id: externalCustomerId,
           message: error?.message || "",
         });
-        if (!silent) toast.error("تعذر جلب اسم العميل من Messenger");
+        if (!silent) toast.error(t("aiSupport.inbox.pwa.messengerProfileFailed"));
         return false;
       }
     },
@@ -5104,10 +5124,10 @@ export default function AiInboxPwa() {
                 message_id: returnedMessage.id || payload?.message?.id || "",
                 error: error?.message || String(error),
               });
-              toast.warn("تم الإرسال، لكن لم يتم حفظ التصحيح");
+              toast.warn(t("aiSupport.inbox.pwa.sentCorrectionNotSaved"));
             }
             if (sendFlow === "approve") {
-              toast.success("تم اعتماد رد الذكاء الاصطناعي وإرساله");
+              toast.success(t("aiSupport.inbox.pwa.aiReplyApprovedSent"));
             } else if (allowSameTextCorrection) {
               toast[correctionSaved ? "success" : "warn"](
                 correctionSaved ? "تم إرسال الرد المعدل وحفظ التصحيح للتعلم" : "تم الإرسال، لكن لم يتم حفظ التصحيح"
@@ -5150,10 +5170,10 @@ export default function AiInboxPwa() {
                 message_id: returnedMessage.id || payload?.message?.id || "",
                 error: error?.message || String(error),
               });
-              toast.warn("تم الإرسال، لكن لم يتم حفظ التصحيح");
+              toast.warn(t("aiSupport.inbox.pwa.sentCorrectionNotSaved"));
             }
             if (sendFlow === "approve") {
-              toast.success("تم اعتماد رد الذكاء الاصطناعي وإرساله");
+              toast.success(t("aiSupport.inbox.pwa.aiReplyApprovedSent"));
             } else if (allowSameTextCorrection) {
               toast[correctionSaved ? "success" : "warn"](
                 correctionSaved ? "تم إرسال الرد المعدل وحفظ التصحيح للتعلم" : "تم الإرسال، لكن لم يتم حفظ التصحيح"
@@ -5164,13 +5184,13 @@ export default function AiInboxPwa() {
       }
 
       if (composerMode === "note") {
-        toast.success("Internal note saved");
+        toast.success(t("aiSupport.inbox.pwa.internalNoteSaved"));
       } else if (payload?.delivery_status === "failed") {
         toast.error(payload?.delivery_error || payload?.message || "Failed to send");
       } else if (payload?.delivery_status === "stored_only") {
-        toast.info("Saved only, not delivered");
+        toast.info(t("aiSupport.inbox.pwa.savedNotDelivered"));
       } else if (!editingAiDraft && !allowSameTextCorrection) {
-        toast.success("Message sent");
+        toast.success(t("aiSupport.inbox.pwa.messageSent"));
       }
       setEditingAiDraft(false);
       setComposerText("");
@@ -5195,7 +5215,7 @@ export default function AiInboxPwa() {
 
   const handleEditAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionText) return;
-    trackAIRecommendation({ id: activeAiSuggestionKey, title: "AI reply draft", confidence: activeAiReplyConfidence.score }, "Manual Override");
+    trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Manual Override");
     setComposerMode("reply");
     setEditingAiDraft(true);
     setDismissedAiSuggestionKey("");
@@ -5204,7 +5224,7 @@ export default function AiInboxPwa() {
 
   const handleApproveAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionText) return;
-    trackAIRecommendation({ id: activeAiSuggestionKey, title: "AI reply draft", confidence: activeAiReplyConfidence.score }, "Suggestion Accepted");
+    trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Suggestion Accepted");
     setComposerMode("reply");
     setComposerText(activeAiSuggestionText);
     void sendManualReply(activeAiSuggestionText, {
@@ -5218,7 +5238,7 @@ export default function AiInboxPwa() {
 
   const handleDismissAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionKey) return;
-    trackAIRecommendation({ id: activeAiSuggestionKey, title: "AI reply draft", confidence: activeAiReplyConfidence.score }, "Suggestion Rejected");
+    trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Suggestion Rejected");
     setEditingAiDraft(false);
     setDismissedAiSuggestionKey(activeAiSuggestionKey);
   }, [activeAiReplyConfidence.score, activeAiSuggestionKey, trackAIRecommendation]);
@@ -5360,11 +5380,11 @@ export default function AiInboxPwa() {
 
         setProductSheetOpen(false);
         if (deliveryStatus === "stored_only") {
-          toast.info("Saved only, not delivered");
+          toast.info(t("aiSupport.inbox.pwa.savedNotDelivered"));
         } else if (deliveryStatus === "failed") {
           toast.error(`Failed to send${payload?.delivery_error ? `: ${payload.delivery_error}` : ""}`);
         } else {
-          toast.success("Product sent");
+          toast.success(t("aiSupport.inbox.productCard.sentProduct"));
         }
       } catch (sendError) {
         toast.error(sendError?.message || "Failed to send product");
@@ -5473,7 +5493,7 @@ export default function AiInboxPwa() {
     const file = event.target.files?.[0] || null;
     event.target.value = "";
     if (!file) return;
-    toast.error("إرسال الصور غير مدعوم حالياً");
+    toast.error(t("aiSupport.inbox.pwa.imageSendingUnsupported"));
   }, []);
 
   const toggleConversationAi = useCallback(async () => {
@@ -5603,7 +5623,7 @@ export default function AiInboxPwa() {
         }));
       }
       requestRefresh("manual", { silent: true });
-      toast.success("تم إنشاء العميل");
+      toast.success(t("aiSupport.inbox.pwa.customerCreated"));
     } catch (err) {
       toast.error(err?.message || "تعذر إنشاء العميل");
     } finally {
@@ -5632,7 +5652,7 @@ export default function AiInboxPwa() {
         }));
       }
       requestRefresh("manual", { silent: true });
-      toast.success("تم إنشاء فرصة البيع");
+      toast.success(t("aiSupport.inbox.pwa.leadCreated"));
     } catch (err) {
       toast.error(err?.message || "تعذر إنشاء فرصة البيع");
     } finally {
@@ -5673,7 +5693,7 @@ export default function AiInboxPwa() {
         updated_at: returnedMessage.created_at || sentAt,
       }));
       requestRefresh("manual", { silent: true });
-      toast.success("تم إرسال الرسالة الخاصة");
+      toast.success(t("aiSupport.inbox.pwa.privateMessageSent"));
     } catch (err) {
       toast.error(err?.message || "تعذر إرسال الرسالة الخاصة");
     } finally {
@@ -5697,7 +5717,7 @@ export default function AiInboxPwa() {
         ""
     );
     if (!commentId) {
-      toast.error("تعذر تحديد التعليق المرتبط بهذه المحادثة");
+      toast.error(t("aiSupport.inbox.pwa.commentNotResolved"));
       return;
     }
     const message = buildLeadCommentReplyText(selectedConversation, targetComment || {});
@@ -5722,7 +5742,7 @@ export default function AiInboxPwa() {
         }));
       }
       requestRefresh("manual", { silent: true });
-      toast.success("تم رد الكومنت");
+      toast.success(t("aiSupport.inbox.pwa.commentReplied"));
     } catch (err) {
       toast.error(err?.message || "تعذر إرسال رد الكومنت");
     } finally {
@@ -5741,7 +5761,7 @@ export default function AiInboxPwa() {
         },
         { headers, perfComponent: "AiInboxPwa.socialReplySettings" }
       );
-      toast.success("تم حفظ إعدادات الرد التلقائي العامة");
+      toast.success(t("aiSupport.inbox.pwa.globalAutoReplySaved"));
         requestRefresh("manual", { silent: true });
     } catch (err) {
       toast.error(err?.message || "تعذر حفظ إعدادات الرد التلقائي العامة");
@@ -5764,7 +5784,7 @@ export default function AiInboxPwa() {
         },
         { headers, perfComponent: "AiInboxPwa.socialPostTemplate" }
       );
-      toast.success("تم حفظ قالب الرد لهذا البوست");
+      toast.success(t("aiSupport.inbox.pwa.postTemplateSaved"));
         requestRefresh("manual", { silent: true });
     } catch (err) {
       toast.error(err?.message || "تعذر حفظ قالب الرد لهذا البوست");
@@ -5856,7 +5876,7 @@ export default function AiInboxPwa() {
           },
           { headers, perfComponent: "AiInboxPwa.socialCommentIgnore" }
         );
-        toast.success("تم تجاهل التعليق");
+        toast.success(t("aiSupport.inbox.pwa.commentIgnored"));
       } else if (action === "private_message") {
         console.info("SOCIAL_COMMENT_PRIVATE_REPLY_ATTEMPT", {
           comment_id: commentId,
@@ -5875,7 +5895,7 @@ export default function AiInboxPwa() {
           },
           { headers, perfComponent: "AiInboxPwa.socialCommentPrivateReply" }
         );
-        toast.success("تم إرسال الرسالة الخاصة");
+        toast.success(t("aiSupport.inbox.pwa.privateMessageSent"));
         console.info("SOCIAL_COMMENT_PRIVATE_REPLY_SUCCESS", {
           comment_id: commentId,
           post_id: postId,
@@ -5901,7 +5921,7 @@ export default function AiInboxPwa() {
           },
           { headers, perfComponent: "AiInboxPwa.socialCommentReply" }
         );
-        toast.success("تم إرسال الرد على التعليق");
+        toast.success(t("aiSupport.inbox.pwa.commentReplySent"));
         console.info("SOCIAL_COMMENT_REPLY_SEND_SUCCESS", {
           comment_id: commentId,
           post_id: postId,
@@ -6024,7 +6044,7 @@ export default function AiInboxPwa() {
   const customerDrawerAnalysis = selectedAnalysisCustomerId && selectedAnalysisCustomerId === drawerAnalysisCustomerId ? aiIntegration.analysis : null;
   const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen);
   const showComposer = contentScreen;
-  const selectedMetaLabel = getConversationSourceLabel(selectedConversation || {});
+  const selectedMetaLabel = getConversationSourceLabel(selectedConversation || {}, t);
   const SelectedChannelIcon = getConversationSourceIcon(selectedConversation || {});
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
   const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
@@ -6080,38 +6100,38 @@ export default function AiInboxPwa() {
         <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
           <aside className={`${socialMobileDetailOpen ? "hidden lg:block" : "block"} min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm`}>
             <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Global Auto Reply System</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.ui.autoReplySystem")}</div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setSocialReplySettings((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
                   className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${socialReplySettings.generic_enabled ? "bg-emerald-300 text-slate-950" : "border border-slate-200 bg-white text-slate-700"}`}
                 >
-                  {socialReplySettings.generic_enabled ? "ON" : "OFF"}
+                  {socialReplySettings.generic_enabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSocialReplySettings((current) => ({ ...current, generic_like_enabled: !current.generic_like_enabled }))}
                   className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${socialReplySettings.generic_like_enabled ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
                 >
-                  Like {socialReplySettings.generic_like_enabled ? "ON" : "OFF"}
+                  {t("aiSupport.inbox.pwa.likeState", { state: socialReplySettings.generic_like_enabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off") })}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSocialReplySettings((current) => ({ ...current, generic_reply_enabled: !current.generic_reply_enabled }))}
                   className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${socialReplySettings.generic_reply_enabled ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
                 >
-                  Reply {socialReplySettings.generic_reply_enabled ? "ON" : "OFF"}
+                  {t("aiSupport.inbox.pwa.replyState", { state: socialReplySettings.generic_reply_enabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off") })}
                 </button>
                 <select
                   value={socialReplySettings.mode}
                   onChange={(event) => setSocialReplySettings((current) => ({ ...current, mode: event.target.value }))}
                   className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700"
                 >
-                  <option value="off">off</option>
-                  <option value="draft">draft</option>
-                  <option value="manual_approval">manual_approval</option>
-                  <option value="full_auto">full_auto</option>
+                  <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
+                  <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
+                  <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
+                  <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
                 </select>
                 <button
                   type="button"
@@ -6120,18 +6140,18 @@ export default function AiInboxPwa() {
                   className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
                 >
                   {socialActionLoading === "global_settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Save
+                  {t("aiSupport.inbox.pwa.save")}
                 </button>
               </div>
               <textarea
                 value={socialReplySettings.generic_template}
                 onChange={(event) => setSocialReplySettings((current) => ({ ...current, generic_template: event.target.value }))}
                 rows={4}
-                placeholder="Generic auto reply template"
+                placeholder={t("aiSupport.inbox.ui.genericTemplate")}
                 className="mt-3 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-900 outline-none"
               />
               <div className="mt-2 text-[11px] font-semibold text-slate-500">
-                Mode: {socialReplySettings.mode} · Like: {socialReplySettings.generic_like_enabled ? "ON" : "OFF"} · Reply: {socialReplySettings.generic_reply_enabled ? "ON" : "OFF"}
+                {t("aiSupport.inbox.pwa.autoReplySummary", { mode: socialReplySettings.mode, like: socialReplySettings.generic_like_enabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off"), reply: socialReplySettings.generic_reply_enabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off") })}
               </div>
             </div>
 
@@ -6197,7 +6217,7 @@ export default function AiInboxPwa() {
                   className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-900 lg:hidden"
                 >
                   <ChevronLeft className="h-5 w-5" />
-                  Back to posts
+                  {t("aiSupport.inbox.pwa.backToPosts")}
                 </button>
                 <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
                   <div className="flex flex-wrap items-start gap-3">
@@ -6205,22 +6225,22 @@ export default function AiInboxPwa() {
                       {postImage ? <img src={postImage} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : null}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Post Preview</div>
-                      <h2 className="mt-1 line-clamp-3 text-lg font-black text-slate-900">{postCaption || "Post"}</h2>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.pwa.postPreview")}</div>
+                      <h2 className="mt-1 line-clamp-3 text-lg font-black text-slate-900">{postCaption || t("aiSupport.inbox.pwa.post")}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{platformLabel}</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Comment</span>
-                        <span title="إجمالي التعليقات الفعلي المسجل لدى المنصة" className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{commentCount} تعليق</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{newCommentCount} جديد</span>
-                        <span title="يوجد تعليق لم يُسجل له رد مكتمل بعد" className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.pwa.comment")}</span>
+                        <span title={t("aiSupport.inbox.pwa.commentsTotalHint")} className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.pwa.commentCount", { count: commentCount })}</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.pwa.newCount", { count: newCommentCount })}</span>
+                        <span title={t("aiSupport.inbox.pwa.pendingCommentHint")} className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialPost?.platform || selectedSocialThread?.post?.platform || "Facebook")}</span>
-                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "Manual")}</span>
-                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "Product")}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || t("aiSupport.inbox.pwa.manual"))}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || t("aiSupport.inbox.ui.product"))}</span>
                       </div>
                       <details className="mt-3 hidden rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 lg:block">
-                        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer Info</summary>
+                        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.developerInfo")}</summary>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {[
                             ["post_id", clean(selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || selectedPost?.id || "")],
@@ -6244,7 +6264,7 @@ export default function AiInboxPwa() {
                       {postLink ? (
                         <a href={postLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white">
                           <ExternalLink className="h-4 w-4" />
-                          Open post
+                          {t("aiSupport.inbox.pwa.openPost")}
                         </a>
                       ) : null}
                     </div>
@@ -6253,10 +6273,10 @@ export default function AiInboxPwa() {
 
                 <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Linked Product</div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.pwa.linkedProduct")}</div>
                     <button type="button" className="inline-flex h-8 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-600" disabled>
                       <ShoppingBag className="h-4 w-4" />
-                      Send Product
+                      {t("aiSupport.inbox.picker.sendProduct")}
                     </button>
                   </div>
                   {showProductSkeleton ? (
@@ -6271,27 +6291,27 @@ export default function AiInboxPwa() {
                   ) : (
                     <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Name</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.pwa.name")}</div>
                         <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_name || "—")}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.price")}</div>
                         <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_price || "—") || "—"}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Sale price</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.pwa.salePrice")}</div>
                         <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_sale_price || "—") || "—"}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Sizes</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sizes")}</div>
                         <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_sizes || "—") || "—"}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Colors</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.colors")}</div>
                         <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_colors || "—") || "—"}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Stock</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.stock2")}</div>
                         <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_stock || selectedPost?.stock || "—") || "—"}</div>
                       </div>
                     </div>
@@ -6301,8 +6321,8 @@ export default function AiInboxPwa() {
                 <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Post Auto Reply Template</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-700">Template mode: {templateMode}</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.ui.postTemplate")}</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-700">{t("aiSupport.inbox.pwa.templateMode", { mode: templateMode })}</div>
                     </div>
                     <button
                       type="button"
@@ -6311,7 +6331,7 @@ export default function AiInboxPwa() {
                       className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
                     >
                       {socialActionLoading === "post_template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Save
+                      {t("aiSupport.inbox.pwa.save")}
                     </button>
                   </div>
                   {showTemplateSkeleton ? (
@@ -6330,43 +6350,43 @@ export default function AiInboxPwa() {
                           onClick={() => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), enabled: !templateEnabled } }))}
                           className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${templateEnabled ? "bg-emerald-300 text-slate-950" : "border border-slate-200 bg-white text-slate-700"}`}
                         >
-                          {templateEnabled ? "Enabled" : "Disabled"}
+                          {templateEnabled ? t("aiSupport.inbox.pwa.enabled") : t("aiSupport.inbox.pwa.disabled")}
                         </button>
                         <button
                           type="button"
                           onClick={() => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), like_enabled: !(current.template?.like_enabled ?? true) } }))}
                           className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${(selectedTemplate?.like_enabled ?? true) ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
                         >
-                          Like {selectedTemplate?.like_enabled === false ? "OFF" : "ON"}
+                          {t("aiSupport.inbox.pwa.likeState", { state: selectedTemplate?.like_enabled === false ? t("aiSupport.inbox.pwa.off") : t("aiSupport.inbox.pwa.on") })}
                         </button>
                         <button
                           type="button"
                           onClick={() => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), reply_enabled: !(current.template?.reply_enabled ?? true) } }))}
                           className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${(selectedTemplate?.reply_enabled ?? true) ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
                         >
-                          Reply {selectedTemplate?.reply_enabled === false ? "OFF" : "ON"}
+                          {t("aiSupport.inbox.pwa.replyState", { state: selectedTemplate?.reply_enabled === false ? t("aiSupport.inbox.pwa.off") : t("aiSupport.inbox.pwa.on") })}
                         </button>
                         <select
                           value={templateMode}
                           onChange={(event) => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), mode: event.target.value } }))}
                           className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700"
                         >
-                          <option value="off">off</option>
-                          <option value="draft">draft</option>
-                          <option value="manual_approval">manual_approval</option>
-                          <option value="full_auto">full_auto</option>
+                          <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
+                          <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
+                          <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
+                          <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
                         </select>
                       </div>
                       <textarea
                         value={templateText}
                         onChange={(event) => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), template: event.target.value } }))}
                         rows={4}
-                        placeholder="Template for this post"
+                        placeholder={t("aiSupport.inbox.ui.postTemplateHint")}
                         className="mt-2 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-900 outline-none"
                       />
                       <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Preview</div>
-                        <div className="mt-2 whitespace-pre-wrap">{templateText || genericTemplateText || "No template text yet."}</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.pwa.preview")}</div>
+                        <div className="mt-2 whitespace-pre-wrap">{templateText || genericTemplateText || t("aiSupport.inbox.pwa.noTemplateText")}</div>
                       </div>
                     </>
                   )}
@@ -6375,8 +6395,8 @@ export default function AiInboxPwa() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Comments Timeline</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-700">{selectedSocialThread.comments.length} comments</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.inbox.ui.commentsTimeline")}</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-700">{t("aiSupport.inbox.pwa.commentCount", { count: selectedSocialThread.comments.length })}</div>
                     </div>
                     {selectedSocialThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : null}
                   </div>
@@ -6395,7 +6415,7 @@ export default function AiInboxPwa() {
                       </div>
                     ) : !selectedSocialThread.loading && !selectedSocialThread.comments.length ? (
                       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-                        لا توجد تعليقات سوشيال حاليًا
+                        {t("aiSupport.inbox.pwa.noSocialComments")}
                       </div>
                     ) : null}
                     {selectedSocialThread.comments.map((comment, index) => {
@@ -6440,7 +6460,7 @@ export default function AiInboxPwa() {
               </div>
             ) : (
               <div className="grid min-h-[20rem] place-items-center rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
-                لا توجد تعليقات سوشيال حاليًا
+                {t("aiSupport.inbox.pwa.noSocialComments")}
               </div>
             )}
           </div>
@@ -6512,7 +6532,7 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={handleBackNavigation}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
-                  aria-label="Back to conversations"
+                  aria-label={t("aiSupport.inbox.pwa.backToConversations")}
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
@@ -6527,7 +6547,7 @@ export default function AiInboxPwa() {
                       })
                     }
                     className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-cyan-300/40"
-                    aria-label="Open customer details"
+                    aria-label={t("aiSupport.inbox.pwa.openCustomerDetails")}
                   >
                     <img
                       src={selectedAvatar}
@@ -6547,7 +6567,7 @@ export default function AiInboxPwa() {
                       })
                     }
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 transition hover:bg-slate-300"
-                    aria-label="Open customer details"
+                    aria-label={t("aiSupport.inbox.pwa.openCustomerDetails")}
                   >
                     <UserRound className="h-4.5 w-4.5" />
                   </button>
@@ -6574,14 +6594,14 @@ export default function AiInboxPwa() {
                     {selectedWorkflowStatus === "human_takeover" ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700">
                         <AlertCircle className="h-3 w-3" />
-                        Needs Human
+                        {t("aiSupport.inbox.ui.needsHuman")}
                       </span>
                     ) : null}
                     <span className="truncate">{selectedLastSeen}</span>
                   </div>
                   {lastOrder ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <PwaChip tone={confirmationMeta.tone}>{confirmationMeta.label}</PwaChip>
+                      <PwaChip tone={confirmationMeta.tone}>{t(confirmationMeta.labelKey)}</PwaChip>
                       <span className="text-[10px] font-semibold text-slate-500">
                         {lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}
                       </span>
@@ -6594,8 +6614,8 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={togglePwaTheme}
                   className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
-                  aria-label={isDarkTheme ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
-                  title={isDarkTheme ? "Light mode" : "Dark mode"}
+                  aria-label={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
+                  title={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
                 >
                   {isDarkTheme ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
                 </button>
@@ -6603,8 +6623,8 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={() => setIsFullscreenConversation((current) => !current)}
                   className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
-                  aria-label={fullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
-                  title={fullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
+                  aria-label={fullscreenConversation ? t("aiSupport.inbox.pwa.restoreLayout") : t("aiSupport.inbox.header.expandLayout")}
+                  title={fullscreenConversation ? t("aiSupport.inbox.pwa.restoreLayout") : t("aiSupport.inbox.header.expandLayout")}
                 >
                   {fullscreenConversation ? <Minimize2 className="h-4.5 w-4.5" /> : <Maximize2 className="h-4.5 w-4.5" />}
                 </button>
@@ -6624,38 +6644,38 @@ export default function AiInboxPwa() {
                   <button type="button" onClick={() => { void toggleGlobalAiAssistant(); setMenuOpen(false); }} disabled={aiAssistantGlobalSaving} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     <span className="flex items-center gap-3">
                       {aiAssistantGlobalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                      Global AI Assistant
+                      {t("aiSupport.inbox.pwa.globalAiAssistant")}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${aiAssistantGlobalEnabled ? "bg-emerald-100 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
-                      {aiAssistantGlobalEnabled ? "ON" : "OFF"}
+                      {aiAssistantGlobalEnabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off")}
                     </span>
                   </button>
                   <button type="button" onClick={() => { void toggleConversationAi(); setMenuOpen(false); }} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                    {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "AI ON" : "AI OFF"}
+                    {selectedWorkflowStatus === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : isConversationAiEnabled(selectedConversation) ? t("aiSupport.inbox.header.aiOn") : t("aiSupport.inbox.header.aiOff")}
                   </button>
                   <button type="button" onClick={() => { setProductSheetOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <PackagePlus className="h-4 w-4" />
-                    Send Product
+                    {t("aiSupport.inbox.picker.sendProduct")}
                   </button>
                   <button type="button" onClick={() => { setOrderComposerOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <ShoppingCart className="h-4 w-4" />
-                    إنشاء طلب من المحادثة
+                    {t("aiSupport.inbox.pwa.createOrderFromConversation")}
                   </button>
                   <button type="button" onClick={() => { setComposerMode("note"); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <Sparkles className="h-4 w-4" />
-                    Internal Note
+                    {t("aiSupport.inbox.pwa.internalNote")}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      toast("No existing block API is wired in this build.");
+                      toast(t("aiSupport.inbox.pwa.blockApiUnavailable"));
                       setMenuOpen(false);
                     }}
                     className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-700 hover:bg-rose-50"
                   >
                     <ShieldBan className="h-4 w-4" />
-                    Block Customer
+                    {t("aiSupport.inbox.pwa.blockCustomer")}
                   </button>
                 </HeaderOverflowMenu>
               </div>
@@ -6672,12 +6692,12 @@ export default function AiInboxPwa() {
                           : "bg-blue-400"
                     }`} />
                     <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Lead status</div>
-                      <div className="truncate text-[12px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus)}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{t("aiSupport.inbox.pwa.leadStatus")}</div>
+                      <div className="truncate text-[12px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus, t)}</div>
                     </div>
                   </div>
                   <label className="min-w-[8.5rem] shrink-0">
-                    <span className="sr-only">Change lead status</span>
+                    <span className="sr-only">{t("aiSupport.inbox.pwa.changeLeadStatus")}</span>
                     <select
                       value={currentLeadStatus}
                       onChange={(event) => void updateLeadStatus(event.target.value)}
@@ -6686,7 +6706,7 @@ export default function AiInboxPwa() {
                     >
                       {LEAD_STATUS_ORDER.map((status) => (
                         <option key={status} value={status}>
-                          {leadStatusLabel(status)}
+                          {leadStatusLabel(status, t)}
                         </option>
                       ))}
                     </select>
@@ -6700,7 +6720,7 @@ export default function AiInboxPwa() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-black text-amber-800 disabled:opacity-50"
                 >
                   <ShoppingCart className="h-3.5 w-3.5" />
-                  إنشاء طلب
+                  {t("aiSupport.inbox.pwa.createOrder")}
                 </button>
                 <button
                   type="button"
@@ -6709,7 +6729,7 @@ export default function AiInboxPwa() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 disabled:opacity-50"
                 >
                   <PackagePlus className="h-3.5 w-3.5" />
-                  إرسال منتج
+                  {t("aiSupport.inbox.picker.sendProduct")}
                 </button>
                 <button
                   type="button"
@@ -6718,7 +6738,7 @@ export default function AiInboxPwa() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-700 disabled:opacity-50"
                 >
                   <Ruler className="h-3.5 w-3.5" />
-                  المتاح بالمقاس
+                  {t("aiSupport.inbox.picker.availableBySize")}
                 </button>
               </div>
               </div>
@@ -6728,13 +6748,13 @@ export default function AiInboxPwa() {
           <header className="ai-pwa-list-header border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
-                <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">AI Social Media Center</h1>
+                <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">{t("aiSupport.inbox.kpi.socialCenter")}</h1>
                 <button
                   type="button"
                   onClick={togglePwaTheme}
                   className="ai-pwa-icon-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
-                  aria-label={isDarkTheme ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
-                  title={isDarkTheme ? "Light mode" : "Dark mode"}
+                  aria-label={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
+                  title={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
                 >
                   {isDarkTheme ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
                 </button>
@@ -6744,7 +6764,7 @@ export default function AiInboxPwa() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search messages"
+                  placeholder={t("aiSupport.inbox.pwa.searchMessages")}
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400"
                 />
               </label>
@@ -6757,7 +6777,7 @@ export default function AiInboxPwa() {
                       onClick={() => setMessagePlatformFilter(item.key)}
                       className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-black ${messagePlatformFilter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
                     >
-                      {item.label}
+                      {t(item.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -6824,7 +6844,7 @@ export default function AiInboxPwa() {
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-                No messages match the current filters.
+                {t("aiSupport.inbox.pwa.noMessagesMatch")}
               </div>
             )
           ) : isSocialMode ? (
@@ -6849,17 +6869,17 @@ export default function AiInboxPwa() {
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Internal note mode
+                  {t("aiSupport.inbox.pwa.internalNoteMode")}
                 </div>
               ) : null}
               {activeAiReplyValidation.violationsCount || activeAiReplyValidation.warningsCount || activeAiReplyValidation.details.length ? (
                 <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyValidation.violationsCount > 0 ? "border-amber-300/40 bg-amber-50 text-amber-900" : activeAiReplyValidation.warningsCount > 0 ? "border-slate-200 bg-slate-50 text-slate-700" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em]">AI draft validation</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]">{t("aiSupport.inbox.pwa.aiDraftValidation")}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeAiReplyValidation.violationsCount > 0 ? "bg-amber-200 text-amber-950" : activeAiReplyValidation.warningsCount > 0 ? "bg-slate-200 text-slate-800" : "bg-emerald-200 text-emerald-950"}`}>{activeAiReplyValidation.status}</span>
                     <span className="font-black">{activeAiReplyValidation.confidencePercent.toFixed(0)}%</span>
-                    <span className="font-bold">violations {activeAiReplyValidation.violationsCount}</span>
-                    <span className="font-bold">warnings {activeAiReplyValidation.warningsCount}</span>
+                    <span className="font-bold">{t("aiSupport.inbox.pwa.violationsCount", { count: activeAiReplyValidation.violationsCount })}</span>
+                    <span className="font-bold">{t("aiSupport.inbox.pwa.warningsCount", { count: activeAiReplyValidation.warningsCount })}</span>
                   </div>
                   {activeAiReplyValidation.details.length ? <div className="mt-1.5 space-y-1">{activeAiReplyValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
                 </div>
@@ -6867,31 +6887,31 @@ export default function AiInboxPwa() {
               {activeAiReplyConfidence.reasonsCount || activeAiReplyConfidence.riskFlagsCount || activeAiReplyConfidence.score ? (
                 <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyConfidence.tone === "rose" ? "border-rose-300/40 bg-rose-50 text-rose-900" : activeAiReplyConfidence.tone === "amber" ? "border-amber-300/40 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em]">Confidence engine</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]">{t("aiSupport.inbox.pwa.confidenceEngine")}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeAiReplyConfidence.tone === "rose" ? "bg-rose-200 text-rose-950" : activeAiReplyConfidence.tone === "amber" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>{activeAiReplyConfidence.levelLabel}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeAiReplyConfidence.tone === "rose" ? "bg-rose-200 text-rose-950" : activeAiReplyConfidence.tone === "amber" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>{activeAiReplyConfidence.decisionLabel}</span>
                     <span className="font-black">{activeAiReplyConfidence.score.toFixed(0)}%</span>
-                    <span className="font-bold">reasons {activeAiReplyConfidence.reasonsCount}</span>
+                    <span className="font-bold">{t("aiSupport.inbox.pwa.reasonsCount", { count: activeAiReplyConfidence.reasonsCount })}</span>
                   </div>
                   {activeAiReplyConfidence.reasonsPreview.length ? <div className="mt-1.5 space-y-1">{activeAiReplyConfidence.reasonsPreview.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
-                  {activeAiReplyConfidence.decision === "high_risk" ? <div className="mt-1.5 font-black uppercase tracking-[0.12em]">High risk: manual review recommended before sending.</div> : null}
+                  {activeAiReplyConfidence.decision === "high_risk" ? <div className="mt-1.5 font-black uppercase tracking-[0.12em]">{t("aiSupport.inbox.pwa.highRiskReview")}</div> : null}
                 </div>
               ) : null}
               {aiSuggestionVisible ? (
                 <div className={`mb-2 rounded-2xl border p-3 ${editingAiDraft ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">اقتراح الذكاء الاصطناعي</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.pwa.aiSuggestion")}</div>
                       <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
                         {activeAiSuggestionText}
                       </div>
                     </div>
-                    {editingAiDraft ? <span className="shrink-0 rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Editing</span> : null}
+                    {editingAiDraft ? <span className="shrink-0 rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">{t("aiSupport.inbox.composer.editing")}</span> : null}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={handleEditAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 transition hover:bg-violet-400/15">✏️ تعديل الرد</button>
-                    <button type="button" onClick={handleApproveAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15">✅ اعتماد وإرسال</button>
-                    <button type="button" onClick={handleDismissAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-200 transition hover:bg-white/[0.08]">❌ تجاهل</button>
+                    <button type="button" onClick={handleEditAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 transition hover:bg-violet-400/15">✏️ {t("aiSupport.inbox.pwa.editReply")}</button>
+                    <button type="button" onClick={handleApproveAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15">✅ {t("aiSupport.inbox.pwa.approveAndSend")}</button>
+                    <button type="button" onClick={handleDismissAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-200 transition hover:bg-white/[0.08]">❌ {t("aiSupport.inbox.pwa.dismiss")}</button>
                   </div>
                 </div>
               ) : null}
@@ -6907,7 +6927,7 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={() => setProductSheetOpen(true)}
                   className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-100"
-                  aria-label="Send product"
+                  aria-label={t("aiSupport.inbox.picker.sendProduct")}
                 >
                   <PackagePlus className="h-5 w-5" />
                 </button>
@@ -6915,8 +6935,8 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={openImagePicker}
                   className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200"
-                  aria-label="Attach image"
-                  title="Attach image"
+                  aria-label={t("aiSupport.inbox.pwa.attachImage")}
+                  title={t("aiSupport.inbox.pwa.attachImage")}
                 >
                   <Image className="h-5 w-5" />
                 </button>
@@ -6934,14 +6954,14 @@ export default function AiInboxPwa() {
                   onChange={setComposerText}
                   onSubmit={sendManualReply}
                   disabled={sending}
-                  placeholder={composerMode === "note" ? "Write an internal note" : "Type a reply"}
+                  placeholder={composerMode === "note" ? t("aiSupport.inbox.pwa.writeInternalNote") : t("aiSupport.inbox.pwa.typeReply")}
                 />
                 <button
                   ref={emojiButtonRef}
                   type="button"
                   onClick={() => setEmojiPickerOpen((current) => !current)}
                   className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-300/20" : "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-white/[0.06] dark:text-slate-200 dark:ring-white/10"}`}
-                  aria-label="Emoji"
+                  aria-label={t("aiSupport.inbox.pwa.emoji")}
                   aria-expanded={emojiPickerOpen}
                 >
                   <Smile className="h-5 w-5" />
@@ -6951,14 +6971,14 @@ export default function AiInboxPwa() {
                   anchorRef={emojiButtonRef}
                   onClose={() => setEmojiPickerOpen(false)}
                   onSelect={insertComposerEmoji}
-                  title="Choose emoji"
+                  title={t("aiSupport.inbox.emoji.choose")}
                 />
                 <button
                   type="button"
                   onClick={() => void sendManualReply()}
                   disabled={!clean(composerText) || /^\s*\//.test(composerText) || sending}
                   className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "bg-amber-500" : "bg-sky-600"}`}
-                  aria-label={composerMode === "note" ? "Save note" : "Send reply"}
+                  aria-label={composerMode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
                 >
                   {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>
@@ -6990,7 +7010,7 @@ export default function AiInboxPwa() {
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  <span>{item.labelKey ? t(item.labelKey) : item.label}</span>
+                  <span>{t(item.labelKey)}</span>
                 </button>
               );
             })}
@@ -7032,7 +7052,7 @@ export default function AiInboxPwa() {
           customerId={customerDrawer.customerId}
           context={customerDrawer.context}
           aiAnalysis={customerDrawerAnalysis}
-          title="Customer 360"
+          title={t("aiSupport.inbox.ui.customer360")}
         />
       </div>
     </div>
