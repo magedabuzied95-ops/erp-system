@@ -9,6 +9,8 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const reactionEmoji = (value = "") => clean(value) === "❤" ? "❤️" : clean(value);
 const QUICK_MESSAGE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+export const INSTAGRAM_MESSAGE_REACTIONS = ["❤️"];
+export const MESSENGER_MESSAGE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡", "👎"];
 const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
@@ -229,7 +231,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   );
 }
 
-function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, children }) {
+function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -392,7 +394,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
             aria-label="إضافة تفاعل"
             title="إضافة تفاعل"
             onClick={() => setReactionPickerOpen((current) => !current)}
-            className={`grid h-7 w-7 place-items-center rounded-full border shadow-sm transition ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
+            className={`grid h-7 w-7 place-items-center rounded-full border shadow-sm transition hover:-translate-y-0.5 ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300"}`}
           >
             <Smile className="h-4 w-4" />
           </button>
@@ -401,10 +403,10 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
       {reactionPickerOpen ? (
         <div data-ai-message-reaction-picker="true" className={`relative z-50 mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <div className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-xl ${variant === "pwa" ? "border-slate-200 bg-white" : "border-white/10 bg-[#f8fafc]"}`}>
-            {QUICK_MESSAGE_REACTIONS.map((emoji) => (
+            {reactionOptions.map((emoji) => (
               <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-9 w-9 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}><AppleEmoji emoji={emoji} size={25} /></button>
             ))}
-            <button ref={reactionPickerAnchorRef} type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-9 w-9 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label="عرض كل الإيموجي">+</button>
+            {reactionOptions.length > 1 ? <button ref={reactionPickerAnchorRef} type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-9 w-9 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label="عرض كل الإيموجي">+</button> : null}
           </div>
         </div>
       ) : null}
@@ -530,6 +532,7 @@ function TranscriptMessage({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  reactionOptions = QUICK_MESSAGE_REACTIONS,
   channelLabel = "",
 }) {
   const safeRow = row || {};
@@ -583,7 +586,7 @@ function TranscriptMessage({
   if (variant === "pwa") {
     if (safeRow.kind === "product_card") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="w-[82%] max-w-sm space-y-1.5">
               <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
@@ -596,7 +599,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "customer") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
           <div className="flex justify-end">
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
@@ -619,7 +622,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "ai") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
@@ -636,7 +639,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "staff") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
             <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
@@ -655,7 +658,7 @@ function TranscriptMessage({
 
     if (isCommentMessage) {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
@@ -698,7 +701,7 @@ function TranscriptMessage({
   }
 
   return (
-    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel} onReact={onReact}>
+    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
       <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
@@ -818,5 +821,5 @@ function TranscriptMessage({
   );
 }
 
-export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.channelLabel === next.channelLabel);
+export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel);
 

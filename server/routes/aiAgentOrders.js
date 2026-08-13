@@ -9,6 +9,8 @@ import {
   debugMessengerProfileForConversation,
   getAiInboxConversationDebug,
   refreshMessengerProfileForConversation,
+  sendInstagramInboxReaction,
+  sendMessengerInboxReaction,
   sendMetaInboxOutboundMessage,
   syncMessengerProfileForConversation,
 } from "../services/metaIntegrationService.js";
@@ -4906,8 +4908,11 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
       throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
     }
     const channel = envText(conversation.channel || conversation.source).toLowerCase();
-    if (!channel.includes("whatsapp")) {
-      throw Object.assign(new Error("Message reactions are currently available for WhatsApp conversations"), { status: 409, code: "REACTION_CHANNEL_UNSUPPORTED" });
+    const isWhatsappReaction = channel.includes("whatsapp");
+    const isInstagramReaction = channel.includes("instagram");
+    const isMessengerReaction = channel.includes("messenger") || channel.includes("facebook");
+    if (!isWhatsappReaction && !isInstagramReaction && !isMessengerReaction) {
+      throw Object.assign(new Error("Message reactions are currently available for WhatsApp, Instagram, and Messenger conversations"), { status: 409, code: "REACTION_CHANNEL_UNSUPPORTED" });
     }
     const sessionId = envText(conversation.session_id || requestedConversationId);
     const targetResult = await db.query(
@@ -4942,28 +4947,59 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
     const remoteDigits = rawRemoteJid.replace(/\D/g, "");
     const remoteJid = rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "";
     const targetFromMe = req.body?.target_from_me === true || ["staff", "ai", "system"].includes(envText(target.sender_type).toLowerCase());
-    const delivery = await sendWhatsappReaction({ remoteJid, targetMessageId, targetFromMe, emoji });
+    const instagramRecipientId = envText(
+      conversation.external_customer_id ||
+      conversation.customer_profile?.external_customer_id ||
+      conversation.channel_metadata?.instagram_scoped_id ||
+      conversation.channel_metadata?.sender_id
+    );
+    const normalizedEmoji = isInstagramReaction && emoji ? "❤️" : emoji;
+    const metaRecipientId = envText(
+      conversation.external_customer_id ||
+      conversation.customer_profile?.external_customer_id ||
+      conversation.channel_metadata?.sender_id
+    );
+    const delivery = isInstagramReaction
+      ? await sendInstagramInboxReaction({
+          tenantId,
+          recipientId: instagramRecipientId,
+          messageId: targetMessageId,
+          emoji: normalizedEmoji,
+          facebookPageId: conversation.channel_metadata?.facebook_page_id || conversation.channel_metadata?.page_id || "",
+          instagramBusinessAccountId: conversation.channel_metadata?.instagram_business_account_id || conversation.channel_metadata?.instagram_account_id || "",
+          preferredConfigId: conversation.channel_metadata?.config_id || null,
+        })
+      : isMessengerReaction
+        ? await sendMessengerInboxReaction({
+            tenantId,
+            recipientId: metaRecipientId,
+            messageId: targetMessageId,
+            emoji: normalizedEmoji,
+            facebookPageId: conversation.channel_metadata?.facebook_page_id || conversation.channel_metadata?.page_id || "",
+            preferredConfigId: conversation.channel_metadata?.config_id || null,
+          })
+      : await sendWhatsappReaction({ remoteJid, targetMessageId, targetFromMe, emoji: normalizedEmoji });
     const providerMessageId = envText(delivery?.result?.key?.id || delivery?.result?.messageId || delivery?.result?.message_id || `staff-reaction:${targetMessageId}:${Date.now()}`);
     const stored = await upsertAiSupportMessageReaction({
       tenantId,
       sessionId,
-      channel: "whatsapp",
-      emoji,
+      channel: isInstagramReaction ? "instagram" : isMessengerReaction ? "facebook_messenger" : "whatsapp",
+      emoji: normalizedEmoji,
       targetMessageId,
       fromMe: true,
       providerMessageId,
-      remoteJid,
-      resolvedReplyJid: remoteJid,
+      remoteJid: isInstagramReaction ? instagramRecipientId : isMessengerReaction ? metaRecipientId : remoteJid,
+      resolvedReplyJid: isInstagramReaction ? instagramRecipientId : isMessengerReaction ? metaRecipientId : remoteJid,
       resolvedPhone: target.resolved_phone || conversation.customer_phone || conversation.customer_profile?.phone || "",
     });
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
       tenant_id: tenantId,
       session_id: sessionId,
-      channel: "whatsapp",
-      reason: emoji ? "staff_reaction_sent" : "staff_reaction_removed",
+      channel: isInstagramReaction ? "instagram" : isMessengerReaction ? "facebook_messenger" : "whatsapp",
+      reason: normalizedEmoji ? "staff_reaction_sent" : "staff_reaction_removed",
       at: new Date().toISOString(),
     });
-    return res.json({ success: true, emoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !emoji });
+    return res.json({ success: true, emoji: normalizedEmoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !normalizedEmoji });
   } catch (error) {
     return sendError(res, error, "Failed to send message reaction");
   }

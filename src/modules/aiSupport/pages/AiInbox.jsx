@@ -70,7 +70,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
-import TranscriptMessage, { PinnedMessagesBar } from "../components/TranscriptMessage";
+import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import {
   MAX_BATCH_PRODUCTS, productSelectionKey, toggleProductSelection,
@@ -2553,6 +2553,7 @@ const Transcript = memo(function Transcript({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  reactionOptions,
   olderMessagesAvailable = false,
 }) {
   const isCommentThread = isCommentConversation(conversation || {});
@@ -2626,6 +2627,7 @@ const Transcript = memo(function Transcript({
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
+              reactionOptions={reactionOptions}
               channelLabel={row.channelLabel}
             />
           </Fragment>
@@ -8740,7 +8742,8 @@ export default function AiInbox() {
                         onOpenCorrection={openReplyCorrection}
                         onReplyComment={sendLeadCommentReplyQuick}
                         onPrivateMessage={sendLeadPrivateMessage}
-                        onReact={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? reactToMessage : null}
+                        onReact={(isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) || isMetaChannel(selectedConversation?.channel || selectedConversation?.source)) ? reactToMessage : null}
+                        reactionOptions={clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram") ? INSTAGRAM_MESSAGE_REACTIONS : clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("messenger") ? MESSENGER_MESSAGE_REACTIONS : undefined}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
