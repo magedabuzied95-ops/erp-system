@@ -8906,7 +8906,8 @@ export default function AiInbox({ reviewerMode = false }) {
                   />
                   <div
                     data-ai-inbox-commerce-toolbar="true"
-                    className="mt-1 flex shrink-0 items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-sm dark:border-white/10 dark:bg-[#20231f]"
+                    dir={isArabic ? "rtl" : "ltr"}
+                    className="mt-1 flex shrink-0 items-center justify-start gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-sm dark:border-white/10 dark:bg-[#20231f]"
                   >
                     <button
                       type="button"
@@ -8924,7 +8925,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-50 px-2.5 text-[11px] font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-45 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100"
                     >
                       <PackageCheck className="h-4 w-4" />
-                      {t("aiSupport.inbox.pwa.sendProduct")}
+                      {t("aiSupport.inbox.picker.sendProduct")}
                     </button>
                     <button
                       type="button"
@@ -8933,7 +8934,7 @@ export default function AiInbox({ reviewerMode = false }) {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-50 px-2.5 text-[11px] font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-45 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100"
                     >
                       <Ruler className="h-4 w-4" />
-                      {t("aiSupport.inbox.pwa.availableBySize")}
+                      {t("aiSupport.inbox.picker.availableBySize")}
                     </button>
                     <button
                       type="button"
