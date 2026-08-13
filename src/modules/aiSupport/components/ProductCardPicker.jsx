@@ -15,6 +15,7 @@ import { useProductClassifications } from "../../products/hooks/useProductClassi
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
 import { matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
 import "../../pos/pages/POSPro.m1.css";
+import "./ProductLinkPicker.m1.css";
 import { useTheme } from "../../../theme/useTheme";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -1087,51 +1088,56 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         ? sizeLinkFilteredProducts.filter((product) => normalizedSelectedSizes.some((size) => productHasAvailableSize(product, size))).length
         : sizeMatchCount;
 
+    // Presentation note (AI_INBOX_PRODUCT_LINK_MODAL): every colour below now
+    // resolves through the M1 theme tokens in ProductLinkPicker.m1.css. Only
+    // layout utilities stay inline. Structure, handlers, test ids, filter values
+    // and the link/message builders are byte-for-byte unchanged.
     const sizeContent = (
       <div
-        className={inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-[#111310]" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/75 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}
+        className={`ai-plink ${inlineFullscreenMode ? "ai-plink--fullscreen fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden" : "fixed inset-0 z-[99999] isolate overflow-hidden backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
         style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147483647, isolation: "isolate" }}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) onClose?.();
         }}
       >
-        <div className="absolute inset-0 bg-black/75" aria-hidden="true" />
+        <div className="ai-plink__scrim absolute inset-0" aria-hidden="true" />
         <section
           data-testid="available-by-size-dialog"
-          className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-[#111310] text-white" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[760px] min-w-0 flex-col overflow-hidden rounded-none border border-amber-300/20 bg-[#151714] shadow-[0_30px_90px_rgba(0,0,0,0.68)] sm:mx-auto sm:h-auto sm:max-h-[82dvh] sm:rounded-[1.35rem]"}
-          style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: inlineFullscreenMode ? "100dvh" : "82dvh", margin: 0, borderRadius: inlineFullscreenMode ? 0 : "1.35rem" }}
+          className={`ai-plink__dialog relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none ${inlineFullscreenMode ? "" : "max-w-[760px] sm:mx-auto sm:h-auto sm:max-h-[82dvh] sm:rounded-[var(--radius-xl)]"}`}
+          style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: inlineFullscreenMode ? "100dvh" : "82dvh", margin: 0, borderRadius: inlineFullscreenMode ? 0 : "var(--radius-xl)" }}
           onMouseDown={(event) => event.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="ai-product-card-picker-title"
           dir="rtl"
         >
-          <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-amber-300/15 bg-[#191b17]/95 px-4 py-3 backdrop-blur">
+          <div className="ai-plink__header sticky top-0 z-20 flex items-start justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">AI INBOX</div>
-              <h3 id="ai-product-card-picker-title" className="mt-1 text-lg font-black text-white">المتاح بالمقاس</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-400">اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
+              <div className="ai-plink__eyebrow">AI INBOX</div>
+              <h3 id="ai-product-card-picker-title" className="ai-plink__title mt-1">المتاح بالمقاس</h3>
+              <p className="ai-plink__subtitle mt-1">اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
             </div>
             <button
               data-testid="available-by-size-close"
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white transition hover:border-amber-300/30 hover:bg-amber-300/10"
+              className="ai-plink__close inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-[#111310] p-4">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">نوع المنتج</div>
-              <div className="mt-2 text-lg font-black text-white">اختر نوعًا أو أكثر</div>
-              <div className="mt-1 text-xs font-semibold text-slate-400">يمكنك الجمع بين أكثر من نوع في نفس الرابط.</div>
+          <div className="ai-plink__body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+            <div className="ai-plink__group p-4">
+              <div className="ai-plink__eyebrow">نوع المنتج</div>
+              <div className="ai-plink__group-title mt-2">اختر نوعًا أو أكثر</div>
+              <div className="ai-plink__hint mt-1">يمكنك الجمع بين أكثر من نوع في نفس الرابط.</div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedLinkTypes([])}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition ${!selectedLinkTypes.length ? "border-amber-300 bg-amber-300 text-slate-950" : "border-white/10 bg-transparent text-white hover:border-amber-300/35"}`}
+                  aria-pressed={!selectedLinkTypes.length}
+                  className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${!selectedLinkTypes.length ? "is-active" : ""}`}
                 >
                   <span aria-hidden="true">✨</span>
                   الكل
@@ -1143,7 +1149,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                       key={item}
                       type="button"
                       onClick={() => setSelectedLinkTypes((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])}
-                      className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition ${active ? "border-amber-300 bg-amber-300 text-slate-950" : "border-white/10 bg-transparent text-white hover:border-amber-300/35"}`}
+                      aria-pressed={active}
+                      className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${active ? "is-active" : ""}`}
                     >
                       <span className="text-base" aria-hidden="true">{productTypeIcon(item)}</span>
                       {item}
@@ -1153,80 +1160,83 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">المقاسات</div>
-              <div className="mt-2 text-lg font-black text-white">اختر المقاس أو المقاسات</div>
-              <div className="mt-1 text-xs font-semibold text-slate-400">المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
-              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-                {availableSizes.length ? availableSizes.map((size) => {
-                  const active = normalizedSelectedSizes.includes(size);
-                  return (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => {
-                        setSelectedLinkSizes((current) => (
-                          current.includes(size) ? current.filter((item) => item !== size) : [...current, size]
-                        ));
-                      }}
-                      className={`min-h-12 rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-amber-300 bg-amber-300 text-slate-950 shadow-[0_8px_22px_rgba(252,211,77,0.16)]" : "border-white/10 bg-black/25 text-white hover:border-amber-300/35 hover:bg-amber-300/10"}`}
-                    >
-                      {size}
-                    </button>
-                  );
-                }) : (
-                  <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500">
-                    لا توجد مقاسات متاحة حاليًا
-                  </div>
-                )}
-              </div>
+            <div className="ai-plink__group p-4">
+              <div className="ai-plink__eyebrow">المقاسات</div>
+              <div className="ai-plink__group-title mt-2">اختر المقاس أو المقاسات</div>
+              <div className="ai-plink__hint mt-1">المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
+              {availableSizes.length ? (
+                <div className="ai-plink__size-grid mt-4">
+                  {availableSizes.map((size) => {
+                    const active = normalizedSelectedSizes.includes(size);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLinkSizes((current) => (
+                            current.includes(size) ? current.filter((item) => item !== size) : [...current, size]
+                          ));
+                        }}
+                        aria-pressed={active}
+                        className={`ai-plink__size ${active ? "is-active" : ""}`}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="ai-plink__empty mt-4 p-4">
+                  لا توجد مقاسات متاحة حاليًا
+                </div>
+              )}
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Gender</span>
-                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} style={{ background: "transparent", border: 0, boxShadow: "none", backgroundImage: "none" }} className="min-w-0 flex-1 appearance-none !bg-transparent text-xs font-black text-white outline-none">
+              <label className="ai-plink__field flex items-center gap-2 px-3">
+                <span className="ai-plink__field-label">Gender</span>
+                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className="ai-plink__field-control min-w-0 flex-1 appearance-none">
                   {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "الكل" : option}</option>)}
                 </select>
               </label>
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
-                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} style={{ background: "transparent", border: 0, boxShadow: "none", backgroundImage: "none" }} className="min-w-0 flex-1 appearance-none !bg-transparent text-xs font-black text-white outline-none">
+              <label className="ai-plink__field flex items-center gap-2 px-3">
+                <span className="ai-plink__field-label">Brand</span>
+                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className="ai-plink__field-control min-w-0 flex-1 appearance-none">
                   <option value="all">الكل</option>
                   {brandOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Min</span>
-                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" style={{ background: "transparent", border: 0, boxShadow: "none" }} className="min-w-0 flex-1 !bg-transparent text-xs font-black text-white outline-none" />
+                <label className="ai-plink__field flex items-center gap-2 px-3">
+                  <span className="ai-plink__field-label">Min</span>
+                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" className="ai-plink__field-control min-w-0 flex-1" />
                 </label>
-                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-transparent px-3 focus-within:border-amber-300/30">
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Max</span>
-                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" style={{ background: "transparent", border: 0, boxShadow: "none" }} className="min-w-0 flex-1 !bg-transparent text-xs font-black text-white outline-none" />
+                <label className="ai-plink__field flex items-center gap-2 px-3">
+                  <span className="ai-plink__field-label">Max</span>
+                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" className="ai-plink__field-control min-w-0 flex-1" />
                 </label>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-amber-300/15 bg-amber-300/[0.055] p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">المعاينة</div>
-              <div className="mt-2 text-base font-black text-white">{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
-              <div className="mt-1 text-xs font-semibold text-slate-400">النتائج المطابقة: {matchingCount}</div>
+            <div className="ai-plink__preview p-4">
+              <div className="ai-plink__eyebrow">المعاينة</div>
+              <div className="ai-plink__preview-value mt-2">{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
+              <div className="ai-plink__hint mt-1">النتائج المطابقة: {matchingCount}</div>
             </div>
           </div>
 
-          <div className="sticky bottom-0 z-20 shrink-0 border-t border-amber-300/15 bg-[#191b17]/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+          <div className="ai-plink__footer sticky bottom-0 z-20 shrink-0 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3">
             <button
               data-testid="available-by-size-send"
               type="button"
               onClick={() => void submitSelectionWithSizeMode()}
               disabled={submitting || !normalizedSelectedSizes.length}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-300 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ai-plink__send inline-flex w-full items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               إرسال الرابط
             </button>
-            {!normalizedSelectedSizes.length ? <div className="mt-2 text-xs text-slate-500">اختر المقاس أولًا.</div> : null}
+            {!normalizedSelectedSizes.length ? <div className="ai-plink__footer-hint mt-2">اختر المقاس أولًا.</div> : null}
           </div>
         </section>
       </div>

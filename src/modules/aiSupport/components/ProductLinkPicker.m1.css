@@ -1,0 +1,306 @@
+/* AI Inbox — Product Link modal ("المتاح بالمقاس"), M1 visual convergence.
+ *
+ * POST-CLOSURE USER VISUAL REJECTION / AI_INBOX_PRODUCT_LINK_MODAL.
+ *
+ * Why this file exists. The dialog is rendered through createPortal into
+ * document.body, so it sits OUTSIDE `.m1-shell-root .m1-shell-content` and none
+ * of foundation.css's palette→token normalisations can reach it. Its surfaces
+ * were therefore written as fixed hex literals (#111310 / #151714 / #191b17)
+ * plus text-white / text-slate-400, which stayed near-black inside a Light ERP.
+ * A surface audit scoped to the shell could not see any of it.
+ *
+ * Contract: every colour below resolves through the M1 theme tokens that
+ * ThemeProvider writes onto :root, so one stylesheet serves both themes and the
+ * modal re-points with the rest of the ERP. No palette literals, no wildcard
+ * selectors, no blanket !important — these class hooks own the elements
+ * directly, so plain specificity is enough.
+ *
+ * Hierarchy: scrim → dialog (--surface) → group (--surface-soft) → control
+ * (--surface). Sole consumer: ProductCardPicker's sizeMode branch.
+ */
+
+.ai-plink {
+  font-family: var(--font-ui);
+}
+
+.ai-plink__scrim {
+  background: var(--overlay-scrim);
+}
+
+/* ---- dialog shell ------------------------------------------------------- */
+
+.ai-plink__dialog {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-overlay);
+}
+
+.ai-plink--fullscreen .ai-plink__dialog {
+  border-inline: 0;
+  box-shadow: none;
+}
+
+.ai-plink__header,
+.ai-plink__footer {
+  /* Slightly lifted off the dialog so the sticky edges stay legible while the
+     body scrolls beneath them. */
+  background: var(--surface-raised);
+}
+
+.ai-plink__header {
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-plink__footer {
+  border-top: 1px solid var(--border);
+}
+
+.ai-plink__body {
+  background: var(--bg);
+  /* The body is the single scrollport: header and footer are sticky siblings,
+     so nothing else may scroll and there is no nested scroll container. */
+  min-height: 0;
+}
+
+.ai-plink__title {
+  color: var(--text);
+  font-size: var(--font-section-title);
+  line-height: var(--font-section-title-lh);
+  font-weight: 800;
+}
+
+.ai-plink__subtitle,
+.ai-plink__hint {
+  color: var(--muted);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 500;
+}
+
+/* Section eyebrow. Deliberately NOT gold: #a47a12 on white measures 3.91:1,
+   which fails AA for 10px text. --text-secondary measures 7.9:1 Light /
+   9.8:1 Dark. Gold stays reserved for the CTA and the selected state, where it
+   carries a compliant foreground. */
+.ai-plink__eyebrow {
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.ai-plink__close {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-plink__close:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+/* ---- grouped sections --------------------------------------------------- */
+
+.ai-plink__group {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.ai-plink__group-title {
+  color: var(--text);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+}
+
+.ai-plink__empty {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+/* ---- product-type chips (segmented control) ----------------------------- */
+
+.ai-plink__chip {
+  min-height: var(--control-height-lg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 700;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.ai-plink__chip:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.ai-plink__chip.is-active {
+  border-color: var(--primary-active);
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.ai-plink__chip.is-active:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-active);
+}
+
+/* ---- size grid ---------------------------------------------------------- */
+
+.ai-plink__size-grid {
+  /* Auto-fit keeps the labels readable instead of squeezing a fixed column
+     count: cells grow to fill the row and wrap naturally in both directions.
+     `minmax(0, 1fr)` is what stops a long value (e.g. an inch label) from
+     forcing the track wider than its share and clipping. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space-2);
+}
+
+.ai-plink__size {
+  min-height: var(--control-height-lg);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 700;
+  /* A size label must never be clipped — it is the whole meaning of the cell. */
+  overflow-wrap: anywhere;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.ai-plink__size:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.ai-plink__size.is-active {
+  border-color: var(--primary-active);
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.ai-plink__size.is-active:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-active);
+}
+
+.ai-plink__size:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+/* ---- filter fields ------------------------------------------------------ */
+
+.ai-plink__field {
+  min-height: var(--control-height-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.ai-plink__field:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.ai-plink__field-label {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Inherits the deployed GLOBAL_DROPDOWN_TYPOGRAPHY contract rather than
+   restating it: same app font stack, same body size, dir-aware. */
+.ai-plink__field-control {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  background-image: none;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 600;
+  outline: none;
+}
+
+.ai-plink__field-control::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* The native option list is painted by the OS; giving it the token surface is
+   what keeps a Light dropdown from opening dark over a light dialog. */
+.ai-plink__field-control option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* ---- preview ------------------------------------------------------------ */
+
+.ai-plink__preview {
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-radius: var(--radius-card);
+}
+
+.ai-plink__preview-value {
+  color: var(--text);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+}
+
+/* ---- footer / send ------------------------------------------------------ */
+
+.ai-plink__send {
+  min-height: var(--control-height-lg);
+  border: 1px solid var(--primary-active);
+  border-radius: var(--radius-control);
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-plink__send:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-active);
+}
+
+.ai-plink__send:disabled {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.ai-plink__footer-hint {
+  color: var(--muted);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 500;
+}

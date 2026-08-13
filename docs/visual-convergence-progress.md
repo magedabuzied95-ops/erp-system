@@ -1123,10 +1123,116 @@ State: **FIXED_VERIFIED (Light + Dark, RTL + LTR, native + custom + portal)**.
 Only the explicitly documented Windows/Chrome native popup geometry remains
 outside application ownership.
 
+## Checkpoint 10 — POST-CLOSURE USER VISUAL REJECTION / AI_INBOX_PRODUCT_LINK_MODAL
+
+**Classification:** POST-CLOSURE USER VISUAL REJECTION.
+**Surface:** `AI_INBOX_PRODUCT_LINK_MODAL` — the "المتاح بالمقاس" dialog opened
+from `/admin/ai-inbox` (`ProductCardPicker`, `sizeMode` branch).
+**Starting main:** `4ee207c`.
+
+AI Inbox is otherwise still **observe-only** (see "Excluded by instruction"). The
+user granted an explicit, surface-scoped exception for this one modal after
+rejecting its Light rendering. No other AI Inbox surface was modified.
+
+### Why the earlier "0 surface offenders" sweeps could not see it
+
+Three independent causes, all of which had to be true at once:
+
+1. **The dialog portals into `document.body`**, so it renders OUTSIDE
+   `.m1-shell-root .m1-shell-content`. Every palette→token normalisation in
+   `foundation.css` is scoped to that subtree, so none of them reached it — and a
+   sweep that walks the shell subtree cannot see the modal at all.
+2. **Its surfaces were hex literals in Tailwind arbitrary values** —
+   `bg-[#111310]` (overlay + body), `bg-[#151714]` (dialog), `bg-[#191b17]/95`
+   (header + footer) — joined by `text-white`, `text-slate-400/500`,
+   `border-white/10` and `bg-black/25`. Nothing consulted a token, so in Light the
+   modal stayed near-black inside a light ERP.
+3. **`sizeMode` never received the picker's theme class.** `AiInboxDesktop.css`
+   already carried a Light variant for `.ai-inbox-product-picker-desktop*`, but
+   that class is only applied on the product-card branch. The link branch was
+   unowned by any stylesheet.
+
+A fourth, related finding: `--picker-*` in `AiInboxDesktop.css` was a hand-tuned
+second palette with a literal `#d4af37` gold and its own light/dark pair — a
+separate AI Inbox theme rather than the M1 contract (§0).
+
+### Owners and fix
+
+| Owner | Change |
+|---|---|
+| `src/modules/aiSupport/components/ProductLinkPicker.m1.css` (new) | Token-only stylesheet for the modal. Class hooks own their elements, so plain specificity suffices: no wildcard selectors and no `!important`. |
+| `src/modules/aiSupport/components/ProductCardPicker.jsx` | `sizeMode` markup moved onto `.ai-plink__*` hooks. Layout utilities stay inline. Structure, handlers, `data-testid`s, filter values and the URL/message builders unchanged. |
+| `src/modules/aiSupport/pages/AiInboxDesktop.css` | `--picker-*` retargeted onto M1 tokens; the duplicated light-theme block and the gold/foreground literals are gone. One definition now serves both themes. |
+
+Hierarchy: scrim `--overlay-scrim` → dialog `--surface` → body `--bg` → group
+`--surface-soft` → control `--surface`; selected state and CTA use
+`--primary` / `--primary-contrast`.
+
+### Measured (real computed values, both themes)
+
+| Region | Light | Dark |
+|---|---|---|
+| dialog | `#ffffff` | `#1d1c1a` |
+| header / footer | `#ffffff` | `#282623` |
+| body canvas | `#eae7e0` | `#131211` |
+| group | `#f4f1ea` | `#191817` |
+| preview | `#faf0d6` | `#3a3018` |
+
+Text contrast, worst case per theme: **Light 5.06:1**, **Dark 5.06:1** (both the
+gold CTA / selected chip). Every one of the 15 measured strings — title, eyebrow,
+subtitle, group title, hint, selected and unselected chip, selected and
+unselected size, field label, field value, preview value, send, disabled send,
+close — clears AA 4.5:1 in both themes. Before, the same strings were
+white/slate-400 on `#111310` inside a Light shell.
+
+**The eyebrow is deliberately NOT gold.** `--primary` measures **3.91:1** on Light
+`--surface`, which fails AA at 10px. It uses `--text-secondary` (7.87:1 Light,
+8.69:1 Dark). Gold stays reserved for the CTA and selected state, where its
+`--primary-contrast` foreground measures 5.06:1 / 9.72:1.
+
+### Geometry, scroll, direction
+
+Dialog 760×659 at 1280w and 760×544 at 820w; fits the viewport with no document
+horizontal overflow at any width tested. **Exactly one scrollport** in every
+variant — `.ai-plink__body` — with header and footer as sticky siblings, so the
+CTA never scrolls away and there is no nested/double scroll. Chip, size and send
+controls all resolve to 44px. The size grid is `auto-fill minmax(72px, 1fr)`: 8
+columns at 1280w, 4 at ~500w, and no label is clipped, including `inch-10.5` /
+`inch-11`. Typography follows the app stack by direction — Cairo under RTL, Inter
+under LTR — via `--font-ui`; the modal names no font of its own. Spacing uses
+logical properties only, so direction is handled by the cascade rather than by
+page-local negative margins.
+
+Verified matrix: {Light, Dark} × {RTL, LTR} × {1280, 820, ~500} viewports.
+
+### Verification
+
+Guard: `tests/ai-inbox-product-link-modal-theme.test.js` (9 assertions) pins the
+hierarchy, the primary contract, the non-gold eyebrow, the app font stack, the
+absence of colour literals / `!important` / wildcard selectors, and the behaviour
+anchors. `tests/ai-inbox-desktop-omnichannel.test.js` had two assertions pinning
+the retired `#d4af37` literal and the duplicated light block; both were updated to
+the token contract, which is the only test change.
+
+Full suite: **57 failing tests before, the same 57 after — identical identity, zero
+newly introduced.** Lint identical to main (0 errors, 6 pre-existing warnings).
+`vite build` succeeds.
+
+**Behaviour freeze honoured.** No change to suggestion generation, conversation
+state, takeover, assisted approval, draft state, delivery, product search or
+filtering, ids, size values, link generation, customer data, provider APIs,
+backend, DB or API contracts. The only non-colour markup addition is `aria-pressed`
+on the chip and size buttons, which reports the already-existing selected state.
+
+State: **FIXED_VERIFIED (Light + Dark, RTL + LTR, measured computed values).**
+
 ## RESUME MARKER
 
 **GLOBAL_DROPDOWN_TYPOGRAPHY: COMPLETE — checkpoint 9 Production-verified at
 `6683536`.**
+
+**AI_INBOX_PRODUCT_LINK_MODAL: checkpoint 10 — see above. AI Inbox otherwise
+remains observe-only.**
 
 **Phase 3 Light pass: COMPLETE. Accounting + session-1 Dark pass: COMPLETE.**
 
