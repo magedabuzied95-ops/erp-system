@@ -3448,12 +3448,19 @@ const processEvolutionStatusUpdate = async (payload = {}) => {
   const data = primaryEvolutionData(payload);
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const statusItem = Array.isArray(data?.statuses) ? data.statuses[0] : (data?.statuses || payload?.statuses?.[0] || null);
+  // Batch 1B — Evolution v2.3.7 emits messages.update FLAT: { messageId, keyId, remoteJid, fromMe, status,
+  // instanceId } (server.module.js, sendDataWebhook("messages.update", …)). `keyId` is the real WhatsApp provider
+  // id — the one ai_support_messages.provider_message_id stores — while `messageId` is Evolution's OWN Prisma row
+  // id. Without keyId in this chain the fallback matched `data.messageId`, so every reconciliation looked up an
+  // id we never stored and silently failed to match. keyId is authoritative and MUST outrank messageId.
   const providerMessageId = text(
     statusItem?.id ||
     statusItem?.messageId ||
     statusItem?.message_id ||
     statusItem?.key?.id ||
     data?.key?.id ||
+    data?.keyId ||
+    data?.key_id ||
     envelope.messageId ||
     data?.messageId ||
     data?.message_id ||
@@ -4202,14 +4209,24 @@ export const handleIncomingWebhook = async (payload = {}) => {
     source: envelope.rawEvent || payload?.event || payload?.type || "",
     status: text(payload?.status || envelope.data?.status || envelope.data?.message?.status || payload?.data?.status || ""),
   });
-  const skipReason = getEvolutionWebhookSkipReason({
-    event: envelope.event,
-    remoteJid: envelope.remoteJid,
-    messageId: envelope.messageId,
-    textValue: fullPayloadText,
-    hasMedia: Boolean(mediaDescriptor.type || reactionEvent.isReaction),
-    fromMe: envelope.fromMe === true,
-  });
+  // Batch 1B — a genuine delivery/status event carries no text and no media, so the generic inbound skip gate
+  // classified it as "missing_text" and returned BEFORE the status dispatch further down, which is why
+  // message_delivery_events stayed empty. Classify ONCE here and let only a genuine status event past the gate;
+  // the same decision object is reused by the dispatch below, so the classification can never disagree with
+  // itself. Everything that is not a status event keeps the existing skip behaviour byte-for-byte — a payload
+  // that merely lacks text does NOT bypass the gate, and the classifier's inbound_messages_upsert guard still
+  // protects real customer traffic.
+  const statusDecision = getEvolutionStatusUpdateDecision(payload, envelope);
+  const skipReason = statusDecision.isStatusUpdate
+    ? null
+    : getEvolutionWebhookSkipReason({
+      event: envelope.event,
+      remoteJid: envelope.remoteJid,
+      messageId: envelope.messageId,
+      textValue: fullPayloadText,
+      hasMedia: Boolean(mediaDescriptor.type || reactionEvent.isReaction),
+      fromMe: envelope.fromMe === true,
+    });
   if (skipReason) {
     console.info("[whatsapp:webhook-early-skip]", {
       reason: skipReason,
@@ -4302,7 +4319,8 @@ export const handleIncomingWebhook = async (payload = {}) => {
     fromMe: envelope.fromMe,
     eventCandidates: envelope.eventCandidates,
   });
-  const statusDecision = getEvolutionStatusUpdateDecision(payload, envelope);
+  // Batch 1B — REUSE the decision computed before the skip gate. Classifying the same payload twice risks the two
+  // call sites disagreeing, which is exactly the class of bug this release fixes.
   const isInboundMessagesUpsert = statusDecision.normalizedEvent === "messages.upsert" && envelope.fromMe === false;
   console.info("[whatsapp:evolution-status-decision]", {
     event: envelope.event || "",
