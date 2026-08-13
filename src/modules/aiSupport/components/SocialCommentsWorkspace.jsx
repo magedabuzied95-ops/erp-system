@@ -1532,6 +1532,7 @@ function SocialCommentsWorkspace({
   nextCursor = "",
   onLoadMore,
   loadingMore = false,
+  streamlined = true,
 }) {
   const { t } = useTranslation();
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
@@ -2792,6 +2793,207 @@ function SocialCommentsWorkspace({
       </div>
     );
   };
+
+  if (streamlined) {
+    return (
+      <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 text-white shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
+        <div className="grid h-full min-h-0 w-full min-w-0 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/10 bg-slate-950/60">
+            <div className="flex h-[62px] items-center justify-between gap-3 border-b border-white/10 px-3">
+              <div className="min-w-0">
+                <div className="text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.posts")}</div>
+                <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                  {t("aiSupport.inbox.socialWorkspace.commentsCount", { count: normalizedPosts.reduce((sum, post) => sum + Number(post.commentsCount || 0), 0) })}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleRefresh()}
+                disabled={loading || refreshing}
+                aria-label={t("aiSupport.inbox.socialWorkspace.refresh")}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-200 disabled:opacity-50"
+              >
+                {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
+              {!normalizedPosts.length && !loading ? (
+                <div className="grid min-h-56 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.025] p-5 text-center">
+                  <div>
+                    <MessageSquareText className="mx-auto h-6 w-6 text-slate-500" />
+                    <div className="mt-3 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.noPosts")}</div>
+                    <div className="mt-1 text-xs leading-5 text-slate-500">{t("aiSupport.inbox.socialWorkspace.noPostsHint")}</div>
+                  </div>
+                </div>
+              ) : null}
+
+              {normalizedPosts.map((post) => {
+                const key = postKey(post);
+                const active = activePostKey === key;
+                const meta = platformMeta(post.platform);
+                const visibleTime = getPostVisibleTime(post);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleSelectCardPost(post, key)}
+                    onMouseEnter={() => onPrefetchPost?.(post.raw || post, key)}
+                    className={`flex w-full items-start gap-2.5 rounded-2xl border p-2.5 text-start transition ${
+                      active
+                        ? "border-[#a47a12]/70 bg-[#a47a12]/20 ring-1 ring-[#a47a12]/20"
+                        : "border-white/10 bg-white/[0.035] hover:border-white/20 hover:bg-white/[0.055]"
+                    }`}
+                  >
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+                      {post.thumbnailUrl ? (
+                        <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-slate-500"><ImageIcon className="h-4 w-4" /></div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="line-clamp-2 text-xs font-black leading-5 text-white">{post.caption || t("aiSupport.inbox.socialWorkspace.posts")}</div>
+                        {Number(post.newCount || 0) > 0 ? (
+                          <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#d9aa20] px-1.5 py-0.5 text-[9px] font-black text-slate-950">{post.newCount}</span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                        <span className={`rounded-full border px-2 py-0.5 ${meta.className}`}>{meta.label}</span>
+                        <span>{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: post.commentsCount || 0 })}</span>
+                        {visibleTime ? <span>{absoluteTime(visibleTime)}</span> : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {onLoadMore && nextCursor ? (
+                <button
+                  type="button"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] text-xs font-black text-slate-200 disabled:opacity-50"
+                >
+                  {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {t("aiSupport.inbox.socialWorkspace.loadMore")}
+                </button>
+              ) : null}
+            </div>
+          </aside>
+
+          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#1f201e]">
+            <header className="flex min-h-[62px] items-center justify-between gap-3 border-b border-white/10 px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
+                  {activePostImage ? <img src={activePostImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-slate-500"><MessageSquareText className="h-4 w-4" /></div>}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="line-clamp-1 text-sm font-black text-white">{activePostCaption || t("aiSupport.inbox.socialWorkspace.noPosts")}</h2>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                    <span className={`rounded-full border px-2 py-0.5 ${activePlatform.className}`}>{activePlatform.label}</span>
+                    <span>{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: displayComments.length })}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenPost}
+                disabled={!activePostLink || openingPost}
+                className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-black text-slate-200 disabled:opacity-40"
+              >
+                {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                {t("aiSupport.inbox.socialWorkspace.openPost")}
+              </button>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+              {activeThread.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{activeThread.error}</div> : null}
+              {activeThread.loading && !commentsToRender.length ? (
+                <div className="grid h-full place-items-center"><Loader2 className="h-6 w-6 animate-spin text-[#d9aa20]" /></div>
+              ) : null}
+              {!displayComments.length && !activeThread.loading ? (
+                <div className="grid h-full min-h-64 place-items-center text-center">
+                  <div>
+                    <MessageSquareText className="mx-auto h-7 w-7 text-slate-600" />
+                    <div className="mt-3 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.noComments")}</div>
+                    <div className="mt-1 text-xs text-slate-500">{t("aiSupport.inbox.socialWorkspace.noCommentsHint")}</div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
+                {hasMoreComments ? (
+                  <button type="button" onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))} className="mx-auto rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
+                    {t("aiSupport.inbox.socialWorkspace.loadOlderComments")}
+                  </button>
+                ) : null}
+                {commentsToRender.map((comment) => {
+                  const selected = comment.id === selectedCommentKey;
+                  const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
+                  const replyText = clean(comment.replyText || comment.raw?.reply_text || comment.raw?.rendered_reply || "");
+                  return (
+                    <div key={comment.id || comment.createdTime} ref={(node) => registerCommentNode(comment.id, node)} className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCommentKey(comment.id)}
+                        className={`max-w-[78%] self-start rounded-2xl border px-3.5 py-3 text-start transition ${selected ? "border-[#d9aa20]/60 bg-[#2d2b23] ring-1 ring-[#d9aa20]/20" : "border-white/10 bg-[#292a27] hover:border-white/20"}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-white/[0.06]">
+                            {comment.customerAvatar ? <img src={comment.customerAvatar} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><UserRound className="h-3.5 w-3.5 text-slate-400" /></div>}
+                          </div>
+                          <span className="min-w-0 truncate text-xs font-black text-white">{comment.customerName || "عميل"}</span>
+                          <span className="text-[9px] font-semibold text-slate-500">{comment.createdTime ? absoluteTime(comment.createdTime) : ""}</span>
+                        </div>
+                        <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-100">{comment.message || "—"}</div>
+                        {attachmentPreview ? <img src={attachmentPreview} alt="" className="mt-2 max-h-52 rounded-xl object-cover" loading="lazy" /> : null}
+                      </button>
+                      {replyText ? (
+                        <div className="max-w-[78%] self-end rounded-2xl border border-emerald-300/20 bg-emerald-950/55 px-3.5 py-3 text-start">
+                          <div className="text-[10px] font-black text-emerald-300">{t("aiSupport.inbox.socialWorkspace.sent")}</div>
+                          <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-white">{replyText}</div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <footer className="border-t border-white/10 bg-[#191a18] p-2.5">
+              <div className="flex items-end gap-2 rounded-2xl border border-[#a47a12]/55 bg-[#22231f] p-1.5 focus-within:border-[#d9aa20]">
+                <textarea
+                  ref={composerRef}
+                  value={replyDraft}
+                  onChange={(event) => setReplyDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void submitReply(actionableComment, replyDraft);
+                    }
+                  }}
+                  rows={1}
+                  className="max-h-28 min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 text-white outline-none"
+                  placeholder={t("aiSupport.inbox.socialWorkspace.replyDraft")}
+                />
+                <button
+                  type="button"
+                  onClick={() => void submitReply(actionableComment, replyDraft)}
+                  disabled={!actionableComment || !clean(replyDraft) || Boolean(replyLoadingKey)}
+                  aria-label={t("aiSupport.inbox.socialWorkspace.reply")}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#a47a12] text-white transition hover:bg-[#c39418] disabled:opacity-40"
+                >
+                  {replyLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </button>
+              </div>
+            </footer>
+          </main>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/55 text-white shadow-[0_16px_50px_rgba(0,0,0,0.22)] backdrop-blur">
