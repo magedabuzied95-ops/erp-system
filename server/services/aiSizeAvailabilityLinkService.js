@@ -105,7 +105,7 @@ export const buildSizeAvailabilityStorefrontUrl = ({ size, gender = "", query = 
   if (size) params.set("size", size);
   if (quality) params.set("quality", quality);
   params.set("inStock", "1");
-  params.set("v", "7");
+  params.set("v", "8");
   return `${base || ""}/share/available?${params.toString().replace(/\+/g, "%20")}`;
 };
 

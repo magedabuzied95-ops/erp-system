@@ -66,13 +66,14 @@ test("available-products offers link redirects to the canonical offers page", ()
 
 test("available-products page redirects browsers without sending social crawlers through a meta refresh", () => {
   const html = renderShareAvailableHtml({
-    req: { originalUrl: "/share/available?size=40&type=sneakers&inStock=1&v=7" },
+    req: { originalUrl: "/share/available?size=40&type=sneakers&inStock=1&v=8" },
     targetUrl: "https://m1store-egy.com/shop/products?size=40&type=sneakers&inStock=1",
     ogImageUrl: "https://api.m1store-egy.com/uploads/products/first.jpg",
     products: [{ name: "First product" }],
   });
 
   assert.match(html, /property="og:image" content="https:\/\/api\.m1store-egy\.com\/uploads\/products\/first\.jpg"/);
+  assert.match(html, /property="og:description" content="/);
   assert.match(html, /background: #050505/);
   assert.doesNotMatch(html, /#0c1220/);
   assert.ok(html.indexOf("window.location.replace") < html.indexOf("<body>"));
@@ -120,7 +121,7 @@ test("available-products preview contains no Arabic overlay when there is no ima
   assert.doesNotMatch(svg, /<image href="https?:\/\//);
 });
 
-test("available-products page publishes a V7 preview URL for social cache invalidation", () => {
+test("available-products page publishes a V8 preview URL for social cache invalidation", () => {
   const previousPublicAppUrl = process.env.PUBLIC_APP_URL;
   process.env.PUBLIC_APP_URL = "https://m1store-egy.com";
   try {
@@ -132,7 +133,7 @@ test("available-products page publishes a V7 preview URL for social cache invali
     assert.equal(previewUrl.pathname, "/share/available/og-image.png");
     assert.equal(previewUrl.searchParams.get("size"), "39");
     assert.equal(previewUrl.searchParams.get("type"), "sneakers");
-    assert.equal(previewUrl.searchParams.get("v"), "v7");
+    assert.equal(previewUrl.searchParams.get("v"), "v8");
   } finally {
     if (previousPublicAppUrl === undefined) delete process.env.PUBLIC_APP_URL;
     else process.env.PUBLIC_APP_URL = previousPublicAppUrl;

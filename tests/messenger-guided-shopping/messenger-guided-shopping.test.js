@@ -90,7 +90,7 @@ test("builds the public filtered in-stock storefront link", () => {
       { gender: "men", product_type: "sneakers", grade: "mirror", size: "45" },
       { baseUrl: "https://m1store-egy.com/" }
     ),
-    "https://m1store-egy.com/share/available?gender=men&type=sneakers&quality=mirror&size=45&inStock=1&v=7"
+    "https://m1store-egy.com/share/available?gender=men&type=sneakers&quality=mirror&size=45&inStock=1&v=8"
   );
 });
 
@@ -132,7 +132,7 @@ test("runs the complete guided Messenger journey and sends the matching link", a
   assert.equal(result.matches, 3);
   assert.equal(result.selections.size, "45");
   assert.match(sent.at(-1).replyText, /لقيتلك 3 منتج متاح/);
-  assert.match(sent.at(-1).replyText, /gender=men&type=sneakers&quality=mirror&size=45&inStock=1&v=7/);
+  assert.match(sent.at(-1).replyText, /gender=men&type=sneakers&quality=mirror&size=45&inStock=1&v=8/);
   assert.deepEqual(repository.sessions.get("1:facebook_messenger:customer-1"), {
     step: "complete",
     selections: { gender: "men", product_type: "sneakers", grade: "mirror", size: "45" },

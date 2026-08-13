@@ -58,7 +58,7 @@ try {
 
   const sizeIntent = detectSizeAvailabilityIntent("مقاس 45 رجالي");
   assert.equal(sizeIntent.detected, true);
-  assert.equal(buildSizeAvailabilityStorefrontUrl(sizeIntent), `${process.env.STORE_FRONT_URL}/share/available?gender=men&size=45&inStock=1&v=7`);
+  assert.equal(buildSizeAvailabilityStorefrontUrl(sizeIntent), `${process.env.STORE_FRONT_URL}/share/available?gender=men&size=45&inStock=1&v=8`);
 
   console.log("AI product link tests passed");
 } finally {

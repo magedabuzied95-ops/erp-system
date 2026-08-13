@@ -30,7 +30,7 @@ import {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
-const SHARE_AVAILABLE_OG_VERSION = "V7";
+const SHARE_AVAILABLE_OG_VERSION = "V8";
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -993,9 +993,13 @@ const buildShareAvailableFallbackSvg = (options = {}) => buildShareAvailablePrev
 export const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
   const firstProduct = products[0] || null;
   const title = escapeHtml(firstText(firstProduct?.name, "M1 Store"));
+  const description = escapeHtml(count > 0
+    ? `${count} منتج متاح حاليًا من M1 Store`
+    : "تسوق المنتجات المتاحة الآن من M1 Store");
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
   const absoluteUrl = escapeHtml(new URL(req.originalUrl || req.url || "/share/available", publicBaseUrl).toString());
   const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableOgImageUrl(req, filters, "png"));
+  const imageType = /\.png(?:[?#]|$)/i.test(absoluteImage) ? "image/png" : "image/jpeg";
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
   return `<!doctype html>
 <html lang="en" dir="ltr">
@@ -1006,10 +1010,14 @@ export const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImage
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="M1 Store" />
     <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${absoluteImage}" />
     <meta property="og:image:secure_url" content="${absoluteImage}" />
+    <meta property="og:image:type" content="${imageType}" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${description}" />
     <meta name="twitter:image" content="${absoluteImage}" />
     <link rel="canonical" href="${fallbackTarget}" />
     <script>window.location.replace(${JSON.stringify(String(targetUrl || fallbackTarget))});</script>

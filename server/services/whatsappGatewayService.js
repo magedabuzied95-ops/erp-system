@@ -712,7 +712,12 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!body.trim()) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
   const current = requireEvolutionConfig();
-  const requestBody = JSON.stringify({ number: normalizedPhone, text: body });
+  const hasLink = /https?:\/\/[^\s]+/i.test(body);
+  const requestBody = JSON.stringify({
+    number: normalizedPhone,
+    text: body,
+    ...(hasLink ? { linkPreview: true } : {}),
+  });
   const messageDebug = buildWhatsappTextDebug(body, 300);
   const jsonDebug = buildWhatsappTextDebug(requestBody, 500);
   console.info("[whatsapp:evolution-payload-preview]", {
@@ -737,7 +742,7 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
     url: `${current.apiUrl}${endpoint}`,
     endpoint,
     number: normalizedPhone,
-    payload_shape: { number: "string", text: "string" },
+    payload_shape: { number: "string", text: "string", linkPreview: hasLink },
     textLength: body.length,
   });
   try {
