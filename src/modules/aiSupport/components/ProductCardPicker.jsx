@@ -364,7 +364,7 @@ const matchesQuery = (product = {}, query = "") => {
 };
 
 export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "", portalTarget = null }) {
-  const { t, i18n } = useTranslation("aiSupport");
+  const { t, i18n } = useTranslation();
   const pickerDir = i18n.resolvedLanguage === "ar" ? "rtl" : "ltr";
   const { theme } = useTheme();
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
