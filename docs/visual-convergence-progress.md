@@ -791,6 +791,105 @@ Verified only; **nothing modified**.
 No regression from any checkpoint in this project. Product Form remains hard
 frozen and was inspected read-only.
 
+## FINAL VERIFICATION AND MATRIX RECONCILIATION
+
+Measured on Production, Arabic RTL, both themes. Auditor re-validated against
+the frozen `/products` reference before recording.
+
+### The six remaining states — all clean
+
+| State | Result |
+|---|---|
+| `/warehouse/live-picks` DARK | 0 offenders, body `rgb(19,18,17)` = `--bg` |
+| `/orders` DARK | 0 offenders, 0 opaque dark gradients |
+| `/customers` DARK | 0 offenders |
+| `/inventory` DARK | 0 offenders |
+| `/products/add` DARK | 0 offenders |
+| `/products/740/edit` DARK | 1 flagged element — explained below, not a defect |
+
+`/dashboard` and `/products` were already Dark-verified and were re-confirmed
+(0 offenders each).
+
+#### `/products/:id/edit` — the flagged element is NOT a defect
+
+`div.relative.w-full.aspect-[1.91/1].overflow-hidden.bg-white`, 1249 x 654,
+`rgb(255,255,255)`. It **contains a live `<img>`** (a `blob:` preview of the
+uploaded social/Open-Graph image; 1.91:1 is the OG aspect ratio). The white
+background is the deliberate canvas *behind* a user image, rendered as it will
+appear externally — it is content, not application chrome.
+
+The auditor excludes elements *under* `img/svg/video/canvas` but not the direct
+parent container of an image. This is a **detector edge case, not a product
+defect**. Product Form is hard frozen and was inspected read-only; **no change
+was made**.
+
+#### Two more translucent-gradient false positives resolved
+
+`/warehouse/live-picks` flagged an opaque dark gradient in **both** themes. It is
+`radial-gradient(circle at 50% 0%, rgba(251,191,36,0.14), rgba(0,0,0,0))` — an
+amber decorative wash at **alpha 0.14**. The previous filter only rejected
+single-digit alphas (`0.1`), so `0.14` slipped through. The rule now rejects any
+`rgba(...,0.NN)` or `/ 0.NN` alpha stop and `transparent`. Re-measured: **0
+opaque dark gradients**. No source change — detector defect again.
+
+`/pos` reported 61 dark gradients in Dark and **0 in Light**: theme-appropriate
+`dark:` variants, not defects.
+
+### GLOBAL_DROPDOWN_TYPOGRAPHY — reconciled, not redone
+
+Checkpoint present in `main`: `11cb40b fix(ui): converge ERP dropdown typography`,
+documented in `6683536` and closed in `63a7e46`. Delivered by another workstream.
+Confirmed live on representative routes — `select` computes **14px** on
+`/orders`, `/inventory`, `/products`, `/products/add`, `/products/:id/edit` and
+**12px** on `/customers` (its denser table filter). No regression observed on any
+route audited in this final pass. **Not re-implemented.**
+
+### FINAL MATRIX
+
+| State | Count |
+|---|---|
+| PASS (both themes, RTL) | 91 |
+| PASS_BOUNDED | 3 |
+| FIXED_VERIFIED | 15 |
+| FROZEN_REFERENCE_VERIFIED | 7 |
+| ALIAS (no own surface) | 12 |
+| BLOCKED_FUNCTIONAL | 1 |
+| PENDING_NO_READONLY_ID | 1 |
+| **PARTIAL_PASS** | **0** |
+| **TYPOGRAPHY_DEBT** | **0** |
+| **Unclassified / unexplained** | **0** |
+| **Total route entries** | **130** |
+
+### The three accepted exceptions, with proof
+
+1. **`/products/labels`, `/products/barcode-labels`, `/products/barcodes` —
+   PASS_BOUNDED.** One shared label-sheet surface rendering **327,119 nodes**
+   (identical counts on all three). A full computed-style walk saturates the
+   renderer. Verified bounded in Light and Dark: 3,044 nodes each (structural
+   walk to depth 8 + header/footer/actions/buttons + first/middle/last repeated
+   item samples), 0 offenders, 0 opaque dark gradients. Recorded as
+   PASS_BOUNDED, never as PASS.
+
+2. **`/ai-studio/workflows/:id/edit` — BLOCKED_FUNCTIONAL.** Mounts nothing:
+   `#root.childElementCount === 0`, zero body text, no console errors, after a
+   9s settle on a clean full navigation. Reproduced on **two valid workflow ids
+   (11 and 10)**; the list route renders normally. A non-mounting route is a
+   functional failure, not a presentation defect, and fixing it would mean
+   touching AI Studio behaviour. Left for separate investigation.
+
+3. **`/inventory/variant/:id/history` — PENDING_NO_READONLY_ID.** No variant id
+   is exposed in the DOM and `/api/products/:id`, `/api/product-variants` and
+   `/api/variants` all return 404. **No record was created or mutated to
+   manufacture one**, per instruction.
+
+### Freezes honoured
+
+AI Inbox observed only (audited clean, source untouched). Product Form hard
+frozen (inspected read-only; the one flagged element is an image canvas). No
+locale file, `t()`/`tt()` or visible copy was modified in any checkpoint. No API,
+DB, payload, calculation, permission, workflow, accounting, inventory, POS or AI
+behaviour was changed — every checkpoint was class-strings only.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
