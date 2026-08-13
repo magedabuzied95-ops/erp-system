@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1098
-- Hardcoded English UI strings: 869
-- Total hardcoded UI strings: 1967
-- Mixed-language files (both scripts hardcoded): 32
+- Hardcoded Arabic UI strings: 1073
+- Hardcoded English UI strings: 828
+- Total hardcoded UI strings: 1901
+- Mixed-language files (both scripts hardcoded): 31
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 750 | 487 | 1237 | 19 |
+| main-erp | 58 | 725 | 446 | 1171 | 18 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -32,7 +32,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 25 | 46 | 71 |
 | src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
@@ -327,50 +326,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 3617 [jsx-text/en] Automation Status
 - 3618 [jsx-text/en] Config and runtime summary
 - ... 41 more
-
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:25 en:46)
-
-- 1635 [attribute/en] Not set yet
-- 2017 [jsx-text/ar] غير مقروء
-- 2303 [jsx-text/en] Unread
-- 3360 [attribute/en] Choose emoji
-- 3579 [object-key/en] Mylerz
-- 3580 [object-key/en] ShipBlu
-- 3875 [jsx-text/en] Purchase intent:
-- 3925 [jsx-text/en] Size
-- 4344 [jsx-text/ar] المحدد
-- 4345 [jsx-text/en] Rejected
-- 4440 [attribute/en] No viewed products.
-- 4441 [attribute/en] No abandoned products.
-- 4442 [attribute/en] No previous orders in memory.
-- 4459 [attribute/en] Not set yet
-- 4609 [jsx-text/ar] الإجراء الموصى به:
-- 4614 [jsx-text/en] Follow-up
-- 4619 [jsx-text/en] Suggested at
-- 5640 [object-key/en] All
-- 5677 [object-key/en] Facebook Comment
-- 5678 [object-key/en] Instagram Comment
-- 6483 [object-key/ar] كارت منتج (Messenger)
-- 6484 [object-key/ar] صورة + لينك
-- 6485 [object-key/ar] نص + لينك المنتج
-- 6486 [object-key/ar] لينك المنتج
-- 8620 [attribute/ar] تحتاج متابعة / رد
-- 8621 [attribute/ar] لوحة قيد التجربة
-- 9114 [jsx-text/en] AI Inbox Pro
-- 9135 [attribute/ar] غير مقروء / يحتاج تدخل
-- 9136 [attribute/ar] لوحة قيد التجربة
-- 9212 [jsx-text/ar] مرحلة العميل المحتمل
-- 9248 [jsx-text/en] New
-- 9249 [jsx-text/en] Needs reply
-- 9250 [jsx-text/en] Replied
-- 9251 [jsx-text/en] Auto Reply
-- 9256 [jsx-text/en] Auto Reply System
-- 9257 [jsx-text/en] Generic Like + Reply
-- 9273 [jsx-text/en] Draft only
-- 9274 [jsx-text/en] Manual Approval
-- 9275 [jsx-text/en] Full Auto
-- 9276 [jsx-text/en] Off
-- ... 31 more
 
 ### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:4)
 
@@ -1581,6 +1536,14 @@ of scope. The scanner is conservative and can still contain false positives.
 - 6 [object-key/en] Resolve the primary objection
 - 7 [object-key/en] Clarify value and price
 - 8 [object-key/en] Advance discovery
+
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:0 en:5)
+
+- 3585 [object-key/en] Mylerz
+- 3586 [object-key/en] ShipBlu
+- 4620 [jsx-text/en] Follow-up
+- 5683 [object-key/en] Facebook Comment
+- 5684 [object-key/en] Instagram Comment
 
 ### src/modules/marketing/pages/AiMarketingVideos.jsx (main-erp — ar:0 en:5)
 

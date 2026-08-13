@@ -1632,7 +1632,13 @@ const mergeMessagesByIdentity = (messages = []) => {
 const uniqueMessages = (messages = []) => mergeMessagesByIdentity(messages);
 const latestCustomerText = (messages = []) =>
   [...uniqueMessages(messages)].reverse().find((message) => clean(message.customer_message))?.customer_message || "";
-const displayFallback = (value, fallback = "Not set yet") => (clean(value) || fallback);
+/*
+ * Module scope: a translation cannot be resolved here without freezing it at
+ * import time, which the reactivity guard forbids. Callers that want localized
+ * text pass it in; the default is a neutral dash rather than an English
+ * sentence, so Arabic never renders "Not set yet".
+ */
+const displayFallback = (value, fallback = "—") => (clean(value) || fallback);
 const productImage = (product = {}) =>
   clean(
     product.matched_variant_image ||
@@ -2014,7 +2020,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               <span dir="auto" className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
             </div>
           )}
-          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">غير مقروء {unreadCount}</span></div> : null}
+          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">{t("aiSupport.inbox.ui.unreadWord")} {unreadCount}</span></div> : null}
         </div>
       </div>
     </div>
@@ -2300,7 +2306,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               <span dir="auto" className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
             </div>
           )}
-          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
+          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">{t("aiSupport.inbox.ui.unreadWord")} {unreadCount}</span></div> : null}
         </div>
       </div>
     </div>
@@ -3357,7 +3363,7 @@ function ManualReplyComposer({
             anchorRef={emojiButtonRef}
             onClose={() => setEmojiPickerOpen(false)}
             onSelect={insertEmoji}
-            title="Choose emoji"
+            title={t("aiSupport.inbox.ui.chooseEmoji")}
           />
           <button
             type="button"
@@ -3872,7 +3878,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
               <Pill tone={leadTone}>{(lead.label || "بارد")} محتمل</Pill>
               <span className="text-xl font-black text-white">{Number(lead.score || 0).toFixed(0)}%</span>
             </div>
-            <div className="text-xs leading-5 text-slate-400">Purchase intent: <span className="font-black text-slate-100">{intent.purchase_intent || "unknown"}</span></div>
+            <div className="text-xs leading-5 text-slate-400">{t("aiSupport.inbox.ui.purchaseIntentLabel")} <span className="font-black text-slate-100">{intent.purchase_intent || "unknown"}</span></div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {chips.length ? chips.map((chip) => <Pill key={chip} tone="zinc">{chip}</Pill>) : <span className="text-sm text-slate-500">Waiting for product, size, color, or buying signal.</span>}
             </div>
@@ -3922,7 +3928,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
           <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
             <div className="mb-2 flex items-center gap-2 text-xs font-black text-slate-100"><BadgePercent className="h-4 w-4 text-amber-200" />{t("aiSupport.inbox.panel.memory")}</div>
             <div className="flex flex-wrap gap-1.5">
-              {memory.preferred_size ? <Pill tone="zinc">Size {memory.preferred_size}</Pill> : null}
+              {memory.preferred_size ? <Pill tone="zinc">{t("aiSupport.inbox.ui.sizeWord2")} {memory.preferred_size}</Pill> : null}
               {asArray(memory.preferred_colors).slice(0, 3).map((item) => <Pill key={item} tone="zinc">{item}</Pill>)}
               {asArray(memory.favorite_models).slice(0, 3).map((item) => <Pill key={item} tone="zinc">{item}</Pill>)}
               {!memory.preferred_size && !asArray(memory.preferred_colors).length && !asArray(memory.favorite_models).length ? <span className="text-xs text-slate-500">{t("aiSupport.inbox.panel.memoryHint")}</span> : null}
@@ -4341,8 +4347,8 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-          {selectedIds.length ? <Pill tone="emerald">المحدد {selectedIds.join(", ")}</Pill> : null}
-                          {rejectedIds.length ? <Pill tone="amber">Rejected {rejectedIds.length}</Pill> : null}
+          {selectedIds.length ? <Pill tone="emerald">{t("aiSupport.inbox.ui.selectedLabel")} {selectedIds.join(", ")}</Pill> : null}
+                          {rejectedIds.length ? <Pill tone="amber">{t("aiSupport.inbox.ui.rejectedLabel")} {rejectedIds.length}</Pill> : null}
                         </div>
                       </div>
                       <TraceJsonBlock value={step.data} />
@@ -4437,9 +4443,9 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           <TagRow label={t("aiSupport.inbox.field.colours")} values={profile.preferred_colors} />
           <TagRow label={t("aiSupport.inbox.field.models")} values={profile.preferred_models} />
           <Info label={t("aiSupport.inbox.field.memoryScore")} value={profile.memory_score ?? conversation?.lead_score ?? 0} />
-          <MiniList title={t("aiSupport.inbox.ui.viewedProducts")} items={asArray(profile.viewed_products)} empty="No viewed products." />
-          <MiniList title={t("aiSupport.inbox.ui.abandonedProducts")} items={asArray(profile.abandoned_products)} empty="No abandoned products." />
-          <MiniList title={t("aiSupport.inbox.ui.previousOrders")} items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
+          <MiniList title={t("aiSupport.inbox.ui.viewedProducts")} items={asArray(profile.viewed_products)} empty={t("aiSupport.inbox.ui.noViewedProducts2")} />
+          <MiniList title={t("aiSupport.inbox.ui.abandonedProducts")} items={asArray(profile.abandoned_products)} empty={t("aiSupport.inbox.ui.noAbandonedProducts2")} />
+          <MiniList title={t("aiSupport.inbox.ui.previousOrders")} items={asArray(profile.previous_orders)} empty={t("aiSupport.inbox.ui.noPreviousOrders2")} />
           <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
             <SectionTitle icon={MessageSquareText} title={t("aiSupport.inbox.ui.sentimentMemory")} />
             <div className="mb-3 flex flex-wrap gap-2">
@@ -4456,7 +4462,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   );
 }
 
-function Info({ label, value, fallback = "Not set yet" }) {
+function Info({ label, value, fallback = "—" }) {
   return (
     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
       <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
@@ -4606,7 +4612,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
           <div className="mt-2 flex flex-wrap gap-1.5">
             {risks.slice(0, 3).map((risk) => <Pill key={risk} tone="amber">{risk}</Pill>)}
           </div>
-          {conversion.recommended_action ? <div className="mt-3 text-sm text-slate-300">الإجراء الموصى به: <span className="font-black text-white">{conversion.recommended_action}</span></div> : null}
+          {conversion.recommended_action ? <div className="mt-3 text-sm text-slate-300">{t("aiSupport.inbox.ui.recommendedActionLabel")} <span className="font-black text-white">{conversion.recommended_action}</span></div> : null}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
@@ -4616,7 +4622,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
           </div>
           {followUp.follow_up_reason ? <div className="mt-2 text-sm text-slate-300">{followUp.follow_up_reason}</div> : <div className="mt-2 text-sm text-slate-500">{t("aiSupport.inbox.ui.noFollowup")}</div>}
           {followUp.suggested_follow_up_message ? <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-100">{followUp.suggested_follow_up_message}</div> : null}
-          {followUp.suggested_follow_up_at ? <div className="mt-3 text-xs font-bold text-slate-500">Suggested at {absoluteTime(followUp.suggested_follow_up_at)}</div> : null}
+          {followUp.suggested_follow_up_at ? <div className="mt-3 text-xs font-bold text-slate-500">{t("aiSupport.inbox.ui.suggestedAt2")} {absoluteTime(followUp.suggested_follow_up_at)}</div> : null}
         </div>
       </div>
 
@@ -5637,7 +5643,7 @@ export default function AiInbox({ reviewerMode = false }) {
       buckets.set(key, existing);
     }
     return {
-      all: { key: "all", label: "All", count: activePanelConversations.length, unread: totalUnread, tone: "zinc" },
+      all: { key: "all", labelKey: "aiSupport.inbox.filters.all", count: activePanelConversations.length, unread: totalUnread, tone: "zinc" },
       channels: [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
     };
   }, [activePanelConversations]);
@@ -6480,10 +6486,10 @@ export default function AiInbox({ reviewerMode = false }) {
   const suggestionRecommendationKeys = useMemo(() => new Set(suggestionRecommendationCards.map(productSelectionKey)), [suggestionRecommendationCards]);
   const suggestionDeliveryFormat = useMemo(() => {
     const ch = String(selectedConversation?.channel || selectedConversation?.source || "").toLowerCase();
-    if (ch.includes("messenger") || ch === "facebook") return { label: "كارت منتج (Messenger)", kind: "rich_card" };
-    if (ch.includes("whatsapp")) return { label: "صورة + لينك", kind: "image_link" };
-    if (ch.includes("instagram")) return { label: "نص + لينك المنتج", kind: "text_link" };
-    return { label: "لينك المنتج", kind: "text_link" };
+    if (ch.includes("messenger") || ch === "facebook") return { labelKey: "aiSupport.inbox.ui.fmtRichCard", kind: "rich_card" };
+    if (ch.includes("whatsapp")) return { labelKey: "aiSupport.inbox.ui.fmtImageLink", kind: "image_link" };
+    if (ch.includes("instagram")) return { labelKey: "aiSupport.inbox.ui.fmtTextLink", kind: "text_link" };
+    return { labelKey: "aiSupport.inbox.ui.fmtLink", kind: "text_link" };
   }, [selectedConversation?.channel, selectedConversation?.source]);
   // Reset employee product + text edits whenever a fresh suggestion appears (never mid-edit of the same one).
   useEffect(() => {
@@ -8617,8 +8623,8 @@ export default function AiInbox({ reviewerMode = false }) {
           <div className="grid gap-3 border-t border-white/10 p-3 md:grid-cols-4">
             <Metric icon={Radio} label={t("aiSupport.inbox.kpi.totalMetaActive")} value={realMetaCount} tone="emerald" />
             <Metric icon={MessageSquareText} label={t("aiSupport.inbox.kpi.conversationCount")} value={conversations.length} tone="cyan" />
-            <Metric icon={Clock3} label="تحتاج متابعة / رد" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-            <Metric icon={EyeOff} label="لوحة قيد التجربة" value="قريبًا" tone="violet" />
+            <Metric icon={Clock3} label={t("aiSupport.inbox.ui.needsFollowupReply")} value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+            <Metric icon={EyeOff} label={t("aiSupport.inbox.ui.betaPanel2")} value="قريبًا" tone="violet" />
           </div>
         </details>
 
@@ -8983,7 +8989,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         aiSuggestionRecommendationSelectedKeys={suggestionRecommendationKeys}
                         onToggleSuggestionRecommendation={handleToggleRecommendationCard}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
-                        aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
+                        aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.labelKey ? t(suggestionDeliveryFormat.labelKey) : ""}
                         aiSuggestionEditText={aiSuggestionEditText}
                         onAiSuggestionEditTextChange={setAiSuggestionEditText}
                         onCancelEditAiSuggestion={handleCancelEditAiSuggestion}
@@ -9111,7 +9117,7 @@ export default function AiInbox({ reviewerMode = false }) {
         <section className="hidden rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100"><Bot className="h-4 w-4" />AI Inbox Pro</div>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100"><Bot className="h-4 w-4" />{t("aiSupport.inbox.ui.aiInboxPro")}</div>
               <h1 className="mt-3 text-3xl font-black md:text-4xl">{t("aiSupport.inbox.ui.salesCommandCenter")}</h1>
               <p className="mt-2 text-sm text-slate-400">{t("aiSupport.inbox.ui.proSubtitle")}</p>
             </div>
@@ -9132,8 +9138,8 @@ export default function AiInbox({ reviewerMode = false }) {
         <section className="hidden grid gap-3 md:grid-cols-4">
           <Metric icon={Radio} label={t("aiSupport.inbox.kpi.totalMetaActive")} value={realMetaCount} tone="emerald" />
           <Metric icon={MessageSquareText} label={t("aiSupport.inbox.kpi.conversationCount")} value={conversations.length} tone="cyan" />
-          <Metric icon={Clock3} label="غير مقروء / يحتاج تدخل" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-          <Metric icon={EyeOff} label="لوحة قيد التجربة" value="قريبًا" tone="violet" />
+          <Metric icon={Clock3} label={t("aiSupport.inbox.ui.unreadNeedsIntervention2")} value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+          <Metric icon={EyeOff} label={t("aiSupport.inbox.ui.betaPanel2")} value="قريبًا" tone="violet" />
         </section>
 
         <section className="hidden rounded-2xl border border-white/10 bg-white/[0.045] p-3">
@@ -9209,7 +9215,7 @@ export default function AiInbox({ reviewerMode = false }) {
               </div>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرحلة العميل المحتمل</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{t("aiSupport.inbox.ui.leadStage")}</span>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {leadFilters.map((item) => (
                   <button
@@ -9245,16 +9251,16 @@ export default function AiInbox({ reviewerMode = false }) {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-black sm:grid-cols-3 xl:grid-cols-2">
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Facebook <span className="ml-2 text-cyan-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</span></div>
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Instagram <span className="ml-2 text-rose-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">New <span className="ml-2 text-emerald-100">{visibleSocialComments.reduce((sum, item) => sum + Number(item.new_comments_count || 0), 0)}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Needs reply <span className="ml-2 text-amber-100">{visibleSocialComments.filter((item) => Number(item.new_comments_count || 0) > 0).length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Replied <span className="ml-2 text-violet-100">{visibleSocialComments.filter((item) => clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent").length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Auto Reply <span className="ml-2 text-slate-100">{socialReplySettings.generic_enabled ? "ON" : "OFF"}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.newLabel2")} <span className="ml-2 text-emerald-100">{visibleSocialComments.reduce((sum, item) => sum + Number(item.new_comments_count || 0), 0)}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.needsReply2")} <span className="ml-2 text-amber-100">{visibleSocialComments.filter((item) => Number(item.new_comments_count || 0) > 0).length}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.replied2")} <span className="ml-2 text-violet-100">{visibleSocialComments.filter((item) => clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent").length}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.autoReply2")} <span className="ml-2 text-slate-100">{socialReplySettings.generic_enabled ? "ON" : "OFF"}</span></div>
                 </div>
                 <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Auto Reply System</div>
-                      <div className="mt-1 text-sm font-black text-white">Generic Like + Reply</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.autoReplySystem")}</div>
+                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.genericLikeReply")}</div>
                     </div>
                     <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-[11px] font-black">
                       <input
@@ -9270,17 +9276,17 @@ export default function AiInbox({ reviewerMode = false }) {
                     onChange={(event) => setSocialReplySettings((current) => ({ ...current, mode: event.target.value }))}
                     className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
                   >
-                    <option value="draft">Draft only</option>
-                    <option value="manual_approval">Manual Approval</option>
-                    <option value="full_auto">Full Auto</option>
-                    <option value="off">Off</option>
+                    <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
+                    <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
+                    <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
+                    <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
                   </select>
                   <textarea
                     value={socialReplySettings.generic_template}
                     onChange={(event) => setSocialReplySettings((current) => ({ ...current, generic_template: event.target.value }))}
                     rows={3}
                     className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                    placeholder="Generic auto reply template"
+                    placeholder={t("aiSupport.inbox.ui.genericTemplate")}
                   />
                   <button
                     type="button"
@@ -9347,27 +9353,27 @@ export default function AiInbox({ reviewerMode = false }) {
 
                         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Product</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.product")}</div>
                           <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productName || selectedSocialCommentPost.productName || "Not linked")}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.price")}</div>
                             <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sale</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sale")}</div>
                             <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sizes</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sizes")}</div>
                             <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productSizes || selectedSocialCommentPost.productSizes || "") || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Colors</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.colors")}</div>
                             <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productColors || selectedSocialCommentPost.productColors || "") || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Stock</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.stock2")}</div>
                             <div className="mt-1 text-sm font-black text-white">-</div>
                           </div>
                         </div>
@@ -9388,7 +9394,7 @@ export default function AiInbox({ reviewerMode = false }) {
 
                     <div className="space-y-3">
                       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Post status</div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.postStatus")}</div>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
                           <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "zinc"}>{selectedSocialThreadComments.length > 0 ? selectedSocialThreadComments.length : (selectedSocialCommentPost.commentsCount ?? 0)} comments</Pill>
                           <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "emerald"}>{Number(selectedSocialCommentPost.newCount || 0)} new</Pill>
@@ -9401,8 +9407,8 @@ export default function AiInbox({ reviewerMode = false }) {
                       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Post Auto Reply Template</div>
-                            <div className="mt-1 text-sm font-black text-white">Template specific to this post</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.postTemplate")}</div>
+                            <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.postTemplateHint")}</div>
                           </div>
                           <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-[11px] font-black">
                             <input
@@ -9448,10 +9454,10 @@ export default function AiInbox({ reviewerMode = false }) {
                           }))}
                           className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
                         >
-                          <option value="draft">Draft only</option>
-                          <option value="manual_approval">Manual Approval</option>
-                          <option value="full_auto">Full Auto</option>
-                          <option value="off">Off</option>
+                          <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
+                          <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
+                          <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
+                          <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
                         </select>
                         <textarea
                           value={selectedSocialTemplate.template?.template || ""}
@@ -9461,7 +9467,7 @@ export default function AiInbox({ reviewerMode = false }) {
                           }))}
                           rows={4}
                           className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                          placeholder="Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
+                          placeholder={t("aiSupport.inbox.ui.templateHint")}
                         />
                         <div className="mt-3 flex flex-wrap gap-2">
                           <button
@@ -9506,15 +9512,15 @@ export default function AiInbox({ reviewerMode = false }) {
                             Preview
                           </button>
                         </div>
-                        {selectedSocialTemplate.loading ? <div className="mt-3 text-xs text-slate-500">جارٍ تحميل القالب...</div> : null}
+                        {selectedSocialTemplate.loading ? <div className="mt-3 text-xs text-slate-500">{t("aiSupport.inbox.ui.loadingTemplate")}</div> : null}
                         {selectedSocialTemplate.error ? <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-xs font-bold text-rose-100">{selectedSocialTemplate.error}</div> : null}
                       </div>
 
                       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Comments Timeline</div>
-                            <div className="mt-1 text-sm font-black text-white">لا توجد إعدادات خاصة لهذا المنشور</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.commentsTimeline")}</div>
+                            <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.noPostSettings")}</div>
                           </div>
                           {selectedSocialThread.comments.length ? <Pill tone="zinc">{selectedSocialThread.comments.length} تعليق</Pill> : null}
                         </div>
@@ -9632,12 +9638,12 @@ export default function AiInbox({ reviewerMode = false }) {
                   ) : null}
 
                   <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
-                    <div><span className="text-slate-500">آخر ويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "غير سليم"}</div></div>
-                    <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "مفقود"}</div></div>
-                    <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير مفعّل"}</div></div>
+                    <div><span className="text-slate-500">{t("aiSupport.inbox.ui.lastWebhook")}</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "غير سليم"}</div></div>
+                    <div><span className="text-slate-500">{t("aiSupport.inbox.ui.token")}</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "مفقود"}</div></div>
+                    <div><span className="text-slate-500">{t("aiSupport.inbox.ui.messaging")}</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير مفعّل"}</div></div>
                     {safeConversation.escalation_reason || safeConversation.last_escalation_keyword ? (
                       <div className="sm:col-span-3">
-                        <span className="text-slate-500">سبب التصعيد</span>
+                        <span className="text-slate-500">{t("aiSupport.inbox.ui.escalationReason")}</span>
                         <div className="font-black text-amber-100">
                           {safeConversation.escalation_reason || "تم تصعيد المحادثة"}
                           {safeConversation.last_escalation_keyword ? ` / ${safeConversation.last_escalation_keyword}` : ""}
@@ -9651,9 +9657,9 @@ export default function AiInbox({ reviewerMode = false }) {
                     <Info label={t("aiSupport.inbox.field.leadTemperature")} value={conversationLeadTemperature(safeConversation)} />
                     <Info label={t("aiSupport.inbox.field.suggestedAction")} value={conversationRecommendedSalesAction(safeConversation)} />
                     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب التقييم</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.ratingReasons")}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">لا توجد أسباب بعد</span>}
+                        {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">{t("aiSupport.inbox.ui.noReasonsYet")}</span>}
                       </div>
                     </div>
                   </div>
@@ -9679,8 +9685,8 @@ export default function AiInbox({ reviewerMode = false }) {
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                       <div>
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أدوات الدعم</div>
-                        <div className="mt-1 text-sm font-black text-white">فحص الجلسة والملف الشخصي والحالة الحالية</div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.supportTools")}</div>
+                        <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.supportToolsHint")}</div>
                       </div>
                       <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
                         <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
@@ -9759,16 +9765,16 @@ export default function AiInbox({ reviewerMode = false }) {
                       saving={modeSaving}
                     />
                     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                      <SectionTitle icon={Sparkles} title="رد الذكاء الاصطناعي" action={(
+                      <SectionTitle icon={Sparkles} title={t("aiSupport.inbox.ui.aiReply")} action={(
                         <div className="flex flex-wrap items-center gap-2">
                           <Pill tone={autoReplyShadowTone} className="px-2 py-0.5 text-[10px] font-black">{autoReplyShadowLabel}</Pill>
-                          {aiReply.loading ? <Pill tone="cyan">جارٍ التحضير...</Pill> : null}
+                          {aiReply.loading ? <Pill tone="cyan">{t("aiSupport.inbox.ui.preparing")}</Pill> : null}
                         </div>
                       )} />
                       {aiReply.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{aiReply.error}</div> : null}
                       <div className="grid gap-2 sm:grid-cols-2">
                         <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">{aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}إنشاء رد مقترح</button>
-                        <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />اعتماد رد الذكاء</button>
+                        <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />{t("aiSupport.inbox.ui.approveAiReply")}</button>
                       </div>
                     </div>
                   </div>
@@ -9801,8 +9807,8 @@ export default function AiInbox({ reviewerMode = false }) {
                       <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-2">
                         <div className="mb-1 flex items-center justify-between gap-3">
                           <div>
-                            <h3 className="text-sm font-black leading-5">سجل المحادثة</h3>
-                            <p className="text-[11px] leading-4.5 text-slate-400">مراجعة الرسائل والأحداث والردود المقترحة داخل المحادثة.</p>
+                            <h3 className="text-sm font-black leading-5">{t("aiSupport.inbox.ui.transcriptTitle")}</h3>
+                            <p className="text-[11px] leading-4.5 text-slate-400">{t("aiSupport.inbox.ui.transcriptHint")}</p>
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
@@ -9849,7 +9855,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         aiSuggestionRecommendationSelectedKeys={suggestionRecommendationKeys}
                         onToggleSuggestionRecommendation={handleToggleRecommendationCard}
                         aiSuggestionProductRemoved={suggestionProductRemoved}
-                        aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.label || ""}
+                        aiSuggestionDeliveryFormat={suggestionDeliveryFormat?.labelKey ? t(suggestionDeliveryFormat.labelKey) : ""}
                         aiSuggestionEditText={aiSuggestionEditText}
                         onAiSuggestionEditTextChange={setAiSuggestionEditText}
                         onCancelEditAiSuggestion={handleCancelEditAiSuggestion}
