@@ -1138,17 +1138,18 @@ const conversationUnreadCount = (conversation = {}) =>
       0
   ) || 0;
 
-const relativeTime = (value) => {
+const relativeTime = (value, language = "en") => {
   if (!value) return "";
   const time = new Date(value).getTime();
   if (!Number.isFinite(time)) return "";
   const diffMinutes = Math.max(0, Math.round((Date.now() - time) / 60000));
-  if (diffMinutes < 1) return "Now";
-  if (diffMinutes < 60) return `${diffMinutes}m`;
+  const formatter = new Intl.RelativeTimeFormat(language === "ar" ? "ar" : "en", { numeric: "auto", style: "narrow" });
+  if (diffMinutes < 1) return formatter.format(0, "minute");
+  if (diffMinutes < 60) return formatter.format(-diffMinutes, "minute");
   const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h`;
+  if (diffHours < 24) return formatter.format(-diffHours, "hour");
   const diffDays = Math.round(diffHours / 24);
-  return `${diffDays}d`;
+  return formatter.format(-diffDays, "day");
 };
 
 function getPwaCardTimeValue(conversation) {
@@ -1176,7 +1177,7 @@ function getPwaCardTimeValue(conversation) {
   );
 }
 
-function renderPwaCardTime(conversation) {
+function renderPwaCardTime(conversation, language = "en") {
   const value = getPwaCardTimeValue(conversation);
 
   if (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment") {
@@ -1187,18 +1188,18 @@ function renderPwaCardTime(conversation) {
         post_created_time: conversation?.post_created_time || conversation?.channel_metadata?.post_created_time || conversation?.metadata?.post_created_time || "",
         real_comment_created_time: conversation?.real_comment_created_time || "",
         comment_created_time: conversation?.comment_created_time || "",
-        rendered_label: value ? relativeTime(value) : "Unknown",
+        rendered_label: value ? relativeTime(value, language) : "Unknown",
       });
     }
-    return value ? relativeTime(value) : "Unknown";
+    return value ? relativeTime(value, language) : "Unknown";
   }
 
-  return relativeTime(value);
+  return relativeTime(value, language);
 }
 
-const relativeSeenLabel = (value) => {
-  const label = relativeTime(value);
-  return label ? `Last seen ${label}` : "No recent activity";
+const relativeSeenLabel = (value, language = "en", translate = (key) => key) => {
+  const label = relativeTime(value, language);
+  return label ? translate("aiSupport.inbox.pwa.lastSeen", { time: label }) : translate("aiSupport.inbox.pwa.noRecentActivity");
 };
 
 const absoluteTime = (value) => {
@@ -2230,7 +2231,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
 }
 
 function ConversationListItem({ conversation, active, onSelect }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isSocialComment = isSocialCommentThread(conversation);
   const inboxKind = getInboxItemKind(conversation);
   const sourceLabel = getConversationSourceLabel(conversation, t);
@@ -2243,7 +2244,8 @@ function ConversationListItem({ conversation, active, onSelect }) {
   const commenterName = isCommentThread ? commentThreadCommenterName(conversation) : "";
   const preview = isCommentThread ? commentThreadLastComment(conversation) || t("aiSupport.inbox.pwa.noCommentsYet") : conversationPreview(conversation) || t("aiSupport.inbox.pwa.noMessagesYet");
   const commentCount = isCommentThread ? commentThreadCommentCount(conversation) : 0;
-  const lastActivity = renderPwaCardTime(conversation);
+  const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
+  const lastActivity = renderPwaCardTime(conversation, language);
   if (import.meta.env.DEV && (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment")) {
     console.log("AI_INBOX_PWA_VISIBLE_TIME_FIELD", {
       post_id: conversation?.post_id,
@@ -3146,7 +3148,8 @@ function ProductSheet({
 }
 
 function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLeadFilterChange }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const filtered = useMemo(() => {
     const normalized = clean(search).toLowerCase();
     return conversations.filter((conversation) => {
@@ -3205,7 +3208,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span>{getConversationSourceLabel(conversation, t)}</span>
                       <span className="h-1 w-1 rounded-full bg-slate-300" />
-                      <span>{renderPwaCardTime(conversation)}</span>
+                      <span>{renderPwaCardTime(conversation, language)}</span>
                     </div>
                   </div>
                   <PwaChip tone={leadStatusTone(status)}>{leadStatusLabel(status, t)}</PwaChip>
@@ -3335,7 +3338,7 @@ function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
 }
 
 export default function AiInboxPwa() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -6051,7 +6054,9 @@ export default function AiInboxPwa() {
   const selectedConversationAiEnabled = isConversationAiEnabled(selectedConversation || {});
   const selectedAvatar = isCommentConversation(selectedConversation || {}) ? commentThreadCustomerAvatarUrl(selectedConversation || {}) : customerAvatarUrl(selectedConversation || {});
   const selectedLastSeen = relativeSeenLabel(
-    selectedConversation?.last_activity_at || selectedConversation?.updated_at
+    selectedConversation?.last_activity_at || selectedConversation?.updated_at,
+    i18n.resolvedLanguage === "ar" ? "ar" : "en",
+    t
   );
   const lastOrder = asArray(selectedConversation?.customer_profile?.previous_orders)[0] || selectedConversation?.last_order || selectedConversation?.order || null;
   const confirmationMeta = confirmationStatusMeta(lastOrder?.status);
