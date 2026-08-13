@@ -473,3 +473,141 @@ Zero code changes across both sessions.**
 5. Re-fetch `origin/main` immediately before any push — a second visual
    programme is shipping to the same files, and Production already moved 29
    commits mid-audit once.
+
+---
+
+## Session 3 — Dark/RTL pass at Production `4362f27`, and the first genuine defect
+
+Chrome restored. Auditor re-validated against the frozen reference **before** any
+reading was trusted: `/dashboard` @ 1526 px → 2 peer rows, 10 cards, 0 flags,
+`rootKids: 2`. Production re-baselined: `origin/main` = Production = **`4362f27`**
+(fingerprint `4362f27d6883`); the ledger branch was rebased onto it.
+
+### Measured — **Dark** theme, Arabic RTL, 1526 × 647 CSS, Production `4362f27`
+
+Swept in three batches of ≤34 transitions with a real page load between batches
+(the mitigation recorded in session 2). `rootKids` was asserted on every single
+reading — the empty-root condition **did not recur**; all three batches completed
+with a healthy shell.
+
+Readings 98 · distinct routes 97 · **trusted PASS 93** · **peer cards 931** ·
+**peer groups 330** · **geometry flags 1** · page-level horizontal overflow **0**.
+
+The single flag is `/marketing/ai-center/leads` — the main-column-beside-`xl:sticky`-aside
+layout already classified **intentional** in session 1. It reproduces identically
+in Dark/RTL at 1526 px, confirming the classification is not theme- or width-dependent.
+
+Four routes did not earn a trusted reading and remain open: `/dashboard`
+(first route of the batch, so no `domChanged` transition), `/accounting/audit-trail`,
+`/analytics`, `/users`.
+
+**Dark matrix is now materially covered** — 93 routes, and it agrees with the
+Light passes: no card-order, card-size, grid, spacing or scroll-ownership defect.
+
+### DEFECT 1 — `NEEDS_FIX` — helper text overflows its card by 118 px
+
+The `/settings/*` overflow cluster recurred in **every** pass (Light/RTL @ 2288,
+Light/LTR @ 1430, Dark/RTL @ 1526). Under the raised >4 px threshold it survived,
+so it was traced properly rather than dismissed as rounding.
+
+**Measured** on `/settings/company`, Dark/RTL @ 1526:
+
+| Element | clientWidth | scrollWidth | overflow |
+|---|---|---|---|
+| `div.grid.gap-4.md:grid-cols-2` | 586 | 704 | **118 px** |
+| `label.block.rounded-2xl.p-4` (card) | 283 | 394 / 402 | **111 / 119 px** |
+| `span.text-xs` (the offender) | — | width 286 | **118 px past the card edge** |
+
+Page-level overflow is 0 and nothing escapes `.m1-shell-content`, so this does
+not break the page — but the helper text spills outside its own card border.
+
+Initially invisible to the probe: in RTL the overflow runs **leftward**, and the
+first pass only measured `right − right`, returning `deep: []`. Re-measuring on
+`gr.left − r.left` located it immediately. **Carry forward: always measure
+overflow on both axes; a right-edge-only probe is blind in RTL.**
+
+**Cause.** The span renders the raw stored URL —
+`/uploads/products/cloudinary/najfotyasnflc7vvsnyf.jpg` — a single token with no
+break opportunity. It sits in a `flex flex-wrap items-center gap-2` row, and flex
+items default to `min-width: auto`, so the span refuses to shrink below its
+content width and `white-space: normal` cannot wrap it.
+
+**Owner.** `src/modules/settings/pages/SettingsCenter.jsx:1424`, inside
+`BrandingUploadField` (declared line 1347):
+
+```jsx
+<span className={`text-xs ${mutedText}`}>{safeValue || "Paste image URL or upload a file"}</span>
+```
+
+**Consumers enumerated.** `BrandingUploadField` is used exactly twice, both in
+this file — line 1478 (company logo) and line 1485 (favicon). The visually similar
+`VisualUpload` (storefront tabs, lines 1527/1528/1553/1592) is a *separate*
+component and must be measured independently before assuming the same fix
+applies; the `/settings/storefront` and `/website/settings` overflow rows suggest
+it carries the same idiom.
+
+**Classification: genuine defect, not intentional.** It is data-dependent — it
+only manifests once a long upload path is stored, which is why it tracks the
+settings family rather than one route.
+
+**Proposed minimal presentation-only fix** (not applied — see below):
+add `min-w-0 break-all` to that span, letting the flex item shrink and the path
+wrap. No behaviour, no payload, no localization, no upload-flow change.
+
+**Why it is not shipped in this session:** a safe release requires focused tests,
+lint, build, failure-identity comparison, `origin/main` reconciliation, a rollback
+ref at the live Production SHA, a race check, push, a real Vercel deploy wait and
+a post-deploy re-measure of the exact geometry. There was not enough remaining
+context to complete that cycle honestly, and shipping an unverified edit to `main`
+— especially with a second programme actively pushing to the same tree — is
+exactly what the release discipline forbids. It is recorded here as
+**NEEDS_FIX** with the measurement, owner and fix so the next session can execute
+the full cycle immediately.
+
+### Coverage after three sessions
+
+| Pass | Viewport | Prod SHA | PASS | Cards | Groups | Flags |
+|---|---|---|---|---|---|---|
+| Light / RTL | 2288 | `041a8a6` | 75 | 877 | 295 | 3 (intentional) |
+| Light / LTR | 1430×900 | `5c123e3` | 65 | 378 | 138 | 1 (intentional) |
+| **Dark / RTL** | **1526×647** | **`4362f27`** | **93** | **931** | **330** | **1 (intentional)** |
+
+**Combined trusted coverage: 2186 peer cards across 763 peer groups.**
+Confirmed defects: **1** (`NEEDS_FIX`, above). Code changed: **none**.
+Checkpoints deployed: **0**. Shared owners changed: **0**.
+
+### Matrices
+
+| Dimension | State |
+|---|---|
+| Light / RTL | 75 PASS (at `041a8a6`; provisional vs current SHA) |
+| Light / LTR | 65 PASS (at `5c123e3`) |
+| Dark / RTL | **93 PASS (at `4362f27`, current)** |
+| Dark / LTR | **not run** |
+| Responsive rungs A (1920) / C (1024) / D (768) | **not run** |
+| Internal states | **not run** |
+| Pathological surfaces (7) | **not run** — bounded sampling still owed |
+| Frozen-reference re-sweep | n/a — no shared owner changed |
+
+### RESUME MARKER (supersedes session 2)
+
+**Nothing deployed. `main` and Production untouched. Zero code changes.**
+
+1. **Ship DEFECT 1** through the full release cycle: apply `min-w-0 break-all` at
+   `SettingsCenter.jsx:1424`; first measure `VisualUpload` on
+   `/settings/storefront` and `/website/settings` to see whether it needs the same
+   correction (fix the real owner, do not patch two pages if one primitive owns
+   it). Then tests / lint / build / failure-identity / reconcile `main` /
+   rollback ref at the live Production SHA / race check / push MAIN ONLY / wait
+   for the deploy / re-measure the exact card (expect card `scrollWidth` to equal
+   `clientWidth`, and the 118 px to become 0) / re-check the frozen references.
+2. Clear the 4 open Dark routes: `/dashboard`, `/accounting/audit-trail`,
+   `/analytics`, `/users`.
+3. Dark/LTR pass; responsive rungs A/C/D; the 21 session-1 unverified routes; the
+   7 pathological surfaces (bounded → `PASS_BOUNDED`); internal states; final
+   regression sweep.
+4. Batch every sweep to ≤34 transitions with a real page load between batches, and
+   assert `rootKids > 0` on every reading — that combination held for 98
+   consecutive readings this session with no empty-root recurrence.
+5. Re-fetch `origin/main` immediately before any push; Production has already
+   moved twice mid-programme (`041a8a6` → `5c123e3` → `4362f27`).
