@@ -266,5 +266,24 @@
     "loadStaff": "Failed to load sales staff",
     "loadBranches": "Failed to load branches",
     "refreshReport": "Failed to refresh sales report"
+  },
+  "staffSettings": {
+    "selectEmployeeFirst": "Select an employee before saving sales settings",
+    "selectBranch": "Select a branch for this employee",
+    "aliasLength": "POS Alias should be 2 to 10 characters",
+    "saved": "Sales settings saved",
+    "saveFailed": "Unable to save employee"
+  },
+  "createOrder": {
+    "loadProductsFailed": "Failed to load products",
+    "selectProductFirst": "Select product first",
+    "notEnoughStock": "Not enough stock",
+    "cartUpdated": "Cart updated",
+    "addedToCart": "Added to cart",
+    "removedFromCart": "Removed from cart",
+    "cartEmpty": "Cart is empty",
+    "orderCreated": "Order created",
+    "createFailed": "Failed to create order",
+    "customerNamePlaceholder": "Customer name"
   }
 }

@@ -157,6 +157,23 @@ export const PRINT_RESERVED = new Map([
 ]);
 
 /**
+ * Bucket G — dead code.
+ *
+ * Superseded pages that nothing imports, so Vite never puts them in a bundle and
+ * no route can reach them. Each was checked for BOTH a static import and a lazy
+ * `import()` anywhere under src/ before being listed. They are debt in the file
+ * tree, not in the product, and translating them would be work no user can see.
+ *
+ * Deleting them is a separate call — this pass only classifies.
+ */
+export const DEAD_FILES = new Map([
+  ["src/pages/CreateOrder.jsx", "Superseded by modules/sales/pages/CreateOrder.jsx, which App.jsx routes; nothing imports this one."],
+  ["src/pages/Sales.jsx", "No import anywhere under src/."],
+  ["src/modules/sales/pages/InvoicesLegacy.jsx", "No import anywhere under src/; the name records that it is the legacy screen."],
+  ["src/pages/UploadTest.jsx", "Upload scratch page; no import anywhere under src/."],
+]);
+
+/**
  * Bucket K — explicit product decisions recorded on `main`. Not defects; they
  * are deliberate and must not be reversed by a localization pass.
  */
@@ -170,6 +187,7 @@ const RESERVED = [
   ["J. Product Form hold", PRODUCT_FORM_HOLD],
   ["C. catalogue values", CATALOGUE_VALUES],
   ["E. print/export artwork", PRINT_RESERVED],
+  ["G. dead / unreachable", DEAD_FILES],
   ["K. product-decision debt", PRODUCT_DECISION],
 ];
 

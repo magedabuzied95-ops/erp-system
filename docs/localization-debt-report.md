@@ -10,17 +10,17 @@ of scope. The scanner is conservative and can still contain false positives.
 ## Summary
 
 - Source files scanned: 616
-- Files with debt: 131
-- Hardcoded Arabic UI strings: 1256
-- Hardcoded English UI strings: 1144
-- Total hardcoded UI strings: 2400
-- Mixed-language files (both scripts hardcoded): 36
+- Files with debt: 129
+- Hardcoded Arabic UI strings: 1249
+- Hardcoded English UI strings: 1130
+- Total hardcoded UI strings: 2379
+- Mixed-language files (both scripts hardcoded): 35
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 65 | 893 | 748 | 1641 | 23 |
+| main-erp | 63 | 886 | 734 | 1620 | 22 |
 | shared | 50 | 163 | 313 | 476 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -53,7 +53,6 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 3 | 12 |
 | src/modules/products/pages/BarcodeLabels.jsx | main-erp | 4 | 7 | 11 |
 | src/modules/products/pages/CreateProduct.jsx | main-erp | 7 | 4 | 11 |
-| src/modules/sales/pages/Customers.jsx | main-erp | 7 | 3 | 10 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 4 | 5 | 9 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 7 | 2 | 9 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 6 | 2 | 8 |
@@ -1411,19 +1410,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 254 [jsx-text/ar] 03 · التسعير التسويقي
 - 418 [jsx-text/ar] قيمة غير متاحة:
 
-### src/modules/sales/pages/Customers.jsx (main-erp — ar:7 en:3)
-
-- 1377 [jsx-text/ar] صف
-- 1453 [attribute/en] Close
-- 1548 [jsx-text/ar] قبل:
-- 1549 [jsx-text/ar] بعد:
-- 1550 [jsx-text/ar] المرجع:
-- 1555 [jsx-text/ar] بواسطة:
-- 1770 [jsx-text/en] InstaPay
-- 1771 [jsx-text/en] Vodafone Cash
-- 1934 [jsx-text/ar] حركة #
-- 1988 [jsx-text/ar] الرصيد الافتتاحي:
-
 ### src/modules/employees/pages/EmployeePayrollPortal.jsx (employee-portal — ar:4 en:5)
 
 - 104 [object-key/ar] محفظة الموظف
@@ -1447,18 +1433,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1131 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
 - 1132 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
 - 1133 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
-
-### src/modules/sales/pages/CreateOrder.jsx (main-erp — ar:0 en:9)
-
-- 77 [notification/en] Failed to load products
-- 91 [notification/en] Select product first
-- 115 [notification/en] Not enough stock
-- 152 [notification/en] Cart updated
-- 184 [notification/en] Added to cart
-- 212 [notification/en] Removed from cart
-- 245 [notification/en] Cart is empty
-- 287 [notification/en] Failed to create order
-- 330 [attribute/en] Customer Name
 
 ### src/pages/CreateOrder.jsx (main-erp — ar:0 en:9)
 
@@ -1753,13 +1727,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 179 [inline-ternary/ar] isArabic ? "أطفال" : "Kids"
 - 500 [inline-ternary/ar] isArabic ? "غير متاح" : "n/a"
 
-### src/modules/sales/pages/SalesEmployees.jsx (main-erp — ar:0 en:4)
-
-- 786 [notification/en] Select an employee before saving sales settings
-- 795 [notification/en] POS Alias should be 2 to 10 characters
-- 810 [notification/en] Sales settings saved
-- 824 [notification/en] Sales settings saved
-
 ### src/components/ai/AILiveLogs.jsx (shared — ar:0 en:3)
 
 - 74 [jsx-text/en] Live AI Logs
@@ -1852,6 +1819,11 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 91 [inline-ternary/ar] isRtl ? "موظف غير مرتبط" : "Unlinked employee"
 - 92 [inline-ternary/ar] isRtl ? "بدون شيفت" : "No shift assigned"
+
+### src/modules/sales/pages/Customers.jsx (main-erp — ar:0 en:2)
+
+- 1770 [jsx-text/en] InstaPay
+- 1771 [jsx-text/en] Vodafone Cash
 
 ### src/shared/components/Table.jsx (shared — ar:0 en:2)
 

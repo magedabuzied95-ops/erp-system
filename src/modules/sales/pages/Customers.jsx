@@ -1374,7 +1374,7 @@ function CustomerImportModal({
                 <div className="mt-5 max-h-48 overflow-y-auto rounded-[var(--radius-card)] border border-rose-300/15 bg-rose-500/5">
                   {(result?.invalid_rows || preview?.invalid_rows || []).slice(0, 8).map((row) => (
                     <div key={`${row.row_number}-${row.phone}`} className="border-b border-border px-4 py-3 text-sm last:border-b-0">
-                      <div className="font-black text-rose-100">صف {row.row_number}: {row.reason}</div>
+                      <div className="font-black text-rose-100">{tt("customers.import.rowNumber", { row: row.row_number })} {row.reason}</div>
                       <div className="mt-1 text-text-muted">{row.name || "-"} | {row.phone || "-"}</div>
                     </div>
                   ))}
@@ -1450,7 +1450,7 @@ function CustomerProfileDrawer({
               type="button"
               onClick={onClose}
               className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:bg-surface-hover"
-              aria-label="Close"
+              aria-label={tt("common.close")}
             >
               <X className="h-5 w-5" />
             </button>
@@ -1545,14 +1545,14 @@ function TimelineItem({ item }) {
       <div className="min-w-0">
         <div className={`text-lg font-black ${positive ? "text-emerald-200" : "text-rose-200"}`}>{positive ? "+" : ""}{formatMoney(amount)}</div>
         <div className="mt-2 grid gap-2 text-xs text-text-muted sm:grid-cols-3">
-          <span>قبل: {formatMoney(item.before_balance)}</span>
-          <span>بعد: {formatMoney(item.after_balance)}</span>
-          <span>المرجع: {item.invoice_number || item.return_number || item.reference_id || "-"}</span>
+          <span>{tt("customers.wallet.before")} {formatMoney(item.before_balance)}</span>
+          <span>{tt("customers.wallet.after")} {formatMoney(item.after_balance)}</span>
+          <span>{tt("customers.wallet.reference")} {item.invoice_number || item.return_number || item.reference_id || "-"}</span>
         </div>
         {item.notes ? <div className="mt-2 text-sm text-text-muted">{item.notes}</div> : null}
       </div>
       <div className="text-sm text-text-muted lg:text-left">
-        <div>بواسطة: {item.created_by_name || item.created_by || "-"}</div>
+        <div>{tt("customers.wallet.by")} {item.created_by_name || item.created_by || "-"}</div>
         <div className="mt-1 text-xs text-text-muted">{item.reference_type || "-"}</div>
       </div>
     </article>
@@ -1931,7 +1931,7 @@ function CustomerStatementDrawer({
                         </td>
                         <td className="border-b border-l border-border px-5 py-4">
                           <div className="whitespace-nowrap text-xs font-black text-text">{formatDateTime(row.created_at)}</div>
-                          <div className="mt-1 text-[10px] font-bold text-text-muted">حركة #{index + 1}</div>
+                          <div className="mt-1 text-[10px] font-bold text-text-muted">{tt("customers.statement.movementNumber", { index: index + 1 })}</div>
                         </td>
                         <td className="border-b border-border px-5 py-4">
                           {row.order_id ? (
@@ -1985,7 +1985,7 @@ function CustomerStatementDrawer({
           <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{tt("customers.statement.outstanding")}</div>
             <div className="mt-2 text-2xl font-black text-primary">{formatMoney(finalBalance)}</div>
-            <div className="mt-1 text-xs font-semibold text-text-muted">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
+            <div className="mt-1 text-xs font-semibold text-text-muted">{tt("customers.statement.openingBalance")}: {formatMoney(openingBalance)}</div>
           </div>
         </section>
       </main>
