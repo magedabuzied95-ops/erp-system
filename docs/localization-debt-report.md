@@ -11,16 +11,16 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - Source files scanned: 617
 - Files with debt: 119
-- Hardcoded Arabic UI strings: 1179
-- Hardcoded English UI strings: 994
-- Total hardcoded UI strings: 2173
+- Hardcoded Arabic UI strings: 1159
+- Hardcoded English UI strings: 991
+- Total hardcoded UI strings: 2150
 - Mixed-language files (both scripts hardcoded): 32
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 58 | 831 | 612 | 1443 | 19 |
+| main-erp | 58 | 811 | 609 | 1420 | 19 |
 | shared | 45 | 148 | 299 | 447 | 9 |
 | employee-portal | 11 | 145 | 41 | 186 | 2 |
 | pos | 5 | 55 | 42 | 97 | 2 |
@@ -29,7 +29,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
-| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 106 | 171 | 277 |
+| src/modules/aiSupport/pages/AiInbox.jsx | main-erp | 86 | 168 | 254 |
 | src/modules/aiSupport/pages/AiInboxPwa.jsx | main-erp | 60 | 69 | 129 |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
 | src/modules/aiSupport/components/SocialCommentsWorkspace.jsx | shared | 6 | 75 | 81 |
@@ -64,7 +64,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Per-file detail
 
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:106 en:171)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:86 en:168)
 
 - 654 [object-key/ar] بارد
 - 655 [object-key/ar] دافئ
@@ -89,24 +89,24 @@ of scope. The scanner is conservative and can still contain false positives.
 - 2367 [attribute/en] Label name
 - 2373 [jsx-text/en] Cancel
 - 2374 [jsx-text/en] Save edit
-- 2617 [jsx-text/en] No transcript yet.
-- 2642 [jsx-text/ar] بوست التعليق
-- 2723 [jsx-text/ar] ذكاء واتساب نشط
-- 2735 [attribute/en] Assign to employee / admin
-- 2800 [jsx-text/ar] رسالة خاصة، فرصة بيع، تعيين موظف
-- 2858 [jsx-text/ar] مسودة رد على التعليق
-- 2859 [jsx-text/ar] يمكنك تحميل المسودة إلى المحرر ثم تعديلها قبل الإرسال.
-- 2914 [jsx-text/ar] اختار الألوان اللي هتتبعت
-- 2940 [jsx-text/ar] مقاس
-- 2954 [jsx-text/ar] المقاس متاح بأكتر من لون — اختار اللون
-- 2972 [jsx-text/ar] اختار المنتجات اللي هتتبعت
-- 2993 [jsx-text/ar] فتح المنتج ↗
-- 3004 [jsx-text/ar] فيه أكتر من منتج مطابق — اختر المنتج
-- 3022 [jsx-text/ar] المنتج اللي هيتبعت
-- 3026 [jsx-text/ar] لا صورة
-- 3029 [jsx-text/ar] اللون:
-- 3030 [jsx-text/ar] المقاس:
-- ... 237 more
+- 3359 [attribute/en] Choose emoji
+- 3394 [jsx-text/en] AI correction memory
+- 3395 [jsx-text/ar] تصحيح رد الـAI
+- 3408 [jsx-text/ar] سؤال العميل
+- 3414 [jsx-text/ar] رد الـAI القديم
+- 3423 [jsx-text/ar] الرد الصحيح
+- 3428 [attribute/ar] اكتب التصحيح هنا...
+- 3434 [jsx-text/ar] نوع التصحيح
+- 3446 [jsx-text/ar] Product ID اختياري
+- 3532 [attribute/en] Matched products
+- 3552 [jsx-text/en] Score
+- 3558 [jsx-text/en] Quick send
+- 3559 [jsx-text/en] Send images
+- 3560 [jsx-text/en] Draft order
+- 3561 [jsx-text/en] Open product
+- 3567 [jsx-text/en] No matched products yet. Refresh after the customer sends a model, color, size, or category.
+- 3576 [object-key/en] Mylerz
+- ... 214 more
 
 ### src/pages/Dashboard.jsx (main-erp — ar:140 en:0)
 
@@ -594,44 +594,44 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:28 en:10)
 
-- 1116 [jsx-text/en] AI INBOX
-- 1117 [jsx-text/ar] المتاح بالمقاس
-- 1118 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
-- 1132 [jsx-text/ar] نوع المنتج
-- 1133 [jsx-text/ar] اختر نوعًا أو أكثر
-- 1134 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
-- 1164 [jsx-text/ar] المقاسات
-- 1165 [jsx-text/ar] اختر المقاس أو المقاسات
-- 1166 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
-- 1197 [jsx-text/en] Gender
-- 1203 [jsx-text/en] Brand
-- 1205 [jsx-text/ar] الكل
-- 1211 [jsx-text/en] Min
-- 1215 [jsx-text/en] Max
-- 1222 [jsx-text/ar] المعاينة
-- 1224 [jsx-text/ar] النتائج المطابقة:
-- 1239 [jsx-text/ar] اختر المقاس أولًا.
-- 1268 [jsx-text/en] AI INBOX
-- 1269 [jsx-text/ar] إرسال منتج
-- 1270 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
-- 1284 [jsx-text/en] Size filter
-- 1285 [jsx-text/ar] اختر المقاس المتاح
-- 1286 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
-- 1314 [attribute/ar] ابحث باسم المنتج أو الباركود
-- 1363 [jsx-text/ar] المقاس:
-- 1370 [jsx-text/en] Variant:
-- 1437 [jsx-text/ar] باركود:
-- 1483 [jsx-text/en] Size mode
-- 1484 [jsx-text/ar] المقاس المختار:
-- 1485 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
-- 1492 [jsx-text/ar] إرسال محددات المقاس
-- 1549 [jsx-text/en] Selected product
-- 1554 [jsx-text/ar] باركود:
-- 1561 [jsx-text/ar] اللون
-- 1588 [jsx-text/ar] لا يوجد لون محدد
-- 1595 [jsx-text/ar] المقاس
-- 1596 [jsx-text/ar] المقاسات المتاحة فقط
-- 1616 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
+- 1125 [jsx-text/en] AI INBOX
+- 1126 [jsx-text/ar] المتاح بالمقاس
+- 1127 [jsx-text/ar] اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.
+- 1141 [jsx-text/ar] نوع المنتج
+- 1142 [jsx-text/ar] اختر نوعًا أو أكثر
+- 1143 [jsx-text/ar] يمكنك الجمع بين أكثر من نوع في نفس الرابط.
+- 1182 [jsx-text/ar] المقاسات
+- 1183 [jsx-text/ar] اختر المقاس أو المقاسات
+- 1184 [jsx-text/ar] المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.
+- 1215 [jsx-text/en] Gender
+- 1221 [jsx-text/en] Brand
+- 1223 [jsx-text/ar] الكل
+- 1229 [jsx-text/en] Min
+- 1233 [jsx-text/en] Max
+- 1240 [jsx-text/ar] المعاينة
+- 1242 [jsx-text/ar] النتائج المطابقة:
+- 1257 [jsx-text/ar] اختر المقاس أولًا.
+- 1286 [jsx-text/en] AI INBOX
+- 1287 [jsx-text/ar] إرسال منتج
+- 1288 [jsx-text/ar] ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.
+- 1302 [jsx-text/en] Size filter
+- 1303 [jsx-text/ar] اختر المقاس المتاح
+- 1304 [jsx-text/ar] سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.
+- 1332 [attribute/ar] ابحث باسم المنتج أو الباركود
+- 1381 [jsx-text/ar] المقاس:
+- 1388 [jsx-text/en] Variant:
+- 1455 [jsx-text/ar] باركود:
+- 1501 [jsx-text/en] Size mode
+- 1502 [jsx-text/ar] المقاس المختار:
+- 1503 [jsx-text/ar] اختر المنتجات التي تريد إرسالها من القائمة.
+- 1510 [jsx-text/ar] إرسال محددات المقاس
+- 1567 [jsx-text/en] Selected product
+- 1572 [jsx-text/ar] باركود:
+- 1579 [jsx-text/ar] اللون
+- 1606 [jsx-text/ar] لا يوجد لون محدد
+- 1613 [jsx-text/ar] المقاس
+- 1614 [jsx-text/ar] المقاسات المتاحة فقط
+- 1634 [jsx-text/ar] لا توجد مقاسات متاحة لهذا اللون
 
 ### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:36)
 

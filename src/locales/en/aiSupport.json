@@ -696,6 +696,31 @@
       "stock": "Stock:",
       "required": "Required:",
       "total": "Total:"
+    },
+    "panel": {
+      "noTranscript": "No transcript yet.",
+      "commentPost": "Comment post",
+      "whatsappIntel": "WhatsApp intelligence active",
+      "assignTo": "Assign to employee / admin",
+      "quickActionsHint": "Private message, sales opportunity, assign employee",
+      "commentDraft": "Comment reply draft",
+      "commentDraftHint": "You can load the draft into the editor and edit it before sending.",
+      "chooseColours": "Choose the colours to send",
+      "size": "Size",
+      "sizeMultiColour": "This size is available in more than one colour — choose the colour",
+      "chooseProducts": "Choose the products to send",
+      "openProduct": "Open product ↗",
+      "multipleMatches": "More than one product matches — choose the product",
+      "productToSend": "Product to send",
+      "noImage": "No image",
+      "colourLabel": "Colour:",
+      "sizeLabel": "Size:",
+      "viewProduct": "View product ↗",
+      "whatCustomerGets": "What the customer receives (text + link)",
+      "delivery": "Delivery:",
+      "editAiReply": "Edit the AI reply here...",
+      "textToSend": "Text that will be sent to the customer:",
+      "editing": "Editing"
     }
   }
 }

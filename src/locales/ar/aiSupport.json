@@ -696,6 +696,31 @@
       "stock": "المخزون:",
       "required": "المطلوب:",
       "total": "الإجمالي:"
+    },
+    "panel": {
+      "noTranscript": "لا يوجد سجل محادثة بعد.",
+      "commentPost": "بوست التعليق",
+      "whatsappIntel": "ذكاء واتساب نشط",
+      "assignTo": "تعيين لموظف / مسؤول",
+      "quickActionsHint": "رسالة خاصة، فرصة بيع، تعيين موظف",
+      "commentDraft": "مسودة رد على التعليق",
+      "commentDraftHint": "يمكنك تحميل المسودة إلى المحرر ثم تعديلها قبل الإرسال.",
+      "chooseColours": "اختار الألوان اللي هتتبعت",
+      "size": "مقاس",
+      "sizeMultiColour": "المقاس متاح بأكتر من لون — اختار اللون",
+      "chooseProducts": "اختار المنتجات اللي هتتبعت",
+      "openProduct": "فتح المنتج ↗",
+      "multipleMatches": "فيه أكتر من منتج مطابق — اختر المنتج",
+      "productToSend": "المنتج اللي هيتبعت",
+      "noImage": "لا صورة",
+      "colourLabel": "اللون:",
+      "sizeLabel": "المقاس:",
+      "viewProduct": "عرض المنتج ↗",
+      "whatCustomerGets": "اللي هيوصل للعميل (نص + لينك)",
+      "delivery": "التسليم:",
+      "editAiReply": "عدّل رد الذكاء الاصطناعي هنا...",
+      "textToSend": "النص اللي هيتبعت للعميل:",
+      "editing": "جاري التعديل"
     }
   }
 }

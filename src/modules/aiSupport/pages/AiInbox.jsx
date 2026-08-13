@@ -2607,6 +2607,7 @@ const Transcript = memo(function Transcript({
   reactionOptions,
   olderMessagesAvailable = false,
 }) {
+  const { t } = useTranslation();
   const isCommentThread = isCommentConversation(conversation || {});
   const postUrl = commentConversationPostUrl(conversation || {});
   const postImage = commentThreadPostImageUrl(conversation || {});
@@ -2614,7 +2615,7 @@ const Transcript = memo(function Transcript({
   const postTime = commentThreadPostTime(conversation || {});
   const commentCount = commentThreadCommentCount(conversation || {});
   if (!rows.length && !events.length && !isCommentThread) {
-    return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No transcript yet.</div>;
+    return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{t("aiSupport.inbox.panel.noTranscript")}</div>;
   }
 
   return (
@@ -2639,7 +2640,7 @@ const Transcript = memo(function Transcript({
               </span>
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">بوست التعليق</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.panel.commentPost")}</div>
               <div className="mt-1 line-clamp-2 text-[16px] font-black leading-6 text-white">{postTitle}</div>
               {postTime ? <div className="mt-1 text-[11px] font-medium text-slate-400">{postTime}</div> : null}
               <div className="mt-2 flex flex-wrap gap-2">
@@ -2698,6 +2699,7 @@ const Transcript = memo(function Transcript({
 });
 
 function ConversationActions({ conversation, channelStatus = {}, loading, assignName, onAssignNameChange, onAction }) {
+  const { t } = useTranslation();
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const assigned = conversation.assigned_user?.name || conversation.assigned_user_name || "Unassigned";
@@ -2720,7 +2722,7 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
             {tokenActive ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
             {tokenActive ? "Token ready" : "Token issue"}
           </Pill>
-          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3 w-3" />ذكاء واتساب نشط</Pill> : null}
+          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3 w-3" />{t("aiSupport.inbox.panel.whatsappIntel")}</Pill> : null}
           <Pill tone="zinc"><UserCheck className="h-3 w-3" />{assigned}</Pill>
         </div>
         <details className="group relative ml-auto">
@@ -2732,7 +2734,7 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
           </summary>
           <div className="absolute right-0 z-10 mt-2 w-[220px] rounded-2xl border border-white/10 bg-slate-950/98 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.035] p-2">
-              <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder="Assign to employee / admin" disabled={loading || status === "closed"} className="h-8 w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
+              <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder={t("aiSupport.inbox.panel.assignTo")} disabled={loading || status === "closed"} className="h-8 w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
             </div>
             <div className="flex flex-col gap-1.5">
               {status === "closed" ? (
@@ -2779,6 +2781,7 @@ function LeadQuickActionsBar({
   onAssignEmployee,
   busy = false,
 }) {
+  const { t } = useTranslation();
   if (!conversation || !isLeadThreadConversation(conversation)) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const isClosed = status === "closed";
@@ -2797,7 +2800,7 @@ function LeadQuickActionsBar({
           أدوات البيع وخدمة العميل
         </div>
         <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
-          <span>رسالة خاصة، فرصة بيع، تعيين موظف</span>
+          <span>{t("aiSupport.inbox.panel.quickActionsHint")}</span>
           <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
         </div>
       </summary>
@@ -2849,14 +2852,15 @@ function LeadQuickActionsBar({
 }
 
 function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, loading }) {
+  const { t } = useTranslation();
   const value = clean(draftText);
   if (!value) return null;
   return (
     <div className="rounded-2xl border border-violet-300/15 bg-violet-300/8 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100">مسودة رد على التعليق</div>
-          <div className="mt-1 text-xs text-slate-400">يمكنك تحميل المسودة إلى المحرر ثم تعديلها قبل الإرسال.</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100">{t("aiSupport.inbox.panel.commentDraft")}</div>
+          <div className="mt-1 text-xs text-slate-400">{t("aiSupport.inbox.panel.commentDraftHint")}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -2887,6 +2891,7 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
 }
 
 function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, recommendationMode = false, variantOptionsMode = false, recommendationSelectedKeys = null, onToggleRecommendation, onRemove, onChange, onChoose }) {
+  const { t } = useTranslation();
   const hasCard = Boolean(card && (card.product_id || card.id));
   // Phase 13.4 — RECOMMENDATION multi-select: the operator ticks the grounded products to send with the reply.
   // Distinct from single-select identity disambiguation (below) which resolves ONE product.
@@ -2911,7 +2916,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
     return (
       <div className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-400/[0.08] p-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">اختار الألوان اللي هتتبعت</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.panel.chooseColours")}</div>
           <span className={`rounded-lg border px-1.5 py-0.5 text-[9px] font-black ${selectedCount > 0 ? "border-cyan-300/25 bg-cyan-400/15 text-cyan-100" : "border-white/12 bg-white/[0.04] text-slate-300"}`}>
             {selectedCount > 0 ? selectedVariantCountText(selectedCount) : "تقدر تختار أكتر من لون"}
           </span>
@@ -2937,7 +2942,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
                   {img ? <img src={img} alt={clean(c.color)} className="h-9 w-9 shrink-0 rounded border border-white/10 object-cover" /> : null}
                   <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
                     <span className="block truncate font-black">{clean(c.color) || "لون"}</span>
-                    {c.size ? <span className="block text-slate-300">مقاس {clean(c.size)}</span> : null}
+                    {c.size ? <span className="block text-slate-300">{t("aiSupport.inbox.panel.size")} {clean(c.size)}</span> : null}
                     {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
                   </span>
                 </button>
@@ -2951,7 +2956,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
   if (showColorChoices) {
     return (
       <div className="mt-2 rounded-xl border border-amber-300/25 bg-amber-400/10 p-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">المقاس متاح بأكتر من لون — اختار اللون</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">{t("aiSupport.inbox.panel.sizeMultiColour")}</div>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {colorChoices.map((c) => (
             <button key={c.variant_id || `${c.product_id}:${c.color}`} type="button" onClick={() => onChoose?.(c)} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
@@ -2969,7 +2974,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
     return (
       <div className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-400/[0.08] p-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">اختار المنتجات اللي هتتبعت</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.panel.chooseProducts")}</div>
           {selectedCount > 0 ? <span className="rounded-lg border border-cyan-300/25 bg-cyan-400/15 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">{selectedCountText(selectedCount)}</span> : null}
         </div>
         <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -2990,7 +2995,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
                     {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
                   </span>
                 </button>
-                {url ? <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-[9px] font-black text-cyan-200 underline">فتح المنتج ↗</a> : null}
+                {url ? <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-[9px] font-black text-cyan-200 underline">{t("aiSupport.inbox.panel.openProduct")}</a> : null}
               </div>
             );
           })}
@@ -3001,7 +3006,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
   if (showChoices) {
     return (
       <div className="mt-2 rounded-xl border border-amber-300/25 bg-amber-400/10 p-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">فيه أكتر من منتج مطابق — اختر المنتج</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">{t("aiSupport.inbox.panel.multipleMatches")}</div>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {choices.map((c) => (
             <button key={c.product_id || c.id} type="button" onClick={() => onChoose?.(c)} className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
@@ -3019,23 +3024,23 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
   return (
     <div className="mt-2 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.07] p-2">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">المنتج اللي هيتبعت</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">{t("aiSupport.inbox.panel.productToSend")}</div>
         {deliveryFormat ? <span className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-black text-slate-200">{deliveryFormat}</span> : null}
       </div>
       <div className="mt-1.5 flex items-start gap-2">
-        {img ? <img src={img} alt={name} className="h-14 w-14 shrink-0 rounded-lg border border-white/10 object-cover" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-white/10 bg-slate-800 text-[9px] text-slate-400">لا صورة</div>}
+        {img ? <img src={img} alt={name} className="h-14 w-14 shrink-0 rounded-lg border border-white/10 object-cover" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-white/10 bg-slate-800 text-[9px] text-slate-400">{t("aiSupport.inbox.panel.noImage")}</div>}
         <div className="min-w-0 flex-1 text-[11px] leading-5 text-slate-100">
           <div className="truncate font-black">{name}</div>
-          {card.color ? <div className="text-slate-300">اللون: {clean(card.color)}</div> : null}
-          {card.size ? <div className="text-slate-300">المقاس: {clean(card.size)}</div> : null}
+          {card.color ? <div className="text-slate-300">{t("aiSupport.inbox.panel.colourLabel")} {clean(card.color)}</div> : null}
+          {card.size ? <div className="text-slate-300">{t("aiSupport.inbox.panel.sizeLabel")} {clean(card.size)}</div> : null}
           {price != null && price !== "" ? <div className="text-emerald-200 font-bold">{price} جنيه</div> : null}
           <div className={`font-bold ${card.in_stock === false ? "text-rose-300" : "text-emerald-300"}`}>{card.in_stock === false ? "غير متاح" : "متاح"}</div>
-          {(card.storefront_url || card.product_url) ? <a href={card.storefront_url || card.product_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-cyan-200 underline">عرض المنتج ↗</a> : null}
+          {(card.storefront_url || card.product_url) ? <a href={card.storefront_url || card.product_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-cyan-200 underline">{t("aiSupport.inbox.panel.viewProduct")}</a> : null}
         </div>
       </div>
       {instagramDelivery ? (
         <div className="mt-2 rounded-lg border border-white/10 bg-slate-950/60 p-2">
-          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200/80">اللي هيوصل للعميل (نص + لينك)</div>
+          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200/80">{t("aiSupport.inbox.panel.whatCustomerGets")}</div>
           <pre dir="rtl" className="mt-1 whitespace-pre-wrap break-words font-sans text-[11px] leading-5 text-slate-100">{instagramShareText(card)}</pre>
         </div>
       ) : null}
@@ -3074,6 +3079,7 @@ function AiSuggestionCard({
   onEditTextChange,
   onCancelEdit,
 }) {
+  const { t } = useTranslation();
   const value = clean(text);
   if (!value) return null;
   // The text that Approve & Send will actually send: the inline edit while editing, else the AI suggestion.
@@ -3096,7 +3102,7 @@ function AiSuggestionCard({
           <div className="flex flex-wrap items-center gap-1.5">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{editing ? "تعديل اقتراح الذكاء الاصطناعي" : "اقتراح الذكاء الاصطناعي"}</div>
             {clean(channelName) ? <span className="rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-black text-slate-200">{clean(channelName)}</span> : null}
-            {clean(deliveryFormat) ? <span className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">التسليم: {clean(deliveryFormat)}</span> : null}
+            {clean(deliveryFormat) ? <span className="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">{t("aiSupport.inbox.panel.delivery")} {clean(deliveryFormat)}</span> : null}
             {/* Phase 13.3 — ONE compact operator-facing review cue; replaces the large validation/confidence panels. */}
             {reviewNeeded ? <span className="rounded-lg border border-amber-300/30 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-black text-amber-100">⚠ يحتاج مراجعة</span> : null}
           </div>
@@ -3108,7 +3114,7 @@ function AiSuggestionCard({
               dir="auto"
               autoFocus
               className="mt-2 w-full resize-y rounded-xl border border-violet-300/40 bg-slate-950/80 p-3 text-sm leading-7 text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-400/30"
-              placeholder="عدّل رد الذكاء الاصطناعي هنا..."
+              placeholder={t("aiSupport.inbox.panel.editAiReply")}
             />
           ) : (
             <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
@@ -3118,9 +3124,9 @@ function AiSuggestionCard({
           {/* Phase 13.3 — presentation-only: show only the exact text that will be sent. The technical grounding
               facts block, context-provenance chip, match type and stock counts are hidden from the operator
               view (grounding still runs and is enforced server-side; only the display is simplified). */}
-          <div className="mt-1 text-[10px] font-bold text-slate-400">النص اللي هيتبعت للعميل: <span className="text-slate-100">{clean(finalText) || "—"}</span></div>
+          <div className="mt-1 text-[10px] font-bold text-slate-400">{t("aiSupport.inbox.panel.textToSend")} <span className="text-slate-100">{clean(finalText) || "—"}</span></div>
         </div>
-        {editing ? <Pill tone="violet" className="shrink-0 px-2 py-0.5 text-[10px] font-black">Editing</Pill> : null}
+        {editing ? <Pill tone="violet" className="shrink-0 px-2 py-0.5 text-[10px] font-black">{t("aiSupport.inbox.panel.editing")}</Pill> : null}
       </div>
       <SuggestionProductToSend
         card={productCard}
