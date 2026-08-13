@@ -156,18 +156,211 @@ components (`SocialCommentsWorkspace` 77, `Customer360Drawer` 45,
 print/export (247) · business/data (43) · technical/brand lookup identifiers
 (94) · prototype/dead pages (286) · POS `RecentOperationsDrawer` + `CartSidebar`
 (Package 4C units 2–3, in flight).
+---
+
+## Release 002 — AR/EN localization closure, take 2 (`feat/i18n-closure`)
+
+**Date:** 2026-08-13
+**Status:** ✅ **RELEASED AND RUNTIME-VERIFIED IN PRODUCTION**
+
+This is the re-release of Release 001 after the producer fixed the runtime wiring
+blocker. Release 001's rollback history above is retained verbatim.
+
+### Source
+
+| Field | Value |
+| --- | --- |
+| Source branch | `feat/i18n-closure` |
+| Producer READY SHA | `a397443` |
+| Wiring fix | `9598ea8` — 14 imports + 14 `buildResources` map entries (7 bundles × AR/EN) |
+| New guards from the producer | `tests/i18n-runtime-reachability.test.js` (23 tests) · `scripts/i18n-bundle-probe.mjs` (`npm run i18n:probe-bundle`) |
+| Deferred out of this release | **`AiSupportKnowledgeBase.jsx` localization** — see *Conflict* below |
+
+### Integration
+
+| Field | Value |
+| --- | --- |
+| Baseline `main` at first reconcile | `88ce0d2` |
+| `main` moved during validation | **6 times** — `88ce0d2` → `8d98598` → `4ee207c` → `7037c5e` → `e4dff8e` → `d06f6ae`, all AI Inbox / visual-convergence work |
+| Method | successive `--no-ff` merges onto current `main`; ancestry preserved, no reset, no force-push |
+| Release merge | `a774ca3` (validated against `main` `d06f6ae`) |
+| Deploy trigger | `041a8a6` — empty commit, main only (see *Stalled deployment*) |
+| Final `main` SHA | `041a8a6` |
+| Production SHA | `041a8a6`, asset fingerprint `041a8a61c9fe` |
+| Rollback ref | `rollback/pre-i18n-closure-release-take2-20260813` → `4ee207c` (the exact SHA Production served pre-release) |
+
+Release 001's ref `rollback/pre-i18n-closure-release-20260813` → `e8d1b3c` is
+**untouched**.
+
+The revert of Release 001 (`2e66f50`) did **not** need replaying or re-reverting:
+the producer had already neutralised it in `7513f03`, so `2e66f50` was an ancestor
+of both sides and the merge base (`2f59198`) sat after it. A plain forward merge
+was therefore correct — verified before merging.
+
+Main-owned work proven byte-identical after every reconcile: `AiInbox.jsx`,
+`AiInboxPwa.jsx`, `QuickReplies.jsx`, `ProductCardPicker.jsx`,
+`AppleEmojiPicker.jsx`, `TranscriptMessage.jsx`, `productSelection.js`,
+`aiInboxQuickRepliesService.js`, `aiSalesAgentService.js`, `schema.sql`,
+`routePageTitles.js`, `M1UI.jsx`, `CreateProduct.jsx`, `ProductEdit.jsx`,
+`visual-convergence-progress.md`.
+
+### aiSupport re-check (required after every reconcile)
+
+`main` created its own `aiSupport` bundle for quick replies while the branch
+already had one, and git auto-merges the two **without reporting a conflict**.
+Re-verified on every reconciled tree:
+
+- exactly **one** `import aiSupportAr` / `aiSupportEn` and **one** map entry per
+  locale (4 references total) — duplicate ES bindings are a SyntaxError;
+- exactly **one** `{ branch: "aiSupport" }` in `RESOURCE_BRANCHES`, and zero
+  duplicate branches overall — a duplicate silently replaces the first bundle;
+- dictionary union intact: 8 top-level keys per locale (the branch's 7 plus
+  main's `quickReplies`), and all **35** of main's `quickReplies` leaf keys
+  present with **zero** value mismatches after `c6d8cfa` extended them.
+
+### Conflict and ownership resolution
+
+One real conflict, `src/modules/aiSupport/pages/AiSupportKnowledgeBase.jsx`
+(4 hunks), from main's Phase 13.5 (`e4dff8e`): it adds two new business fields
+(`maps_url`, `store_address`), a `mapsUrlValid` validator and its validation row
+on the same lines the branch had migrated to `t()`.
+
+Resolved to **main's version in full**, deferring the "close Knowledge Base
+management chrome" localization unit out of this release:
+
+- main owns business logic and new fields. Preserving both sides would require
+  authoring new AR+EN copy for the two new fields — localization development,
+  which the Release Manager must not do.
+- The alternative (localized labels for the 11 old fields, hardcoded Arabic for
+  the 2 new ones) is precisely the half-migrated surface the release contract
+  forbids.
+- Taking main's file wholesale leaves the page in one coherent state — fully
+  main's, as it always was — rather than a mixed one.
+
+Verified self-contained: no test asserts KB localization and no other file
+resolves `aiSupport.knowledgeBase.*`, so its 5 now-unused dictionary sub-keys
+remain harmlessly in both locales with parity intact.
+
+**Handed back to the localization producer:** re-localize that page including
+`maps_url` and `store_address`, then it can ship in a later checkpoint.
+
+### Pre-release validation (final tree `a774ca3` vs `main` `d06f6ae`)
+
+| Guard | Result |
+| --- | --- |
+| `npm run build` | PASS |
+| `npx eslint .` | **0 errors**, 1206 warnings |
+| Full suite — main `d06f6ae` | 2051 tests / **28** failing identities |
+| Full suite — release `a774ca3` | 2089 tests / **28** failing identities |
+| **Newly introduced failure identities** | **0** |
+| Only-on-main identities | 0 — the two failure sets are **identical** |
+| Net new tests | +38, all passing |
+| `npm run test:i18n` | 41 tests, 39 pass / 2 fail |
+| — the 2 failures | `no file gains hardcoded UI strings`, `the localization debt baseline only shrinks` — **red identically on `main`**; they are main's own inherited AI Inbox debt (Phase 13.4/13.5, emoji picker, reactions). Not touched: the ratchet fixture is the producer's artifact. |
+| Runtime reachability guard | **23/23 PASS** |
+| Bundle probe (post-build) | 68 pairs, **66 reachable, 0 unreachable**, 2 skipped (`auth` `{}` placeholders) |
+| Dictionary parity | AR 9812 == EN 9812, delta **0**, missing **0** |
+| POS + payment | 49/49 |
+| Product Form submit-safety | 8/8 |
+| AI Studio | 370/370 |
+| AI Inbox safety | 10 failures, each individually confirmed pre-existing on `main` |
+| Visual Convergence | 96/97, the 1 failure pre-existing on `main` |
+
+⚠️ **False alarm worth recording.** `tests/product-label-pdf.test.js` appeared as a
+new failure identity in one run. It was an **environment** artifact, not code: a
+`npm install --no-save` in the release worktree replaced the junctioned
+`node_modules` with a private copy that lacked the **extensionless**
+`@zxing/library/esm/core/oned/Code128Reader` file the shared tree carries, and
+`productLabelJobsPdf.js` imports that path without an extension. Source files were
+byte-identical to main. Fixed by restoring the junction; 6/6 pass. **Never run
+`npm install` in a worktree whose `node_modules` is a junction** — and compare
+suites only across identical environments.
+
+### Stalled deployment
+
+`main` carried `a774ca3` for ~18 minutes with **no** Production build: served
+fingerprint stayed `d06f6ae3369a` while `X-Vercel-Cache: HIT` with a
+monotonically growing `Age` (1145 → 1515 s). Build inputs were verified sound
+(`package.json`/`package-lock.json` identical to pre-release main,
+`emoji-picker-react` present in both). Remedied with the documented unique-SHA
+trigger — an empty commit, main only (`041a8a6`) — which deployed in ~20 seconds.
+
+### Post-deploy PRODUCTION RUNTIME PROOF
+
+Ancestry and HTTP 200 were **not** accepted as proof. The check that caught the
+Release 001 incident was repeated against the deployed build.
+
+**1. Deployed-bundle sentinel proof.** Crawled 137 chunks / 2,256,400 bytes of
+served JS off `041a8a61c9fe` and required each dictionary-only sentinel value
+(present in the locale file and nowhere in `src/**`) in raw and `\uXXXX` form:
+**14/14 sentinel-locale pairs SERVED, 0 missing.**
+
+**2. True runtime resolution in a real browser.** Dynamically imported the
+deployed i18n chunk (`assets/i18n-BE4AjSPX-041a8a61c9fe.js`) on the Production
+origin and resolved each sentinel through the live i18next instance via
+`getFixedT(locale)`:
+
+| Branch | Sentinel key | AR | EN | deployed branch key count |
+| --- | --- | :-: | :-: | --- |
+| `access` | `permissions.subtitle` | ✅ | ✅ | ar 6 / en 6 |
+| `shipping` | `center.filters.search` | ✅ | ✅ | ar 1 / en 1 |
+| `aiStudio` | `assisted.enabledNote` | ✅ | ✅ | ar 10 / en 10 |
+| `aiSupport` | `aiSettings.masterNote` | ✅ | ✅ | ar 8 / en 8 |
+| `loyalty` | `rules.subtitle` | ✅ | ✅ | ar 3 / en 3 |
+| `saas` | `register.subtitle` | ✅ | ✅ | ar 6 / en 6 |
+| `attendance` | `reports.tableSubtitle` | ✅ | ✅ | ar 6 / en 6 |
+
+**7 sentinels × 2 locales — 0 failures.** Each resolved to its real dictionary
+value, and AR ≠ EN in every case (so no locale is serving the other's bundle).
+
+**3. Negative control — proves the check can fail.**
+`t("notAWiredBranch.hub.title")` on the deployed instance returned **`"Title"`**,
+the exact humanised-key symptom of the Release 001 incident. Under Release 001
+the seven branches above would have read `ar=0 en=0` and returned such
+placeholders; they now carry real keys.
+
+**4. Full deployed branch sweep.** 37 runtime branches; the only empty one is
+`auth` (`ar=0 en=0`), the documented `{}` placeholder with zero `t("auth.*")`
+call sites. Deployed dictionaries: ar 364,171 bytes, en 384,312 bytes.
+
+### Smoke
+
+`/`, `/dashboard`, `/orders`, `/products`, `/customers`, `/inventory`,
+`/ai-studio`, `/ai-inbox`, `/users`, `/access`, `/shipping`, `/loyalty`, `/saas`,
+`/attendance`, `/ai-support`, `/settings` — all HTTP 200 on fingerprint
+`041a8a61c9fe`. App shell mounts (`#root` has children — not the known
+empty-`#root` automation artifact). Storefront apex HTTP 200, unaffected.
+
+⚠️ **Limit of this smoke, stated plainly:** the seven affected pages are behind
+authentication and no credentials were used, so page-level *visual* AR/EN
+verification of those surfaces was not performed. What is proven is stronger than
+route HTTP: the deployed runtime resolves every one of their dictionaries in both
+locales. Route-level chunk probing by name is not possible from outside — Vercel's
+build produces different content hashes than a local build, so locally derived
+chunk names return the SPA fallback.
+
+---
 
 ## Next resume state
 
-- `main` = `2e66f50`, live in Production, healthy.
-- Rollback ref `rollback/pre-i18n-closure-release-20260813` → `e8d1b3c` (retained; do not overwrite).
-- **No COMPLETE + GREEN checkpoint is currently eligible.** The only substantial
-  unreleased work is `feat/i18n-closure`, now **BLOCKED** on the runtime wiring
-  fix above.
+- `main` = `041a8a6`, **live in Production** (`041a8a61c9fe`), runtime-verified.
+- Rollback refs, both retained, never overwrite:
+  `rollback/pre-i18n-closure-release-20260813` → `e8d1b3c` (Release 001) and
+  `rollback/pre-i18n-closure-release-take2-20260813` → `4ee207c` (Release 002).
+- **No further COMPLETE + GREEN checkpoint is currently eligible.**
+- Remaining unreleased localization work, all owned by the producer:
+  1. `AiSupportKnowledgeBase.jsx` — deferred by this release; needs the two new
+     Phase 13.5 fields localized;
+  2. Package 4C unit 3 and the reserved debt below.
 - Re-scan procedure: `git fetch origin --prune`, then `git worktree list` and
   `git cherry -v origin/main <branch>` per branch. Treat a message-identical
   commit in `main` as already released even when the patch-id differs — this repo
   rebases on integration, so patch-id alone over-reports stranded work.
-- **Add to every future localization release:** verify the built bundle, not just
-  the dictionaries on disk. Passing parity/purity/missing-key guards does not
-  prove a dictionary reaches the runtime.
+- **Every future localization release must repeat the two-sided runtime proof:**
+  the reachability guard (`npm run test:i18n`) *and* the deployed-runtime check
+  (bundle probe locally, then resolve sentinels through the deployed i18next
+  instance). Parity/purity/missing-key guards passing does **not** prove a
+  dictionary reaches the runtime — that is what Release 001 shipped broken.
+- `main` moves several times an hour (AI Inbox workstream). Run the release-tree
+  and main-baseline suites **in parallel** in two worktrees to keep the race
+  window small, and re-fetch immediately before every push.
