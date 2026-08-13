@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 import SharedPortalChat from "../../../shared/chat/SharedPortalChat";
@@ -13,8 +14,12 @@ export default function UnifiedEmployeeChatInbox({
   selectedEmployeeId = "",
   onSelectedEmployeeChange = null,
 }) {
+  const { t } = useTranslation();
   const [employees, setEmployees] = useState([]);
-  const [error, setError] = useState("");
+  // Holds either OUR key or the raw server message, so a language switch relabels
+  // a banner that is already on screen.
+  const [error, setError] = useState({ key: "", text: "" });
+  const errorMessage = error.key ? t(error.key) : error.text;
 
   useEffect(() => {
     let active = true;
@@ -23,7 +28,10 @@ export default function UnifiedEmployeeChatInbox({
         if (active) setEmployees(safeArray(response));
       })
       .catch((err) => {
-        if (active) setError(err?.responseBody?.message || err?.message || "تعذر تحميل الموظفين");
+        if (active) {
+          const text = err?.responseBody?.message || err?.message || "";
+          setError({ key: text ? "" : "employeePortal.chat.admin.errors.loadEmployees", text });
+        }
       });
     return () => {
       active = false;
@@ -57,16 +65,14 @@ export default function UnifiedEmployeeChatInbox({
 
   return (
     <div className="space-y-3">
-      {error ? <div className="rounded-2xl border border-red-300/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200">{error}</div> : null}
+      {errorMessage ? <div className="rounded-2xl border border-red-300/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200">{errorMessage}</div> : null}
       <SharedPortalChat
         apiAdapter={apiAdapter}
         employees={employees}
         selectedEmployee={selectedEmployee}
         selectedEmployeeId={selectedEmployeeId}
         onSelectedEmployeeChange={onSelectedEmployeeChange}
-        headerTitle="محادثات الموظفين"
-        headerKicker="الإدارة / المحادثات"
-        secureNotice="هذه المحادثة خاصة بين الموظف والإدارة"
+        headerKicker={t("employeePortal.chat.admin.headerKickerManagement")}
         className="xl:h-[calc(100dvh-12rem)]"
         pollMs={12000}
       />

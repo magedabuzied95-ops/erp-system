@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function MobileBottomSheet({ open, title, children, footer, onClose, className = "", titleClassName = "" }) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -23,7 +25,7 @@ export function MobileBottomSheet({ open, title, children, footer, onClose, clas
             type="button"
             onClick={onClose}
             className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
           </button>

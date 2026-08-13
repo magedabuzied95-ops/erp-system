@@ -83,7 +83,8 @@
     "viewInvoice": "عرض الفاتورة",
     "editInvoice": "تعديل الفاتورة",
     "movementWithoutInvoice": "حركة بدون فاتورة",
-    "noCurrentMatches": "لا توجد حركات مطابقة للفلاتر الحالية."
+    "noCurrentMatches": "لا توجد حركات مطابقة للفلاتر الحالية.",
+    "movementNumber": "حركة #{{index}}"
   },
   "filters": {
     "fromDate": "من تاريخ",
@@ -117,7 +118,11 @@
     "manualAdjustment": "تعديل يدوي للمحفظة",
     "auditLog": "سجل تدقيق المحفظة",
     "noMatches": "لا توجد حركات مطابقة للفلاتر.",
-    "balance": "رصيد المحفظة"
+    "balance": "رصيد المحفظة",
+    "before": "قبل:",
+    "after": "بعد:",
+    "reference": "المرجع:",
+    "by": "بواسطة:"
   },
   "personalUse": {
     "giftEnum": "هدية (GIFT)",
@@ -189,7 +194,8 @@
     "invalidRows": "صفوف غير صالحة",
     "duplicatePhones": "هواتف مكررة",
     "pointsToImport": "نقاط سيتم استيرادها",
-    "previewPrompt": "ارفع الملف واضغط \"معاينة قبل الاستيراد\" لعرض الأرقام قبل التنفيذ."
+    "previewPrompt": "ارفع الملف واضغط \"معاينة قبل الاستيراد\" لعرض الأرقام قبل التنفيذ.",
+    "rowNumber": "صف {{row}}:"
   },
   "preferences": {
     "title": "تفضيلات الشراء التلقائية",

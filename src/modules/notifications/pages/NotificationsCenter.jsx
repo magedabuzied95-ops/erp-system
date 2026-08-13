@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Bell, CheckCheck, RefreshCw, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { NotificationCard, useNotifications } from "../../../shared/notifications/index.js";
 import "./NotificationsCenter.m1.css";
@@ -10,39 +11,40 @@ const priorities = ["all", "low", "medium", "high", "critical"];
 const readStates = ["all", "unread", "read"];
 
 const categoryOrder = ["sales", "orders", "stock", "inventory", "payments", "purchases", "staff_tasks", "security", "system"];
-const categoryTitles = {
-  all: "الكل",
-  sales: "المبيعات والفواتير",
-  orders: "الطلبات والفواتير",
-  stock: "المخزون والتنبيهات",
-  inventory: "المخزون",
-  payments: "المدفوعات",
-  purchases: "المشتريات",
-  staff_tasks: "مهام الموظفين",
-  security: "الأمان",
-  system: "النظام",
+const categoryTitleKeys = {
+  all: "notifications.categories.all",
+  sales: "notifications.categories.sales",
+  orders: "notifications.categories.orders",
+  stock: "notifications.categories.stock",
+  inventory: "notifications.categories.inventory",
+  payments: "notifications.categories.payments",
+  purchases: "notifications.categories.purchases",
+  staff_tasks: "notifications.categories.staff_tasks",
+  security: "notifications.categories.security",
+  system: "notifications.categories.system",
 };
 
-const labels = {
-  staff_tasks: "Staff tasks",
-  sales: "المبيعات والفواتير",
-  stock: "المخزون والتنبيهات",
-  all: "الكل",
-  orders: "الطلبات",
-  payments: "المدفوعات",
-  inventory: "المخزون",
-  purchases: "المشتريات",
-  security: "الأمان",
-  system: "النظام",
-  low: "منخفض",
-  medium: "متوسط",
-  high: "مرتفع",
-  critical: "حرج",
-  unread: "غير مقروء",
-  read: "مقروء",
+const labelKeys = {
+  staff_tasks: "notifications.filters.staff_tasks",
+  sales: "notifications.filters.sales",
+  stock: "notifications.filters.stock",
+  all: "notifications.filters.all",
+  orders: "notifications.filters.orders",
+  payments: "notifications.filters.payments",
+  inventory: "notifications.filters.inventory",
+  purchases: "notifications.filters.purchases",
+  security: "notifications.filters.security",
+  system: "notifications.filters.system",
+  low: "notifications.filters.low",
+  medium: "notifications.filters.medium",
+  high: "notifications.filters.high",
+  critical: "notifications.filters.critical",
+  unread: "notifications.filters.unread",
+  read: "notifications.filters.read",
 };
 
 function NotificationsCenter() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { notifications, unreadCount, loading, error, refresh, markAllRead } = useNotifications();
   const [query, setQuery] = useState("");
@@ -85,32 +87,32 @@ function NotificationsCenter() {
     });
     const knownGroups = categoryOrder
       .filter((key) => groups.has(key))
-      .map((key) => ({ key, title: categoryTitles[key] || key, items: groups.get(key) }));
+      .map((key) => ({ key, title: categoryTitleKeys[key] ? t(categoryTitleKeys[key]) : key, items: groups.get(key) }));
     const unknownGroups = Array.from(groups.entries())
       .filter(([key]) => !categoryOrder.includes(key))
-      .map(([key, items]) => ({ key, title: categoryTitles[key] || key, items }));
+      .map(([key, items]) => ({ key, title: categoryTitleKeys[key] ? t(categoryTitleKeys[key]) : key, items }));
     return [...knownGroups, ...unknownGroups];
   }, [filtered]);
 
   return (
-    <div className="m1-notifications-center space-y-4" dir="rtl">
+    <div className="m1-notifications-center space-y-4" dir={i18n.dir()}>
       <section className="overflow-hidden rounded-3xl border border-slate-700/70 bg-[#07111f] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
         <div className="border-b border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(7,17,31,0.98))] p-4 sm:p-6">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">Notifications Center</p>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">{t("notifications.center.eyebrow")}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_14px_34px_rgba(16,185,129,0.12)]">
                   <Bell className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <h1 className="m1-page-title text-slate-50">الإشعارات</h1>
+                <h1 className="m1-page-title text-slate-50">{t("notifications.center.title")}</h1>
                 {unreadCount > 0 ? (
                   <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">
-                    {unreadCount > 99 ? "99+" : unreadCount} غير مقروء
+                    {t("notifications.center.unreadBadge", { count: unreadCount > 99 ? "99+" : unreadCount })}
                   </span>
                 ) : null}
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-400">مركز متابعة أحداث ERP والويب سايت في الوقت الحقيقي.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{t("notifications.center.subtitle")}</p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <button
@@ -120,7 +122,7 @@ function NotificationsCenter() {
                 className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-600/80 bg-slate-900/80 px-4 py-2 text-sm font-black text-slate-100 transition hover:border-emerald-300/50 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <CheckCheck className="h-4 w-4" />
-                تعليم الكل كمقروء
+                {t("notifications.center.markAllRead")}
               </button>
               <button
                 type="button"
@@ -128,7 +130,7 @@ function NotificationsCenter() {
                 className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                تحديث
+                {t("notifications.center.refresh")}
               </button>
             </div>
           </div>
@@ -139,7 +141,7 @@ function NotificationsCenter() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="بحث"
+                placeholder={t("notifications.center.search")}
                 className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
               />
             </label>
@@ -152,13 +154,13 @@ function NotificationsCenter() {
         </div>
       </section>
 
-      <nav className="notification-category-nav" aria-label="تصنيف الإشعارات">
+      <nav className="notification-category-nav" aria-label={t("notifications.center.categoryNav")}>
         {["all", ...categoryOrder, ...Object.keys(categoryCounts).filter((key) => !categoryOrder.includes(key))].map((key) => {
           const count = key === "all" ? notifications.length : categoryCounts[key] || 0;
           if (key !== "all" && !count) return null;
           return (
             <button key={key} type="button" onClick={() => setCategory(key)} className={category === key ? "active" : ""}>
-              <span>{categoryTitles[key] || key}</span>
+              <span>{categoryTitleKeys[key] ? t(categoryTitleKeys[key]) : key}</span>
               <b>{count > 99 ? "99+" : count}</b>
             </button>
           );
@@ -176,9 +178,9 @@ function NotificationsCenter() {
               <header>
                 <div>
                   <h2>{group.title}</h2>
-                  <p>{group.items.filter((item) => !item.is_read).length} غير مقروء من {group.items.length}</p>
+                  <p>{t("notifications.center.unreadOfTotal", { unread: group.items.filter((item) => !item.is_read).length, total: group.items.length })}</p>
                 </div>
-                {category === "all" ? <button type="button" onClick={() => setCategory(group.key)}>عرض القسم</button> : null}
+                {category === "all" ? <button type="button" onClick={() => setCategory(group.key)}>{t("notifications.center.viewSection")}</button> : null}
               </header>
               <div className="notification-card-grid">
                 {group.items.map((notification) => (
@@ -196,8 +198,8 @@ function NotificationsCenter() {
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-700 bg-slate-950/80 text-slate-300">
               <Bell className="h-8 w-8" />
             </div>
-            <h2 className="m1-section-title mt-4 text-slate-50">لا توجد إشعارات</h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">لا توجد نتائج مطابقة للفلاتر الحالية. غيّر الفلاتر أو جرّب التحديث لاحقا.</p>
+            <h2 className="m1-section-title mt-4 text-slate-50">{t("notifications.center.empty")}</h2>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">{t("notifications.center.emptyHint")}</p>
           </div>
         )}
       </div>
@@ -206,10 +208,11 @@ function NotificationsCenter() {
 }
 
 function Select({ value, onChange, rows }) {
+  const { t } = useTranslation();
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm font-bold text-slate-100 outline-none">
       {rows.map((item) => (
-        <option key={item} value={item}>{labels[item] || item}</option>
+        <option key={item} value={item}>{labelKeys[item] ? t(labelKeys[item]) : item}</option>
       ))}
     </select>
   );

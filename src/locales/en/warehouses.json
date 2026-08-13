@@ -43,5 +43,37 @@
     "transfers": "Transfers",
     "stockQuantity": "Stock quantity",
     "active": "Active"
+  },
+  "livePicks": {
+    "title": "Live warehouse picks",
+    "testSound": "Test the sound",
+    "sound": {
+      "playing": "Sound playing",
+      "enabled": "Sound enabled",
+      "locked": "Sound locked"
+    },
+    "realtime": {
+      "live": "Live",
+      "connecting": "Connecting",
+      "offline": "Offline"
+    },
+    "lastReceived": "Last received:",
+    "awaitingFirst": "Waiting for the first alert",
+    "alertCount": "{{count}} alerts",
+    "recentTitle": "Last 20 alerts",
+    "recentEmpty": "No alerts yet.",
+    "currentAlert": "Current alert",
+    "fields": {
+      "color": "Color",
+      "articleCode": "Article code",
+      "manufacturer": "Manufacturer",
+      "seller": "Seller",
+      "time": "Time"
+    },
+    "emptyTitle": "Waiting for the first POS pick",
+    "emptySubtitle": "The alert appears the moment \"Add to invoice\" is used, with no manual step.",
+    "productFallback": "Product",
+    "colorFallback": "Not specified",
+    "isNew": "New"
   }
 }

@@ -208,9 +208,21 @@ test("row click makes rows keyboard reachable, not just clickable", () => {
 test("DataTable's new props are all optional — existing call sites are untouched", () => {
   const start = jsx.indexOf("export function DataTable({");
   const signature = jsx.slice(start, jsx.indexOf("}", jsx.indexOf("loadingLabel")));
-  for (const prop of ["density", "loading", "sticky", "wide", "className", "emptyLabel", "loadingLabel"]) {
+  for (const prop of ["density", "loading", "sticky", "wide", "className"]) {
     assert.match(signature, new RegExp(`${prop} =`), `${prop} must have a default`);
   }
+  /*
+   * emptyLabel / loadingLabel stayed optional but lost their LITERAL default: a
+   * signature default cannot call t(), so the old Arabic literals rendered
+   * Arabic chrome inside an English shell. A caller that passes nothing still
+   * gets a default — it just comes from the dictionary now.
+   */
+  for (const prop of ["emptyLabel", "loadingLabel"]) {
+    assert.match(signature, new RegExp(`\\n {2}${prop},`), `${prop} must stay optional`);
+    assert.doesNotMatch(signature, new RegExp(`${prop} = "`), `${prop} must not pin a language`);
+  }
+  assert.match(jsx, /emptyLabel \?\? t\("common\.m1\.table\.empty"\)/);
+  assert.match(jsx, /loadingLabel \?\? t\("common\.m1\.table\.loading"\)/);
   // selectedKey / isRowSelected / onRowClick are intentionally undefined-by-default
   for (const prop of ["selectedKey", "isRowSelected", "onRowClick"]) {
     assert.ok(signature.includes(prop), `${prop} missing`);

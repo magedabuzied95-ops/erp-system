@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -18,22 +19,26 @@ import {
   X,
 } from "lucide-react";
 
+import i18n from "../../i18n/i18n";
 import { useNotifications } from "./useNotifications.js";
 import useDismissableLayer from "../hooks/useDismissableLayer";
 import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
 import RealtimeGlowWrapper from "../../components/feedback/RealtimeGlowWrapper";
 
-const groupOrder = ["اليوم", "الأمس", "الأقدم"];
+// Stable ids, not labels: these are OBJECT KEYS and the render order. They used
+// to be the Arabic strings themselves, so localizing the label would have
+// silently emptied every group.
+const groupOrder = ["today", "yesterday", "older"];
 
 const moduleLabels = {
-  staff_tasks: "مهام الفريق",
-  orders: "الطلبات",
-  payments: "المدفوعات",
-  inventory: "المخزون",
-  purchases: "المشتريات",
-  employees: "الموظفون",
-  security: "الأمان",
-  system: "النظام",
+  staff_tasks: "notifications.filters.staff_tasks",
+  orders: "notifications.filters.orders",
+  payments: "notifications.filters.payments",
+  inventory: "notifications.filters.inventory",
+  purchases: "notifications.filters.purchases",
+  employees: "notifications.categories.employees",
+  security: "notifications.filters.security",
+  system: "notifications.filters.system",
 };
 
 const typeIcon = {
@@ -81,15 +86,15 @@ const iconClass = {
 
 export const relativeTime = (value) => {
   const time = new Date(value || Date.now()).getTime();
-  if (!Number.isFinite(time)) return "الآن";
+  if (!Number.isFinite(time)) return i18n.t("notifications.relative.now");
   const diff = Math.max(0, Date.now() - time);
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
-  if (diff < minute) return "الآن";
-  if (diff < hour) return `منذ ${Math.floor(diff / minute)} د`;
-  if (diff < day) return `منذ ${Math.floor(diff / hour)} س`;
-  if (diff < 7 * day) return `منذ ${Math.floor(diff / day)} ي`;
+  if (diff < minute) return i18n.t("notifications.relative.now");
+  if (diff < hour) return i18n.t("notifications.relative.minutes", { count: Math.floor(diff / minute) });
+  if (diff < day) return i18n.t("notifications.relative.hours", { count: Math.floor(diff / hour) });
+  if (diff < 7 * day) return i18n.t("notifications.relative.days", { count: Math.floor(diff / day) });
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(time));
 };
 
@@ -98,9 +103,9 @@ const dayGroup = (value) => {
   const today = new Date();
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  if (startOfDate === startOfToday) return "اليوم";
-  if (startOfDate === startOfToday - 86400000) return "الأمس";
-  return "الأقدم";
+  if (startOfDate === startOfToday) return "today";
+  if (startOfDate === startOfToday - 86400000) return "yesterday";
+  return "older";
 };
 
 const dedupeNotifications = (rows = []) => {
@@ -117,12 +122,13 @@ const dedupeNotifications = (rows = []) => {
 };
 
 export function NotificationCard({ notification, onOpen, onAction }) {
+  const { t } = useTranslation();
   const { markRead } = useNotifications();
   const safeNotification = notification || {};
   const category = safeNotification.category || "system";
   const Icon = typeIcon[safeNotification.type] || categoryIcon[category] || AlertTriangle;
   const isUnread = !safeNotification.is_read;
-  const moduleLabel = moduleLabels[category] || category || "النظام";
+  const moduleLabel = moduleLabels[category] ? t(moduleLabels[category]) : category || t("notifications.filters.system");
   const priority = safeNotification.priority || "medium";
   const hasAction = Boolean(safeNotification.action_url);
   const handleAction = onOpen || onAction;
@@ -149,13 +155,13 @@ export function NotificationCard({ notification, onOpen, onAction }) {
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="m1-section-title truncate">{safeNotification.title || "إشعار"}</h3>
+              <h3 className="m1-section-title truncate">{safeNotification.title || t("notifications.bell.fallbackTitle")}</h3>
               <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {safeNotification.message || "لا توجد تفاصيل إضافية متاحة."}
+                {safeNotification.message || t("notifications.bell.noDetails")}
               </p>
             </div>
             {isUnread ? (
-              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-primary" title="غير مقروء" />
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-primary" title={t("notifications.bell.unread")} />
             ) : null}
           </div>
 
@@ -176,7 +182,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
                 className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] dark:bg-primary dark:text-[var(--primary-contrast)] dark:hover:bg-primary"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                {safeNotification.action_label || "فتح"}
+                {safeNotification.action_label || t("notifications.bell.openAction")}
               </button>
             ) : null}
             {isUnread ? (
@@ -186,7 +192,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
                 className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition hover:border-primary hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-primary/40 dark:hover:text-primary"
               >
                 <Check className="h-3.5 w-3.5" />
-                وضع كمقروء
+                {t("notifications.bell.markRead")}
               </button>
             ) : null}
           </div>
@@ -217,6 +223,7 @@ function SkeletonList() {
 }
 
 export default function NotificationBell() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { notifications, unreadCount, loading, error, markAllRead, refresh } = useNotifications();
   const [open, setOpen] = useState(false);
@@ -235,7 +242,7 @@ export default function NotificationBell() {
 
   const rows = useMemo(() => dedupeNotifications(notifications), [notifications]);
   const grouped = useMemo(() => {
-    const groups = { اليوم: [], الأمس: [], الأقدم: [] };
+    const groups = { today: [], yesterday: [], older: [] };
     rows.forEach((item) => {
       groups[dayGroup(item.created_at)].push(item);
     });
@@ -260,7 +267,7 @@ export default function NotificationBell() {
           "relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full border text-[var(--text)] shadow-sm transition duration-200",
           "border-[var(--border)] bg-[var(--card)] hover:-translate-y-0.5 hover:border-primary hover:shadow-lg dark:hover:border-primary/35",
         ].join(" ")}
-        aria-label="فتح الإشعارات"
+        aria-label={t("notifications.bell.open")}
         aria-expanded={open}
       >
         <Bell className="h-5 w-5" />
@@ -273,7 +280,7 @@ export default function NotificationBell() {
             type="button"
             className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px] transition-opacity"
             onClick={() => setOpen(false)}
-            aria-label="إغلاق الإشعارات"
+            aria-label={t("notifications.bell.close")}
           />
           <aside
             ref={panelRef}
@@ -291,20 +298,20 @@ export default function NotificationBell() {
                 <div className="min-w-0">
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-subtle px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-primary dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
                     <Sparkles className="h-3.5 w-3.5" />
-                    مباشر
+                    {t("notifications.bell.live")}
                   </div>
                   <h2 id="notifications-drawer-title" className="m1-section-title mt-3">
-                    الإشعارات
+                    {t("notifications.bell.title")}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    آخر التحديثات التشغيلية والتنبيهات الأمنية الخاصة بحسابك.
+                    {t("notifications.bell.subtitle")}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35"
-                  aria-label="إغلاق الإشعارات"
+                  aria-label={t("notifications.bell.close")}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -318,7 +325,7 @@ export default function NotificationBell() {
                   className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-primary/35 dark:hover:text-primary"
                 >
                   <CheckCheck className="h-4 w-4" />
-                  تحديد الكل كمقروء
+                  {t("notifications.bell.markAllRead")}
                 </button>
                 <button
                   type="button"
@@ -326,7 +333,7 @@ export default function NotificationBell() {
                   className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] dark:bg-primary dark:text-[var(--primary-contrast)] dark:hover:bg-primary"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  تحديث
+                  {t("notifications.bell.refresh")}
                 </button>
               </div>
             </div>
@@ -335,14 +342,14 @@ export default function NotificationBell() {
               {error ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-center dark:border-rose-400/25 dark:bg-rose-500/10">
                   <AlertTriangle className="mx-auto h-8 w-8 text-rose-600 dark:text-rose-200" />
-                  <h3 className="m1-section-title mt-3">تعذر تحميل الإشعارات</h3>
+                  <h3 className="m1-section-title mt-3">{t("notifications.bell.loadFailed")}</h3>
                   <p className="mt-2 text-sm text-rose-700 dark:text-rose-100">{error}</p>
                   <button
                     type="button"
                     onClick={() => refresh()}
                     className="mt-4 rounded-[var(--radius-control)] bg-rose-600 px-4 py-2 text-sm font-black text-white transition hover:bg-rose-500"
                   >
-                    إعادة المحاولة
+                    {t("notifications.bell.retry")}
                   </button>
                 </div>
               ) : loading && !hasRows ? (
@@ -372,9 +379,9 @@ export default function NotificationBell() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                     <Inbox className="h-8 w-8" />
                   </div>
-                  <h3 className="m1-section-title mt-5">لا توجد إشعارات</h3>
+                  <h3 className="m1-section-title mt-5">{t("notifications.bell.empty")}</h3>
                   <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    ستظهر هنا مهام الفريق والتنبيهات التشغيلية فور وصولها.
+                    {t("notifications.bell.emptyHint")}
                   </p>
                 </div>
               )}

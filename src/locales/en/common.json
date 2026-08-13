@@ -712,6 +712,37 @@
         "title": "{{count}} new ERP updates",
         "message": "Open the ERP workspace to review the latest activity."
       }
+    },
+    "m1": {
+      "pagination": {
+        "nav": "Pagination",
+        "rowsPerPage": "Rows per page",
+        "show": "Show",
+        "rows": "rows",
+        "all": "All",
+        "previous": "Previous",
+        "next": "Next",
+        "range": "Showing {{start}}–{{end}} of {{count}}",
+        "page": "Page {{page}}"
+      },
+      "table": {
+        "empty": "No data",
+        "loading": "Loading"
+      },
+      "emptyState": "No results",
+      "loadingState": "Loading...",
+      "clearSearch": "Clear search"
+    },
+    "errorBoundary": {
+      "screenCrashed": "This screen crashed",
+      "appCrashed": "Application screen crashed",
+      "employeeAppCrashed": "Employee app screen crashed"
+    },
+    "reconnecting": "Reconnecting",
+    "login": {
+      "email": "Email",
+      "password": "Password",
+      "workspace": "Workspace / company slug"
     }
   },
   "sidebar": {
@@ -845,5 +876,81 @@
     "label": "Language",
     "arabic": "Arabic",
     "english": "English"
+  },
+  "notifications": {
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "older": "Older"
+    },
+    "relative": {
+      "now": "Now",
+      "minutes": "{{count}}m ago",
+      "hours": "{{count}}h ago",
+      "days": "{{count}}d ago"
+    },
+    "categories": {
+      "all": "All",
+      "sales": "Sales and invoices",
+      "orders": "Orders and invoices",
+      "stock": "Stock and alerts",
+      "inventory": "Inventory",
+      "payments": "Payments",
+      "purchases": "Purchases",
+      "staff_tasks": "Staff tasks",
+      "security": "Security",
+      "system": "System",
+      "employees": "Employees"
+    },
+    "filters": {
+      "all": "All",
+      "sales": "Sales and invoices",
+      "stock": "Stock and alerts",
+      "orders": "Orders",
+      "payments": "Payments",
+      "inventory": "Inventory",
+      "purchases": "Purchases",
+      "staff_tasks": "Staff tasks",
+      "security": "Security",
+      "system": "System",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical",
+      "unread": "Unread",
+      "read": "Read"
+    },
+    "bell": {
+      "open": "Open notifications",
+      "close": "Close notifications",
+      "live": "Live",
+      "title": "Notifications",
+      "subtitle": "The latest operational updates and security alerts for your account.",
+      "markAllRead": "Mark all as read",
+      "refresh": "Refresh",
+      "loadFailed": "Unable to load notifications",
+      "retry": "Try again",
+      "empty": "No notifications",
+      "emptyHint": "Staff tasks and operational alerts appear here as they arrive.",
+      "unread": "Unread",
+      "fallbackTitle": "Notification",
+      "noDetails": "No further details are available.",
+      "openAction": "Open",
+      "markRead": "Mark as read"
+    },
+    "center": {
+      "eyebrow": "Notifications Center",
+      "title": "Notifications",
+      "subtitle": "Realtime tracking of ERP and website events.",
+      "unreadBadge": "{{count}} unread",
+      "markAllRead": "Mark all as read",
+      "refresh": "Refresh",
+      "search": "Search",
+      "categoryNav": "Notification categories",
+      "unreadOfTotal": "{{unread}} unread of {{total}}",
+      "viewSection": "View section",
+      "empty": "No notifications",
+      "emptyHint": "Nothing matches the current filters. Change them, or refresh in a moment."
+    }
   }
 }

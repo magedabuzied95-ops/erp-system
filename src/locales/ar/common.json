@@ -712,6 +712,37 @@
         "title": "{{count}} تحديثات جديدة",
         "message": "افتح مساحة العمل لمراجعة آخر الأنشطة."
       }
+    },
+    "m1": {
+      "pagination": {
+        "nav": "التنقل بين الصفحات",
+        "rowsPerPage": "عدد الصفوف في الصفحة",
+        "show": "عرض",
+        "rows": "صفوف",
+        "all": "الكل",
+        "previous": "السابق",
+        "next": "التالي",
+        "range": "عرض {{start}}–{{end}} من أصل {{count}}",
+        "page": "الصفحة {{page}}"
+      },
+      "table": {
+        "empty": "لا توجد بيانات",
+        "loading": "جاري التحميل"
+      },
+      "emptyState": "لا توجد نتائج",
+      "loadingState": "جاري التحميل...",
+      "clearSearch": "مسح البحث"
+    },
+    "errorBoundary": {
+      "screenCrashed": "تعطلت هذه الشاشة",
+      "appCrashed": "تعطلت شاشة التطبيق",
+      "employeeAppCrashed": "تعطلت شاشة تطبيق الموظفين"
+    },
+    "reconnecting": "جارٍ إعادة الاتصال",
+    "login": {
+      "email": "البريد الإلكتروني",
+      "password": "كلمة المرور",
+      "workspace": "مساحة العمل / معرف الشركة"
     }
   },
   "sidebar": {
@@ -845,5 +876,81 @@
     "label": "اللغة",
     "arabic": "العربية",
     "english": "English"
+  },
+  "notifications": {
+    "groups": {
+      "today": "اليوم",
+      "yesterday": "الأمس",
+      "older": "الأقدم"
+    },
+    "relative": {
+      "now": "الآن",
+      "minutes": "منذ {{count}} د",
+      "hours": "منذ {{count}} س",
+      "days": "منذ {{count}} ي"
+    },
+    "categories": {
+      "all": "الكل",
+      "sales": "المبيعات والفواتير",
+      "orders": "الطلبات والفواتير",
+      "stock": "المخزون والتنبيهات",
+      "inventory": "المخزون",
+      "payments": "المدفوعات",
+      "purchases": "المشتريات",
+      "staff_tasks": "مهام الموظفين",
+      "security": "الأمان",
+      "system": "النظام",
+      "employees": "الموظفون"
+    },
+    "filters": {
+      "all": "الكل",
+      "sales": "المبيعات والفواتير",
+      "stock": "المخزون والتنبيهات",
+      "orders": "الطلبات",
+      "payments": "المدفوعات",
+      "inventory": "المخزون",
+      "purchases": "المشتريات",
+      "staff_tasks": "مهام الفريق",
+      "security": "الأمان",
+      "system": "النظام",
+      "low": "منخفض",
+      "medium": "متوسط",
+      "high": "مرتفع",
+      "critical": "حرج",
+      "unread": "غير مقروء",
+      "read": "مقروء"
+    },
+    "bell": {
+      "open": "فتح الإشعارات",
+      "close": "إغلاق الإشعارات",
+      "live": "مباشر",
+      "title": "الإشعارات",
+      "subtitle": "آخر التحديثات التشغيلية والتنبيهات الأمنية الخاصة بحسابك.",
+      "markAllRead": "تحديد الكل كمقروء",
+      "refresh": "تحديث",
+      "loadFailed": "تعذر تحميل الإشعارات",
+      "retry": "إعادة المحاولة",
+      "empty": "لا توجد إشعارات",
+      "emptyHint": "ستظهر هنا مهام الفريق والتنبيهات التشغيلية فور وصولها.",
+      "unread": "غير مقروء",
+      "fallbackTitle": "إشعار",
+      "noDetails": "لا توجد تفاصيل إضافية متاحة.",
+      "openAction": "فتح",
+      "markRead": "وضع كمقروء"
+    },
+    "center": {
+      "eyebrow": "مركز الإشعارات",
+      "title": "الإشعارات",
+      "subtitle": "مركز متابعة أحداث ERP والويب سايت في الوقت الحقيقي.",
+      "unreadBadge": "{{count}} غير مقروء",
+      "markAllRead": "تعليم الكل كمقروء",
+      "refresh": "تحديث",
+      "search": "بحث",
+      "categoryNav": "تصنيف الإشعارات",
+      "unreadOfTotal": "{{unread}} غير مقروء من {{total}}",
+      "viewSection": "عرض القسم",
+      "empty": "لا توجد إشعارات",
+      "emptyHint": "لا توجد نتائج مطابقة للفلاتر الحالية. غيّر الفلاتر أو جرّب التحديث لاحقا."
+    }
   }
 }

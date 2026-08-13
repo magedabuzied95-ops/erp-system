@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { BellRing, Clock3, Package2, Speaker, SquareStack, Warehouse } from "lucide-react";
 
+import i18n from "../../../i18n/i18n";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
@@ -10,18 +12,17 @@ const FLASH_MS = 1000;
 const ALERT_SOUND_PATH = "/sounds/warehouse-alert.mp3";
 const ALERT_SOUND_DURATION_MS = 7200;
 
-const timeFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
+/*
+ * Built per call, not once at module load: a formatter captured here would pin
+ * every alert timestamp to whichever language happened to load this module.
+ */
+const pickLocale = () => (String(i18n.language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB");
 
-const dateTimeFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const timeFormatter = () =>
+  new Intl.DateTimeFormat(pickLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+const dateTimeFormatter = () =>
+  new Intl.DateTimeFormat(pickLocale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 const text = (value, fallback = "") => String(value || "").trim() || fallback;
 
@@ -33,7 +34,9 @@ const normalizeAlert = (payload = {}) => {
     productImage: resolveProductImageUrl(payload.productImage || payload.product_image || ""),
     articleCode: text(payload.article_code || payload.articleCode || ""),
     manufacturerName: text(payload.manufacturer_name || payload.manufacturerName || payload.manufacturer || ""),
-    color: text(payload.color, "غير محدد"),
+    // Raw: alertKey() merges alerts on productId|color|size, so a localized
+    // fallback here would split the merge bucket by language. Display resolves it.
+    color: text(payload.color, ""),
     size: text(payload.size, "One Size"),
     stock: Number(payload.stock || 0),
     sellerName: text(payload.sellerName || payload.seller_name || "POS", "POS"),
@@ -59,6 +62,7 @@ const clearTimerSet = (timersRef) => {
 };
 
 function WarehouseLivePicks() {
+  const { t } = useTranslation();
   const realtime = useRealtimeConnection();
 
   const [alerts, setAlerts] = useState([]);
@@ -431,7 +435,7 @@ function WarehouseLivePicks() {
         <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
             <div className="min-w-0">
-              <h1 className="m1-page-title truncate text-white">التقاط المخزن المباشر</h1>
+              <h1 className="m1-page-title truncate text-white">{t("warehouses.livePicks.title")}</h1>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -441,24 +445,24 @@ function WarehouseLivePicks() {
                 className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-50 transition hover:bg-amber-400/15"
               >
                 <Speaker className="h-4 w-4" />
-                اختبار الصوت
+                {t("warehouses.livePicks.testSound")}
               </button>
               <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] font-bold text-zinc-300">
                 <span className={`h-2.5 w-2.5 rounded-full ${soundBusy ? "bg-amber-400" : soundUnlocked ? "bg-emerald-400" : "bg-rose-400"}`} />
-                <span>{soundBusy ? "الصوت يعمل" : soundUnlocked ? "الصوت مفعّل" : "الصوت مقفل"}</span>
+                <span>{t(soundBusy ? "warehouses.livePicks.sound.playing" : soundUnlocked ? "warehouses.livePicks.sound.enabled" : "warehouses.livePicks.sound.locked")}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] font-bold text-zinc-300">
-                <span>{realtime.connected ? "مباشر" : realtime.connecting ? "جاري الاتصال" : "غير متصل"}</span>
+                <span>{t(realtime.connected ? "warehouses.livePicks.realtime.live" : realtime.connecting ? "warehouses.livePicks.realtime.connecting" : "warehouses.livePicks.realtime.offline")}</span>
               </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-3 py-2 text-[11px] font-bold text-zinc-400 sm:px-4">
             <div className="inline-flex items-center gap-2">
               <Warehouse className="h-4 w-4 text-amber-300" />
-              <span>آخر استقبال: {lastReceivedAt ? dateTimeFormatter.format(new Date(lastReceivedAt)) : "بانتظار التنبيه الأول"}</span>
+              <span>{t("warehouses.livePicks.lastReceived")} {lastReceivedAt ? dateTimeFormatter().format(new Date(lastReceivedAt)) : t("warehouses.livePicks.awaitingFirst")}</span>
             </div>
             <div className="inline-flex items-center gap-2">
-              <span>{String(totalAlerts).padStart(2, "0")} تنبيه</span>
+              <span>{t("warehouses.livePicks.alertCount", { count: String(totalAlerts).padStart(2, "0") })}</span>
             </div>
           </div>
         </section>
@@ -468,7 +472,7 @@ function WarehouseLivePicks() {
             <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-3 sm:p-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-white">
                 <Clock3 className="h-4 w-4 text-primary" />
-                آخر 20 تنبيه
+                {t("warehouses.livePicks.recentTitle")}
               </div>
 
               <div className="space-y-2.5">
@@ -483,7 +487,7 @@ function WarehouseLivePicks() {
                   ))
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                    لا توجد تنبيهات بعد.
+                    {t("warehouses.livePicks.recentEmpty")}
                   </div>
                 )}
               </div>
@@ -500,13 +504,14 @@ function WarehouseLivePicks() {
 }
 
 function LatestPickCard({ item, active = false }) {
+  const { t } = useTranslation();
   return (
     <article
       className={`overflow-hidden rounded-[2rem] border p-3 sm:p-4 ${ active ? "border-emerald-300/30 bg-[linear-gradient(135deg,rgba(34,197,94,0.18),rgba(251,191,36,0.12),rgba(255,255,255,0.04))] shadow-[0_0_0_1px_rgba(34,197,94,0.14),0_24px_60px_rgba(16,185,129,0.16)]" : "border-amber-300/20 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.04))] shadow-[0_20px_60px_rgba(0,0,0,0.35)]" }`}
     >
       <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">
         <SquareStack className="h-3.5 w-3.5" />
-        التنبيه الحالي
+        {t("warehouses.livePicks.currentAlert")}
       </div>
 
       <div className="mt-3 grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:items-center">
@@ -531,14 +536,14 @@ function LatestPickCard({ item, active = false }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <MetaChip label="اللون" value={item.color} />
-            {item.articleCode ? <MetaChip label="كود الأرتكل" value={item.articleCode} big /> : null}
-            {item.manufacturerName ? <MetaChip label="اسم المصنع" value={item.manufacturerName} big /> : null}
+            <MetaChip label={t("warehouses.livePicks.fields.color")} value={item.color || t("warehouses.livePicks.colorFallback")} />
+            {item.articleCode ? <MetaChip label={t("warehouses.livePicks.fields.articleCode")} value={item.articleCode} big /> : null}
+            {item.manufacturerName ? <MetaChip label={t("warehouses.livePicks.fields.manufacturer")} value={item.manufacturerName} big /> : null}
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <InfoCard label="البائع" value={item.sellerName} />
-            <InfoCard label="الوقت" value={timeFormatter.format(new Date(item.receivedAt || item.timestamp))} />
+            <InfoCard label={t("warehouses.livePicks.fields.seller")} value={item.sellerName} />
+            <InfoCard label={t("warehouses.livePicks.fields.time")} value={timeFormatter().format(new Date(item.receivedAt || item.timestamp))} />
           </div>
         </div>
       </div>
@@ -547,20 +552,22 @@ function LatestPickCard({ item, active = false }) {
 }
 
 function EmptyState() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-[24rem] items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
       <div className="max-w-md space-y-3">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/[0.05] text-amber-200">
           <Warehouse className="h-10 w-10" />
         </div>
-        <h2 className="m1-section-title text-white">بانتظار أول سحب من الـ POS</h2>
-        <p className="text-sm leading-7 text-zinc-400">التنبيه سيظهر مباشرة بعد "إضافة للفاتورة" بدون أي إجراءات يدوية.</p>
+        <h2 className="m1-section-title text-white">{t("warehouses.livePicks.emptyTitle")}</h2>
+        <p className="text-sm leading-7 text-zinc-400">{t("warehouses.livePicks.emptySubtitle")}</p>
       </div>
     </div>
   );
 }
 
 function AlertRow({ item, active = false, faded = false }) {
+  const { t } = useTranslation();
   return (
     <div className={`flex items-center gap-3 rounded-[1.3rem] border p-3 ${active ? "border-emerald-300/30 bg-emerald-400/10 shadow-[0_0_0_1px_rgba(34,197,94,0.1)]" : "border-white/10 bg-black/20"} ${faded ? "opacity-90" : ""}`}>
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 sm:h-18 sm:w-18">
@@ -576,21 +583,21 @@ function AlertRow({ item, active = false, faded = false }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">{item.productName || "منتج"}</div>
+            <div className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">{item.productName || t("warehouses.livePicks.productFallback")}</div>
             <div className="mt-1 text-[1.15rem] font-black leading-none text-white">
               <span className="text-[1.45rem]">{item.quantity}</span> × {item.size}
             </div>
           </div>
-          <div className="shrink-0 text-[11px] font-black text-amber-100">{active ? "جديد" : ""}</div>
+          <div className="shrink-0 text-[11px] font-black text-amber-100">{active ? t("warehouses.livePicks.isNew") : ""}</div>
         </div>
 
         <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-bold text-zinc-400">
-          <span>اللون: {item.color}</span>
-          {item.articleCode ? <span>كود الأرتكل: {item.articleCode}</span> : null}
-          {item.manufacturerName ? <span>اسم المصنع: {item.manufacturerName}</span> : null}
+          <span>{t("warehouses.livePicks.fields.color")}: {item.color || t("warehouses.livePicks.colorFallback")}</span>
+          {item.articleCode ? <span>{t("warehouses.livePicks.fields.articleCode")}: {item.articleCode}</span> : null}
+          {item.manufacturerName ? <span>{t("warehouses.livePicks.fields.manufacturer")}: {item.manufacturerName}</span> : null}
         </div>
         <div className="mt-1 text-[11px] font-bold text-zinc-500">
-          {item.sellerName} · {timeFormatter.format(new Date(item.receivedAt || item.timestamp))}
+          {item.sellerName} · {timeFormatter().format(new Date(item.receivedAt || item.timestamp))}
         </div>
       </div>
     </div>

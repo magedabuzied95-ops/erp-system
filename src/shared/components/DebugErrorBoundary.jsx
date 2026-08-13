@@ -56,7 +56,7 @@ export default class DebugErrorBoundary extends React.Component {
   }
 
   render() {
-    const title = this.props.title || "This screen crashed";
+    const title = this.props.title || i18n.t(this.props.titleKey || "common.errorBoundary.screenCrashed");
 
     if (this.state.error) {
       if (isChunkLoadError(this.state.error)) {

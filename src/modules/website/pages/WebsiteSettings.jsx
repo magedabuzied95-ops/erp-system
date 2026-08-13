@@ -89,6 +89,17 @@ const shippingCopy = {
     openStorefront: "Open Storefront",
     overview: "Overview",
     shipping: "Shipping",
+    overviewCards: {
+      status: { title: "Website status", value: "Online", description: "Public storefront is available at {url}." },
+      domain: { title: "Domain", value: "Not connected", description: "Connect a custom domain for the customer storefront." },
+      theme: { title: "Theme", value: "Premium minimal", description: "Control storefront logo, colors, typography, and homepage assets." },
+      shipping: { title: "Shipping provider", value: "Manual ready", description: "Bosta, Mylerz, Aramex, manual delivery, and pickup structure is ready." },
+    },
+    fakeCompare: "Enable fake compare price",
+    fakeCompareHint: "Show generated old prices on storefront cards and product pages.",
+    fakeComparePercent: "Fake compare percent",
+    roundingMode: "Rounding mode",
+    existingSalePrices: "Existing Sale Prices",
     pricingTitle: "Storefront Pricing Settings",
     pricingText: "Marketing compare prices are storefront-only. They do not affect POS, invoices, cost, valuation, or profit reports.",
     save: "Save",
@@ -147,6 +158,17 @@ const shippingCopy = {
     openStorefront: "فتح المتجر",
     overview: "نظرة عامة",
     shipping: "الشحن",
+    overviewCards: {
+      status: { title: "حالة الموقع", value: "متصل", description: "المتجر العام متاح على {url}." },
+      domain: { title: "النطاق", value: "غير مربوط", description: "اربط نطاقًا مخصصًا لمتجر العملاء." },
+      theme: { title: "المظهر", value: "بسيط ومميز", description: "تحكم في شعار المتجر والألوان والخطوط وعناصر الصفحة الرئيسية." },
+      shipping: { title: "شركة الشحن", value: "يدوي جاهز", description: "بوسطة وميلرز وأرامكس والتوصيل اليدوي والاستلام من الفرع جاهزة." },
+    },
+    fakeCompare: "تفعيل سعر المقارنة التسويقي",
+    fakeCompareHint: "إظهار الأسعار القديمة المولّدة في بطاقات المتجر وصفحات المنتج.",
+    fakeComparePercent: "نسبة سعر المقارنة",
+    roundingMode: "طريقة التقريب",
+    existingSalePrices: "أسعار التخفيض الحالية",
     pricingTitle: "إعدادات أسعار المتجر",
     pricingText: "أسعار المقارنة تظهر في المتجر فقط ولا تؤثر على الكاشير أو الفواتير أو التقارير.",
     save: "حفظ",
@@ -610,16 +632,18 @@ function WebsiteSettings() {
 }
 
 function OverviewTab({ copy, pricing, markPricing }) {
+  // `id` is the React key: the title is translated now, so keying on it would
+  // remount every card on a language switch.
   const cards = [
-    { title: "Website status", value: "Online", description: `Public storefront is available at ${publicStorefrontUrl("/")}.`, icon: ShieldCheck, tone: "emerald" },
-    { title: "Domain", value: "Not connected", description: "Connect a custom domain for the customer storefront.", icon: Globe, tone: "blue" },
-    { title: "Theme", value: "Premium minimal", description: "Control storefront logo, colors, typography, and homepage assets.", icon: Palette, tone: "violet" },
-    { title: "Shipping provider", value: "Manual ready", description: "Bosta, Mylerz, Aramex, manual delivery, and pickup structure is ready.", icon: Truck, tone: "amber" },
+    { id: "status", ...copy.overviewCards.status, description: copy.overviewCards.status.description.replace("{url}", publicStorefrontUrl("/")), icon: ShieldCheck, tone: "emerald" },
+    { id: "domain", ...copy.overviewCards.domain, icon: Globe, tone: "blue" },
+    { id: "theme", ...copy.overviewCards.theme, icon: Palette, tone: "violet" },
+    { id: "shipping", ...copy.overviewCards.shipping, icon: Truck, tone: "amber" },
   ];
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => <SettingCard key={card.title} {...card} />)}
+        {cards.map(({ id, ...card }) => <SettingCard key={id} {...card} />)}
       </div>
       <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">
         <h2 className="m1-section-title text-[var(--text)]">{copy.pricingTitle}</h2>
@@ -627,14 +651,14 @@ function OverviewTab({ copy, pricing, markPricing }) {
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <label className="flex min-h-24 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             <span>
-              <span className="block text-sm font-black text-[var(--text)]">Enable fake compare price</span>
-              <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">Show generated old prices on storefront cards and product pages.</span>
+              <span className="block text-sm font-black text-[var(--text)]">{copy.fakeCompare}</span>
+              <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">{copy.fakeCompareHint}</span>
             </span>
             <input type="checkbox" checked={Boolean(pricing.enable_fake_compare_price)} onChange={(event) => markPricing({ enable_fake_compare_price: event.target.checked })} className="h-5 w-5 accent-[var(--primary)]" />
           </label>
-          <Field label="Fake compare percent" type="number" value={pricing.fake_compare_percent} onChange={(value) => markPricing({ fake_compare_percent: value })} />
+          <Field label={copy.fakeComparePercent} type="number" value={pricing.fake_compare_percent} onChange={(value) => markPricing({ fake_compare_percent: value })} />
           <label className="block rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
-            <span className="block text-sm font-black text-[var(--text)]">Rounding mode</span>
+            <span className="block text-sm font-black text-[var(--text)]">{copy.roundingMode}</span>
             <select value={pricing.fake_compare_rounding_mode} onChange={(event) => markPricing({ fake_compare_rounding_mode: event.target.value })} className="mt-3 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)] outline-none">
               <option value="none">none</option>
               <option value="nearest_10">nearest_10</option>
@@ -646,7 +670,7 @@ function OverviewTab({ copy, pricing, markPricing }) {
         <div className="mt-5 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="m1-section-title text-[var(--text)]">Existing Sale Prices</h3>
+              <h3 className="m1-section-title text-[var(--text)]">{copy.existingSalePrices}</h3>
               <p className="mt-1 text-sm font-bold text-[var(--muted)]">{saleModePreviewText(pricing)}</p>
             </div>
             <button type="button" onClick={() => markPricing({ sale_mode_enabled: !pricing.sale_mode_enabled, sale_mode_type: "use_existing_sale_prices_only", sale_mode_value: 0 })} className={`h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-4 text-sm font-black ${pricing.sale_mode_enabled ? "bg-amber-300 text-zinc-950" : "border border-amber-300/30 text-amber-100"}`}>

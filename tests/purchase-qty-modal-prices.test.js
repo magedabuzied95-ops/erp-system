@@ -36,9 +36,24 @@ test("zero current prices do not hide historical purchase prices", () => {
 });
 
 test("article is visible on purchase quantity product cards and review rows", () => {
-  assert.match(purchaseOrder, /Article \{articleCode\}/);
+  // The card label is localized now; it used to be a bare `Article {articleCode}`.
+  assert.match(purchaseOrder, /t\("purchases\.create\.articleCode", \{ code: articleCode \}\)/);
   assert.match(purchaseOrder, /\{labels\.article \|\| "Article"\}/);
   assert.match(purchaseOrder, /firstText\(product\.group\?\.article_code, firstVariant\.article_code\)/);
+});
+
+test("both halves of every purchase-quantity label table define article", () => {
+  /*
+   * `labels.article` existed only in the English halves, so Arabic fell through
+   * to the `|| "Article"` fallback and leaked English into an Arabic screen.
+   * The per-hit bilingual detector cannot see this: it treats an `isArabic ? {}
+   * : {}` pair as working bilingual without checking that the two halves carry
+   * the SAME keys. Both label tables in this file are asserted symmetric.
+   */
+  const labels = purchaseOrder.match(/article: "[^"]+"/g) || [];
+  const arabic = labels.filter((label) => /[؀-ۿ]/.test(label));
+  assert.equal(labels.length, 4, `expected 4 article labels (2 tables x 2 halves), found ${labels.length}`);
+  assert.equal(arabic.length, 2, `expected 2 Arabic article labels, found ${arabic.length}`);
 });
 
 test("applying selected products copies each product price set into all of its invoice lines", () => {

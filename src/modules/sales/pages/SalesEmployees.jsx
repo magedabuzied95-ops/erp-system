@@ -783,16 +783,16 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const saveEmployee = async () => {
     try {
       if (!form.id) {
-        toast.error("Select an employee before saving sales settings");
+        toast.error(t("sales.staffSettings.selectEmployeeFirst"));
         return;
       }
       if (branches.length > 0 && !selectedBranchId) {
-        toast.error("Select a branch for this employee");
+        toast.error(t("sales.staffSettings.selectBranch"));
         return;
       }
       const alias = String(form.pos_alias || "").trim();
       if (alias && (alias.length < 2 || alias.length > 10)) {
-        toast.error("POS Alias should be 2 to 10 characters");
+        toast.error(t("sales.staffSettings.aliasLength"));
         return;
       }
       setSaving(true);
@@ -807,12 +807,12 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
         excluded_category_ids: form.excluded_category_ids.map(Number),
       };
       await upsertSalesEmployeeProfile(form.id, payload);
-      toast.success("Sales settings saved");
+      toast.success(t("sales.staffSettings.saved"));
       setForm({ ...emptyForm, branch_id: selectedBranchId });
       setIsConfigDrawerOpen(false);
       await loadAll(selectedBranchId, filters);
     } catch (error) {
-      toast.error(error?.message || "Unable to save employee");
+      toast.error(error?.message || t("sales.staffSettings.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -821,7 +821,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const saveSettings = async () => {
     const result = await updateSalesEmployeeSettings(settings);
     setSettings(result.settings || settings);
-    toast.success("Sales settings saved");
+    toast.success(t("sales.staffSettings.saved"));
   };
 
   const savePayrollAttendanceSettings = async (updates = {}) => {

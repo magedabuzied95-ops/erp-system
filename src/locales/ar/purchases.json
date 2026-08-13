@@ -11,7 +11,9 @@
     "smartReorder": "إعادة الطلب الذكية",
     "suppliers": "الموردون",
     "inventory": "المخزون",
-    "warehouses": "المخازن"
+    "warehouses": "المخازن",
+    "createInvoice": "إنشاء فاتورة",
+    "accounting": "المحاسبة"
   },
   "kpis": {
     "totalPurchases": "إجمالي المشتريات",
@@ -406,7 +408,40 @@
     "sizesColors": "المقاسات/الألوان",
     "sizesWithValue": "المقاسات: {{value}}",
     "colorsWithValue": "الألوان: {{value}}",
-    "apply": "تطبيق"
+    "apply": "تطبيق",
+    "editingInvoice": "تعديل {{invoice}}",
+    "articleCode": "أرتيكل {{code}}",
+    "matchedTo": "مطابق: {{label}}",
+    "panelClose": "إغلاق لوحة المنتج",
+    "panelCollapse": "طي لوحة المنتج",
+    "panelExpand": "توسيع لوحة المنتج",
+    "optional": "اختياري",
+    "bulkAllNotice": "سيتم تحديث جميع المنتجات في فاتورة الشراء هذه.",
+    "discountPercentLabel": "نسبة الخصم",
+    "discountAmountLabel": "قيمة الخصم",
+    "priceLabel": "السعر",
+    "modelPricing": {
+      "title": "أسعار نموذج المنتج",
+      "lead": "تحديد سعر البيع وسعر الخصم وسعر الجملة حسب المنتج أو النموذج.",
+      "note": "تطبيق الأسعار يحدّث بنود فاتورة الشراء محليًا فقط، ولا ينفّذ الاستلام.",
+      "options": "الخيارات",
+      "sellingPrice": "سعر البيع",
+      "salePrice": "سعر الخصم",
+      "wholesalePrice": "سعر الجملة",
+      "productsCount": "المنتجات:",
+      "optionsCount": "الخيارات:",
+      "doneCount": "تمت:",
+      "applyPrices": "تطبيق الأسعار",
+      "saveAndClose": "حفظ وإغلاق",
+      "closeWithoutSaving": "إغلاق دون حفظ",
+      "errors": {
+        "sellingPositive": "يجب أن يكون سعر البيع أكبر من 0.",
+        "salePositive": "يجب أن يكون سعر الخصم أكبر من 0.",
+        "wholesalePositive": "يجب أن يكون سعر الجملة أكبر من 0.",
+        "saleAboveSelling": "لا يجب أن يكون سعر الخصم أكبر من سعر البيع.",
+        "wholesaleAboveSelling": "لا يجب أن يكون سعر الجملة أكبر من سعر البيع."
+      }
+    }
   },
   "reorder": {
     "title": "اقتراحات إعادة الطلب الذكية",
@@ -457,6 +492,46 @@
       "buyNow": "اشتر الآن",
       "watch": "راقب",
       "doNotBuy": "لا تشتر"
+    }
+  },
+  "statement": {
+    "title": "كشف حساب المورد",
+    "loading": "جاري تحميل كشف الحساب...",
+    "loadFailed": "تعذر تحميل كشف الحساب",
+    "devNotes": "ملاحظات تنفيذية",
+    "kpis": {
+      "totalPurchases": "إجمالي المشتريات",
+      "totalPaid": "إجمالي المدفوع",
+      "openingBalance": "الرصيد الافتتاحي",
+      "dueBalance": "الرصيد المستحق"
+    },
+    "fields": {
+      "supplier": "المورد",
+      "code": "الكود",
+      "phone": "الهاتف",
+      "whatsapp": "واتساب",
+      "email": "البريد"
+    },
+    "transactions": {
+      "title": "حركات الحساب",
+      "subtitle": "الترتيب زمني من الأقدم إلى الأحدث",
+      "empty": "لا توجد حركات مسجلة بعد"
+    },
+    "table": {
+      "date": "التاريخ",
+      "type": "النوع",
+      "reference": "المرجع",
+      "description": "البيان",
+      "debit": "مدين",
+      "credit": "دائن",
+      "balance": "الرصيد"
+    },
+    "types": {
+      "purchase_invoice": "فاتورة شراء",
+      "purchase_payment": "سداد شراء",
+      "purchase_payment_reversal": "عكس سداد",
+      "adjustment": "تسوية",
+      "fallback": "حركة"
     }
   }
 }

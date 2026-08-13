@@ -43,5 +43,37 @@
     "transfers": "التحويلات",
     "stockQuantity": "كمية المخزون",
     "active": "النشطة"
+  },
+  "livePicks": {
+    "title": "التقاط المخزن المباشر",
+    "testSound": "اختبار الصوت",
+    "sound": {
+      "playing": "الصوت يعمل",
+      "enabled": "الصوت مفعّل",
+      "locked": "الصوت مقفل"
+    },
+    "realtime": {
+      "live": "مباشر",
+      "connecting": "جاري الاتصال",
+      "offline": "غير متصل"
+    },
+    "lastReceived": "آخر استقبال:",
+    "awaitingFirst": "بانتظار التنبيه الأول",
+    "alertCount": "{{count}} تنبيه",
+    "recentTitle": "آخر 20 تنبيه",
+    "recentEmpty": "لا توجد تنبيهات بعد.",
+    "currentAlert": "التنبيه الحالي",
+    "fields": {
+      "color": "اللون",
+      "articleCode": "كود الأرتكل",
+      "manufacturer": "اسم المصنع",
+      "seller": "البائع",
+      "time": "الوقت"
+    },
+    "emptyTitle": "بانتظار أول سحب من الـ POS",
+    "emptySubtitle": "التنبيه سيظهر مباشرة بعد \"إضافة للفاتورة\" بدون أي إجراءات يدوية.",
+    "productFallback": "منتج",
+    "colorFallback": "غير محدد",
+    "isNew": "جديد"
   }
 }

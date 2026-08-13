@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Activity, Pause, Play, RefreshCcw, Trash2 } from "lucide-react";
 
 import {
@@ -9,6 +10,7 @@ import useLiveActivityFeed from "../../hooks/useLiveActivityFeed";
 import LiveActivityItem from "./LiveActivityItem";
 
 export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents = [], className = "" }) {
+  const { t } = useTranslation();
   const { items, loading, error, paused, setPaused, clear } = useLiveActivityFeed({ initialEvents });
   const [category, setCategory] = useState("all");
   const [priority, setPriority] = useState("all");
@@ -33,11 +35,11 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents =
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
             <Activity className="h-4 w-4" />
-            Live Activity
-            {paused ? <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-200">Paused</span> : null}
+            {t("dashboard.activity.live")}
+            {paused ? <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-200">{t("dashboard.activity.paused")}</span> : null}
           </div>
           <p className="mt-1 text-xs leading-5 text-zinc-500">
-            Compact realtime stream for orders, POS, AI, inventory, attendance, and system events.
+            {t("dashboard.activity.description")}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -63,7 +65,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents =
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
         {ACTIVITY_FILTERS.map((filter) => (
           <FilterButton key={filter.id} active={category === filter.id} onClick={() => setCategory(filter.id)}>
-            {filter.label}
+            {t(filter.labelKey)}
           </FilterButton>
         ))}
       </div>
@@ -71,7 +73,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents =
       <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
         {ACTIVITY_PRIORITY_FILTERS.map((filter) => (
           <FilterButton key={filter.id} active={priority === filter.id} onClick={() => setPriority(filter.id)} compact>
-            {filter.label}
+            {t(filter.labelKey)}
           </FilterButton>
         ))}
       </div>
@@ -108,8 +110,9 @@ function FilterButton({ active, onClick, children, compact = false }) {
 }
 
 function LoadingState() {
+  const { t } = useTranslation();
   return (
-    <div className="space-y-2" aria-label="Loading activity">
+    <div className="space-y-2" aria-label={t("dashboard.activity.loading")}>
       {Array.from({ length: 5 }).map((_, index) => (
         <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-white/[0.06] bg-white/[0.04] motion-reduce:animate-none" />
       ))}

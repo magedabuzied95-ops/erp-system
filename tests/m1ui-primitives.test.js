@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
+/** Resolves a dotted key through the composed dictionaries, for both locales. */
+const dictionaryValue = (key, locale) => {
+  const bundles = JSON.parse(fs.readFileSync(new URL(`../src/locales/${locale}/common.json`, import.meta.url), "utf8"));
+  const [, ...rest] = key.split(".");
+  let node = bundles.common;
+  for (const part of rest) node = node?.[part];
+  return typeof node === "string" ? node : undefined;
+};
+
 // Phase 2A — canonical primitive contracts.
 //
 // These assert the CONTRACT (native elements, semantics, tokens, RTL), not CSS
@@ -126,7 +135,12 @@ test("SearchInput composes Input rather than restyling a second control", () => 
   const s = section("SearchInput");
   assert.match(s, /<Input/);
   assert.match(s, /type="search"/);
-  assert.match(s, /clearLabel = "مسح البحث"/, "the clear action needs an accessible name");
+  // The literal default became a translation key: a signature default cannot
+  // call t(), so it rendered Arabic inside an English shell. Same intent —
+  // the clear action still has an accessible name, in both locales.
+  assert.match(s, /clearLabel \?\? t\("common\.m1\.clearSearch"\)/, "the clear action needs an accessible name");
+  assert.equal(dictionaryValue("common.m1.clearSearch", "ar"), "مسح البحث");
+  assert.ok(dictionaryValue("common.m1.clearSearch", "en"), "the English clear label is missing");
 });
 
 // ---- overlays ------------------------------------------------------------
@@ -212,7 +226,9 @@ test("the Phase 3 table freeze is lifted and DataTable kept its old call shape",
   assert.doesNotMatch(jsx, /FROZEN FOR PHASE 3/);
   assert.match(jsx, /export function DataTable\(\{/);
   assert.match(jsx, /\n {2}rowKey = "id",/);
-  assert.match(jsx, /emptyLabel = "لا توجد بيانات",/);
+  assert.match(jsx, /\n {2}emptyLabel,/);
+  assert.match(jsx, /emptyLabel \?\? t\("common\.m1\.table\.empty"\)/);
+  assert.equal(dictionaryValue("common.m1.table.empty", "ar"), "لا توجد بيانات");
 });
 
 test("Pagination is the recovered canonical control, not the two-arrow stub", () => {

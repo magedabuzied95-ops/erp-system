@@ -11,7 +11,9 @@
     "smartReorder": "Smart Reorder",
     "suppliers": "Suppliers",
     "inventory": "Inventory",
-    "warehouses": "Warehouses"
+    "warehouses": "Warehouses",
+    "createInvoice": "Create invoice",
+    "accounting": "Accounting"
   },
   "kpis": {
     "totalPurchases": "Total purchases",
@@ -406,7 +408,40 @@
     "sizesColors": "Sizes/colors",
     "sizesWithValue": "Sizes: {{value}}",
     "colorsWithValue": "Colors: {{value}}",
-    "apply": "Apply"
+    "apply": "Apply",
+    "editingInvoice": "Editing {{invoice}}",
+    "articleCode": "Article {{code}}",
+    "matchedTo": "Match: {{label}}",
+    "panelClose": "Close the product panel",
+    "panelCollapse": "Collapse the product panel",
+    "panelExpand": "Expand the product panel",
+    "optional": "Optional",
+    "bulkAllNotice": "Every product on this purchase invoice will be updated.",
+    "discountPercentLabel": "Discount percentage",
+    "discountAmountLabel": "Discount amount",
+    "priceLabel": "Price",
+    "modelPricing": {
+      "title": "Product model prices",
+      "lead": "Set the selling, discount and wholesale price per product or model.",
+      "note": "Applying prices updates the purchase invoice lines locally only; it does not receive stock.",
+      "options": "Options",
+      "sellingPrice": "Selling price",
+      "salePrice": "Discount price",
+      "wholesalePrice": "Wholesale price",
+      "productsCount": "Products:",
+      "optionsCount": "Options:",
+      "doneCount": "Done:",
+      "applyPrices": "Apply prices",
+      "saveAndClose": "Save and close",
+      "closeWithoutSaving": "Close without saving",
+      "errors": {
+        "sellingPositive": "The selling price must be greater than 0.",
+        "salePositive": "The discount price must be greater than 0.",
+        "wholesalePositive": "The wholesale price must be greater than 0.",
+        "saleAboveSelling": "The discount price must not exceed the selling price.",
+        "wholesaleAboveSelling": "The wholesale price must not exceed the selling price."
+      }
+    }
   },
   "reorder": {
     "title": "Smart reorder suggestions",
@@ -457,6 +492,46 @@
       "buyNow": "Buy now",
       "watch": "Watch",
       "doNotBuy": "Do not buy"
+    }
+  },
+  "statement": {
+    "title": "Supplier statement",
+    "loading": "Loading the statement…",
+    "loadFailed": "Failed to load supplier statement",
+    "devNotes": "Implementation notes",
+    "kpis": {
+      "totalPurchases": "Total purchases",
+      "totalPaid": "Total paid",
+      "openingBalance": "Opening balance",
+      "dueBalance": "Outstanding balance"
+    },
+    "fields": {
+      "supplier": "Supplier",
+      "code": "Code",
+      "phone": "Phone",
+      "whatsapp": "WhatsApp",
+      "email": "Email"
+    },
+    "transactions": {
+      "title": "Account transactions",
+      "subtitle": "Ordered chronologically, oldest first",
+      "empty": "No transactions recorded yet"
+    },
+    "table": {
+      "date": "Date",
+      "type": "Type",
+      "reference": "Reference",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "types": {
+      "purchase_invoice": "Purchase invoice",
+      "purchase_payment": "Purchase payment",
+      "purchase_payment_reversal": "Payment reversal",
+      "adjustment": "Adjustment",
+      "fallback": "Transaction"
     }
   }
 }

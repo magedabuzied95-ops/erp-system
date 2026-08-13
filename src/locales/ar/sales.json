@@ -266,5 +266,24 @@
     "loadStaff": "فشل تحميل فريق المبيعات",
     "loadBranches": "فشل تحميل الفروع",
     "refreshReport": "فشل تحديث تقرير المبيعات"
+  },
+  "staffSettings": {
+    "selectEmployeeFirst": "اختر موظفًا قبل حفظ إعدادات المبيعات",
+    "selectBranch": "اختر فرعًا لهذا الموظف",
+    "aliasLength": "اسم نقطة البيع يجب أن يكون من 2 إلى 10 أحرف",
+    "saved": "تم حفظ إعدادات المبيعات",
+    "saveFailed": "تعذر حفظ بيانات الموظف"
+  },
+  "createOrder": {
+    "loadProductsFailed": "فشل تحميل المنتجات",
+    "selectProductFirst": "اختر المنتج أولاً",
+    "notEnoughStock": "الكمية غير متوفرة في المخزون",
+    "cartUpdated": "تم تحديث السلة",
+    "addedToCart": "تمت الإضافة إلى السلة",
+    "removedFromCart": "تم الحذف من السلة",
+    "cartEmpty": "السلة فارغة",
+    "orderCreated": "تم إنشاء الطلب",
+    "createFailed": "فشل إنشاء الطلب",
+    "customerNamePlaceholder": "اسم العميل"
   }
 }

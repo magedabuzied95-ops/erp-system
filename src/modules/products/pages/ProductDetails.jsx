@@ -55,7 +55,7 @@ const duplicateVariantPayload = (variant = {}, group = {}) =>
     images: [],
   });
 
-const placeholderImage = (label = "Product image") =>
+const placeholderImage = (label = "") =>
   `data:image/svg+xml;utf8,${encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-label="${label}">
       <rect width="480" height="360" rx="28" fill="#0f172a"/>
@@ -810,7 +810,7 @@ function ProductDetails() {
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/5">
                   <img
-                    src={product.image_url || product.public_image_url || placeholderImage(product.name)}
+                    src={product.image_url || product.public_image_url || placeholderImage(product.name || t("products.images.productImage"))}
                     alt={product.name}
                     className="h-[320px] w-full object-contain p-4"
                   />
@@ -885,7 +885,7 @@ function ProductDetails() {
                     <div className="grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)]">
                       <div className="overflow-hidden rounded-[24px] border border-white/10 bg-zinc-950/70">
                         <img
-                          src={group.image_url || group.images?.find((image) => image.is_primary)?.image_url || product.image_url || placeholderImage(group.color)}
+                          src={group.image_url || group.images?.find((image) => image.is_primary)?.image_url || product.image_url || placeholderImage(group.color || t("products.images.productImage"))}
                           alt={`${product.name} ${group.color}`}
                           className="h-[180px] w-full object-contain p-3"
                         />

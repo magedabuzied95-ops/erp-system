@@ -387,7 +387,7 @@ function App() {
   if (isEmployeeAppRoute) {
     console.debug("[employee-app-route-hit]", employeeAppToken);
     return (
-      <DebugErrorBoundary title="Employee app screen crashed">
+      <DebugErrorBoundary titleKey="common.errorBoundary.employeeAppCrashed">
         <Suspense fallback={<RouteSkeleton />}>
           <Routes>
             <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
@@ -408,7 +408,7 @@ function App() {
   return (
     <FeatureFlagProvider poll={enableErpAppRoutes}>
     <TenantProvider>
-    <DebugErrorBoundary title="Application screen crashed">
+    <DebugErrorBoundary titleKey="common.errorBoundary.appCrashed">
     <Suspense fallback={<RouteSkeleton />}>
     <Routes>
 

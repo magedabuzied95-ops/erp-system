@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, Download, FileText, Mail, MessageCircle, Plus, Printer, Search, Sparkles, Tag, TicketPercent, X, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import i18n from "../../../i18n/i18n";
 import { api } from "../../../shared/api/api";
 import { API_BASE_URL } from "../../../shared/constants/app";
 import { getToken } from "../../../shared/auth/authStorage";
@@ -32,7 +33,7 @@ const fetchProtectedBlob = async (endpoint) => {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload?.message || "فشل التصدير");
+    throw new Error(payload?.message || i18n.t("marketing.coupons.export.exportFailed"));
   }
   return response.blob();
 };
@@ -226,7 +227,7 @@ export default function CouponsManager() {
     try {
       await action();
     } catch (error) {
-      toast.error(error.message || "تعذر تجهيز ملف الكوبونات");
+      toast.error(error.message || cText("export.prepareFailed", "Unable to prepare the coupon file"));
     } finally {
       setExportBusy("");
       setPrintMenuOpen(false);
@@ -245,11 +246,11 @@ export default function CouponsManager() {
     const blob = await fetchProtectedBlob(pdfEndpoint("a4"));
     const file = new File([blob], `coupons-${selectedCampaign.id}.pdf`, { type: "application/pdf" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-      await navigator.share({ title: selectedCampaign.name, text: "قسائم الخصم", files: [file] });
+      await navigator.share({ title: selectedCampaign.name, text: cText("export.shareTitle", "Discount coupons"), files: [file] });
       return;
     }
     downloadBlob(blob, file.name);
-    window.open(`https://wa.me/?text=${encodeURIComponent("تم تنزيل ملف قسائم الخصم ويمكنك إرفاقه في المحادثة.")}`, "_blank", "noopener,noreferrer");
+    window.open(`https://wa.me/?text=${encodeURIComponent(cText("export.shareText", "The discount coupon file has been downloaded and can be attached to the chat."))}`, "_blank", "noopener,noreferrer");
   });
 
   const sendPdfByEmail = async () => {
@@ -261,11 +262,11 @@ export default function CouponsManager() {
         layout: "a4",
         email: emailAddress.trim(),
       });
-      toast.success("تم إرسال ملف الكوبونات بالبريد");
+      toast.success(cText("export.emailSent", "The coupon file was emailed"));
       setEmailDialogOpen(false);
       setEmailAddress("");
     } catch (error) {
-      toast.error(error.message || "تعذر إرسال ملف الكوبونات بالبريد");
+      toast.error(error.message || cText("export.emailFailed", "Unable to email the coupon file"));
     } finally {
       setExportBusy("");
     }
@@ -361,18 +362,18 @@ export default function CouponsManager() {
                   <div className="relative">
                     <button type="button" onClick={() => setPrintMenuOpen((current) => !current)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3 text-sm font-bold text-amber-100">
                       {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                      طباعة ومشاركة
+                      {cText("export.menu", "Print and share")}
                       <ChevronDown className="h-4 w-4" />
                     </button>
                     {printMenuOpen ? (
                       <div className="absolute right-0 top-12 z-30 w-64 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black/60">
-                        <ExportMenuButton icon={Printer} label="طباعة A4 — 6 كوبونات" onClick={() => printPdf("a4")} />
-                        <ExportMenuButton icon={Printer} label="طباعة A5 — كوبونان" onClick={() => printPdf("a5")} />
-                        <ExportMenuButton icon={Tag} label="طباعة كوبون واحد" onClick={() => coupons[0] && printPdf("single", coupons[0].id)} disabled={!coupons.length} />
+                        <ExportMenuButton icon={Printer} label={cText("export.printA4", "Print A4 — 6 coupons")} onClick={() => printPdf("a4")} />
+                        <ExportMenuButton icon={Printer} label={cText("export.printA5", "Print A5 — 2 coupons")} onClick={() => printPdf("a5")} />
+                        <ExportMenuButton icon={Tag} label={cText("export.printSingle", "Print one coupon")} onClick={() => coupons[0] && printPdf("single", coupons[0].id)} disabled={!coupons.length} />
                         <div className="my-1 border-t border-white/10" />
-                        <ExportMenuButton icon={FileText} label="تصدير PDF" onClick={() => exportPdf("a4")} />
-                        <ExportMenuButton icon={Mail} label="إرسال PDF بالبريد" onClick={() => { setPrintMenuOpen(false); setEmailDialogOpen(true); }} />
-                        <ExportMenuButton icon={MessageCircle} label="مشاركة عبر واتساب" onClick={sharePdf} />
+                        <ExportMenuButton icon={FileText} label={cText("export.exportPdf", "Export PDF")} onClick={() => exportPdf("a4")} />
+                        <ExportMenuButton icon={Mail} label={cText("export.emailPdf", "Email the PDF")} onClick={() => { setPrintMenuOpen(false); setEmailDialogOpen(true); }} />
+                        <ExportMenuButton icon={MessageCircle} label={cText("export.shareWhatsapp", "Share on WhatsApp")} onClick={sharePdf} />
                       </div>
                     ) : null}
                   </div>
@@ -413,7 +414,7 @@ export default function CouponsManager() {
                       <div className="text-zinc-300">{number(coupon.usage_count)} / {number(coupon.usage_limit)}</div>
                       <div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? cText("active", "نشط") : cText("inactive", "متوقف")}</span></div>
                       <div className="text-zinc-400">{coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : "-"}</div>
-                      <button type="button" title="طباعة هذا الكوبون" onClick={() => printPdf("single", coupon.id)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20">
+                      <button type="button" title={cText("export.printThis", "Print this coupon")} onClick={() => printPdf("single", coupon.id)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20">
                         {exportBusy === `print-single-${coupon.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                       </button>
                     </div>
@@ -443,19 +444,19 @@ export default function CouponsManager() {
           <div className="w-full max-w-md rounded-3xl border border-amber-300/20 bg-zinc-950 p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">PDF عبر البريد</div>
-                <h2 className="m1-section-title mt-1 text-white">إرسال قسائم الخصم</h2>
-                <p className="mt-1 text-sm text-zinc-400">سيتم إرسال ملف A4 جاهز للطباعة كمرفق.</p>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{cText("export.dialog.eyebrow", "PDF by email")}</div>
+                <h2 className="m1-section-title mt-1 text-white">{cText("export.dialog.title", "Send discount coupons")}</h2>
+                <p className="mt-1 text-sm text-zinc-400">{cText("export.dialog.subtitle", "A print-ready A4 file will be sent as an attachment.")}</p>
               </div>
               <button type="button" onClick={() => setEmailDialogOpen(false)} className="rounded-[var(--radius-control)] border border-white/10 p-2 text-zinc-300"><X className="h-4 w-4" /></button>
             </div>
             <label className="mt-5 block">
-              <span className="mb-2 block text-xs font-bold text-zinc-400">البريد الإلكتروني</span>
+              <span className="mb-2 block text-xs font-bold text-zinc-400">{cText("export.dialog.email", "Email address")}</span>
               <input autoFocus type="email" value={emailAddress} onChange={(event) => setEmailAddress(event.target.value)} onKeyDown={(event) => event.key === "Enter" && sendPdfByEmail()} placeholder="name@example.com" className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-4 text-left text-white outline-none focus:border-amber-300/40" dir="ltr" />
             </label>
             <button type="button" disabled={!emailAddress.trim() || exportBusy === "email"} onClick={sendPdfByEmail} className="mt-4 inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 font-black text-black disabled:cursor-not-allowed disabled:opacity-50">
               {exportBusy === "email" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-              إرسال PDF
+              {cText("export.dialog.send", "Send PDF")}
             </button>
           </div>
         </div>

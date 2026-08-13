@@ -83,7 +83,8 @@
     "viewInvoice": "View invoice",
     "editInvoice": "Edit invoice",
     "movementWithoutInvoice": "Movement without an invoice",
-    "noCurrentMatches": "No movements match the current filters."
+    "noCurrentMatches": "No movements match the current filters.",
+    "movementNumber": "Movement #{{index}}"
   },
   "filters": {
     "fromDate": "From date",
@@ -117,7 +118,11 @@
     "manualAdjustment": "Manual wallet adjustment",
     "auditLog": "Wallet audit log",
     "noMatches": "No movements match the filters.",
-    "balance": "Wallet balance"
+    "balance": "Wallet balance",
+    "before": "Before:",
+    "after": "After:",
+    "reference": "Reference:",
+    "by": "By:"
   },
   "personalUse": {
     "giftEnum": "Gift (GIFT)",
@@ -189,7 +194,8 @@
     "invalidRows": "Invalid rows",
     "duplicatePhones": "Duplicate phone numbers",
     "pointsToImport": "Points to import",
-    "previewPrompt": "Upload the file and press \"Preview before importing\" to see the numbers before running it."
+    "previewPrompt": "Upload the file and press \"Preview before importing\" to see the numbers before running it.",
+    "rowNumber": "Row {{row}}:"
   },
   "preferences": {
     "title": "Automatic purchase preferences",

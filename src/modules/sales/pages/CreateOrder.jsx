@@ -3,6 +3,7 @@ import {
   useState
 } from "react";
 
+import { useTranslation } from "react-i18next";
 import toast
 from "react-hot-toast";
 
@@ -11,6 +12,7 @@ from "../../../shared/api/api";
 import { formatCurrency } from "../../../shared/lib/currency";
 
 function CreateOrder() {
+  const { t } = useTranslation();
 
   /* =========================
      STATES
@@ -75,7 +77,7 @@ function CreateOrder() {
       console.log(error);
 
       toast.error(
-        "Failed to load products"
+        t("sales.createOrder.loadProductsFailed")
       );
     }
   };
@@ -89,7 +91,7 @@ function CreateOrder() {
     if (!selectedVariant) {
 
       toast.error(
-        "Select product first"
+        t("sales.createOrder.selectProductFirst")
       );
 
       return;
@@ -113,7 +115,7 @@ function CreateOrder() {
     ) {
 
       toast.error(
-        "Not enough stock"
+        t("sales.createOrder.notEnoughStock")
       );
 
       return;
@@ -150,7 +152,7 @@ function CreateOrder() {
       setCart(updated);
 
       toast.success(
-        "Cart updated"
+        t("sales.createOrder.cartUpdated")
       );
 
     } else {
@@ -182,7 +184,7 @@ function CreateOrder() {
       ]);
 
       toast.success(
-        "Added to cart"
+        t("sales.createOrder.addedToCart")
       );
     }
 
@@ -210,7 +212,7 @@ function CreateOrder() {
     );
 
     toast.success(
-      "Removed from cart"
+      t("sales.createOrder.removedFromCart")
     );
   };
 
@@ -243,7 +245,7 @@ function CreateOrder() {
         ) {
 
           toast.error(
-            "Cart is empty"
+            t("sales.createOrder.cartEmpty")
           );
 
           return;
@@ -273,7 +275,7 @@ function CreateOrder() {
 
         toast.success(
           data.message ||
-          "Order Created"
+          t("sales.createOrder.orderCreated")
         );
 
         setCart([]);
@@ -285,7 +287,7 @@ function CreateOrder() {
         console.log(error);
 
         toast.error(
-          "Failed to create order"
+          t("sales.createOrder.createFailed")
         );
 
       } finally {
@@ -327,7 +329,7 @@ function CreateOrder() {
         <input
           type="text"
 
-          placeholder="Customer Name"
+          placeholder={t("sales.createOrder.customerNamePlaceholder")}
 
           value={customerName}
 

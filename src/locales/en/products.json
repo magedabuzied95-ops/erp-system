@@ -820,7 +820,14 @@
     "uploadImages": "Upload Images",
     "multipleSupported": "Multiple images supported",
     "moveDown": "Move image down",
-    "moveUp": "Move image up"
+    "moveUp": "Move image up",
+    "productImage": "Product image",
+    "filter": {
+      "all": "All",
+      "complete": "Images complete",
+      "incomplete": "Images missing",
+      "none": "No images"
+    }
   },
   "toasts": {
     "productDuplicated": "Product duplicated successfully",
@@ -936,7 +943,11 @@
     "saved": "Prices updated",
     "saveFailed": "Failed to update prices",
     "saving": "Saving...",
-    "variantPrices": "Variant prices"
+    "variantPrices": "Variant prices",
+    "purchasePrice": "Purchase price",
+    "bulkPurchasePrice": "Bulk purchase price",
+    "mixedPrices": "Mixed prices",
+    "sizesCount": "{{count}} sizes"
   },
   "statusModal": {
     "activateDescription": "This product will appear again in the storefront and POS.",
@@ -951,5 +962,10 @@
   "tabs": {
     "offers": "Offers",
     "products": "Products"
+  },
+  "printList": {
+    "nav": "Print list",
+    "addAction": "Add to the print list",
+    "added": "The product was added to the print list"
   }
 }

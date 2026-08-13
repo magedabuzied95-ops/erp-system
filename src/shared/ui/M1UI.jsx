@@ -1,6 +1,7 @@
 // Union of both sides: `useEffect`/`useId`/`Search` come from the Phase 2A
 // primitives, `ChevronRight` from the recovered Pagination (RTL "previous").
 import { forwardRef, useEffect, useId } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Inbox, LoaderCircle, Search, X } from "lucide-react";
 import "./m1-ui.css";
 import "./m1-table.css";
@@ -184,9 +185,10 @@ export const Switch = forwardRef(function Switch({ label, id, className = "", ..
 });
 
 export const SearchInput = forwardRef(function SearchInput(
-  { onClear, value, clearLabel = "مسح البحث", ...props },
+  { onClear, value, clearLabel, ...props },
   ref
 ) {
+  const { t } = useTranslation();
   // Composes Input rather than restyling a second control.
   return (
     <Input
@@ -194,7 +196,7 @@ export const SearchInput = forwardRef(function SearchInput(
       type="search"
       value={value}
       leading={<Search size={16} />}
-      trailing={onClear && value ? <IconButton icon={X} label={clearLabel} size="sm" onClick={onClear} /> : null}
+      trailing={onClear && value ? <IconButton icon={X} label={clearLabel ?? t("common.m1.clearSearch")} size="sm" onClick={onClear} /> : null}
       {...props}
     />
   );
@@ -354,6 +356,7 @@ const useEscapeToClose = (open, onClose) => {
 };
 
 export function Modal({ open, title, description, children, footer, onClose, size = "md" }) {
+  const { t } = useTranslation();
   const titleId = useId();
   useEscapeToClose(open, onClose);
   if (!open) return null;
@@ -362,7 +365,7 @@ export function Modal({ open, title, description, children, footer, onClose, siz
       <section className={cx("m1-modal", `m1-modal--${size}`)} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header>
           <div><h2 id={titleId}>{title}</h2>{description ? <p>{description}</p> : null}</div>
-          <button type="button" onClick={onClose} aria-label="إغلاق"><X size={19} /></button>
+          <button type="button" onClick={onClose} aria-label={t("common.close")}><X size={19} /></button>
         </header>
         <div className="m1-modal__body">{children}</div>
         {footer ? <footer>{footer}</footer> : null}
@@ -374,6 +377,7 @@ export function Modal({ open, title, description, children, footer, onClose, siz
 // `placement` uses logical directions so RTL is automatic: "end" is the right
 // edge in LTR and the left edge in Arabic.
 export function Drawer({ open, title, description, children, footer, onClose, placement = "end" }) {
+  const { t } = useTranslation();
   const titleId = useId();
   useEscapeToClose(open, onClose);
   if (!open) return null;
@@ -382,7 +386,7 @@ export function Drawer({ open, title, description, children, footer, onClose, pl
       <section className={cx("m1-drawer", `m1-drawer--${placement}`)} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header>
           <div><h2 id={titleId}>{title}</h2>{description ? <p>{description}</p> : null}</div>
-          <button type="button" onClick={onClose} aria-label="إغلاق"><X size={19} /></button>
+          <button type="button" onClick={onClose} aria-label={t("common.close")}><X size={19} /></button>
         </header>
         <div className="m1-drawer__body">{children}</div>
         {footer ? <footer>{footer}</footer> : null}
@@ -494,9 +498,12 @@ export function DataTable({
   isRowSelected,
   onRowClick,
   className = "",
-  emptyLabel = "لا توجد بيانات",
-  loadingLabel = "جاري التحميل",
+  emptyLabel,
+  loadingLabel,
 }) {
+  const { t } = useTranslation();
+  const emptyText = emptyLabel ?? t("common.m1.table.empty");
+  const loadingText = loadingLabel ?? t("common.m1.table.loading");
   const list = rows ?? [];
   const keyOf = (row, index) => (typeof rowKey === "function" ? rowKey(row, index) : row[rowKey] ?? index);
   const selected = (row, index) => {
@@ -520,7 +527,7 @@ export function DataTable({
           {loading ? (
             <tr>
               <td colSpan={columns.length} className="m1-table__loading">
-                <span className="m1-table__loading-inner"><LoaderCircle size={15} className="m1-spin" aria-hidden="true" />{loadingLabel}</span>
+                <span className="m1-table__loading-inner"><LoaderCircle size={15} className="m1-spin" aria-hidden="true" />{loadingText}</span>
               </td>
             </tr>
           ) : list.length ? (
@@ -540,7 +547,7 @@ export function DataTable({
               </TableRow>
             ))
           ) : (
-            <tr><td colSpan={columns.length} className="m1-table__empty">{emptyLabel}</td></tr>
+            <tr><td colSpan={columns.length} className="m1-table__empty">{emptyText}</td></tr>
           )}
         </TableBody>
       </Table>
@@ -575,6 +582,7 @@ export function Pagination({
   className = "",
   labels = {},
 }) {
+  const { t, i18n } = useTranslation();
   const safePages = Math.max(1, Number(pages) || 1);
   const safePage = Math.min(Math.max(1, Number(page) || 1), safePages);
   const safeTotal = Math.max(0, Number(total) || 0);
@@ -588,13 +596,13 @@ export function Pagination({
   const from = shown > 0 ? (safePage - 1) * safePageSize + 1 : 0;
   const to = shown > 0 ? Math.min(safeTotal || from + shown - 1, from + shown - 1) : 0;
   const text = {
-    show: "عرض",
-    rows: "صفوف",
-    all: "الكل",
-    previous: "السابق",
-    next: "التالي",
-    range: (start, end, count) => `عرض ${start}–${end} من أصل ${count}`,
-    page: (value) => `الصفحة ${value}`,
+    show: t("common.m1.pagination.show"),
+    rows: t("common.m1.pagination.rows"),
+    all: t("common.m1.pagination.all"),
+    previous: t("common.m1.pagination.previous"),
+    next: t("common.m1.pagination.next"),
+    range: (start, end, count) => t("common.m1.pagination.range", { start, end, count }),
+    page: (value) => t("common.m1.pagination.page", { page: value }),
     ...labels,
   };
 
@@ -603,7 +611,7 @@ export function Pagination({
   };
 
   return (
-    <nav className={`m1-pagination ${className}`.trim()} aria-label="التنقل بين الصفحات" dir="rtl">
+    <nav className={`m1-pagination ${className}`.trim()} aria-label={t("common.m1.pagination.nav")} dir={i18n.dir()}>
       <div className="m1-pagination__summary">
         {onPageSizeChange ? (
           <label className="m1-pagination__size">
@@ -612,7 +620,7 @@ export function Pagination({
               value={selectedPageSize}
               disabled={disabled}
               onChange={(event) => onPageSizeChange(event.target.value === "all" ? Math.max(1, safeTotal) : Number(event.target.value))}
-              aria-label="عدد الصفوف في الصفحة"
+              aria-label={t("common.m1.pagination.rowsPerPage")}
             >
               {pageSizeOptions.map((option) => <option key={option} value={option}>{option === "all" ? text.all : option.toLocaleString("en-US")}</option>)}
             </select>
@@ -644,12 +652,14 @@ export function Pagination({
 
 /* --------------------------------------------------------- states, as-is -- */
 
-export function EmptyState({ title = "لا توجد نتائج", description, action }) {
-  return <div className="m1-empty"><span className="m1-empty__icon"><Inbox size={22} /></span><h3>{title}</h3>{description ? <p>{description}</p> : null}{action}</div>;
+export function EmptyState({ title, description, action }) {
+  const { t } = useTranslation();
+  return <div className="m1-empty"><span className="m1-empty__icon"><Inbox size={22} /></span><h3>{title ?? t("common.m1.emptyState")}</h3>{description ? <p>{description}</p> : null}{action}</div>;
 }
 
 export function Skeleton({ className = "" }) { return <span className={`m1-skeleton ${className}`} aria-hidden="true" />; }
 
-export function LoadingState({ label = "جاري التحميل..." }) {
-  return <div className="m1-loading" role="status"><LoaderCircle className="m1-spin" size={19} />{label}</div>;
+export function LoadingState({ label }) {
+  const { t } = useTranslation();
+  return <div className="m1-loading" role="status"><LoaderCircle className="m1-spin" size={19} />{label ?? t("common.m1.loadingState")}</div>;
 }
