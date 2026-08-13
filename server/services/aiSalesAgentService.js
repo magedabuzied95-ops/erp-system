@@ -5801,6 +5801,9 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       confidence_engine: confidenceEngine,
       grounding: groundingResult?.grounding || null,
       grounding_action: groundingResult?.changed ? groundingResult.action : null,
+      // Phase 13.5 — canonical Smart Support Knowledge Base fields that were EMPTY when a support-fact
+      // question was answered, so the operator can fill them in on "قاعدة معرفة الدعم الذكي".
+      kb_missing_fields: Array.isArray(groundingResult?.kb_missing_fields) ? groundingResult.kb_missing_fields : null,
       source_message_id: resolvedSourceMessageId,      // Phase 11 stale-linkage
       source_message_at: new Date().toISOString(),
       // Phase 11.2 — send-package: whether the product choice is ambiguous + enriched grounded choices for the

@@ -18,6 +18,13 @@ import { normalizeProductTypeValue } from "./productClassificationsService.js";
 // NOT a hardcoded product list. Brand/model live in products.name on the canonical schema, so we resolve a
 // free-text term to REAL catalog rows by expanding it and matching name — no new taxonomy, no famous-shoe list.
 import { expandSearchAliasTerms, normalizeAliasText } from "./productAliasEngine.js";
+// Phase 13.5 — BUSINESS SUPPORT FACTS come from the Smart Support Knowledge Base ("قاعدة معرفة الدعم الذكي"),
+// never from the LLM and never from conversation history. Same canonical module the operator page + API use.
+import {
+  detectSupportFactIntent,
+  loadSupportKnowledgeBase,
+  renderSupportFactAnswer,
+} from "./aiSupportKnowledgeBaseService.js";
 
 // ---- Phase 12.1 — Durable grounded PRODUCT SUBJECT context (bounded, deterministic) -------------------
 // Reuse a recently GROUNDED product IDENTITY as conversational context for a continuation that omits the
@@ -390,6 +397,49 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     const contextTexts = Array.isArray(contextMessages) && contextMessages.length ? contextMessages : [message];
     const entities = mergeTurnEntities(contextTexts.map((m) => extractRequestedEntities(m)));
     const requestedIntent = resolveIntentFromEntities(entities);
+
+    // Phase 13.5 — SUPPORT-FACT PRECEDENCE. An explicit business-support question (address / hours / phone /
+    // WhatsApp / payment / shipping / returns / warranty) is answered from the canonical Smart Support
+    // Knowledge Base and OUTRANKS any product context. This runs FIRST — before the conversational guard,
+    // before brand/model resolution, and before durable product context — so a stale product topic (the
+    // production "العنوان ايه؟ → Jordan" bug) can never leak into a support answer. Detection reads ONLY the
+    // customer's current message; the KB fields are the facts, the LLM never supplies them. A same-message
+    // product/category mention still wins (that turn genuinely is about a product), so existing product
+    // grounding is untouched. Never sends; only replaces the already-composed draft text + clears cards.
+    const supportFactIntent = entities.productType ? "" : detectSupportFactIntent(message);
+    if (supportFactIntent) {
+      const loadKb = deps.loadSupportKnowledgeBase || loadSupportKnowledgeBase;
+      const knowledge = await loadKb({ tenantId }).catch(() => null);
+      if (knowledge) {
+        const rendered = renderSupportFactAnswer({ intent: supportFactIntent, ...knowledge });
+        if (String(rendered.answer || "").trim()) {
+          return {
+            changed: true,
+            entities,
+            requestedIntent: supportFactIntent,
+            action: "support_fact",
+            answer: rendered.answer,
+            confidence: 0.95,
+            suggested_products: [],
+            send_ready_card: null,
+            card_choices: [],
+            color_choices: [],
+            product_ambiguous: false,
+            color_choice_required: false,
+            selection_semantics: null,
+            // Surfaced to the operator (draft metadata) so an empty canonical field is visible and fixable
+            // on the Knowledge Base page instead of being silently invented by the model.
+            kb_missing_fields: rendered.missing_fields,
+            grounding: {
+              requested: { supportFactIntent },
+              resolved: { source: "smart_support_knowledge_base", fields_used: rendered.fields_used, missing_fields: rendered.missing_fields },
+              action: "support_fact",
+              product_resolution: { source: "none" },
+            },
+          };
+        }
+      }
+    }
 
     // Phase 13.1 — CONVERSATIONAL-ONLY guard. A greeting / acknowledgement / thanks / closing with NO
     // product-dependent request AND NO explicit product mention must never carry product facts or cards, and must

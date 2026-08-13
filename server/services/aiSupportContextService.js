@@ -54,6 +54,9 @@ import {
 } from "./aiSalesOrchestratorService.js";
 import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
 import { expandSearchAliasTerms } from "./productAliasEngine.js";
+// Phase 13.5 — one canonical support-fact intent detector, shared with the AI Inbox grounding gate and the
+// Smart Support Knowledge Base operator page/API. Business facts never come from the model.
+import { detectSupportFactIntent } from "./aiSupportKnowledgeBaseService.js";
 
 const PRODUCT_LIMIT = 18;
 const IMAGE_SEARCH_PRODUCT_LIMIT = Number(process.env.AI_IMAGE_SEARCH_PRODUCT_LIMIT || 300);
@@ -1011,12 +1014,23 @@ export const detectAiSupportIntent = (message = "") => {
     ? false
     : hasSignal("buy") || hasSignal("price") || hasSignal("size") || hasSignal("color") || hasSignal("more_images") || hasSignal("alternatives") || hasAnyTerm(text, PRODUCT_INTENT_TERMS) || aliasMatches.length > 0 || codes.length > 0 || colors.length > 0 || Boolean(sizeMatch);
 
+  // Phase 13.5 — SUPPORT-FACT PRECEDENCE. An explicit Smart Support Knowledge Base question (address, hours,
+  // phone/WhatsApp, payment, shipping, returns, warranty) must resolve to store_policy even though the message
+  // may also trip a generic product signal. Bounded: if the SAME message names a real product entity (alias
+  // match, product code, colour, size), the product path still wins — this only stops a bare support question
+  // from being answered with product content.
+  const supportFactIntent = detectSupportFactIntent(text);
+  const supportFactPriority =
+    Boolean(supportFactIntent) && !isInternal && !aliasMatches.length && !codes.length && !colors.length && !sizeMatch;
+
   const result = {
     type: isInternal
       ? "internal_data"
       : wantsHuman
         ? "human_support"
-        : conversationalSubtype
+        : supportFactPriority
+          ? "store_policy"
+          : conversationalSubtype
           ? "conversational"
           : isProductDiscovery
             ? "product_discovery"
@@ -1028,6 +1042,7 @@ export const detectAiSupportIntent = (message = "") => {
     conversational: {
       subtype: conversationalSubtype,
     },
+    support_fact_intent: supportFactIntent,
     product: {
       codes,
       colors,
@@ -3147,6 +3162,7 @@ const settingKeyGroups = {
   whatsapp: ["whatsapp", "whatsApp", "whatsappNumber", "whatsapp_number", "supportWhatsapp", "support_whatsapp"],
   public_email: ["email", "supportEmail", "support_email", "contactEmail", "contact_email"],
   address: ["address", "storeAddress", "store_address", "publicAddress", "public_address"],
+  maps_url: ["maps_url", "mapsUrl", "location_url", "locationUrl", "google_maps_url", "googleMapsUrl", "map_link", "mapLink"],
   working_hours: ["workingHours", "working_hours", "businessHours", "business_hours", "openingHours", "opening_hours", "hours"],
   payment_methods: ["paymentMethods", "payment_methods", "payments", "paymentOptions", "payment_options", "acceptedPayments", "accepted_payments"],
   payment_policy: ["paymentPolicy", "payment_policy", "paymentNotes", "payment_notes"],
@@ -3265,6 +3281,10 @@ const buildDirectStoreResponse = ({ message, sources = [], suggestedActions = []
   const locale = shouldReplyInArabic(message) ? "ar" : "en";
   const store = context.store || {};
   const branches = Array.isArray(context.branches) ? context.branches : [];
+  // Phase 13.5 \u2014 route on the CANONICAL Smart Support Knowledge Base intent first, so the same question
+  // resolves to the same canonical field here and in the AI Inbox gate (one resolver, one precedence order:
+  // "\u0631\u0642\u0645 \u0627\u0644\u0648\u0627\u062a\u0633\u0627\u0628" \u2192 WhatsApp, not the generic phone). The legacy substring checks stay as the fallback.
+  const kbIntent = detectSupportFactIntent(message);
   const has = (terms) => terms.some((term) => text.includes(term.toLowerCase()));
   const wrap = (answer) => ({
     answer,
@@ -3275,7 +3295,22 @@ const buildDirectStoreResponse = ({ message, sources = [], suggestedActions = []
     suggested_actions: suggestedActions.length ? suggestedActions : ["contact_support"],
   });
 
-  if (has(["hours", "working", "open", "close", "\u0645\u0648\u0627\u0639\u064a\u062f", "\u0633\u0627\u0639\u0627\u062a", "\u0639\u0645\u0644", "\u0645\u0641\u062a\u0648\u062d"])) {
+  if (kbIntent === "WARRANTY") {
+    const lines = valueToLines(store.warranty_notes);
+    if (lines.length) return wrap(locale === "ar" ? `\u0627\u0644\u0636\u0645\u0627\u0646:\n${joinList(lines, "ar")}` : `Warranty:\n${joinList(lines)}`);
+    return wrap(locale === "ar" ? "\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u0636\u0645\u0627\u0646 \u0645\u0634 \u0645\u0636\u0627\u0641\u0629 \u0644\u0633\u0647." : "Warranty details are not configured yet.");
+  }
+
+  if (kbIntent === "STORE_WHATSAPP") {
+    const whatsapp = toText(store.whatsapp);
+    if (whatsapp) return wrap(locale === "ar" ? `\u0631\u0642\u0645 \u0627\u0644\u0648\u0627\u062a\u0633\u0627\u0628: ${whatsapp}` : `WhatsApp: ${whatsapp}`);
+    const phone = toText(store.phone);
+    // Never present the public phone AS a WhatsApp number \u2014 label it, or say it is not configured.
+    if (phone) return wrap(locale === "ar" ? `\u0631\u0642\u0645 \u0627\u0644\u0648\u0627\u062a\u0633\u0627\u0628 \u0645\u0634 \u0645\u0636\u0627\u0641 \u0644\u0633\u0647. \u0631\u0642\u0645 \u0627\u0644\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0627\u0645: ${phone}` : `WhatsApp is not configured yet. Public phone: ${phone}`);
+    return wrap(locale === "ar" ? "\u0631\u0642\u0645 \u0627\u0644\u0648\u0627\u062a\u0633\u0627\u0628 \u0645\u0634 \u0645\u0636\u0627\u0641 \u0644\u0633\u0647." : "WhatsApp is not configured yet.");
+  }
+
+  if (kbIntent === "STORE_HOURS" || has(["hours", "working", "open", "close", "\u0645\u0648\u0627\u0639\u064a\u062f", "\u0633\u0627\u0639\u0627\u062a", "\u0639\u0645\u0644", "\u0645\u0641\u062a\u0648\u062d"])) {
     const branchLines = branches
       .filter((branch) => toText(branch.working_hours) && toText(branch.working_hours) !== "مواعيد العمل مش مضافة لسه.")
       .map((branch) => `${branch.name}: ${branch.working_hours}`);
@@ -3285,25 +3320,40 @@ const buildDirectStoreResponse = ({ message, sources = [], suggestedActions = []
     return wrap(locale === "ar" ? "مواعيد العمل مش مضافة لسه." : "Working hours are not configured yet.");
   }
 
-  if (has(["return", "exchange", "refund", "\u0627\u0633\u062a\u0631\u062c\u0627\u0639", "\u0627\u0633\u062a\u0628\u062f\u0627\u0644"])) {
+  if (kbIntent === "RETURN_EXCHANGE_POLICY" || has(["return", "exchange", "refund", "\u0627\u0633\u062a\u0631\u062c\u0627\u0639", "\u0627\u0633\u062a\u0628\u062f\u0627\u0644"])) {
     const lines = store.return_exchange_policy === "سياسة الاستبدال والاسترجاع مش مضافة لسه." ? [] : valueToLines(store.return_exchange_policy);
     if (lines.length) return wrap(locale === "ar" ? `سياسة الاستبدال والاسترجاع:\n${joinList(lines, "ar")}` : `Return/exchange policy:\n${joinList(lines)}`);
     return wrap(locale === "ar" ? "سياسة الاستبدال أو الاسترجاع مش مضافة لسه." : "Return/exchange policy is not configured yet.");
   }
 
-  if (has(["payment", "pay", "\u062f\u0641\u0639"])) {
+  if (kbIntent === "SHIPPING_POLICY") {
+    const lines = [...valueToLines(store.shipping_policy), ...valueToLines(store.delivery_notes)];
+    if (lines.length) return wrap(locale === "ar" ? `\u0627\u0644\u0634\u062d\u0646 \u0648\u0627\u0644\u062a\u0648\u0635\u064a\u0644:\n${joinList(lines, "ar")}` : `Shipping and delivery:\n${joinList(lines)}`);
+    return wrap(locale === "ar" ? "\u0633\u064a\u0627\u0633\u0629 \u0627\u0644\u0634\u062d\u0646 \u0623\u0648 \u0627\u0644\u062a\u0648\u0635\u064a\u0644 \u0645\u0634 \u0645\u0636\u0627\u0641\u0629 \u0644\u0633\u0647." : "Shipping/delivery policy is not configured yet.");
+  }
+
+  if (kbIntent === "PAYMENT_METHODS" || has(["payment", "pay", "\u062f\u0641\u0639"])) {
     const lines = [...valueToLines(store.payment_methods), ...valueToLines(store.payment_policy)];
     if (lines.length) return wrap(locale === "ar" ? `طرق الدفع:\n${joinList(lines, "ar")}` : `Payment methods:\n${joinList(lines)}`);
     return wrap(locale === "ar" ? "طرق الدفع مش مضافة لسه." : "Payment methods are not configured yet.");
   }
 
-  if (has(["address", "branch", "location", "\u0639\u0646\u0648\u0627\u0646", "\u0641\u0631\u0639", "\u0641\u0631\u0648\u0639"])) {
+  if (kbIntent === "STORE_LOCATION" || has(["address", "branch", "location", "\u0639\u0646\u0648\u0627\u0646", "\u0641\u0631\u0639", "\u0641\u0631\u0648\u0639"])) {
     const branchLines = branches
       .filter((branch) => toText(branch.address))
       .map((branch) => `${branch.name}: ${branch.address}${branch.phone ? ` - ${branch.phone}` : ""}`);
+    // The Knowledge Base address is canonical; branch rows only fill in when it is empty.
     const settingLines = valueToLines(store.address);
-    const lines = [...settingLines, ...branchLines];
-    if (lines.length) return wrap(locale === "ar" ? `العناوين المتاحة:\n${joinList(lines, "ar")}` : `Available addresses:\n${joinList(lines)}`);
+    const lines = settingLines.length ? settingLines : branchLines;
+    const mapsUrl = toText(store.maps_url);
+    // A missing maps link is simply omitted — it is never invented from the address.
+    const mapsLine = mapsUrl ? (locale === "ar" ? `اللوكيشن على الخريطة: ${mapsUrl}` : `Map: ${mapsUrl}`) : "";
+    if (lines.length) {
+      return wrap([
+        locale === "ar" ? `العناوين المتاحة:\n${joinList(lines, "ar")}` : `Available addresses:\n${joinList(lines)}`,
+        mapsLine,
+      ].filter(Boolean).join("\n"));
+    }
     return wrap(locale === "ar" ? "عنوان الفرع مش مضاف لسه." : "Branch address is not configured yet.");
   }
 
@@ -3313,7 +3363,7 @@ const buildDirectStoreResponse = ({ message, sources = [], suggestedActions = []
     return wrap(locale === "ar" ? "سياسة الشحن أو التوصيل مش مضافة لسه." : "Shipping/delivery policy is not configured yet.");
   }
 
-  if (has(["phone", "whatsapp", "contact", "\u0648\u0627\u062a\u0633", "\u062a\u0644\u064a\u0641\u0648\u0646", "\u0645\u0648\u0628\u0627\u064a\u0644"])) {
+  if (kbIntent === "STORE_CONTACT" || has(["phone", "whatsapp", "contact", "\u0648\u0627\u062a\u0633", "\u062a\u0644\u064a\u0641\u0648\u0646", "\u0645\u0648\u0628\u0627\u064a\u0644"])) {
     const lines = [...valueToLines(store.phone), ...valueToLines(store.whatsapp), ...branches.filter((branch) => branch.phone).map((branch) => `${branch.name}: ${branch.phone}`)];
     if (lines.length) return wrap(locale === "ar" ? `بيانات التواصل:\n${joinList(lines, "ar")}` : `Contact details:\n${joinList(lines)}`);
     return wrap(locale === "ar" ? "بيانات التواصل مش مضافة لسه." : "Contact details are not configured yet.");
