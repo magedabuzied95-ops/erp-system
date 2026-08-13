@@ -3011,29 +3011,34 @@ function SocialCommentsWorkspace({
                   </button>
                 ) : null}
                 {commentsToRender.map((comment) => {
-                  const selected = comment.id === selectedCommentKey;
-                  const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
                   const replyText = clean(comment.replyText || comment.raw?.reply_text || comment.raw?.rendered_reply || "");
                   return (
-                    <div key={comment.id || comment.createdTime} ref={(node) => registerCommentNode(comment.id, node)} className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCommentKey(comment.id)}
-                        className={`max-w-[78%] self-start rounded-2xl border px-3.5 py-3 text-start transition ${selected ? "border-[#d9aa20]/60 bg-[#2d2b23] ring-1 ring-[#d9aa20]/20" : "border-white/10 bg-[#292a27] hover:border-white/20"}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-white/[0.06]">
-                            {comment.customerAvatar ? <img src={comment.customerAvatar} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center"><UserRound className="h-3.5 w-3.5 text-slate-400" /></div>}
-                          </div>
-                          <span className="min-w-0 truncate text-xs font-black text-white">{comment.customerName || "عميل"}</span>
-                          {comment.platform ? (() => { const meta = platformMeta(comment.platform); return <span className={`rounded-full border px-1.5 py-0.5 text-[8px] ${meta.className}`}>{meta.label}</span>; })() : null}
-                          <span className="text-[9px] font-semibold text-slate-500">{comment.createdTime ? absoluteTime(comment.createdTime) : ""}</span>
-                        </div>
-                        <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-100">{comment.message || "—"}</div>
-                        {attachmentPreview ? <img src={attachmentPreview} alt="" className="mt-2 max-h-52 rounded-xl object-cover" loading="lazy" /> : null}
-                      </button>
+                    <div key={comment.id || comment.createdTime} className="flex w-full flex-col gap-2">
+                      <SocialCommentsWorkspaceCommentRow
+                        comment={comment}
+                        selectedCommentKey={selectedCommentKey}
+                        highlightedCommentKey={highlightedCommentKey}
+                        activePostPlatform={activePostPlatform}
+                        replyDraft={replyDraft}
+                        previewReply={previewReply}
+                        suggestedReply={suggestedReply}
+                        replyLoadingKey={replyLoadingKey}
+                        likeLoadingKey={likeLoadingKey}
+                        likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
+                        privateMessageLoadingKey={privateMessageLoadingKey}
+                        privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
+                        leadLoadingKey={leadLoadingKey}
+                        ignoreLoadingKey={ignoreLoadingKey}
+                        onSelectComment={setSelectedCommentKey}
+                        onSelectCustomer={onSelectCustomer}
+                        onLike={submitLike}
+                        onCompose={prepareCommentComposer}
+                        onReply={submitReply}
+                        onPrivateMessage={submitPrivateMessage}
+                        registerCommentNode={registerCommentNode}
+                      />
                       {replyText ? (
-                        <div className="max-w-[78%] self-end rounded-2xl border border-emerald-300/20 bg-emerald-950/55 px-3.5 py-3 text-start">
+                        <div className="max-w-[78%] self-end rounded-2xl border border-emerald-300/20 bg-emerald-950/55 px-3.5 py-2.5 text-start">
                           <div className="text-[10px] font-black text-emerald-300">{t("aiSupport.inbox.socialWorkspace.sent")}</div>
                           <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-white">{replyText}</div>
                         </div>
