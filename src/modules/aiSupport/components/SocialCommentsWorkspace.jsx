@@ -1676,7 +1676,11 @@ function SocialCommentsWorkspace({
 
   const activeTemplate = templateDraft || selectedTemplate?.template || null;
   const currentGlobalSettings = globalDraft || globalSettings;
-  const visibleComments = useMemo(() => normalizedComments.filter((comment) => !ignoredCommentKeys.has(comment.id)), [ignoredCommentKeys, normalizedComments]);
+  const visibleComments = useMemo(() => normalizedComments.filter((comment) => {
+    if (ignoredCommentKeys.has(comment.id)) return false;
+    if (commentPlatformFilter === "all") return true;
+    return clean(comment.platform || comment.metadata?.platform || "").toLowerCase() === commentPlatformFilter;
+  }), [commentPlatformFilter, ignoredCommentKeys, normalizedComments]);
   const displayComments = useMemo(() => {
     if (!optimisticCommentEntries.length) return visibleComments;
     return [...optimisticCommentEntries, ...visibleComments];

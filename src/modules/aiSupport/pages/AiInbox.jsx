@@ -5931,7 +5931,7 @@ export default function AiInbox({ reviewerMode = false }) {
           ? groupedPlatformPosts
           : groupedPlatformPosts.filter((item) => clean(item.platform).toLowerCase() === socialThreadPlatformFilter);
         const effectivePlatformPosts = requestedPlatformPosts.length ? requestedPlatformPosts : groupedPlatformPosts.slice(0, 1);
-        const threadData = cachedWorkspace?.thread && socialThreadPlatformFilter === "all"
+        const threadData = cachedWorkspace?.thread && socialThreadPlatformFilter === "all" && groupedPlatformPosts.length === 1
           ? cachedWorkspace.thread
           : await Promise.all(effectivePlatformPosts.map(async (platformPost) => {
               const normalizedPlatformPost = normalizeSocialCommentPost(platformPost);
@@ -5951,7 +5951,8 @@ export default function AiInbox({ reviewerMode = false }) {
               const dedupedComments = new Map();
               threadPayloads.flatMap((entry) => asArray(entry.comments)).forEach((comment) => {
                 const normalized = normalizeSocialCommentThreadComment(comment);
-                const key = clean(normalized.comment_id || normalized.id || `${normalized.platform}:${normalized.created_at}:${normalized.message}`);
+                const commentIdentity = clean(normalized.comment_id || normalized.id || `${normalized.createdTime}:${normalized.message}`);
+                const key = commentIdentity ? `${clean(normalized.platform || "unknown").toLowerCase()}:${commentIdentity}` : "";
                 if (key && !dedupedComments.has(key)) dedupedComments.set(key, normalized);
               });
               const nextThread = {
