@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { FaFacebookF, FaInstagram } from "react-icons/fa";
 
 import { api } from "../../../shared/api/api";
 import { VirtualList } from "../../../shared/components/VirtualList";
@@ -2847,19 +2848,48 @@ function SocialCommentsWorkspace({
 
   if (streamlined) {
     const platformFilterButtons = [
-      { key: "all", label: t("aiSupport.inbox.filters.all") },
-      { key: "facebook", label: "Facebook" },
-      { key: "instagram", label: "Instagram" },
+      { key: "all", label: t("aiSupport.inbox.filters.all"), icon: MessageSquareText, iconClassName: "text-[var(--text)]" },
+      { key: "facebook", label: "Facebook", icon: FaFacebookF, iconClassName: "text-blue-400" },
+      { key: "instagram", label: "Instagram", icon: FaInstagram, iconClassName: "text-pink-400" },
     ];
+    const selectPlatformFilter = (key) => {
+      onPostPlatformFilterChange?.(key);
+      onCommentPlatformFilterChange?.(key);
+    };
     const postPlatforms = (post) => {
       const values = asArray(post.platforms).length ? post.platforms : [post.platform];
       return Array.from(new Set(values.map((value) => clean(value).toLowerCase()).filter((value) => value === "facebook" || value === "instagram")));
     };
     return (
-      <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">
-        <div dir="ltr" className="grid h-full min-h-0 w-full min-w-0 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
+      <section dir="ltr" className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">
+        <nav aria-label={t("aiSupport.inbox.socialWorkspace.platformFilter", { defaultValue: "فلترة المنصة" })} className="flex w-[64px] shrink-0 flex-col items-center gap-2 border-e border-[var(--border)] bg-[var(--surface)] px-2 py-3">
+          {platformFilterButtons.map((filterItem) => {
+            const FilterIcon = filterItem.icon;
+            const active = postPlatformFilter === filterItem.key && commentPlatformFilter === filterItem.key;
+            return (
+              <button
+                key={filterItem.key}
+                type="button"
+                onClick={() => selectPlatformFilter(filterItem.key)}
+                title={filterItem.label}
+                aria-label={filterItem.label}
+                aria-pressed={active}
+                className={`relative inline-flex h-12 w-12 items-center justify-center rounded-2xl border transition ${
+                  active
+                    ? "border-[var(--primary)] bg-[var(--primary)]/15 shadow-[0_0_18px_color-mix(in_srgb,var(--primary)_24%,transparent)]"
+                    : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                }`}
+              >
+                <FilterIcon className={`h-6 w-6 ${filterItem.iconClassName}`} aria-hidden="true" />
+                {active ? <span className="absolute -end-0.5 top-2 h-2 w-2 rounded-full bg-[var(--primary)] shadow-[0_0_8px_var(--primary)]" /> : null}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div dir="ltr" className="grid h-full min-h-0 min-w-0 flex-1 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
           <aside dir="rtl" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
-            <div className="flex min-h-[86px] flex-col justify-center gap-2 border-b border-[var(--border)] px-3 py-2">
+            <div className="flex min-h-[62px] flex-col justify-center border-b border-[var(--border)] px-3 py-2">
               <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-black text-[var(--text)]">{t("aiSupport.inbox.socialWorkspace.posts")}</div>
@@ -2876,13 +2906,6 @@ function SocialCommentsWorkspace({
               >
                 {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </button>
-              </div>
-              <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-1">
-                {platformFilterButtons.map((filterItem) => (
-                  <button key={filterItem.key} type="button" onClick={() => onPostPlatformFilterChange?.(filterItem.key)} className={`min-w-0 flex-1 rounded-lg px-2 py-1 text-[10px] font-black transition ${postPlatformFilter === filterItem.key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-[var(--muted)] hover:bg-[var(--surface-hover)]"}`}>
-                    {filterItem.label}
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -2981,14 +3004,6 @@ function SocialCommentsWorkspace({
                 {t("aiSupport.inbox.socialWorkspace.openPost")}
               </button>
             </header>
-
-            <div className="flex items-center justify-center gap-1 border-b border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2">
-              {platformFilterButtons.map((filterItem) => (
-                <button key={filterItem.key} type="button" onClick={() => onCommentPlatformFilterChange?.(filterItem.key)} className={`rounded-full border px-3 py-1 text-[10px] font-black transition ${commentPlatformFilter === filterItem.key ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-contrast)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--primary)]"}`}>
-                  {filterItem.label}
-                </button>
-              ))}
-            </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
               {activeThread.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{activeThread.error}</div> : null}
