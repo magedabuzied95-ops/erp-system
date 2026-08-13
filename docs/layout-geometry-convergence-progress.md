@@ -1736,10 +1736,7 @@ chunk into `Failed to load module script … MIME type of "text/html"`, and it m
 
 ### RESUME MARKER (supersedes session 9)
 
-1. **cp9 post-deploy re-measurement was still pending when this entry was written**
-   — Vercel had not yet served `b5a6e793422a`. Reopen `/accounting/expenses` at a
-   **wide** rung (≥1280 CSS, where `xl:grid-cols-6` is active) and confirm
-   `escNotInScrollport` 1 -> 0.
+1. ~~cp9 post-deploy re-measurement pending~~ — **DONE**, see below.
 2. Remaining internal-state cycling: routes whose control groups were discovered
    but not fully cycled — `/users` (cycling froze the renderer once; retry with a
    smaller budget), `/notifications`, `/inventory/count`, `/inventory/history`,
@@ -1750,3 +1747,22 @@ chunk into `Failed to load module script … MIME type of "text/html"`, and it m
    expect `NOSET` and handle it as its own surface).
 4. Rung-C internal-state cycling is still owed for the routes above — only base
    geometry was measured at 1024 for most of them.
+
+### cp9 post-deploy verification — build `0c022ce35cda`
+
+Re-opened the exact state at the exact rung where the defect lived (1536 CSS,
+available 1186), plus the full matrix:
+
+| Check | Before | After |
+|---|---|---|
+| `/accounting/expenses` @1536 | `escNotInScrollport` **1**, offending 26x46 icon box | **0**, offender gone |
+| @1024 (rung C) | 0 | 0 |
+| @1920 | 0 | 0 |
+| @768 | 0 | 0 |
+| RTL vs LTR @768 | identical | identical (av 714, util 201.5, 0/0/0) |
+| Dark @1536 | - | **0 / 0 / 0**, identical to Light |
+| Consumers `/accounting/treasury`, `/accounting/reports`, `/accounting/accounts` @1536 | - | 0 escapes, 0 blown, 0 overflow |
+| Frozen `/dashboard` @1024 | - | util 100%, 0 escapes, 0 blown |
+
+`blownGrids` 0 and `htmlOvf` 0 in every cell. The user's Light theme preference
+was restored after the Dark pass. **DEFECT 9 state: FIXED_VERIFIED.**
