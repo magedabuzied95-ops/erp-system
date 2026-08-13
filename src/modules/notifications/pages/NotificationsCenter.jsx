@@ -96,18 +96,18 @@ function NotificationsCenter() {
 
   return (
     <div className="m1-notifications-center space-y-4" dir={i18n.dir()}>
-      <section className="overflow-hidden rounded-3xl border border-slate-700/70 bg-[#07111f] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-        <div className="border-b border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(7,17,31,0.98))] p-4 sm:p-6">
+      <section className="notification-hero overflow-hidden rounded-3xl border shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+        <div className="notification-hero__body border-b p-4 sm:p-6">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">{t("notifications.center.eyebrow")}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_14px_34px_rgba(16,185,129,0.12)]">
+                <span className="notification-hero__icon inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border">
                   <Bell className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <h1 className="m1-page-title text-slate-50">{t("notifications.center.title")}</h1>
                 {unreadCount > 0 ? (
-                  <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">
+                  <span className="notification-unread-badge rounded-full border px-3 py-1 text-xs font-black">
                     {t("notifications.center.unreadBadge", { count: unreadCount > 99 ? "99+" : unreadCount })}
                   </span>
                 ) : null}
@@ -119,7 +119,7 @@ function NotificationsCenter() {
                 type="button"
                 onClick={markAllRead}
                 disabled={!unreadCount}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-600/80 bg-slate-900/80 px-4 py-2 text-sm font-black text-slate-100 transition hover:border-emerald-300/50 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="notification-action notification-action--secondary inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <CheckCheck className="h-4 w-4" />
                 {t("notifications.center.markAllRead")}
@@ -127,7 +127,7 @@ function NotificationsCenter() {
               <button
                 type="button"
                 onClick={() => refresh()}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
+                className="notification-action notification-action--primary inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 py-2 text-sm font-black transition"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 {t("notifications.center.refresh")}
@@ -135,21 +135,21 @@ function NotificationsCenter() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(14rem,1.5fr)_repeat(5,minmax(0,1fr))]">
-            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/55 px-3 py-2">
-              <Search className="h-4 w-4 shrink-0 text-slate-400" />
+          <div className="notification-filter-grid mt-5 grid gap-3 xl:grid-cols-[minmax(14rem,1.5fr)_repeat(5,minmax(0,1fr))]">
+            <label className="notification-search flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2">
+              <Search className="notification-search__icon h-4 w-4 shrink-0" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("notifications.center.search")}
-                className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
+                className="notification-search__input min-w-0 flex-1 bg-transparent text-sm outline-none"
               />
             </label>
             <Select value={category} onChange={setCategory} rows={categories} />
             <Select value={priority} onChange={setPriority} rows={priorities} />
             <Select value={readState} onChange={setReadState} rows={readStates} />
-            <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm text-slate-100 outline-none" />
-            <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm text-slate-100 outline-none" />
+            <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm outline-none" />
+            <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm outline-none" />
           </div>
         </div>
       </section>
@@ -210,7 +210,7 @@ function NotificationsCenter() {
 function Select({ value, onChange, rows }) {
   const { t } = useTranslation();
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-700 bg-slate-950/55 px-3 py-2 text-sm font-bold text-slate-100 outline-none">
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm font-bold outline-none">
       {rows.map((item) => (
         <option key={item} value={item}>{labelKeys[item] ? t(labelKeys[item]) : item}</option>
       ))}

@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Search, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -937,41 +937,6 @@ function Customers() {
           </div>
         </div>
 
-        <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <label className="text-xs font-black uppercase tracking-[0.2em] text-text-muted" htmlFor="customer-search">
-              {t("customers.search")}
-            </label>
-            <input
-              id="customer-search"
-              type="text"
-              placeholder={t("customers.searchPlaceholder")}
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPagination((current) => ({ ...current, page: 1 }));
-              }}
-              className={`${inputClass} mt-2`}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (customerFormOpen) {
-                resetForm();
-                return;
-              }
-              resetForm();
-              setCustomerFormOpen(true);
-            }}
-            aria-expanded={customerFormOpen}
-            className="inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)]"
-          >
-            {customerFormOpen ? <X className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
-            {customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
-          </button>
-        </section>
-
         {customerFormOpen ? (
           <form
             onSubmit={handleSubmit}
@@ -1044,9 +1009,47 @@ function Customers() {
           </form>
         ) : null}
 
-        <section className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="border-b border-border px-6 py-5">
-            <h2 className="m1-section-title text-text">{t("customers.table.title")}</h2>
+        <section className="customer-records overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="customer-records-toolbar border-b border-border px-5 py-4 sm:px-6">
+            <div className="customer-records-heading">
+              <h2 className="m1-section-title text-text">{t("customers.table.title")}</h2>
+              <span className="customer-records-count">{totalCustomers.toLocaleString("ar-EG-u-nu-latn")}</span>
+            </div>
+
+            <div className="customer-records-actions">
+              <label className="customer-records-search" htmlFor="customer-search">
+                <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="sr-only">{t("customers.search")}</span>
+                <input
+                  id="customer-search"
+                  type="text"
+                  placeholder={t("customers.searchPlaceholder")}
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPagination((current) => ({ ...current, page: 1 }));
+                  }}
+                  className="customer-records-search__input"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (customerFormOpen) {
+                    resetForm();
+                    return;
+                  }
+                  resetForm();
+                  setCustomerFormOpen(true);
+                }}
+                aria-expanded={customerFormOpen}
+                className="customer-records-add inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-black transition"
+              >
+                {customerFormOpen ? <X className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
+                {customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
+              </button>
+            </div>
           </div>
 
           <div className="m1-table-container overflow-x-auto">

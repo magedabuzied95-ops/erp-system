@@ -24,6 +24,17 @@
 .m1-customers-page tbody td:first-child [class*="bg-emerald"]{background:var(--primary-soft)!important;border-color:color-mix(in srgb,var(--primary) 35%,var(--border))!important;color:var(--primary)!important;box-shadow:none!important}
 .m1-customers-page :where([class*="shadow-emerald"],[class*="shadow-cyan"],[class*="shadow-black"]){box-shadow:none!important}
 .m1-customers-page :where(button,a){font-family:var(--app-font);box-shadow:none!important}
+.customer-records-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;background:var(--card)!important;border-color:var(--border)!important}
+.customer-records-heading{display:flex;align-items:center;gap:10px;min-width:max-content}
+.customer-records-count{display:inline-grid;min-width:28px;height:24px;place-items:center;padding-inline:8px;border:1px solid color-mix(in srgb,var(--primary) 34%,var(--border));border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:11px;font-weight:900}
+.customer-records-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;flex:1}
+.customer-records-search{display:flex;align-items:center;gap:9px;width:min(100%,620px);min-height:44px;padding-inline:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-soft);color:var(--muted);transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}
+.customer-records-search:focus-within{border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 3px var(--focus-ring)}
+.m1-customers-page .customer-records-search__input{min-width:0;width:100%;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:var(--text)!important;box-shadow:none!important;outline:0!important;font-size:13px;font-weight:700}
+.m1-customers-page .customer-records-search__input:focus{border:0!important;background:transparent!important;box-shadow:none!important}
+.m1-customers-page .customer-records-search__input::placeholder{color:var(--muted)!important;opacity:1}
+.customer-records-add{border:1px solid var(--primary);background:var(--primary)!important;color:var(--primary-contrast)!important}
+.customer-records-add:hover{background:var(--primary-active)!important;border-color:var(--primary-active)}
 /* Retired: two rules repainted [class*="bg-slate-8"] / [class*="bg-slate-9"]
    per theme. Customers.jsx no longer contains either class — the page consumes
    --surface / --surface-soft directly now — so both matched zero elements.
@@ -33,4 +44,4 @@
    border-emerald-* call sites, and those rules are what re-point the old emerald
    brand at --primary. Retiring them would revert Customers to emerald branding.
    They belong to a brand-hue cleanup at the call sites, not to this batch. */
-@media(max-width:767px){.m1-customers-page{padding:12px!important}.m1-customers-page :where(section,form){padding:14px!important}}
+@media(max-width:767px){.m1-customers-page{padding:12px!important}.m1-customers-page :where(section,form){padding:14px!important}.customer-records{padding:0!important}.customer-records-toolbar{align-items:stretch;flex-direction:column;padding:14px!important}.customer-records-heading{justify-content:space-between}.customer-records-actions{width:100%;align-items:stretch;flex-direction:column}.customer-records-search{width:100%}.customer-records-add{width:100%}}
