@@ -3435,9 +3435,14 @@ const normalizeEvolutionDeliveryStatus = (value = "") => {
     if (n === 2) return "delivered";
     return "read"; // 3 read, 4 played
   }
-  // delivery_ack retains its established mapping to "sent"; failure keywords are checked before "deliver"
-  // so "undeliverable" is a failure (not a delivery). Read before deliver is harmless (no overlap).
-  if (status.includes("delivery_ack") || status === "ack" || status === "server_ack" || status === "sent") return "sent";
+  // Batch 1B final — DELIVERY_ACK used to be lumped in with SERVER_ACK on this line and returned "sent"; because
+  // this branch runs BEFORE the includes("deliver") branch below, a delivery ACK could never reach "delivered".
+  // The owner live proof caught it: Evolution recorded DELIVERY_ACK for all five outbound messages while the ERP
+  // stayed on "sent". Evolution v2.3.7 emits the Baileys enum NAMES, where SERVER_ACK and DELIVERY_ACK are
+  // DISTINCT levels. This now agrees exactly with messageDeliveryReconciliationService.mapProviderStatus — one
+  // interpretation of provider status, not two. Failure keywords are still checked before "deliver", so
+  // "undeliverable" remains a failure rather than a delivery.
+  if (status === "ack" || status === "server_ack" || status === "sent") return "sent";
   if (status.includes("read") || status === "played") return "read";
   if (status.includes("fail") || status.includes("error") || status.includes("reject") || status.includes("undeliver")) return "failed";
   if (status.includes("deliver")) return "delivered";
@@ -3483,13 +3488,19 @@ const processEvolutionStatusUpdate = async (payload = {}) => {
     remoteJid,
     resolvedPhone || jidNumber(remoteJid)
   );
-  const deliveryStatus = normalizeEvolutionDeliveryStatus(
+  // Batch 1B final — keep the provider's OWN word (e.g. "DELIVERY_ACK") so the ledger stores real provider
+  // evidence and the channel-aware mapper does the normalising. Overwriting it with an intermediate normalised
+  // value is what hid this defect: the ledger only ever saw "sent" and forensics could not tell why.
+  const rawProviderStatus = text(
     statusItem?.status ||
     data?.status ||
     envelope.rawEvent ||
     payload?.event ||
     payload?.type ||
     ""
+  );
+  const deliveryStatus = normalizeEvolutionDeliveryStatus(
+    rawProviderStatus
   );
   const whatsappInstance = text(payload?.instance || payload?.instanceName || data?.instance || data?.instanceName || envelope.instance || instanceName());
   console.info("[whatsapp:evolution-status-update]", {
@@ -3549,7 +3560,9 @@ const processEvolutionStatusUpdate = async (payload = {}) => {
       tenantId: tenantIdForWhatsapp(payload),
       channel: "whatsapp",
       providerMessageId,
-      providerStatus: deliveryStatus,
+      // Batch 1B final — the RAW provider status reaches the ledger; mapProviderStatus (channel-aware) is the
+      // single normalisation authority. Falls back to the gateway value only if the provider sent nothing.
+      providerStatus: rawProviderStatus || deliveryStatus,
       occurredAt: statusItem?.timestamp || data?.messageTimestamp || null,
       metadata: { remote_jid: remoteJid, instance: whatsappInstance },
     });
