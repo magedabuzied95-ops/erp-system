@@ -12,6 +12,7 @@ import {
   getRestockRecovery, seedRestockRecoveryTemplate, getRestockIntents, cancelRestockIntent, fulfilRestockIntent,
   getRestockNotifications, setRestockMessagingMode, editRestockNotification, rejectRestockNotification, approveSendRestockNotification,
 } from "../services/aiStudioApi";
+import "../../../theme/ai-surface.css";
 
 const fmt = (v) => (v ? new Date(v).toLocaleString() : "—");
 const statusTone = (s) =>
@@ -125,7 +126,7 @@ export default function AiStudioRestockRecovery() {
   const fullyActive = a.global_enabled && a.tenant_enabled && wf?.enabled && wf?.granted;
 
   return (
-    <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
+    <div dir="ltr" className="m1-ai-scope space-y-4 p-4 text-white md:p-6">
       <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

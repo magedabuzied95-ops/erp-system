@@ -11,6 +11,7 @@ import {
 import { blankDefinition } from "../lib/workflowGraph";
 
 import i18n from "../../../i18n/i18n";
+import "../../../theme/ai-surface.css";
 
 /** Module scope: resolve through i18n at CALL time, never eagerly at import. */
 const tt = (key, options) => i18n.t(key, options);
@@ -120,7 +121,7 @@ export default function AiStudioWorkflows() {
   };
 
   return (
-    <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
+    <div dir="ltr" className="m1-ai-scope space-y-4 p-4 text-white md:p-6">
       <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

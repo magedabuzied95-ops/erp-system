@@ -19,6 +19,7 @@ import NodeConfigPanel from "../components/editor/NodeConfigPanel";
 import ExecutionDrawer from "../components/editor/ExecutionDrawer";
 import { fmtTime } from "../components/editor/nodeKit";
 import { issueText } from "../lib/issueText";
+import "../../../theme/ai-surface.css";
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const RUN_TERMINAL = new Set(["completed", "failed", "rejected", "cancelled", "awaiting_approval"]);
@@ -411,7 +412,7 @@ export default function AiStudioWorkflowEditor() {
   }
 
   return (
-    <div dir="ltr" className="flex h-[calc(100vh-64px)] flex-col text-white">
+    <div dir="ltr" className="m1-ai-scope flex h-[calc(100vh-64px)] flex-col text-white">
       {/* ---- header ---- */}
       <header className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-slate-950/60 px-3 py-2.5 backdrop-blur">
         <button type="button" onClick={guardedBack} className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 text-[12px] font-black hover:border-white/20">

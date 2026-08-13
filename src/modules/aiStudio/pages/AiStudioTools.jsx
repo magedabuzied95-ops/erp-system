@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
 import { listTools } from "../services/aiStudioApi";
+import "../../../theme/ai-surface.css";
 
 /* `key` is the RAW risk enum used to index grouped[]; labelKey/noteKey are display. */
 const GROUPS = [
@@ -27,7 +28,7 @@ export default function AiStudioTools() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <div dir="ltr" className="space-y-4 p-4 text-white md:p-6">
+    <div dir="ltr" className="m1-ai-scope space-y-4 p-4 text-white md:p-6">
       <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

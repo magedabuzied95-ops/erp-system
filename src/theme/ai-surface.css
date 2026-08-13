@@ -1,0 +1,159 @@
+/* ==========================================================================
+   AI SURFACE — token normalisation for AI Studio and AI Settings
+   --------------------------------------------------------------------------
+   These modules were authored against a permanently dark canvas. Their text is
+   `text-white` / `text-slate-*`, their panels are `bg-slate-9xx/α`, and their
+   controls are `*-white/α` washes. Two consequences were measured on
+   Production:
+
+   - In Light the root `text-white` is inherited by everything that does not
+     override it, so labels render white on the beige `--bg`: contrast 1.00.
+     42 text nodes on the Workflow Editor alone were below 2.0.
+   - In Dark it is a *second* palette — slate blue-black `rgb(9,11,21)` beside
+     the M1 warm `--bg` `#131211` — i.e. the "AI theme" that §0 forbids.
+
+   The earlier surface-luminance sweeps could not see either problem: the
+   washes are semi-transparent (alpha < 0.6, below the opacity floor) and text
+   colour was never part of that audit.
+
+   This file does not restyle the pages. It retargets the palette classes they
+   already carry onto the shipped M1 tokens — exactly what foundation.css
+   already does for emerald/cyan/blue/amber/rose — so one owner serves every
+   page that opts in via `.m1-ai-scope`, and nothing outside that scope moves.
+
+   Cascade: these rules are deliberately UNLAYERED. Tailwind utilities live in
+   `@layer utilities`, and an unlayered author declaration outranks any layered
+   one regardless of specificity, so `:where()` (specificity 0) is enough and
+   `!important` is only used where the source itself uses Tailwind's `!`
+   modifier and we have to out-rank it.
+
+   Token-boundary matching: `[class^="bg-white/"], [class*=" bg-white/"]`
+   matches the utility only when it is its own class token, so variant classes
+   such as `hover:bg-white/5` keep owning their own state.
+   ====================================================================== */
+
+.m1-ai-scope {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ---------- text ladder ------------------------------------------------- */
+
+/* Root/primary text. `text-white` and the near-white slate steps are all the
+   same intent: "default foreground on a dark canvas". */
+.m1-ai-scope:where([class~="text-white"]),
+.m1-ai-scope :where(
+  [class~="text-white"],
+  [class~="text-slate-100"],
+  [class~="text-slate-200"],
+  [class~="text-slate-300"]
+) {
+  color: var(--text);
+}
+
+/* Secondary / helper copy. */
+.m1-ai-scope :where([class~="text-slate-400"]) { color: var(--text-secondary); }
+
+/* Muted labels, section eyebrows, hints. */
+.m1-ai-scope :where([class~="text-slate-500"]) { color: var(--muted); }
+
+/* The faintest steps the source uses. Both were already failing in Dark
+   (measured 2.57 at 9px), and `--text-tertiary` still only reached 3.67 on
+   `--surface`, so they collapse onto `--muted`. Losing one rung of a ladder
+   that was never readable is the right trade. */
+.m1-ai-scope :where([class~="text-slate-600"], [class~="text-slate-700"]) {
+  color: var(--muted);
+}
+
+/* Placeholders track the muted step in both themes. */
+.m1-ai-scope :where(input, textarea, select)::placeholder { color: var(--muted); }
+
+/* ---------- surfaces ---------------------------------------------------- */
+
+/* Page chrome: header, footer, side rails. `bg-slate-950/α` was the "canvas
+   chrome" intent. */
+.m1-ai-scope :where(
+  [class^="bg-slate-950"], [class*=" bg-slate-950"]
+) {
+  background: var(--surface);
+}
+
+/* Raised/floating: popovers, minimap, control clusters, drawers. */
+.m1-ai-scope :where(
+  [class^="bg-slate-900"], [class*=" bg-slate-900"],
+  [class^="bg-slate-800"], [class*=" bg-slate-800"]
+) {
+  background: var(--card);
+}
+
+/* Controls and nested groups were white-alpha washes, which are invisible on a
+   light canvas. They become a real surface step. */
+.m1-ai-scope :where(
+  [class^="bg-white/"], [class*=" bg-white/"],
+  [class^="bg-white/["], [class*=" bg-white/["]
+) {
+  background: var(--surface-soft);
+}
+
+/* Hover feedback stays a state rather than becoming a permanent fill. */
+.m1-ai-scope :where([class*="hover:bg-white/"]):hover {
+  background: var(--surface-hover);
+}
+
+/* ---------- borders ----------------------------------------------------- */
+
+.m1-ai-scope :where(
+  [class^="border-white/"], [class*=" border-white/"],
+  [class^="divide-white/"], [class*=" divide-white/"],
+  [class^="ring-white/"], [class*=" ring-white/"]
+) {
+  border-color: var(--border);
+}
+
+.m1-ai-scope :where([class*="hover:border-white/"]):hover {
+  border-color: var(--border-strong);
+}
+
+/* ---------- elevation --------------------------------------------------- */
+
+/* The page header cards carry a hand-rolled `0 18px 60px rgba(0,0,0,0.16)`
+   drop shadow. That is a dark-canvas glow, not the frozen card contract. */
+.m1-ai-scope :where([class*="shadow-[0_18px_60px"]) { box-shadow: var(--shadow-card); }
+
+/* ---------- typography -------------------------------------------------- */
+
+/* §7: no arbitrary type sizes. The source dips to 8px and 9px, which is below
+   the canonical caption step and unreadable at any contrast. Both land on
+   `--font-caption`; nothing above the caption step is touched. */
+.m1-ai-scope :where([class*="text-[8px]"], [class*="text-[9px]"]) {
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+}
+
+/* ---------- react-flow graph canvas ------------------------------------- */
+
+/* §23: the canvas is a genuine graph surface, not a generic panel — it keeps
+   being a canvas, but it has to react to the theme instead of being a fixed
+   dark plate. The dot grid and the edges were hardcoded slate literals. */
+/* The dot grid was the literal `#2a3648`, invisible on a light canvas. */
+.m1-ai-scope .react-flow__background pattern circle { fill: var(--border-strong); }
+
+.m1-ai-scope .react-flow__minimap-node { stroke: var(--border); }
+
+/* Edges, handles and the Controls/MiniMap panel chrome are NOT owned here.
+   Edge and handle presentation belongs to `CANVAS_CSS` inside
+   WorkflowCanvas.jsx, which is injected into the body and therefore outranks
+   this sheet on source order; the panels carry Tailwind `!` modifiers, and a
+   layered `!important` beats an unlayered one no matter how specific the
+   unlayered selector is — the layer order is inverted for important
+   declarations. Both were retargeted onto tokens at their own source instead of
+   being fought from here, so each surface has exactly one owner. */
+
+/* ---------- focus ------------------------------------------------------- */
+
+/* The source focuses to `primary/40`, which is a translucent gold hairline.
+   The shipped focus contract is already global; this only stops the local
+   border colour from cancelling it. */
+.m1-ai-scope :where(input, textarea, select):focus {
+  border-color: var(--primary);
+}

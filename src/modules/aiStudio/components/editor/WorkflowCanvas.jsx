@@ -17,13 +17,18 @@ import { Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 // Interaction/execution styling that xyflow's base CSS doesn't cover. Scoped to .wf-canvas.
+// Edge colours are the graph's semantic vocabulary — idle, executed, running,
+// failed — so they read from the shipped status tokens rather than the slate and
+// cyan literals they used to hardcode. This <style> is injected in the body, so
+// it outranks the page-level sheet on source order and is the single owner of
+// edge and handle presentation.
 const CANVAS_CSS = `
-.wf-canvas .react-flow__edge-path { stroke: #94a3b8; stroke-width: 2; transition: stroke .15s, stroke-width .15s; }
-.wf-canvas .react-flow__edge:hover .react-flow__edge-path { stroke: #cbd5e1; stroke-width: 2.5; }
-.wf-canvas .react-flow__edge.selected .react-flow__edge-path { stroke: #67e8f9; stroke-width: 2.5; }
-.wf-canvas .react-flow__edge.wf-edge-path .react-flow__edge-path { stroke: #34d399; }
-.wf-canvas .react-flow__edge.wf-edge-current .react-flow__edge-path { stroke: #22d3ee; stroke-width: 2.5; stroke-dasharray: 6 4; animation: wf-dash 0.6s linear infinite; }
-.wf-canvas .react-flow__edge.wf-edge-failed .react-flow__edge-path { stroke: #fb7185; }
+.wf-canvas .react-flow__edge-path { stroke: var(--border-strong); stroke-width: 2; transition: stroke .15s, stroke-width .15s; }
+.wf-canvas .react-flow__edge:hover .react-flow__edge-path { stroke: var(--text-secondary); stroke-width: 2.5; }
+.wf-canvas .react-flow__edge.selected .react-flow__edge-path { stroke: var(--primary); stroke-width: 2.5; }
+.wf-canvas .react-flow__edge.wf-edge-path .react-flow__edge-path { stroke: var(--success); }
+.wf-canvas .react-flow__edge.wf-edge-current .react-flow__edge-path { stroke: var(--info); stroke-width: 2.5; stroke-dasharray: 6 4; animation: wf-dash 0.6s linear infinite; }
+.wf-canvas .react-flow__edge.wf-edge-failed .react-flow__edge-path { stroke: var(--danger); }
 @keyframes wf-dash { to { stroke-dashoffset: -20; } }
 .wf-canvas .react-flow__handle { transition: transform .1s, background .1s; }
 .wf-canvas .react-flow__handle:hover { transform: scale(1.35); }
@@ -122,15 +127,15 @@ function CanvasInner({ nodes, edges, setNodes, setEdges, onCommit, onSelect, onD
         fitViewOptions={{ padding: 0.25, maxZoom: 1.1 }}
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ animated: false, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "#94a3b8" } }}
-        connectionLineStyle={{ stroke: "#67e8f9", strokeWidth: 2 }}
+        connectionLineStyle={{ stroke: "var(--primary)", strokeWidth: 2 }}
         deleteKeyCode={["Backspace", "Delete"]}
         minZoom={0.2}
         maxZoom={2}
         className="!bg-transparent"
       >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#2a3648" />
-        <Controls showInteractive={false} className="!rounded-xl !border !border-white/10 !bg-slate-900/85 !shadow-none [&_button]:!border-white/10 [&_button]:!bg-slate-800/80 [&_button]:!text-slate-200 [&_button:hover]:!bg-slate-700" />
-        <MiniMap pannable zoomable nodeColor={miniMapColor} maskColor="rgba(2,6,23,0.65)" className="!rounded-xl !border !border-white/10 !bg-slate-900/85" />
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--border-strong)" />
+        <Controls showInteractive={false} className="!rounded-[var(--radius-card)] !border !border-[var(--border)] !bg-[var(--card)] !shadow-none [&_button]:!border-[var(--border)] [&_button]:!bg-[var(--surface-soft)] [&_button]:!text-[var(--text)] [&_button:hover]:!bg-[var(--surface-hover)]" />
+        <MiniMap pannable zoomable nodeColor={miniMapColor} maskColor="var(--overlay-scrim)" className="!rounded-[var(--radius-card)] !border !border-[var(--border)] !bg-[var(--card)]" />
       </ReactFlow>
 
       {isEmpty ? (
