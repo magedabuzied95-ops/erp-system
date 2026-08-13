@@ -111,7 +111,13 @@ test("HTTP handlers return 200 with XML/text content types instead of index.html
 test("Vercel serves SEO routes before the SPA fallback", () => {
   const config = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
   const sources = config.rewrites.map(({ source }) => source);
-  const fallbackIndex = sources.indexOf("/(.*)");
+  // Identify the catch-all structurally. It used to be exactly "/(.*)"; it now
+  // excludes /assets/ so a purged hashed chunk 404s instead of being answered
+  // with index.html. The SEO ordering contract is unchanged.
+  const fallbackIndex = config.rewrites.findIndex(
+    (rule) => rule.destination === "/index.html" && /^\/\(.*\)$/.test(rule.source),
+  );
+  assert.ok(fallbackIndex >= 0, "there must still be exactly one SPA catch-all rewrite");
   assert.ok(sources.indexOf("/sitemap.xml") >= 0);
   assert.ok(sources.indexOf("/robots.txt") >= 0);
   assert.ok(sources.indexOf("/sitemap.xml") < fallbackIndex);

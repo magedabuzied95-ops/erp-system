@@ -233,6 +233,14 @@ test("Meta feed remains on its original independent route and service", () => {
 test("Vercel exposes Google feed before SPA fallback", () => {
   const config = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
   const sources = config.rewrites.map(({ source }) => source);
+  // Locate the catch-all by what it DOES, not by a literal pattern. It used to
+  // be exactly "/(.*)"; it now excludes /assets/ so a purged hashed chunk 404s
+  // instead of being answered with index.html. The ordering contract this test
+  // exists to protect is unchanged.
+  const fallbackIndex = config.rewrites.findIndex(
+    (rule) => rule.destination === "/index.html" && /^\/\(.*\)$/.test(rule.source),
+  );
+  assert.ok(fallbackIndex >= 0, "there must still be exactly one SPA catch-all rewrite");
   assert.ok(sources.indexOf("/feeds/google.xml") >= 0);
-  assert.ok(sources.indexOf("/feeds/google.xml") < sources.indexOf("/(.*)"));
+  assert.ok(sources.indexOf("/feeds/google.xml") < fallbackIndex);
 });

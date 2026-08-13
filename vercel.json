@@ -101,10 +101,6 @@
       "destination": "https://api.m1store-egy.com/api/$1"
     },
     {
-      "source": "/assets/(.*)",
-      "destination": "/assets/$1"
-    },
-    {
       "source": "/images/(.*)",
       "destination": "/images/$1"
     },
@@ -121,7 +117,7 @@
   "destination": "/facebook-verification/um9cpgtxfeb945o41dlihclqmo6lby.html"
 },
 {
-  "source": "/(.*)",
+  "source": "/((?!assets/).*)",
   "destination": "/index.html"
 }
   ]

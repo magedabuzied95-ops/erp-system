@@ -147,7 +147,7 @@
 
             if ("serviceWorker" in navigator) {
               window.addEventListener("load", function () {
-                navigator.serviceWorker.register("/pos-sw.js?v=10", { scope: "/pos" }).then(function (registration) {
+                navigator.serviceWorker.register("/pos-sw.js?v=11", { scope: "/pos" }).then(function (registration) {
                   if (registration && registration.update) registration.update().catch(function () {});
                 }).catch(function () {});
               }, { once: true });
@@ -156,6 +156,140 @@
         } catch (error) {
           // PWA fallback must never block app startup.
         }
+      })();
+    </script>
+    <script>
+      // ===================================================================
+      // BOOT-LEVEL STALE-BUILD RECOVERY
+      // -------------------------------------------------------------------
+      // src/shared/utils/chunkLoadRecovery.js already recovers from chunk
+      // failures -- but it is imported by main.jsx, so it ships INSIDE the
+      // entry bundle. When the failing asset IS the entry bundle, that module
+      // never executes and nothing recovers: React never mounts and the
+      // operator sees a permanently blank page. That is the exact shape of the
+      // POS incident.
+      //
+      // This runs from the HTML document instead, so it survives the entry
+      // chunk being missing. It shares the sessionStorage guard key with
+      // chunkLoadRecovery so the two can never reload against each other, and
+      // it attempts at most ONE recovery per guard window.
+      // ===================================================================
+      (function () {
+        var GUARD_KEY = "erp.chunk-reload-attempted";
+        var GUARD_MS = 5 * 60 * 1000;
+
+        function alreadyAttempted() {
+          try {
+            var value = sessionStorage.getItem(GUARD_KEY);
+            if (!value) return false;
+            if (value === "1") return true;
+            var ts = Number(value);
+            return isFinite(ts) && Date.now() - ts < GUARD_MS;
+          } catch (error) {
+            // Without storage there is no loop guard, so never start a reload.
+            return true;
+          }
+        }
+
+        function isAssetScript(target) {
+          if (!target || target.tagName !== "SCRIPT") return false;
+          var src = String(target.src || "");
+          return src.indexOf("/assets/") !== -1 || /\.m?js(\?|$)/.test(src);
+        }
+
+        function recover() {
+          try {
+            sessionStorage.setItem(GUARD_KEY, String(Date.now()));
+          } catch (error) {
+            return;
+          }
+
+          var settled = false;
+          function finish() {
+            if (settled) return;
+            settled = true;
+            var url = new URL(window.location.href);
+            url.searchParams.set("__m1_reload", String(Date.now()));
+            window.location.replace(url.toString());
+          }
+
+          var jobs = [];
+          try {
+            if (window.caches && caches.keys) {
+              jobs.push(caches.keys().then(function (names) {
+                return Promise.all(names.map(function (n) { return caches.delete(n); }));
+              }));
+            }
+          } catch (error) { /* cache storage can be blocked */ }
+          try {
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(regs.map(function (r) { return r.unregister(); }));
+              }));
+            }
+          } catch (error) { /* service workers can be unavailable */ }
+
+          Promise.all(jobs).then(finish, finish);
+          setTimeout(finish, 3000); // never let cleanup stall the recovery
+        }
+
+        // Script load failures do not bubble, so listen in the capture phase.
+        window.addEventListener("error", function (event) {
+          if (alreadyAttempted()) return;
+          if (isAssetScript(event && event.target)) recover();
+        }, true);
+
+        // Release the guard once the app has clearly booted, so a genuine future
+        // stale-build event is still recoverable in this same tab.
+        window.addEventListener("load", function () {
+          setTimeout(function () {
+            var root = document.getElementById("root");
+            if (root && root.childElementCount > 0) {
+              try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
+            }
+          }, 10000);
+        });
+
+        // Deployment diagnostics. Defined here rather than in the app bundle so
+        // it still answers on a page that failed to boot -- which is precisely
+        // when someone needs it. Reports only build/cache identity, never
+        // credentials, tokens or business data.
+        window.__m1Diagnostics = function () {
+          var entry = "";
+          var scripts = document.querySelectorAll('script[type="module"][src]');
+          for (var i = 0; i < scripts.length; i += 1) {
+            if (scripts[i].src.indexOf("/assets/") !== -1) { entry = scripts[i].src; break; }
+          }
+          // Vite stamps the deployed commit into every asset filename.
+          var build = (entry.match(/-([0-9a-f]{7,12})\.js$/) || [])[1] || null;
+          var result = {
+            build: build,
+            entry: entry.split("/").pop() || null,
+            rootMounted: !!(document.getElementById("root") || {}).childElementCount,
+            recoveryGuard: (function () {
+              try { return sessionStorage.getItem(GUARD_KEY); } catch (error) { return "unavailable"; }
+            })(),
+            controller: (navigator.serviceWorker && navigator.serviceWorker.controller
+              && navigator.serviceWorker.controller.scriptURL) || null,
+          };
+          var jobs = [];
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            jobs.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+              result.serviceWorkers = regs.map(function (r) {
+                return {
+                  scope: r.scope,
+                  active: r.active && r.active.scriptURL,
+                  waiting: !!r.waiting,
+                  installing: !!r.installing,
+                };
+              });
+            }));
+          }
+          if (window.caches && caches.keys) {
+            jobs.push(caches.keys().then(function (names) { result.caches = names; }));
+          }
+          return Promise.all(jobs).then(function () { return result; });
+        };
       })();
     </script>
     <title>M1 Store</title>

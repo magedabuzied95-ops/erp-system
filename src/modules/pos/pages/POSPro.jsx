@@ -185,7 +185,7 @@ const readStoredOpenInvoices = () => {
 };
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest?v=10";
 const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
-const POS_SERVICE_WORKER_VERSION = 10;
+const POS_SERVICE_WORKER_VERSION = 11;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 // PWA/OS chrome colour for the installed POS app. This was pinned to #07111f, a
@@ -1808,6 +1808,11 @@ function POSPro() {
 
   const searchRef = useRef(null);
   const posShellRef = useRef(null);
+  // Read by the service-worker update path, which must never reload the page
+  // while a transaction is open. Refs rather than state: the listener is
+  // registered once and must see the CURRENT till, not a captured render.
+  const saleInProgressRef = useRef(false);
+  const pendingSwUpdateRef = useRef(false);
   const filtersPanelRef = useRef(null);
   const filtersButtonRef = useRef(null);
   const previousTotalRef = useRef(0);
@@ -2058,14 +2063,38 @@ function POSPro() {
     let cancelled = false;
     let reloading = false;
 
-    const handleControllerChange = () => {
-      if (cancelled || reloading || window.sessionStorage.getItem(reloadMarker) === "1") return;
+    // A new worker taking control used to reload the page immediately. That is
+    // destructive here: writePosSession persists the cart, amounts, discounts and
+    // salesperson, but omitCustomerState DELIBERATELY strips the selected
+    // customer (CUSTOMER_STATE_KEYS in posUtils), so an automatic mid-sale reload
+    // silently drops the customer the cashier already chose.
+    //
+    // The update is deferred until the till is idle instead. Nothing is lost by
+    // waiting: the running build keeps working and the new one activates at the
+    // next natural boundary.
+    const applyPendingUpdate = () => {
+      if (cancelled || reloading) return;
+      if (window.sessionStorage.getItem(reloadMarker) === "1") return;
+      if (saleInProgressRef.current) return;
       reloading = true;
+      pendingSwUpdateRef.current = false;
       window.sessionStorage.setItem(reloadMarker, "1");
       window.location.reload();
     };
 
+    const handleControllerChange = () => {
+      if (cancelled || reloading) return;
+      pendingSwUpdateRef.current = true;
+      applyPendingUpdate();
+    };
+
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+
+    // Land a deferred update as soon as the cashier finishes, without ever
+    // interrupting an open transaction.
+    const idleUpdateTimer = window.setInterval(() => {
+      if (pendingSwUpdateRef.current) applyPendingUpdate();
+    }, 15 * 1000);
 
     const register = async () => {
       try {
@@ -2098,9 +2127,17 @@ function POSPro() {
     return () => {
       cancelled = true;
       window.clearInterval(updateTimer);
+      window.clearInterval(idleUpdateTimer);
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
     };
   }, [location.pathname]);
+
+  // Keep the sale-in-progress signal current for the service-worker update path.
+  // "In progress" is anything the operator would have to re-enter after a reload:
+  // a non-empty cart, or a chosen customer (which is never persisted).
+  useEffect(() => {
+    saleInProgressRef.current = Boolean(cart?.length) || Boolean(selectedCustomerId);
+  }, [cart, selectedCustomerId]);
 
   useEffect(() => {
     writePosCart(cart);
