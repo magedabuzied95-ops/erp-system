@@ -28,6 +28,7 @@ import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiStudioNav from "../components/AiStudioNav";
 import { useStudioHeaders } from "../lib/studioRequest";
 import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, getInboundAiChannels, setInboundAiChannel, getStyleProfile, setStyleLearning, resetStyleLearning } from "../services/aiStudioApi";
+import "../../../theme/ai-surface.css";
 
 // Phase 10/11 — Inbound Assisted Replies control (default OFF). AI drafts a grounded reply SUGGESTION for
 // inbound WhatsApp/Messenger/Instagram text; a human approves/edits/sends from the existing AI Inbox.
@@ -310,7 +311,7 @@ export default function AiStudio() {
   );
 
   return (
-    <div dir="ltr" className="space-y-5 p-4 text-white md:p-6">
+    <div dir="ltr" className="m1-ai-scope space-y-5 p-4 text-white md:p-6">
       {/* Header */}
       <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
