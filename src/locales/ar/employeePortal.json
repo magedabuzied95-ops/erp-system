@@ -1,4 +1,40 @@
 {
+  "chrome": {
+    "stock": "المخزون",
+    "noSizes": "لا توجد مقاسات",
+    "variantSelection": "اختيار المتغير",
+    "skuArticle": "SKU / الأرتيكل",
+    "colors": "الألوان",
+    "noColors": "لا توجد ألوان",
+    "sizes": "المقاسات",
+    "onlyAvailableSizes": "تظهر المقاسات المتاحة فقط",
+    "employeeScanner": "ماسح الموظف",
+    "portalProducts": "منتجات بوابة الموظف",
+    "inventory": "الجرد",
+    "products": "المنتجات",
+    "differences": "الفروقات",
+    "salesOpportunities": "فرص البيع",
+    "appointment": "الموعد",
+    "image": "صورة",
+    "imageUnavailable": "الصورة غير متاحة",
+    "openImage": "فتح الصورة",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "deleteRecording": "حذف التسجيل",
+    "sendRecording": "إرسال التسجيل",
+    "roleName": "اسم الدور",
+    "voiceMessage": "رسالة صوتية",
+    "playVoiceMessage": "تشغيل الرسالة الصوتية",
+    "pauseVoiceMessage": "إيقاف الرسالة الصوتية مؤقتاً",
+    "searchLogs": "ابحث في السجلات...",
+    "gender": "النوع",
+    "productType": "نوع المنتج",
+    "grade": "الدرجة",
+    "size": "المقاس",
+    "brand": "الماركة",
+    "manufacturer": "المصنّع"
+  },
   "status": {
     "inProgress": "قيد التنفيذ",
     "completed": "مكتملة",
@@ -356,7 +392,24 @@
     "recordedAt": "سجل الحضور في",
     "activeNow": "نشط الآن",
     "openingTomorrow": "أنت فاتح الفرع غدًا",
-    "tomorrowShift": "شيفت بكرة"
+    "tomorrowShift": "شيفت بكرة",
+    "errors": {
+      "loadToday": "تعذر تحميل حضور اليوم"
+    },
+    "dashboardTitle": "لوحة الحضور والانصراف",
+    "todaySummary": "ملخص حضور اليوم",
+    "dashboardSubtitle": "متابعة مباشرة للحضور والانصراف، والحالة الحالية، وعمليات تسجيل الحضور المفتوحة، والتأخرات في مكان واحد.",
+    "presentToday": "الموظفون المسجل حضورهم اليوم",
+    "lateToday": "المتأخرون اليوم",
+    "arrivedAfterGrace": "الوصول بعد فترة السماح",
+    "earlyLeaveToday": "الانصراف المبكر اليوم",
+    "leftBeforeShiftEnd": "الانصراف قبل نهاية الوردية",
+    "outsideGpsToday": "خارج نطاق GPS اليوم",
+    "gpsOutOfRange": "التحقق من GPS خارج النطاق",
+    "liveEmployeeTable": "جدول الموظفين المباشر",
+    "earlyLeaveMinutes": "دقائق الانصراف المبكر",
+    "loadingToday": "جارٍ تحميل حضور اليوم...",
+    "noRecordsToday": "لا توجد سجلات حضور لهذا اليوم."
   },
   "requests": {
     "leave": "طلب إجازة",
@@ -476,7 +529,34 @@
     "completeDisplay": "تمم العرض",
     "allowPopup": "اسمح بفتح نافذة الطباعة ثم أعد المحاولة",
     "showMoreOutlet": "عرض المزيد من المنفذ",
-    "hideOutlet": "إخفاء المنفذ"
+    "hideOutlet": "إخفاء المنفذ",
+    "independentManagement": "إدارة العرض المستقلة",
+    "confirmDisplay": "تمم على العرض",
+    "unconfirmedModels": "الموديلات الموجودة بالمخزن ولم يتم تأكيد عرضها على الستاند.",
+    "totalNotDisplayed": "إجمالي الموديلات غير المعروضة",
+    "allDisplayed": "كل الموديلات الموجودة بالمخزن معروضة",
+    "smallestSize": "أصغر مقاس",
+    "quantity": "الكمية",
+    "markDisplayed": "معروض",
+    "stageSizesFrom": "مقاسات العرض من {{range}}",
+    "noStageSizes": "لا توجد مقاسات متاحة في هذه المرحلة",
+    "groups": {
+      "sneakers": "اسنيكرز",
+      "crocs": "كروكس",
+      "bags": "شنط",
+      "winter": "شتوي"
+    },
+    "audiences": {
+      "men": "رجالي",
+      "women": "حريمي",
+      "kids": "أطفال",
+      "special": "خاص"
+    },
+    "stages": {
+      "baby": "بيبي",
+      "middle": "وسط",
+      "boys": "أولادي"
+    }
   },
   "opportunities": {
     "item": "فرصة بيع",

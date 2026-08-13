@@ -36,6 +36,12 @@ const PRESERVED_LATIN = new Set([
   "whatsapp", "facebook", "messenger", "instagram", "meta", "google", "tiktok", "bosta", "cloudinary",
   "shopify", "paymob", "fawry", "visa", "mastercard", "gmail", "youtube", "english", "kpi", "roi", "aov",
   "ltv", "cogs", "p&l", "crm", "ai", "gtin", "ean", "upc", "barcode shop", "n/a", "x", "ok",
+  // product and carrier brand names, identical in both locales
+  "google analytics", "mylerz", "shipblu",
+  // channel names shown verbatim in both locales
+  "facebook messenger", "instagram dm",
+  // protocol/technical terms used verbatim in Arabic UI
+  "webhook",
 ]);
 
 /** Interpolation-only values such as "{{count}}" or "{{start}} - {{end}}". */

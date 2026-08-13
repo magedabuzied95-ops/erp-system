@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
 import {
@@ -18,14 +19,19 @@ import {
 
 import { api } from "../../../shared/api/api";
 import InventoryShell from "../../inventory/components/InventoryShell";
+import i18n from "../../../i18n/i18n";
 import { smartWarehouseApi } from "../services/smartWarehouseApi";
 
+/** Module scope: resolve through i18n at CALL time, never eagerly at import. */
+const tt = (key, options) => i18n.t(key, options);
+
+/* `id` drives activeTab and the panel switch; only the label is display. */
 const tabs = [
-  { id: "count", label: "Quick Count", icon: Smartphone },
-  { id: "sections", label: "Sections", icon: Warehouse },
-  { id: "qr", label: "Master QR", icon: QrCode },
-  { id: "cycle", label: "Cycle Count", icon: ClipboardList },
-  { id: "reports", label: "Reports", icon: Flame },
+  { id: "count", get label() { return tt("inventory.smartWarehouse.tabs.count"); }, icon: Smartphone },
+  { id: "sections", get label() { return tt("inventory.smartWarehouse.tabs.sections"); }, icon: Warehouse },
+  { id: "qr", get label() { return tt("inventory.smartWarehouse.tabs.qr"); }, icon: QrCode },
+  { id: "cycle", get label() { return tt("inventory.smartWarehouse.tabs.cycle"); }, icon: ClipboardList },
+  { id: "reports", get label() { return tt("inventory.smartWarehouse.tabs.reports"); }, icon: Flame },
 ];
 
 const emptyReports = {
@@ -110,7 +116,7 @@ function SmartWarehouse() {
         warehouse_id: current.warehouse_id || section.warehouse_id || "",
         branch_id: current.branch_id || section.branch_id || "",
       }));
-      toast.success("Section loaded");
+      toast.success(tt("inventory.smartWarehouse.toasts.sectionLoaded"));
     } catch (error) {
       toast.error(error.message || "Section not found");
     }
@@ -126,7 +132,7 @@ function SmartWarehouse() {
         nextActuals[variant.id] = Number(variant.stock || 0);
       });
       setActuals(nextActuals);
-      toast.success("Model loaded");
+      toast.success(tt("inventory.smartWarehouse.toasts.modelLoaded"));
     } catch (error) {
       toast.error(error.message || "Master QR not found");
     }
@@ -141,7 +147,7 @@ function SmartWarehouse() {
 
   const saveCount = async () => {
     if (!form.warehouse_id || !productData?.variants?.length) {
-      toast.error("Select warehouse and scan a model first");
+      toast.error(tt("inventory.smartWarehouse.toasts.selectWarehouseFirst"));
       return;
     }
 
@@ -160,7 +166,7 @@ function SmartWarehouse() {
         count_type: "quick_scan",
         items,
       });
-      toast.success("Count saved and movements created");
+      toast.success(tt("inventory.smartWarehouse.toasts.countSaved"));
       setProductData(null);
       setActuals({});
       await loadData();
@@ -173,7 +179,7 @@ function SmartWarehouse() {
 
   const saveSection = async () => {
     if (!form.warehouse_id || !sectionDraft.code.trim()) {
-      toast.error("Warehouse and section code are required");
+      toast.error(tt("inventory.smartWarehouse.toasts.sectionRequired"));
       return;
     }
     try {
@@ -184,7 +190,7 @@ function SmartWarehouse() {
       });
       setSections((current) => [result.section, ...current.filter((section) => section.id !== result.section.id)]);
       setSectionDraft({ code: "", name: "", color: "#2563eb", notes: "" });
-      toast.success("Section saved");
+      toast.success(tt("inventory.smartWarehouse.toasts.sectionSaved"));
     } catch (error) {
       toast.error(error.message || "Failed to save section");
     }
@@ -195,16 +201,16 @@ function SmartWarehouse() {
     try {
       const result = await smartWarehouseApi.generateMasterQr(productId.trim());
       setGeneratedQr(result.qr);
-      toast.success("Master QR ready");
+      toast.success(tt("inventory.smartWarehouse.toasts.qrReady"));
     } catch (error) {
-      toast.error(error.message || "Failed to generate master QR");
+      toast.error(error.message || tt("inventory.smartWarehouse.toasts.qrFailed"));
     }
   };
 
   return (
     <InventoryShell
-      title="Smart Warehouse"
-      subtitle="Model QR counting, section organization, cycle count tasks, movement-ready adjustments, and AI-ready inventory analytics."
+      title={tt("inventory.smartWarehouse.title")}
+      subtitle={tt("inventory.smartWarehouse.subtitle")}
       actions={
         <button
           type="button"
@@ -212,15 +218,15 @@ function SmartWarehouse() {
           className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold text-[var(--text)]"
         >
           <RefreshCw className="h-4 w-4" />
-          Refresh
+          {tt("inventory.smartWarehouse.refresh")}
         </button>
       }
       tabs={[
-        { to: "/inventory", label: "Inventory", end: true },
-        { to: "/smart-warehouse", label: "Smart Warehouse", end: true },
-        { to: "/inventory/movements", label: "Movements" },
-        { to: "/stock-transfers", label: "Transfers" },
-        { to: "/warehouses", label: "Warehouses" },
+        { to: "/inventory", label: tt("inventory.tabs.inventory"), end: true },
+        { to: "/smart-warehouse", label: tt("inventory.smartWarehouse.title"), end: true },
+        { to: "/inventory/movements", label: tt("inventory.tabs.movements") },
+        { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
+        { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
       ]}
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -291,19 +297,19 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="grid gap-3">
-          <Select label="Branch" value={form.branch_id} onChange={(value) => setForm((current) => ({ ...current, branch_id: value }))} rows={branches} />
-          <Select label="Warehouse" value={form.warehouse_id} onChange={(value) => setForm((current) => ({ ...current, warehouse_id: value }))} rows={warehouses} />
-          <Select label="Section" value={form.section_id} onChange={(value) => setForm((current) => ({ ...current, section_id: value }))} rows={sections} labelKey="code" />
+          <Select label={tt("inventory.smartWarehouse.fields.branch")} value={form.branch_id} onChange={(value) => setForm((current) => ({ ...current, branch_id: value }))} rows={branches} />
+          <Select label={tt("inventory.smartWarehouse.fields.warehouse")} value={form.warehouse_id} onChange={(value) => setForm((current) => ({ ...current, warehouse_id: value }))} rows={warehouses} />
+          <Select label={tt("inventory.smartWarehouse.fields.section")} value={form.section_id} onChange={(value) => setForm((current) => ({ ...current, section_id: value }))} rows={sections} labelKey="code" />
 
           <ScanInput
-            label="Scan section QR"
+            label={tt("inventory.smartWarehouse.scan.section")}
             value={form.section_scan}
             onChange={(value) => setForm((current) => ({ ...current, section_scan: value }))}
             onSubmit={scanSection}
             placeholder="MEN-SHOES-41"
           />
           <ScanInput
-            label="Scan model QR"
+            label={tt("inventory.smartWarehouse.scan.model")}
             value={form.model_scan}
             onChange={(value) => setForm((current) => ({ ...current, model_scan: value }))}
             onSubmit={scanMasterQr}
@@ -312,7 +318,7 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
         </div>
         {selectedSection ? (
           <div className="mt-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Active section</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">{tt("inventory.smartWarehouse.activeSection")}</div>
             <div className="mt-1 text-xl font-black text-[var(--text)]">{selectedSection.code}</div>
             <div className="mt-2 h-2 rounded-full" style={{ background: selectedSection.color || "#2563eb" }} />
           </div>
@@ -321,12 +327,12 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
 
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
         {!productData ? (
-          <EmptyState icon={QrCode} title="Scan a master model QR" text="The model QR opens the product, all colors, all sizes, warehouse locations, and a fast counting grid." />
+          <EmptyState icon={QrCode} title={tt("inventory.smartWarehouse.scanMasterTitle")} text={tt("inventory.smartWarehouse.scanMasterText")} />
         ) : (
           <>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="text-sm text-[var(--muted)]">Model-level count</div>
+                <div className="text-sm text-[var(--muted)]">{tt("inventory.smartWarehouse.modelLevelCount")}</div>
                 <h2 className="m1-section-title text-[var(--text)]">{productData.product?.name}</h2>
                 <div className="mt-1 text-sm text-[var(--muted)]">
                   {productData.colors?.length || 0} colors / {productData.sizes?.length || 0} sizes / stock {productData.totalStock || 0}
@@ -346,11 +352,11 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
             <div className="mt-4 overflow-x-auto">
               <div className="min-w-[720px] space-y-2">
                 <div className="grid grid-cols-[1fr_1fr_120px_170px_120px] rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                  <div>Color</div>
-                  <div>Size</div>
-                  <div>Expected</div>
-                  <div>Actual</div>
-                  <div>Diff</div>
+                  <div>{tt("inventory.smartWarehouse.grid.color")}</div>
+                  <div>{tt("inventory.smartWarehouse.grid.size")}</div>
+                  <div>{tt("inventory.smartWarehouse.grid.expected")}</div>
+                  <div>{tt("inventory.smartWarehouse.grid.actual")}</div>
+                  <div>{tt("inventory.smartWarehouse.grid.diff")}</div>
                 </div>
                 {variants.map((variant) => {
                   const expected = Number(variant.stock || 0);
@@ -362,9 +368,9 @@ function QuickCount({ form, setForm, branches, warehouses, sections, selectedSec
                       <div className="font-semibold text-[var(--text)]">{variant.size || "One Size"}</div>
                       <div>{expected}</div>
                       <div className="flex items-center gap-2">
-                        <IconButton label="Decrease" onClick={() => changeActual(variant.id, -1)} icon={Minus} />
+                        <IconButton label={tt("inventory.smartWarehouse.grid.decrease")} onClick={() => changeActual(variant.id, -1)} icon={Minus} />
                         <div className="flex h-11 w-14 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] text-lg font-black">{actual}</div>
-                        <IconButton label="Increase" onClick={() => changeActual(variant.id, 1)} icon={Plus} />
+                        <IconButton label={tt("inventory.smartWarehouse.grid.increase")} onClick={() => changeActual(variant.id, 1)} icon={Plus} />
                       </div>
                       <div className={diff === 0 ? "font-black text-emerald-400" : diff > 0 ? "font-black text-primary" : "font-black text-rose-400"}>{diff}</div>
                     </div>
@@ -383,14 +389,14 @@ function SectionsPanel({ form, setForm, branches, warehouses, sections, draft, s
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
-        <Select label="Branch" value={form.branch_id} onChange={(value) => setForm((current) => ({ ...current, branch_id: value }))} rows={branches} />
+        <Select label={tt("inventory.smartWarehouse.fields.branch")} value={form.branch_id} onChange={(value) => setForm((current) => ({ ...current, branch_id: value }))} rows={branches} />
         <div className="mt-3">
-          <Select label="Warehouse" value={form.warehouse_id} onChange={(value) => setForm((current) => ({ ...current, warehouse_id: value }))} rows={warehouses} />
+          <Select label={tt("inventory.smartWarehouse.fields.warehouse")} value={form.warehouse_id} onChange={(value) => setForm((current) => ({ ...current, warehouse_id: value }))} rows={warehouses} />
         </div>
-        <TextInput label="Code" value={draft.code} onChange={(value) => setDraft((current) => ({ ...current, code: value }))} placeholder="MEN-SHOES-41" />
-        <TextInput label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} placeholder="Men Shoes Size 41" />
-        <TextInput label="Color" value={draft.color} onChange={(value) => setDraft((current) => ({ ...current, color: value }))} placeholder="#2563eb" />
-        <TextInput label="Notes" value={draft.notes} onChange={(value) => setDraft((current) => ({ ...current, notes: value }))} placeholder="Aisle, shelf, or season notes" />
+        <TextInput label={tt("inventory.smartWarehouse.fields.code")} value={draft.code} onChange={(value) => setDraft((current) => ({ ...current, code: value }))} placeholder="MEN-SHOES-41" />
+        <TextInput label={tt("inventory.smartWarehouse.fields.name")} value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} placeholder={tt("inventory.smartWarehouse.fields.namePlaceholder")} />
+        <TextInput label={tt("inventory.smartWarehouse.fields.color")} value={draft.color} onChange={(value) => setDraft((current) => ({ ...current, color: value }))} placeholder="#2563eb" />
+        <TextInput label={tt("inventory.smartWarehouse.fields.notes")} value={draft.notes} onChange={(value) => setDraft((current) => ({ ...current, notes: value }))} placeholder={tt("inventory.smartWarehouse.fields.notesPlaceholder")} />
         <button type="button" onClick={saveSection} className="mt-4 w-full rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
           Save Section
         </button>
@@ -426,23 +432,23 @@ function MasterQrPanel({ productId, setProductId, generatedQr, generateQr }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
-        <TextInput label="Product ID" value={productId} onChange={setProductId} placeholder="Product database id" />
+        <TextInput label={tt("inventory.smartWarehouse.fields.productId")} value={productId} onChange={setProductId} placeholder={tt("inventory.smartWarehouse.fields.productIdPlaceholder")} />
         <button type="button" onClick={generateQr} className="mt-4 w-full rounded-[var(--radius-control)] bg-[var(--primary)] px-4 py-3 text-sm font-black text-white">
           Generate Master QR
         </button>
       </div>
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5">
         {!generatedQr ? (
-          <EmptyState icon={QrCode} title="No QR generated yet" text="Generate one model-level QR per product and place it on product cards, bins, or warehouse labels." />
+          <EmptyState icon={QrCode} title={tt("inventory.smartWarehouse.qr.emptyTitle")} text={tt("inventory.smartWarehouse.qr.emptyText")} />
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <div className="rounded-3xl bg-white p-5">
               <QRCode value={generatedQr.qr_value} size={180} />
             </div>
             <div>
-              <div className="text-sm text-[var(--muted)]">Master QR value</div>
+              <div className="text-sm text-[var(--muted)]">{tt("inventory.smartWarehouse.qr.value")}</div>
               <div className="mt-2 break-all text-2xl font-black text-[var(--text)]">{generatedQr.qr_value}</div>
-              <div className="mt-3 text-sm text-[var(--muted)]">Model-level, not variant-level. Scanning this opens the full variant stock matrix.</div>
+              <div className="mt-3 text-sm text-[var(--muted)]">{tt("inventory.smartWarehouse.qr.note")}</div>
             </div>
           </div>
         )}
@@ -454,18 +460,18 @@ function MasterQrPanel({ productId, setProductId, generatedQr, generateQr }) {
 function CyclePanel({ tasks, counts }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <DataList title="Smart Daily Cycle Tasks" rows={tasks} render={(task) => (
+      <DataList title={tt("inventory.smartWarehouse.lists.cycleTasks")} rows={tasks} render={(task) => (
         <>
           <div className="font-black text-[var(--text)]">{task.product_name}</div>
           <div className="mt-1 text-sm text-[var(--muted)]">{task.color || "Default"} / {task.size || "One Size"} / {task.sku || "No SKU"}</div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
             <Badge>{task.reason}</Badge>
-            <Badge>sold {task.sold_30d || 0}</Badge>
-            <Badge>stock {task.stock || 0}</Badge>
+            <Badge>{tt("inventory.smartWarehouse.lists.sold30d", { count: task.sold_30d || 0 })}</Badge>
+            <Badge>{tt("inventory.smartWarehouse.lists.stock", { count: task.stock || 0 })}</Badge>
           </div>
         </>
       )} />
-      <DataList title="Recent Counts" rows={counts} render={(count) => (
+      <DataList title={tt("inventory.smartWarehouse.lists.recentCounts")} rows={counts} render={(count) => (
         <>
           <div className="font-black text-[var(--text)]">{count.section_code || count.warehouse_name || "Inventory count"}</div>
           <div className="mt-1 text-sm text-[var(--muted)]">{count.count_type} / {count.status}</div>
@@ -482,12 +488,12 @@ function CyclePanel({ tasks, counts }) {
 function ReportsPanel({ reports }) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <DataList title="Discrepancies" rows={reports.discrepancies} render={(row) => <ReportRow row={row} value={row.difference_qty} />} />
-      <DataList title="Dead Stock" rows={reports.deadStock} render={(row) => <ReportRow row={row} value={row.last_sold_at ? new Date(row.last_sold_at).toLocaleDateString() : "Never sold"} />} />
-      <DataList title="Smart Alerts" rows={reports.alerts} render={(row) => <ReportRow row={row} value={row.alert_type} />} />
-      <DataList title="Transfer Recommendations" rows={reports.transfers} render={(row) => <ReportRow row={row} value={`${row.source_stock || 0} > ${row.target_stock || 0}`} />} />
+      <DataList title={tt("inventory.smartWarehouse.lists.discrepancies")} rows={reports.discrepancies} render={(row) => <ReportRow row={row} value={row.difference_qty} />} />
+      <DataList title={tt("inventory.smartWarehouse.lists.deadStock")} rows={reports.deadStock} render={(row) => <ReportRow row={row} value={row.last_sold_at ? new Date(row.last_sold_at).toLocaleDateString() : tt("inventory.smartWarehouse.lists.neverSold")} />} />
+      <DataList title={tt("inventory.smartWarehouse.lists.alerts")} rows={reports.alerts} render={(row) => <ReportRow row={row} value={row.alert_type} />} />
+      <DataList title={tt("inventory.smartWarehouse.lists.transfers")} rows={reports.transfers} render={(row) => <ReportRow row={row} value={`${row.source_stock || 0} > ${row.target_stock || 0}`} />} />
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 xl:col-span-2">
-        <h3 className="m1-section-title text-[var(--text)]">Warehouse Heatmap</h3>
+        <h3 className="m1-section-title text-[var(--text)]">{tt("inventory.smartWarehouse.lists.heatmap")}</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {reports.heatmap.map((section) => (
             <div key={section.id} className="rounded-2xl border border-[var(--border)] p-4" style={{ background: `color-mix(in srgb, ${section.color || "#2563eb"} 18%, var(--card))` }}>
@@ -520,7 +526,7 @@ function DataList({ title, rows, render }) {
           <div key={row.id || row.variant_id || index} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
             {render(row)}
           </div>
-        )) : <EmptyState icon={Boxes} title="No records" text="Data will appear here after inventory activity is recorded." compact />}
+        )) : <EmptyState icon={Boxes} title={tt("inventory.smartWarehouse.lists.emptyTitle")} text={tt("inventory.smartWarehouse.lists.emptyText")} compact />}
       </div>
     </div>
   );
@@ -531,7 +537,7 @@ function Select({ label, value, onChange, rows, labelKey = "name" }) {
     <label className="block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none">
-        <option value="">Select {label.toLowerCase()}</option>
+        <option value="">{tt("inventory.smartWarehouse.fields.selectPlaceholder", { label: String(label || "").toLowerCase() })}</option>
         {rows.map((row) => <option key={row.id} value={row.id}>{row[labelKey] || row.name || row.code || row.id}</option>)}
       </select>
     </label>

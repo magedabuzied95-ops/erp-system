@@ -1,5 +1,14 @@
 import toast from "react-hot-toast";
 
+import i18n from "../i18n/i18n";
+
+/**
+ * Notification titles are UI chrome. Resolve at CALL time and keep the raw
+ * English as defaultValue so a missing key can never blank a toast.
+ */
+const eventTitle = (mapped = {}) =>
+  (mapped.titleKey ? i18n.t(mapped.titleKey, { defaultValue: mapped.title }) : mapped.title) || "";
+
 import { getRealtimePriorityBehavior, normalizeRealtimePriority, priorityRank } from "../config/realtimePriorityConfig";
 import { DEFAULT_REALTIME_SOUND_THEME, getRealtimeSoundTheme } from "../config/realtimeSoundThemes";
 
@@ -20,27 +29,27 @@ const DEFAULT_SOUND_FILES = {
 };
 
 const EVENT_MAP = {
-  new_order: { sound: "orderNew", priority: "high", toastType: "success", title: "New order" },
-  website_order_created: { sound: "orderNew", priority: "high", toastType: "success", title: "New order" },
-  order_created: { sound: "orderNew", priority: "high", toastType: "success", title: "New order" },
-  payment_success: { sound: "paymentSuccess", priority: "high", toastType: "success", title: "Payment received" },
-  payment_confirmed: { sound: "paymentSuccess", priority: "high", toastType: "success", title: "Payment confirmed" },
-  payment_proof_uploaded: { sound: "notification", priority: "normal", toastType: "default", title: "Payment proof uploaded" },
-  pos_barcode_scan: { sound: "barcodeScan", priority: "normal", toastType: "silent", title: "Barcode scanned" },
-  pos_product_not_found: { sound: "error", priority: "high", toastType: "error", title: "Product not found" },
-  pos_error: { sound: "error", priority: "high", toastType: "error", title: "POS error" },
-  low_stock: { sound: "warning", priority: "high", toastType: "default", title: "Low stock" },
-  attendance: { sound: "attendance", priority: "normal", toastType: "success", title: "Attendance updated" },
-  attendance_check_in: { sound: "attendance", priority: "normal", toastType: "success", title: "Attendance check-in" },
-  attendance_check_out: { sound: "attendance", priority: "normal", toastType: "success", title: "Attendance check-out" },
-  ai_message: { sound: "aiMessage", priority: "normal", toastType: "default", title: "AI message" },
-  ai_recommendation: { sound: "aiMessage", priority: "normal", toastType: "default", title: "AI recommendation" },
-  ai_exact_product_found: { sound: "paymentSuccess", priority: "high", toastType: "success", title: "Exact product found" },
-  ai_no_results: { sound: "error", priority: "normal", toastType: "default", title: "No AI results" },
-  ai_escalation: { sound: "warning", priority: "high", toastType: "default", title: "AI handoff" },
-  ai_customer_message: { sound: "aiMessage", priority: "normal", toastType: "default", title: "Customer message" },
-  notification: { sound: "notification", priority: "normal", toastType: "default", title: "Notification" },
-  error: { sound: "error", priority: "high", toastType: "error", title: "Error" },
+  new_order: { sound: "orderNew", priority: "high", toastType: "success", title: "New order", titleKey: "common.realtimeFeedback.events.newOrder" },
+  website_order_created: { sound: "orderNew", priority: "high", toastType: "success", title: "New order", titleKey: "common.realtimeFeedback.events.newOrder" },
+  order_created: { sound: "orderNew", priority: "high", toastType: "success", title: "New order", titleKey: "common.realtimeFeedback.events.newOrder" },
+  payment_success: { sound: "paymentSuccess", priority: "high", toastType: "success", title: "Payment received", titleKey: "common.realtimeFeedback.events.paymentReceived" },
+  payment_confirmed: { sound: "paymentSuccess", priority: "high", toastType: "success", title: "Payment confirmed", titleKey: "common.realtimeFeedback.events.paymentConfirmed" },
+  payment_proof_uploaded: { sound: "notification", priority: "normal", toastType: "default", title: "Payment proof uploaded", titleKey: "common.realtimeFeedback.events.paymentProofUploaded" },
+  pos_barcode_scan: { sound: "barcodeScan", priority: "normal", toastType: "silent", title: "Barcode scanned", titleKey: "common.realtimeFeedback.events.barcodeScanned" },
+  pos_product_not_found: { sound: "error", priority: "high", toastType: "error", title: "Product not found", titleKey: "common.realtimeFeedback.events.productNotFound" },
+  pos_error: { sound: "error", priority: "high", toastType: "error", title: "POS error", titleKey: "common.realtimeFeedback.events.posError" },
+  low_stock: { sound: "warning", priority: "high", toastType: "default", title: "Low stock", titleKey: "common.realtimeFeedback.events.lowStock" },
+  attendance: { sound: "attendance", priority: "normal", toastType: "success", title: "Attendance updated", titleKey: "common.realtimeFeedback.events.attendanceUpdated" },
+  attendance_check_in: { sound: "attendance", priority: "normal", toastType: "success", title: "Attendance check-in", titleKey: "common.realtimeFeedback.events.attendanceCheckIn" },
+  attendance_check_out: { sound: "attendance", priority: "normal", toastType: "success", title: "Attendance check-out", titleKey: "common.realtimeFeedback.events.attendanceCheckOut" },
+  ai_message: { sound: "aiMessage", priority: "normal", toastType: "default", title: "AI message", titleKey: "common.realtimeFeedback.events.aiMessage" },
+  ai_recommendation: { sound: "aiMessage", priority: "normal", toastType: "default", title: "AI recommendation", titleKey: "common.realtimeFeedback.events.aiRecommendation" },
+  ai_exact_product_found: { sound: "paymentSuccess", priority: "high", toastType: "success", title: "Exact product found", titleKey: "common.realtimeFeedback.events.exactProductFound" },
+  ai_no_results: { sound: "error", priority: "normal", toastType: "default", title: "No AI results", titleKey: "common.realtimeFeedback.events.noAiResults" },
+  ai_escalation: { sound: "warning", priority: "high", toastType: "default", title: "AI handoff", titleKey: "common.realtimeFeedback.events.aiHandoff" },
+  ai_customer_message: { sound: "aiMessage", priority: "normal", toastType: "default", title: "Customer message", titleKey: "common.realtimeFeedback.events.customerMessage" },
+  notification: { sound: "notification", priority: "normal", toastType: "default", title: "Notification", titleKey: "common.realtimeFeedback.events.notification" },
+  error: { sound: "error", priority: "high", toastType: "error", title: "Error", titleKey: "common.realtimeFeedback.events.error" },
 };
 
 const DEFAULT_SETTINGS = {
@@ -429,7 +438,7 @@ export const resolveFeedbackEvent = (eventName, payload = {}) => {
     ...mapped,
     eventName,
     priority,
-    title: payload?.title || mapped.title,
+    title: payload?.title || eventTitle(mapped),
     message: payload?.message || payload?.body || payload?.description || "",
     id: payload?.id || payload?.notification_id || payload?.order_id || payload?.orderId || `${type}-${Date.now()}`,
     payload,
@@ -463,8 +472,8 @@ const flushHiddenBatch = () => {
   hiddenBatchTimer = null;
   browserNotificationFor({
     ...top,
-    title: count > 1 ? `${count} new ERP updates` : top.title,
-    message: count > 1 ? "Open the ERP workspace to review the latest activity." : top.message,
+    title: count > 1 ? i18n.t("common.realtimeFeedback.batch.title", { count }) : top.title,
+    message: count > 1 ? i18n.t("common.realtimeFeedback.batch.message") : top.message,
     priority: top.priority,
     force: true,
   });

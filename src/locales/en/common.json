@@ -52,7 +52,9 @@
         "online": "Online",
         "offline": "Offline",
         "enabled": "Enabled",
-        "disabled": "Disabled"
+        "disabled": "Disabled",
+        "aiLive": "AI LIVE",
+        "aiOff": "AI OFF"
       },
       "health": {
         "status": "AI support status",
@@ -81,7 +83,14 @@
         "autoReply": "Auto-reply",
         "messagesToday": "Messages today",
         "lastSync": "Last sync",
-        "pending": "Pending conversations"
+        "pending": "Pending conversations",
+        "modeOff": "Off",
+        "modeSuggestOnly": "Suggest only",
+        "modeFullyAutomatic": "Fully automatic",
+        "toneInherit": "Inherit global",
+        "toneCasual": "Casual Egyptian",
+        "toneProfessional": "Professional",
+        "toneLuxury": "Luxury seller"
       },
       "actions": {
         "manage": "Manage",
@@ -150,6 +159,26 @@
         "noConversations": "No AI conversations yet. Connect a channel or enable website chat to start receiving messages.",
         "noAnalytics": "No analytics data yet.",
         "noSentiment": "No sentiment signals yet."
+      },
+      "gateway": {
+        "title": "WhatsApp Gateway / Evolution API",
+        "refresh": "Refresh status",
+        "connectionSettings": "Gateway connection settings",
+        "provider": "Provider",
+        "connectionStatus": "Connection status",
+        "connected": "Connected / {{state}}",
+        "notConfigured": "Not configured",
+        "unknown": "Unknown",
+        "apiUrl": "API URL",
+        "apiUrlMissing": "EVOLUTION_API_URL is not configured",
+        "apiKey": "API Key",
+        "apiKeyMissing": "EVOLUTION_API_KEY is missing",
+        "apiKeyConfigured": "Configured",
+        "instanceName": "Instance Name",
+        "instanceMissing": "EVOLUTION_INSTANCE_NAME is not configured",
+        "sendTest": "Send manual test message",
+        "egyptianPhone": "Egyptian phone",
+        "message": "Message"
       }
     },
     "employeeHub": {
@@ -625,7 +654,10 @@
         "empty": {
           "noAdvances": "No advances found."
         }
-      }
+      },
+      "workspaceUnavailable": "This workspace is unavailable.",
+      "payrollWorkspaceFailed": "Could not load the payroll workspace. Please refresh the page.",
+      "staffTasksWorkspaceFailed": "Could not load employee tasks. Please refresh the page."
     },
     "attendanceCenterPage": {
       "eyebrow": "Attendance Center",
@@ -652,7 +684,35 @@
     "unableToOpenPrint": "Unable to open print report",
     "unbranded": "Unbranded",
     "uncategorized": "Uncategorized",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "done": "Done",
+    "realtimeFeedback": {
+      "events": {
+        "newOrder": "New order",
+        "paymentReceived": "Payment received",
+        "paymentConfirmed": "Payment confirmed",
+        "paymentProofUploaded": "Payment proof uploaded",
+        "barcodeScanned": "Barcode scanned",
+        "productNotFound": "Product not found",
+        "posError": "POS error",
+        "lowStock": "Low stock",
+        "attendanceUpdated": "Attendance updated",
+        "attendanceCheckIn": "Attendance check-in",
+        "attendanceCheckOut": "Attendance check-out",
+        "aiMessage": "AI message",
+        "aiRecommendation": "AI recommendation",
+        "exactProductFound": "Exact product found",
+        "noAiResults": "No AI results",
+        "aiHandoff": "AI handoff",
+        "customerMessage": "Customer message",
+        "notification": "Notification",
+        "error": "Error"
+      },
+      "batch": {
+        "title": "{{count}} new ERP updates",
+        "message": "Open the ERP workspace to review the latest activity."
+      }
+    }
   },
   "sidebar": {
     "main": "Main",
@@ -769,7 +829,17 @@
     },
     "executiveOverview": "Executive Overview",
     "salesIntelligence": "Sales & Profit Intelligence",
-    "inventoryIntelligence": "Inventory Intelligence"
+    "inventoryIntelligence": "Inventory Intelligence",
+    "pos": "POS",
+    "posExpenses": "POS Expenses",
+    "moneyAccounts": "Money Accounts",
+    "moneyTransactions": "Money Transactions",
+    "moneyTransfers": "Money Transfers",
+    "treasuryDashboard": "Treasury Dashboard",
+    "employeeAdvances": "Employee Advances",
+    "attendance": "Attendance",
+    "staffTasks": "Staff Tasks",
+    "aiStudio": "AI Studio"
   },
   "language": {
     "label": "Language",

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bot, CheckCircle2, Loader2, PlayCircle, Save, ShieldCheck, SlidersHorizontal, Sparkles, TerminalSquare } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -82,6 +83,7 @@ function UrlRow({ label, value }) {
 }
 
 export default function AiSettings() {
+  const { t } = useTranslation();
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
@@ -168,80 +170,80 @@ export default function AiSettings() {
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Brain</div>
-              <h1 className="m1-display mt-3">AI Settings</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.</p>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />{t("aiSupport.aiSettings.eyebrow")}</div>
+              <h1 className="m1-display mt-3">{t("aiSupport.aiSettings.title")}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{t("aiSupport.aiSettings.subtitle")}</p>
               <p className="mt-3 max-w-3xl rounded-xl border border-primary/15 bg-primary/10 px-3 py-2 text-xs font-bold leading-5 text-primary">
-                Global settings are the master control. A channel can only auto-reply when global mode and channel mode both allow fully automatic replies.
+                {t("aiSupport.aiSettings.masterNote")}
               </p>
             </div>
             <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save
+              {t("aiSupport.aiSettings.save")}
             </button>
           </div>
           {toast ? <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm font-bold text-emerald-100"><CheckCircle2 className="h-4 w-4" />{toast}</div> : null}
           {error ? <div className="mt-4 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
         </section>
 
-        <Section icon={SlidersHorizontal} title="Auto Reply Mode" subtitle="Global behavior. Fully automatic only sends when the channel setting also allows it.">
+        <Section icon={SlidersHorizontal} title={t("aiSupport.aiSettings.mode.title")} subtitle={t("aiSupport.aiSettings.mode.subtitle")}>
           <div className="grid gap-3 md:grid-cols-3">
-            <OptionCard active={settings.autoReplyMode === "off"} title="Off" description="AI will not reply automatically." onClick={() => patch({ autoReplyMode: "off" })} />
-            <OptionCard active={settings.autoReplyMode === "suggest_only"} title="Suggest only" description="AI drafts replies for staff." onClick={() => patch({ autoReplyMode: "suggest_only" })} />
-            <OptionCard active={settings.autoReplyMode === "fully_automatic"} title="Fully automatic" description="AI can send replies automatically." onClick={() => patch({ autoReplyMode: "fully_automatic" })} />
+            <OptionCard active={settings.autoReplyMode === "off"} title={t("aiSupport.aiSettings.mode.off")} description={t("aiSupport.aiSettings.mode.offDesc")} onClick={() => patch({ autoReplyMode: "off" })} />
+            <OptionCard active={settings.autoReplyMode === "suggest_only"} title={t("aiSupport.aiSettings.mode.suggestOnly")} description={t("aiSupport.aiSettings.mode.suggestOnlyDesc")} onClick={() => patch({ autoReplyMode: "suggest_only" })} />
+            <OptionCard active={settings.autoReplyMode === "fully_automatic"} title={t("aiSupport.aiSettings.mode.fullyAutomatic")} description={t("aiSupport.aiSettings.mode.fullyAutomaticDesc")} onClick={() => patch({ autoReplyMode: "fully_automatic" })} />
           </div>
         </Section>
 
-        <Section icon={Sparkles} title="Tone" subtitle="Lightweight instruction used by the AI reply layer.">
+        <Section icon={Sparkles} title={t("aiSupport.aiSettings.tone.title")} subtitle={t("aiSupport.aiSettings.tone.subtitle")}>
           <div className="grid gap-3 md:grid-cols-3">
-            <OptionCard active={settings.tone === "casual"} title="Casual Egyptian" description="Friendly Egyptian Arabic, short and helpful." onClick={() => patch({ tone: "casual" })} />
-            <OptionCard active={settings.tone === "professional"} title="Professional" description="Clear, respectful Arabic for service conversations." onClick={() => patch({ tone: "professional" })} />
-            <OptionCard active={settings.tone === "luxury"} title="Luxury seller" description="Premium seller tone, confident and polished." onClick={() => patch({ tone: "luxury" })} />
+            <OptionCard active={settings.tone === "casual"} title={t("aiSupport.aiSettings.tone.casual")} description={t("aiSupport.aiSettings.tone.casualDesc")} onClick={() => patch({ tone: "casual" })} />
+            <OptionCard active={settings.tone === "professional"} title={t("aiSupport.aiSettings.tone.professional")} description={t("aiSupport.aiSettings.tone.professionalDesc")} onClick={() => patch({ tone: "professional" })} />
+            <OptionCard active={settings.tone === "luxury"} title={t("aiSupport.aiSettings.tone.luxury")} description={t("aiSupport.aiSettings.tone.luxuryDesc")} onClick={() => patch({ tone: "luxury" })} />
           </div>
         </Section>
 
-        <Section icon={ShieldCheck} title="AI Shoe Cover Generation" subtitle="Runtime toggle for new AI shoe cover jobs. Existing processing jobs are allowed to finish.">
+        <Section icon={ShieldCheck} title={t("aiSupport.aiSettings.shoeCover.title")} subtitle={t("aiSupport.aiSettings.shoeCover.subtitle")}>
           <div className="grid gap-3">
             <Toggle
-              label="AI Shoe Cover Generation"
+              label={t("aiSupport.aiSettings.shoeCover.title")}
               checked={settings.ai_shoe_cover_enabled !== false}
               onChange={(value) => patch({ ai_shoe_cover_enabled: value })}
             />
             <p className="text-xs leading-5 text-slate-400">
-              When this is off, new AI shoe cover jobs are not created. Product saves, AI Product Data, and AI Thermal Artwork keep working normally.
+              {t("aiSupport.aiSettings.shoeCover.note")}
             </p>
           </div>
         </Section>
 
-        <Section icon={PlayCircle} title="AI Test Playground" subtitle="Simulate an AI reply without sending anything to Meta or changing memory.">
+        <Section icon={PlayCircle} title={t("aiSupport.aiSettings.playground.title")} subtitle={t("aiSupport.aiSettings.playground.subtitle")}>
           <div className="grid gap-3 lg:grid-cols-[0.85fr_1fr]">
             <div className="grid gap-3">
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">القناة</span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.aiSettings.playground.channel")}</span>
                 <select value={playground.channelId} onChange={(event) => updatePlaygroundChannel(event.target.value)} className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40">
-                  <option value="facebook_messenger">Facebook Messenger</option>
-                  <option value="instagram">Instagram DM</option>
+                  <option value="facebook_messenger">{t("aiSupport.aiSettings.playground.facebookMessenger")}</option>
+                  <option value="instagram">{t("aiSupport.aiSettings.playground.instagramDm")}</option>
                   <option value="whatsapp">WhatsApp</option>
-                  <option value="web_chat">Web chat</option>
+                  <option value="web_chat">{t("aiSupport.aiSettings.playground.webChat")}</option>
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Platform</span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.aiSettings.playground.platform")}</span>
                 <input value={playground.platform} onChange={(event) => setPlayground((current) => ({ ...current, platform: event.target.value }))} className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />
               </label>
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Optional Product ID</span>
-                <input value={playground.productId} onChange={(event) => setPlayground((current) => ({ ...current, productId: event.target.value }))} placeholder="Example: 123" className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40" />
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.aiSettings.playground.productId")}</span>
+                <input value={playground.productId} onChange={(event) => setPlayground((current) => ({ ...current, productId: event.target.value }))} placeholder={t("aiSupport.aiSettings.playground.productIdPlaceholder")} className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-primary/40" />
               </label>
             </div>
             <div className="grid gap-3">
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">رسالة العميل</span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.aiSettings.playground.customerMessage")}</span>
                 <textarea value={playground.message} onChange={(event) => setPlayground((current) => ({ ...current, message: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none focus:border-primary/40" />
               </label>
               <button type="button" onClick={runPlayground} disabled={testing || !playground.message.trim()} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                Test reply
+                {t("aiSupport.aiSettings.playground.testReply")}
               </button>
             </div>
           </div>
@@ -249,39 +251,39 @@ export default function AiSettings() {
           {testResult ? (
             <div className="mt-4 grid gap-3">
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">Intent</div><div className="mt-1 font-black text-white">{testResult.intent}</div></div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">Effective mode</div><div className="mt-1 font-black text-white">{testResult.effectiveMode}</div></div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">Effective tone</div><div className="mt-1 font-black text-white">{testResult.effectiveTone}</div></div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">Would auto-send</div><div className={`mt-1 font-black ${testResult.wouldSendAutomatically ? "text-emerald-100" : "text-amber-100"}`}>{testResult.wouldSendAutomatically ? "Yes" : "No, suggest only"}</div></div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3 md:col-span-2"><div className="text-xs text-slate-500">Safety guard reason</div><div className="mt-1 font-black text-white">{testResult.safetyReason}</div></div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">{t("aiSupport.aiSettings.result.intent")}</div><div className="mt-1 font-black text-white">{testResult.intent}</div></div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">{t("aiSupport.aiSettings.result.effectiveMode")}</div><div className="mt-1 font-black text-white">{testResult.effectiveMode}</div></div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">{t("aiSupport.aiSettings.result.effectiveTone")}</div><div className="mt-1 font-black text-white">{testResult.effectiveTone}</div></div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3"><div className="text-xs text-slate-500">{t("aiSupport.aiSettings.result.wouldAutoSend")}</div><div className={`mt-1 font-black ${testResult.wouldSendAutomatically ? "text-emerald-100" : "text-amber-100"}`}>{testResult.wouldSendAutomatically ? t("aiSupport.aiSettings.result.yes") : t("aiSupport.aiSettings.result.noSuggestOnly")}</div></div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3 md:col-span-2"><div className="text-xs text-slate-500">{t("aiSupport.aiSettings.result.safetyReason")}</div><div className="mt-1 font-black text-white">{testResult.safetyReason}</div></div>
               </div>
               <div className="grid gap-3 lg:grid-cols-2">
                 <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3">
-                  <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Product context</div>
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.aiSettings.result.productContext")}</div>
                   {testResult.productContext ? (
                     <div className="mt-2 space-y-1 text-sm text-slate-300">
-                      <div><b className="text-white">{testResult.productContext.name || "Unnamed product"}</b></div>
-                      <div>السعر: {testResult.productContext.salePrice || testResult.productContext.price || "غير متاح"}</div>
-                      <div>المخزون: {testResult.productContext.inStock ? "متوفر" : "غير متوفر"}</div>
-                      <div>Sizes: {(testResult.productContext.sizes || []).join(", ") || "n/a"}</div>
-                      <UrlRow label="Product URL" value={testResult.productContext.productUrl} />
-                      <UrlRow label="Image URL" value={testResult.productContext.imageUrl} />
+                      <div><b className="text-white">{testResult.productContext.name || t("aiSupport.aiSettings.result.unnamedProduct")}</b></div>
+                      <div>{t("aiSupport.aiSettings.result.price")} {testResult.productContext.salePrice || testResult.productContext.price || t("aiSupport.aiSettings.result.priceUnavailable")}</div>
+                      <div>{t("aiSupport.aiSettings.result.stock")} {testResult.productContext.inStock ? t("aiSupport.aiSettings.result.inStock") : t("aiSupport.aiSettings.result.outOfStock")}</div>
+                      <div>{t("aiSupport.aiSettings.result.sizes")} {(testResult.productContext.sizes || []).join(", ") || t("aiSupport.aiSettings.result.na")}</div>
+                      <UrlRow label={t("aiSupport.aiSettings.result.productUrl")} value={testResult.productContext.productUrl} />
+                      <UrlRow label={t("aiSupport.aiSettings.result.imageUrl")} value={testResult.productContext.imageUrl} />
                     </div>
-                  ) : <div className="mt-2 text-sm text-slate-500">No product context found.</div>}
+                  ) : <div className="mt-2 text-sm text-slate-500">{t("aiSupport.aiSettings.result.noProductContext")}</div>}
                 </div>
                 <div className="rounded-xl border border-white/10 bg-slate-950/55 p-3">
-                  <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Memory fallback</div>
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.aiSettings.result.memoryFallback")}</div>
                   {testResult.memory?.lastProduct ? (
                     <div className="mt-2 space-y-1 text-sm text-slate-300">
-                      <div>Last product: <b className="text-white">{testResult.memory.lastProduct.name}</b></div>
-                      <div>Last size: {testResult.memory.lastSize || "n/a"}</div>
-                      <div>Last intent: {testResult.memory.lastIntent || "n/a"}</div>
+                      <div>{t("aiSupport.aiSettings.result.lastProduct")} <b className="text-white">{testResult.memory.lastProduct.name}</b></div>
+                      <div>{t("aiSupport.aiSettings.result.lastSize")} {testResult.memory.lastSize || t("aiSupport.aiSettings.result.na")}</div>
+                      <div>{t("aiSupport.aiSettings.result.lastIntent")} {testResult.memory.lastIntent || t("aiSupport.aiSettings.result.na")}</div>
                     </div>
-                  ) : <div className="mt-2 text-sm text-slate-500">No memory fallback used.</div>}
+                  ) : <div className="mt-2 text-sm text-slate-500">{t("aiSupport.aiSettings.result.noMemoryFallback")}</div>}
                 </div>
               </div>
               <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-100">Final reply preview</div>
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-100">{t("aiSupport.aiSettings.result.finalReply")}</div>
                 <p dir="rtl" className="mt-3 text-base font-bold leading-8 text-white">{testResult.finalReply}</p>
               </div>
             </div>
@@ -289,18 +291,18 @@ export default function AiSettings() {
         </Section>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <Section icon={ShieldCheck} title="Safety" subtitle="Defaults stay on to prevent bad commerce claims.">
+          <Section icon={ShieldCheck} title={t("aiSupport.aiSettings.safety.title")} subtitle={t("aiSupport.aiSettings.safety.subtitle")}>
             <div className="grid gap-3">
-              <Toggle label="لا تختلق المخزون" checked={settings.safety.no_fake_stock !== false} onChange={(value) => patchGroup("safety", "no_fake_stock", value)} />
-              <Toggle label="لا تختلق الأسعار" checked={settings.safety.no_fake_price !== false} onChange={(value) => patchGroup("safety", "no_fake_price", value)} />
-              <Toggle label="Escalate angry customers" checked={settings.safety.escalate_angry_customers !== false} onChange={(value) => patchGroup("safety", "escalate_angry_customers", value)} />
+              <Toggle label={t("aiSupport.aiSettings.safety.noFakeStock")} checked={settings.safety.no_fake_stock !== false} onChange={(value) => patchGroup("safety", "no_fake_stock", value)} />
+              <Toggle label={t("aiSupport.aiSettings.safety.noFakePrice")} checked={settings.safety.no_fake_price !== false} onChange={(value) => patchGroup("safety", "no_fake_price", value)} />
+              <Toggle label={t("aiSupport.aiSettings.safety.escalateAngry")} checked={settings.safety.escalate_angry_customers !== false} onChange={(value) => patchGroup("safety", "escalate_angry_customers", value)} />
             </div>
           </Section>
 
-          <Section icon={TerminalSquare} title="Debug Options" subtitle="Visibility tools for the live AI Inbox console.">
+          <Section icon={TerminalSquare} title={t("aiSupport.aiSettings.debug.title")} subtitle={t("aiSupport.aiSettings.debug.subtitle")}>
             <div className="grid gap-3">
-              <Toggle label="Show live AI logs" checked={settings.debug.show_live_logs !== false} onChange={(value) => patchGroup("debug", "show_live_logs", value)} />
-              <Toggle label="Show conversation memory debug" checked={settings.debug.show_memory_debug !== false} onChange={(value) => patchGroup("debug", "show_memory_debug", value)} />
+              <Toggle label={t("aiSupport.aiSettings.debug.showLogs")} checked={settings.debug.show_live_logs !== false} onChange={(value) => patchGroup("debug", "show_live_logs", value)} />
+              <Toggle label={t("aiSupport.aiSettings.debug.showMemory")} checked={settings.debug.show_memory_debug !== false} onChange={(value) => patchGroup("debug", "show_memory_debug", value)} />
             </div>
           </Section>
         </div>

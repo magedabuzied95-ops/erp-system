@@ -8,6 +8,7 @@ import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { subscribeRealtime } from "../../../shared/realtime/socketStore";
 import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
 import SocialCommentsWorkspace, { normalizeSocialPostDisplay } from "../../aiSupport/components/SocialCommentsWorkspace.jsx";
+import { useTranslation } from "react-i18next";
 
 const clean = (value = "") => String(value ?? "").trim();
 const ENABLE_SOCIAL_FAST_CENTER = true;
@@ -250,6 +251,7 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
 };
 
 function SocialCommentsCenter() {
+  const { t } = useTranslation();
   buildPageTitle("Social Comments Center");
 
   const pageVisible = usePageVisible();
@@ -844,9 +846,9 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-[1800px] flex-col gap-2 overflow-hidden">
         <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
           <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Marketing / Social Comments</div>
-            <div className="mt-1 text-xl font-black text-white">Social Comments Center</div>
-            <div className="mt-1 text-sm leading-6 text-slate-300">Open the post and the exact comment target from AI Inbox, with reply and moderation tools in one place.</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.breadcrumb")}</div>
+            <div className="mt-1 text-xl font-black text-white">{t("marketing.comments.title")}</div>
+            <div className="mt-1 text-sm leading-6 text-slate-300">{t("marketing.comments.subtitle")}</div>
           </div>
           <button
             type="button"
@@ -876,8 +878,8 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
           <div className="rounded-3xl border border-primary/30 bg-primary-subtle px-4 py-4 text-primary shadow-[0_12px_30px_rgba(6,182,212,0.08)]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Social Performance</div>
-                <div className="mt-1 text-sm font-black text-primary">Admin debug summary</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">{t("marketing.comments.performance")}</div>
+                <div className="mt-1 text-sm font-black text-primary">{t("marketing.comments.adminDebugSummary")}</div>
               </div>
               <div className="text-[11px] font-black uppercase tracking-[0.12em] text-primary">
                 {performanceSummaryLoading ? "Loading..." : "Live"}
@@ -892,51 +894,51 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
             <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Fast list avg ms</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.fastListAvgMs")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_avg_ms ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Fast list p95 ms</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.fastListP95Ms")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_p95_ms ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Cache hit rate</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.cacheHitRate")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{Math.round((Number(performanceSummary?.cache_hit_rate || 0) * 100))}%</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Slow fast-list</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.slowFastList")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.slow_fast_list_count ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Queue length</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.queueLength")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.queue_length ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Active jobs</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.activeJobs")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.active_jobs ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Job avg ms</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.jobAvgMs")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.job_avg_ms ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Socket emits</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.socketEmits")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.socket_emit_count ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Rendered rows</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.renderedRows")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{items.length}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Socket patches</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.socketPatches")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{socketPatchCount}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Cache hits</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.cacheHits")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_cache_hits ?? 0}</div>
               </div>
               <div className="rounded-[var(--radius-card)] border border-primary bg-white px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Cache misses</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.cacheMisses")}</div>
                 <div className="mt-1 text-lg font-black text-primary">{performanceSummary?.fast_list_cache_misses ?? 0}</div>
               </div>
             </div>
@@ -985,7 +987,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
         customer={customerDrawer.customer}
         customerId={customerDrawer.customerId}
         context={customerDrawer.context}
-        title="Customer 360"
+        title={t("marketing.comments.customer360")}
       />
     </div>
   );

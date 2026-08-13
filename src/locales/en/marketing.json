@@ -406,7 +406,75 @@
     "scheduleFailed": "Failed to schedule post",
     "noHistory": "No posts yet.",
     "status": "Status",
-    "draft": "Draft"
+    "draft": "Draft",
+    "header": {
+      "eyebrow": "Marketing Studio",
+      "title": "Campaign Studio",
+      "description": "Build your marketing campaigns, review the content, then publish or schedule it from one place."
+    },
+    "postStatus": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "published": "Published",
+      "publishedCheck": "Published ✓",
+      "partialSuccess": "Partial success",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "unknownReason": "Unknown reason"
+    },
+    "toasts": {
+      "selectProductFirst": "Select a product first",
+      "firstCommentSaved": "First comment saved to draft.",
+      "copied": "Copied successfully.",
+      "copyFailed": "Copy failed.",
+      "connectFacebookFirst": "Connect Facebook first",
+      "connectInstagramFirst": "Connect Instagram first",
+      "draftDuplicated": "Draft duplicated.",
+      "postRemoved": "Post removed from view."
+    },
+    "confirm": {
+      "deleteFromHistory": "Delete this post from the current history view?"
+    },
+    "previewCard": {
+      "mediaPlaceholder": "Media preview will show here",
+      "mediaAlt": "{{platform}} preview media",
+      "noFacebookPage": "No Facebook page selected",
+      "noInstagramAccount": "No Instagram account selected",
+      "sampleLikes": "1.2K likes",
+      "sampleComments": "84 comments",
+      "sampleShares": "21 shares",
+      "page": "Page: {{value}}",
+      "platforms": "Platforms: {{value}}",
+      "notSelected": "Not selected",
+      "none": "none"
+    },
+    "createFrom": {
+      "title": "Create Post From",
+      "hint": "Choose how you want to start this post.",
+      "device": "Upload From Device",
+      "deviceHint": "Active now",
+      "catalog": "Product Catalog",
+      "catalogHint": "Select from ERP products",
+      "aiMarketing": "AI Marketing",
+      "comingSoon": "Coming Soon"
+    },
+    "options": {
+      "includeLocation": "Add location",
+      "includeShipping": "Add shipping"
+    },
+    "catalog": {
+      "selectedProduct": "Selected product",
+      "productName": "Product name",
+      "currentPrice": "Current price",
+      "priceUnavailable": "Price not available",
+      "stock": "Stock",
+      "inStock": "{{count}} in stock",
+      "outOfStock": "Out of stock",
+      "sizeCount": "Size count",
+      "colorCount": "Colour count",
+      "discountRate": "Discount rate",
+      "availableColorImages": "Available colour images"
+    }
   },
   "templates": {
     "eyebrow": "Templates",
@@ -430,7 +498,13 @@
       "channel": "Channel",
       "titleTemplate": "Title template",
       "captionTemplate": "Caption template"
-    }
+    },
+    "library": "Template Library",
+    "curatedCards": "Curated cards",
+    "card": "Card",
+    "libraryTag": "Library",
+    "savedTemplates": "Saved templates",
+    "customTemplates": "Custom templates"
   },
   "social": {
     "platform": "Platform",
@@ -916,5 +990,544 @@
     "description": "Generate, review, schedule, and publish marketing content from one studio.",
     "eyebrow": "Marketing studio",
     "title": "Marketing Studio"
+  },
+  "studioHeader": {
+    "eyebrow": "Marketing Studio",
+    "title": "Marketing Suite",
+    "description": "Navigate the marketing workspace from one shared header.",
+    "tabs": {
+      "publisher": "Publisher",
+      "calendar": "Calendar",
+      "analytics": "Analytics",
+      "templates": "Templates"
+    }
+  },
+  "publisher": {
+    "ready": "Ready",
+    "comingSoon": "Coming Soon"
+  },
+  "comments": {
+    "breadcrumb": "Marketing / Social Comments",
+    "title": "Social Comments Center",
+    "subtitle": "Open the post and the exact comment target from AI Inbox, with reply and moderation tools in one place.",
+    "performance": "Social Performance",
+    "adminDebugSummary": "Admin debug summary",
+    "fastListAvgMs": "Fast list avg ms",
+    "fastListP95Ms": "Fast list p95 ms",
+    "cacheHitRate": "Cache hit rate",
+    "slowFastList": "Slow fast-list",
+    "queueLength": "Queue length",
+    "activeJobs": "Active jobs",
+    "jobAvgMs": "Job avg ms",
+    "socketEmits": "Socket emits",
+    "renderedRows": "Rendered rows",
+    "socketPatches": "Socket patches",
+    "cacheHits": "Cache hits",
+    "cacheMisses": "Cache misses",
+    "customer360": "Customer 360"
+  },
+  "aiCenter": {
+    "toasts": {
+      "engineSettingsSaved": "Engine settings saved",
+      "queueItemMissingIdUpdated": "Queue item is missing an id. Queue updated.",
+      "generatingStoryAsset": "Generating the story asset automatically before publishing...",
+      "itemAlreadyRemoved": "This item was already removed or refreshed. Queue updated.",
+      "queueItemMissingId": "Queue item is missing an id.",
+      "storyAssetSaved": "The story asset was generated and saved.",
+      "selectContentFirst": "Select content first.",
+      "postingInsightsSynced": "Posting insights synced"
+    },
+    "headings": {
+      "cleanStoriesAndPosts": "Stories and posts that stay clean"
+    },
+    "stats": {
+      "aiStatus": "AI status",
+      "storiesToday": "Stories Generated Today",
+      "postsToday": "Posts Generated Today",
+      "pendingApproval": "Pending approval",
+      "eligibleProducts": "Eligible products",
+      "storyCreated": "Story created",
+      "published": "Published",
+      "remaining": "Remaining"
+    },
+    "lanes": {
+      "title": "Content Lanes",
+      "newArrivals": "New Arrivals",
+      "lastSizeOrPiece": "Last size / last piece",
+      "aiPosts": "AI Posts",
+      "dailyVolume": "Daily Volume",
+      "stories": "Stories",
+      "posts": "Posts"
+    },
+    "cleanup": {
+      "title": "Cleanup management",
+      "archiveAfterDays": "Archive after days",
+      "deleteArchivedAfterDays": "Delete archived after days"
+    },
+    "insights": {
+      "bestPostingWindows": "Best Posting Windows",
+      "lastSyncedAt": "Last synced at",
+      "analyticsRows": "Analytics rows:",
+      "metaApiError": "Meta API error:"
+    },
+    "queue": {
+      "archiveSelected": "Archive selected",
+      "deleteSelected": "Delete Selected",
+      "publishSelected": "Publish selected",
+      "selectContent": "Select content",
+      "arabicTrend": "Arabic Trend",
+      "preview": "Preview",
+      "viewPost": "View post",
+      "restore": "Restore",
+      "approve": "Approve",
+      "archive": "Archive",
+      "duplicate": "Duplicate",
+      "retry": "Retry",
+      "delete": "Delete",
+      "storiesEmpty": "No story items in the queue.",
+      "postsEmpty": "No AI posts in the queue."
+    },
+    "channels": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "facebookLabel": "Facebook:",
+      "instagramLabel": "Instagram:"
+    },
+    "story": {
+      "generatedAsset": "Generated story asset",
+      "noGeneratedAsset": "No generated story asset",
+      "slides": "Story Slides",
+      "slide": "Slide"
+    },
+    "recommendations": {
+      "title": "AI Recommendations",
+      "performanceBrain": "Performance Brain"
+    },
+    "modals": {
+      "deletePublishedTitle": "Delete published content",
+      "cancel": "Cancel",
+      "contentHistory": "Content History",
+      "close": "Close"
+    },
+    "preview": {
+      "aiPostPreview": "AI post preview",
+      "post": "Post",
+      "viewPost": "View post",
+      "technicalJson": "Technical JSON",
+      "storyAsset": "Story asset",
+      "rendered": "Rendered",
+      "renderedStoryPreview": "Rendered story preview",
+      "quickPreview": "Quick preview",
+      "storyPreviewAria": "Story preview",
+      "storyPreview": "Story preview",
+      "contentType": "Content type",
+      "layout": "Layout",
+      "sizes": "Sizes",
+      "storyLink": "Story link"
+    },
+    "debug": {
+      "storyPublishAsset": "Story publish asset debug",
+      "frontendSlidesCount": "Frontend preview source slides count",
+      "sourceImagesCount": "Source images count",
+      "generatedAssetsCount": "Generated story assets count",
+      "renderedSlidesLength": "Rendered slides length",
+      "mediaUrlsLength": "media_urls length",
+      "previewThumbsVisible": "Preview thumbnails visible",
+      "adminDebug": "Admin / debug",
+      "storedProductUrl": "Stored product URL",
+      "publishedImageAssetUrls": "Published image asset URLs"
+    },
+    "filters": {
+      "all": "All",
+      "published": "Published",
+      "pendingApproval": "Pending approval",
+      "ready": "Ready",
+      "queued": "Queued",
+      "failed": "Failed",
+      "archived": "Archived"
+    }
+  },
+  "metaSettings": {
+    "actions": {
+      "copy": "Copy"
+    },
+    "toasts": {
+      "selectFacebookPage": "Select a Facebook page to finish the Meta setup",
+      "enterInstagramToken": "Enter the Instagram access token first",
+      "instagramTokenSaved": "The Instagram token was saved and linked securely",
+      "instagramTokenDisabled": "The standalone Instagram token was disabled",
+      "enterInstagramAppSecret": "Enter the Instagram App Secret first",
+      "appSecretSaved": "The Instagram App Secret was saved encrypted",
+      "appSecretDisabled": "The Instagram App Secret was disabled",
+      "metaTimeout": "Meta connection timed out. You can try again.",
+      "publishPermissionsVerified": "Publishing permissions verified",
+      "webhookVerified": "The webhook subscription was verified",
+      "copiedLabel": "{{label}} copied"
+    },
+    "status": {
+      "metaPageConnected": "Meta Page connected",
+      "metaSetupComplete": "Meta setup complete"
+    },
+    "steps": {
+      "facebookLogin": "Log in with Facebook",
+      "selectFacebookPage": "Select a Facebook page",
+      "selectInstagramAccount": "Select an Instagram business account",
+      "savePermissions": "Save permissions",
+      "verifyWebhook": "Verify the webhook",
+      "completeSetup": "Complete setup"
+    },
+    "panels": {
+      "connectionStatus": "Connection status",
+      "messages": "Messages",
+      "webhook": "Webhook",
+      "permissions": "Permissions"
+    },
+    "summary": {
+      "metaStatusAria": "Meta status summary",
+      "title": "Meta connection readiness and developer details",
+      "subtitle": "Click to show the OAuth and webhook links and the required permissions.",
+      "runtimeEnvironment": "Runtime environment",
+      "oauthRedirectUrl": "OAuth redirect URL",
+      "copyRedirectUrl": "Copy the redirect URL",
+      "webhookCallbackUrl": "Webhook callback URL",
+      "copyWebhookUrl": "Copy the webhook URL",
+      "copyVerifyToken": "Copy the verify token",
+      "requiredPermissions": "Required permissions",
+      "setupSteps": "Setup steps"
+    },
+    "oauth": {
+      "result": "Post-OAuth result",
+      "connectedPage": "Connected page",
+      "connectedInstagram": "Connected Instagram account",
+      "missingPermissions": "Missing permissions",
+      "nextAction": "Next required action"
+    },
+    "connect": {
+      "title": "Connect a Meta account",
+      "step": "Step",
+      "facebookLogin": "Log in with Facebook",
+      "facebookLoginHint": "Start Meta's official OAuth flow, then grant the permissions and return.",
+      "selectPageAndAccount": "Select a Facebook page and an Instagram business account",
+      "selectPageHint": "The connected token is used to discover the page and the linked Instagram account.",
+      "pageId": "Page ID:",
+      "instagram": "Instagram:",
+      "verifyWebhook": "Verify webhook and capabilities",
+      "verifyWebhookHint": "Runs live permission checks, token diagnostics, and webhook delivery health."
+    },
+    "stages": {
+      "title": "Setup stages",
+      "connection": "Connection",
+      "pageAndAccount": "Facebook page and Instagram account"
+    },
+    "fields": {
+      "facebookPage": "Facebook page",
+      "pageIdManaged": "Page ID is managed by the guided connection flow.",
+      "instagramBusinessAccount": "Instagram business account",
+      "manualAccountHidden": "Manual Account ID entry is hidden unless advanced mode is enabled.",
+      "pasteInstagramToken": "Paste the Instagram token here, then save it",
+      "status": "Status:",
+      "pasteAppSecret": "Paste the Instagram App Secret here, then save it"
+    },
+    "capabilities": {
+      "webhookHealthy": "Webhook healthy",
+      "tokenValid": "Token valid",
+      "receiveMessages": "Receive messages",
+      "sendReplies": "Send replies",
+      "aiAutomationActive": "AI automation active",
+      "storyMentionSupport": "Story mention support"
+    },
+    "publishing": {
+      "feedPublish": "Feed publishing",
+      "mediaUpload": "Media upload",
+      "scheduledPublish": "Scheduled publishing",
+      "failedPostsProcessed": "Failed posts processed"
+    },
+    "events": {
+      "receiveStatus": "Event delivery status",
+      "commentToMessagePerformance": "Comment-to-message performance"
+    },
+    "preview": {
+      "template": "Template",
+      "fallbackReply": "Fallback reply",
+      "simulator": "Preview simulator"
+    }
+  },
+  "videos": {
+    "scenes": {
+      "hookStopScroll": "Hook / Stop Scroll",
+      "scene1": "Scene 1",
+      "productHero": "Product Hero",
+      "scene2": "Scene 2",
+      "detailVariant": "Detail / Variant",
+      "scene3": "Scene 3",
+      "pricePop": "Price Pop",
+      "scene4": "Scene 4",
+      "scene5": "Scene 5",
+      "stockSizePush": "Stock / Size Push",
+      "ctaClose": "CTA Close",
+      "scene6": "Scene 6"
+    },
+    "page": {
+      "videos": "Videos",
+      "videoQueue": "Video Queue",
+      "readyApproved": "Ready / approved",
+      "failed": "Failed",
+      "contentLanes": "Content Lanes",
+      "videoTemplates": "Video templates",
+      "dailyVolume": "Daily Video Volume",
+      "videosPerDay": "Videos per day"
+    },
+    "queue": {
+      "tiktokLater": "TikTok later",
+      "preview": "Preview",
+      "viewPost": "View post",
+      "approve": "Approve",
+      "publish": "Publish",
+      "published": "Published"
+    },
+    "preview": {
+      "variantDetails": "Variant details",
+      "priceFocus": "Price focus",
+      "limitedAvailability": "Limited availability",
+      "title": "Video preview",
+      "subtitle": "A video queue item ready to preview. MP4 generation and Reels publishing come later.",
+      "status": "Status",
+      "scheduled": "Scheduled",
+      "playback": "Playback",
+      "preset": "Preset",
+      "qualityScore": "Quality score",
+      "aspectRatio": "Aspect ratio",
+      "estimatedEngagement": "Estimated engagement",
+      "motionStyle": "Motion style",
+      "reelEnergy": "Reel energy",
+      "hookStrength": "Hook strength",
+      "pacing": "Pacing",
+      "ctaStrength": "CTA strength",
+      "trendFit": "Trend fit",
+      "reelType": "Reel type",
+      "transitionStyle": "Transition style",
+      "readiness": "Video readiness",
+      "capcutTimeline": "CapCut-style timeline",
+      "sceneTimeline": "Scene timeline",
+      "captionTimeline": "Script / caption timeline",
+      "generatedScript": "Generated script / caption",
+      "technicalDiagnostics": "Technical diagnostics"
+    }
+  },
+  "campaignAnalytics": {
+    "title": "Campaign Analytics",
+    "subtitle": "Overview, timeline, history, and top posts.",
+    "refresh": "Refresh",
+    "media": {
+      "noImage": "No post image",
+      "postNumber": "Post #{{id}}"
+    },
+    "status": {
+      "published": "Published ✓",
+      "scheduled": "Scheduled",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "draft": "Draft",
+      "unknownReason": "Unknown reason"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "kpi": {
+      "published": "Published",
+      "publishedHint": "Number of published posts.",
+      "scheduled": "Scheduled",
+      "scheduledHint": "Posts queued for later.",
+      "drafts": "Drafts",
+      "draftsHint": "Draft content in progress.",
+      "firstComments": "First Comments",
+      "firstCommentPublished": "Published",
+      "firstCommentFailed": "Failed",
+      "firstCommentSkipped": "Skipped"
+    },
+    "charts": {
+      "title": "Charts",
+      "last30Days": "Last 30 days",
+      "total": "Total"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "subtitle": "Recent publishing activity",
+      "firstCommentPublished": "First Comment Published",
+      "firstCommentFailed": "First Comment Failed",
+      "firstCommentSkipped": "First Comment Skipped",
+      "firstCommentWith": "First Comment {{status}}",
+      "empty": "No activity yet."
+    },
+    "history": {
+      "badge": "Published content",
+      "title": "Post History",
+      "subtitle": "Creative, caption, first comment, and publishing status in one place.",
+      "postCount": "{{count}} posts",
+      "empty": "No history yet.",
+      "captionPreview": "Caption Preview",
+      "commentPreview": "Comment Preview",
+      "noCaption": "No caption yet",
+      "firstCommentDone": "✓ First Comment",
+      "publishedAt": "Published",
+      "actions": "Actions",
+      "templateSnapshot": "Content template snapshot",
+      "duplicatedToast": "Duplicated {{name}} in view only.",
+      "republishToast": "Open {{name}} in Publisher to republish."
+    },
+    "columns": {
+      "creative": "Creative",
+      "platform": "Platform",
+      "template": "Template",
+      "status": "Status",
+      "caption": "Caption",
+      "firstComment": "First Comment",
+      "published": "Published",
+      "actions": "Actions"
+    },
+    "actions": {
+      "view": "View",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "republish": "Republish",
+      "close": "Close"
+    },
+    "top": {
+      "title": "Top Posts",
+      "subtitle": "Best performing posts from analytics",
+      "post": "Post",
+      "platform": "Platform",
+      "likes": "Likes",
+      "comments": "Comments",
+      "shares": "Shares",
+      "reach": "Reach",
+      "impressions": "Impressions",
+      "engagement": "Engagement",
+      "synced": "Synced",
+      "empty": "No top posts available."
+    },
+    "modal": {
+      "aria": "Campaign post details",
+      "title": "View"
+    }
+  },
+  "leadCenter": {
+    "brand": "AI Lead Center",
+    "title": "Social leads in one command view",
+    "subtitle": "Monitor new leads from Facebook, Instagram, Messenger, and Web Chat without changing the existing AI or order flow.",
+    "refresh": "Refresh",
+    "openInbox": "Open AI Inbox",
+    "loadFailed": "Failed to load AI leads",
+    "platforms": {
+      "all": "All",
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "messenger": "Messenger",
+      "web_chat": "Web Chat"
+    },
+    "stages": {
+      "all": "All stages",
+      "new_lead": "New Lead",
+      "waiting_reply": "Waiting Reply",
+      "ai_handling": "AI Handling",
+      "human_takeover": "Human Takeover",
+      "order_created": "Order Created",
+      "shipped": "Shipped",
+      "review_pending": "Review Pending",
+      "upsell_opportunity": "Upsell Opportunity"
+    },
+    "assigned": {
+      "label": "Assigned: {{value}}",
+      "all": "All",
+      "ai": "AI",
+      "human": "Human",
+      "humanTakeover": "Human Takeover"
+    },
+    "time": {
+      "all": "All",
+      "today": "Today",
+      "week": "This Week"
+    },
+    "filters": {
+      "title": "Filters"
+    },
+    "list": {
+      "loading": "Loading AI leads...",
+      "emptyTitle": "No leads match the current filters.",
+      "emptyHint": "Try another platform, stage, or time range."
+    },
+    "fields": {
+      "customer": "Customer",
+      "platform": "Platform",
+      "sourcePost": "Source Post",
+      "interestedProduct": "Interested Product",
+      "currentStage": "Current Stage",
+      "assignedAi": "Assigned AI",
+      "confidence": "Confidence",
+      "unread": "Unread {{count}}"
+    },
+    "fallback": {
+      "customer": "Lead",
+      "sourcePost": "Source unavailable",
+      "interestedProduct": "Not identified",
+      "summary": "Lead summary will appear here when conversation data exists."
+    },
+    "detail": {
+      "title": "Lead Detail",
+      "subtitle": "Selected lead with stage timeline",
+      "timeline": "Timeline",
+      "events": "{{count}} events",
+      "empty": "Select a lead to inspect the activity timeline.",
+      "customer360": "Customer 360"
+    },
+    "timeline": {
+      "comment": "Comment",
+      "ai_reply": "AI Reply",
+      "messenger": "Messenger",
+      "order": "Order",
+      "payment": "Payment",
+      "shipping": "Shipping",
+      "delivered": "Delivered",
+      "review": "Review",
+      "captured": "Captured from existing conversation data",
+      "pending": "Pending"
+    }
+  },
+  "postEditor": {
+    "story": {
+      "slidesTitle": "Story slides",
+      "slide": "Slide {{number}}"
+    },
+    "channel": {
+      "comingSoon": "Coming Soon",
+      "platformComingSoon": "{{platform}} - Coming Soon",
+      "connectLater": "Connect {{platform}} later"
+    },
+    "caption": {
+      "tone": "Tone",
+      "generate": "Generate",
+      "regenerateHook": "Regenerate Hook",
+      "regenerateCta": "Regenerate CTA",
+      "regenerateHashtags": "Regenerate Hashtags"
+    },
+    "firstComment": {
+      "title": "Suggested first comment",
+      "samePublisher": "Same as the publisher comment",
+      "placeholder": "The comment will be generated from the product data"
+    },
+    "fields": {
+      "productUrl": "Product URL",
+      "price": "Price",
+      "color": "Colour",
+      "size": "Size"
+    }
+  },
+  "socialTones": {
+    "premium": "Premium",
+    "luxury": "Luxury",
+    "sport": "Sport",
+    "friendly": "Friendly",
+    "sales": "Sales"
   }
 }

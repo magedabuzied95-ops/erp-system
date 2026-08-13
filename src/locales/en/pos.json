@@ -14,7 +14,10 @@
   },
   "searchPlaceholder": "Search products, SKU, barcode, color, size, category, brand...",
   "filters": {
-    "title": "Filters"
+    "title": "Filters",
+    "search": "Search...",
+    "clearAll": "Clear all",
+    "brand": "Brand"
   },
   "common": {
     "close": "Close"
@@ -82,7 +85,8 @@
     "noAvailableSizes": "No available sizes in stock",
     "inStock": "In stock",
     "lowStock": "Low stock",
-    "outOfStock": "Out of stock"
+    "outOfStock": "Out of stock",
+    "noSizes": "No sizes are available at this stage"
   },
   "productGrid": {
     "loading": "Loading products...",
@@ -96,7 +100,176 @@
     "price": "Price",
     "favorite": "Favorite"
   },
+  "treasury": {
+    "adjustment": "Treasury adjustment",
+    "recharge": "Recharge treasury account",
+    "rechargeOrAdjustment": "Recharge / adjustment",
+    "rechargeAmount": "Recharge amount",
+    "auditNote": "Audit note",
+    "enterPositiveAmount": "Enter a positive recharge amount",
+    "adjustmentRecorded": "Treasury adjustment recorded"
+  },
+  "posPro": {
+    "toasts": {
+      "cartItemsRemoved": "Some cart items are no longer available and were removed.",
+      "cartQuantitiesAdjusted": "Cart quantities were adjusted to live stock.",
+      "customerIdMissing": "This customer cannot be selected because its ID is missing.",
+      "invoiceItemsLoadFailed": "Invoice items could not be loaded into the cart.",
+      "invalidExpenseAmount": "Enter a valid expense amount",
+      "invoiceAmountRequired": "Invoice amount is required",
+      "paymentExceedsDue": "Payment total cannot exceed amount due now",
+      "invoicePdfFailed": "Unable to download invoice PDF",
+      "noInvoiceLink": "No invoice link available",
+      "invoiceLinkCopied": "Invoice link copied",
+      "invoiceLinkCopyFailed": "Unable to copy invoice link",
+      "cartCleared": "Cart cleared",
+      "sessionRestored": "Saved sale session restored",
+      "noSellAsOtherUser": "You do not have permission to sell as another user",
+      "maxOpenInvoices": "Maximum of 5 open invoices",
+      "offlineOpenShift": "A new shift cannot be opened while offline",
+      "noOpenShift": "No shift is open",
+      "offlineCloseShift": "The shift cannot be closed while offline",
+      "overrideReasonRequired": "Enter a reason for overriding the branch opener before closing the shift.",
+      "openShiftBeforeSelling": "A shift must be opened before selling",
+      "selectSalespersonFirst": "Select the salesperson before completing the invoice",
+      "selectPaymentMethod": "Select a payment method for this invoice",
+      "personalSelectCustomer": "Select a customer before a personal transaction.",
+      "personalNotAllowed": "This customer is not allowed personal transactions.",
+      "personalSelectType": "Select the personal transaction type before saving the invoice.",
+      "creditSelectCustomer": "Select a customer before a credit sale.",
+      "customerBalanceNeedsPositive": "Customer balance is only available for a customer with a positive balance.",
+      "depositBelowTotal": "Enter a deposit lower than the invoice total; the remainder is recorded as credit.",
+      "personalNoTerminal": "Personal transactions do not support terminal payment.",
+      "invoiceLinkFailed": "Could not create the invoice link",
+      "refreshing": "Refreshing products, stock and customers...",
+      "refreshed": "POS refreshed, open invoices kept",
+      "variantNotFound": "Variant not found",
+      "outOfStock": "Out of stock",
+      "confirmCloseInvoiceWithItems": "This invoice contains products. Close it anyway?"
+    },
+    "terminal": {
+      "unconfirmed": "Payment was sent to the terminal, but ERP did not receive confirmation. If the terminal shows Approved, click Confirm terminal payment.",
+      "orderFailed": "Failed to create order after terminal payment success.",
+      "paymentCompleted": "Payment completed successfully.",
+      "noTransaction": "No Paymob transaction is available to confirm.",
+      "sending": "Sending payment to Paymob terminal...",
+      "requestSent": "Payment request sent to terminal. Complete payment on the machine.",
+      "amount": "Amount",
+      "terminalId": "Terminal ID",
+      "status": "Status",
+      "confirmation": "Confirmation"
+    },
+    "shift": {
+      "restoring": "Restoring shift session",
+      "restoringHint": "Checking the cached active shift before showing the open shift screen.",
+      "openingCash": "Opening cash",
+      "duration": "Shift duration"
+    },
+    "shiftClose": {
+      "expected": "Expected",
+      "actual": "Actual",
+      "variance": "Variance",
+      "tomorrowOpener": "Tomorrow opener",
+      "varianceResult": "Variance result",
+      "recountIssue": "Cash drawer recount issue",
+      "terminalPending": "Terminal pending settlement",
+      "topProducts": "Top products",
+      "noProducts": "No products",
+      "auditTimeline": "Audit timeline",
+      "noEvents": "No events"
+    },
+    "quickCustomer": {
+      "title": "Quick customer creation",
+      "name": "Customer name",
+      "namePlaceholder": "Enter customer name",
+      "phone": "Phone number",
+      "phonePlaceholder": "Enter phone number",
+      "selectSource": "Select source"
+    },
+    "sources": {
+      "story": "Story",
+      "other": "Other"
+    },
+    "misc": {
+      "salePrices": "Sale Prices",
+      "fullscreen": "Fullscreen",
+      "posScanner": "POS scanner",
+      "posExpense": "POS expense",
+      "type": "Type",
+      "amount": "Amount",
+      "notes": "Notes",
+      "status": "Status"
+    },
+    "quickExpenseCategories": {
+      "delivery": "Delivery",
+      "snacks": "Snacks",
+      "cleaning": "Cleaning",
+      "small_purchases": "Small purchases",
+      "water": "Water",
+      "electricity": "Electricity",
+      "shipping": "Shipping",
+      "maintenance": "Maintenance",
+      "other": "Other",
+      "employee_advance": "Employee advance"
+    },
+    "smartFilters": {
+      "gender": "Gender",
+      "productType": "Product type",
+      "grade": "Grade",
+      "clear": "Clear filters"
+    },
+    "chrome": {
+      "expense": "Expense",
+      "allowPersonal": "Allow personal transactions",
+      "openCameraScanner": "Open camera scanner",
+      "refreshTooltip": "Refresh products, stock and customers without reloading the page",
+      "pendingFromCurrentAccount": "Outstanding on the current account"
+    },
+    "shiftCloseAudit": {
+      "openedAt": "Opened at",
+      "eligibleEmployee": "Eligible employee",
+      "overrideReasonPlaceholder": "Write the override reason...",
+      "auditSummary": "Audit summary",
+      "cashSummary": "Cash summary",
+      "cashSales": "Cash sales",
+      "cashReturns": "Cash returns",
+      "cashExpenses": "Cash expenses",
+      "netExpectedDrawer": "Expected net drawer",
+      "paymentMethods": "Payment methods",
+      "cards": "Cards",
+      "wallet": "Wallet",
+      "activity": "Activity",
+      "invoiceCount": "Invoice count",
+      "discounts": "Discounts",
+      "employeeAdvances": "Employee advances",
+      "shiftDuration": "Shift duration"
+    },
+    "shiftReport": {
+      "eyebrow": "Shift close",
+      "title": "Shift closed successfully",
+      "print": "Print report",
+      "close": "Close",
+      "expectedDrawer": "Expected net drawer",
+      "actualCount": "Actual count",
+      "difference": "Difference",
+      "balanced": "✅ Balanced",
+      "over": "✅ Over: {{amount}}",
+      "short": "⚠️ Short: {{amount}}",
+      "invoiceCount": "Invoice count"
+    },
+    "cameraScanner": {
+      "title": "Scan the barcode or QR with the camera",
+      "subtitle": "Point the camera at the product barcode or QR and it is applied immediately.",
+      "close": "Close camera scanner"
+    }
+  },
   "cart": {
+    "createOrder": "Create order",
+    "clearPaymentAmount": "Clear payment amount",
+    "invoiceTab": "Invoice {{index}}",
+    "newInvoice": "Invoice",
+    "editInvoice": "Edit the invoice",
+    "offlinePending": "Invoices awaiting sync: {{count}}",
     "title": "Cart",
     "items": "Items",
     "customer": "Customer",
@@ -157,8 +330,7 @@
     "notSet": "Not set",
     "other": "Other",
     "processing": "Processing...",
-    "savingInvoice": "Saving invoice...",
-    "createOrder": "Create order",
+    "savingInvoice": "Saving the invoice...",
     "saveInvoiceEdit": "Save Changes",
     "thermalPrint": "Thermal print",
     "downloadPdf": "Download PDF",
@@ -173,7 +345,12 @@
     "receiptPreview": "Receipt preview",
     "thermal": "Thermal",
     "a4": "A4",
-    "couponDiscount": "Coupon discount"
+    "couponDiscount": "Coupon discount",
+    "unsaved": "Unsaved",
+    "closeInvoice": "Close the invoice",
+    "note": "Note",
+    "optional": "Optional",
+    "invoiceTotal": "Invoice total"
   },
   "saleMode": {
     "existingSalePrices": "Existing sale prices",
@@ -271,5 +448,63 @@
     "popupBlocked": "Popup blocked",
     "printFailed": "Unable to prepare the invoice for printing",
     "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns."
+  },
+  "personal": {
+    "noCashImpact": " - does not affect cash",
+    "operation": "Personal operation",
+    "gift": "Personal operation / gift",
+    "employeeAdvance": "Personal operation / employee advance",
+    "ownerUse": "Personal operation / personal use",
+    "type": "Personal operation type",
+    "selectType": "Select the type",
+    "giftOrExpense": "Gift / expense",
+    "advance": "Employee advance",
+    "ownerPersonalUse": "Owner personal use",
+    "stockNotice": "This operation deducts from stock and is not treated as a normal cash collection."
+  },
+  "payment": {
+    "cashLabel": "Cash",
+    "visaLabel": "Visa",
+    "instapayLabel": "InstaPay",
+    "vodafoneCashLabel": "Vodafone Cash",
+    "insufficientBalance": "Insufficient balance (shortfall: {{amount}})",
+    "fallbackHasBalance": "{{account}} has sufficient balance",
+    "cash": "Cash",
+    "split": "Split",
+    "pay": "Pay",
+    "selectRemainingMethod": "Choose how to collect the remaining amount",
+    "credit": "Credit - no cash collection needed now",
+    "previouslyPaid": "Previously paid",
+    "previousDetails": "Previous payment details",
+    "dueNow": "Due to collect now",
+    "methodHint": "Choose a collection method below. Press Cash if the whole amount is cash, or Split for more than one method.",
+    "negativeAllowed": "Negative balances are allowed for this account."
+  },
+  "credit": {
+    "short": "Credit",
+    "willRecordDebt": "{{amount}} will be recorded as customer debt",
+    "selectCustomerFirst": "Select a customer first to create a credit sale",
+    "saveDepositRest": "Save the deposit and record the rest as credit",
+    "createForCustomer": "Create a credit sale for the selected customer",
+    "depositPlusCredit": "Deposit + remainder on credit",
+    "customerCreditSale": "Customer credit sale",
+    "recordRemainder": "Record the remainder as credit",
+    "selectCustomerForDebt": "Select the customer first to record the debt",
+    "saveDepositAndCredit": "Save the deposit and the credit remainder"
+  },
+  "audience": {
+    "men": "Men",
+    "women": "Women",
+    "kids": "Kids"
+  },
+  "categories": {
+    "sneakers": "Sneakers",
+    "crocs": "Crocs",
+    "bags": "Bags",
+    "winter": "Winter",
+    "special": "Special",
+    "baby": "Baby",
+    "medium": "Medium",
+    "boys": "Boys"
   }
 }

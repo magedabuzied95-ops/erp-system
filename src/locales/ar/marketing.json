@@ -406,7 +406,75 @@
     "scheduleFailed": "تعذر جدولة المنشور",
     "noHistory": "لا توجد منشورات بعد.",
     "status": "الحالة",
-    "draft": "مسودة"
+    "draft": "مسودة",
+    "header": {
+      "eyebrow": "استوديو التسويق",
+      "title": "استوديو الحملات",
+      "description": "أنشئ حملاتك التسويقية، راجع المحتوى، ثم انشر أو جدوله من مكان واحد."
+    },
+    "postStatus": {
+      "draft": "مسودة",
+      "scheduled": "مجدول",
+      "published": "منشور",
+      "publishedCheck": "تم النشر ✓",
+      "partialSuccess": "نجاح جزئي",
+      "failed": "فشل",
+      "skipped": "تم التخطي",
+      "unknownReason": "سبب غير معروف"
+    },
+    "toasts": {
+      "selectProductFirst": "اختر منتجًا أولًا",
+      "firstCommentSaved": "تم حفظ التعليق الأول في المسودة.",
+      "copied": "تم النسخ بنجاح.",
+      "copyFailed": "فشل النسخ.",
+      "connectFacebookFirst": "اربط Facebook أولًا",
+      "connectInstagramFirst": "اربط Instagram أولًا",
+      "draftDuplicated": "تم تكرار المسودة.",
+      "postRemoved": "تمت إزالة المنشور من العرض."
+    },
+    "confirm": {
+      "deleteFromHistory": "هل تريد حذف هذا المنشور من عرض السجل الحالي؟"
+    },
+    "previewCard": {
+      "mediaPlaceholder": "ستظهر معاينة الوسائط هنا",
+      "mediaAlt": "وسائط معاينة {{platform}}",
+      "noFacebookPage": "لم يتم اختيار صفحة Facebook",
+      "noInstagramAccount": "لم يتم اختيار حساب Instagram",
+      "sampleLikes": "١٫٢ ألف إعجاب",
+      "sampleComments": "٨٤ تعليقًا",
+      "sampleShares": "٢١ مشاركة",
+      "page": "الصفحة: {{value}}",
+      "platforms": "المنصات: {{value}}",
+      "notSelected": "لم يتم الاختيار",
+      "none": "لا شيء"
+    },
+    "createFrom": {
+      "title": "أنشئ المنشور من",
+      "hint": "اختر طريقة بدء هذا المنشور.",
+      "device": "الرفع من الجهاز",
+      "deviceHint": "متاح الآن",
+      "catalog": "كتالوج المنتجات",
+      "catalogHint": "اختر من منتجات النظام",
+      "aiMarketing": "التسويق بالذكاء الاصطناعي",
+      "comingSoon": "قريبًا"
+    },
+    "options": {
+      "includeLocation": "إضافة الموقع",
+      "includeShipping": "إضافة الشحن"
+    },
+    "catalog": {
+      "selectedProduct": "المنتج المحدد",
+      "productName": "اسم المنتج",
+      "currentPrice": "السعر الحالي",
+      "priceUnavailable": "السعر غير متاح",
+      "stock": "المخزون",
+      "inStock": "{{count}} في المخزون",
+      "outOfStock": "غير متوفر",
+      "sizeCount": "عدد المقاسات",
+      "colorCount": "عدد الألوان",
+      "discountRate": "نسبة الخصم",
+      "availableColorImages": "صور الألوان المتاحة"
+    }
   },
   "templates": {
     "eyebrow": "القوالب",
@@ -430,7 +498,13 @@
       "channel": "القناة",
       "titleTemplate": "قالب العنوان",
       "captionTemplate": "قالب النص"
-    }
+    },
+    "library": "مكتبة القوالب",
+    "curatedCards": "بطاقات مختارة",
+    "card": "بطاقة",
+    "libraryTag": "المكتبة",
+    "savedTemplates": "القوالب المحفوظة",
+    "customTemplates": "قوالب مخصصة"
   },
   "social": {
     "platform": "المنصة",
@@ -916,5 +990,544 @@
     "description": "أنشئ المحتوى التسويقي وراجعه وجدوله وانشره من استوديو واحد.",
     "eyebrow": "استوديو التسويق",
     "title": "استوديو التسويق"
+  },
+  "studioHeader": {
+    "eyebrow": "استوديو التسويق",
+    "title": "مجموعة التسويق",
+    "description": "تنقّل في مساحة عمل التسويق من رأس صفحة واحد.",
+    "tabs": {
+      "publisher": "الناشر",
+      "calendar": "التقويم",
+      "analytics": "التحليلات",
+      "templates": "القوالب"
+    }
+  },
+  "publisher": {
+    "ready": "جاهز",
+    "comingSoon": "قريبًا"
+  },
+  "comments": {
+    "breadcrumb": "التسويق / تعليقات السوشيال",
+    "title": "مركز تعليقات السوشيال",
+    "subtitle": "افتح المنشور والتعليق المستهدف بدقة من صندوق الوارد، مع أدوات الرد والإدارة في مكان واحد.",
+    "performance": "أداء السوشيال",
+    "adminDebugSummary": "ملخص تشخيص الإدارة",
+    "fastListAvgMs": "متوسط القائمة السريعة (مللي ثانية)",
+    "fastListP95Ms": "الشريحة 95 للقائمة السريعة (مللي ثانية)",
+    "cacheHitRate": "نسبة إصابة الذاكرة المؤقتة",
+    "slowFastList": "قائمة سريعة بطيئة",
+    "queueLength": "طول الطابور",
+    "activeJobs": "المهام النشطة",
+    "jobAvgMs": "متوسط زمن المهمة (مللي ثانية)",
+    "socketEmits": "رسائل السوكيت",
+    "renderedRows": "الصفوف المعروضة",
+    "socketPatches": "تحديثات السوكيت",
+    "cacheHits": "إصابات الذاكرة المؤقتة",
+    "cacheMisses": "إخفاقات الذاكرة المؤقتة",
+    "customer360": "ملف العميل 360"
+  },
+  "aiCenter": {
+    "toasts": {
+      "engineSettingsSaved": "تم حفظ إعدادات المحرك",
+      "queueItemMissingIdUpdated": "عنصر الطابور بدون معرّف. تم تحديث الطابور.",
+      "generatingStoryAsset": "جارٍ إنشاء أصل القصة تلقائيًا قبل النشر...",
+      "itemAlreadyRemoved": "تمت إزالة هذا العنصر أو تحديثه بالفعل. تم تحديث الطابور.",
+      "queueItemMissingId": "عنصر الطابور بدون معرّف.",
+      "storyAssetSaved": "تم إنشاء أصل القصة وحفظه.",
+      "selectContentFirst": "اختر المحتوى أولاً.",
+      "postingInsightsSynced": "تمت مزامنة رؤى النشر"
+    },
+    "headings": {
+      "cleanStoriesAndPosts": "قصص ومنشورات تبقى نظيفة"
+    },
+    "stats": {
+      "aiStatus": "حالة الذكاء الاصطناعي",
+      "storiesToday": "القصص المنشأة اليوم",
+      "postsToday": "المنشورات المنشأة اليوم",
+      "pendingApproval": "بانتظار الموافقة",
+      "eligibleProducts": "المنتجات المؤهلة",
+      "storyCreated": "تم إنشاء القصة",
+      "published": "منشور",
+      "remaining": "المتبقي"
+    },
+    "lanes": {
+      "title": "مسارات المحتوى",
+      "newArrivals": "الوصولات الجديدة",
+      "lastSizeOrPiece": "آخر مقاس / آخر قطعة",
+      "aiPosts": "منشورات الذكاء الاصطناعي",
+      "dailyVolume": "الحجم اليومي",
+      "stories": "القصص",
+      "posts": "المنشورات"
+    },
+    "cleanup": {
+      "title": "إدارة التنظيف",
+      "archiveAfterDays": "الأرشفة بعد أيام",
+      "deleteArchivedAfterDays": "حذف المؤرشف بعد أيام"
+    },
+    "insights": {
+      "bestPostingWindows": "أفضل أوقات النشر",
+      "lastSyncedAt": "آخر مزامنة",
+      "analyticsRows": "صفوف التحليلات:",
+      "metaApiError": "خطأ واجهة Meta:"
+    },
+    "queue": {
+      "archiveSelected": "أرشفة المحدد",
+      "deleteSelected": "حذف المحدد",
+      "publishSelected": "نشر المحدد",
+      "selectContent": "اختيار المحتوى",
+      "arabicTrend": "ترند عربي",
+      "preview": "معاينة",
+      "viewPost": "عرض المنشور",
+      "restore": "استعادة",
+      "approve": "موافقة",
+      "archive": "أرشفة",
+      "duplicate": "تكرار",
+      "retry": "إعادة المحاولة",
+      "delete": "حذف",
+      "storiesEmpty": "لا توجد عناصر قصة في الطابور.",
+      "postsEmpty": "لا توجد منشورات ذكاء اصطناعي في الطابور."
+    },
+    "channels": {
+      "facebook": "فيسبوك",
+      "instagram": "إنستجرام",
+      "facebookLabel": "فيسبوك:",
+      "instagramLabel": "إنستجرام:"
+    },
+    "story": {
+      "generatedAsset": "أصل القصة المنشأ",
+      "noGeneratedAsset": "لا يوجد أصل قصة منشأ",
+      "slides": "شرائح القصة",
+      "slide": "شريحة"
+    },
+    "recommendations": {
+      "title": "توصيات الذكاء الاصطناعي",
+      "performanceBrain": "عقل الأداء"
+    },
+    "modals": {
+      "deletePublishedTitle": "حذف المحتوى المنشور",
+      "cancel": "إلغاء",
+      "contentHistory": "سجل المحتوى",
+      "close": "إغلاق"
+    },
+    "preview": {
+      "aiPostPreview": "معاينة منشور الذكاء الاصطناعي",
+      "post": "منشور",
+      "viewPost": "عرض المنشور",
+      "technicalJson": "JSON تقني",
+      "storyAsset": "أصل القصة",
+      "rendered": "معروض",
+      "renderedStoryPreview": "معاينة القصة المعروضة",
+      "quickPreview": "معاينة سريعة",
+      "storyPreviewAria": "معاينة الاستوري",
+      "storyPreview": "معاينة القصة",
+      "contentType": "نوع المحتوى",
+      "layout": "التخطيط",
+      "sizes": "المقاسات",
+      "storyLink": "رابط القصة"
+    },
+    "debug": {
+      "storyPublishAsset": "تشخيص أصل نشر القصة",
+      "frontendSlidesCount": "عدد شرائح مصدر المعاينة",
+      "sourceImagesCount": "عدد صور المصدر",
+      "generatedAssetsCount": "عدد أصول القصة المنشأة",
+      "renderedSlidesLength": "طول الشرائح المعروضة",
+      "mediaUrlsLength": "طول media_urls",
+      "previewThumbsVisible": "المصغرات الظاهرة في المعاينة",
+      "adminDebug": "الإدارة / التشخيص",
+      "storedProductUrl": "رابط المنتج المخزن",
+      "publishedImageAssetUrls": "روابط أصول الصور المنشورة"
+    },
+    "filters": {
+      "all": "الكل",
+      "published": "منشور",
+      "pendingApproval": "بانتظار الموافقة",
+      "ready": "جاهز",
+      "queued": "في الطابور",
+      "failed": "فشل",
+      "archived": "مؤرشف"
+    }
+  },
+  "metaSettings": {
+    "actions": {
+      "copy": "نسخ"
+    },
+    "toasts": {
+      "selectFacebookPage": "اختر صفحة فيسبوك لاستكمال إعداد ميتا",
+      "enterInstagramToken": "أدخل رمز وصول Instagram أولًا",
+      "instagramTokenSaved": "تم حفظ وربط رمز Instagram بأمان",
+      "instagramTokenDisabled": "تم تعطيل رمز Instagram المستقل",
+      "enterInstagramAppSecret": "أدخل Instagram App Secret أولًا",
+      "appSecretSaved": "تم حفظ Instagram App Secret مشفّرًا",
+      "appSecretDisabled": "تم تعطيل Instagram App Secret",
+      "metaTimeout": "انتهت مهلة الاتصال بـ Meta. يمكنك المحاولة مرة أخرى.",
+      "publishPermissionsVerified": "تم التحقق من صلاحيات النشر",
+      "webhookVerified": "تم التحقق من اشتراك Webhook",
+      "copiedLabel": "تم نسخ {{label}}"
+    },
+    "status": {
+      "metaPageConnected": "تم ربط صفحة Meta",
+      "metaSetupComplete": "اكتمل إعداد Meta"
+    },
+    "steps": {
+      "facebookLogin": "تسجيل الدخول عبر فيسبوك",
+      "selectFacebookPage": "اختيار صفحة فيسبوك",
+      "selectInstagramAccount": "اختيار حساب إنستجرام للأعمال",
+      "savePermissions": "حفظ الصلاحيات",
+      "verifyWebhook": "التحقق من Webhook",
+      "completeSetup": "إكمال الإعداد"
+    },
+    "panels": {
+      "connectionStatus": "حالة الربط",
+      "messages": "الرسائل",
+      "webhook": "Webhook",
+      "permissions": "الصلاحيات"
+    },
+    "summary": {
+      "metaStatusAria": "ملخص حالة Meta",
+      "title": "جاهزية ربط Meta وبيانات المطور",
+      "subtitle": "اضغط لعرض روابط OAuth وWebhook والصلاحيات المطلوبة. القيم السرية لا تظهر هنا.",
+      "runtimeEnvironment": "بيئة التشغيل",
+      "oauthRedirectUrl": "رابط إعادة توجيه OAuth",
+      "copyRedirectUrl": "نسخ رابط إعادة التوجيه",
+      "webhookCallbackUrl": "رابط استدعاء Webhook",
+      "copyWebhookUrl": "نسخ رابط Webhook",
+      "copyVerifyToken": "نسخ حالة التحقق",
+      "requiredPermissions": "الصلاحيات المطلوبة",
+      "setupSteps": "خطوات الإعداد"
+    },
+    "oauth": {
+      "result": "نتيجة ما بعد OAuth",
+      "connectedPage": "الصفحة المتصلة",
+      "connectedInstagram": "حساب إنستجرام المتصل",
+      "missingPermissions": "الصلاحيات الناقصة",
+      "nextAction": "الإجراء التالي المطلوب"
+    },
+    "connect": {
+      "title": "ربط حساب Meta",
+      "step": "الخطوة",
+      "facebookLogin": "تسجيل الدخول عبر فيسبوك",
+      "facebookLoginHint": "ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.",
+      "selectPageAndAccount": "اختيار صفحة فيسبوك وحساب إنستجرام للأعمال",
+      "selectPageHint": "يُستخدم الرمز المتصل لاكتشاف الصفحة وحساب إنستجرام المرتبط. الاختيارات الحالية:",
+      "pageId": "معرّف الصفحة:",
+      "instagram": "إنستجرام:",
+      "verifyWebhook": "التحقق من Webhook والقدرات",
+      "verifyWebhookHint": "يشغّل فحوصات صلاحيات حية وتشخيص الرموز وحالة الاشتراك."
+    },
+    "stages": {
+      "title": "مراحل الإعداد",
+      "connection": "الاتصال",
+      "pageAndAccount": "صفحة فيسبوك وحساب إنستجرام"
+    },
+    "fields": {
+      "facebookPage": "صفحة فيسبوك",
+      "pageIdManaged": "معرّف الصفحة تتم إدارته عبر تدفق الربط الموجّه.",
+      "instagramBusinessAccount": "حساب إنستجرام للأعمال",
+      "manualAccountHidden": "إدخال معرّف الحساب يدويًا مخفي إلا في الوضع المتقدم.",
+      "pasteInstagramToken": "ألصق رمز Instagram هنا ثم احفظه",
+      "status": "الحالة:",
+      "pasteAppSecret": "ألصق Instagram App Secret هنا ثم احفظه"
+    },
+    "capabilities": {
+      "webhookHealthy": "Webhook سليم",
+      "tokenValid": "الرمز صالح",
+      "receiveMessages": "استقبال الرسائل",
+      "sendReplies": "إرسال الردود",
+      "aiAutomationActive": "أتمتة الذكاء الاصطناعي نشطة",
+      "storyMentionSupport": "دعم الإشارة في القصص"
+    },
+    "publishing": {
+      "feedPublish": "نشر الخلاصة",
+      "mediaUpload": "رفع الوسائط",
+      "scheduledPublish": "النشر المجدول",
+      "failedPostsProcessed": "تمت معالجة المنشورات الفاشلة"
+    },
+    "events": {
+      "receiveStatus": "حالة استقبال الأحداث",
+      "commentToMessagePerformance": "أداء التعليق إلى الرسالة"
+    },
+    "preview": {
+      "template": "القالب",
+      "fallbackReply": "رد بديل",
+      "simulator": "محاكي المعاينة"
+    }
+  },
+  "videos": {
+    "scenes": {
+      "hookStopScroll": "الجذب / إيقاف التمرير",
+      "scene1": "المشهد 1",
+      "productHero": "واجهة المنتج",
+      "scene2": "المشهد 2",
+      "detailVariant": "التفاصيل / المتغير",
+      "scene3": "المشهد 3",
+      "pricePop": "إبراز السعر",
+      "scene4": "المشهد 4",
+      "scene5": "المشهد 5",
+      "stockSizePush": "دفع المخزون / المقاس",
+      "ctaClose": "خاتمة الدعوة لاتخاذ إجراء",
+      "scene6": "المشهد 6"
+    },
+    "page": {
+      "videos": "الفيديوهات",
+      "videoQueue": "طابور الفيديو",
+      "readyApproved": "جاهز / معتمد",
+      "failed": "فشل",
+      "contentLanes": "مسارات المحتوى",
+      "videoTemplates": "قوالب الفيديو",
+      "dailyVolume": "حجم الفيديو اليومي",
+      "videosPerDay": "فيديوهات في اليوم"
+    },
+    "queue": {
+      "tiktokLater": "TikTok لاحقًا",
+      "preview": "معاينة",
+      "viewPost": "عرض المنشور",
+      "approve": "موافقة",
+      "publish": "نشر",
+      "published": "منشور"
+    },
+    "preview": {
+      "variantDetails": "تفاصيل المتغير",
+      "priceFocus": "التركيز على السعر",
+      "limitedAvailability": "توافر محدود",
+      "title": "معاينة الفيديو",
+      "subtitle": "عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.",
+      "status": "الحالة",
+      "scheduled": "مجدول",
+      "playback": "التشغيل",
+      "preset": "الإعداد المسبق",
+      "qualityScore": "درجة الجودة",
+      "aspectRatio": "نسبة العرض إلى الارتفاع",
+      "estimatedEngagement": "التفاعل المتوقع",
+      "motionStyle": "أسلوب الحركة",
+      "reelEnergy": "طاقة الريل",
+      "hookStrength": "قوة الجذب",
+      "pacing": "الإيقاع",
+      "ctaStrength": "قوة الدعوة لاتخاذ إجراء",
+      "trendFit": "ملاءمة الترند",
+      "reelType": "نوع الريل",
+      "transitionStyle": "أسلوب الانتقال",
+      "readiness": "جاهزية الفيديو",
+      "capcutTimeline": "خط زمني بأسلوب CapCut",
+      "sceneTimeline": "الخط الزمني للمشاهد",
+      "captionTimeline": "خط زمني للنصوص / التعليقات",
+      "generatedScript": "النص / التعليق المُولّد",
+      "technicalDiagnostics": "تشخيص تقني"
+    }
+  },
+  "campaignAnalytics": {
+    "title": "تحليلات الحملات",
+    "subtitle": "نظرة عامة والخط الزمني والسجل وأفضل المنشورات.",
+    "refresh": "تحديث",
+    "media": {
+      "noImage": "لا توجد صورة للمنشور",
+      "postNumber": "منشور رقم {{id}}"
+    },
+    "status": {
+      "published": "تم النشر ✓",
+      "scheduled": "مجدول",
+      "failed": "فشل",
+      "skipped": "تم التخطي",
+      "draft": "مسودة",
+      "unknownReason": "سبب غير معروف"
+    },
+    "day": {
+      "today": "اليوم",
+      "yesterday": "أمس"
+    },
+    "kpi": {
+      "published": "منشور",
+      "publishedHint": "عدد المنشورات التي تم نشرها.",
+      "scheduled": "مجدول",
+      "scheduledHint": "منشورات في الانتظار للنشر لاحقًا.",
+      "drafts": "مسودات",
+      "draftsHint": "محتوى مسودة قيد الإعداد.",
+      "firstComments": "التعليقات الأولى",
+      "firstCommentPublished": "منشور",
+      "firstCommentFailed": "فشل",
+      "firstCommentSkipped": "تم التخطي"
+    },
+    "charts": {
+      "title": "الرسوم البيانية",
+      "last30Days": "آخر 30 يومًا",
+      "total": "الإجمالي"
+    },
+    "timeline": {
+      "title": "الخط الزمني",
+      "subtitle": "نشاط النشر الأخير",
+      "firstCommentPublished": "تم نشر التعليق الأول",
+      "firstCommentFailed": "فشل التعليق الأول",
+      "firstCommentSkipped": "تم تخطي التعليق الأول",
+      "firstCommentWith": "التعليق الأول {{status}}",
+      "empty": "لا يوجد نشاط بعد."
+    },
+    "history": {
+      "badge": "المحتوى المنشور",
+      "title": "سجل المنشورات",
+      "subtitle": "التصميم والنص والتعليق الأول وحالة النشر في مكان واحد.",
+      "postCount": "{{count}} منشور",
+      "empty": "لا يوجد سجل بعد.",
+      "captionPreview": "معاينة النص",
+      "commentPreview": "معاينة التعليق",
+      "noCaption": "لا يوجد نص بعد",
+      "firstCommentDone": "✓ التعليق الأول",
+      "publishedAt": "تاريخ النشر",
+      "actions": "الإجراءات",
+      "templateSnapshot": "لقطة من قالب المحتوى",
+      "duplicatedToast": "تم تكرار {{name}} في العرض فقط.",
+      "republishToast": "افتح {{name}} في أداة النشر لإعادة النشر."
+    },
+    "columns": {
+      "creative": "التصميم",
+      "platform": "المنصة",
+      "template": "القالب",
+      "status": "الحالة",
+      "caption": "النص",
+      "firstComment": "التعليق الأول",
+      "published": "تاريخ النشر",
+      "actions": "الإجراءات"
+    },
+    "actions": {
+      "view": "عرض",
+      "duplicate": "تكرار",
+      "delete": "حذف",
+      "republish": "إعادة النشر",
+      "close": "إغلاق"
+    },
+    "top": {
+      "title": "أفضل المنشورات",
+      "subtitle": "أفضل المنشورات أداءً حسب التحليلات",
+      "post": "المنشور",
+      "platform": "المنصة",
+      "likes": "الإعجابات",
+      "comments": "التعليقات",
+      "shares": "المشاركات",
+      "reach": "الوصول",
+      "impressions": "مرات الظهور",
+      "engagement": "التفاعل",
+      "synced": "آخر مزامنة",
+      "empty": "لا توجد منشورات مميزة متاحة."
+    },
+    "modal": {
+      "aria": "تفاصيل منشور الحملة",
+      "title": "عرض"
+    }
+  },
+  "leadCenter": {
+    "brand": "مركز العملاء المحتملين بالذكاء الاصطناعي",
+    "title": "عملاء التواصل الاجتماعي في شاشة تحكم واحدة",
+    "subtitle": "تابع العملاء المحتملين الجدد من فيسبوك وإنستجرام وMessenger والدردشة على الويب دون تغيير مسار الذكاء الاصطناعي أو الطلبات الحالي.",
+    "refresh": "تحديث",
+    "openInbox": "فتح صندوق الذكاء الاصطناعي",
+    "loadFailed": "تعذّر تحميل العملاء المحتملين",
+    "platforms": {
+      "all": "الكل",
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "messenger": "Messenger",
+      "web_chat": "الدردشة على الويب"
+    },
+    "stages": {
+      "all": "كل المراحل",
+      "new_lead": "عميل محتمل جديد",
+      "waiting_reply": "في انتظار الرد",
+      "ai_handling": "الذكاء الاصطناعي يتعامل",
+      "human_takeover": "تدخّل بشري",
+      "order_created": "تم إنشاء طلب",
+      "shipped": "تم الشحن",
+      "review_pending": "في انتظار التقييم",
+      "upsell_opportunity": "فرصة بيع إضافي"
+    },
+    "assigned": {
+      "label": "المسؤول: {{value}}",
+      "all": "الكل",
+      "ai": "الذكاء الاصطناعي",
+      "human": "موظف",
+      "humanTakeover": "تدخّل بشري"
+    },
+    "time": {
+      "all": "الكل",
+      "today": "اليوم",
+      "week": "هذا الأسبوع"
+    },
+    "filters": {
+      "title": "عوامل التصفية"
+    },
+    "list": {
+      "loading": "جارٍ تحميل العملاء المحتملين...",
+      "emptyTitle": "لا يوجد عملاء محتملون مطابقون لعوامل التصفية الحالية.",
+      "emptyHint": "جرّب منصة أو مرحلة أو نطاقًا زمنيًا آخر."
+    },
+    "fields": {
+      "customer": "العميل",
+      "platform": "المنصة",
+      "sourcePost": "المنشور المصدر",
+      "interestedProduct": "المنتج المهتم به",
+      "currentStage": "المرحلة الحالية",
+      "assignedAi": "المسؤول",
+      "confidence": "درجة الثقة",
+      "unread": "غير مقروء {{count}}"
+    },
+    "fallback": {
+      "customer": "عميل محتمل",
+      "sourcePost": "المصدر غير متاح",
+      "interestedProduct": "غير محدد",
+      "summary": "سيظهر ملخص العميل المحتمل هنا عند توفر بيانات المحادثة."
+    },
+    "detail": {
+      "title": "تفاصيل العميل المحتمل",
+      "subtitle": "العميل المحتمل المحدد مع الخط الزمني للمراحل",
+      "timeline": "الخط الزمني",
+      "events": "{{count}} حدث",
+      "empty": "اختر عميلًا محتملًا لعرض الخط الزمني للنشاط.",
+      "customer360": "ملف العميل الشامل"
+    },
+    "timeline": {
+      "comment": "تعليق",
+      "ai_reply": "رد الذكاء الاصطناعي",
+      "messenger": "Messenger",
+      "order": "طلب",
+      "payment": "دفع",
+      "shipping": "شحن",
+      "delivered": "تم التسليم",
+      "review": "تقييم",
+      "captured": "مأخوذ من بيانات المحادثة الحالية",
+      "pending": "قيد الانتظار"
+    }
+  },
+  "postEditor": {
+    "story": {
+      "slidesTitle": "شرائح القصة",
+      "slide": "شريحة {{number}}"
+    },
+    "channel": {
+      "comingSoon": "قريبًا",
+      "platformComingSoon": "{{platform}} - قريبًا",
+      "connectLater": "اربط {{platform}} لاحقًا"
+    },
+    "caption": {
+      "tone": "النبرة",
+      "generate": "توليد",
+      "regenerateHook": "إعادة توليد الجذب",
+      "regenerateCta": "إعادة توليد الدعوة لاتخاذ إجراء",
+      "regenerateHashtags": "إعادة توليد الهاشتاجات"
+    },
+    "firstComment": {
+      "title": "التعليق الأول المقترح",
+      "samePublisher": "نفس تعليق البابلشر",
+      "placeholder": "سيتم توليد التعليق من بيانات المنتج"
+    },
+    "fields": {
+      "productUrl": "رابط المنتج",
+      "price": "السعر",
+      "color": "اللون",
+      "size": "المقاس"
+    }
+  },
+  "socialTones": {
+    "premium": "بريميوم",
+    "luxury": "فخم",
+    "sport": "رياضي",
+    "friendly": "ودّي",
+    "sales": "عروض"
   }
 }

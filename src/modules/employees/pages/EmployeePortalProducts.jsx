@@ -589,7 +589,7 @@ function ProductCard({ product, active, onOpen }) {
             </div>
           </div>
           <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Stock</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">{tt("employeePortal.chrome.stock")}</div>
             <div className="text-base font-black text-emerald-100">{Number(product.total_stock || 0)}</div>
           </div>
         </div>
@@ -619,7 +619,7 @@ function ProductCard({ product, active, onOpen }) {
             );
           })}
           {!sizes.length ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-500">No sizes</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-500">{tt("employeePortal.chrome.noSizes")}</span>
           ) : null}
         </div>
       </div>
@@ -657,10 +657,10 @@ function ProductPickerSheet({
         <EmployeePortalNavControls onBack={onBack} onHome={onHome} tone="dark" className="mb-0 px-3 pt-2 sm:px-4 sm:pt-3" />
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Variant selection</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">{tt("employeePortal.chrome.variantSelection")}</div>
             <h3 className="m1-section-title truncate text-white">{product.name || "Product"}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-400">
-              <span>SKU / Article: {product.article_code || "-"}</span>
+              <span>{tt("employeePortal.chrome.skuArticle")}: {product.article_code || "-"}</span>
               <span>Brand: {product.manufacturer_name || "-"}</span>
             </div>
           </div>
@@ -696,7 +696,7 @@ function ProductPickerSheet({
 
           <div className="space-y-4">
             <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-sm font-black text-white">Colors</div>
+              <div className="text-sm font-black text-white">{tt("employeePortal.chrome.colors")}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {product.colors.length ? (
                   product.colors.map((color) => {
@@ -715,15 +715,15 @@ function ProductPickerSheet({
                     );
                   })
                 ) : (
-                  <span className="text-sm font-semibold text-zinc-500">No colors</span>
+                  <span className="text-sm font-semibold text-zinc-500">{tt("employeePortal.chrome.noColors")}</span>
                 )}
               </div>
             </div>
 
             <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-black text-white">Sizes</div>
-                <div className="text-[11px] font-bold text-zinc-500">Only available sizes appear</div>
+                <div className="text-sm font-black text-white">{tt("employeePortal.chrome.sizes")}</div>
+                <div className="text-[11px] font-bold text-zinc-500">{tt("employeePortal.chrome.onlyAvailableSizes")}</div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {sizeOptions.length ? (
@@ -806,7 +806,7 @@ function EmployeePortalCameraScannerModal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">EMPLOYEE SCANNER</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{tt("employeePortal.chrome.employeeScanner")}</div>
             <h3 id="employee-portal-camera-scanner-title" className="m1-section-title mt-1 text-white">{tt("employeePortal.scanner.scanBarcodeOrQr")}</h3>
             <p className="mt-1 text-xs font-semibold text-zinc-500">{tt("employeePortal.scanner.frameHintDot")}</p>
           </div>
@@ -1818,7 +1818,7 @@ export default function EmployeePortalProducts() {
           <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
             <div className="flex items-center gap-2 text-amber-300">
               <Store className="h-5 w-5" />
-              <h1 className="m1-page-title">Employee Portal Products</h1>
+              <h1 className="m1-page-title">{tt("employeePortal.chrome.portalProducts")}</h1>
             </div>
             <p className="mt-3 text-sm font-semibold leading-6 text-zinc-300">{error}</p>
           </section>

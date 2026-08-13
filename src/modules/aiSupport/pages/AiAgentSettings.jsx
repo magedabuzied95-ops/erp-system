@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   Bot,
@@ -109,6 +110,7 @@ function Section({ icon: Icon, title, children }) {
 }
 
 export default function AiAgentSettings() {
+  const { t } = useTranslation();
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
@@ -181,18 +183,18 @@ export default function AiAgentSettings() {
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />AI Agent Control Center</div>
-              <h1 className="m1-display mt-3">Sales Agent Settings</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Tenant-scoped controls for tone, sales rules, follow-ups, handoff triggers, and staff suggested replies.</p>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />{t("aiSupport.agentSettings.eyebrow")}</div>
+              <h1 className="m1-display mt-3">{t("aiSupport.agentSettings.title")}</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{t("aiSupport.agentSettings.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={loadSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.055] px-4 text-sm font-black text-white disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Refresh
+                {t("aiSupport.agentSettings.refresh")}
               </button>
               <button type="button" onClick={saveSettings} disabled={loading || saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-slate-950 disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save settings
+                {t("aiSupport.agentSettings.save")}
               </button>
             </div>
           </div>
@@ -201,62 +203,62 @@ export default function AiAgentSettings() {
         </section>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <Section icon={MessageSquareText} title="Personality & Tone">
-            <Field label="Agent name"><TextInput value={settings.agent_name || ""} onChange={(event) => patch({ agent_name: event.target.value })} /></Field>
+          <Section icon={MessageSquareText} title={t("aiSupport.agentSettings.tone.title")}>
+            <Field label={t("aiSupport.agentSettings.tone.agentName")}><TextInput value={settings.agent_name || ""} onChange={(event) => patch({ agent_name: event.target.value })} /></Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Egyptian tone level"><TextInput type="number" min="0" max="1" step="0.05" value={settings.egyptian_tone_level} onChange={(event) => patch({ egyptian_tone_level: Number(event.target.value), tone_intensity: Number(event.target.value) })} /></Field>
-              <Field label="Emoji level"><TextInput type="number" min="0" max="1" step="0.05" value={settings.emoji_level} onChange={(event) => patch({ emoji_level: Number(event.target.value) })} /></Field>
-              <Field label="Reply length"><SelectInput value={settings.reply_length} onChange={(event) => patch({ reply_length: event.target.value })}><option value="short">Short</option><option value="balanced">Balanced</option><option value="detailed">Detailed</option></SelectInput></Field>
-              <Field label="Sales pressure"><SelectInput value={settings.sales_pressure} onChange={(event) => patch({ sales_pressure: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></SelectInput></Field>
+              <Field label={t("aiSupport.agentSettings.tone.egyptianLevel")}><TextInput type="number" min="0" max="1" step="0.05" value={settings.egyptian_tone_level} onChange={(event) => patch({ egyptian_tone_level: Number(event.target.value), tone_intensity: Number(event.target.value) })} /></Field>
+              <Field label={t("aiSupport.agentSettings.tone.emojiLevel")}><TextInput type="number" min="0" max="1" step="0.05" value={settings.emoji_level} onChange={(event) => patch({ emoji_level: Number(event.target.value) })} /></Field>
+              <Field label={t("aiSupport.agentSettings.tone.replyLength")}><SelectInput value={settings.reply_length} onChange={(event) => patch({ reply_length: event.target.value })}><option value="short">{t("aiSupport.agentSettings.tone.short")}</option><option value="balanced">{t("aiSupport.agentSettings.tone.balanced")}</option><option value="detailed">{t("aiSupport.agentSettings.tone.detailed")}</option></SelectInput></Field>
+              <Field label={t("aiSupport.agentSettings.tone.salesPressure")}><SelectInput value={settings.sales_pressure} onChange={(event) => patch({ sales_pressure: event.target.value })}><option value="low">{t("aiSupport.agentSettings.tone.low")}</option><option value="medium">{t("aiSupport.agentSettings.tone.medium")}</option><option value="high">{t("aiSupport.agentSettings.tone.high")}</option></SelectInput></Field>
             </div>
-            <Field label="Forbidden phrases" hint="One phrase per line. These are stripped from AI sales replies."><TextArea value={draft.forbidden_phrases} onChange={(event) => setDraft((current) => ({ ...current, forbidden_phrases: event.target.value }))} /></Field>
-            <Field label="Preferred phrases" hint="One phrase per line. Used as natural sales openers."><TextArea value={draft.preferred_phrases} onChange={(event) => setDraft((current) => ({ ...current, preferred_phrases: event.target.value }))} /></Field>
+            <Field label={t("aiSupport.agentSettings.tone.forbidden")} hint={t("aiSupport.agentSettings.tone.forbiddenHint")}><TextArea value={draft.forbidden_phrases} onChange={(event) => setDraft((current) => ({ ...current, forbidden_phrases: event.target.value }))} /></Field>
+            <Field label={t("aiSupport.agentSettings.tone.preferred")} hint={t("aiSupport.agentSettings.tone.preferredHint")}><TextArea value={draft.preferred_phrases} onChange={(event) => setDraft((current) => ({ ...current, preferred_phrases: event.target.value }))} /></Field>
           </Section>
 
-          <Section icon={ClipboardList} title="Sales Rules">
-            <Toggle label="Allow auto draft creation" checked={settings.allow_auto_draft_creation !== false} onChange={(value) => patch({ allow_auto_draft_creation: value })} />
-            <Toggle label="Require human approval before confirm" checked={settings.require_human_approval_before_confirm === true} onChange={(value) => patch({ require_human_approval_before_confirm: value })} />
-            <Toggle label="Allow discount promises" checked={settings.allow_discount_promises === true} onChange={(value) => patch({ allow_discount_promises: value, discount_permission: value })} hint="Off by default. When off, AI can only say a staff member will review discounts." />
-            <Field label="Max discount percent"><TextInput type="number" min="0" max="100" value={settings.max_discount_percent} onChange={(event) => patch({ max_discount_percent: Number(event.target.value) })} /></Field>
-            <Field label="COD availability text"><TextArea value={settings.cod_availability_text || ""} onChange={(event) => patch({ cod_availability_text: event.target.value })} /></Field>
-            <Field label="Exchange / return policy text"><TextArea value={settings.exchange_return_policy_text || ""} onChange={(event) => patch({ exchange_return_policy_text: event.target.value })} /></Field>
-            <Field label="Delivery policy text"><TextArea value={settings.delivery_policy_text || ""} onChange={(event) => patch({ delivery_policy_text: event.target.value })} /></Field>
+          <Section icon={ClipboardList} title={t("aiSupport.agentSettings.sales.title")}>
+            <Toggle label={t("aiSupport.agentSettings.sales.autoDraft")} checked={settings.allow_auto_draft_creation !== false} onChange={(value) => patch({ allow_auto_draft_creation: value })} />
+            <Toggle label={t("aiSupport.agentSettings.sales.requireApproval")} checked={settings.require_human_approval_before_confirm === true} onChange={(value) => patch({ require_human_approval_before_confirm: value })} />
+            <Toggle label={t("aiSupport.agentSettings.sales.allowDiscount")} checked={settings.allow_discount_promises === true} onChange={(value) => patch({ allow_discount_promises: value, discount_permission: value })} hint={t("aiSupport.agentSettings.sales.allowDiscountHint")} />
+            <Field label={t("aiSupport.agentSettings.sales.maxDiscount")}><TextInput type="number" min="0" max="100" value={settings.max_discount_percent} onChange={(event) => patch({ max_discount_percent: Number(event.target.value) })} /></Field>
+            <Field label={t("aiSupport.agentSettings.sales.codText")}><TextArea value={settings.cod_availability_text || ""} onChange={(event) => patch({ cod_availability_text: event.target.value })} /></Field>
+            <Field label={t("aiSupport.agentSettings.sales.exchangeText")}><TextArea value={settings.exchange_return_policy_text || ""} onChange={(event) => patch({ exchange_return_policy_text: event.target.value })} /></Field>
+            <Field label={t("aiSupport.agentSettings.sales.deliveryText")}><TextArea value={settings.delivery_policy_text || ""} onChange={(event) => patch({ delivery_policy_text: event.target.value })} /></Field>
           </Section>
 
-          <Section icon={RefreshCw} title="Follow-up Rules">
-            <Toggle label="Enable follow-ups" checked={settings.followups_enabled !== false} onChange={(value) => patch({ followups_enabled: value })} />
+          <Section icon={RefreshCw} title={t("aiSupport.agentSettings.followups.title")}>
+            <Toggle label={t("aiSupport.agentSettings.followups.enable")} checked={settings.followups_enabled !== false} onChange={(value) => patch({ followups_enabled: value })} />
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Cooldown hours"><TextInput type="number" min="1" value={settings.followup_cooldown_hours} onChange={(event) => patch({ followup_cooldown_hours: Number(event.target.value) })} /></Field>
-              <Field label="Max follow-ups per customer"><TextInput type="number" min="0" value={settings.max_followups_per_customer} onChange={(event) => patch({ max_followups_per_customer: Number(event.target.value) })} /></Field>
+              <Field label={t("aiSupport.agentSettings.followups.cooldown")}><TextInput type="number" min="1" value={settings.followup_cooldown_hours} onChange={(event) => patch({ followup_cooldown_hours: Number(event.target.value) })} /></Field>
+              <Field label={t("aiSupport.agentSettings.followups.maxPerCustomer")}><TextInput type="number" min="0" value={settings.max_followups_per_customer} onChange={(event) => patch({ max_followups_per_customer: Number(event.target.value) })} /></Field>
             </div>
-            <Toggle label="Stop after rejection" checked={settings.stop_followups_after_rejection !== false} onChange={(value) => patch({ stop_followups_after_rejection: value })} />
-            <Field label="Follow-up templates" hint="One template per line."><TextArea value={draft.followup_templates} onChange={(event) => setDraft((current) => ({ ...current, followup_templates: event.target.value }))} /></Field>
+            <Toggle label={t("aiSupport.agentSettings.followups.stopAfterRejection")} checked={settings.stop_followups_after_rejection !== false} onChange={(value) => patch({ stop_followups_after_rejection: value })} />
+            <Field label={t("aiSupport.agentSettings.followups.templates")} hint={t("aiSupport.agentSettings.followups.templatesHint")}><TextArea value={draft.followup_templates} onChange={(event) => setDraft((current) => ({ ...current, followup_templates: event.target.value }))} /></Field>
           </Section>
 
-          <Section icon={AlertTriangle} title="Handoff Rules">
+          <Section icon={AlertTriangle} title={t("aiSupport.agentSettings.handoff.title")}>
             <div className="grid gap-3">
-              <Toggle label="Angry customer" checked={settings.handoff_rules?.angry_customer !== false} onChange={(value) => patchHandoff("angry_customer", value)} />
-              <Toggle label="Low confidence" checked={settings.handoff_rules?.low_confidence !== false} onChange={(value) => patchHandoff("low_confidence", value)} />
-              <Toggle label="Discount request" checked={settings.handoff_rules?.discount_request !== false} onChange={(value) => patchHandoff("discount_request", value)} />
-              <Toggle label="Return/exchange complaint" checked={settings.handoff_rules?.return_exchange_complaint !== false} onChange={(value) => patchHandoff("return_exchange_complaint", value)} />
-              <Toggle label="Stock conflict" checked={settings.handoff_rules?.stock_conflict !== false} onChange={(value) => patchHandoff("stock_conflict", value)} />
-              <Toggle label="Payment issue" checked={settings.handoff_rules?.payment_issue !== false} onChange={(value) => patchHandoff("payment_issue", value)} />
+              <Toggle label={t("aiSupport.agentSettings.handoff.angry")} checked={settings.handoff_rules?.angry_customer !== false} onChange={(value) => patchHandoff("angry_customer", value)} />
+              <Toggle label={t("aiSupport.agentSettings.handoff.lowConfidence")} checked={settings.handoff_rules?.low_confidence !== false} onChange={(value) => patchHandoff("low_confidence", value)} />
+              <Toggle label={t("aiSupport.agentSettings.handoff.discount")} checked={settings.handoff_rules?.discount_request !== false} onChange={(value) => patchHandoff("discount_request", value)} />
+              <Toggle label={t("aiSupport.agentSettings.handoff.returnExchange")} checked={settings.handoff_rules?.return_exchange_complaint !== false} onChange={(value) => patchHandoff("return_exchange_complaint", value)} />
+              <Toggle label={t("aiSupport.agentSettings.handoff.stock")} checked={settings.handoff_rules?.stock_conflict !== false} onChange={(value) => patchHandoff("stock_conflict", value)} />
+              <Toggle label={t("aiSupport.agentSettings.handoff.payment")} checked={settings.handoff_rules?.payment_issue !== false} onChange={(value) => patchHandoff("payment_issue", value)} />
             </div>
           </Section>
 
-          <Section icon={Sparkles} title="Suggested Replies Rules">
-            <Toggle label="Enable suggested replies" checked={settings.suggested_replies_enabled !== false} onChange={(value) => patch({ suggested_replies_enabled: value })} />
-            <Field label="Suggestion count"><SelectInput value={settings.suggested_reply_count} onChange={(event) => patch({ suggested_reply_count: Number(event.target.value) })}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></SelectInput></Field>
-            <Field label="Tone source"><SelectInput value={settings.suggested_replies_tone_source || "ai_settings"} onChange={(event) => patch({ suggested_replies_tone_source: event.target.value })}><option value="ai_settings">AI settings</option></SelectInput></Field>
-            <Toggle label="Require takeover before suggestions" checked={settings.require_takeover_before_suggestions !== false} onChange={(value) => patch({ require_takeover_before_suggestions: value })} />
+          <Section icon={Sparkles} title={t("aiSupport.agentSettings.suggested.title")}>
+            <Toggle label={t("aiSupport.agentSettings.suggested.enable")} checked={settings.suggested_replies_enabled !== false} onChange={(value) => patch({ suggested_replies_enabled: value })} />
+            <Field label={t("aiSupport.agentSettings.suggested.count")}><SelectInput value={settings.suggested_reply_count} onChange={(event) => patch({ suggested_reply_count: Number(event.target.value) })}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></SelectInput></Field>
+            <Field label={t("aiSupport.agentSettings.suggested.toneSource")}><SelectInput value={settings.suggested_replies_tone_source || "ai_settings"} onChange={(event) => patch({ suggested_replies_tone_source: event.target.value })}><option value="ai_settings">{t("aiSupport.agentSettings.suggested.aiSettings")}</option></SelectInput></Field>
+            <Toggle label={t("aiSupport.agentSettings.suggested.requireTakeover")} checked={settings.require_takeover_before_suggestions !== false} onChange={(value) => patch({ require_takeover_before_suggestions: value })} />
           </Section>
 
-          <Section icon={Settings2} title="Active Policy Snapshot">
+          <Section icon={Settings2} title={t("aiSupport.agentSettings.snapshot.title")}>
             <div className="grid gap-2 text-sm leading-6 text-slate-300">
-              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">Discount promises: <b className="text-white">{settings.allow_discount_promises ? `Allowed up to ${settings.max_discount_percent || 0}%` : "Disabled"}</b></div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">Order drafts: <b className="text-white">{settings.allow_auto_draft_creation === false ? "Human only" : "AI can create drafts"}</b></div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">Confirmations: <b className="text-white">{settings.require_human_approval_before_confirm ? "Human approval required" : "AI can confirm existing drafts"}</b></div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">Suggested replies: <b className="text-white">{settings.suggested_replies_enabled === false ? "Disabled" : `${settings.suggested_reply_count || 3} suggestions`}</b></div>
+              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">{t("aiSupport.agentSettings.snapshot.discounts")} <b className="text-white">{settings.allow_discount_promises ? t("aiSupport.agentSettings.snapshot.discountAllowed", { percent: settings.max_discount_percent || 0 }) : t("aiSupport.agentSettings.snapshot.disabled")}</b></div>
+              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">{t("aiSupport.agentSettings.snapshot.drafts")} <b className="text-white">{settings.allow_auto_draft_creation === false ? t("aiSupport.agentSettings.snapshot.humanOnly") : t("aiSupport.agentSettings.snapshot.aiCanDraft")}</b></div>
+              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">{t("aiSupport.agentSettings.snapshot.confirmations")} <b className="text-white">{settings.require_human_approval_before_confirm ? t("aiSupport.agentSettings.snapshot.approvalRequired") : t("aiSupport.agentSettings.snapshot.aiCanConfirm")}</b></div>
+              <div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">{t("aiSupport.agentSettings.snapshot.suggested")} <b className="text-white">{settings.suggested_replies_enabled === false ? t("aiSupport.agentSettings.snapshot.disabled") : t("aiSupport.agentSettings.snapshot.suggestionCount", { count: settings.suggested_reply_count || 3 })}</b></div>
             </div>
           </Section>
         </div>

@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import i18n from "../../../i18n/i18n";
+
 import {
   AlertTriangle,
   Banknote,
@@ -316,7 +318,7 @@ const getAttributionLabel = (order = {}) => {
 };
 
 const isGuestCustomerName = (value = "") => /^guest[:#-]?\d*$/i.test(text(value)) || lower(value) === "guest";
-const getCustomerDisplayName = (order = {}, fallback = "Customer") =>
+const getCustomerDisplayName = (order = {}, fallback = "") =>
   [order.customer_name, order.customer?.name, order.customer_full_name, order.customer_record_name, order.customer_phone]
     .map((value) => text(value))
     .find((value) => value && !isGuestCustomerName(value)) || fallback;
@@ -499,20 +501,20 @@ const isCriticalOrder = (order = {}) => {
 };
 
 const priorityFor = (order = {}) => {
-  if (isCriticalOrder(order)) return { label: "حرج", className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
-  if (statusOf(order) === "edit_requested") return { label: "تعديل مطلوب", className: "border-orange-400/35 bg-orange-400/10 shadow-orange-950/20" };
-  if (isClosedOrder(order)) return { label: "مرتجع/ملغى", className: "border-border bg-surface shadow-black/10" };
-  if (isAwaitingVerification(order)) return { label: "مراجعة", className: "border-border bg-surface shadow-black/10" };
-  if (isDelayedPending(order)) return { label: "متأخر", className: "border-border bg-surface shadow-black/10" };
-  if (isHighValue(order)) return { label: "قيمة مرتفعة", className: "border-border bg-surface shadow-black/10" };
+  if (isCriticalOrder(order)) return { label: i18n.t("orders.priority.critical"), className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
+  if (statusOf(order) === "edit_requested") return { label: i18n.t("orders.priority.editRequested"), className: "border-orange-400/35 bg-orange-400/10 shadow-orange-950/20" };
+  if (isClosedOrder(order)) return { label: i18n.t("orders.priority.returnedCancelled"), className: "border-border bg-surface shadow-black/10" };
+  if (isAwaitingVerification(order)) return { label: i18n.t("orders.priority.review"), className: "border-border bg-surface shadow-black/10" };
+  if (isDelayedPending(order)) return { label: i18n.t("orders.priority.late"), className: "border-border bg-surface shadow-black/10" };
+  if (isHighValue(order)) return { label: i18n.t("orders.priority.highValue"), className: "border-border bg-surface shadow-black/10" };
   if (paymentStatusOf(order) === "cod") return { label: "COD", className: "border-border bg-surface shadow-black/10" };
-  return { label: "عادي", className: "border-border bg-surface shadow-black/10" };
+  return { label: i18n.t("orders.priority.normal"), className: "border-border bg-surface shadow-black/10" };
 };
 
 const CUSTOMER_CONFIRMATION_TIMELINE_META = {
-  customer_confirmed_order: { label: "تم التأكيد من العميل", tone: "emerald" },
-  customer_requested_edit: { label: "العميل طلب تعديل", tone: "orange" },
-  customer_cancelled_order: { label: "ألغاه العميل", tone: "rose" },
+  customer_confirmed_order: { get label() { return i18n.t("orders.timeline.customerConfirmed"); }, tone: "emerald" },
+  customer_requested_edit: { get label() { return i18n.t("orders.timeline.customerRequestedEdit"); }, tone: "orange" },
+  customer_cancelled_order: { get label() { return i18n.t("orders.timeline.customerCancelled"); }, tone: "rose" },
 };
 
 const normalizeOrderTimeline = (order = {}) =>
@@ -535,33 +537,33 @@ const buildTimeline = (order = {}) => {
   const customTimeline = normalizeOrderTimeline(order);
   const customActions = new Set(customTimeline.map((item) => item.action).filter(Boolean));
   const items = [
-    { key: "created", label: "تم إنشاء الطلب", at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
+    { key: "created", label: i18n.t("orders.timeline.created"), at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
   ];
   if (getShippingProofRawValue(order)) {
-    items.push({ key: "payment_uploaded", label: "تم رفع إثبات الدفع", at: order.created_at, done: true, tone: "amber" });
+    items.push({ key: "payment_uploaded", label: i18n.t("orders.timeline.paymentUploaded"), at: order.created_at, done: true, tone: "amber" });
   }
   if (order.shipping_payment_verified_at) {
     const rejected = paymentStatusOf(order) === "rejected" || lower(order.transfer_proof_status) === "rejected";
-    items.push({ key: "payment_verified", label: rejected ? "تم رفض الدفع" : "تم تأكيد الدفع", at: order.shipping_payment_verified_at, done: true, tone: rejected ? "rose" : "emerald" });
+    items.push({ key: "payment_verified", label: rejected ? i18n.t("orders.timeline.paymentRejected") : i18n.t("orders.timeline.paymentVerified"), at: order.shipping_payment_verified_at, done: true, tone: rejected ? "rose" : "emerald" });
   }
   if (customTimeline.length) {
     items.push(...customTimeline);
   }
   if (statusOf(order) === "confirmed" && !customActions.has("customer_confirmed_order")) {
-    items.push({ key: "confirmed", label: "تم تأكيد الطلب", at: order.updated_at, done: true, tone: "blue" });
+    items.push({ key: "confirmed", label: i18n.t("orders.timeline.orderConfirmed"), at: order.updated_at, done: true, tone: "blue" });
   }
   if (statusOf(order) === "edit_requested" && !customActions.has("customer_requested_edit")) {
-    items.push({ key: "edit_requested", label: "العميل طلب تعديل", at: order.updated_at, done: true, tone: "orange" });
+    items.push({ key: "edit_requested", label: i18n.t("orders.timeline.customerRequestedEdit"), at: order.updated_at, done: true, tone: "orange" });
   }
   const shipping = shippingStatusOf(order);
   if (["ready_to_ship"].includes(shipping) || ["ready_to_ship"].includes(statusOf(order))) {
-    items.push({ key: "ready_to_ship", label: "جاهز للشحن", at: order.updated_at, done: true, tone: "blue" });
+    items.push({ key: "ready_to_ship", label: i18n.t("orders.timeline.readyToShip"), at: order.updated_at, done: true, tone: "blue" });
   }
   if (["shipment_created", "out_for_delivery", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
-    items.push({ key: "shipment_created", label: "تم إنشاء الشحنة", at: order.updated_at, done: true, tone: "blue" });
+    items.push({ key: "shipment_created", label: i18n.t("orders.timeline.shipmentCreated"), at: order.updated_at, done: true, tone: "blue" });
   }
   if (shipping === "delivered" || statusOf(order) === "delivered") {
-    items.push({ key: "delivered", label: "تم التسليم", at: order.updated_at, done: true, tone: "emerald" });
+    items.push({ key: "delivered", label: i18n.t("orders.timeline.delivered"), at: order.updated_at, done: true, tone: "emerald" });
   }
   if (isClosedOrder(order)) {
     const returnedOrRefunded = isReturnedOrRefundedOrder(order);
@@ -574,7 +576,7 @@ const buildTimeline = (order = {}) => {
       tone: "rose",
     });
     if (statusOf(order) === "cancelled_by_customer" && !customActions.has("customer_cancelled_order")) {
-      items.push({ key: "cancelled_by_customer", label: "ألغاه العميل", at: order.cancelled_at || order.updated_at, done: true, tone: "rose" });
+      items.push({ key: "cancelled_by_customer", label: i18n.t("orders.timeline.customerCancelled"), at: order.cancelled_at || order.updated_at, done: true, tone: "rose" });
     }
     if (order.refund_method) {
       items.push({
@@ -1094,7 +1096,7 @@ function Filters(props) {
     <>
       <div className="m1-orders-filters grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(4,minmax(9rem,1fr))]">
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-text-muted">البحث</div>
+          <div className="mb-1.5 text-[11px] font-bold text-text-muted">{t("orders.filters.search")}</div>
           <div className="relative">
             <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
@@ -1105,11 +1107,11 @@ function Filters(props) {
             />
           </div>
         </label>
-        <Select value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label="حالة الطلب" allLabel="الكل" labels={STATUS_FILTER_LABELS} />
-        <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label="حالة الدفع" allLabel="الكل" labels={PAYMENT_FILTER_LABELS} />
-        <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="المصدر" allLabel="الكل" labels={SOURCE_LABELS} t={t} />
+        <Select value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label={t("orders.filters.orderStatus")} allLabel={t("orders.filters.all")} labels={STATUS_FILTER_LABELS} />
+        <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label={t("orders.filters.paymentStatus")} allLabel={t("orders.filters.all")} labels={PAYMENT_FILTER_LABELS} />
+        <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} t={t} />
         <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-text-muted">التاريخ</div>
+          <div className="mb-1.5 text-[11px] font-bold text-text-muted">{t("orders.filters.date")}</div>
           <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2.5 text-sm text-text outline-none" />
         </label>
       </div>
@@ -1144,13 +1146,13 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.invoice")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.date")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customer")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customerPhone", isArabicLanguage(language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.items", isArabicLanguage(language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paymentStatus", isArabicLanguage(language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customerPhone")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.items")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paymentStatus")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.total")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paidAmount", isArabicLanguage(language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{isArabicLanguage(language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.seller", isArabicLanguage(language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paidAmount")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.due")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.seller")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.branch")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{isArabicLanguage(language) ? "\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064a\u0639" : "POS"}</div>
         </div>
@@ -1432,12 +1434,12 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
           <div className="grid gap-3 sm:grid-cols-2">
             <InfoTile icon={User} label={t("orders.drawer.customer")} value={getCustomerDisplayName(order, t("orders.fallback.walkInCustomer"))} />
             <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
-            <InfoTile icon={User} label="البائع" value={getSellerDisplayName(order) || "غير متاح"} />
-            <InfoTile icon={CreditCard} label="الدفع" value={getPaymentSummary(order, "ar").label} />
+            <InfoTile icon={User} label={t("orders.drawer.seller")} value={getSellerDisplayName(order) || t("orders.fallback.notAvailable")} />
+            <InfoTile icon={CreditCard} label={t("orders.drawer.payment")} value={getPaymentSummary(order, "ar").label} />
             {order.refund_method ? <InfoTile icon={RotateCcw} label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f" value={refundMethodLabel(order.refund_method)} /> : null}
-            <InfoTile icon={Truck} label="الشحن" value={`${order.shipping_provider || "يدوي"} · ${order.shipping_status || "قيد الانتظار"}`} />
+            <InfoTile icon={Truck} label={t("orders.drawer.shipping")} value={`${order.shipping_provider || t("orders.drawer.manualShipping")} · ${order.shipping_status || t("orders.drawer.shippingPending")}`} />
             <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
-            {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="دفع تعديل الفاتورة" value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}
+            {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label={t("orders.drawer.invoiceEditPayment")} value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}
             <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
           </div>
 
@@ -1528,11 +1530,11 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
         <div className="grid gap-2">
           <InfoTile icon={User} label={t("orders.drawer.customer")} value={customerName} />
           <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
-          <InfoTile icon={User} label="البائع" value={sellerName || "غير متاح"} />
-          <InfoTile icon={CreditCard} label="الدفع" value={getPaymentSummary(order, "ar").label} />
+          <InfoTile icon={User} label={t("orders.drawer.seller")} value={sellerName || t("orders.fallback.notAvailable")} />
+          <InfoTile icon={CreditCard} label={t("orders.drawer.payment")} value={getPaymentSummary(order, "ar").label} />
           {order.refund_method ? <InfoTile icon={RotateCcw} label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f" value={refundMethodLabel(order.refund_method)} /> : null}
           <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
-          {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="دفع تعديل الفاتورة" value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}
+          {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label={t("orders.drawer.invoiceEditPayment")} value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}
           <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
         </div>
 

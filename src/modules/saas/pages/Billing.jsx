@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { BadgeDollarSign, CheckCircle2, Clock3, CreditCard, Crown } from "lucide-react";
@@ -8,6 +9,7 @@ import { PLANS } from "../lib/tenantStore";
 import { useTenant } from "../context/TenantContext";
 
 function Billing() {
+  const { t } = useTranslation();
   const tenantApi = useTenant();
   const billing = tenantApi?.billing;
 
@@ -18,8 +20,8 @@ function Billing() {
 
   return (
     <SaaSShell
-      title="Billing"
-      subtitle="Subscription status, expiration date, billing placeholders, and an upgrade flow that works even before the backend billing service exists."
+      title={t("saas.billing.title")}
+      subtitle={t("saas.billing.subtitle")}
       actions={
         <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <CheckCircle2 className="h-4 w-4" />
@@ -27,24 +29,24 @@ function Billing() {
         </Link>
       }
       tabs={[
-        { to: "/workspace", label: "Workspace" },
-        { to: "/billing", label: "Billing", end: true },
-        { to: "/settings/company", label: "Company settings" },
-        { to: "/admin/tenants", label: "Admin tenants" },
+        { to: "/workspace", label: t("saas.tabs.workspace") },
+        { to: "/billing", label: t("saas.tabs.billing"), end: true },
+        { to: "/settings/company", label: t("saas.tabs.companySettings") },
+        { to: "/admin/tenants", label: t("saas.tabs.adminTenants") },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Plan" value={billing?.plan?.name || "Trial"} icon={<Crown className="h-5 w-5" />} />
-        <Metric label="Status" value={billing?.status || "Active"} icon={<CheckCircle2 className="h-5 w-5" />} />
-        <Metric label="Expires" value={nextCharge} icon={<Clock3 className="h-5 w-5" />} />
-        <Metric label="Currency" value={billing?.currency || "USD"} icon={<BadgeDollarSign className="h-5 w-5" />} />
+        <Metric label={t("saas.billing.metrics.plan")} value={billing?.plan?.name || "Trial"} icon={<Crown className="h-5 w-5" />} />
+        <Metric label={t("saas.billing.metrics.status")} value={billing?.status || "Active"} icon={<CheckCircle2 className="h-5 w-5" />} />
+        <Metric label={t("saas.billing.metrics.expires")} value={nextCharge} icon={<Clock3 className="h-5 w-5" />} />
+        <Metric label={t("saas.billing.metrics.currency")} value={billing?.currency || "USD"} icon={<BadgeDollarSign className="h-5 w-5" />} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="m1-section-title text-white">Current subscription</h3>
+          <h3 className="m1-section-title text-white">{t("saas.billing.current")}</h3>
           <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Subscription</div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">{t("saas.billing.subscription")}</div>
             <div className="mt-2 text-3xl font-black text-white">{billing?.plan?.name || "Trial"}</div>
             <p className="mt-2 text-sm text-primary/80">
               {billing?.plan?.features?.join(" • ") || "Billing placeholders available until live checkout is connected."}
@@ -61,7 +63,7 @@ function Billing() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="m1-section-title text-white">Upgrade page</h3>
+          <h3 className="m1-section-title text-white">{t("saas.billing.upgrade")}</h3>
           <div className="mt-4 space-y-3">
             {PLANS.map((plan) => (
               <div key={plan.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">

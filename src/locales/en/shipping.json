@@ -1,0 +1,56 @@
+{
+  "center": {
+    "eyebrow": "Operations",
+    "title": "Shipping Center",
+    "tableView": "Table View",
+    "boardView": "Board View",
+    "refresh": "Refresh",
+    "status": {
+      "ready_to_ship": "Ready To Ship",
+      "shipment_created": "Shipment Created",
+      "picked_up": "Picked Up",
+      "in_transit": "In Transit",
+      "out_for_delivery": "Out For Delivery",
+      "delivered": "Delivered",
+      "returned": "Returned",
+      "failed_delivery": "Failed"
+    },
+    "providers": {
+      "inStoreDelivery": "In Store Delivery"
+    },
+    "kpi": {
+      "successRate": "Delivery Success Rate",
+      "returnRate": "Return Rate",
+      "avgDeliveryTime": "Average Delivery Time",
+      "perProvider": "Orders Per Provider",
+      "perCity": "Orders Per City"
+    },
+    "filters": {
+      "search": "Search order, customer, phone, tracking...",
+      "allProviders": "All providers",
+      "allBranches": "All branches",
+      "allShippingStatuses": "All shipping statuses",
+      "allPaymentStatuses": "All payment statuses",
+      "codOrPrepaid": "COD / Prepaid",
+      "prepaid": "Prepaid"
+    },
+    "bulk": {
+      "createShipments": "Create Shipments",
+      "refreshStatus": "Refresh Status",
+      "printLabels": "Print Labels",
+      "markReady": "Mark Ready",
+      "exportCsv": "Export CSV",
+      "selectFirst": "Select shipments first"
+    },
+    "drawer": {
+      "title": "Shipment Drawer",
+      "address": "Address",
+      "printLabel": "Print Label",
+      "timeline": "Shipping Timeline",
+      "noTimeline": "No timeline events yet.",
+      "webhookEvents": "Webhook Events",
+      "noWebhookEvents": "No webhook events received."
+    },
+    "emptyRows": "No shipments match the current filters."
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "reports": {
+    "exportReady": "Export-ready attendance reports",
+    "from": "From",
+    "employeeId": "Employee ID",
+    "allEmployees": "All employees",
+    "allLogsInRange": "All logs in the filtered range",
+    "present": "Present",
+    "checkedOut": "Checked out",
+    "completedRows": "Completed attendance rows",
+    "missingCheckout": "Missing checkout",
+    "openRowsWithoutCheckout": "Open rows without a checkout",
+    "late": "Late",
+    "rowsWithLateMinutes": "Rows with late minutes",
+    "workedHours": "Worked hours",
+    "manualAndGeneratedSchedules": "Manual and generated schedules",
+    "scheduledShifts": "Scheduled shifts",
+    "nextOpenerRows": "Next opener rows",
+    "openingAssignments": "Opening assignments",
+    "approvedOvertime": "Approved overtime",
+    "pendingOvertime": "Pending overtime",
+    "monthlyTotals": "Monthly totals",
+    "loadingMonthlyTotals": "Loading monthly totals...",
+    "loadingOpeningAssignments": "Loading opening assignments...",
+    "noOpeningAssignments": "No opening assignments in this range.",
+    "overtimeApprovals": "Overtime approvals",
+    "loadingOvertimeApprovals": "Loading overtime approvals...",
+    "noOvertimeApprovals": "No overtime approval requests in this range.",
+    "tableTitle": "Attendance table",
+    "tableSubtitle": "Employee, branch, worked hours, and checkout status.",
+    "employee": "Employee",
+    "branch": "Branch",
+    "date": "Date",
+    "scheduledShift": "Scheduled shift",
+    "checkIn": "Check in",
+    "checkOut": "Check out",
+    "worked": "Worked",
+    "lateOt": "Late / OT",
+    "otApproval": "OT approval",
+    "status": "Status"
+  },
+  "center": {
+    "openCalendar": "Open calendar",
+    "imported": "Imported",
+    "manual": "Manual",
+    "qrBranch": "QR Branch",
+    "attendanceTrend": "Attendance trend",
+    "lateArrivalsTrend": "Late arrivals trend",
+    "branchComparison": "Branch attendance comparison",
+    "employeeRanking": "Employee attendance ranking"
+  },
+  "public": {
+    "attendance": "Attendance",
+    "branchMapPreview": "Branch map preview",
+    "location": "Location",
+    "phoneOrEmployeeCode": "Phone or employee code",
+    "employeeIdentified": "Employee identified"
+  },
+  "qr": {
+    "scanThenConfirmGps": "Scan branch QR, then confirm GPS",
+    "processing": "Processing QR and GPS location...",
+    "result": "Result",
+    "employee": "Employee",
+    "branch": "Branch",
+    "time": "Time",
+    "distance": "Distance",
+    "allowedRadius": "Allowed radius"
+  },
+  "dashboard": {
+    "latestReadingsFor": "Latest readings for"
+  },
+  "branchLinks": {
+    "shortLinkCopied": "Short link copied",
+    "shortLinkCopyFailed": "Failed to copy short link"
+  }
+}

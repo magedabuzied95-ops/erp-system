@@ -371,8 +371,8 @@ export default function InventoryApprovalsPage() {
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-text-muted">
-                      <span className="rounded-full bg-surface-soft px-2.5 py-1">الأصناف: {formatNumber(session.item_count || 0)}</span>
-                      <span className="rounded-full bg-surface-soft px-2.5 py-1">إجمالي الفروقات: {formatNumber(session.difference_total || 0)}</span>
+                      <span className="rounded-full bg-surface-soft px-2.5 py-1">{tt("managerPortal.labels.items")}: {formatNumber(session.item_count || 0)}</span>
+                      <span className="rounded-full bg-surface-soft px-2.5 py-1">{tt("managerPortal.labels.totalDifferences")}: {formatNumber(session.difference_total || 0)}</span>
                     </div>
                   </button>
                 ))

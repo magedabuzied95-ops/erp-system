@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import i18n from "../../../i18n/i18n";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -67,11 +70,12 @@ const channelTone = (value = "") => {
   if (channel.includes("instagram")) return "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-100";
   return "border-white/10 bg-slate-950/50 text-slate-300";
 };
+/* Branches on the RAW priority value; only the label is display. */
 const priorityMeta = (value = "medium") => {
   const key = lower(value);
-  if (key === "high") return { label: "High", tone: "border-rose-300/20 bg-rose-400/10 text-rose-100" };
-  if (key === "low") return { label: "Low", tone: "border-white/10 bg-slate-950/45 text-slate-300" };
-  return { label: "Medium", tone: "border-amber-300/20 bg-amber-400/10 text-amber-100" };
+  if (key === "high") return { label: i18n.t("aiSupport.followups.priority.high"), tone: "border-rose-300/20 bg-rose-400/10 text-rose-100" };
+  if (key === "low") return { label: i18n.t("aiSupport.followups.priority.low"), tone: "border-white/10 bg-slate-950/45 text-slate-300" };
+  return { label: i18n.t("aiSupport.followups.priority.medium"), tone: "border-amber-300/20 bg-amber-400/10 text-amber-100" };
 };
 const taskTone = (value = "") => {
   const key = lower(value);
@@ -86,27 +90,30 @@ const taskTone = (value = "") => {
   }
   return "border-white/10 bg-slate-950/45 text-slate-300";
 };
+/* `key` is the RAW filter value sent to the query; labelKey is display only. */
 const statusTabs = [
-  { key: "all", label: "All" },
-  { key: "needs_reply", label: "Needs Reply" },
-  { key: "needs_follow_up", label: "Needs Follow-up" },
-  { key: "needs_manager", label: "Needs Manager" },
-  { key: "resolved", label: "Resolved" },
+  { key: "all", labelKey: "aiSupport.followups.tabs.all" },
+  { key: "needs_reply", labelKey: "aiSupport.followups.tabs.needsReply" },
+  { key: "needs_follow_up", labelKey: "aiSupport.followups.tabs.needsFollowUp" },
+  { key: "needs_manager", labelKey: "aiSupport.followups.tabs.needsManager" },
+  { key: "resolved", labelKey: "aiSupport.followups.tabs.resolved" },
 ];
 const quickFilters = [
-  { key: "whatsapp", label: "WhatsApp" },
-  { key: "messenger", label: "Messenger" },
-  { key: "instagram", label: "Instagram" },
-  { key: "website", label: "Website" },
-  { key: "assigned_to_me", label: "Assigned to me" },
-  { key: "unassigned", label: "Unassigned" },
-  { key: "today", label: "Today" },
+  { key: "whatsapp", labelKey: "aiSupport.followups.filters.whatsapp" },
+  { key: "messenger", labelKey: "aiSupport.followups.filters.messenger" },
+  { key: "instagram", labelKey: "aiSupport.followups.filters.instagram" },
+  { key: "website", labelKey: "aiSupport.followups.filters.website" },
+  { key: "assigned_to_me", labelKey: "aiSupport.followups.filters.assignedToMe" },
+  { key: "unassigned", labelKey: "aiSupport.followups.filters.unassigned" },
+  { key: "today", labelKey: "aiSupport.followups.filters.today" },
 ];
 
-function EmptyState({ text = "No follow-ups need action right now." }) {
+function EmptyState({ text = "" }) {
+  const { t } = useTranslation();
+  const message = text || t("aiSupport.followups.empty");
   return (
     <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
-      {text}
+      {message}
     </div>
   );
 }
@@ -145,6 +152,7 @@ function FollowupCard({
   onTakeover,
   onOpenInbox,
 }) {
+  const { t } = useTranslation();
   const taskLabel = text(row.trigger_type || row.bucket || "follow-up");
   const priority = priorityMeta(row.priority || row.priority_level || row.priority_label || row.derived_priority || (row.category === "needs_manager" ? "high" : row.category === "resolved" ? "low" : row.bucket === "due" ? "high" : row.bucket === "scheduled" ? "medium" : "low"));
   const lastActivity = row.last_sent_at || row.manual_ready_at || row.updated_at || row.scheduled_at || row.conversation?.updated_at || row.conversation?.closed_at || row.created_at;
@@ -179,11 +187,11 @@ function FollowupCard({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
               <span>{formatRelative(lastActivity)}</span>
               <span className="text-slate-600">•</span>
-              <span>Activity {formatDateTime(lastActivity)}</span>
+              <span>{t("aiSupport.followups.activity", { at: formatDateTime(lastActivity) })}</span>
               {assignedName ? (
                 <>
                   <span className="text-slate-600">•</span>
-                  <span>Assigned: {assignedName}</span>
+                  <span>{t("aiSupport.followups.assigned", { name: assignedName })}</span>
                 </>
               ) : null}
             </div>
@@ -197,28 +205,28 @@ function FollowupCard({
         <div className="grid gap-2 sm:grid-cols-3">
           {confidenceValue !== "" && confidenceValue !== null && confidenceValue !== undefined ? (
             <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">AI confidence</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.followups.aiConfidence")}</div>
               <div className="mt-1 text-sm font-black text-white">{Number(confidenceValue) > 1 ? `${Math.round(Number(confidenceValue))}%` : `${Math.round(Number(confidenceValue) * 100)}%`}</div>
             </div>
           ) : (
             <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">AI confidence</div>
-              <div className="mt-1 text-sm font-black text-slate-500">Not available</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.followups.aiConfidence")}</div>
+              <div className="mt-1 text-sm font-black text-slate-500">{t("aiSupport.followups.notAvailable")}</div>
             </div>
           )}
           {revenueValue !== "" && revenueValue !== null && revenueValue !== undefined ? (
             <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Expected revenue</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.followups.expectedRevenue")}</div>
               <div className="mt-1 text-sm font-black text-white">{money(revenueValue)}</div>
             </div>
           ) : (
             <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Expected revenue</div>
-              <div className="mt-1 text-sm font-black text-slate-500">Not available</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.followups.expectedRevenue")}</div>
+              <div className="mt-1 text-sm font-black text-slate-500">{t("aiSupport.followups.notAvailable")}</div>
             </div>
           )}
           <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Conversation</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{t("aiSupport.followups.conversation")}</div>
             <div className="mt-1 text-sm font-black text-white">{text(row.session_id || row.conversation?.session_id || "—")}</div>
           </div>
         </div>
@@ -260,7 +268,7 @@ function FollowupCard({
         {showDetails ? (
           <details className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-white">
-              <span>View details</span>
+              <span>{t("aiSupport.followups.viewDetails")}</span>
               <ChevronDown className="h-4 w-4 text-slate-400" />
             </summary>
             <div className="mt-3 grid gap-3">
@@ -324,6 +332,7 @@ function FollowupCard({
 }
 
 export default function AiFollowups() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
@@ -531,11 +540,11 @@ export default function AiFollowups() {
         </section>
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <KpiCard label="All" value={stats.total} tone="cyan" />
-          <KpiCard label="Needs Reply" value={stats.needsReply} tone="amber" />
-          <KpiCard label="Needs Follow-up" value={stats.needsFollowUp} tone="zinc" />
-          <KpiCard label="Needs Manager" value={stats.needsManager} tone="rose" />
-          <KpiCard label="Resolved" value={stats.resolved} tone="emerald" />
+          <KpiCard label={t("aiSupport.followups.tabs.all")} value={stats.total} tone="cyan" />
+          <KpiCard label={t("aiSupport.followups.tabs.needsReply")} value={stats.needsReply} tone="amber" />
+          <KpiCard label={t("aiSupport.followups.tabs.needsFollowUp")} value={stats.needsFollowUp} tone="zinc" />
+          <KpiCard label={t("aiSupport.followups.tabs.needsManager")} value={stats.needsManager} tone="rose" />
+          <KpiCard label={t("aiSupport.followups.tabs.resolved")} value={stats.resolved} tone="emerald" />
         </section>
 
         <section className="flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-2.5">
@@ -546,7 +555,7 @@ export default function AiFollowups() {
               onClick={() => setActiveStatus(tab.key)}
               className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4 text-sm font-black transition ${ activeStatus === tab.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10" }`}
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </section>
@@ -559,7 +568,7 @@ export default function AiFollowups() {
               onClick={() => setActiveFilter(filter.key)}
               className={`h-[var(--control-height-md)] rounded-full px-3 text-xs font-black transition ${ activeFilter === filter.key ? "bg-primary text-slate-950" : "border border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10" }`}
             >
-              {filter.label}
+              {t(filter.labelKey)}
             </button>
           ))}
         </section>

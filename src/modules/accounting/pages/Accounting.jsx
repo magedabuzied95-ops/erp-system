@@ -19,6 +19,11 @@ import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency } from "../lib/financeStore";
 
+import i18n from "../../../i18n/i18n";
+
+/** Module-scope translator for helpers defined outside a component. */
+const tt = (key, options) => i18n.t(key, options);
+
 function Accounting() {
   const { t } = useTranslation();
   const [dashboard, setDashboard] = useState(null);
@@ -87,11 +92,11 @@ function Accounting() {
       }
       tabs={[
         { to: "/accounting", label: t("accounting.tabs.dashboard"), end: true },
-        { to: "/accounting/treasury", label: "الخزينة" },
+        { to: "/accounting/treasury", label: tt("accounting.treasury.title") },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
-        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
-        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
+        { to: "/accounting/general-ledger", label: tt("accounting.tabs.ledgers") },
+        { to: "/accounting/trial-balance", label: tt("accounting.reports.tabs.trialBalance") },
         { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },
         { to: "/accounting/payment-method-mappings", label: t("accounting.tabs.paymentMappings") },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
@@ -138,9 +143,9 @@ function Accounting() {
           icon={<BarChart3 className="h-5 w-5" />}
         />
         <FinanceMetricCard
-          label="صافي الربح"
+          label={tt("accounting.reports.metrics.netProfit")}
           value={formatCurrency(summary.netProfit)}
-          hint="بعد تكلفة البضاعة والمصروفات"
+          hint={tt("accounting.dashboard.afterCogsAndExpenses")}
           tone={Number(summary.netProfit || 0) >= 0 ? "emerald" : "rose"}
           icon={<BarChart3 className="h-5 w-5" />}
         />
@@ -150,12 +155,12 @@ function Accounting() {
         <div className="flex items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div>
-            <div className="font-black text-emerald-100">الأرقام من التقارير المالية الموحدة</div>
-            <div className="mt-1 text-sm text-emerald-100/70">المبيعات الملغاة والمرتجعات والخصومات مستبعدة أو محسوبة حسب حالتها، مع عزل بيانات الشركة والفرع.</div>
+            <div className="font-black text-emerald-100">{tt("accounting.dashboard.unifiedReportsNote")}</div>
+            <div className="mt-1 text-sm text-emerald-100/70">{tt("accounting.dashboard.exclusionsNote")}</div>
           </div>
         </div>
         <Link to="/accounting/reports" className="rounded-2xl bg-emerald-400 px-4 py-2 text-center text-sm font-black text-emerald-950">
-          فتح التقارير التنفيذية
+          {tt("accounting.dashboard.openExecutiveReports")}
         </Link>
       </div>
 
@@ -171,12 +176,12 @@ function Accounting() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <InfoTile label="صافي المبيعات" value={formatCurrency(summary.salesTotal)} />
-            <InfoTile label="مديونيات العملاء" value={formatCurrency(summary.receivablesDue)} />
-            <InfoTile label="مستحقات الموردين" value={formatCurrency(summary.payablesDue)} />
-            <InfoTile label="هامش مجمل الربح" value={summary.revenue ? `${Math.round((Number(summary.grossProfit || 0) / Number(summary.revenue || 1)) * 100)}%` : "0%"} />
-            <InfoTile label="الخصومات" value={formatCurrency(summary.discounts)} />
-            <InfoTile label="المرتجعات" value={formatCurrency(summary.refunds)} />
+            <InfoTile label={tt("accounting.reports.metrics.netSales")} value={formatCurrency(summary.salesTotal)} />
+            <InfoTile label={tt("accounting.dashboard.customerReceivables")} value={formatCurrency(summary.receivablesDue)} />
+            <InfoTile label={tt("accounting.dashboard.supplierPayables")} value={formatCurrency(summary.payablesDue)} />
+            <InfoTile label={tt("accounting.dashboard.grossMargin")} value={summary.revenue ? `${Math.round((Number(summary.grossProfit || 0) / Number(summary.revenue || 1)) * 100)}%` : "0%"} />
+            <InfoTile label={tt("accounting.reports.metrics.discounts")} value={formatCurrency(summary.discounts)} />
+            <InfoTile label={tt("accounting.reports.metrics.returns")} value={formatCurrency(summary.refunds)} />
           </div>
         </div>
 
@@ -190,13 +195,13 @@ function Accounting() {
               {t("accounting.links.journal")}
             </Link>
             <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/general-ledger">
-              دفتر الأستاذ
+              {tt("accounting.tabs.ledgers")}
             </Link>
             <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/trial-balance">
-              ميزان المراجعة
+              {tt("accounting.reports.tabs.trialBalance")}
             </Link>
             <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/reports">
-              التقارير التنفيذية
+              {tt("accounting.dashboard.executiveReports")}
             </Link>
             <Link className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/cost-fix">
               {t("accounting.links.costFix")}

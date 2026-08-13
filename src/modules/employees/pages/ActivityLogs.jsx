@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   useEffect,
   useState
@@ -27,6 +28,7 @@ import { api }
 from "../../../shared/api/api";
 
 function ActivityLogs() {
+  const { t } = useTranslation();
 
   /* ======================================================
      STATES
@@ -224,7 +226,7 @@ function ActivityLogs() {
           <input
             type="text"
 
-            placeholder="Search logs..."
+            placeholder={t("employeePortal.chrome.searchLogs")}
 
             value={search}
 

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useState } from "react";
 import { Pause, Play, Send, Trash2 } from "lucide-react";
 
@@ -17,6 +18,7 @@ export default function WhatsAppRecordingBar({
   onPauseResume,
   onSend,
 }) {
+  const { t } = useTranslation();
   const [levels, setLevels] = useState(DEFAULT_LEVELS);
   const pausedLevels = useMemo(() => levels.map((level) => Math.max(5, Math.round(level * 0.45))), [levels]);
 
@@ -70,7 +72,7 @@ export default function WhatsAppRecordingBar({
         onClick={onDelete}
         disabled={sending}
         className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[#202c33] text-red-300 transition active:scale-95 disabled:opacity-50"
-        aria-label="Delete recording"
+        aria-label={t("employeePortal.chrome.deleteRecording")}
       >
         <Trash2 className="h-4 w-4" />
       </button>
@@ -105,7 +107,7 @@ export default function WhatsAppRecordingBar({
         onClick={onSend}
         disabled={sending}
         className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-[#062821] transition active:scale-95 disabled:opacity-50"
-        aria-label="Send recording"
+        aria-label={t("employeePortal.chrome.sendRecording")}
       >
         <Send className="h-4 w-4" />
       </button>
