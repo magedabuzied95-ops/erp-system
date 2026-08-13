@@ -43,6 +43,7 @@ import {
   Ruler,
   Search,
   Send,
+  Settings,
   Smile,
   ShieldBan,
   ShoppingBag,
@@ -84,6 +85,7 @@ import inboxCache from "../services/inboxCache/inboxCache";
 import { channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
+import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
@@ -1973,6 +1975,8 @@ function InboxChannelSidebar({
   socialCommentsCount = 0,
   socialCommentsActive = false,
   onSelectSocialComments,
+  onOpenConfig,
+  configActive = false,
 }) {
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
@@ -2056,8 +2060,23 @@ function InboxChannelSidebar({
           </button>
         ))}
       </div>
-      {onSelectSocialComments ? (
+      {onOpenConfig ? (
         <div className="mt-2 border-t border-white/10 pt-2">
+          <button
+            type="button"
+            onClick={onOpenConfig}
+            title="Config"
+            aria-label="Config"
+            aria-pressed={configActive}
+            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 text-center transition ${configActive ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/75 hover:text-white"}`}
+          >
+            <Settings className="h-6 w-6" aria-hidden="true" />
+            <span className="text-[8px] font-black uppercase tracking-wide">Config</span>
+          </button>
+        </div>
+      ) : null}
+      {onSelectSocialComments ? (
+        <div className="mt-1 border-t border-white/10 pt-1">
           <button
             type="button"
             onClick={onSelectSocialComments}
@@ -3020,6 +3039,8 @@ function ManualReplyComposer({
   onEditAiSuggestion,
   onApproveAiSuggestion,
   onDismissAiSuggestion,
+  quickReplies = [],
+  quickReplyCustomerName = "",
 }) {
   const status = conversation?.conversation_status || conversation?.status || "ai_active";
   const canSendLive = conversation?.live_sending_available === true || isCommentConversation;
@@ -3087,6 +3108,11 @@ function ManualReplyComposer({
           onDismiss={onDismissAiSuggestion}
         />
       ) : null}
+      <QuickRepliesPicker
+        replies={quickReplies}
+        customerName={quickReplyCustomerName}
+        onUse={(message) => onChange(message)}
+      />
       <div dir="ltr" className="flex min-w-0 items-end gap-2">
         <div className="flex min-h-12 min-w-0 flex-1 items-end rounded-xl border border-slate-300 bg-white px-2 shadow-[0_1px_3px_rgba(15,23,42,0.18)] transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/15 dark:border-white/15 dark:bg-[#1b1e1b] dark:shadow-none dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10">
           <button
@@ -4626,6 +4652,7 @@ export default function AiInbox() {
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
+  const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   useEffect(() => {
     const handleCustomerAction = () => {
@@ -4784,6 +4811,7 @@ export default function AiInbox() {
   const lastEnabledAutoReplyModeRef = useRef({});
 
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
+  const quickRepliesStore = useQuickReplies({ headers, tenantId });
 
   useEffect(() => {
     selectedSessionIdRef.current = selectedSessionId;
@@ -8161,6 +8189,17 @@ export default function AiInbox() {
           </div>
         ) : null}
         <div className="flex h-full w-full min-w-0 gap-2 overflow-hidden p-2">
+          <QuickRepliesConfig
+            open={quickRepliesConfigOpen}
+            onClose={() => setQuickRepliesConfigOpen(false)}
+            replies={quickRepliesStore.quickReplies}
+            loading={quickRepliesStore.loading}
+            saving={quickRepliesStore.saving}
+            onCreate={quickRepliesStore.createReply}
+            onUpdate={quickRepliesStore.updateReply}
+            onDelete={quickRepliesStore.deleteReply}
+            onReorder={quickRepliesStore.reorderReplies}
+          />
           <InboxChannelSidebar
             channels={[]}
             allUnread={channelSummaries.all.unread}
@@ -8174,6 +8213,8 @@ export default function AiInbox() {
               setMobileView("list");
             }}
             onSelectSocialComments={() => setInboxSection("social_comments")}
+            onOpenConfig={() => setQuickRepliesConfigOpen(true)}
+            configActive={quickRepliesConfigOpen}
           />
           <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
@@ -8258,6 +8299,17 @@ export default function AiInbox() {
         onSave={saveReplyCorrection}
       />
       <div ref={fullscreenHostRef} className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
+        <QuickRepliesConfig
+          open={quickRepliesConfigOpen}
+          onClose={() => setQuickRepliesConfigOpen(false)}
+          replies={quickRepliesStore.quickReplies}
+          loading={quickRepliesStore.loading}
+          saving={quickRepliesStore.saving}
+          onCreate={quickRepliesStore.createReply}
+          onUpdate={quickRepliesStore.updateReply}
+          onDelete={quickRepliesStore.deleteReply}
+          onReorder={quickRepliesStore.reorderReplies}
+        />
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
@@ -8352,6 +8404,8 @@ export default function AiInbox() {
               activeChannel={channelFilter}
               socialCommentsCount={socialCommentsPanelCount}
               socialCommentsActive={false}
+              onOpenConfig={() => setQuickRepliesConfigOpen(true)}
+              configActive={quickRepliesConfigOpen}
               onSelectSocialComments={() => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
@@ -8646,6 +8700,8 @@ export default function AiInbox() {
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
+                        quickReplies={quickRepliesStore.quickReplies}
+                        quickReplyCustomerName={getConversationDisplayName(selectedConversation || {})}
                       />
                     </div>
                   </div>
@@ -9506,6 +9562,8 @@ export default function AiInbox() {
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
+                        quickReplies={quickRepliesStore.quickReplies}
+                        quickReplyCustomerName={getConversationDisplayName(selectedConversation || {})}
                         />
                       </div>
                     </div>

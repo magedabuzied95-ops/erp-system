@@ -30,6 +30,7 @@ import marketingAr from "../locales/ar/marketing.json";
 import storefrontAr from "../locales/ar/storefront.json";
 import printAr from "../locales/ar/print.json";
 import salesAr from "../locales/ar/sales.json";
+import aiSupportAr from "../locales/ar/aiSupport.json";
 
 import commonEn from "../locales/en/common.json";
 import dashboardEn from "../locales/en/dashboard.json";
@@ -58,6 +59,7 @@ import marketingEn from "../locales/en/marketing.json";
 import storefrontEn from "../locales/en/storefront.json";
 import printEn from "../locales/en/print.json";
 import salesEn from "../locales/en/sales.json";
+import aiSupportEn from "../locales/en/aiSupport.json";
 
 export const DEFAULT_LANGUAGE = "en";
 export const LANGUAGE_STORAGE_KEY = "app_language";
@@ -166,6 +168,7 @@ const resources = buildResources({
     storefront: storefrontAr,
     print: printAr,
     sales: salesAr,
+    aiSupport: aiSupportAr,
   },
   en: {
     common: commonEn,
@@ -195,6 +198,7 @@ const resources = buildResources({
     storefront: storefrontEn,
     print: printEn,
     sales: salesEn,
+    aiSupport: aiSupportEn,
   },
 });
 
