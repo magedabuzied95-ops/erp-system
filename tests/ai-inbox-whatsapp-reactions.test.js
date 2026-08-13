@@ -101,7 +101,9 @@ test("Messenger reactions are visible in both inboxes and use Meta reaction name
   assert.match(metaService, /export const sendMessengerInboxReaction/);
   assert.match(metaService, /\["👍", "like"\]/);
   assert.match(metaService, /\["❤️", "love"\]/);
-  assert.match(metaService, /META_REACTION_GRAPH_VERSION \|\| "v24\.0"/);
+  assert.match(metaService, /META_REACTION_GRAPH_VERSION \|\| "v25\.0"/);
+  assert.match(metaService, /form\.set\("payload", json\(\{/);
+  assert.match(metaService, /application\/x-www-form-urlencoded/);
   assert.match(routes, /await sendMessengerInboxReaction\(\{/);
   assert.match(transcript, /export const MESSENGER_MESSAGE_REACTIONS = \["👍", "❤️", "😂", "😮", "😢", "😡", "👎"\]/);
   assert.match(inbox, /MESSENGER_MESSAGE_REACTIONS/);

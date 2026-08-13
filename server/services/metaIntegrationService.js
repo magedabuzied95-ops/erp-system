@@ -22467,18 +22467,20 @@ export const sendMessengerInboxReaction = async ({
   });
   const reacting = Boolean(text(emoji));
   const reaction = MESSENGER_REACTION_NAMES.get(text(emoji)) || "love";
-  const graphVersion = process.env.META_REACTION_GRAPH_VERSION || "v24.0";
-  const response = await fetch(`https://graph.facebook.com/${graphVersion}/me/messages?access_token=${encodeURIComponent(token)}`, {
+  const graphVersion = process.env.META_REACTION_GRAPH_VERSION || "v25.0";
+  const pageId = text(facebookPageId || config.facebook_page_id || config.page_id || "me");
+  const form = new URLSearchParams();
+  form.set("recipient", json({ id: safeRecipientId }));
+  form.set("sender_action", reacting ? "react" : "unreact");
+  form.set("payload", json({
+    message_id: safeMessageId,
+    ...(reacting ? { reaction } : {}),
+  }));
+  form.set("access_token", token);
+  const response = await fetch(`https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: json({
-      recipient: { id: safeRecipientId },
-      sender_action: reacting ? "react" : "unreact",
-      payload: {
-        message_id: safeMessageId,
-        ...(reacting ? { reaction } : {}),
-      },
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form,
   });
   const result = await parseMetaPayload(response);
   if (!response.ok) {
