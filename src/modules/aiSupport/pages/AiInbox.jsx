@@ -2862,7 +2862,9 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
       <div className="mt-2 rounded-xl border border-cyan-300/25 bg-cyan-400/[0.08] p-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">اختار الألوان اللي هتتبعت</div>
-          {selectedCount > 0 ? <span className="rounded-lg border border-cyan-300/25 bg-cyan-400/15 px-1.5 py-0.5 text-[9px] font-black text-cyan-100">{selectedVariantCountText(selectedCount)}</span> : null}
+          <span className={`rounded-lg border px-1.5 py-0.5 text-[9px] font-black ${selectedCount > 0 ? "border-cyan-300/25 bg-cyan-400/15 text-cyan-100" : "border-white/12 bg-white/[0.04] text-slate-300"}`}>
+            {selectedCount > 0 ? selectedVariantCountText(selectedCount) : "تقدر تختار أكتر من لون"}
+          </span>
         </div>
         <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {colorChoices.map((c) => {
@@ -2873,9 +2875,15 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
             const img = c.image_url || c.image || c.thumbnail_url || "";
             const price = c.display_price ?? c.price ?? null;
             return (
-              <div key={key || `${c.product_id}:${c.color}`} className={`flex items-start gap-2 rounded-lg border p-1.5 transition ${picked ? "border-cyan-300/50 bg-cyan-400/15" : "border-white/12 bg-white/[0.04]"}`}>
-                <button type="button" onClick={() => onToggleRecommendation?.(c)} aria-pressed={picked} className="flex min-w-0 flex-1 items-start gap-2 text-right">
-                  <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border text-[9px] font-black ${picked ? "border-cyan-300 bg-cyan-400 text-slate-900" : "border-white/25 text-transparent"}`}>✓</span>
+              <div key={key || `${c.product_id}:${c.color}`} className={`flex items-start gap-2 rounded-lg border p-1.5 transition ${picked ? "border-cyan-300 bg-cyan-400/20 ring-1 ring-cyan-300/40" : "border-white/12 bg-white/[0.04] hover:border-cyan-300/30 hover:bg-white/[0.07]"}`}>
+                <button
+                  type="button"
+                  onClick={() => onToggleRecommendation?.(c)}
+                  aria-pressed={picked}
+                  title={picked ? "اضغط لإلغاء الاختيار" : "اضغط لاختيار اللون ده"}
+                  className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-right"
+                >
+                  <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border text-[9px] font-black ${picked ? "border-cyan-300 bg-cyan-400 text-slate-900" : "border-white/35 bg-white/[0.06] text-transparent"}`}>✓</span>
                   {img ? <img src={img} alt={clean(c.color)} className="h-9 w-9 shrink-0 rounded border border-white/10 object-cover" /> : null}
                   <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
                     <span className="block truncate font-black">{clean(c.color) || "لون"}</span>
@@ -3027,6 +3035,9 @@ function AiSuggestionCard({
   const approveLabel = recommendationCount > 0
     ? (variantOptionsMode ? assistedVariantSendButtonText(recommendationCount) : assistedSendButtonText(recommendationCount))
     : "اعتماد وإرسال";
+  // Phase 13.4.1 — an options suggestion answers "which colours do we show?", so approving with nothing ticked
+  // would send a reply that promises options and delivers none. Disable rather than fail on click.
+  const approveDisabled = variantOptionsMode && recommendationCount === 0;
 
   return (
     <div className={`mb-2 rounded-2xl border p-2.5 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
@@ -3089,7 +3100,9 @@ function AiSuggestionCard({
         <button
           type="button"
           onClick={onApprove}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15"
+          disabled={approveDisabled}
+          title={approveDisabled ? "اختار لون واحد على الأقل قبل الإرسال" : undefined}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-emerald-400/10"
         >
           ✅ {approveLabel}
         </button>
@@ -6353,8 +6366,22 @@ export default function AiInbox() {
   const isRecommendationSuggestion = suggestionSelectionMode === SELECTION_MODES.RECOMMENDATION;
   // Phase 13.4.1 — grounded VARIANT OPTIONS of one identified product (size asked, no colour asked, >1 in-stock
   // colour). Multi-select like a recommendation batch; identity disambiguation stays single-select.
-  const isVariantOptionsSuggestion = suggestionSelectionMode === SELECTION_MODES.VARIANT_OPTIONS
-    && Array.isArray(suggestionSendPackage?.color_choices) && suggestionSendPackage.color_choices.length > 1;
+  //
+  // The mode is decided from the GROUNDED PACKAGE, not from the persisted label alone. A draft composed before
+  // this phase shipped carries the older selection_semantics ("identity_disambiguation") while its colour choices
+  // already describe an options set — that stale label is what made the live UI fall through to the legacy
+  // single-colour pills. The eligibility rule below is the SAME deterministic rule the gate applies, evaluated on
+  // canonical fields only, so an existing draft becomes selectable without waiting for a new inbound message:
+  //   colour choice required + >1 grounded choice + every choice resolving to ONE product.
+  // The last clause is what keeps §15 intact — choices spanning several products are a genuine identity question
+  // and stay single-select. A colour was never requested when choices exist (the gate returns none in that case),
+  // so §12 needs no extra guard here. An explicit RECOMMENDATION label always wins.
+  const variantOptionsEligible = useMemo(() => {
+    const choices = asArray(suggestionSendPackage?.color_choices);
+    if (!suggestionSendPackage?.color_choice_required || choices.length <= 1) return false;
+    return new Set(choices.map((c) => String(c?.product_id ?? c?.id ?? ""))).size === 1;
+  }, [suggestionSendPackage]);
+  const isVariantOptionsSuggestion = variantOptionsEligible && !isRecommendationSuggestion;
   const isMultiSelectSuggestion = isRecommendationSuggestion || isVariantOptionsSuggestion;
   const suggestionRecommendationKeys = useMemo(() => new Set(suggestionRecommendationCards.map(productSelectionKey)), [suggestionRecommendationCards]);
   const suggestionDeliveryFormat = useMemo(() => {
