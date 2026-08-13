@@ -686,6 +686,43 @@ id is exposed in the DOM and `/api/products/:id`, `/api/product-variants` and
 | `/accounting` | 0 offenders, title 30px — **PASS (both themes)** |
 | `/accounting/journal-entries` | 0 offenders — **PASS (both themes)** |
 
+### Phase 3 — Dark pass COMPLETE for accounting + session-1
+
+Measured on Production at `f1eab49`, Dark / Arabic RTL. Each route below had
+only ever been measured in Light; running the missing Dark state upgrades it to
+**PASS (both themes)**. All 0 offenders, 0 opaque dark gradients, no overflow.
+
+**Accounting (13/13):** `/accounting` · `journal-entries` · `treasury` ·
+`general-ledger` · `trial-balance` · `profit-loss` · `cashbox` · `reports` ·
+`accounts` · `income` · `cost-fix` · `audit-trail` · `financial-accounts` ·
+`payment-method-mappings`
+
+**Session-1 (10/10):** `/workspace` · `/suppliers` · `/warehouses` ·
+`/stock-transfers` · `/smart-warehouse` · `/expenses` · `/billing` · `/roles` ·
+`/purchases` · `/purchases/reorder-suggestions`
+
+#### NOSET discipline held three times
+
+`/accounting/audit-trail`, `/suppliers` and `/purchases/reorder-suggestions` each
+first reported **NOSET**. None was recorded as a pass on that reading. Each was
+re-measured with a longer settle window and only then recorded clean.
+`/accounting/audit-trail` needed a full session re-establishment first — its
+NOSET was caused by the **degraded automation session**, not by the page, which
+is exactly why an unsettled reading must never be promoted.
+
+#### Auditor correction — translucent gradient false positive
+
+`/warehouses` and `/stock-transfers` flagged `DKGRAD` in Dark. Investigation
+showed the element is
+`radial-gradient(circle at 50% 0%, color(srgb 0.86 0.69 0.23 / 0.1), rgba(0,0,0,0))`
+— a **gold decorative wash at 0.1 alpha fading to transparent**, not an opaque
+dark surface. The old rule matched the transparent `rgba(0, 0,` stop.
+
+The gradient rule now ignores gradients containing an alpha stop or
+`transparent`, counting only **opaque** dark gradients. Re-measured under the
+corrected rule both routes report **0**. No source change was made — this was a
+detector defect, not a product defect.
+
 ## Typography ruling — page-title scale (DECIDED)
 
 **Canonical operational ERP page title = 22px**, i.e. the existing
