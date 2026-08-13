@@ -11,6 +11,7 @@ const service = read("server/services/aiInboxQuickRepliesService.js");
 const desktop = read("src/modules/aiSupport/pages/AiInbox.jsx");
 const pwa = read("src/modules/aiSupport/pages/AiInboxPwa.jsx");
 const components = read("src/modules/aiSupport/components/QuickReplies.jsx");
+const arabicDefaultsMigration = read("server/database/migrations/2026-08-14-arabic-ai-inbox-quick-replies.sql");
 
 test("Quick Replies expose tenant-protected CRUD and reorder endpoints", () => {
   assert.match(routes, /router\.get\("\/quick-replies", protect, permit\("settings", "view"\)/);
@@ -28,6 +29,17 @@ test("Quick Replies persistence is tenant scoped and ordered", () => {
   assert.match(service, /shortcut VARCHAR\(4\)/);
   assert.match(service, /idx_ai_inbox_quick_replies_tenant_shortcut/);
   assert.match(service, /This shortcut is already used by another quick reply/);
+});
+
+test("default quick replies are natural Arabic responses and legacy English defaults are migrated", () => {
+  for (const label of ["ترحيب", "جاري التأكد", "المقاس واللون", "بيانات الطلب", "تأكيد الطلب", "غير متاح", "متابعة العميل", "إنهاء المحادثة"]) {
+    assert.match(service, new RegExp(label));
+  }
+  assert.doesNotMatch(service, /Hi \{\{name\}\}|How can I help you today|support team will assist|Thanks for reaching out/);
+  assert.match(arabicDefaultsMigration, /legacy_quick_reply_tenants/);
+  assert.match(arabicDefaultsMigration, /WHERE name IN \('Greeting', 'Contact Support', 'Thanks & Close'\)/);
+  assert.match(arabicDefaultsMigration, /أهلاً وسهلاً/);
+  assert.match(arabicDefaultsMigration, /إنهاء المحادثة/);
 });
 
 test("desktop AI Inbox places Config above Social Comments and uses replies in the composer", () => {

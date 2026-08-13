@@ -1,9 +1,14 @@
 import db from "../database/db.js";
 
 const DEFAULT_QUICK_REPLIES = Object.freeze([
-  { name: "Greeting", message: "Hi {{name}} 👋 How can I help you today?" },
-  { name: "Contact Support", message: "You can reply here and our support team will assist you." },
-  { name: "Thanks & Close", message: "Thanks for reaching out — if you need anything else just send us a message." },
+  { name: "ترحيب", message: "أهلاً وسهلاً 👋 منورنا، تحب تسأل عن موديل أو مقاس معين؟" },
+  { name: "جاري التأكد", message: "تمام، ثانية واحدة بس أتأكدلك من المتاح وأرد عليك." },
+  { name: "المقاس واللون", message: "ممكن تقولي المقاس واللون اللي محتاجهم علشان أشوفلك المتاح؟" },
+  { name: "بيانات الطلب", message: "تمام، ابعتلي الاسم ورقم الموبايل والمحافظة والعنوان بالتفصيل علشان أسجلك الطلب." },
+  { name: "تأكيد الطلب", message: "تمام، طلبك اتسجل وهنتواصل معاك قبل الشحن للتأكيد 🙏" },
+  { name: "غير متاح", message: "للأسف المقاس ده مش متاح حاليًا، بس أقدر أشوفلك أقرب بديل لو تحب." },
+  { name: "متابعة العميل", message: "أنا معاك، لو فيه أي تفصيلة تانية محتاج تعرفها قولي." },
+  { name: "إنهاء المحادثة", message: "تحت أمرك في أي وقت، ولو احتجت أي حاجة ابعتلنا هنا 🙏" },
 ]);
 
 let schemaReadyPromise = null;
