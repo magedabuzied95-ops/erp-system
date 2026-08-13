@@ -56,6 +56,7 @@ const tt = (key, options) => i18n.t(key, options);
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser, setCurrentTenant } from "../../../shared/auth/authStorage";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import {
   SHIPPING_HANDLING_MAX_KEY,
@@ -1349,6 +1350,7 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
   const [failed, setFailed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const safeValue = String(value || "").trim();
+  const previewUrl = resolveProductImageUrl(safeValue);
 
   useEffect(() => {
     setFailed(false);
@@ -1397,8 +1399,8 @@ function BrandingUploadField({ title, value, onChange, helper, clearLabel, accep
       </div>
       <div className="grid gap-3 sm:grid-cols-[5.5rem_minmax(0,1fr)]">
         <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 dark:border-white/15 dark:bg-slate-950">
-          {safeValue && !failed ? (
-            <img src={safeValue} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+          {previewUrl && !failed ? (
+            <img src={previewUrl} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
           ) : (
             <div className="grid h-full w-full place-items-center p-3 text-center">
               <div>
@@ -3728,15 +3730,16 @@ function initialsFor(value = "") {
 
 function LogoAvatar({ src, name, size = "h-12 w-12" }) {
   const [failed, setFailed] = useState(false);
+  const resolvedSrc = resolveProductImageUrl(src);
 
   useEffect(() => {
     setFailed(false);
   }, [src]);
 
-  if (src && !failed) {
+  if (resolvedSrc && !failed) {
     return (
       <div className={`grid ${size} place-items-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-900`}>
-        <img src={src} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+        <img src={resolvedSrc} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
       </div>
     );
   }
