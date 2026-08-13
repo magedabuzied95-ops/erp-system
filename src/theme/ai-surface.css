@@ -65,6 +65,18 @@
   color: var(--muted);
 }
 
+/* `text-slate-950` is this module's "text on a bright fill" — it appears on
+   `bg-primary`, `bg-rose-400` and `bg-amber-300`, all of which stay bright in
+   both themes, so it becomes the contrast token. */
+.m1-ai-scope :where([class~="text-slate-950"]) { color: var(--primary-contrast); }
+
+/* ...except where the fill itself is a slate that the surface rules above
+   turned into a neutral theme surface. Near-black on `--surface-soft` is
+   correct in Light and invisible in Dark, so those follow the text token
+   instead. Specificity, not `!important`: this rule is (0,2,0) against the
+   (0,1,0) above it. */
+.m1-ai-scope [class~="text-slate-950"]:where([class*="bg-slate-"]) { color: var(--text); }
+
 /* Placeholders track the muted step in both themes. */
 .m1-ai-scope :where(input, textarea, select)::placeholder { color: var(--muted); }
 

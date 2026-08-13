@@ -164,7 +164,7 @@ export default function AiStudioRestockRecovery() {
       {/* View toggle + messaging-mode control */}
       <div className="flex flex-wrap items-center gap-1.5">
         {[["intents", t("aiStudio.restock.views.intents")], ["notifications", t("aiStudio.restock.views.notifications")], ["recoveries", t("aiStudio.restock.views.recoveries")]].map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-primary/40 bg-primary text-slate-950" : "border-white/10 bg-white/[0.055] text-[var(--primary-contrast)] hover:border-white/20"}`}>
+          <button key={k} type="button" onClick={() => setView(k)} className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border px-3.5 text-[12px] font-black ${view === k ? "border-primary/40 bg-primary text-[var(--primary-contrast)]" : "border-white/10 bg-white/[0.055] text-[var(--text)] hover:border-white/20"}`}>
             {k === "notifications" ? <MessageSquare className="h-3.5 w-3.5" /> : null}{label}{k === "notifications" && Number(notifCounts.pending_approval || 0) > 0 ? <span className="rounded-full bg-amber-400/20 px-1.5 text-[10px] text-amber-100">{notifCounts.pending_approval}</span> : null}
           </button>
         ))}
