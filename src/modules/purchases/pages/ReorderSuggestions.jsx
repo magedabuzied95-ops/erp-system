@@ -287,6 +287,8 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
   const sellThrough = clampPercent(item.sell_through_percent);
   const threshold = clampPercent(item.reorder_trigger_percent);
   const suggestedQty = Number(item.suggested_qty || 0);
+  const invalidPurchasePattern = item.purchase_pattern_configured && item.purchase_pattern_valid === false;
+  const purchasePatternError = (item.purchase_pattern_errors || []).map((error) => error.message).filter(Boolean).join(" · ");
 
   return (
     <article className="grid gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.035] p-3 transition duration-200 hover:border-white/20 hover:bg-white/[0.055] lg:grid-cols-[220px_minmax(0,1fr)_220px]">
@@ -308,6 +310,12 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
 
       <div className="min-w-0 space-y-2">
         <div className="line-clamp-2 text-xs font-bold leading-5 text-zinc-200">{item.reason}</div>
+        {item.purchase_pattern_configured ? (
+          <div className={`rounded-xl border px-3 py-2 text-xs font-black ${invalidPurchasePattern ? "border-rose-400/30 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>
+            <div>{item.purchase_pattern_mode} · {item.purchase_pattern_size_group}</div>
+            {invalidPurchasePattern ? <div className="mt-1 font-bold">{purchasePatternError || "Purchase pattern configuration is incomplete"}</div> : null}
+          </div>
+        ) : null}
         <SellThroughBar sellThrough={sellThrough} threshold={threshold} tone={tone} stock={item.current_stock} locale={locale} />
         <div className="flex flex-wrap gap-1.5">
           {sizes.length ? sizes.map(([size, value]) => (
@@ -335,9 +343,9 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
         <button
           type="button"
           onClick={onCreateDraft}
-          disabled={creating || suggestedQty <= 0 || item.status === "DO_NOT_BUY"}
+          disabled={creating || invalidPurchasePattern || suggestedQty <= 0 || item.status === "DO_NOT_BUY"}
           className="mt-1 inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-black transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-45"
-          title={suggestedQty <= 0 || item.status === "DO_NOT_BUY" ? t("purchases.reorder.noSuggestedQty") : t("purchases.reorder.createDraft")}
+          title={invalidPurchasePattern ? purchasePatternError : suggestedQty <= 0 || item.status === "DO_NOT_BUY" ? t("purchases.reorder.noSuggestedQty") : t("purchases.reorder.createDraft")}
         >
           <ShoppingBag className="h-4 w-4" />
           {creating ? t("purchases.reorder.creating") : t("purchases.reorder.createPurchaseInvoice")}

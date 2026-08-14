@@ -207,7 +207,24 @@
       "totalStock": "Total stock",
       "cartonSize": "Carton size",
       "suggestedCartons": "Suggested cartons",
-      "viewSuggestions": "View suggestions"
+      "viewSuggestions": "View suggestions",
+      "purchaseSuggestion": "Suggested purchase",
+      "purchaseMode": "Purchase mode",
+      "currentPurchaseMode": "Current purchase mode",
+      "purchaseColors": "Colours",
+      "colorsCount": "{{count}} colours",
+      "purchaseSizes": "Sizes",
+      "sizesPerColor": "Sizes per colour",
+      "totalSuggestedUnits": "Total suggested quantity",
+      "piecesCount": "{{count}} pieces",
+      "triggerReason": "Alert reason",
+      "sizeWithValue": "Size {{size}}"
+    },
+    "reasons": {
+      "out_of_stock": "Out of stock",
+      "low_stock": "Low stock",
+      "fullColorRunSummary": "The size range is incomplete",
+      "fullCartonSummary": "The model needs to be reordered"
     },
     "actions": {
       "selectVisible": "Select visible",

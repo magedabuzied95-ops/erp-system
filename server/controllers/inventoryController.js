@@ -8,6 +8,7 @@ import { createSystemNotification } from "../services/notificationsService.js";
 import { notifyInventoryRestock } from "../services/aiWorkflowTriggerService.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
+import { buildPurchaseComposition, PURCHASE_MODES, resolveProductPurchasePattern } from "../services/purchasePatternService.js";
 
 const LOW_STOCK_ALERT_MAX = 2;
 
@@ -91,6 +92,42 @@ const buildPurchaseAlertAction = (count) => {
   return nextCount === 1 ? "اطلب كرتونة" : `اطلب ${nextCount} كرتونة`;
 };
 
+const PURCHASE_MODE_LABELS_AR = Object.freeze({
+  INDIVIDUAL: "شراء بالمقاس",
+  FULL_COLOR_RUN: "شراء لون كامل",
+  FULL_CARTON: "شراء كرتونة كاملة",
+});
+
+const buildPurchaseAlertSuggestion = ({ pattern, composition, triggerVariants, color, suggestedPurchaseCartons }) => ({
+  mode: pattern.mode || null,
+  mode_label_ar: PURCHASE_MODE_LABELS_AR[pattern.mode] || "شراء حسب الإعداد الحالي",
+  unit: pattern.mode === PURCHASE_MODES.FULL_CARTON
+    ? "FULL_CARTON"
+    : pattern.mode === PURCHASE_MODES.FULL_COLOR_RUN ? "FULL_COLOR_RUN" : "INDIVIDUAL_SIZE",
+  size_group: pattern.size_group || null,
+  color: pattern.mode === PURCHASE_MODES.FULL_COLOR_RUN ? normalizeDisplayText(color) : "",
+  colors: composition.colors || [],
+  sizes: pattern.mode !== PURCHASE_MODES.INDIVIDUAL && pattern.sizes?.length
+    ? pattern.sizes
+    : Array.from(new Set((composition.lines || []).map((line) => normalizeDisplayText(line.size)).filter(Boolean))),
+  pieces_per_size: Number(pattern.pieces_per_size || (pattern.mode === PURCHASE_MODES.INDIVIDUAL ? 1 : 0)),
+  pack_count: suggestedPurchaseCartons,
+  total_units: Number(composition.total_pieces || 0),
+  lines: (composition.lines || []).map((line) => ({
+    variant_id: normalizeIdValue(line.variant_id),
+    color: normalizeDisplayText(line.color),
+    size: normalizeDisplayText(line.size),
+    quantity: Number(line.quantity || 0),
+  })),
+  trigger_variants: triggerVariants.map((variant) => ({
+    variant_id: normalizeIdValue(variant.variant_id),
+    color: normalizeDisplayText(variant.color),
+    size: normalizeDisplayText(variant.size),
+    stock: normalizePositiveStock(variant.stock),
+    reason_code: normalizePositiveStock(variant.stock) === 0 ? "out_of_stock" : "low_stock",
+  })),
+});
+
 const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", purchaseAlertByColor = false }) => {
   const sizeMap = new Map();
   let totalStock = 0;
@@ -107,12 +144,46 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
   const sizeEntries = Array.from(sizeMap.values()).filter((entry) => normalizeText(entry.size));
   const meaningfulSizeEntries = sizeEntries.filter((entry) => normalizeText(entry.size).toLowerCase() !== "one size");
   const inspectEntries = meaningfulSizeEntries.length > 0 ? meaningfulSizeEntries : [];
-  const missingSizes = inspectEntries.filter((entry) => entry.stock <= 0).map((entry) => entry.size);
+  const pattern = resolveProductPurchasePattern(product, scopeVariants);
+  const purchasePatternAlertAware = pattern.configured
+    && (pattern.mode === PURCHASE_MODES.FULL_COLOR_RUN || pattern.mode === PURCHASE_MODES.FULL_CARTON);
+  const legacyMissingSizes = inspectEntries.filter((entry) => entry.stock <= 0).map((entry) => entry.size);
+  const patternShortageVariants = purchasePatternAlertAware && pattern.sizes.length
+    ? scopeVariants.filter((variant) => pattern.sizes.includes(normalizeDisplayText(variant.size)) && normalizePositiveStock(variant.stock) <= LOW_STOCK_ALERT_MAX)
+    : [];
+  const missingSizes = purchasePatternAlertAware
+    ? Array.from(new Set(patternShortageVariants.map((variant) => normalizeDisplayText(variant.size)).filter(Boolean)))
+    : legacyMissingSizes;
   const cartonSize = Number(product.carton_size || 0);
   const suggestedPurchaseCartons = Math.max(1, Number(product.suggested_purchase_cartons || 1));
-  const alertType = missingSizes.length > 0 ? "missing_sizes" : cartonSize > 0 && totalStock <= cartonSize ? "carton_threshold" : null;
+  const legacyTriggerVariants = scopeVariants.filter((variant) => normalizePositiveStock(variant.stock) <= 0);
+  const triggerVariantIds = (purchasePatternAlertAware
+    ? patternShortageVariants
+    : legacyTriggerVariants)
+    .map((variant) => normalizeIdValue(variant.variant_id)).filter((value) => value !== null);
+  const composition = buildPurchaseComposition({
+    product,
+    variants: scopeVariants,
+    triggerColor: color,
+    triggerVariantIds,
+    packs: suggestedPurchaseCartons,
+  });
+  const compositionMissingSizes = (composition.missing_variants || []).map((item) => normalizeDisplayText(item.size)).filter(Boolean);
+  const allMissingSizes = Array.from(new Set([...missingSizes, ...compositionMissingSizes]));
+  const alertType = allMissingSizes.length > 0 || (pattern.configured && composition.valid === false)
+    ? "missing_sizes"
+    : cartonSize > 0 && totalStock <= cartonSize ? "carton_threshold" : null;
 
   if (!alertType) return null;
+  const purchaseSuggestion = buildPurchaseAlertSuggestion({
+    pattern,
+    composition,
+    triggerVariants: purchasePatternAlertAware
+      ? patternShortageVariants
+      : legacyTriggerVariants,
+    color,
+    suggestedPurchaseCartons,
+  });
 
   return {
     product_id: product.product_id,
@@ -123,7 +194,7 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     alert_type: alertType,
     alert_title: alertType === "missing_sizes" ? PURCHASE_ALERT_COPY.missing_sizes.title : PURCHASE_ALERT_COPY.carton_threshold.title,
     alert_reason: alertType === "missing_sizes" ? PURCHASE_ALERT_COPY.missing_sizes.reason : PURCHASE_ALERT_COPY.carton_threshold.reason,
-    missing_sizes: alertType === "missing_sizes" ? missingSizes : [],
+    missing_sizes: alertType === "missing_sizes" ? allMissingSizes : [],
     variant_ids: Array.from(
       new Set(
         scopeVariants
@@ -135,6 +206,25 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     carton_size: cartonSize > 0 ? cartonSize : null,
     suggested_purchase_cartons: suggestedPurchaseCartons,
     suggested_action: buildPurchaseAlertCartonAction(suggestedPurchaseCartons),
+    purchase_mode: pattern.mode,
+    purchase_pattern_configured: pattern.configured,
+    purchase_pattern_alert_aware: purchasePatternAlertAware,
+    purchase_size_group: pattern.size_group,
+    size_group_label: pattern.size_group_label,
+    purchase_sizes: pattern.sizes,
+    purchase_colors: composition.colors || [],
+    colors_per_carton: pattern.colors_per_carton,
+    pieces_per_size: pattern.pieces_per_size,
+    pieces_per_color_run: pattern.pieces_per_color_run,
+    pieces_per_carton: pattern.pieces_per_carton,
+    suggested_total_pieces: composition.total_pieces,
+    expected_total_pieces: composition.expected_total_pieces || composition.total_pieces,
+    composition_lines: composition.lines || [],
+    missing_purchase_variants: composition.missing_variants || [],
+    purchase_configuration_errors: composition.errors || [],
+    purchase_composition_valid: composition.valid !== false,
+    trigger_variants: purchaseSuggestion.trigger_variants,
+    purchase_suggestion: purchaseSuggestion,
     brand_id: normalizeIdValue(product.brand_id),
     brand_name: product.brand_name || "",
     category_id: normalizeIdValue(product.category_id),
@@ -158,7 +248,7 @@ const sortPurchaseAlerts = (alerts = []) =>
     return String(left.product_name || "").localeCompare(String(right.product_name || ""), "ar");
   });
 
-const buildPurchaseAlertsFromRows = (rows = []) => {
+export const buildPurchaseAlertsFromRows = (rows = []) => {
   const productMap = new Map();
 
   for (const row of rows) {
@@ -174,6 +264,11 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
         Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
           ? Math.floor(Number(row.suggested_purchase_cartons))
           : 1,
+      purchase_mode: row.purchase_mode || null,
+      purchase_size_group: row.purchase_size_group || null,
+      purchase_colors_per_carton: row.purchase_colors_per_carton ?? null,
+      purchase_pieces_per_size: row.purchase_pieces_per_size ?? null,
+      purchase_carton_colors: row.purchase_carton_colors || [],
       image_url: firstImageUrl(row.product_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url),
       brand_id: row.brand_id ?? null,
       brand_name: row.brand_name || "",
@@ -196,6 +291,7 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
         stock: normalizePositiveStock(row.stock),
         image_url: firstImageUrl(row.variant_image_url, row.image_url, row.product_image_url),
         manufacturer_id: row.variant_manufacturer_id ?? null,
+        last_purchase_cost: Number(row.last_purchase_cost ?? row.cost_price ?? 0),
       });
     }
     if (!current.manufacturer_id && row.variant_manufacturer_id) {
@@ -213,7 +309,10 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
     if (!product.purchase_alerts_enabled) continue;
 
     const variants = Array.isArray(product.variants) ? product.variants : [];
-    if (product.purchase_alert_by_color) {
+    const pattern = resolveProductPurchasePattern(product, variants);
+    const shouldAggregateByColor = pattern.mode === PURCHASE_MODES.FULL_COLOR_RUN
+      || (pattern.mode !== PURCHASE_MODES.FULL_CARTON && product.purchase_alert_by_color);
+    if (shouldAggregateByColor) {
       const colorMap = new Map();
       for (const variant of variants) {
         const key = normalizeColorLabel(variant.color).toLowerCase();
@@ -277,6 +376,11 @@ const fetchPurchaseAlerts = async ({ tenantId }) => {
       p.purchase_alert_by_color,
       p.carton_size,
       p.suggested_purchase_cartons,
+      p.purchase_mode,
+      p.purchase_size_group,
+      p.purchase_colors_per_carton,
+      p.purchase_pieces_per_size,
+      p.purchase_carton_colors,
       p.image_url AS product_image_url,
       p.image,
       p.photo_url,
@@ -287,6 +391,7 @@ const fetchPurchaseAlerts = async ({ tenantId }) => {
       v.id AS variant_id,
       v.color,
       v.size,
+      COALESCE(v.last_purchase_cost, v.cost_price, 0) AS last_purchase_cost,
       GREATEST(COALESCE(v.stock, 0), 0)::int AS stock,
       COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
       v.manufacturer_id AS variant_manufacturer_id,
@@ -417,8 +522,33 @@ const buildPurchaseAlertDraftItem = (alert = {}) => {
   };
 };
 
+export const buildPurchaseAlertDraftItems = (alert = {}) => {
+  const compositionLines = Array.isArray(alert.composition_lines) ? alert.composition_lines : [];
+  if (!alert.purchase_pattern_alert_aware) return [buildPurchaseAlertDraftItem(alert)];
+  if (alert.purchase_composition_valid === false || !compositionLines.length) return [];
+  return compositionLines.map((line) => ({
+    ...buildPurchaseAlertDraftItem(alert),
+    variant_id: line.variant_id,
+    quantity: Number(line.quantity),
+    cost_price: Number(line.last_purchase_cost || 0),
+    unit_cost: Number(line.last_purchase_cost || 0),
+    total: Number(line.quantity) * Number(line.last_purchase_cost || 0),
+    metadata: {
+      ...buildPurchaseAlertDraftItem(alert).metadata,
+      purchase_mode: alert.purchase_mode,
+      purchase_size_group: alert.purchase_size_group,
+      colors_per_carton: alert.colors_per_carton,
+      pieces_per_size: alert.pieces_per_size,
+      expected_total_pieces: alert.expected_total_pieces,
+      color: line.color || "",
+      size: line.size || "",
+      composition_variant_id: line.variant_id,
+    },
+  }));
+};
+
 const buildPurchaseAlertDraftPayload = ({ alerts = [], purchase = null, supplier = null, warehouse = null }) => {
-  const items = alerts.map(buildPurchaseAlertDraftItem);
+  const items = alerts.flatMap(buildPurchaseAlertDraftItems);
   const totalSuggestedCartons = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const grouped = Array.from(
     alerts.reduce((map, alert) => {
@@ -924,6 +1054,32 @@ export const createPurchaseAlertsDraft = async (req, res) => {
       selectedAlerts.push(alert);
     }
 
+    const invalidComposition = selectedAlerts.find((alert) =>
+      alert.purchase_pattern_alert_aware && alert.purchase_composition_valid === false
+    );
+    if (invalidComposition) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: invalidComposition.purchase_configuration_errors?.[0]?.message || "Purchase pattern composition is invalid",
+        product_id: invalidComposition.product_id,
+        product_name: invalidComposition.product_name,
+        missing_variants: invalidComposition.missing_purchase_variants || [],
+        errors: invalidComposition.purchase_configuration_errors || [],
+      });
+    }
+
+    const triggerFingerprint = `purchase-alert:${tenantId}:${selectedAlerts.map((alert) => alert.scope_key).sort().join("|")}`;
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [triggerFingerprint]);
+    const existingDraft = await client.query(
+      `SELECT * FROM purchases WHERE tenant_id = $1 AND status = 'draft' AND metadata->>'trigger_fingerprint' = $2 ORDER BY id DESC LIMIT 1`,
+      [tenantId, triggerFingerprint]
+    );
+    if (existingDraft.rows[0]) {
+      await client.query("COMMIT");
+      return res.status(200).json({ success: true, duplicate: true, idempotent: true, draft_id: existingDraft.rows[0].id, purchase: existingDraft.rows[0] });
+    }
+
     const supplierLabel = normalizeDraftLabel(
       selectedAlerts.map((alert) => normalizeDisplayText(alert.manufacturer_name || alert.brand_name)).find(Boolean),
       "Smart Purchase Alerts"
@@ -946,8 +1102,12 @@ export const createPurchaseAlertsDraft = async (req, res) => {
       [tenantId, Number.isInteger(requestedBranchId) && requestedBranchId > 0 ? requestedBranchId : null]
     );
     const branchId = branchResult.rows[0]?.id || null;
-    const draftLines = selectedAlerts.map(buildPurchaseAlertDraftItem);
-    const draftSubtotal = 0;
+    const draftLines = selectedAlerts.flatMap(buildPurchaseAlertDraftItems);
+    if (!draftLines.length) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "Purchase pattern produced no valid purchase items" });
+    }
+    const draftSubtotal = draftLines.reduce((sum, line) => sum + Number(line.total || 0), 0);
     const draftPayload = buildPurchaseAlertDraftPayload({
       alerts: selectedAlerts,
       purchase: {
@@ -990,6 +1150,7 @@ export const createPurchaseAlertsDraft = async (req, res) => {
         JSON.stringify({
           ...draftPayload.metadata,
           source: "smart_purchase_alerts",
+          trigger_fingerprint: triggerFingerprint,
         }),
       ]
     );

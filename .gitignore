@@ -46,6 +46,8 @@ server/services/*
 !server/services/inboundMediaService.js
 !server/services/aiWorkflow*.js
 !server/services/aiRestockRecoveryService.js
+!server/services/purchasePatternService.js
+!server/services/purchaseTransactionService.js
 !server/services/restockIntentService.js
 !server/services/restockNotificationService.js
 !server/services/messageDeliveryReconciliationService.js
@@ -81,6 +83,8 @@ server/services/*
 !server/services/inboundMediaService.js
 !server/services/aiWorkflow*.js
 !server/services/aiRestockRecoveryService.js
+!server/services/purchasePatternService.js
+!server/services/purchaseTransactionService.js
 !server/services/restockIntentService.js
 !server/services/restockNotificationService.js
 !server/services/messageDeliveryReconciliationService.js

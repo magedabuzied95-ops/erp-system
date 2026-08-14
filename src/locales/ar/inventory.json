@@ -207,7 +207,24 @@
       "totalStock": "إجمالي المخزون",
       "cartonSize": "حجم الكرتونة",
       "suggestedCartons": "الكراتين المقترحة",
-      "viewSuggestions": "عرض الاقتراحات"
+      "viewSuggestions": "عرض الاقتراحات",
+      "purchaseSuggestion": "الشراء المقترح",
+      "purchaseMode": "طريقة الشراء",
+      "currentPurchaseMode": "طريقة الشراء الحالية",
+      "purchaseColors": "الألوان",
+      "colorsCount": "{{count}} ألوان",
+      "purchaseSizes": "المقاسات",
+      "sizesPerColor": "المقاسات لكل لون",
+      "totalSuggestedUnits": "إجمالي الكمية المقترحة",
+      "piecesCount": "{{count}} قطعة",
+      "triggerReason": "سبب التنبيه",
+      "sizeWithValue": "مقاس {{size}}"
+    },
+    "reasons": {
+      "out_of_stock": "نفد من المخزون",
+      "low_stock": "مخزونه منخفض",
+      "fullColorRunSummary": "مجموعة المقاسات غير مكتملة",
+      "fullCartonSummary": "الموديل يحتاج إعادة شراء"
     },
     "actions": {
       "selectVisible": "تحديد الظاهر",

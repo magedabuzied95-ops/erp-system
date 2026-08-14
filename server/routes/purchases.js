@@ -14,9 +14,10 @@ import { adjustVariantStock } from "../services/inventoryService.js";
 import { recordInventoryMovement } from "../services/inventoryMovementService.js";
 import { notifyInventoryRestock } from "../services/aiWorkflowTriggerService.js";
 import { createJournalEntry, ensureAccountingSchema, postInventoryAdjustment, postMoneyTransaction, postPurchaseEntry, recordFinancialAccountActivity, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
-import { ensureSmartReorderSchema, getSmartReorderSuggestions } from "../services/smartReorderService.js";
+import { buildReorderDraftLines, ensureSmartReorderSchema, getSmartReorderSuggestions } from "../services/smartReorderService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { syncProductPricingFromVariants } from "../services/productPricingSyncService.js";
+import { runRequiredPurchaseAccounting } from "../services/purchaseTransactionService.js";
 
 const router = express.Router();
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -4004,6 +4005,26 @@ router.post(
       await ensurePurchaseCreateSchema(client);
       await ensureSmartReorderSchema(client);
 
+      const triggerFingerprint = `smart-reorder:${tenantId}:${JSON.stringify({
+        suggestionIds: [...suggestionIds].sort(),
+        variantIds: [...variantIds].sort(),
+      })}`;
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [triggerFingerprint]);
+      const existingDraftResult = await client.query(
+        `SELECT * FROM purchases WHERE tenant_id = $1 AND status = 'draft' AND metadata->>'trigger_fingerprint' = $2 ORDER BY id DESC LIMIT 1`,
+        [tenantId, triggerFingerprint]
+      );
+      if (existingDraftResult.rows[0]) {
+        await client.query("COMMIT");
+        return res.status(200).json({
+          success: true,
+          idempotent: true,
+          message: "Purchase draft already exists",
+          purchase: existingDraftResult.rows[0],
+          items: [],
+        });
+      }
+
       const lines = [];
       const reorderMetadata = [];
 
@@ -4012,39 +4033,8 @@ router.post(
         const suggestions = Array.isArray(result?.data) ? result.data : [];
         const selected = suggestions.filter((item) => suggestionIds.includes(String(item.suggestion_id)));
 
+        lines.push(...buildReorderDraftLines(selected));
         selected.forEach((suggestion) => {
-          const suggestionLines = Array.isArray(suggestion.suggested_lines) && suggestion.suggested_lines.length
-            ? suggestion.suggested_lines
-            : (Array.isArray(suggestion.variant_ids) ? suggestion.variant_ids : []).map((variantId) => ({
-                product_id: suggestion.product_id,
-                variant_id: variantId,
-                suggested_qty: Math.max(1, Number(suggestion.suggested_qty || suggestion.purchase_pack_qty || 1)),
-                last_purchase_cost: suggestion.last_purchase_cost,
-              })).slice(0, 1);
-
-          suggestionLines.forEach((line) => {
-            lines.push({
-              product_id: line.product_id || suggestion.product_id,
-              variant_id: line.variant_id,
-              supplier_id: suggestion.supplier_id,
-              quantity: Math.max(1, Number(line.suggested_qty || suggestion.suggested_qty || suggestion.purchase_pack_qty || 1)),
-              cost_price: Number(line.last_purchase_cost ?? suggestion.last_purchase_cost ?? 0),
-              metadata: {
-                source: "smart_reorder",
-                suggestion_id: suggestion.suggestion_id,
-                status: suggestion.status,
-                risk_level: suggestion.risk_level,
-                sell_through_percent: suggestion.sell_through_percent,
-                current_stock: suggestion.current_stock,
-                reorder_trigger_percent: suggestion.reorder_trigger_percent,
-                product_name: suggestion.product_name,
-                color: suggestion.color,
-                size: line.size || null,
-                reason: suggestion.reason,
-              },
-            });
-          });
-
           reorderMetadata.push({
             suggestion_id: suggestion.suggestion_id,
             product_id: suggestion.product_id,
@@ -4082,6 +4072,7 @@ router.post(
         },
         supplier_prefill: knownSupplierIds.length === 1 ? "known" : "fallback",
         reorder: reorderMetadata,
+        trigger_fingerprint: triggerFingerprint,
       };
 
       const purchaseResult = await client.query(
@@ -4153,10 +4144,12 @@ router.post(
     } catch (error) {
       await client.query("ROLLBACK");
       console.error("[purchases] reorder draft", error, error?.stack);
-      res.status(500).json({
+      res.status(error.status || 500).json({
         success: false,
         message: "Failed To Create Reorder Draft",
         error: error.message,
+        details: error.details || undefined,
+        missing_variants: error.missing_variants || undefined,
       });
     } finally {
       client.release();
@@ -5404,8 +5397,7 @@ router.post(
       }
 
       await runStep("accounting.purchaseEntry", async () => {
-        await client.query("SAVEPOINT purchase_accounting_entry");
-        try {
+        await runRequiredPurchaseAccounting(client, async () => {
           try {
             await postPurchaseEntryFast(client, {
               tenantId,
@@ -5436,11 +5428,7 @@ router.post(
               createdBy: req.user?.id || null,
             });
           }
-          await client.query("RELEASE SAVEPOINT purchase_accounting_entry");
-        } catch (accountingError) {
-          await client.query("ROLLBACK TO SAVEPOINT purchase_accounting_entry").catch(() => {});
-          console.error("[purchase:create] accounting warning:", accountingError, accountingError.stack);
-        }
+        });
       });
 
       await runStep("supplier balance/accounting update", async () => {

@@ -16,6 +16,11 @@ import {
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import InventoryShell from "../components/InventoryShell";
+import PurchaseAlertPatternSummary from "../components/PurchaseAlertPatternSummary";
+import {
+  getGroupedPurchaseAlertPresentation,
+  shouldShowSizeLevelAlertDetails,
+} from "../lib/purchaseAlertPresentation";
 import StatusBadge from "../../purchases/components/StatusBadge";
 import {
   deriveInventoryKpis,
@@ -371,10 +376,14 @@ function InventoryDashboard() {
     () => filteredPurchaseAlerts.filter((alert) => selectedAlertKeys.includes(String(alert.scope_key || ""))),
     [filteredPurchaseAlerts, selectedAlertKeys]
   );
+  const selectedAlertsHaveInvalidComposition = selectedAlerts.some((alert) =>
+    alert.purchase_pattern_alert_aware && alert.purchase_composition_valid === false
+  );
 
   const allVisibleSelected = filteredPurchaseAlerts.length > 0 && selectedVisibleAlerts.length === filteredPurchaseAlerts.length;
 
   const toggleAlertSelection = (alert) => {
+    if (alert.purchase_pattern_alert_aware && alert.purchase_composition_valid === false) return;
     const key = String(alert.scope_key || "");
     if (!key) return;
     setSelectedAlertKeys((current) =>
@@ -383,7 +392,10 @@ function InventoryDashboard() {
   };
 
   const selectAllVisibleAlerts = () => {
-    const keys = filteredPurchaseAlerts.map((alert) => String(alert.scope_key || "")).filter(Boolean);
+    const keys = filteredPurchaseAlerts
+      .filter((alert) => !(alert.purchase_pattern_alert_aware && alert.purchase_composition_valid === false))
+      .map((alert) => String(alert.scope_key || ""))
+      .filter(Boolean);
     if (!keys.length) return;
     setSelectedAlertKeys((current) => Array.from(new Set([...current, ...keys])));
   };
@@ -504,7 +516,7 @@ function InventoryDashboard() {
             <button
               type="button"
               onClick={handleCreatePurchaseDraft}
-              disabled={!selectedAlerts.length || creatingPurchaseDraft}
+              disabled={!selectedAlerts.length || selectedAlertsHaveInvalidComposition || creatingPurchaseDraft}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:bg-emerald-400/35 disabled:text-[var(--primary-contrast)]"
             >
               {creatingPurchaseDraft ? t("inventory.purchaseAlerts.actions.creating") : t("inventory.purchaseAlerts.actions.createDraft")}
@@ -596,6 +608,8 @@ function InventoryDashboard() {
                     const imageUrl = resolveImageUrl(alert.image_url);
                     const cardColor = alert.purchase_alert_by_color ? alert.color : "";
                     const selected = selectedAlertKeys.includes(String(alert.scope_key || ""));
+                    const groupedPresentation = getGroupedPurchaseAlertPresentation(alert);
+                    const userFacingAlertTitle = groupedPresentation?.modeLabel || alert.alert_title;
                     return (
                       <div
                         key={String(alert.scope_key)}
@@ -613,6 +627,7 @@ function InventoryDashboard() {
                             checked={selected}
                             onChange={() => toggleAlertSelection(alert)}
                             onClick={(event) => event.stopPropagation()}
+                            disabled={alert.purchase_pattern_alert_aware && alert.purchase_composition_valid === false}
                             className="h-4 w-4 accent-emerald-400"
                           />
                         </button>
@@ -631,10 +646,10 @@ function InventoryDashboard() {
                                 {cardColor ? <div className="mt-1 text-sm font-semibold text-amber-100">{cardColor}</div> : null}
                               </div>
                               <span className="rounded-full border border-amber-300/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-100">
-                                {alert.alert_title}
+                                {userFacingAlertTitle}
                               </span>
                             </div>
-                            <p className="mt-2 text-sm leading-6 text-text-muted">{alert.alert_reason}</p>
+                            {!groupedPresentation ? <p className="mt-2 text-sm leading-6 text-text-muted">{alert.alert_reason}</p> : null}
                           </div>
                         </div>
 
@@ -642,10 +657,12 @@ function InventoryDashboard() {
                           <MetaPill label={t("inventory.purchaseAlerts.cards.totalStock")} value={String(alert.total_stock ?? 0)} />
                           <MetaPill label={t("inventory.purchaseAlerts.cards.cartonSize")} value={alert.carton_size ? String(alert.carton_size) : "—"} />
                           <MetaPill label={t("inventory.purchaseAlerts.cards.suggestedCartons")} value={alert.suggested_action || `اطلب ${alert.suggested_purchase_cartons || 1} كرتونة`} />
-                          <MetaPill label={t("inventory.purchaseAlerts.cards.alertType")} value={alert.alert_title} />
+                          <MetaPill label={t("inventory.purchaseAlerts.cards.alertType")} value={userFacingAlertTitle} />
                         </div>
 
-                        {Array.isArray(alert.missing_sizes) && alert.missing_sizes.length > 0 ? (
+                        {alert.purchase_pattern_alert_aware ? <PurchaseAlertPatternSummary alert={alert} /> : null}
+
+                        {shouldShowSizeLevelAlertDetails(alert) && Array.isArray(alert.missing_sizes) && alert.missing_sizes.length > 0 ? (
                           <div className="mt-4">
                             <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
                               {t("inventory.purchaseAlerts.cards.missingSizes")}

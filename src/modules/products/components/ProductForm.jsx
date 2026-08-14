@@ -7,6 +7,7 @@ import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
 import { isSchoolBagType, SCHOOL_BAG_SIZE_OPTIONS } from "../lib/schoolBagSizes";
 import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
+import { getSizeGroup, SIZE_GROUP_KEYS } from "../../../../server/utils/sizeGroups.js";
 
 const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "men", label: "رجال" },
@@ -33,6 +34,11 @@ function ProductForm({
   purchaseAlertByColor = false,
   cartonSize = "",
   suggestedPurchaseCartons = 1,
+  purchaseMode = "",
+  purchaseSizeGroup = "",
+  purchaseColorsPerCarton = "",
+  purchasePiecesPerSize = "",
+  purchaseCartonColors = [],
   onBrandChange,
   onUnitChange,
   onVariationModeChange,
@@ -47,6 +53,11 @@ function ProductForm({
   onPurchaseAlertByColorChange,
   onCartonSizeChange,
   onSuggestedPurchaseCartonsChange,
+  onPurchaseModeChange,
+  onPurchaseSizeGroupChange,
+  onPurchaseColorsPerCartonChange,
+  onPurchasePiecesPerSizeChange,
+  onPurchaseCartonColorsChange,
 }) {
   const { t } = useTranslation();
   const brandWrapRef = useRef(null);
@@ -63,6 +74,16 @@ function ProductForm({
     () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, bagType, grade }, { includeInactive: false, includeCurrentValue: false }),
     [classificationGroups, selectedAudiences, gender, productType, bagType, grade]
   );
+  const purchaseGroup = getSizeGroup(purchaseSizeGroup);
+  const piecesPerSize = Number(purchasePiecesPerSize);
+  const colorsPerCarton = Number(purchaseColorsPerCarton);
+  const runPieces = purchaseGroup && Number.isInteger(piecesPerSize) && piecesPerSize > 0
+    ? purchaseGroup.sizes.length * piecesPerSize
+    : 0;
+  const cartonPieces = runPieces > 0 && Number.isInteger(colorsPerCarton) && colorsPerCarton > 0
+    ? runPieces * colorsPerCarton
+    : 0;
+  const cartonColorsText = Array.isArray(purchaseCartonColors) ? purchaseCartonColors.join(", ") : String(purchaseCartonColors || "");
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -354,6 +375,69 @@ function ProductForm({
               </p>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FormSelect
+              label={t("products.form.purchaseMode", "طريقة شراء الموديل")}
+              value={purchaseMode || ""}
+              onChange={(value) => {
+                onPurchaseModeChange?.(value || null);
+                if (value === "FULL_COLOR_RUN") onPurchaseAlertByColorChange?.(true);
+                if (value === "FULL_CARTON" || value === "INDIVIDUAL") onPurchaseAlertByColorChange?.(false);
+              }}
+              placeholder={t("products.form.purchaseModeLegacy", "السلوك الحالي (توافق خلفي)")}
+              options={[
+                { value: "INDIVIDUAL", label: t("products.form.purchaseModeIndividual", "فردي") },
+                { value: "FULL_COLOR_RUN", label: t("products.form.purchaseModeFullColor", "لون كامل") },
+                { value: "FULL_CARTON", label: t("products.form.purchaseModeFullCarton", "كرتونة كاملة") },
+              ]}
+            />
+            <FormSelect
+              label={t("products.form.purchaseSizeGroup", "مجموعة المقاسات")}
+              value={purchaseSizeGroup || ""}
+              onChange={(value) => onPurchaseSizeGroupChange?.(value || null)}
+              placeholder={t("products.form.purchaseSizeGroupRequired", "اختر مجموعة المقاسات")}
+              options={SIZE_GROUP_KEYS.map((key) => ({ value: key, label: getSizeGroup(key)?.label || key }))}
+            />
+          </div>
+
+          {purchaseMode === "FULL_COLOR_RUN" || purchaseMode === "FULL_CARTON" ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-semibold text-text-muted">{t("products.form.purchasePiecesPerSize", "قطع لكل مقاس")}</label>
+                <input type="number" min="1" step="1" value={purchasePiecesPerSize}
+                  onChange={(event) => onPurchasePiecesPerSizeChange?.(event.target.value)}
+                  className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none focus:border-amber-400/50" />
+              </div>
+              {purchaseMode === "FULL_CARTON" ? (
+                <div>
+                  <label className="text-sm font-semibold text-text-muted">{t("products.form.purchaseColorsPerCarton", "عدد الألوان في الكرتونة")}</label>
+                  <input type="number" min="1" step="1" value={purchaseColorsPerCarton}
+                    onChange={(event) => onPurchaseColorsPerCartonChange?.(event.target.value)}
+                    className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none focus:border-amber-400/50" />
+                </div>
+              ) : null}
+              {purchaseMode === "FULL_CARTON" ? (
+                <div className="md:col-span-2">
+                  <label className="text-sm font-semibold text-text-muted">{t("products.form.purchaseCartonColors", "ألوان الكرتونة")}</label>
+                  <input value={cartonColorsText}
+                    onChange={(event) => onPurchaseCartonColorsChange?.(event.target.value.split(/[,\n|]+/).map((item) => item.trim()).filter(Boolean))}
+                    placeholder={t("products.form.purchaseCartonColorsPlaceholder", "Black, White, Navy")}
+                    className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none focus:border-amber-400/50" />
+                </div>
+              ) : null}
+              {purchaseMode === "FULL_COLOR_RUN" && runPieces > 0 ? (
+                <div className="md:col-span-2 rounded-[var(--radius-control)] border border-border-strong bg-info-subtle px-4 py-3 text-sm font-black text-text">
+                  {purchaseGroup.sizes.join(" / ")} × {piecesPerSize} = {runPieces} {t("products.form.pieces", "قطعة")}
+                </div>
+              ) : null}
+              {purchaseMode === "FULL_CARTON" && cartonPieces > 0 ? (
+                <div className="md:col-span-2 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-100">
+                  {colorsPerCarton} × {purchaseGroup.sizes.length} × {piecesPerSize} = {cartonPieces} {t("products.form.pieces", "قطعة")}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="rounded-[var(--radius-card)] border border-amber-300/15 bg-surface-soft px-4 py-3 text-sm leading-6 text-amber-50/90">
             <ul className="space-y-2">

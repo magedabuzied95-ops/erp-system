@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { buildPurchaseComposition, PURCHASE_MODES, resolveProductPurchasePattern } from "./purchasePatternService.js";
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -83,31 +84,10 @@ const safeGetTableColumnSet = async (clientOrPool, tableName, diagnostics, step 
 
 export const ensureSmartReorderSchema = async (clientOrPool = db, diagnostics = initialDiagnostics()) => {
   if (!(await safeTableExists(clientOrPool, "product_variants", diagnostics, "ensure_product_variants_table"))) return;
-
-  await safeQuery(clientOrPool, `
-    ALTER TABLE IF EXISTS product_variants
-      ADD COLUMN IF NOT EXISTS purchase_pack_type VARCHAR(20) NOT NULL DEFAULT 'unit',
-      ADD COLUMN IF NOT EXISTS purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
-      ADD COLUMN IF NOT EXISTS reorder_trigger_percent NUMERIC(6,2) NOT NULL DEFAULT 70,
-      ADD COLUMN IF NOT EXISTS size_distribution_json JSONB NULL,
-      ADD COLUMN IF NOT EXISTS supplier_id BIGINT NULL,
-      ADD COLUMN IF NOT EXISTS last_purchase_cost NUMERIC(12,2) NULL
-  `, [], diagnostics, "ensure_variant_columns");
-  await safeQuery(clientOrPool, `
-    UPDATE product_variants
-    SET
-      purchase_pack_type = COALESCE(NULLIF(purchase_pack_type, ''), 'unit'),
-      purchase_pack_qty = GREATEST(COALESCE(purchase_pack_qty, 1), 1),
-      reorder_trigger_percent = COALESCE(reorder_trigger_percent, 70)
-    WHERE purchase_pack_type IS NULL
-       OR purchase_pack_type = ''
-       OR purchase_pack_qty IS NULL
-       OR purchase_pack_qty < 1
-       OR reorder_trigger_percent IS NULL
-  `, [], diagnostics, "normalize_variant_pack_columns");
-  await safeQuery(clientOrPool, `CREATE INDEX IF NOT EXISTS idx_product_variants_purchase_pack ON product_variants (purchase_pack_type, purchase_pack_qty)`, [], diagnostics, "ensure_variant_pack_index");
-  await safeQuery(clientOrPool, `CREATE INDEX IF NOT EXISTS idx_product_variants_supplier ON product_variants (supplier_id)`, [], diagnostics, "ensure_variant_supplier_index");
-  await safeQuery(clientOrPool, `ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0`, [], diagnostics, "ensure_order_items_returned_quantity");
+  await safeGetTableColumnSet(clientOrPool, "product_variants", diagnostics, "inspect_variant_columns");
+  if (await safeTableExists(clientOrPool, "order_items", diagnostics, "inspect_order_items_table")) {
+    await safeGetTableColumnSet(clientOrPool, "order_items", diagnostics, "inspect_order_item_columns");
+  }
 };
 
 const resolveThreshold = (packQty, configured) => {
@@ -299,6 +279,7 @@ const loadVariants = async ({ tenantId, diagnostics }) => {
   const packQtyExpr = variantColumns.has("purchase_pack_qty") ? "pv.purchase_pack_qty" : "1";
   const thresholdExpr = variantColumns.has("reorder_trigger_percent") ? "pv.reorder_trigger_percent" : "70";
   const sizeDistributionExpr = variantColumns.has("size_distribution_json") ? "pv.size_distribution_json" : "NULL";
+  const productField = (column, fallback = "NULL") => productColumns.has(column) ? `p.${sqlIdent(column)}` : fallback;
 
   const result = await safeQuery(
     db,
@@ -317,7 +298,15 @@ const loadVariants = async ({ tenantId, diagnostics }) => {
       ${sizeDistributionExpr} AS size_distribution_json,
       ${supplierIdExpr} AS supplier_id,
       ${supplierNameExpr} AS supplier_name,
-      ${costExpr} AS last_purchase_cost
+      ${costExpr} AS last_purchase_cost,
+      ${productField("purchase_mode")} AS purchase_mode,
+      ${productField("purchase_size_group")} AS purchase_size_group,
+      ${productField("purchase_pieces_per_size")} AS purchase_pieces_per_size,
+      ${productField("purchase_colors_per_carton")} AS purchase_colors_per_carton,
+      ${productField("purchase_carton_colors", "'[]'::jsonb")} AS purchase_carton_colors,
+      ${productField("gender")} AS gender,
+      ${productField("product_type")} AS product_type,
+      ${productField("category")} AS category
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     ${supplierJoin}
@@ -488,22 +477,41 @@ const buildDemoSuggestions = () => ([
   },
 ]);
 
-const buildSuggestions = ({ variantsRows, salesRows, salesFallback = false }) => {
+export const buildSuggestions = ({ variantsRows, salesRows, salesFallback = false }) => {
   const soldByVariant = new Map(salesRows.map((row) => [String(row.variant_id), toNumber(row.sold_qty)]));
+  const productVariants = new Map();
+  for (const variant of variantsRows) {
+    const key = String(variant.product_id);
+    if (!productVariants.has(key)) productVariants.set(key, []);
+    productVariants.get(key).push(variant);
+  }
+  const patterns = new Map();
+  for (const [productId, variants] of productVariants) {
+    patterns.set(productId, resolveProductPurchasePattern(variants[0] || {}, variants));
+  }
   const groups = new Map();
 
   variantsRows.forEach((variant) => {
     const color = toText(variant.color) || "بدون لون";
-    const key = `${variant.product_id}::${color}`;
+    const pattern = patterns.get(String(variant.product_id));
+    const key = pattern?.mode === PURCHASE_MODES.FULL_CARTON
+      ? `${variant.product_id}::FULL_CARTON`
+      : `${variant.product_id}::${color}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(variant);
   });
 
   return Array.from(groups.values()).map((variants) => {
     const first = variants[0] || {};
+    const allProductVariants = productVariants.get(String(first.product_id)) || variants;
+    const pattern = patterns.get(String(first.product_id)) || resolveProductPurchasePattern(first, allProductVariants);
     const currentStock = variants.reduce((sum, variant) => sum + Math.max(0, toNumber(variant.stock)), 0);
     const soldQty = variants.reduce((sum, variant) => sum + toNumber(soldByVariant.get(String(variant.variant_id))), 0);
-    const packQty = Math.max(1, ...variants.map((variant) => toNumber(variant.purchase_pack_qty, 1)));
+    const legacyPackQty = Math.max(1, ...variants.map((variant) => toNumber(variant.purchase_pack_qty, 1)));
+    const patternPackQty = pattern.mode === PURCHASE_MODES.FULL_CARTON
+      ? pattern.pieces_per_carton
+      : pattern.mode === PURCHASE_MODES.FULL_COLOR_RUN ? pattern.pieces_per_color_run : 0;
+    const packQty = pattern.configured && patternPackQty > 0 ? patternPackQty : legacyPackQty;
     const threshold = resolveThreshold(packQty, first.reorder_trigger_percent);
     const sellThrough = soldQty + currentStock > 0 ? (soldQty / (soldQty + currentStock)) * 100 : 0;
     const { bySize, fastSizes, slowSizes } = buildSizeAnalysis(variants, soldByVariant);
@@ -516,14 +524,24 @@ const buildSuggestions = ({ variantsRows, salesRows, salesFallback = false }) =>
             : "Sales/order data is unavailable, so sold quantity is treated as 0. Watch this carton rule until sales data is available.",
         }
       : decideSuggestion({ packQty, currentStock, soldQty, sellThrough, threshold, variants, slowSizes, fastSizes });
-    const suggestedQty = decision.status === "BUY_NOW"
+    const legacySuggestedQty = decision.status === "BUY_NOW"
       ? Math.max(packQty, Math.ceil(Math.max(packQty - currentStock, 1) / packQty) * packQty)
       : 0;
-    const suggestionId = buildSuggestionId(first.product_id, first.color);
+    const composition = pattern.configured && pattern.mode !== PURCHASE_MODES.INDIVIDUAL
+      ? buildPurchaseComposition({ product: first, variants: allProductVariants, triggerColor: first.color, packs: 1 })
+      : null;
+    const suggestedQty = composition
+      ? (decision.status === "BUY_NOW" && composition.valid ? composition.total_pieces : 0)
+      : legacySuggestedQty;
+    const suggestionId = buildSuggestionId(first.product_id, pattern.mode === PURCHASE_MODES.FULL_CARTON ? "FULL_CARTON" : first.color);
     const velocityWindowDays = 30;
     const averageDailySales = soldQty > 0 ? Math.round((soldQty / velocityWindowDays) * 100) / 100 : 0;
     const estimatedDaysUntilStockout = averageDailySales > 0 ? Math.ceil(currentStock / averageDailySales) : null;
-    const suggestedLines = distributeSuggestedQuantity({ variants, bySize, fastSizes, slowSizes, suggestedQty });
+    const suggestedLines = composition
+      ? (decision.status === "BUY_NOW" && composition.valid
+          ? composition.lines.map((line) => ({ ...line, suggested_qty: line.quantity }))
+          : [])
+      : distributeSuggestedQuantity({ variants, bySize, fastSizes, slowSizes, suggestedQty });
 
     return {
       suggestion_id: suggestionId,
@@ -546,6 +564,12 @@ const buildSuggestions = ({ variantsRows, salesRows, salesFallback = false }) =>
       fast_sizes: fastSizes,
       suggested_qty: suggestedQty,
       suggested_lines: suggestedLines,
+      purchase_pattern_configured: pattern.configured,
+      purchase_pattern_mode: pattern.mode,
+      purchase_pattern_size_group: pattern.size_group,
+      purchase_pattern_valid: composition ? composition.valid : pattern.valid,
+      purchase_pattern_errors: composition?.errors || pattern.errors || [],
+      missing_variants: composition?.missing_variants || [],
       average_daily_sales: averageDailySales,
       estimated_days_until_stockout: estimatedDaysUntilStockout,
       status: decision.status,
@@ -558,6 +582,60 @@ const buildSuggestions = ({ variantsRows, salesRows, salesFallback = false }) =>
     const order = { BUY_NOW: 0, WATCH: 1, DO_NOT_BUY: 2 };
     return (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.sell_through_percent - a.sell_through_percent;
   });
+};
+
+export const buildReorderDraftLines = (suggestions = []) => {
+  const lines = [];
+  for (const suggestion of suggestions) {
+    if (suggestion.purchase_pattern_configured && suggestion.purchase_pattern_valid === false) {
+      const details = (suggestion.purchase_pattern_errors || []).map((item) => item.message).filter(Boolean);
+      const error = new Error(details.join("; ") || `Invalid purchase pattern for product ${suggestion.product_name || suggestion.product_id}`);
+      error.status = 409;
+      error.code = "PURCHASE_PATTERN_INVALID";
+      error.details = suggestion.purchase_pattern_errors || [];
+      error.missing_variants = suggestion.missing_variants || [];
+      throw error;
+    }
+
+    const configuredLines = Array.isArray(suggestion.suggested_lines) ? suggestion.suggested_lines : [];
+    const sourceLines = suggestion.purchase_pattern_configured
+      ? configuredLines
+      : (configuredLines.length
+          ? configuredLines
+          : (Array.isArray(suggestion.variant_ids) ? suggestion.variant_ids : []).slice(0, 1).map((variantId) => ({
+              product_id: suggestion.product_id,
+              variant_id: variantId,
+              suggested_qty: Math.max(1, Number(suggestion.suggested_qty || suggestion.purchase_pack_qty || 1)),
+              last_purchase_cost: suggestion.last_purchase_cost,
+            })));
+
+    for (const line of sourceLines) {
+      const quantity = Number(line.suggested_qty ?? line.quantity);
+      if (!line.variant_id || !Number.isInteger(quantity) || quantity <= 0) continue;
+      lines.push({
+        product_id: line.product_id || suggestion.product_id,
+        variant_id: line.variant_id,
+        supplier_id: suggestion.supplier_id,
+        quantity,
+        cost_price: Number(line.last_purchase_cost ?? suggestion.last_purchase_cost ?? 0),
+        metadata: {
+          source: "smart_reorder",
+          suggestion_id: suggestion.suggestion_id,
+          status: suggestion.status,
+          risk_level: suggestion.risk_level,
+          sell_through_percent: suggestion.sell_through_percent,
+          current_stock: suggestion.current_stock,
+          reorder_trigger_percent: suggestion.reorder_trigger_percent,
+          product_name: suggestion.product_name,
+          color: line.color || suggestion.color,
+          size: line.size || null,
+          reason: suggestion.reason,
+          purchase_pattern_mode: suggestion.purchase_pattern_mode || null,
+        },
+      });
+    }
+  }
+  return lines;
 };
 
 export const getSmartReorderSuggestions = async ({ tenantId = null } = {}) => {

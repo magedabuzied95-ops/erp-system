@@ -35,6 +35,8 @@ import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResol
 import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.js";
 import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterValues } from "../lib/productFilterValues.js";
 import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSearch.js";
+import { normalizeCartonColors, normalizePurchaseMode, validatePurchasePatternConfiguration } from "../services/purchasePatternService.js";
+import { normalizeSizeGroupKey } from "../utils/sizeGroups.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -43,6 +45,16 @@ const invalidateProductStorefrontCache = async (tenantId) => {
       invalidateCachePattern(buildCacheKey("storefront", `tenant:${scope}`, "*"))
     )
   );
+};
+
+const requireValidPurchasePattern = (product, variants = []) => {
+  const result = validatePurchasePatternConfiguration(product, variants);
+  if (result.valid) return result;
+  const validationError = new Error(result.errors.map((item) => item.message).join("; "));
+  validationError.status = 400;
+  validationError.code = "PURCHASE_PATTERN_VALIDATION_ERROR";
+  validationError.details = result.errors;
+  throw validationError;
 };
 
 export const resolveAdminListCurrentSellingPrice = (row = {}) => resolveCurrentSellingPrice({
@@ -1068,6 +1080,11 @@ const normalizeProductRow = (row = {}) => {
     Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
       ? Math.floor(Number(row.suggested_purchase_cartons))
       : 1,
+  purchase_mode: normalizePurchaseMode(row.purchase_mode),
+  purchase_size_group: normalizeSizeGroupKey(row.purchase_size_group),
+  purchase_colors_per_carton: row.purchase_colors_per_carton == null ? null : Number(row.purchase_colors_per_carton),
+  purchase_pieces_per_size: row.purchase_pieces_per_size == null ? null : Number(row.purchase_pieces_per_size),
+  purchase_carton_colors: normalizeCartonColors(row.purchase_carton_colors),
   stock: activeVariantCount > 0
     ? totalVariantStock
     : Number(row.stock ?? row.quantity ?? row.qty ?? row.available_quantity ?? row.inventory_quantity ?? row.current_stock ?? 0),
@@ -4631,6 +4648,11 @@ export const getProductByQrToken = async (req, res) => {
         p.purchase_alert_by_color,
         p.carton_size,
         p.suggested_purchase_cartons,
+        p.purchase_mode,
+        p.purchase_size_group,
+        p.purchase_colors_per_carton,
+        p.purchase_pieces_per_size,
+        p.purchase_carton_colors,
         p.qr_token,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
         COALESCE(NULLIF(p.thermal_image_url, ''), '') AS thermal_image_url,
@@ -4809,6 +4831,11 @@ export const createProduct = async (req, res) => {
       purchase_alert_by_color,
       carton_size,
       suggested_purchase_cartons,
+      purchase_mode,
+      purchase_size_group,
+      purchase_colors_per_carton,
+      purchase_pieces_per_size,
+      purchase_carton_colors,
       use_custom_compare_price,
       custom_compare_price,
       cost_price,
@@ -4883,6 +4910,13 @@ export const createProduct = async (req, res) => {
       variants,
       fixedSizeLabel: normalizedFixedSizeLabel,
     });
+    const normalizedPurchasePattern = requireValidPurchasePattern({
+      purchase_mode,
+      purchase_size_group,
+      purchase_colors_per_carton,
+      purchase_pieces_per_size,
+      purchase_carton_colors,
+    }, normalizedVariants);
     const normalizedAudiences = normalizeProductAudiences(audiences, product_audiences, gender);
     const normalizedGender = await normalizeClassificationValue("gender", gender || normalizedAudiences[0] || "");
     const normalizedProductType = await normalizeClassificationValue("product_type", product_type);
@@ -5109,6 +5143,11 @@ export const createProduct = async (req, res) => {
       "purchase_alert_by_color",
       "carton_size",
       "suggested_purchase_cartons",
+      "purchase_mode",
+      "purchase_size_group",
+      "purchase_colors_per_carton",
+      "purchase_pieces_per_size",
+      "purchase_carton_colors",
       "stock",
       "low_stock_alert",
       "low_stock_tracking_mode",
@@ -5175,6 +5214,11 @@ export const createProduct = async (req, res) => {
       normalizedPurchaseAlertByColor,
       normalizedCartonSize,
       normalizedSuggestedPurchaseCartons,
+      normalizedPurchasePattern.mode,
+      normalizedPurchasePattern.size_group || null,
+      normalizedPurchasePattern.colors_per_carton,
+      normalizedPurchasePattern.pieces_per_size,
+      normalizedPurchasePattern.mode === "FULL_CARTON" ? JSON.stringify(normalizedPurchasePattern.carton_colors) : null,
       0,
       Number(low_stock_alert || low_stock_threshold || 0),
       normalizedLowStockTrackingMode,
@@ -5400,6 +5444,11 @@ export const updateProduct = async (req, res) => {
       purchase_alert_by_color,
       carton_size,
       suggested_purchase_cartons,
+      purchase_mode,
+      purchase_size_group,
+      purchase_colors_per_carton,
+      purchase_pieces_per_size,
+      purchase_carton_colors,
       use_custom_compare_price,
       custom_compare_price,
       cost_price,
@@ -5485,6 +5534,11 @@ export const updateProduct = async (req, res) => {
     const purchaseAlertByColorProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_alert_by_color");
     const cartonSizeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "carton_size");
     const suggestedPurchaseCartonsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "suggested_purchase_cartons");
+    const purchaseModeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_mode");
+    const purchaseSizeGroupProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_size_group");
+    const purchaseColorsPerCartonProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_colors_per_carton");
+    const purchasePiecesPerSizeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_pieces_per_size");
+    const purchaseCartonColorsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_carton_colors");
     const normalizedPurchaseAlertsEnabled = purchaseAlertsEnabledProvided
       ? normalizePurchaseAlertsEnabled(purchase_alerts_enabled, true)
       : null;
@@ -5759,6 +5813,22 @@ export const updateProduct = async (req, res) => {
     const nextSuggestedPurchaseCartons = suggestedPurchaseCartonsProvided
       ? normalizedSuggestedPurchaseCartons
       : Number(currentProductRow.suggested_purchase_cartons || 1);
+    const nextPurchasePatternInput = {
+      purchase_mode: purchaseModeProvided ? purchase_mode : currentProductRow.purchase_mode,
+      purchase_size_group: purchaseSizeGroupProvided ? purchase_size_group : currentProductRow.purchase_size_group,
+      purchase_colors_per_carton: purchaseColorsPerCartonProvided ? purchase_colors_per_carton : currentProductRow.purchase_colors_per_carton,
+      purchase_pieces_per_size: purchasePiecesPerSizeProvided ? purchase_pieces_per_size : currentProductRow.purchase_pieces_per_size,
+      purchase_carton_colors: purchaseCartonColorsProvided ? purchase_carton_colors : currentProductRow.purchase_carton_colors,
+    };
+    let purchasePatternVariants = normalizedVariants;
+    if (nextPurchasePatternInput.purchase_mode && !variantsProvided) {
+      const patternVariantsResult = await client.query(
+        `SELECT id, id AS variant_id, product_id, color, size FROM product_variants WHERE product_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL) AND COALESCE(is_active, TRUE) = TRUE AND deleted_at IS NULL`,
+        [productId, tenantId]
+      );
+      purchasePatternVariants = patternVariantsResult.rows;
+    }
+    const nextPurchasePattern = requireValidPurchasePattern(nextPurchasePatternInput, purchasePatternVariants);
     const nextLowStockAlert = bodyHas("low_stock_alert") || bodyHas("low_stock_threshold")
       ? Number(low_stock_alert ?? low_stock_threshold ?? 0)
       : Number(currentProductRow.low_stock_alert ?? currentProductRow.low_stock_threshold ?? 0);
@@ -5921,6 +5991,11 @@ export const updateProduct = async (req, res) => {
       `purchase_alert_by_color = CASE WHEN ${addUpdateValue(purchaseAlertByColorProvided)} THEN ${addUpdateValue(nextPurchaseAlertByColor)} ELSE purchase_alert_by_color END`,
       `carton_size = CASE WHEN ${addUpdateValue(cartonSizeProvided)} THEN ${addUpdateValue(nextCartonSize)} ELSE carton_size END`,
       `suggested_purchase_cartons = CASE WHEN ${addUpdateValue(suggestedPurchaseCartonsProvided)} THEN ${addUpdateValue(nextSuggestedPurchaseCartons)} ELSE suggested_purchase_cartons END`,
+      `purchase_mode = ${addUpdateValue(nextPurchasePattern.mode)}`,
+      `purchase_size_group = ${addUpdateValue(nextPurchasePattern.size_group || null)}`,
+      `purchase_colors_per_carton = ${addUpdateValue(nextPurchasePattern.colors_per_carton)}`,
+      `purchase_pieces_per_size = ${addUpdateValue(nextPurchasePattern.pieces_per_size)}`,
+      `purchase_carton_colors = ${addUpdateValue(nextPurchasePattern.mode === "FULL_CARTON" ? JSON.stringify(nextPurchasePattern.carton_colors) : null)}::jsonb`,
       `low_stock_alert = COALESCE(${addUpdateValue(nextLowStockAlert)}, low_stock_alert)`,
       `tax_rate = COALESCE(${addUpdateValue(nextTaxRate)}::numeric, 0::numeric)`,
       `low_stock_tracking_mode = COALESCE(${addUpdateValue(nextLowStockTrackingMode)}, low_stock_tracking_mode)`,
@@ -6427,7 +6502,8 @@ export const updateProduct = async (req, res) => {
     const statusCode = error.status || (isUniqueViolation(error) ? 409 : 500);
     return res.status(statusCode).json({
       success: false,
-      message: statusCode === 409 ? error.publicMessage || "Duplicate SKU or barcode" : "Failed to update product",
+      message: statusCode === 409 ? error.publicMessage || "Duplicate SKU or barcode" : statusCode === 400 ? error.message : "Failed to update product",
+      details: statusCode === 400 ? error.details || undefined : undefined,
     });
   } finally {
     client.release();

@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { getDisplaySizeRanges, normalizeProductAudiences, numericSize } from "../utils/sizeGroups.js";
 
 const SOURCE_ORDER = ["imported_vietnam", "mirror_original", "egyptian"];
 const AUDIENCE_ORDER = ["men", "women", "kids", "special"];
@@ -15,26 +16,14 @@ const normalizeSource = (value = "") => {
 };
 
 export const normalizeDisplayAuditAudiences = (...values) => {
-  const text = values.flat().filter(Boolean).join(" ").toLowerCase();
-  const matched = [];
-  if (/(women|woman|female|ladies|حريمي|نسائي|نساء)/i.test(text)) matched.push("women");
-  if (/(kids|kid|child|children|boy|girl|أطفال|اطفال|طفل)/i.test(text)) matched.push("kids");
-  if (/(^|[^a-z])(men|man|male)([^a-z]|$)|رجالي|رجال/i.test(text)) matched.push("men");
+  const matched = normalizeProductAudiences(...values);
   return matched.length ? AUDIENCE_ORDER.filter((key) => matched.includes(key)) : ["men"];
 };
 
 const DISPLAY_SIZE_RANGES = {
-  kids: [
-    { key: "kids-22-26", label: "أطفال 22–26", min: 22, max: 26 },
-    { key: "kids-27-31", label: "أطفال 27–31", min: 27, max: 31 },
-    { key: "kids-32-36", label: "أطفال 32–36", min: 32, max: 36 },
-  ],
-  women: [{ key: "women-37-41", label: "حريمي 37–41", min: 37, max: 41 }],
-  men: [{ key: "men-41-plus", label: "رجالي 41+", min: 41, max: Number.POSITIVE_INFINITY }],
-};
-const numericSize = (value) => {
-  const match = String(value ?? "").replace(",", ".").match(/\d+(?:\.\d+)?/);
-  return match ? Number(match[0]) : null;
+  kids: getDisplaySizeRanges("kids"),
+  women: getDisplaySizeRanges("women"),
+  men: getDisplaySizeRanges("men"),
 };
 const variantColorKey = (variant = {}) => String(variant.color_group_key || variant.color || `variant:${variant.variant_id || ""}`).trim().toLowerCase();
 export const resolveDisplayAuditColorsForAudience = ({ variants = [], audience, productGroup, productAudiences = [], productImageUrl = "", productSku = "" }) => {

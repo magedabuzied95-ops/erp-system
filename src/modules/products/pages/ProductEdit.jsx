@@ -122,6 +122,11 @@ const emptyProduct = {
   purchase_alert_by_color: false,
   carton_size: "",
   suggested_purchase_cartons: 1,
+  purchase_mode: "",
+  purchase_size_group: "",
+  purchase_colors_per_carton: 3,
+  purchase_pieces_per_size: 1,
+  purchase_carton_colors: [],
   use_custom_compare_price: false,
   custom_compare_price: "",
   thermal_image_url: "",
@@ -510,6 +515,11 @@ const normalizeProductForm = (row = {}) => ({
   purchase_alert_by_color: row.purchase_alert_by_color === true || String(row.purchase_alert_by_color || "").toLowerCase() === "true",
   carton_size: row.carton_size === null || row.carton_size === undefined ? "" : String(row.carton_size),
   suggested_purchase_cartons: String(row.suggested_purchase_cartons ?? 1),
+  purchase_mode: row.purchase_mode || "",
+  purchase_size_group: row.purchase_size_group || "",
+  purchase_colors_per_carton: String(row.purchase_colors_per_carton ?? 3),
+  purchase_pieces_per_size: String(row.purchase_pieces_per_size ?? 1),
+  purchase_carton_colors: Array.isArray(row.purchase_carton_colors) ? row.purchase_carton_colors : [],
   low_stock_threshold: String(row.low_stock_threshold ?? row.low_stock_alert ?? ""),
   low_stock_alert: String(row.low_stock_alert ?? row.low_stock_threshold ?? ""),
 });
@@ -587,6 +597,11 @@ const buildProductEditCoreSnapshot = ({
       purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
       carton_size: product.carton_size ?? "",
       suggested_purchase_cartons: product.suggested_purchase_cartons ?? "",
+      purchase_mode: product.purchase_mode || "",
+      purchase_size_group: product.purchase_size_group || "",
+      purchase_colors_per_carton: product.purchase_colors_per_carton ?? 3,
+      purchase_pieces_per_size: product.purchase_pieces_per_size ?? 1,
+      purchase_carton_colors: Array.isArray(product.purchase_carton_colors) ? product.purchase_carton_colors : [],
       low_stock_threshold: product.low_stock_threshold ?? "",
       low_stock_alert: product.low_stock_alert ?? "",
     },
@@ -3405,6 +3420,11 @@ function ProductEdit() {
             purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
             carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
             suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
+            purchase_mode: product.purchase_mode || null,
+            purchase_size_group: product.purchase_size_group || null,
+            purchase_colors_per_carton: product.purchase_mode === "FULL_CARTON" && product.purchase_colors_per_carton !== "" ? Number(product.purchase_colors_per_carton) : null,
+            purchase_pieces_per_size: ["FULL_COLOR_RUN", "FULL_CARTON"].includes(product.purchase_mode) && product.purchase_pieces_per_size !== "" ? Number(product.purchase_pieces_per_size) : null,
+            purchase_carton_colors: product.purchase_mode === "FULL_CARTON" ? product.purchase_carton_colors || [] : [],
             planned_quantities: [],
             low_stock_threshold: Number(product.low_stock_threshold || product.low_stock_alert || 0),
             low_stock_alert: Number(product.low_stock_alert || product.low_stock_threshold || 0),
@@ -3512,6 +3532,11 @@ function ProductEdit() {
         purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
         carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
         suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
+        purchase_mode: product.purchase_mode || null,
+        purchase_size_group: product.purchase_size_group || null,
+        purchase_colors_per_carton: product.purchase_mode === "FULL_CARTON" && product.purchase_colors_per_carton !== "" ? Number(product.purchase_colors_per_carton) : null,
+        purchase_pieces_per_size: ["FULL_COLOR_RUN", "FULL_CARTON"].includes(product.purchase_mode) && product.purchase_pieces_per_size !== "" ? Number(product.purchase_pieces_per_size) : null,
+        purchase_carton_colors: product.purchase_mode === "FULL_CARTON" ? product.purchase_carton_colors || [] : [],
         status: product.status || "active",
         active: product.status !== "inactive" && product.status !== "archived",
         image_url: coverImageUrl,
@@ -3924,10 +3949,20 @@ function ProductEdit() {
               purchaseAlertByColor={product.purchase_alert_by_color}
               cartonSize={product.carton_size}
               suggestedPurchaseCartons={product.suggested_purchase_cartons}
+              purchaseMode={product.purchase_mode}
+              purchaseSizeGroup={product.purchase_size_group}
+              purchaseColorsPerCarton={product.purchase_colors_per_carton}
+              purchasePiecesPerSize={product.purchase_pieces_per_size}
+              purchaseCartonColors={product.purchase_carton_colors}
               onPurchaseAlertsEnabledChange={(value) => updateProductField("purchase_alerts_enabled", value)}
               onPurchaseAlertByColorChange={(value) => updateProductField("purchase_alert_by_color", value)}
               onCartonSizeChange={(value) => updateProductField("carton_size", value)}
               onSuggestedPurchaseCartonsChange={(value) => updateProductField("suggested_purchase_cartons", value)}
+              onPurchaseModeChange={(value) => updateProductField("purchase_mode", value || "")}
+              onPurchaseSizeGroupChange={(value) => updateProductField("purchase_size_group", value || "")}
+              onPurchaseColorsPerCartonChange={(value) => updateProductField("purchase_colors_per_carton", value)}
+              onPurchasePiecesPerSizeChange={(value) => updateProductField("purchase_pieces_per_size", value)}
+              onPurchaseCartonColorsChange={(value) => updateProductField("purchase_carton_colors", value)}
             />
           </section>
           <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-6`}>
