@@ -2819,6 +2819,44 @@ function SocialCommentsWorkspace({
     );
   };
 
+  // Both layouts mount these; the streamlined branch returns before the legacy one,
+  // so a drawer declared only there would never render for the live layout.
+  const postDrawers = (
+    <>
+        <SocialAutomationDrawer
+          open={Boolean(automationDrawerPostKey)}
+          post={automationDrawerPost || activePostDetails || activePost}
+          draft={activeAutomationDraft}
+          loading={automationLoadingKey === clean(automationDrawerPostKey)}
+          saving={automationSavingKey === clean(automationDrawerPostKey)}
+          loadError={automationLoadErrors[clean(automationDrawerPostKey)] || ""}
+          runs={automationRuns}
+          runsLoading={automationRunsLoading}
+          runsError={automationRunsError}
+          testing={automationTesting}
+          testResult={automationTestResult}
+          savedConfig={automationSavedConfigs[clean(automationDrawerPostKey)] || null}
+          onClose={() => setAutomationDrawerPostKey("")}
+          onSaveDraft={handleAutomationSaveLocal}
+          onEnableAutomation={() => handleAutomationSaveLocal({ enabled: true })}
+          onResetDraft={handleAutomationReset}
+          onUpdateDraft={updateAutomationDraft}
+          onSelectTemplate={handleAutomationSelectTemplate}
+          onTestAutomation={handleAutomationTest}
+        />
+        <PostProductLinksDrawer
+          open={Boolean(productLinksDrawerPostKey)}
+          post={productLinksDrawerPost || activePostDetails || activePost}
+          tenantId={resolvedTenantId}
+          onClose={() => {
+            setProductLinksDrawerPostKey("");
+            setProductLinksDrawerPostSnapshot(null);
+          }}
+          onSaved={handleProductLinksSaved}
+        />
+    </>
+  );
+
   if (streamlined) {
     const postPlatforms = (post) => {
       const values = asArray(post.platforms).length ? post.platforms : [post.platform];
@@ -3076,6 +3114,7 @@ function SocialCommentsWorkspace({
             </footer>
           </main>
         </div>
+        {postDrawers}
       </section>
     );
   }
@@ -4010,37 +4049,7 @@ function SocialCommentsWorkspace({
           </div>
         </main>
       </div>
-      <SocialAutomationDrawer
-        open={Boolean(automationDrawerPostKey)}
-        post={automationDrawerPost || activePostDetails || activePost}
-        draft={activeAutomationDraft}
-        loading={automationLoadingKey === clean(automationDrawerPostKey)}
-        saving={automationSavingKey === clean(automationDrawerPostKey)}
-        loadError={automationLoadErrors[clean(automationDrawerPostKey)] || ""}
-        runs={automationRuns}
-        runsLoading={automationRunsLoading}
-        runsError={automationRunsError}
-        testing={automationTesting}
-        testResult={automationTestResult}
-        savedConfig={automationSavedConfigs[clean(automationDrawerPostKey)] || null}
-        onClose={() => setAutomationDrawerPostKey("")}
-        onSaveDraft={handleAutomationSaveLocal}
-        onEnableAutomation={() => handleAutomationSaveLocal({ enabled: true })}
-        onResetDraft={handleAutomationReset}
-        onUpdateDraft={updateAutomationDraft}
-        onSelectTemplate={handleAutomationSelectTemplate}
-        onTestAutomation={handleAutomationTest}
-      />
-      <PostProductLinksDrawer
-        open={Boolean(productLinksDrawerPostKey)}
-        post={productLinksDrawerPost || activePostDetails || activePost}
-        tenantId={resolvedTenantId}
-        onClose={() => {
-          setProductLinksDrawerPostKey("");
-          setProductLinksDrawerPostSnapshot(null);
-        }}
-        onSaved={handleProductLinksSaved}
-      />
+      {postDrawers}
     </section>
   );
 }
