@@ -14,7 +14,32 @@ const stockValue = (...values) => {
   return 0;
 };
 
-const normalizeProductRow = (row = {}) => {
+// The catalogue's live price lives in purchase_selling_price / sale_price (+ the global
+// sale-mode gate), NOT in the legacy price / selling_price columns, which are 0.00 for
+// most products. Reading those legacy columns is what made linked products show
+// "— PRICE" here and quote "السعر: 0.00" to customers. resolveEffectiveCustomerPrice is
+// the same authority POS and the AI grounding gate use.
+const resolveRowPricing = async ({ tenantId = null, rows = [] } = {}) => {
+  const pricingById = new Map();
+  if (!Array.isArray(rows) || !rows.length) return pricingById;
+  try {
+    const [{ resolveEffectiveCustomerPrice }, { loadTenantSaleModeSettings }] = await Promise.all([
+      import("../../src/shared/lib/effectiveCustomerPrice.js"),
+      import("../utils/customerDisplayPrice.js"),
+    ]);
+    const saleModeSettings = await loadTenantSaleModeSettings({ tenantId }).catch(() => ({ sale_mode_enabled: false }));
+    for (const row of rows) {
+      const resolved = resolveEffectiveCustomerPrice({ product: row, variant: null, saleModeSettings });
+      pricingById.set(Number(row.id), resolved);
+    }
+  } catch {
+    // Pricing is best-effort: a failure leaves the legacy columns in place rather than
+    // breaking the whole product-link listing.
+  }
+  return pricingById;
+};
+
+const normalizeProductRow = (row = {}, pricing = null) => {
   const currentStock = stockValue(
     row.current_stock,
     row.total_stock,
@@ -26,16 +51,30 @@ const normalizeProductRow = (row = {}) => {
     row.variant_stock
   );
   const stockLabel = currentStock > 0 ? "IN STOCK" : "OUT OF STOCK";
+  const legacyPrice = Number(row.price ?? row.selling_price ?? row.regular_price ?? 0) || 0;
+  const activePrice = Number(pricing?.active_price ?? 0) || 0;
+  const normalPrice = Number(pricing?.normal_price ?? 0) || 0;
+  const effectivePrice = activePrice || legacyPrice;
   return {
     id: Number(row.id ?? row.product_id ?? 0) || 0,
     product_id: Number(row.id ?? row.product_id ?? 0) || 0,
     name: text(row.name || row.title || row.product_name || ""),
     title: text(row.title || row.name || row.product_name || ""),
     image_url: text(row.image_url || row.product_image_url || row.cover_image_url || row.primary_image_url || row.thumbnail_url || ""),
-    price: Number(row.price ?? row.selling_price ?? row.regular_price ?? 0) || 0,
-    sale_price: Number(row.sale_price ?? 0) || 0,
-    regular_price: Number(row.regular_price ?? 0) || 0,
-    selling_price: Number(row.selling_price ?? row.price ?? 0) || 0,
+    price: effectivePrice,
+    final_price: effectivePrice,
+    sale_price: Number(pricing?.sale_price ?? row.sale_price ?? 0) || 0,
+    regular_price: normalPrice || Number(row.regular_price ?? 0) || 0,
+    selling_price: effectivePrice || Number(row.selling_price ?? row.price ?? 0) || 0,
+    compare_price: Number(pricing?.compare_price ?? 0) || 0,
+    sale_mode_applied: Boolean(pricing?.sale_mode_applied),
+    has_price: pricing ? Boolean(pricing.has_price) : effectivePrice > 0,
+    // Identity/spec fields the linked-product card shows next to the price.
+    sku: text(row.sku || row.product_code || row.code || row.article || row.article_no || ""),
+    model: text(row.model || row.model_name || ""),
+    product_type: text(row.product_type || row.type || ""),
+    gender: text(row.gender || ""),
+    color: text(row.color || row.colour || ""),
     stock: currentStock,
     current_stock: currentStock,
     total_stock: currentStock,
@@ -107,7 +146,8 @@ const fetchProductsByIds = async ({ tenantId = null, productIds = [] } = {}) => 
 
 const hydrateProducts = async ({ tenantId = null, productIds = [] } = {}) => {
   const rows = await fetchProductsByIds({ tenantId, productIds });
-  const byId = new Map(rows.map((row) => [Number(row.id), normalizeProductRow(row)]));
+  const pricingById = await resolveRowPricing({ tenantId, rows });
+  const byId = new Map(rows.map((row) => [Number(row.id), normalizeProductRow(row, pricingById.get(Number(row.id)) || null)]));
   return Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
     .map((productId) => byId.get(Number(productId)))
     .filter(Boolean);

@@ -49,7 +49,12 @@ const enabledFlag = (value) =>
   value === true || value === 1 || ["true", "1", "yes", "on"].includes(clean(value).toLowerCase());
 
 const productDisplayPrice = (raw = {}) => {
-  const sellingPrice = Number(raw.selling_price ?? raw.price ?? raw.regular_price ?? raw.final_price ?? 0) || 0;
+  // The server already applied the canonical sale-mode rules, so its resolved price wins.
+  // Re-deriving it here from loose per-record flags is what the pricing authority exists
+  // to prevent.
+  const resolved = Number(raw.final_price ?? 0) || 0;
+  if (resolved > 0) return resolved;
+  const sellingPrice = Number(raw.selling_price ?? raw.price ?? raw.regular_price ?? 0) || 0;
   const salePrice = Number(raw.sale_price ?? 0) || 0;
   const saleModeOn = enabledFlag(raw.sale_mode_enabled) || enabledFlag(raw.global_sale_enabled) || enabledFlag(raw.sale_prices_enabled);
   const saleApplied = saleModeOn && enabledFlag(raw.sale_mode_applied) && salePrice > 0 && (sellingPrice <= 0 || salePrice < sellingPrice);
@@ -926,11 +931,19 @@ export default function PostProductLinksDrawer({
                           <div className="mt-1 text-slate-500">
                             <GripVertical className="h-4 w-4" />
                           </div>
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+                            {item.image_url ? (
+                              <img src={item.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center text-[10px] font-black text-slate-500">—</div>
+                            )}
+                          </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <div className="line-clamp-2 text-sm font-black leading-6 text-white">{item.name}</div>
                                 <div className="mt-1 text-[11px] text-slate-400">{item.brand || "ERP Product"}</div>
+                                {item.sku ? <div dir="ltr" className="mt-0.5 font-mono text-[10px] text-slate-500">{item.sku}</div> : null}
                               </div>
                               <button
                                 type="button"
@@ -943,9 +956,27 @@ export default function PostProductLinksDrawer({
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">Price {priceText(item)}</span>
-                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{item.stock_status}</span>
+                              {Number(item.sale_price) > 0 && Number(item.regular_price) > Number(item.sale_price) ? (
+                                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
+                                  Was <span className="line-through">{Number(item.regular_price).toLocaleString("en-US")}</span>
+                                </span>
+                              ) : null}
+                              <span className={`rounded-full border px-2.5 py-1 ${item.in_stock ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{item.stock_status}</span>
+                              {Number(item.stock) > 0 ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">Qty {item.stock}</span> : null}
                               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1"># {index + 1}</span>
                             </div>
+                            {item.storefront_url || item.product_url ? (
+                              <a
+                                href={item.storefront_url || item.product_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(event) => event.stopPropagation()}
+                                dir="ltr"
+                                className="mt-1.5 block truncate text-[10px] text-cyan-200 hover:underline"
+                              >
+                                {item.storefront_url || item.product_url}
+                              </a>
+                            ) : null}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
