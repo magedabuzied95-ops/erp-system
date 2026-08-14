@@ -185,6 +185,8 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     name: productName,
     product_name: productName,
     color,
+    color_group_key: normalizeText(row.color_group_key ?? row.colorGroupKey),
+    colorGroupKey: normalizeText(row.colorGroupKey ?? row.color_group_key),
     size,
     audience,
     variant_audience: audience,

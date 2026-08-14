@@ -1,10 +1,22 @@
 export const getPosProductKey = (product = {}) => String(product?.product_id ?? product?.id ?? "").trim();
 
+// A product can carry several DIFFERENT colour groups sharing one colour name (e.g.
+// four separate "Black" articles on one Crocs product). Keying colours by name alone
+// collapses them into a single option with one image and a summed stock, hiding real
+// colours from the seller. `color_group_key` is the same identity the product page
+// groups by; the name is only a fallback for variants created before the key existed.
+export const getVariantColorKey = (variant = {}) => {
+  const group = String(variant?.color_group_key ?? variant?.colorGroupKey ?? "").trim();
+  if (group) return `g:${group}`;
+  return `c:${String(variant?.color || "").trim().toLowerCase()}`;
+};
+
+// Counts colour GROUPS, not colour names.
 export const countUniqueVariantColors = (product = {}) => {
   const colors = new Set(
     (Array.isArray(product?.variants) ? product.variants : [])
-      .map((variant) => String(variant?.color || "").trim())
-      .filter(Boolean)
+      .filter((variant) => String(variant?.color_group_key || variant?.colorGroupKey || variant?.color || "").trim())
+      .map((variant) => getVariantColorKey(variant))
   );
   return colors.size;
 };

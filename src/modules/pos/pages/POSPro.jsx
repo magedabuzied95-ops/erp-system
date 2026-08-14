@@ -79,7 +79,7 @@ import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSear
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
 import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
-import { countUniqueVariantColors, mergeCatalogProducts } from "../lib/posCatalogMerge";
+import { countUniqueVariantColors, getVariantColorKey, mergeCatalogProducts } from "../lib/posCatalogMerge";
 import {
   matchesQuickFilterGroups,
   moveWinterCollectionToEnd,
@@ -928,95 +928,84 @@ const firstImageValue = (...values) => {
 
 const getDisplayImageUrl = (...values) => resolvePosImageUrl(firstTextValue(...values));
 
-const POS_COLLAPSED_COLOR_COUNT = 8;
-
 const PosVariantColorPicker = ({
   options = [],
-  selectedColor = "",
+  selectedColorKey = "",
+  selectedColorLabel = "",
   onSelect,
-  showAll = false,
-  onToggle,
   label,
   defaultLabel,
-  showMoreLabel,
-  showLessLabel,
-}) => {
-  const selectedOption = options.find(
-    (option) => String(option.color || "") === String(selectedColor || "")
-  );
-  const collapsedOptions = options.slice(0, POS_COLLAPSED_COLOR_COUNT);
-  if (
-    selectedOption &&
-    options.length > POS_COLLAPSED_COLOR_COUNT &&
-    !collapsedOptions.some((option) => String(option.color || "") === String(selectedColor || ""))
-  ) {
-    collapsedOptions[POS_COLLAPSED_COLOR_COUNT - 1] = selectedOption;
-  }
-  const visibleOptions = showAll ? options : collapsedOptions;
-  const hiddenCount = Math.max(0, options.length - POS_COLLAPSED_COLOR_COUNT);
-
-  return (
-    <div>
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">
-          {label}
-        </div>
-        <div className="truncate text-[11px] font-black text-emerald-300" title={selectedColor || defaultLabel}>
-          {selectedColor || defaultLabel}
-        </div>
+  countLabel,
+}) => (
+  <div>
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <div className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">
+        {label}
+        <span className="ms-1 text-zinc-400">({options.length})</span>
       </div>
-
-      <div className="mt-2 grid grid-cols-4 gap-2">
-        {visibleOptions.map((option) => {
-          const color = option.color || "";
-          const selected = String(selectedColor || "") === String(color || "");
-          return (
-            <button
-              key={color || "default"}
-              type="button"
-              title={color || defaultLabel}
-              aria-label={color || defaultLabel}
-              aria-pressed={selected}
-              onClick={() => onSelect?.(color)}
-              className={`group relative aspect-square min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${ selected ? "border-emerald-400 bg-emerald-500/15 ring-2 ring-emerald-400/35" : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10" }`}
-            >
-              <span className="absolute inset-0 flex items-center justify-center px-1 text-center text-[9px] font-black leading-tight text-zinc-200">
-                {color || defaultLabel}
-              </span>
-              {option.imageUrl ? (
-                <img
-                  src={option.imageUrl}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 h-full w-full bg-white object-contain p-0.5"
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : null}
-              {selected ? (
-                <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+      <div className="truncate text-[11px] font-black text-emerald-300" title={selectedColorLabel || defaultLabel}>
+        {selectedColorLabel || defaultLabel}
       </div>
-
-      {hiddenCount > 0 ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="mt-2 min-h-[var(--control-height-md)] w-full rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-black text-zinc-200 transition hover:bg-white/10"
-        >
-          {showAll ? showLessLabel : `${showMoreLabel} (${hiddenCount})`}
-        </button>
-      ) : null}
     </div>
-  );
-};
+
+    {/* Every colour group is rendered — no collapse. A product with many colours
+        scrolls inside the picker instead of hiding options behind a toggle. */}
+    <div className="mt-2 grid max-h-[17rem] grid-cols-4 gap-2 overflow-y-auto pe-0.5">
+      {options.map((option) => {
+        const selected = String(selectedColorKey || "") === String(option.key || "");
+        const title = option.hint ? `${option.color || defaultLabel} — ${option.hint}` : option.color || defaultLabel;
+        return (
+          <button
+            key={option.key}
+            type="button"
+            title={title}
+            aria-label={title}
+            aria-pressed={selected}
+            onClick={() => onSelect?.(option.key)}
+            className={`group relative aspect-square min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${
+              selected
+                ? "border-emerald-400 bg-emerald-500/15 ring-2 ring-emerald-400/35"
+                : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10"
+            }`}
+          >
+            {/* The image sits BEHIND the caption strip: product photos are mostly
+                white, so a caption painted under the image was invisible. */}
+            {option.imageUrl ? (
+              <img
+                src={option.imageUrl}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-x-0 top-0 bottom-[38%] w-full object-contain p-0.5"
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                }}
+              />
+            ) : null}
+            <span className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-0.5 bg-black/75 px-1 pb-1 pt-0.5">
+              <span className="w-full truncate text-center text-[9px] font-black leading-tight text-zinc-100">
+                {option.color || defaultLabel}
+              </span>
+              <span
+                className={`w-full truncate text-center text-[9px] font-black leading-tight ${
+                  option.stock > 0 ? "text-emerald-300" : "text-rose-300"
+                }`}
+              >
+                {option.hint ? `${option.hint} · ` : ""}
+                {countLabel ? `${countLabel} ${option.stock}` : option.stock}
+              </span>
+            </span>
+            {selected ? (
+              <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
 
 const getProductVisibleStock = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -1745,11 +1734,12 @@ function POSPro() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [offlinePendingSyncCount, setOfflinePendingSyncCount] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  // Holds the colour GROUP key (see getVariantColorKey), not the colour name — a
+  // product can carry several groups sharing one name.
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [recentlyAddedVariantKey, setRecentlyAddedVariantKey] = useState("");
   const variantAddedIndicatorTimerRef = useRef(null);
-  const [showAllVariantColors, setShowAllVariantColors] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
   const [openInvoiceDrafts, setOpenInvoiceDrafts] = useState(() => readStoredOpenInvoices());
   const [activeInvoiceTabId, setActiveInvoiceTabId] = useState(() => {
@@ -3756,7 +3746,7 @@ function POSPro() {
     if (variants.length <= 1) return variants[0] || null;
     return variants.find(
       (variant) =>
-        String(variant.color || "") === String(selectedColor || "") &&
+        getVariantColorKey(variant) === String(selectedColor || "") &&
         String(variant.size || "") === String(selectedSize || "")
     ) || null;
   }, [activeProduct, selectedColor, selectedSize]);
@@ -3771,7 +3761,7 @@ function POSPro() {
     const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];
     const colorVariant = variants.find(
       (variant) =>
-        String(variant.color || "") === String(selectedColor || "") &&
+        getVariantColorKey(variant) === String(selectedColor || "") &&
         firstTextValue(variant.variant_image_url, variant.primary_image_url, variant.image_url)
     );
 
@@ -4632,7 +4622,7 @@ function POSPro() {
     if (!activeProduct || !variant || getVariantStockQuantity(variant) <= 0) return;
     setSelectedSize(size);
     addVariantToCart(activeProduct, variant);
-    setRecentlyAddedVariantKey(`${String(variant.color || selectedColor || "")}::${String(size || "")}`);
+    setRecentlyAddedVariantKey(`${getVariantColorKey(variant) || String(selectedColor || "")}::${String(size || "")}`);
     if (variantAddedIndicatorTimerRef.current) {
       window.clearTimeout(variantAddedIndicatorTimerRef.current);
     }
@@ -4651,7 +4641,15 @@ function POSPro() {
   const openProductVariantPicker = useCallback((product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
     const selectionMatch = getProductSelectionMatch(product);
-    const initialColor = selectionMatch.matchedColor || selectionMatch.matchedVariant?.color || "";
+    const matchedColorName = String(selectionMatch.matchedColor || selectionMatch.matchedVariant?.color || "").trim();
+    // The search match carries a colour NAME; resolve it to the colour group it
+    // belongs to so a product with several same-named groups preselects the right one.
+    const matchedColorVariant =
+      selectionMatch.matchedVariant ||
+      (matchedColorName
+        ? variants.find((variant) => String(variant.color || "").trim() === matchedColorName)
+        : null);
+    const initialColorKey = matchedColorVariant ? getVariantColorKey(matchedColorVariant) : "";
     const initialSize = selectionMatch.matchedVariant?.size || "";
     console.info("[pos-open-product-modal]", {
       search_match_type: product?.search_match_type || product?.searchMatchType || "",
@@ -4667,11 +4665,12 @@ function POSPro() {
         variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) ||
         variants[0] ||
         null;
-      setSelectedColor(initialColor || firstVariant?.color || "");
+      const colorKey = initialColorKey || (firstVariant ? getVariantColorKey(firstVariant) : "");
+      setSelectedColor(colorKey);
       const firstInStockForColor =
         variants.find(
           (variant) =>
-            String(variant.color || "") === String((initialColor || firstVariant?.color || "")) &&
+            getVariantColorKey(variant) === colorKey &&
             normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
         ) || firstVariant;
       setSelectedSize(initialSize || firstInStockForColor?.size || "");
@@ -4687,11 +4686,12 @@ function POSPro() {
       variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) ||
       variants[0] ||
       null;
-    setSelectedColor(initialColor || firstVariant?.color || "");
+    const colorKey = initialColorKey || (firstVariant ? getVariantColorKey(firstVariant) : "");
+    setSelectedColor(colorKey);
     const firstInStockForColor =
       variants.find(
         (variant) =>
-          String(variant.color || "") === String((initialColor || firstVariant?.color || "")) &&
+          getVariantColorKey(variant) === colorKey &&
           normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
       ) || firstVariant;
     setSelectedSize(initialSize || firstInStockForColor?.size || "");
@@ -7463,11 +7463,17 @@ function POSPro() {
   const topSelectionInfo = useMemo(() => {
     if (!activeProduct) return null;
     const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];
-    const colors = [...new Set(variants.map((variant) => variant.color || ""))];
-    const allColorOptions = colors.map((color) => {
-      const colorVariants = variants.filter(
-        (variant) => String(variant.color || "") === String(color || "")
-      );
+    // Group by colour GROUP, not by colour name: two different "Black" groups on the
+    // same product are two sellable colours with their own image and stock.
+    const colorKeys = [...new Set(variants.map((variant) => getVariantColorKey(variant)))];
+    const nameCounts = new Map();
+    colorKeys.forEach((key) => {
+      const name = String(variants.find((variant) => getVariantColorKey(variant) === key)?.color || "").trim();
+      nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
+    });
+    const allColorOptions = colorKeys.map((key) => {
+      const colorVariants = variants.filter((variant) => getVariantColorKey(variant) === key);
+      const color = colorVariants[0]?.color || "";
       const preferredVariant =
         colorVariants.find(
           (variant) =>
@@ -7498,8 +7504,22 @@ function POSPro() {
         preferredVariant?.image_url,
         preferredVariant?.images
       );
+      // Same colour name on several groups is legitimate, so show a disambiguator
+      // (the article/colour code) on those tiles instead of leaving them identical.
+      const hint =
+        (nameCounts.get(String(color || "").trim()) || 0) > 1
+          ? firstTextValue(
+              preferredVariant?.color_article_code,
+              preferredVariant?.colorArticleCode,
+              preferredVariant?.article_code,
+              preferredVariant?.articleCode,
+              preferredVariant?.sku
+            )
+          : "";
       return {
+        key,
         color,
+        hint,
         imageUrl: rawImageUrl ? getDisplayImageUrl(rawImageUrl) : "",
         stock: colorVariants.reduce((sum, variant) => sum + getVariantStockQuantity(variant), 0),
       };
@@ -7509,32 +7529,27 @@ function POSPro() {
     const sizes = [
       ...new Set(
         variants
-          .filter((variant) => String(variant.color || "") === String(selectedColor || ""))
+          .filter((variant) => getVariantColorKey(variant) === String(selectedColor || ""))
           .map((variant) => variant.size || "")
       ),
     ];
     return {
       colors: colorOptions.map((option) => option.color),
       colorOptions,
+      selectedColorLabel: colorOptions.find((option) => option.key === String(selectedColor || ""))?.color || "",
       sizes,
     };
   }, [activeProduct, selectedColor]);
 
-  const handleSelectVariantColor = useCallback((color) => {
-    setSelectedColor(color);
+  const handleSelectVariantColor = useCallback((colorKey) => {
+    setSelectedColor(colorKey);
     const firstForColor = (activeProduct?.variants || []).find(
-      (variant) =>
-        String(variant.color || "") === String(color || "") &&
-        getVariantStockQuantity(variant) > 0
+      (variant) => getVariantColorKey(variant) === String(colorKey || "") && getVariantStockQuantity(variant) > 0
     ) || (activeProduct?.variants || []).find(
-      (variant) => String(variant.color || "") === String(color || "")
+      (variant) => getVariantColorKey(variant) === String(colorKey || "")
     );
     setSelectedSize(firstForColor?.size || "");
   }, [activeProduct]);
-
-  useEffect(() => {
-    setShowAllVariantColors(false);
-  }, [activeProduct?.id]);
 
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
@@ -8456,14 +8471,12 @@ function POSPro() {
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                   <PosVariantColorPicker
                     options={topSelectionInfo.colorOptions}
-                    selectedColor={selectedColor}
+                    selectedColorKey={selectedColor}
+                    selectedColorLabel={topSelectionInfo.selectedColorLabel}
                     onSelect={handleSelectVariantColor}
-                    showAll={showAllVariantColors}
-                    onToggle={() => setShowAllVariantColors((current) => !current)}
                     label={t("pos.labels.color")}
                     defaultLabel={t("pos.labels.default")}
-                    showMoreLabel={t("pos.labels.showRemainingColors")}
-                    showLessLabel={t("pos.labels.showFewerColors")}
+                    countLabel={t("pos.labels.stock")}
                   />
                 </div>
 
@@ -8473,7 +8486,7 @@ function POSPro() {
                     {topSelectionInfo.sizes.map((size) => {
                       const sizeVariant = (activeProduct.variants || []).find(
                         (variant) =>
-                          String(variant.color || "") === String(selectedColor || "") &&
+                          getVariantColorKey(variant) === String(selectedColor || "") &&
                           String(variant.size || "") === String(size || "")
                       );
                       const stock = normalizeStockQuantity(sizeVariant?.stock_quantity ?? sizeVariant?.stock);
@@ -8605,14 +8618,12 @@ function POSPro() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
                       <PosVariantColorPicker
                         options={topSelectionInfo.colorOptions}
-                        selectedColor={selectedColor}
+                        selectedColorKey={selectedColor}
+                        selectedColorLabel={topSelectionInfo.selectedColorLabel}
                         onSelect={handleSelectVariantColor}
-                        showAll={showAllVariantColors}
-                        onToggle={() => setShowAllVariantColors((current) => !current)}
                         label={t("pos.labels.color")}
                         defaultLabel={t("pos.labels.default")}
-                        showMoreLabel={t("pos.labels.showRemainingColors")}
-                        showLessLabel={t("pos.labels.showFewerColors")}
+                        countLabel={t("pos.labels.stock")}
                       />
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
@@ -8621,7 +8632,7 @@ function POSPro() {
                         {topSelectionInfo.sizes.map((size) => {
                           const sizeVariant = (activeProduct.variants || []).find(
                             (variant) =>
-                              String(variant.color || "") === String(selectedColor || "") &&
+                              getVariantColorKey(variant) === String(selectedColor || "") &&
                               String(variant.size || "") === String(size || "")
                           );
                           const stock = normalizeStockQuantity(sizeVariant?.stock_quantity ?? sizeVariant?.stock);
@@ -8664,7 +8675,7 @@ function POSPro() {
                     <div className="max-h-[46vh] overflow-auto bg-zinc-950 sm:max-h-[28rem]">
                       {(activeProduct.variants || []).map((variant) => {
                         const selected =
-                          String(variant.color || "") === String(selectedColor || "") &&
+                          getVariantColorKey(variant) === String(selectedColor || "") &&
                           String(variant.size || "") === String(selectedSize || "");
                         const stock = normalizeStockQuantity(variant.stock_quantity ?? variant.stock);
                         const price = formatCurrency(variant.price || activeProduct.sale_price || 0);

@@ -3769,7 +3769,9 @@ const POS_PRODUCT_KEEP_FIELDS = new Set([
 ]);
 const POS_VARIANT_KEEP_FIELDS = new Set([
   "id", "variant_id", "product_id", "name", "product_name",
-  "color", "variant_color", "size", "variant_size",
+  // color_group_key is the colour identity the POS picker groups by: one product can
+  // carry several groups that share a colour name, and dropping the key collapses them.
+  "color", "variant_color", "color_group_key", "colorGroupKey", "size", "variant_size",
   "sku", "variant_sku", "product_sku", "barcode", "variant_barcode", "product_barcode",
   "article_code", "articleCode", "variant_article_code", "color_article_code", "colorArticleCode", "color_article_codes", "colorArticleCodes",
   "qr_token", "qrToken",
