@@ -1,6 +1,8 @@
 import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/lib/imageUrls.js";
 
-export const POS_CATALOG_SCHEMA_VERSION = 2;
+// v3 adds color_group_key to cached variants; older snapshots are dropped so the
+// offline picker never groups colours differently from the online one.
+export const POS_CATALOG_SCHEMA_VERSION = 3;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
@@ -70,6 +72,9 @@ const sanitizePosCatalogVariant = (variant = {}) => {
     name: normalizeText(variant.name || variant.product_name || ""),
     product_name: normalizeText(variant.product_name || variant.name || ""),
     color: normalizeText(variant.color || ""),
+    // Kept so the offline snapshot groups colours exactly like the online catalog.
+    color_group_key: normalizeText(variant.color_group_key || variant.colorGroupKey || ""),
+    colorGroupKey: normalizeText(variant.colorGroupKey || variant.color_group_key || ""),
     size: normalizeText(variant.size || ""),
     sku: normalizeText(variant.sku || ""),
     barcode: normalizeText(variant.barcode || ""),
