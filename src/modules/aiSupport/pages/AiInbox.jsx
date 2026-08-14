@@ -2095,7 +2095,11 @@ function InboxChannelSidebar({
       <button
         type="button"
         onClick={() => onSelectChannel("all")}
-        className={`relative mb-2 flex h-[58px] w-12 items-center justify-center text-center transition ${
+        title={socialCommentsActive ? t("aiSupport.inbox.rail.conversations") : t("aiSupport.inbox.filters.all")}
+        aria-label={socialCommentsActive ? t("aiSupport.inbox.rail.conversations") : t("aiSupport.inbox.filters.all")}
+        className={`relative flex h-[58px] w-12 items-center justify-center text-center transition ${
+          socialCommentsActive ? "order-last mt-1 border-t border-white/10 pt-1" : "mb-2"
+        } ${
           !socialCommentsActive && activeChannel === "all" ? "text-cyan-100 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]" : "text-white/80 hover:text-white"
         }`}
       >
@@ -2142,7 +2146,7 @@ function InboxChannelSidebar({
         </div>
       ) : null}
       {onSelectSocialComments ? (
-        <div className="mt-1 border-t border-white/10 pt-1">
+        <div className={socialCommentsActive ? "order-first mb-2 border-b border-white/10 pb-2" : "mt-1 border-t border-white/10 pt-1"}>
           <button
             type="button"
             onClick={() => {
