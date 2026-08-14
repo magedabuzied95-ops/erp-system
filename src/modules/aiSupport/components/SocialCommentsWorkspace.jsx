@@ -142,6 +142,16 @@ const resolveSocialCommentActionId = (comment = {}) => {
   return clean(preferred?.value || "");
 };
 
+const getSocialCommentIdentityKey = (comment = {}) => {
+  const raw = comment?.raw && typeof comment.raw === "object" && !Array.isArray(comment.raw) ? comment.raw : {};
+  const metadata = comment?.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+  const platform = clean(comment?.platform || raw.platform || metadata.platform || "unknown").toLowerCase() || "unknown";
+  const providerId = resolveSocialCommentActionId(comment);
+  const localId = clean(comment?.id || comment?.comment_id || comment?.external_comment_id || "");
+  const identityId = providerId || localId;
+  return identityId ? `${platform}:${identityId}` : "";
+};
+
 const getSocialCommentActionDebugData = (comment = {}) => {
   const raw = comment?.raw && typeof comment.raw === "object" && !Array.isArray(comment.raw) ? comment.raw : {};
   const rawMetadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
@@ -1607,7 +1617,19 @@ function SocialCommentsWorkspace({
   const activePostKey = clean(postKey(activePost));
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
   const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
-  const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
+  const normalizedComments = useMemo(() => {
+    const seenCommentIds = new Set();
+    return comments
+      .map((comment) => normalizeComment(comment))
+      .filter((comment) => {
+        if (!comment) return false;
+        const commentId = getSocialCommentIdentityKey(comment);
+        if (!commentId) return true;
+        if (seenCommentIds.has(commentId)) return false;
+        seenCommentIds.add(commentId);
+        return true;
+      });
+  }, [comments]);
   const activeThreadPost = activeThread.post ? findMatchingNormalizedPost(normalizedPosts, activeThread.post) : normalizePost(null);
   const threadPostIdentityComparison = useMemo(
     () => comparePostIdentitySnapshots(activePost || {}, activeThreadPost || {}),
@@ -1681,7 +1703,31 @@ function SocialCommentsWorkspace({
   }), [commentPlatformFilter, ignoredCommentKeys, normalizedComments]);
   const displayComments = useMemo(() => {
     if (!optimisticCommentEntries.length) return visibleComments;
-    return [...optimisticCommentEntries, ...visibleComments];
+
+    const optimisticById = new Map(
+      optimisticCommentEntries
+        .map((comment) => [getSocialCommentIdentityKey(comment), comment])
+        .filter(([commentId]) => Boolean(commentId))
+    );
+    const visibleIds = new Set();
+    const mergedVisibleComments = visibleComments.map((comment) => {
+      const commentId = getSocialCommentIdentityKey(comment);
+      if (commentId) visibleIds.add(commentId);
+      const optimisticComment = commentId ? optimisticById.get(commentId) : null;
+      return optimisticComment
+        ? {
+            ...comment,
+            ...optimisticComment,
+            raw: comment.raw || optimisticComment.raw,
+          }
+        : comment;
+    });
+    const pendingComments = optimisticCommentEntries.filter((comment) => {
+      const commentId = getSocialCommentIdentityKey(comment);
+      return !commentId || !visibleIds.has(commentId);
+    });
+
+    return [...pendingComments, ...mergedVisibleComments];
   }, [optimisticCommentEntries, visibleComments]);
   const selectedVisibleComment =
     visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||

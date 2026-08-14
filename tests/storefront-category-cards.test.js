@@ -15,7 +15,8 @@ test("storefront category cards use full-bleed motion media and SEO category lin
   assert.match(source, /h-full w-full object-cover transition/);
   assert.match(source, /match\?\.promo_video_url/);
   assert.match(source, /const MEN_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/33294342\/14180878_640_360_24fps\.mp4";/);
-  assert.match(source, /id: "men"[\s\S]*?href: "\/men"[\s\S]*?video: MEN_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /id: "men"[\s\S]*?href: "\/men\?product_type=sneakers"[\s\S]*?video: MEN_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /id: "men"[\s\S]*?isExclusiveCategoryAudience\(product, "men"\)[\s\S]*?resolveProductTypeKey\(product\.product_type \|\| product\.productType\) === "sneakers"/);
   assert.match(source, /id: "men"[\s\S]*?poster: "\/storefront\/category-posters\/men\.webp"/);
   assert.match(source, /const MEN_SLIPPERS_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/8994975\/8994975-sd_360_640_25fps\.mp4";/);
   assert.match(source, /const MEN_SLIPPERS_POSTER_URL = "https:\/\/images\.pexels\.com\/videos\/8994975\/pexels-photo-8994975\.jpeg\?auto=compress&cs=tinysrgb&w=480";/);
@@ -24,8 +25,8 @@ test("storefront category cards use full-bleed motion media and SEO category lin
   assert.match(source, /const WOMEN_SLIPPERS_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/6919220\/6919220-hd_720_1366_30fps\.mp4";/);
   assert.match(source, /const WOMEN_SLIPPERS_POSTER_URL = "https:\/\/images\.pexels\.com\/videos\/6919220\/pexels-photo-6919220\.jpeg\?auto=compress&cs=tinysrgb&w=480";/);
   assert.match(source, /const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/7877138\/7877138-sd_640_338_25fps\.mp4";/);
-  assert.match(source, /id: "women"[\s\S]*?titleEn: "Women"[\s\S]*?href: "\/women"/);
-  assert.match(source, /id: "women"[\s\S]*?test: \(product\) => isExclusiveCategoryAudience\(product, "women"\)/);
+  assert.match(source, /id: "women"[\s\S]*?titleEn: "Women"[\s\S]*?href: "\/women\?product_type=sneakers"/);
+  assert.match(source, /id: "women"[\s\S]*?isExclusiveCategoryAudience\(product, "women"\)[\s\S]*?resolveProductTypeKey\(product\.product_type \|\| product\.productType\) === "sneakers"/);
   assert.match(source, /id: "women"[\s\S]*?video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,[\s\S]*?poster: "\/storefront\/category-posters\/women\.webp"/);
   assert.match(source, /id: "women-slipper"[\s\S]*?titleEn: "Women Slipper"[\s\S]*?href: "\/slippers\?gender=women"/);
   assert.match(source, /id: "women-slipper"[\s\S]*?video: WOMEN_SLIPPERS_VIDEO_URL,[\s\S]*?poster: WOMEN_SLIPPERS_POSTER_URL/);
@@ -33,7 +34,8 @@ test("storefront category cards use full-bleed motion media and SEO category lin
   assert.match(source, /xl:grid-cols-3 2xl:grid-cols-6/);
   assert.match(source, /definition\.preferDefinitionVideo[\s\S]*?\? definition\.video/);
   assert.match(source, /const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/8456205\/8456205-sd_640_360_25fps\.mp4";/);
-  assert.match(source, /id: "kids"[\s\S]*?href: "\/kids"[\s\S]*?video: KIDS_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /id: "kids"[\s\S]*?href: "\/kids\?product_type=sneakers"[\s\S]*?video: KIDS_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /id: "kids"[\s\S]*?productAudienceValues\(product\)\.includes\("kids"\)[\s\S]*?resolveProductTypeKey\(product\.product_type \|\| product\.productType\) === "sneakers"/);
   assert.match(source, /id: "kids"[\s\S]*?poster: "\/storefront\/category-posters\/kids\.webp"/);
   assert.match(source, /const SALE_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/5889624\/5889624-sd_426_240_25fps\.mp4";/);
   assert.match(source, /id: "offers"[\s\S]*?href: "\/offers"[\s\S]*?video: SALE_CATEGORY_TRIAL_VIDEO_URL,[\s\S]*?poster: "\/storefront\/category-posters\/sale\.webp",[\s\S]*?preferDefinitionVideo: true/);
@@ -60,5 +62,5 @@ test("category-card product type reaches the storefront products API", async () 
   );
 
   assert.match(listingSource, /product_type: productType \|\| ""/);
-  assert.match(listingSource, /\[backendSearchTerm, brand, category, gender, grade, inStock, page, productType, quality, saleView, selectedSizes, sort, seoCategory\?\.largeSizes\]/);
+  assert.match(listingSource, /\[backendSearchTerm, brand, category, gender, grade, inStock, isCrocsListing, page, productType, quality, saleView, selectedSizes, sort, seoCategory\?\.largeSizes\]/);
 });

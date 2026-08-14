@@ -499,8 +499,16 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
+          <div
+            className={`flex flex-wrap items-start gap-2 ${
+              authorOnLeft ? "justify-start" : "justify-between"
+            }`}
+          >
+            <div
+              className={`min-w-0 ${
+                authorOnLeft ? "flex max-w-full flex-col items-start text-left" : ""
+              }`}
+            >
               <button
                 type="button"
                 onClick={(event) => {
