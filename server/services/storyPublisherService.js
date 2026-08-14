@@ -500,10 +500,20 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {}, previo
     }
   }
 
+  // An explicit target_platforms list (used by the story autopilot) narrows the fan-out.
+  // Without it every Meta surface is published, which is the historical behaviour.
+  const requestedPlatforms = Array.isArray(story?.target_platforms)
+    ? story.target_platforms.map((platform) => String(platform || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  const wantsPlatform = (platform) => !requestedPlatforms.length || requestedPlatforms.includes(platform);
+  const skipped = (platform) => result({ status: "skipped", error: `${platform} is not selected for this publish`, story });
+
   const previousInstagram = previousResults?.instagram || {};
   const previousFacebook = previousResults?.facebook || {};
   let instagram;
-  if (previousInstagram.status === "published") {
+  if (!wantsPlatform("instagram")) {
+    instagram = skipped("Instagram");
+  } else if (previousInstagram.status === "published") {
     instagram = { ...previousInstagram, reused: true };
   } else {
     const previousSlides = Array.isArray(previousInstagram.slide_results) ? previousInstagram.slide_results : [];
@@ -524,21 +534,30 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {}, previo
     instagram = aggregatePlatformSlideResults("Instagram", instagramSlides);
   }
 
-  const facebook = previousFacebook.status === "published"
-    ? { ...previousFacebook, reused: true }
-    : aggregatePlatformSlideResults("Facebook", await Promise.all(
-        publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))
-      ));
+  const facebook = !wantsPlatform("facebook")
+    ? skipped("Facebook")
+    : previousFacebook.status === "published"
+      ? { ...previousFacebook, reused: true }
+      : aggregatePlatformSlideResults("Facebook", await Promise.all(
+          publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))
+        ));
   const whatsapp = previousResults?.whatsapp?.status === "skipped"
     ? { ...previousResults.whatsapp, reused: true }
     : await publishWhatsAppStory();
 
-  const supported = [instagram, facebook];
+  const supported = [instagram, facebook].filter((item) => item.status !== "skipped");
   const successCount = supported.filter((item) => item.status === "published").length;
-  const status = successCount === supported.length ? "published" : successCount > 0 ? "partial_success" : "failed";
+  const status = !supported.length
+    ? "failed"
+    : successCount === supported.length
+      ? "published"
+      : successCount > 0
+        ? "partial_success"
+        : "failed";
   const errorMessage = status === "published" ? null : [
-    instagram.status !== "published" ? `Instagram: ${instagram.error}` : "",
-    facebook.status !== "published" ? `Facebook: ${facebook.error}` : "",
+    !supported.length ? "No publishing platform was selected." : "",
+    instagram.status !== "published" && instagram.status !== "skipped" ? `Instagram: ${instagram.error}` : "",
+    facebook.status !== "published" && facebook.status !== "skipped" ? `Facebook: ${facebook.error}` : "",
   ].filter(Boolean).join("; ");
 
   const aggregate = {
