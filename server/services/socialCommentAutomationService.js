@@ -682,7 +682,25 @@ const dedupeTextList = (value = []) =>
     .filter(Boolean)
     .filter((item, index, array) => array.indexOf(item) === index);
 
+export const SOCIAL_COMMENT_AUTOMATION_SUPPORTED_PLATFORMS = new Set(["facebook", "instagram"]);
+
 const firstNonEmptyText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+
+// A zero price means "not priced yet", not "free". Postgres numeric arrives as the
+// string "0.00", which is non-empty, so it would otherwise win over a real price and
+// reach the customer as "السعر: 0.00".
+export const usablePriceText = (value) => {
+  const normalized = text(value);
+  if (!normalized) return "";
+  const numericPart = String(normalized).replace(/[^\d.-]/g, "");
+  // A label carrying no digits ("السعر عند الطلب") is a deliberate message, not a zero.
+  if (!/\d/.test(numericPart)) return normalized;
+  const parsed = Number(numericPart);
+  if (Number.isFinite(parsed) && parsed <= 0) return "";
+  return normalized;
+};
+export const firstUsablePriceText = (...values) => values.map((value) => usablePriceText(value)).find(Boolean) || "";
+
 const resolveAutomationDisplayPriceContext = async ({ tenantId = null, productContext = {}, row = {} } = {}) => {
   const safeContext = metadataObject(productContext || {});
   const primaryProduct = metadataObject(safeContext.primary_product || {});
@@ -725,10 +743,10 @@ const resolveAutomationDisplayPriceContext = async ({ tenantId = null, productCo
   };
 };
 const resolveProductPriceFields = (row = {}) => {
-  const price = firstNonEmptyText(row.product_price, row.product_selling_price, row.product_sale_price);
-  const finalPrice = firstNonEmptyText(row.product_sale_price, row.product_selling_price, row.product_price);
-  const salePrice = firstNonEmptyText(row.product_sale_price, finalPrice);
-  const sellingPrice = firstNonEmptyText(row.product_selling_price, row.product_price, finalPrice);
+  const price = firstUsablePriceText(row.product_price, row.product_selling_price, row.product_sale_price);
+  const finalPrice = firstUsablePriceText(row.product_sale_price, row.product_selling_price, row.product_price);
+  const salePrice = firstUsablePriceText(row.product_sale_price, finalPrice);
+  const sellingPrice = firstUsablePriceText(row.product_selling_price, row.product_price, finalPrice);
   return {
     price,
     final_price: finalPrice,
@@ -798,8 +816,8 @@ const detectSocialCommentSalesIntent = ({ commentText = "" } = {}) => {
   return { intent: "generic_interest", confidence: 0.7, matched_pattern: "", normalized_text: normalized };
 };
 
-const buildSalesPriceLabel = (salesContext = {}) =>
-  firstNonEmptyText(
+export const buildSalesPriceLabel = (salesContext = {}) =>
+  firstUsablePriceText(
     salesContext.price,
     salesContext.final_price,
     salesContext.sale_price,
@@ -1961,10 +1979,10 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
 const buildAutomationTemplateContext = ({ row = {}, productContext = {}, websiteLinks = {} } = {}) => {
   const customerName = text(row.commenter_name || row.customer_name || row.from?.name || row.metadata?.from?.name || "");
   const productName = text(productContext?.product_name || row.product_name || row.metadata?.product_name || "");
-  const price = text(productContext?.price || productContext?.sale_price || productContext?.selling_price || row.product_price || row.sale_price || row.price || "");
-  const finalPrice = text(productContext?.final_price || row.final_price || row.metadata?.final_price || "");
-  const salePrice = text(productContext?.sale_price || row.sale_price || row.product_sale_price || "");
-  const sellingPrice = text(productContext?.selling_price || row.selling_price || row.product_selling_price || "");
+  const price = firstUsablePriceText(productContext?.price, productContext?.sale_price, productContext?.selling_price, row.product_price, row.sale_price, row.price);
+  const finalPrice = firstUsablePriceText(productContext?.final_price, row.final_price, row.metadata?.final_price);
+  const salePrice = firstUsablePriceText(productContext?.sale_price, row.sale_price, row.product_sale_price);
+  const sellingPrice = firstUsablePriceText(productContext?.selling_price, row.selling_price, row.product_selling_price);
   const availableSizesList = asArray(productContext?.sizes || row.sizes || row.product_sizes || [])
     .map((value) => text(value))
     .filter(Boolean)
@@ -2654,7 +2672,11 @@ const executeSocialCommentAutomationRuntime = async ({
     });
     return returnWithFlowExit({ applied: false, skipped: true, reason: "missing_comment_id", row: safeRow, step_results: stepResults }, { exitReason: "missing_comment_id", exitType: "guard" });
   }
-  if (normalizedPlatform !== "facebook") {
+  // Instagram public replies go to /{comment-id}/replies and private replies to
+  // /{comment-id}/private_replies, both already implemented in
+  // marketingCommentAutomationService. Only the like step is Facebook-only, and it is
+  // gated separately, so Instagram no longer has to skip the whole run.
+  if (!SOCIAL_COMMENT_AUTOMATION_SUPPORTED_PLATFORMS.has(normalizedPlatform)) {
     const diagnostics = buildCurrentDiagnostics({ skippedReason: "unsupported_platform" });
     await upsertSocialCommentAutomationRunSummary({
       tenantId: safeTenantId,
@@ -3358,7 +3380,10 @@ const executeSocialCommentAutomationRuntime = async ({
     automation_state: persistedRuntimeStateWithLatency,
   };
 
-  const likeEnabled = Boolean(config.settings?.likeComment);
+  // Instagram's Graph API exposes no comment-like endpoint (/{comment-id}/likes is
+  // Facebook only), so the like step stays off there while replies still run.
+  const likeSupportedOnPlatform = normalizedPlatform === "facebook";
+  const likeEnabled = Boolean(config.settings?.likeComment) && likeSupportedOnPlatform;
   const publicReplyEnabled = Boolean(config.settings?.publicReply);
   const privateReplyEnabled = Boolean(config.settings?.privateReply);
   const aiFollowUpEnabled = Boolean(config.settings?.aiFollowUp);
@@ -3609,7 +3634,11 @@ const executeSocialCommentAutomationRuntime = async ({
       },
     });
   } else {
-    const result = { step: "likeComment", status: "skipped", reason: "disabled" };
+    const result = {
+      step: "likeComment",
+      status: "skipped",
+      reason: Boolean(config.settings?.likeComment) && !likeSupportedOnPlatform ? "unsupported_platform" : "disabled",
+    };
     stepResults.push(result);
     console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
   }
@@ -4027,9 +4056,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     post_id: initialPostId,
     comment_id: text(row.comment_id || ""),
   });
-  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || platform !== "facebook") {
+  // The lookup below is platform-agnostic and already reads Instagram's media_id, so
+  // Instagram resolves its linked product the same way Facebook does.
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !SOCIAL_COMMENT_AUTOMATION_SUPPORTED_PLATFORMS.has(platform)) {
     console.log("SOCIAL_COMMENT_CONTEXT_EARLY_RETURN", {
-      reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "non_facebook_platform",
+      reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "unsupported_platform",
       tenant_id: safeTenantId,
       platform,
       post_id: initialPostId,
@@ -4039,7 +4070,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     return {
       found: false,
       source: "unsupported",
-      reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "non_facebook_platform",
+      reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "unsupported_platform",
       platform,
       candidate_post_ids: [],
       direct_product_ids_count: 0,

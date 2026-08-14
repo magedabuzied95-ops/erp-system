@@ -113,7 +113,9 @@ const hasUsablePriceValue = (value = "") => {
   if (!normalized) return false;
   const parsed = toFiniteNumber(normalized);
   if (parsed === null) return true;
-  return parsed >= 0;
+  // Zero is "not priced yet", not "free" — quoting 0 to a customer is worse than
+  // omitting the price line entirely.
+  return parsed > 0;
 };
 
 const priceCandidates = (...values) =>
