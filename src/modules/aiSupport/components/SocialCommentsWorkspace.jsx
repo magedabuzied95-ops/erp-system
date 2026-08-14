@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   RefreshCw,
   Send,
+  Settings,
   Sparkles,
   ShoppingBag,
   ThumbsUp,
@@ -35,6 +36,15 @@ import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialComm
 import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
+
+// One rule for "this post is linked to a product". The gear colour must agree with the
+// automation gate, which exits with no_linked_product when a post has none.
+const hasDirectProductLink = (post = {}) => Boolean(
+  post?.hasDirectProductLink ||
+  post?.has_direct_product_link ||
+  Number(post?.directLinkedProductsCount || post?.linkedProductsCount || post?.linked_products_count || 0) > 0 ||
+  ["direct", "v2_direct"].includes(String(post?.productLinkSource || post?.product_link_source || "").trim())
+);
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const isGenericCommenterName = (value = "") => /^(customer|unknown|guest|anonymous|عميل|العميل|\d+)$/i.test(clean(value));
 const firstCommenterName = (...values) => values.map((value) => clean(value)).find((value) => value && !isGenericCommenterName(value)) || "";
@@ -2853,13 +2863,28 @@ function SocialCommentsWorkspace({
                 const key = postKey(post);
                 const active = activePostKey === key;
                 const visibleTime = getPostVisibleTime(post);
+                const linked = hasDirectProductLink(post);
+                const linkedName = clean(
+                  post.directPrimaryLinkedProduct?.name ||
+                  post.directPrimaryLinkedProduct?.title ||
+                  post.directPrimaryLinkedProduct?.product_name ||
+                  ""
+                );
+                const linkedCount = Number(post.directLinkedProductsCount || post.linkedProductsCount || 0);
                 return (
-                  <button
+                  <div
                     key={key}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSelectCardPost(post, key)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleSelectCardPost(post, key);
+                      }
+                    }}
                     onMouseEnter={() => onPrefetchPost?.(post.raw || post, key)}
-                    className={`flex w-full items-start gap-2.5 rounded-2xl border p-2.5 text-start transition ${
+                    className={`flex w-full cursor-pointer items-start gap-2.5 rounded-2xl border p-2.5 text-start transition ${
                       active
                         ? "border-[var(--primary)] bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/20"
                         : "border-[var(--border)] bg-[var(--surface-soft)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
@@ -2875,9 +2900,35 @@ function SocialCommentsWorkspace({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="line-clamp-2 text-xs font-black leading-5 text-[var(--text)]">{post.caption || t("aiSupport.inbox.socialWorkspace.posts")}</div>
-                        {Number(post.newCount || 0) > 0 ? (
-                          <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#d9aa20] px-1.5 py-0.5 text-[9px] font-black text-slate-950">{post.newCount}</span>
-                        ) : null}
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {Number(post.newCount || 0) > 0 ? (
+                            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#d9aa20] px-1.5 py-0.5 text-[9px] font-black text-slate-950">{post.newCount}</span>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenProductLinksDrawer(post, key);
+                            }}
+                            title={
+                              linked
+                                ? t("aiSupport.inbox.socialWorkspace.productLinkedTooltip", {
+                                    name: linkedName || t("aiSupport.inbox.socialWorkspace.linkedProductFallback"),
+                                    extra: linkedCount > 1 ? ` +${linkedCount - 1}` : "",
+                                  })
+                                : t("aiSupport.inbox.socialWorkspace.productUnlinkedTooltip")
+                            }
+                            aria-label={linked ? t("aiSupport.inbox.socialWorkspace.productLinkedAria") : t("aiSupport.inbox.socialWorkspace.productUnlinkedAria")}
+                            data-post-product-link={linked ? "linked" : "unlinked"}
+                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition ${
+                              linked
+                                ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-500 hover:bg-emerald-400/25"
+                                : "border-rose-400/40 bg-rose-400/15 text-rose-500 hover:bg-rose-400/25"
+                            }`}
+                          >
+                            <Settings className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-[var(--muted)]">
                         {postPlatforms(post).map((platform) => {
@@ -2888,7 +2939,7 @@ function SocialCommentsWorkspace({
                         {visibleTime ? <span>{absoluteTime(visibleTime)}</span> : null}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
 
@@ -3073,12 +3124,7 @@ function SocialCommentsWorkspace({
                     const active = activePostKey === key;
                     const meta = platformMeta(post.platform);
                     const thumb = post.thumbnailUrl;
-                    const hasVisibleProductLink = Boolean(
-                      post.hasDirectProductLink ||
-                      post.has_direct_product_link ||
-                      Number(post.linkedProductsCount || post.linked_products_count || 0) > 0 ||
-                      ["direct", "v2_direct"].includes(clean(post.productLinkSource || post.product_link_source || ""))
-                    );
+                    const hasVisibleProductLink = hasDirectProductLink(post);
                     socialDebugLog("SOCIAL_POST_CARD_ID_TRACE", {
                       card_post_id: clean(post?.postId || ""),
                       card_platform_post_id: clean(post?.platformPostId || ""),
@@ -3232,12 +3278,7 @@ function SocialCommentsWorkspace({
                   const active = activePostKey === key;
                   const meta = platformMeta(post.platform);
                   const thumb = post.thumbnailUrl;
-                  const hasVisibleProductLink = Boolean(
-                    post.hasDirectProductLink ||
-                    post.has_direct_product_link ||
-                    Number(post.linkedProductsCount || post.linked_products_count || 0) > 0 ||
-                    ["direct", "v2_direct"].includes(clean(post.productLinkSource || post.product_link_source || ""))
-                  );
+                  const hasVisibleProductLink = hasDirectProductLink(post);
                   socialDebugLog("SOCIAL_POST_CARD_ID_TRACE", {
                     card_post_id: clean(post?.postId || ""),
                     card_platform_post_id: clean(post?.platformPostId || ""),
