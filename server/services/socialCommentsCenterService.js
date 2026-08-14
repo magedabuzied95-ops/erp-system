@@ -3486,7 +3486,63 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   };
 };
 
-const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true } = {}) => {
+// Opening Social Comments called the Meta Graph API in the request path — a page feed
+// fetch for Facebook and a media+comments sync for Instagram — so every visit and every
+// poll waited on Facebook. That was the whole fixed cost of the list: ~1.2s warm and up to
+// 13s cold, regardless of how many posts were asked for.
+//
+// The feed is now cached per tenant+platform+limit for a short window. In-flight requests
+// share one fetch, so a burst of polls costs one Graph call rather than one each. Refresh
+// (forceRefresh) always goes to Meta, so "I just published a post" stays instant.
+const SOCIAL_COMMENT_FEED_CACHE_TTL_MS = Math.max(
+  0,
+  Number(process.env.SOCIAL_COMMENT_FEED_CACHE_TTL_MS || 60_000) || 60_000
+);
+const socialCommentFeedCache = new Map();
+let socialCommentFeedCacheHits = 0;
+let socialCommentFeedCacheMisses = 0;
+
+const loadSocialCommentFeedCached = async ({ tenantId = null, platform = "", limit = 0, forceRefresh = false, load } = {}) => {
+  const key = `${toTenantId(tenantId) || 0}:${lower(platform)}:${Number(limit) || 0}`;
+  const now = Date.now();
+  const entry = socialCommentFeedCache.get(key);
+  if (!forceRefresh && entry) {
+    // An in-flight fetch is shared even past its TTL: the alternative is a thundering herd
+    // of Graph calls when several operators open the page at once.
+    if (entry.promise) {
+      socialCommentFeedCacheHits += 1;
+      return entry.promise;
+    }
+    if (SOCIAL_COMMENT_FEED_CACHE_TTL_MS > 0 && now - entry.at < SOCIAL_COMMENT_FEED_CACHE_TTL_MS) {
+      socialCommentFeedCacheHits += 1;
+      return entry.value;
+    }
+  }
+  socialCommentFeedCacheMisses += 1;
+  const promise = (async () => load())();
+  socialCommentFeedCache.set(key, { promise, at: now, value: entry?.value });
+  try {
+    const value = await promise;
+    // Never cache an empty/failed feed: it would pin the list to the DB fallback for the
+    // whole TTL after one transient Graph error.
+    const cacheable = Boolean(value?.success !== false && Array.isArray(value?.posts) && value.posts.length);
+    if (cacheable) socialCommentFeedCache.set(key, { value, at: Date.now() });
+    else socialCommentFeedCache.delete(key);
+    return value;
+  } catch (error) {
+    socialCommentFeedCache.delete(key);
+    throw error;
+  }
+};
+
+export const getSocialCommentFeedCacheStats = () => ({
+  entries: socialCommentFeedCache.size,
+  hits: socialCommentFeedCacheHits,
+  misses: socialCommentFeedCacheMisses,
+  ttl_ms: SOCIAL_COMMENT_FEED_CACHE_TTL_MS,
+});
+
+const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true, forceRefresh = false } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   if (!safeTenantId) return [];
@@ -3548,18 +3604,24 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
     return Array.isArray(fallbackRowsResult.rows) ? fallbackRowsResult.rows : [];
   };
 
-  const feedResult = await getSocialCommentsMetaIntegrationDeps()
-    .then(({ fetchMetaPageFeedPostsForTenant, fetchMetaInstagramMediaForTenant }) => normalizedPlatform === "instagram"
-      // The list only needs post metadata. Importing every Instagram comment
-      // here made merely opening Social Comments perform a second full sync.
-      ? fetchMetaInstagramMediaForTenant({ tenantId: safeTenantId, limit: safeLimit, syncComments: true })
-      : fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }))
-    .catch((error) => ({
-    success: false,
-    posts: [],
-    page_id: "",
-    graph_error: error?.message || "Unable to load Facebook page posts",
-  }));
+  const feedResult = await loadSocialCommentFeedCached({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    limit: safeLimit,
+    forceRefresh,
+    load: () => getSocialCommentsMetaIntegrationDeps()
+      .then(({ fetchMetaPageFeedPostsForTenant, fetchMetaInstagramMediaForTenant }) => normalizedPlatform === "instagram"
+        // The list only needs post metadata. Importing every Instagram comment
+        // here made merely opening Social Comments perform a second full sync.
+        ? fetchMetaInstagramMediaForTenant({ tenantId: safeTenantId, limit: safeLimit, syncComments: true })
+        : fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }))
+      .catch((error) => ({
+        success: false,
+        posts: [],
+        page_id: "",
+        graph_error: error?.message || "Unable to load Facebook page posts",
+      })),
+  });
   const feedPosts = Array.isArray(feedResult?.posts) ? feedResult.posts.filter((post) => post && typeof post === "object") : [];
   const fallbackRows = !feedPosts.length ? await listStoredSocialCommentPostsFallback() : [];
   const fallbackPosts = fallbackRows.map((row) => ({
@@ -3776,7 +3838,7 @@ const socialCommentPostSortTime = (post = {}) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true } = {}) => {
+const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true, forceRefresh = false } = {}) => {
   const normalizedRequestedPlatform = lower(platform);
   if (normalizedRequestedPlatform === "facebook" || normalizedRequestedPlatform === "instagram") {
     return listSocialCommentPostsForPlatform({
@@ -3784,13 +3846,14 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       platform: normalizedRequestedPlatform,
       limit,
       includeProductLinks,
+      forceRefresh,
     });
   }
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   const perPlatformLimit = Math.min(safeLimit, 24);
   const [facebookPosts, instagramPosts] = await Promise.all([
-    listSocialCommentPostsForPlatform({ tenantId, platform: "facebook", limit: perPlatformLimit, includeProductLinks }),
-    listSocialCommentPostsForPlatform({ tenantId, platform: "instagram", limit: perPlatformLimit, includeProductLinks }),
+    listSocialCommentPostsForPlatform({ tenantId, platform: "facebook", limit: perPlatformLimit, includeProductLinks, forceRefresh }),
+    listSocialCommentPostsForPlatform({ tenantId, platform: "instagram", limit: perPlatformLimit, includeProductLinks, forceRefresh }),
   ]);
   const uniquePosts = new Map();
   for (const post of [...facebookPosts, ...instagramPosts]) {

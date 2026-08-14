@@ -5166,7 +5166,7 @@ export default function AiInbox({ reviewerMode = false }) {
     inboxSectionRef.current = inboxSection;
   }, [inboxSection]);
 
-  const loadAll = useCallback(async ({ silent = false } = {}) => {
+  const loadAll = useCallback(async ({ silent = false, forceRefresh = false } = {}) => {
     if (isRefreshingRef.current) {
       const queuedRefresh = refreshQueueRef.current;
       refreshQueueRef.current = {
@@ -5371,7 +5371,9 @@ export default function AiInbox({ reviewerMode = false }) {
       try {
         const [postsPayload, settingsPayload] = await Promise.all([
           api.get("/social-comments/posts", {
-            params: { tenant_id: tenantId, limit: 50 },
+            // The posts feed is cached server-side; only an operator-triggered refresh
+            // pays for a live Meta round trip.
+            params: { tenant_id: tenantId, limit: 50, ...(forceRefresh ? { refresh: 1 } : {}) },
             headers,
             perfComponent: "AiInbox.socialCommentsPosts",
           }),
@@ -5492,7 +5494,7 @@ export default function AiInbox({ reviewerMode = false }) {
 
       if (refreshQueueRef.current && !force) return;
       if (refreshQueueRef.current && force) refreshQueueRef.current = null;
-      void loadAll({ silent });
+      void loadAll({ silent, forceRefresh: source === "manual" });
     },
     [loadAll, pageVisible]
   );

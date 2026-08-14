@@ -310,6 +310,9 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
       platform,
       limit: req.query?.limit || 50,
       includeProductLinks,
+      // An explicit refresh bypasses the cached Meta feed so a just-published post shows up
+      // immediately instead of waiting out the TTL.
+      forceRefresh: ["1", "true", "yes"].includes(String(req.query?.refresh || "").trim().toLowerCase()),
     });
     const responsePosts = posts.map((post) => ({
       ...post,
