@@ -1342,6 +1342,17 @@ const resolveGreetingPrivateReplyTemplate = (settings = {}) =>
   text(process.env.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY || "") ||
   SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT;
 
+// Facebook does not always give a commenter name, and "أهلاً بحضرتك يا  ❤️" reads as broken.
+// Drop the dangling vocative and tidy the gap the empty placeholder left behind.
+// \b is ASCII-only in JS, so the vocative is matched by explicit spacing instead.
+export const tidyGreetingText = (value = "") => String(value ?? "")
+  .replace(/[ \t]+يا(?=[ \t]*(?:$|[\n\p{Extended_Pictographic}،.,!؟?]))/gu, "")
+  .replace(/[ \t]{2,}/g, " ")
+  .split("\n")
+  .map((line) => line.replace(/[ \t]+$/g, ""))
+  .join("\n")
+  .trim();
+
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
 const socialCommentsDebugEnabled = () =>
   process.env.NODE_ENV !== "production" ||
@@ -3105,7 +3116,13 @@ const executeSocialCommentAutomationRuntime = async ({
     commentId: safeCommentId,
     postId: safePostId,
   });
-  const privateReplyTemplate = text(config.message_templates?.privateReplyTemplate || "");
+  // Greeting mode must replace the TEMPLATE, not just the rendered text: the private-reply
+  // worker re-renders from this template rather than sending the queued message. Leaving the
+  // product template here sent customers a stripped-down version of it — an empty name, no
+  // product line, "المقاسات المتاحة:" followed by the no-sizes fallback, and a bare /shop link.
+  const privateReplyTemplate = greetingOnly
+    ? resolveGreetingPrivateReplyTemplate(publicReplyRotationSettings)
+    : text(config.message_templates?.privateReplyTemplate || "");
   const aiOpeningPrompt = text(config.message_templates?.aiOpeningPrompt || "");
   const renderedAiOpeningPrompt = renderAutomationTemplate(aiOpeningPrompt, templateContext).trim();
   const renderedPublicReply = renderAutomationTemplate(selectedPublicReplyTemplate, templateContext).trim() || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE;
@@ -3238,7 +3255,7 @@ const executeSocialCommentAutomationRuntime = async ({
   // With no linked product the product-aware private reply would render with empty
   // product/price/link placeholders, so greeting mode substitutes its own message.
   const effectiveRenderedPrivateReply = greetingOnly
-    ? text(renderAutomationTemplate(resolveGreetingPrivateReplyTemplate(publicReplyRotationSettings), templateContext))
+    ? tidyGreetingText(renderAutomationTemplate(privateReplyTemplate, templateContext))
     : text(salesReplies.private_reply || renderedPrivateReply);
   aiPhaseTimings.reply_render_completed_at = new Date().toISOString();
   const aiSalesRuntime = {

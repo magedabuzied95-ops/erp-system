@@ -17,7 +17,7 @@ test("an unlinked post no longer aborts the automation run", () => {
 test("greeting mode replaces the product-aware DM", () => {
   assert.match(
     SOURCE,
-    /const effectiveRenderedPrivateReply = greetingOnly\s*\?\s*text\(renderAutomationTemplate\(resolveGreetingPrivateReplyTemplate\(publicReplyRotationSettings\), templateContext\)\)/,
+    /const effectiveRenderedPrivateReply = greetingOnly\s*\?\s*tidyGreetingText\(renderAutomationTemplate\(privateReplyTemplate, templateContext\)\)/,
     "the DM must come from the greeting template when there is no linked product"
   );
 });
@@ -47,6 +47,30 @@ test("the tenant's own greeting wins over the env override and the default", () 
   assert.ok(tenantAt >= 0 && envAt > tenantAt && defaultAt > envAt, "precedence must be tenant → env → default");
   // The runtime must pass the loaded tenant settings in, or the field would never apply.
   assert.match(SOURCE, /resolveGreetingPrivateReplyTemplate\(publicReplyRotationSettings\)/);
+});
+
+test("greeting mode replaces the template the worker renders, not just the text", async () => {
+  // The private-reply worker re-renders from privateReplyTemplate instead of sending the
+  // queued message. Overriding only the rendered text sent a real customer a stripped-down
+  // product template: no name, no product line, "المقاسات المتاحة:" + the no-sizes
+  // fallback, and a bare /shop link.
+  assert.match(
+    SOURCE,
+    /const privateReplyTemplate = greetingOnly\s*\?\s*resolveGreetingPrivateReplyTemplate\(publicReplyRotationSettings\)/,
+    "greeting mode must own the template itself"
+  );
+  assert.match(SOURCE, /tidyGreetingText\(renderAutomationTemplate\(privateReplyTemplate, templateContext\)\)/);
+});
+
+test("a missing commenter name does not leave a dangling vocative", async () => {
+  const { tidyGreetingText } = await import("../server/services/socialCommentAutomationService.js");
+  // Facebook often omits the commenter name, which rendered as "أهلاً بحضرتك يا  ❤️".
+  assert.equal(tidyGreetingText("أهلاً بحضرتك يا  ❤️"), "أهلاً بحضرتك ❤️");
+  assert.equal(tidyGreetingText("أهلاً بحضرتك يا "), "أهلاً بحضرتك");
+  assert.equal(tidyGreetingText("أهلاً يا \nسطر تاني"), "أهلاً\nسطر تاني");
+  // A real name must survive untouched, including before punctuation.
+  assert.equal(tidyGreetingText("أهلاً بحضرتك يا ماجد ❤️"), "أهلاً بحضرتك يا ماجد ❤️");
+  assert.equal(tidyGreetingText("مرحبا يا محمود، إزيك؟"), "مرحبا يا محمود، إزيك؟");
 });
 
 test("the greeting field is persisted like the other templates", () => {
