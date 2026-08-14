@@ -35,14 +35,24 @@ const normalizePlatforms = (value) => {
   return Array.from(new Set(normalized));
 };
 
-const assertSocialPublisherPlatformsAreEnabled = (platforms = []) => {
+// TikTok used to be unconditionally disabled here. It is now gated on a live
+// connection instead: selecting TikTok without a connected account still fails
+// with the same message, so nothing changes for a tenant that has not connected.
+// Facebook/Instagram behaviour is untouched.
+const assertSocialPublisherPlatformsAreEnabled = async (platforms = [], { tenantId = null } = {}) => {
   const normalized = normalizePlatforms(platforms);
-  if (normalized.some((platform) => DISABLED_SOCIAL_PUBLISHER_PLATFORMS.has(platform))) {
-    const error = new Error(TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE);
-    error.status = 400;
-    throw error;
+  const gated = normalized.filter((platform) => DISABLED_SOCIAL_PUBLISHER_PLATFORMS.has(platform));
+  if (!gated.length) return normalized;
+
+  if (gated.length === 1 && gated[0] === "tiktok" && tenantId) {
+    const { getTikTokConnectionStatus } = await import("./tiktokOAuthService.js");
+    const connection = await getTikTokConnectionStatus({ tenantId }).catch(() => null);
+    if (connection?.connected && connection.account?.capabilities?.direct_post) return normalized;
   }
-  return normalized;
+
+  const error = new Error(TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE);
+  error.status = 400;
+  throw error;
 };
 
 const normalizeMediaType = (value = "") => {
@@ -51,14 +61,41 @@ const normalizeMediaType = (value = "") => {
   return "image";
 };
 
+// TikTok posting options, kept under the same allowlist discipline as the Meta
+// keys above. Without this block the outer allowlist silently drops every
+// TikTok setting on both write and read, and a TikTok publish would always fall
+// back to DIRECT_POST with no privacy level — which TikTok rejects.
+// Only `post_mode` is defaulted; privacy_level is deliberately left blank so a
+// missing selection fails validation instead of silently posting publicly.
+const normalizeTikTokPublishSettings = (value = {}) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const postMode = trimString(value.post_mode).toUpperCase();
+  return {
+    post_mode: postMode === "INBOX_UPLOAD" ? "INBOX_UPLOAD" : "DIRECT_POST",
+    privacy_level: trimString(value.privacy_level),
+    disable_comment: Boolean(value.disable_comment),
+    disable_duet: Boolean(value.disable_duet),
+    disable_stitch: Boolean(value.disable_stitch),
+    commercial_content_toggle: Boolean(value.commercial_content_toggle),
+    brand_content_toggle: Boolean(value.brand_content_toggle),
+    brand_organic_toggle: Boolean(value.brand_organic_toggle),
+    video_duration_sec: Number(value.video_duration_sec) || 0,
+  };
+};
+
 const normalizePublishSettings = (value = {}) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return {
+  const normalized = {
     facebook_page_id: trimString(value.facebook_page_id || value.page_id),
     facebook_page_name: trimString(value.facebook_page_name || value.page_name),
     instagram_account_id: trimString(value.instagram_account_id),
     instagram_username: trimString(value.instagram_username),
   };
+  const tiktok = normalizeTikTokPublishSettings(value.tiktok);
+  // Only added when present, so existing Meta-only posts keep the exact shape
+  // they have today.
+  if (tiktok) normalized.tiktok = tiktok;
+  return normalized;
 };
 
 const normalizeSocialPublisherPostRow = (row = {}) => ({
@@ -477,7 +514,7 @@ export const createSocialPublisherPostRow = async ({
   errorMessage = null,
 } = {}) => {
   await ensureMarketingSchema();
-  assertSocialPublisherPlatformsAreEnabled(platforms);
+  await assertSocialPublisherPlatformsAreEnabled(platforms, { tenantId });
   const normalizedPublishSettings = normalizePublishSettings(publishSettings);
   const result = await db.query(
     `
@@ -977,7 +1014,8 @@ const publishFirstCommentIfNeeded = async ({
 
 export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
   await ensureMarketingSchema();
-  const post = await getSocialPublisherPostRow({ tenantId, id });
+  // `let`: a mixed TikTok+Meta selection rebinds this to a Meta-only copy below.
+  let post = await getSocialPublisherPostRow({ tenantId, id });
   if (!post) {
     return {
       success: false,
@@ -987,7 +1025,43 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
     };
   }
 
-  assertSocialPublisherPlatformsAreEnabled(post.platforms);
+  await assertSocialPublisherPlatformsAreEnabled(post.platforms, { tenantId });
+
+  // TikTok is published through its own Content Posting flow (creator info ->
+  // init -> FILE_UPLOAD -> status poll), which has no Graph API equivalent.
+  // A TikTok-only post returns here so none of the Meta publish, first-comment,
+  // or product-link machinery below runs against a post it cannot handle.
+  const requestedPlatforms = normalizePlatforms(post.platforms);
+  if (requestedPlatforms.includes("tiktok")) {
+    const { publishToTikTok, TIKTOK_POST_MODES } = await import("./tiktokPublisherService.js");
+    const tiktokSettings = post.publish_settings?.tiktok || {};
+    const tiktokResult = await publishToTikTok({
+      tenantId,
+      socialPublisherPostId: post.id,
+      // Stable per post: a retried publish of the same post collapses onto the
+      // same job instead of creating a second TikTok video.
+      idempotencyKey: `social_publisher_post:${post.id}`,
+      mediaUrl: post.media_url,
+      postMode: String(tiktokSettings.post_mode || "").toUpperCase() === TIKTOK_POST_MODES.INBOX_UPLOAD
+        ? TIKTOK_POST_MODES.INBOX_UPLOAD
+        : TIKTOK_POST_MODES.DIRECT_POST,
+      options: { caption: post.caption, ...tiktokSettings },
+    });
+
+    if (requestedPlatforms.length === 1) {
+      return {
+        success: true,
+        status: 202,
+        message: tiktokResult.draft ? "Video sent to your TikTok drafts" : "TikTok post submitted",
+        data: post,
+        tiktok_result: tiktokResult,
+      };
+    }
+    // Mixed selection: TikTok is done, let the Meta path handle the rest with a
+    // platform list it understands. post is not mutated in place.
+    post = { ...post, platforms: requestedPlatforms.filter((platform) => platform !== "tiktok") };
+  }
+
   const settings = await getMarketingSettingsRow(tenantId);
   const publishSettings = normalizePublishSettings(post.publish_settings);
   const effectiveSettings = {

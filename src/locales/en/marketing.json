@@ -1552,5 +1552,41 @@
     "sport": "Sport",
     "friendly": "Friendly",
     "sales": "Sales"
+  },
+  "tiktok": {
+    "title": "TikTok",
+    "subtitle": "Publishing channel — connect a TikTok account to post videos from the Social Publisher.",
+    "notConfigured": "TikTok is not configured on the server yet. Set the TikTok environment variables before connecting.",
+    "commentsPending": "TikTok comment management requires separate TikTok API for Business access, which has not been granted yet. No comment features are active.",
+    "lastSync": "Last sync",
+    "tokenExpires": "Access token expires",
+    "connectedToast": "TikTok account connected",
+    "deniedToast": "TikTok authorization was declined",
+    "errorToast": "TikTok connection failed",
+    "connectFailed": "Could not start TikTok authorization",
+    "refreshed": "TikTok token refreshed",
+    "refreshFailed": "Could not refresh the TikTok token",
+    "disconnectConfirm": "Disconnect this TikTok account? Scheduled TikTok posts will stop working.",
+    "disconnected": "TikTok account disconnected",
+    "disconnectFailed": "Could not disconnect TikTok",
+    "state": {
+      "loading": "Loading",
+      "notConnected": "Not connected",
+      "connecting": "Connecting",
+      "connected": "Connected",
+      "refreshing": "Refreshing",
+      "reconnectRequired": "Reconnect required",
+      "error": "Error"
+    },
+    "capability": {
+      "directPost": "Direct Post",
+      "draft": "Upload to drafts"
+    },
+    "actions": {
+      "connect": "Connect TikTok",
+      "reconnect": "Reconnect TikTok",
+      "disconnect": "Disconnect",
+      "refresh": "Refresh token"
+    }
   }
 }

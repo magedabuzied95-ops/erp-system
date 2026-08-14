@@ -60,6 +60,7 @@ server/services/*
 !server/services/analytics/
 !server/services/analytics/**
 !server/services/aiSupportKnowledgeBaseService.js
+!server/services/tiktok*.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -97,3 +98,4 @@ server/services/*
 !server/services/analytics/
 !server/services/analytics/**
 !server/services/aiSupportKnowledgeBaseService.js
+!server/services/tiktok*.js
