@@ -968,8 +968,9 @@ const PosVariantColorPicker = ({
                 : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10"
             }`}
           >
-            {/* The image fills the tile and the caption is painted OVER it. The
-                caption used to sit under the image, whose white background hid it. */}
+            {/* Photo only: the seller picks the colour by sight. The name, the code
+                and the stock live in the tooltip and in the selected-variant panel,
+                so nothing covers the part of the shoe that identifies it. */}
             {option.imageUrl ? (
               <img
                 src={option.imageUrl}
@@ -981,21 +982,12 @@ const PosVariantColorPicker = ({
                   event.currentTarget.style.display = "none";
                 }}
               />
-            ) : null}
-            <span className="absolute inset-x-0 bottom-0 bg-black/80 px-1 pb-1 pt-0.5">
-              <span className="block w-full truncate text-center text-[11px] font-black leading-tight text-zinc-100">
+            ) : (
+              // Nothing to look at without a photo, so fall back to the name.
+              <span className="absolute inset-0 flex items-center justify-center px-1 text-center text-[11px] font-black leading-tight text-zinc-200">
                 {option.color || defaultLabel}
               </span>
-              {/* The article code is deliberately NOT printed here — the seller picks
-                  by the photo. It stays in the tooltip for when two groups share a name. */}
-              <span
-                className={`block text-center text-[11px] font-black leading-tight ${
-                  option.stock > 0 ? "text-emerald-300" : "text-rose-300"
-                }`}
-              >
-                {option.stock}
-              </span>
-            </span>
+            )}
             {selected ? (
               <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
                 <CheckCircle2 className="h-3.5 w-3.5" />
