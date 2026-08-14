@@ -54,6 +54,7 @@ server/services/*
 !server/services/footwearSizeResolver.js
 !server/services/aiSupportKnowledgeBaseService.js
 !server/services/tiktok*.js
+!server/services/aiMarketingStoryAutopilotService.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -85,3 +86,4 @@ server/services/*
 !server/services/footwearSizeResolver.js
 !server/services/aiSupportKnowledgeBaseService.js
 !server/services/tiktok*.js
+!server/services/aiMarketingStoryAutopilotService.js

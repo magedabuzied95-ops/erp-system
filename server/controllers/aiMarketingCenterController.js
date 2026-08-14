@@ -18,6 +18,14 @@ import {
   setAiMarketingAutomationActive,
   updateAiMarketingSettings,
 } from "../services/aiMarketingCenterService.js";
+import {
+  applySuggestedStorySlots,
+  buildSuggestedStorySlots,
+  getStoryAutopilotSettings,
+  getStoryAutopilotStatus,
+  runStoryAutopilotForTenant,
+  updateStoryAutopilotSettings,
+} from "../services/aiMarketingStoryAutopilotService.js";
 
 const tenantScope = (req) => getTenantId(req, req.user?.tenant_id) ?? 1;
 
@@ -46,6 +54,61 @@ export const patchAutonomousAiMarketingSettings = async (req, res) => {
     res.json({ success: true, settings });
   } catch (error) {
     sendError(res, error, "Failed to update AI marketing settings");
+  }
+};
+
+export const getStoryAutopilot = async (req, res) => {
+  try {
+    const payload = await getStoryAutopilotStatus(tenantScope(req));
+    const suggestion = await buildSuggestedStorySlots({
+      tenantId: tenantScope(req),
+      count: Math.min(Math.max(payload.settings.max_per_day, 3), 6),
+      timezone: payload.settings.timezone,
+    });
+    res.json({ success: true, ...payload, suggestion });
+  } catch (error) {
+    sendError(res, error, "Failed to load story autopilot settings");
+  }
+};
+
+export const patchStoryAutopilot = async (req, res) => {
+  try {
+    const settings = await updateStoryAutopilotSettings(tenantScope(req), req.body || {});
+    res.json({ success: true, settings });
+  } catch (error) {
+    sendError(res, error, "Failed to update story autopilot settings");
+  }
+};
+
+export const getStoryAutopilotSuggestions = async (req, res) => {
+  try {
+    const current = await getStoryAutopilotSettings(tenantScope(req));
+    const suggestion = await buildSuggestedStorySlots({
+      tenantId: tenantScope(req),
+      count: Number(req.query?.count) || Math.min(Math.max(current.max_per_day, 3), 6),
+      timezone: current.timezone,
+    });
+    res.json({ success: true, suggestion });
+  } catch (error) {
+    sendError(res, error, "Failed to build story posting suggestions");
+  }
+};
+
+export const applyStoryAutopilotSuggestions = async (req, res) => {
+  try {
+    const result = await applySuggestedStorySlots(tenantScope(req), { count: Number(req.body?.count) || undefined });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    sendError(res, error, "Failed to apply story posting suggestions");
+  }
+};
+
+export const runStoryAutopilotNow = async (req, res) => {
+  try {
+    const summary = await runStoryAutopilotForTenant(tenantScope(req), { trigger: "manual", force: true });
+    res.json({ success: true, summary });
+  } catch (error) {
+    sendError(res, error, "Failed to run the story autopilot");
   }
 };
 

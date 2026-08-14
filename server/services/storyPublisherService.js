@@ -449,20 +449,39 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     }
   }
 
+  // An explicit target_platforms list (used by the story autopilot) narrows the fan-out.
+  // Without it every Meta surface is published, which is the historical behaviour.
+  const requestedPlatforms = Array.isArray(story?.target_platforms)
+    ? story.target_platforms.map((platform) => String(platform || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  const wantsPlatform = (platform) => !requestedPlatforms.length || requestedPlatforms.includes(platform);
+  const skipped = (platform) => result({ status: "skipped", error: `${platform} is not selected for this publish`, story });
+
   const [instagramSlides, facebookSlides, whatsapp] = await Promise.all([
-    Promise.all(publishCandidates.map((candidate) => publishInstagramStory({ story: storyForCandidate(story, candidate), settings, accessToken }))),
-    Promise.all(publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))),
+    wantsPlatform("instagram")
+      ? Promise.all(publishCandidates.map((candidate) => publishInstagramStory({ story: storyForCandidate(story, candidate), settings, accessToken })))
+      : Promise.resolve([]),
+    wantsPlatform("facebook")
+      ? Promise.all(publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken })))
+      : Promise.resolve([]),
     publishWhatsAppStory(),
   ]);
-  const instagram = aggregatePlatformSlideResults("Instagram", instagramSlides);
-  const facebook = aggregatePlatformSlideResults("Facebook", facebookSlides);
+  const instagram = wantsPlatform("instagram") ? aggregatePlatformSlideResults("Instagram", instagramSlides) : skipped("Instagram");
+  const facebook = wantsPlatform("facebook") ? aggregatePlatformSlideResults("Facebook", facebookSlides) : skipped("Facebook");
 
-  const supported = [instagram, facebook];
+  const supported = [instagram, facebook].filter((item) => item.status !== "skipped");
   const successCount = supported.filter((item) => item.status === "published").length;
-  const status = successCount === supported.length ? "published" : successCount > 0 ? "partial_success" : "failed";
+  const status = !supported.length
+    ? "failed"
+    : successCount === supported.length
+      ? "published"
+      : successCount > 0
+        ? "partial_success"
+        : "failed";
   const errorMessage = status === "published" ? null : [
-    instagram.status !== "published" ? `Instagram: ${instagram.error}` : "",
-    facebook.status !== "published" ? `Facebook: ${facebook.error}` : "",
+    !supported.length ? "No publishing platform was selected." : "",
+    instagram.status !== "published" && instagram.status !== "skipped" ? `Instagram: ${instagram.error}` : "",
+    facebook.status !== "published" && facebook.status !== "skipped" ? `Facebook: ${facebook.error}` : "",
   ].filter(Boolean).join("; ");
 
   const aggregate = {

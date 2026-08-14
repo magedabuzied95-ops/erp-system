@@ -14,6 +14,7 @@ import {
   Play,
   RefreshCw,
   Send,
+  Settings,
   Sparkles,
   Trash2,
   Wand2,
@@ -42,6 +43,7 @@ import {
 } from "../services/marketingApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
+import StoryAutopilotSettingsModal from "../components/StoryAutopilotSettingsModal";
 import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
 import {
@@ -386,6 +388,9 @@ function AiMarketingCenter() {
   const queueRef = useRef(queue);
   queueRef.current = queue;
   const canCreateMarketing = hasPermission("marketing.create");
+  const canUpdateMarketing = hasPermission("marketing.update");
+  const canPublishMarketing = hasPermission("marketing.publish");
+  const [autopilotOpen, setAutopilotOpen] = useState(false);
 
   const storiesAll = useMemo(() => queue.filter((item) => {
     const flags = getPreviewContentFlags(item);
@@ -835,7 +840,16 @@ function AiMarketingCenter() {
             Focused generation for new arrivals, real last-piece variants, and premium AI product posts.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAutopilotOpen(true)}
+            title="إعدادات النشر التلقائي للاستوري"
+            className="inline-flex h-[62px] w-[62px] flex-col items-center justify-center gap-1 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-cyan-100 transition hover:bg-cyan-400/20"
+          >
+            <Settings className="h-5 w-5" />
+            <span className="text-[10px] font-black leading-none">إعدادات</span>
+          </button>
           <button type="button" onClick={() => load()} disabled={loading} className={`${buttonClass} border border-white/10 bg-white/10 text-white hover:bg-white/15`}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -955,6 +969,13 @@ function AiMarketingCenter() {
           <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onToggleAll={toggleAllSelected} onBulkAction={runBulkAction} onPreview={previewQueueItem} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} generatingStoryAssetIds={generatingStoryAssetIds} actionDisabled={loading} />
         </main>
       </div>
+
+      <StoryAutopilotSettingsModal
+        open={autopilotOpen}
+        onClose={() => setAutopilotOpen(false)}
+        canUpdate={canUpdateMarketing}
+        canPublish={canPublishMarketing}
+      />
 
       {preview ? (
         <PreviewModal

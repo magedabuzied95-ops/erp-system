@@ -5499,8 +5499,11 @@ export const approveAiMarketingQueueItem = async (tenantId, id) => {
   return item;
 };
 
-export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
+export const publishAiMarketingQueueItemNow = async (tenantId, id, options = {}) => {
   await ensureAiMarketingCenterSchema();
+  const targetPlatforms = Array.isArray(options.platforms)
+    ? options.platforms.map((platform) => cleanText(platform).toLowerCase()).filter(Boolean)
+    : [];
   const publishJobId = `ai-story-publish-${id}-${Date.now()}`;
   const current = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantId]);
   const currentItem = current.rows[0] ? normalizeQueueRow(current.rows[0]) : null;
@@ -5595,7 +5598,15 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       return persistQueuePublishResult({ tenantId, id, item: publishItem, result, platformResults, statusOverride: "failed", errorOverride: result.error_message });
     }
     const publishResult = isStory
-      ? await publishStoryEverywhereService({ story: { ...queueItemStoryPayload(publishItem), publish_job_id: publishJobId }, settings })
+      ? await publishStoryEverywhereService({
+          story: {
+            ...queueItemStoryPayload(publishItem),
+            publish_job_id: publishJobId,
+            ...(targetPlatforms.length ? { target_platforms: targetPlatforms } : {}),
+            ...(cleanText(options.source) ? { publish_source: cleanText(options.source) } : {}),
+          },
+          settings,
+        })
       : await publishPostService(queueItemPostPayload(publishItem), settings);
     const platformResults = normalizePlatformResults(publishResult, isStory ? "story" : "post");
     return persistQueuePublishResult({ tenantId, id, item: publishItem, result: publishResult, platformResults });
