@@ -12,6 +12,7 @@ test("AI Inbox renders each direct-message channel with its own label", () => {
   assert.match(source, /channel === "whatsapp"\) return "WhatsApp"/);
   assert.match(source, /channel === "instagram"\) return "Instagram DM"/);
   assert.match(source, /channel === "messenger"\) return "Messenger"/);
+  assert.match(source, /channel === "telegram"\) return "Telegram"/);
   assert.match(source, /channel === "web"\) return "Web Chat"/);
 });
 
@@ -19,6 +20,7 @@ test("AI Inbox renders WhatsApp and Instagram with their own icons", () => {
   assert.match(source, /channel === "whatsapp"\) return FaWhatsapp/);
   assert.match(source, /channel === "instagram"\) return FaInstagram/);
   assert.match(source, /channel === "messenger"\) return FaFacebookMessenger/);
+  assert.match(source, /channel === "telegram"\) return FaTelegramPlane/);
 });
 
 test("AI Inbox conversation selection uses the stored conversation identity without an undefined helper", () => {
@@ -37,7 +39,7 @@ test("AI Inbox queues a filter refresh instead of dropping it during an active r
 });
 
 test("AI Inbox prioritizes WhatsApp direct messages in the initial summary", () => {
-  assert.match(serviceSource, /IN \('facebook_messenger', 'instagram', 'whatsapp'\) THEN 0/);
+  assert.match(serviceSource, /IN \('facebook_messenger', 'instagram', 'whatsapp', 'telegram'\) THEN 0/);
 });
 
 test("legacy Facebook DM sessions remain visible under Messenger", () => {

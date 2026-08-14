@@ -610,6 +610,8 @@ const { startMarketingAttributionSyncScheduler, resolveTrackedProductRedirect } 
 const { default: aiRegressionHarnessRoutes } = await import("./routes/aiRegressionHarness.js");
 const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
 const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
+const { default: telegramWebhookRoutes } = await import("./routes/telegramWebhook.js");
+const { ensureTelegramIntakeSchema, startTelegramIntakeWorker } = await import("./services/telegramIntakeService.js");
 const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecoveryService.js");
@@ -1898,6 +1900,8 @@ app.get("/api/debug/display-refill-alerts", protect, permit("employees", "view")
 
 app.use("/api/internal/ai-regression", aiRegressionHarnessRoutes);
 app.use("/api/ai-support", aiSupportRoutes);
+app.use("/api/ai-agent/channels/telegram/webhook", telegramWebhookRoutes);
+app.use("/api/webhooks/telegram", telegramWebhookRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
 app.use("/api/ai-studio", aiWorkflowRoutes);
@@ -2348,6 +2352,9 @@ const bootstrapStartup = async () => {
     console.log("[server] staff tasks schema ensured");
     await ensureAiSupportLogSchema(db);
     console.log("[server] AI support log schema ensured");
+    await ensureTelegramIntakeSchema(db);
+    startTelegramIntakeWorker();
+    console.log("[server] Telegram durable intake ready");
     await ensureAiSalesAgentSchema(db);
     console.log("[server] AI sales agent schema ensured");
     await ensureSocialCommentsCenterSchema();

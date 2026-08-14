@@ -32,7 +32,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from "react-icons/fa";
+import { FaFacebookMessenger, FaInstagram, FaTelegramPlane, FaWhatsapp } from "react-icons/fa";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
@@ -508,6 +508,7 @@ const CONVERSATION_CHANNEL_PREFIXES = new Map([
   ["facebook", "facebook_messenger"],
   ["messenger", "facebook_messenger"],
   ["instagram", "instagram"],
+  ["telegram", "telegram"],
   ["whatsapp", "whatsapp"],
   ["web_chat", "web_chat"],
   ["web", "web_chat"],
@@ -631,6 +632,7 @@ const normalizeConversationChannel = (conversation = {}) => {
       ""
   ).toLowerCase();
   if (raw.includes("whatsapp")) return "whatsapp";
+  if (raw.includes("telegram")) return "telegram";
   if (raw.includes("instagram_comment")) return "instagram_comment";
   if (raw.includes("facebook_comment")) return "facebook_comment";
   if (raw.includes("instagram")) return "instagram";
@@ -866,6 +868,7 @@ const getMessagePlatform = (item = {}) => {
   if (source.includes("facebook_messenger") || source.includes("messenger")) return "messenger";
   if (source.includes("instagram_dm") || source.includes("instagram")) return "instagram";
   if (source.includes("whatsapp")) return "whatsapp";
+  if (source.includes("telegram")) return "telegram";
   if (source.includes("web") || source.includes("website")) return "web";
   if (source.includes("tiktok_dm") || source.includes("tiktok")) return "tiktok";
   return "web";
@@ -883,6 +886,7 @@ const MESSAGE_PLATFORM_FILTERS = [
   { key: "all", label: "All Messages" },
   { key: "messenger", label: "Messenger" },
   { key: "instagram", label: "Instagram" },
+  { key: "telegram", label: "Telegram" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "web", label: "Web" },
   { key: "tiktok", label: "TikTok" },
@@ -1720,6 +1724,7 @@ const conversationMatchesRealtimeKeys = (conversation = {}, keys = {}) => {
 const channelMeta = (value = "") => {
   const key = normalizeConversationChannel({ channel: value });
   if (key === "whatsapp") return { label: "WhatsApp", icon: FaWhatsapp, tone: "text-emerald-600" };
+  if (key === "telegram") return { label: "Telegram", icon: FaTelegramPlane, tone: "text-sky-500" };
   if (key === "instagram" || key === "instagram_comment") return { label: key === "instagram" ? "Instagram DM" : "Instagram", icon: FaInstagram, tone: "text-rose-500" };
   if (key === "messenger" || key === "facebook_comment") return { label: "Messenger", icon: FaFacebookMessenger, tone: "text-blue-600" };
   return { label: "Web", icon: Globe, tone: "text-slate-500" };
@@ -3702,6 +3707,8 @@ export default function AiInboxPwa() {
                 ? "facebook_messenger"
                 : messagePlatformFilter === "instagram"
                   ? "instagram"
+                  : messagePlatformFilter === "telegram"
+                    ? "telegram"
                   : messagePlatformFilter === "whatsapp"
                     ? "whatsapp"
                     : messagePlatformFilter === "web"

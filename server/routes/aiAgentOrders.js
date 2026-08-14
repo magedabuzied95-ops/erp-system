@@ -122,6 +122,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
+import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
 
 const router = express.Router();
 const whatsappProfileSyncState = new Map();
@@ -4167,6 +4168,7 @@ const normalizeProductCardSendChannel = (value = "") => {
   if (channel === "facebook" || channel === "facebook_messenger" || channel === "messenger") return AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
   if (channel === "instagram" || channel === "instagram_dm") return AI_AGENT_CHANNELS.INSTAGRAM;
   if (channel === "whatsapp") return AI_AGENT_CHANNELS.WHATSAPP;
+  if (channel === TELEGRAM_CHANNEL) return TELEGRAM_CHANNEL;
   if (channel === "web" || channel === "web_chat") return AI_AGENT_CHANNELS.WEB_CHAT;
   return channel;
 };
@@ -4998,7 +5000,8 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     }
     const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
     const recipientId = envText(
-      channelMetadata.customer_psid ||
+      (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
+        channelMetadata.customer_psid ||
         channelMetadata.sender_psid ||
         channelMetadata.resolved_customer_id ||
         conversation.external_customer_id ||
@@ -5006,8 +5009,9 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     );
     const isWhatsAppConversation = normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP;
     const isMetaConversation = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM;
-    if (!isWhatsAppConversation && !isMetaConversation) {
-      throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, and Instagram DM conversations."), {
+    const isTelegramConversation = normalizedChannel === TELEGRAM_CHANNEL;
+    if (!isWhatsAppConversation && !isMetaConversation && !isTelegramConversation) {
+      throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, Instagram DM, and Telegram conversations."), {
         status: 409,
         code: "CHANNEL_SEND_UNAVAILABLE",
       });
@@ -5037,7 +5041,10 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           reason: "whatsapp_recipient_missing",
         });
       }
-      throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+      throw Object.assign(new Error(isTelegramConversation ? "Conversation has no Telegram chat id." : "Conversation has no Meta recipient id."), {
+        status: 409,
+        code: isTelegramConversation ? "TELEGRAM_CHAT_ID_MISSING" : "META_RECIPIENT_MISSING",
+      });
     }
 
     // Phase 11: server-side STALE protection (mandatory). If the employee is approving the UNEDITED AI
@@ -5125,6 +5132,18 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           reason: sendResult?.transport ? `whatsapp_${sendResult.transport}_stored_only` : "whatsapp_stored_only",
         });
       }
+    } else if (isTelegramConversation) {
+      try {
+        sendResult = await sendTelegramText({ chatId: recipientId, messageText });
+      } catch (telegramError) {
+        sendResult = {
+          sent: false,
+          delivery_status: "failed",
+          delivery_error: telegramError?.message || "Telegram message was not accepted",
+          error_code: telegramError?.code || "TELEGRAM_API_ERROR",
+          retry_after: Number(telegramError?.retryAfter || 0),
+        };
+      }
     } else {
       sendResult = await sendMetaInboxOutboundMessage({
         tenantId,
@@ -5151,12 +5170,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       channel,
       deliveryStatus,
       deliveryError,
+      errorCode: sendResult?.error_code || "",
       externalMessageId: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
       providerMessageId: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
-      whatsappInstance: sendResult?.instanceName || sendResult?.instance || "",
+      whatsappInstance: isWhatsAppConversation ? (sendResult?.instanceName || sendResult?.instance || "") : "",
       remoteJid: recipientId || "",
       resolvedReplyJid: recipientId || "",
-      resolvedPhone: recipientId || "",
+      resolvedPhone: isWhatsAppConversation ? (recipientId || "") : "",
     });
     if (deliveryStatus === "sent") {
       if (isAssistedApprove && envText(aiReplyDraft.text) !== messageText) {
@@ -5229,7 +5249,8 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         meta_message_id: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
         config_id: sendResult?.config_id || null,
         source: "ai_inbox_send",
-        channel_type: isWhatsAppConversation ? "whatsapp" : "meta",
+        channel_type: isWhatsAppConversation ? "whatsapp" : isTelegramConversation ? "telegram" : "meta",
+        retry_after: Number(sendResult?.retry_after || 0),
         mock_delivery: mockDelivery,
       },
     }).catch(() => {});
@@ -5259,7 +5280,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       platform: channel,
     });
     return res.status(200).json({
-      success: true,
+      success: deliveryStatus !== "failed",
       sent: deliveryStatus === "sent" || deliveryStatus === "mock_sent",
       delivery_status: deliveryStatus,
       message,
@@ -5397,7 +5418,8 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       channel: normalizedChannel,
     });
     const externalCustomerId = envText(
-      channelMetadata.customer_psid ||
+      (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
+        channelMetadata.customer_psid ||
         channelMetadata.sender_psid ||
         channelMetadata.resolved_customer_id ||
         conversation.external_customer_id ||
@@ -5474,6 +5496,20 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         }
         externalMessageId = sendResult?.message_id || "";
       }
+    } else if (normalizedChannel === TELEGRAM_CHANNEL) {
+      if (!externalCustomerId) {
+        sendResult = { sent: false, delivery_status: "failed", delivery_error: "Telegram chat id is missing" };
+        deliveryStatus = "failed";
+        deliveryError = sendResult.delivery_error;
+      } else {
+        const firstCard = productCards[0] || {};
+        const imageUrl = envText(firstCard.image_url || firstCard.image || firstCard.main_image || "");
+        sendResult = imageUrl
+          ? await sendTelegramMedia({ chatId: externalCustomerId, mediaUrl: imageUrl, mediaType: "photo", caption: fallbackText })
+          : await sendTelegramText({ chatId: externalCustomerId, messageText: fallbackText });
+        deliveryStatus = sendResult?.delivery_status || (sendResult?.sent === true ? "sent" : "failed");
+        externalMessageId = sendResult?.message_id || "";
+      }
     } else if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
       if (!externalCustomerId) {
         console.warn("[ai-inbox][product-card-send] missing Meta recipient id, storing transcript message only", {
@@ -5533,6 +5569,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
           AI_AGENT_CHANNELS.WHATSAPP,
           AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
           AI_AGENT_CHANNELS.INSTAGRAM,
+          TELEGRAM_CHANNEL,
         ],
       });
       sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
@@ -5559,7 +5596,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       whatsappInstance: sendResult?.instanceName || sendResult?.instance || "",
       remoteJid: externalCustomerId || "",
       resolvedReplyJid: externalCustomerId || "",
-      resolvedPhone: externalCustomerId || "",
+      resolvedPhone: normalizedChannel === TELEGRAM_CHANNEL ? "" : (externalCustomerId || ""),
     });
     // Phase 11.2 — an ASSISTED package's card leg must NOT flip the conversation to human_takeover (the manual
     // append's ON CONFLICT does). Re-assert ai_active so the A/B distinction survives the 2nd provider message.
