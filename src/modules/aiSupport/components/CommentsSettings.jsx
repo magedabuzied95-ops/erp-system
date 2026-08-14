@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Check, Loader2, ShoppingBag, Sparkles } from "lucide-react";
+import { Bot, Check, Loader2, MessageSquareText, ShoppingBag, Sparkles, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
@@ -266,6 +266,33 @@ export function CommentsSettingsPanel({
           <div className="min-w-0 text-[11px] leading-5">{t("aiSupport.commentsSettings.openCommentsHint")}</div>
         </div>
       )}
+    </div>
+  );
+}
+
+export function CommentsSettingsModal({ open, onClose, light = false, ...panelProps }) {
+  const { t } = useTranslation();
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[260] flex items-end justify-center bg-[#17130d]/60 p-3 backdrop-blur-sm md:items-center"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}
+    >
+      <section className={`flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_100px_rgba(47,35,12,0.36)] ${light ? "border-[#d8cba9] bg-[#f8f4eb] text-[#28251f]" : "border-amber-300/15 bg-[#181a18] text-white"}`}>
+        <header className={`flex items-center justify-between gap-3 border-b px-4 py-4 md:px-5 ${light ? "border-[#ded4bd] bg-[#f5efe2]" : "border-white/10 bg-[#171917]"}`}>
+          <div className="flex items-center gap-3">
+            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${light ? "bg-[#fff8e7] text-[#a87400] ring-1 ring-[#e6d4a6]" : "bg-amber-400/10 text-amber-200"}`}><MessageSquareText className="h-5 w-5" /></span>
+            <div>
+              <div className="text-lg font-black">{t("aiSupport.commentsSettings.title")}</div>
+              <div className={`text-xs ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.commentsSettings.subtitle")}</div>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className={`grid h-10 w-10 place-items-center rounded-xl transition ${light ? "bg-white text-[#625b4d] ring-1 ring-[#e3dbc9] hover:bg-[#f5efe2]" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"}`}><X className="h-5 w-5" /></button>
+        </header>
+        <div className={`min-h-0 flex-1 overflow-y-auto p-3 md:p-4 ${light ? "bg-[#f3eee4]" : "bg-black/10"}`}>
+          <CommentsSettingsPanel light={light} {...panelProps} />
+        </div>
+      </section>
     </div>
   );
 }

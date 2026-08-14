@@ -45,6 +45,7 @@ import {
   Search,
   Send,
   Settings,
+  Zap,
   Smile,
   ShieldBan,
   ShoppingBag,
@@ -94,7 +95,7 @@ import { channelWindow, channelsForFilter, mergeConversationPages } from "../ser
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
-import { CommentsSettingsPanel } from "../components/CommentsSettings.jsx";
+import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -2049,10 +2050,12 @@ function InboxChannelSidebar({
   onSelectSocialComments,
   socialPlatformFilter = "all",
   onSelectSocialPlatform,
-  onOpenConfig,
+  onOpenQuickReplies,
+  onOpenCommentsSettings,
   configActive = false,
 }) {
   const { t } = useTranslation();
+  const [configMenuAnchor, setConfigMenuAnchor] = useState(null);
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
@@ -2142,19 +2145,56 @@ function InboxChannelSidebar({
           </button>
         ))}
       </div>
-      {onOpenConfig ? (
+      {onOpenQuickReplies || onOpenCommentsSettings ? (
         <div className="mt-2 border-t border-[#d7c9a6] pt-2 dark:border-white/10">
           <button
             type="button"
-            onClick={onOpenConfig}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              // Fixed placement: the rail's ancestors clip overflow, so an absolute menu would be cut off.
+              setConfigMenuAnchor((current) => (current ? null : { top: rect.top, left: rect.right + 8 }));
+            }}
             title={t("aiSupport.inbox.rail.config")}
             aria-label={t("aiSupport.inbox.rail.config")}
-            aria-pressed={configActive}
-            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 rounded-xl text-center transition ${configActive ? "bg-[#f2dfad] text-[#8c6100] shadow-sm dark:bg-amber-400/15 dark:text-amber-200" : "text-[#9a6a00] hover:bg-[#f7efd9] hover:text-[#704d00] dark:text-white/75 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}
+            aria-haspopup="menu"
+            aria-expanded={Boolean(configMenuAnchor)}
+            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 rounded-xl text-center transition ${configActive || configMenuAnchor ? "bg-[#f2dfad] text-[#8c6100] shadow-sm dark:bg-amber-400/15 dark:text-amber-200" : "text-[#9a6a00] hover:bg-[#f7efd9] hover:text-[#704d00] dark:text-white/75 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}
           >
             <Settings className="h-6 w-6" aria-hidden="true" />
             <span className="text-[8px] font-black uppercase tracking-wide">{t("aiSupport.inbox.rail.config")}</span>
           </button>
+          {configMenuAnchor ? (
+            <>
+              <div className="fixed inset-0 z-[250]" onClick={() => setConfigMenuAnchor(null)} />
+              <div
+                dir="rtl"
+                role="menu"
+                style={{ top: configMenuAnchor.top, left: configMenuAnchor.left }}
+                className="fixed z-[251] w-56 overflow-hidden rounded-2xl border border-[#d8cba9] bg-[#f8f4eb] py-1.5 shadow-[0_24px_60px_rgba(47,35,12,0.28)] dark:border-amber-300/15 dark:bg-[#181a18] dark:shadow-black/50"
+              >
+                {[
+                  { key: "quick_replies", label: t("aiSupport.quickReplies.title"), icon: Zap, onSelect: onOpenQuickReplies },
+                  { key: "comments", label: t("aiSupport.commentsSettings.title"), icon: MessageSquareText, onSelect: onOpenCommentsSettings },
+                ].filter((item) => item.onSelect).map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setConfigMenuAnchor(null);
+                      item.onSelect();
+                    }}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-right text-xs font-black text-[#3d372c] transition hover:bg-[#f0e6cf] dark:text-slate-100 dark:hover:bg-white/[0.06]"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#f2dfad] text-[#8c6100] dark:bg-amber-400/10 dark:text-amber-300">
+                      <item.icon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
       {onSelectSocialComments ? (
@@ -4944,6 +4984,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
+  const [commentsSettingsOpen, setCommentsSettingsOpen] = useState(false);
   const [socialDrawerRequest, setSocialDrawerRequest] = useState({ kind: "", nonce: 0 });
   const [replyText, setReplyText] = useState("");
   useEffect(() => {
@@ -8522,12 +8563,14 @@ export default function AiInbox({ reviewerMode = false }) {
   };
 
   const requestSocialDrawer = (kind) => {
-    setQuickRepliesConfigOpen(false);
+    setCommentsSettingsOpen(false);
     setSocialDrawerRequest((current) => ({ kind, nonce: current.nonce + 1 }));
   };
 
-  const renderCommentsSettingsPanel = () => (
-    <CommentsSettingsPanel
+  const renderCommentsSettingsModal = () => (
+    <CommentsSettingsModal
+      open={commentsSettingsOpen}
+      onClose={() => setCommentsSettingsOpen(false)}
       globalSettings={socialReplySettings}
       onGlobalSettingsChange={setSocialReplySettings}
       onSaveGlobalSettings={saveSocialReplySettings}
@@ -8655,8 +8698,8 @@ export default function AiInbox({ reviewerMode = false }) {
             onUpdate={quickRepliesStore.updateReply}
             onDelete={quickRepliesStore.deleteReply}
             onReorder={quickRepliesStore.reorderReplies}
-            commentsSettings={renderCommentsSettingsPanel()}
           />
+          {renderCommentsSettingsModal()}
           <InboxChannelSidebar
             channels={[]}
             allUnread={channelSummaries.all.unread}
@@ -8675,8 +8718,9 @@ export default function AiInbox({ reviewerMode = false }) {
               setMobileView("list");
             }}
             onSelectSocialComments={() => setInboxSection("social_comments")}
-            onOpenConfig={() => setQuickRepliesConfigOpen(true)}
-            configActive={quickRepliesConfigOpen}
+            onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
+            onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
+            configActive={quickRepliesConfigOpen || commentsSettingsOpen}
           />
           <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
@@ -8771,8 +8815,8 @@ export default function AiInbox({ reviewerMode = false }) {
           onUpdate={quickRepliesStore.updateReply}
           onDelete={quickRepliesStore.deleteReply}
           onReorder={quickRepliesStore.reorderReplies}
-          commentsSettings={renderCommentsSettingsPanel()}
         />
+        {renderCommentsSettingsModal()}
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
@@ -8867,8 +8911,9 @@ export default function AiInbox({ reviewerMode = false }) {
               activeChannel={channelFilter}
               socialCommentsCount={socialCommentsPanelCount}
               socialCommentsActive={false}
-              onOpenConfig={() => setQuickRepliesConfigOpen(true)}
-              configActive={quickRepliesConfigOpen}
+              onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
+              onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
+              configActive={quickRepliesConfigOpen || commentsSettingsOpen}
               onSelectSocialComments={() => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));

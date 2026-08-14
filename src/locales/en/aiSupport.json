@@ -452,6 +452,7 @@
   },
   "commentsSettings": {
     "tab": "Comments",
+    "title": "Social Comments",
     "subtitle": "Reply settings for Facebook and Instagram comments",
     "globalTitle": "Global auto reply",
     "globalHint": "Applies to every post unless the post has its own template.",
