@@ -1326,6 +1326,18 @@ const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = [
   "https://share.google/1e0cM7JVmxyLTpWVe",
 ].join("\n");
 
+// Sent when a commented-on post has no product linked yet. It must not promise a price,
+// stock or a product link — there is no product to ground any of that on. Overridable per
+// tenant with SOCIAL_COMMENT_GREETING_PRIVATE_REPLY.
+const SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT = [
+  "أهلاً بحضرتك يا {{customer_name}} ❤️",
+  "أقدر أساعد حضرتك إزاي؟",
+  "قوللي على اللي محتاجه وأنا أرشحلك المناسب وأبعتلك كل التفاصيل.",
+].join("\n");
+
+const resolveGreetingPrivateReplyTemplate = () =>
+  text(process.env.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY || "") || SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT;
+
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
 const socialCommentsDebugEnabled = () =>
   process.env.NODE_ENV !== "production" ||
@@ -3036,38 +3048,30 @@ const executeSocialCommentAutomationRuntime = async ({
       post_id: safePostId,
       comment_id: safeCommentId,
     });
-    const diagnostics = buildCurrentDiagnostics({ skippedReason: "no_linked_product", productContextOverride: null });
-    await upsertSocialCommentAutomationRunSummary({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      postId: safePostId,
-      commentId: safeCommentId,
-      configId: config.id ?? null,
-      customerName: safeRow.commenter_name || safeRow.customer_name || "",
-      status: "skipped",
-      stepResults: [{ step: "automation", status: "skipped", reason: "no_linked_product" }],
-      errorMessage: "no_linked_product",
-      diagnostics,
-      row: safeRow,
-    }).catch(() => {});
     logAutomationSkipReason({
       skipped_reason: "no_linked_product",
       comment_id: safeCommentId,
       post_id: safePostId,
       platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
-      config_found: diagnostics.config_found,
-      config_enabled: diagnostics.config_enabled,
-      resolved_product_id: diagnostics.resolved_product_id,
-      duplicate_reason: diagnostics.duplicate_reason,
+      config_found: buildCurrentDiagnostics({ skippedReason: "no_linked_product", productContextOverride: null }).config_found,
+      config_enabled: buildCurrentDiagnostics({ skippedReason: "no_linked_product", productContextOverride: null }).config_enabled,
+      resolved_product_id: null,
+      duplicate_reason: "",
     });
-    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+  }
+  // A freshly published post usually has no product linked yet. Staying silent there loses
+  // the lead, so instead of exiting the run greets the commenter: like + the configured
+  // public reply + a DM that asks what they need. It deliberately promises nothing about
+  // price, stock or a product link — there is no product to ground those on.
+  const greetingOnly = !hasProductContext;
+  if (greetingOnly) {
+    console.log("SOCIAL_COMMENT_AUTOMATION_GREETING_MODE", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
       post_id: safePostId,
       comment_id: safeCommentId,
       reason: "no_linked_product",
     });
-    return returnWithFlowExit({ applied: false, skipped: true, reason: "no_linked_product", row: safeRow, step_results: stepResults }, { exitReason: "no_linked_product", exitType: "no_product" });
   }
 
   const websiteLinks = await resolveAutomationWebsiteLinks({
@@ -3227,7 +3231,11 @@ const executeSocialCommentAutomationRuntime = async ({
     product_aware_public_reply: productAwarePublicReply,
     effective_rendered_public_reply: effectiveRenderedPublicReply,
   });
-  const effectiveRenderedPrivateReply = text(salesReplies.private_reply || renderedPrivateReply);
+  // With no linked product the product-aware private reply would render with empty
+  // product/price/link placeholders, so greeting mode substitutes its own message.
+  const effectiveRenderedPrivateReply = greetingOnly
+    ? text(renderAutomationTemplate(resolveGreetingPrivateReplyTemplate(), templateContext))
+    : text(salesReplies.private_reply || renderedPrivateReply);
   aiPhaseTimings.reply_render_completed_at = new Date().toISOString();
   const aiSalesRuntime = {
     intent: detectedIntent.intent,
@@ -5654,36 +5662,41 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       selected_comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
       selected_post_permalink: text(savedRunRow?.post_permalink || savedRunRow?.post_permalink_url || event.post_permalink || event.post_permalink_url || ""),
     });
-    const automationRuntimeResult = hasLinkedProductForAutomation({ row: savedRunRow || event || {}, productContext: runtimeProductContext })
-      ? await executeSocialCommentAutomationRuntime({
-        tenantId: safeTenantId,
-        platform,
-        postId,
-        commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
-        row: savedRunRow || {},
-        currentRunId: savedRunRow?.id || null,
-        productContext: runtimeProductContext,
-        config: automationConfig,
-      }).catch((error) => {
-        console.warn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
-          tenant_id: safeTenantId,
-          platform,
-          post_id: postId,
-          comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
-          reason: "runtime_error",
-          message: error?.message || "",
-        });
-        return null;
-      })
-      : (console.log("SOCIAL_COMMENT_PRODUCT_RESOLUTION_PATH", buildSocialCommentProductResolutionPathPayload({
+    // An unlinked post used to stop here, before the runtime was even called. The runtime
+    // now handles that case itself by greeting the commenter, so this only logs which path
+    // the product resolution took.
+    if (!hasLinkedProductForAutomation({ row: savedRunRow || event || {}, productContext: runtimeProductContext })) {
+      console.log("SOCIAL_COMMENT_PRODUCT_RESOLUTION_PATH", buildSocialCommentProductResolutionPathPayload({
         row: savedRunRow || event || {},
         productContext: runtimeProductContext,
-      })), console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
+      }));
+      console.log("SOCIAL_COMMENT_NO_LINKED_PRODUCT_GREETING", {
         tenant_id: safeTenantId,
         platform,
         post_id: postId,
         comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
-      }), { applied: false, skipped: true, reason: "no_linked_product", row: savedRunRow || event || {}, step_results: [] });
+      });
+    }
+    const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
+      tenantId: safeTenantId,
+      platform,
+      postId,
+      commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
+      row: savedRunRow || {},
+      currentRunId: savedRunRow?.id || null,
+      productContext: runtimeProductContext,
+      config: automationConfig,
+    }).catch((error) => {
+      console.warn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+        tenant_id: safeTenantId,
+        platform,
+        post_id: postId,
+        comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+        reason: "runtime_error",
+        message: error?.message || "",
+      });
+      return null;
+    });
     console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_AFTER", {
       tenant_id: safeTenantId,
       platform,
