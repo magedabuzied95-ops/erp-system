@@ -832,18 +832,12 @@ export default function SocialMediaPublisher() {
     [selectedPlatforms]
   );
 
-  // Meta accounts only gate Meta platforms; TikTok only gates itself. Both were
-  // previously inlined three times per button, which is how the Facebook check
-  // ended up blocking every platform.
-  const metaAccountsMissing = (selectedMetaPlatforms.length > 0 && !hasFacebookAccount)
-    || (selectedMetaPlatforms.includes("instagram") && !hasInstagramAccount);
-  // TikTok blocks the button until the account is live AND the required options
-  // (privacy level, disclosure selection, valid video) are satisfied.
-  const tiktokBlocksPublish = tiktokSelected && !(tiktokReadiness.accountReady && tiktokReadiness.ready);
-  const publishDisabled = saving || !canCreate || !canPublish || !selectedPlatforms.length || metaAccountsMissing || tiktokBlocksPublish;
-  const scheduleDisabled = saving || !canCreate || !selectedPlatforms.length || metaAccountsMissing || tiktokBlocksPublish;
-  const tiktokDraftDisabled = saving || !canCreate || !canPublish || !tiktokSelected
-    || selectedMetaPlatforms.length > 0 || !tiktokReadiness.accountReady || mediaType !== "video";
+  // NOTE: the publish/schedule/draft gating constants that used to live here are
+  // declared further down, immediately after hasFacebookAccount and
+  // hasInstagramAccount. They read those two, and both are `const` declared
+  // ~550 lines below this point, so computing them here threw a temporal dead
+  // zone error ("can't access lexical declaration before initialization") on
+  // every render of this page. Keep them next to their dependencies.
   const hasCatalogProduct = Boolean(selectedCatalogProduct);
   const selectedFacebookPage = useMemo(
     () => facebookPages.find((page) => page.facebook_page_id === selectedFacebookPageId) || null,
@@ -1393,6 +1387,20 @@ export default function SocialMediaPublisher() {
   const selectedFacebookPageLabel = selectedFacebookPage ? resolveFacebookPageDisplayLabel(selectedFacebookPage) : "Facebook Page";
   const selectedInstagramAccountLabel = selectedInstagramAccount ? resolveInstagramAccountDisplayLabel(selectedInstagramAccount) : "Instagram Business Account";
   const canPublishSelectedAccounts = Boolean(hasFacebookAccount && (!platforms.instagram || hasInstagramAccount));
+
+  // Meta accounts only gate Meta platforms; TikTok only gates itself. Both were
+  // previously inlined three times per button, which is how the Facebook check
+  // ended up blocking every platform. Declared here — not earlier — because they
+  // depend on hasFacebookAccount/hasInstagramAccount directly above.
+  const metaAccountsMissing = (selectedMetaPlatforms.length > 0 && !hasFacebookAccount)
+    || (selectedMetaPlatforms.includes("instagram") && !hasInstagramAccount);
+  // TikTok blocks the button until the account is live AND the required options
+  // (privacy level, disclosure selection, valid video) are satisfied.
+  const tiktokBlocksPublish = tiktokSelected && !(tiktokReadiness.accountReady && tiktokReadiness.ready);
+  const publishDisabled = saving || !canCreate || !canPublish || !selectedPlatforms.length || metaAccountsMissing || tiktokBlocksPublish;
+  const scheduleDisabled = saving || !canCreate || !selectedPlatforms.length || metaAccountsMissing || tiktokBlocksPublish;
+  const tiktokDraftDisabled = saving || !canCreate || !canPublish || !tiktokSelected
+    || selectedMetaPlatforms.length > 0 || !tiktokReadiness.accountReady || mediaType !== "video";
 
   useEffect(() => {
     if (!mediaFile) {

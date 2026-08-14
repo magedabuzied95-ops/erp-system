@@ -430,3 +430,50 @@ test("no user-facing TikTok string is hardcoded in the panel", () => {
   const jsxText = panelSource.match(/>[A-Za-z][A-Za-z ,.'"-]{6,}</g) || [];
   assert.deepEqual(jsxText, [], `hardcoded UI text found: ${jsxText.join(" | ")}`);
 });
+
+// ---------------------------------------------------------------------------
+// Temporal dead zone regression
+// ---------------------------------------------------------------------------
+// A production crash ("can't access lexical declaration 'Wn' before
+// initialization") was caused by hoisting the publish/schedule/draft gating
+// constants above hasFacebookAccount/hasInstagramAccount, which are `const`
+// declared ~550 lines further down the same component scope. Reading a `const`
+// before its declaration is a TDZ error that throws on every render — and it is
+// invisible to lint and to any test that never renders the component.
+test("no gating constant is used before it is declared (temporal dead zone)", () => {
+  const lines = publisherSource.split("\n");
+  const codeOnly = lines.map((line) => (/^\s*(\/\/|\*|\/\*)/.test(line) ? "" : line));
+
+  // String.raw: in a plain template literal `\s` collapses to `s`, which would
+  // silently make these regexes match nothing and the whole test vacuous.
+  // Matches both `const x =` and the array-destructured `const [x, setX] =`
+  // that useState produces — both are lexical and both can hit a TDZ.
+  const declarationLine = (name) =>
+    codeOnly.findIndex((line) =>
+      new RegExp(String.raw`^\s*(?:const|let)\s+(?:\[\s*)?` + name + String.raw`\s*[,\]=]`).test(line)
+    );
+
+  for (const name of [
+    "metaAccountsMissing",
+    "tiktokBlocksPublish",
+    "publishDisabled",
+    "scheduleDisabled",
+    "tiktokDraftDisabled",
+    "hasFacebookAccount",
+    "hasInstagramAccount",
+    "selectedMetaPlatforms",
+    "tiktokSelected",
+    "tiktokReadiness",
+  ]) {
+    const declaredAt = declarationLine(name);
+    assert.ok(declaredAt >= 0, `${name}: declaration not found`);
+    const usedAt = codeOnly.findIndex(
+      (line, index) => index !== declaredAt && new RegExp(String.raw`\b` + name + String.raw`\b`).test(line)
+    );
+    if (usedAt === -1) continue;
+    assert.ok(
+      usedAt > declaredAt,
+      `${name} is read at line ${usedAt + 1} but declared at line ${declaredAt + 1} — temporal dead zone crash at render`
+    );
+  }
+});
