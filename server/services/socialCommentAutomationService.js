@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import db from "../database/db.js";
+import { tidyGreetingText } from "../utils/greetingText.js";
 import { emitToRooms } from "../utils/socket.js";
 import { enqueueJob, getActiveJobStatusByDedupeKey } from "./jobQueueService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
@@ -1342,16 +1343,6 @@ const resolveGreetingPrivateReplyTemplate = (settings = {}) =>
   text(process.env.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY || "") ||
   SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT;
 
-// Facebook does not always give a commenter name, and "أهلاً بحضرتك يا  ❤️" reads as broken.
-// Drop the dangling vocative and tidy the gap the empty placeholder left behind.
-// \b is ASCII-only in JS, so the vocative is matched by explicit spacing instead.
-export const tidyGreetingText = (value = "") => String(value ?? "")
-  .replace(/[ \t]+يا(?=[ \t]*(?:$|[\n\p{Extended_Pictographic}،.,!؟?]))/gu, "")
-  .replace(/[ \t]{2,}/g, " ")
-  .split("\n")
-  .map((line) => line.replace(/[ \t]+$/g, ""))
-  .join("\n")
-  .trim();
 
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
 const socialCommentsDebugEnabled = () =>

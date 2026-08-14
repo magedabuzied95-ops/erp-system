@@ -62,8 +62,16 @@ test("greeting mode replaces the template the worker renders, not just the text"
   assert.match(SOURCE, /tidyGreetingText\(renderAutomationTemplate\(privateReplyTemplate, templateContext\)\)/);
 });
 
+test("the tidy runs as the worker's last step, not only where the template is rendered", () => {
+  // The worker re-renders templates itself, so tidying only at render time fixed the run
+  // log while the customer still received "أهلاً بحضرتك يا  ❤️".
+  const worker = fs.readFileSync("server/services/socialCommentPrivateReplyService.js", "utf8");
+  assert.match(worker, /import \{ tidyGreetingText \} from "\.\.\/utils\/greetingText\.js";/);
+  assert.match(worker, /return tidyGreetingText\(compacted\.join\("\\n"\)/);
+});
+
 test("a missing commenter name does not leave a dangling vocative", async () => {
-  const { tidyGreetingText } = await import("../server/services/socialCommentAutomationService.js");
+  const { tidyGreetingText } = await import("../server/utils/greetingText.js");
   // Facebook often omits the commenter name, which rendered as "أهلاً بحضرتك يا  ❤️".
   assert.equal(tidyGreetingText("أهلاً بحضرتك يا  ❤️"), "أهلاً بحضرتك ❤️");
   assert.equal(tidyGreetingText("أهلاً بحضرتك يا "), "أهلاً بحضرتك");

@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { tidyGreetingText } from "../utils/greetingText.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
@@ -397,7 +398,9 @@ const sanitizeRenderedPrivateReplyMessage = ({
     compacted.push(line);
   }
 
-  return compacted.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Last step before the message leaves: an empty {{customer_name}} must not ship as
+  // "أهلاً بحضرتك يا  ❤️".
+  return tidyGreetingText(compacted.join("\n").replace(/\n{3,}/g, "\n\n").trim());
 };
 
 export const buildSocialCommentSizeQuickReplies = ({
