@@ -594,6 +594,7 @@ const { ensureNotificationsSchema } = await import("./services/notificationsServ
 const { ensureWebsiteSettingsSchema } = await import("./services/liveActivityService.js");
 const { ensureBuiltinRoles } = await import("./services/rolesService.js");
 const { runDueStoryPublishes, registerMarketingJobHandlers, startAiMarketingAutomationRunner } = await import("./controllers/marketingController.js");
+const { startStoryAutopilotRunner } = await import("./services/aiMarketingStoryAutopilotService.js");
 const { registerBackgroundJobHandlers } = await import("./services/backgroundJobs.js");
 const { startAiShoeCoverWorker, stopAiShoeCoverWorker } = await import("./services/aiShoeCoverService.js");
 const { ensureMarketingSchema } = await import("./utils/marketingSchema.js");
@@ -2172,6 +2173,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       startMarketingAnalyticsSyncScheduler();
       startMarketingAttributionSyncScheduler();
       startAiMarketingAutomationRunner();
+      startStoryAutopilotRunner();
       startSocialCommentJobWorker();
 
       const safeRunDueStoryPublishes = () => {

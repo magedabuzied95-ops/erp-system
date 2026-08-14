@@ -64,6 +64,13 @@ export const getMarketingDashboard = async (options = {}) => unwrapItem(await ap
 export const getAutonomousAiMarketingSettings = async () => unwrapItem(await api.get("/marketing/ai-center/settings"));
 export const updateAutonomousAiMarketingSettings = async (body) => unwrapItem(await api.patch("/marketing/ai-center/settings", body));
 export const getAutonomousAiMarketingOverview = async () => unwrapItem(await api.get("/marketing/ai-center/overview"));
+export const getStoryAutopilot = async () => api.get("/marketing/ai-center/story-autopilot");
+export const updateStoryAutopilot = async (body) => api.patch("/marketing/ai-center/story-autopilot", body);
+export const getStoryAutopilotSuggestions = async (count) =>
+  api.get(`/marketing/ai-center/story-autopilot/suggestions${count ? `?count=${encodeURIComponent(count)}` : ""}`);
+export const applyStoryAutopilotSuggestions = async (count) =>
+  api.post("/marketing/ai-center/story-autopilot/suggestions/apply", count ? { count } : {});
+export const runStoryAutopilotNow = async () => api.post("/marketing/ai-center/story-autopilot/run-now", {});
 export const getAutonomousAiMarketingQueue = async (params = {}, options = {}) => {
   const query = new URLSearchParams();
   Object.entries(params || {}).forEach(([key, value]) => {

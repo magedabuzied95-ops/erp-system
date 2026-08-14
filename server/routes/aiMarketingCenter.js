@@ -24,6 +24,11 @@ import {
   resumeAutonomousAiMarketing,
   restoreAutonomousAiMarketingQueueItem,
   syncAutonomousAiMarketingInsights,
+  applyStoryAutopilotSuggestions,
+  getStoryAutopilot,
+  getStoryAutopilotSuggestions,
+  patchStoryAutopilot,
+  runStoryAutopilotNow,
 } from "../controllers/aiMarketingCenterController.js";
 
 const router = express.Router();
@@ -41,6 +46,11 @@ router.use((req, _res, next) => {
 router.get("/settings", protect, permit("marketing", "view"), getAutonomousAiMarketingSettings);
 router.patch("/settings", protect, permit("marketing", "update"), patchAutonomousAiMarketingSettings);
 router.get("/overview", protect, permit("marketing", "view"), getAutonomousAiMarketingOverview);
+router.get("/story-autopilot", protect, permit("marketing", "view"), getStoryAutopilot);
+router.patch("/story-autopilot", protect, permit("marketing", "update"), patchStoryAutopilot);
+router.get("/story-autopilot/suggestions", protect, permit("marketing", "view"), getStoryAutopilotSuggestions);
+router.post("/story-autopilot/suggestions/apply", protect, permit("marketing", "update"), applyStoryAutopilotSuggestions);
+router.post("/story-autopilot/run-now", protect, permit("marketing", "publish"), runStoryAutopilotNow);
 router.post("/insights/sync", protect, permit("marketing", "update"), syncAutonomousAiMarketingInsights);
 router.get("/queue", protect, permit("marketing", "view"), getAutonomousAiMarketingQueue);
 router.post("/generate/daily", protect, permit("marketing", "create"), generateAutonomousAiMarketingDaily);
