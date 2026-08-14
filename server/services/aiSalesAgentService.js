@@ -2047,7 +2047,14 @@ const customerPhoneKeys = (value = "") => {
   return getPhoneSearchVariants(value).filter((item) => item.length >= 8);
 };
 
-const conversationPhoneKeys = (conversation = {}) => {
+export const conversationPhoneKeys = (conversation = {}) => {
+  const channel = canonicalInboxChannel(
+    conversation.channel || conversation.session_channel || conversation.source || conversation.channel_source || ""
+  );
+  // Telegram user/chat ids are numeric external identities, never phone
+  // numbers. Keeping this guard before candidate extraction prevents an
+  // accidental CRM match when a Telegram id happens to equal a customer phone.
+  if (channel === "telegram") return [];
   const metadata = conversation.channel_metadata || {};
   const profile = conversation.customer_profile || {};
   return [...new Set([
@@ -2156,6 +2163,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   }
   if (normalizedChannelFilter === "web_chat") {
     clauses.push("(COALESCE(c.channel, s.channel, s.source) IN ('web_chat', 'web'))");
+  }
+  if (normalizedChannelFilter === "telegram") {
+    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'telegram'");
   }
   if (searchTerm) {
     params.push(`%${searchTerm.toLowerCase()}%`);
@@ -2325,7 +2335,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ) cm ON TRUE
     WHERE ${clauses.join(" AND ")}
     ORDER BY
-      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp') THEN 0 ELSE 1 END,
+      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC
     LIMIT $2

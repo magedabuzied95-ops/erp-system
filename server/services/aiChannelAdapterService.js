@@ -37,6 +37,7 @@ export const AI_AGENT_CHANNELS = Object.freeze({
   WHATSAPP: "whatsapp",
   INSTAGRAM: "instagram",
   FACEBOOK_MESSENGER: "facebook_messenger",
+  TELEGRAM: "telegram",
 });
 
 const supportedChannels = new Set(Object.values(AI_AGENT_CHANNELS));

@@ -75,7 +75,7 @@ export const setInboundAiMode = async (tenantId, mode, userId) => {
 };
 
 // Phase 11 — per-channel assisted enablement (staged rollout). Server is authoritative.
-export const ASSISTED_CHANNELS = Object.freeze(["facebook_messenger", "instagram", "whatsapp"]);
+export const ASSISTED_CHANNELS = Object.freeze(["facebook_messenger", "instagram", "whatsapp", "telegram"]);
 const normalizeAssistedChannel = (ch) => { const c = String(ch || "").toLowerCase(); return c === "facebook" || c === "messenger" || c === "meta_messenger" ? "facebook_messenger" : c === "instagram_dm" ? "instagram" : c; };
 
 export const getInboundAiChannels = async (tenantId) => {

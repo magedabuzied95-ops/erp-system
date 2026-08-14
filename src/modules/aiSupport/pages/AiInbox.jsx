@@ -63,6 +63,7 @@ import {
   FaFacebookF,
   FaFacebookMessenger,
   FaInstagram,
+  FaTelegramPlane,
   FaWhatsapp,
 } from "react-icons/fa";
 
@@ -633,6 +634,7 @@ const MESSAGE_PLATFORM_FILTERS = [
   { key: "all", labelKey: "aiSupport.inbox.filters.allMessages" },
   { key: "messenger", label: "Messenger" },
   { key: "instagram", label: "Instagram" },
+  { key: "telegram", label: "Telegram" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "web", labelKey: "aiSupport.inbox.filters.web" },
   { key: "tiktok", label: "TikTok" },
@@ -837,12 +839,14 @@ const channelLabel = (value = "") => {
   if (key === "instagram_comment") return "تعليق إنستجرام";
   if (key === "instagram") return "رسائل إنستجرام";
   if (key === "whatsapp") return "واتساب";
+  if (key === "telegram") return "تيليجرام";
   if (key === "web_chat") return "دردشة الويب";
   return key || "قناة غير معروفة";
 };
 const channelBadgeLabel = (value = "") => {
   const key = clean(value).toLowerCase();
   if (key.includes("whatsapp")) return "واتساب";
+  if (key.includes("telegram")) return "تيليجرام";
   if (key.includes("facebook_comment")) return "تعليق فيسبوك";
   if (key.includes("instagram_comment")) return "تعليق إنستجرام";
   if (key.includes("instagram")) return "إنستجرام DM";
@@ -853,7 +857,7 @@ const channelBadgeLabel = (value = "") => {
   return "الكل";
 };
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
-const conversationChannelAliases = ["whatsapp", "facebook_messenger", "messenger", "instagram", "instagram_dm", "web_chat", "web"];
+const conversationChannelAliases = ["whatsapp", "telegram", "facebook_messenger", "messenger", "instagram", "instagram_dm", "web_chat", "web"];
 const socialCommentChannelAliases = ["facebook_comment", "instagram_comment"];
 const isSocialCommentChannel = (value = "") => {
   const key = clean(value).toLowerCase();
@@ -865,7 +869,7 @@ const isConversationChannel = (value = "") => {
   if (isSocialCommentChannel(key)) return false;
   return conversationChannelAliases.some((alias) => key === alias || key.includes(alias));
 };
-const conversationChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
+const conversationChannelOrder = ["whatsapp", "telegram", "messenger", "instagram", "web"];
 const socialCommentChannelOrder = ["facebook_comment", "instagram_comment"];
 // The UI channel vocabulary ("messenger", "web") is NOT the backend's. loadAiInbox
 // only recognises facebook_messenger | instagram | whatsapp | web_chat |
@@ -879,6 +883,7 @@ const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
   const key = raw.toLowerCase();
   if (key.includes("whatsapp")) return "whatsapp";
+  if (key.includes("telegram")) return "telegram";
   if (key.includes("facebook_comment")) return "facebook_comment";
   if (key.includes("instagram_comment")) return "instagram_comment";
   if (key.includes("instagram")) return "instagram";
@@ -1070,6 +1075,7 @@ const getMessagePlatform = (item = {}) => {
   if (source.includes("facebook_messenger") || source.includes("messenger")) return "messenger";
   if (source.includes("instagram_dm") || source.includes("instagram")) return "instagram";
   if (source.includes("whatsapp")) return "whatsapp";
+  if (source.includes("telegram")) return "telegram";
   if (source.includes("web") || source.includes("website")) return "web";
   if (source.includes("tiktok_dm") || source.includes("tiktok")) return "tiktok";
   return "web";
@@ -1390,6 +1396,7 @@ const getConversationSourceLabel = (item = {}) => {
   }
   const channel = normalizeConversationChannel(item);
   if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "telegram") return "Telegram";
   if (channel === "instagram") return "Instagram DM";
   if (channel === "messenger") return "Messenger";
   if (channel === "web") return "Web Chat";
@@ -1401,6 +1408,7 @@ const getConversationSourceIcon = (item = {}) => {
   if (isSocialCommentThread(item)) return MessageSquareText;
   const channel = normalizeConversationChannel(item);
   if (channel === "whatsapp") return FaWhatsapp;
+  if (channel === "telegram") return FaTelegramPlane;
   if (channel === "instagram") return FaInstagram;
   if (channel === "messenger") return FaFacebookMessenger;
   return MessageSquareText;
@@ -2057,6 +2065,9 @@ function InboxChannelSidebar({
     if (key === "whatsapp") {
       return <FaWhatsapp className={`${baseIconClass} ${active ? "text-emerald-300" : "text-emerald-300/85"} ${iconClass}`} aria-hidden="true" />;
     }
+    if (key === "telegram") {
+      return <FaTelegramPlane className={`${baseIconClass} ${active ? "text-sky-300" : "text-sky-300/90"} ${iconClass}`} aria-hidden="true" />;
+    }
     if (key === "messenger") {
       return <FaFacebookMessenger className={`${baseIconClass} ${active ? "text-sky-300" : "text-sky-300/90"} ${iconClass}`} aria-hidden="true" />;
     }
@@ -2478,15 +2489,17 @@ function InboxChatHeader({
       ? messengerDisplayName(conversation)
       : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
+  const channelKey = clean(channel).toLowerCase();
+  const isTelegramConversation = channelKey.includes("telegram");
   const phone = customerIdentifier(
     conversation.phone,
     conversation.customer_phone,
     conversation.customer_profile?.phone,
-    conversation.channel_metadata?.resolved_phone,
-    conversation.external_customer_id
+    isTelegramConversation ? "" : conversation.channel_metadata?.resolved_phone,
+    isTelegramConversation ? "" : conversation.external_customer_id
   );
-  const channelKey = clean(channel).toLowerCase();
-  const showCustomerIdentifier = Boolean(phone) && !["facebook", "messenger", "instagram"].some((provider) => channelKey.includes(provider));
+  const telegramUsername = clean(conversation.channel_metadata?.username || conversation.metadata?.username || "").replace(/^@/, "");
+  const showCustomerIdentifier = Boolean(phone) && !["facebook", "messenger", "instagram", "telegram"].some((provider) => channelKey.includes(provider));
   const isSocialComment = isSocialCommentThread(conversation);
   const sourceLabel = getConversationSourceLabel(conversation);
   const SourceIcon = getConversationSourceIcon(conversation);
@@ -2556,6 +2569,7 @@ function InboxChatHeader({
                 >
                   {name}
                 </button>
+                {telegramUsername ? <div dir="ltr" className="truncate text-left text-[10px] font-semibold leading-4 text-sky-300">@{telegramUsername}</div> : null}
                 {showCustomerIdentifier ? <div dir="ltr" className="truncate text-left text-[10px] font-semibold leading-4 text-slate-400">{phone}</div> : null}
               </div>
               {conversationLabels.slice(0, 4).map((label) => (
@@ -5738,7 +5752,7 @@ export default function AiInbox({ reviewerMode = false }) {
         label: channelBadgeLabel(key),
         count: 0,
         unread: 0,
-        tone: isWhatsappChannel(key) ? "emerald" : key === "instagram" ? "rose" : key === "facebook" || key === "messenger" ? "cyan" : "zinc",
+        tone: isWhatsappChannel(key) ? "emerald" : key === "telegram" ? "cyan" : key === "instagram" ? "rose" : key === "facebook" || key === "messenger" ? "cyan" : "zinc",
       };
       existing.count += 1;
       existing.unread += Number(conversation.unread_count || conversation.unread || 0);
