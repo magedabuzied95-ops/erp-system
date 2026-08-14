@@ -174,18 +174,20 @@ export function QuickRepliesPicker({ replies = [], customerName = "", value = ""
   );
 }
 
-export function QuickRepliesConfig({ open, onClose, replies = [], loading = false, saving = false, onCreate, onUpdate, onDelete, onReorder, light: lightOverride }) {
+export function QuickRepliesConfig({ open, onClose, replies = [], loading = false, saving = false, onCreate, onUpdate, onDelete, onReorder, commentsSettings = null, light: lightOverride }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const light = typeof lightOverride === "boolean" ? lightOverride : theme?.mode === "light";
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({ shortcut: "", name: "", message: "", is_active: true });
   const [draggedId, setDraggedId] = useState(null);
+  const [tab, setTab] = useState("quick_replies");
 
   useEffect(() => {
     if (!open) {
       setEditingId(null);
       setDraft({ shortcut: "", name: "", message: "", is_active: true });
+      setTab("quick_replies");
     }
   }, [open]);
 
@@ -256,11 +258,38 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
         <header className={`flex items-center justify-between gap-3 border-b px-4 py-4 md:px-5 ${light ? "border-[#ded4bd] bg-[#f5efe2]" : "border-white/10 bg-[#171917]"}`}>
           <div className="flex items-center gap-3">
             <span className={`grid h-11 w-11 place-items-center rounded-2xl ${light ? "bg-[#fff8e7] text-[#a87400] ring-1 ring-[#e6d4a6]" : "bg-amber-400/10 text-amber-200"}`}><Settings className="h-5 w-5" /></span>
-            <div><div className="text-lg font-black">{t("aiSupport.quickReplies.config")}</div><div className={`text-xs ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.subtitle")}</div></div>
+            <div><div className="text-lg font-black">{t("aiSupport.quickReplies.config")}</div><div className={`text-xs ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{tab === "comments" && commentsSettings ? t("aiSupport.commentsSettings.subtitle") : t("aiSupport.quickReplies.subtitle")}</div></div>
           </div>
           <button type="button" onClick={onClose} className={`grid h-10 w-10 place-items-center rounded-xl transition ${light ? "bg-white text-[#625b4d] ring-1 ring-[#e3dbc9] hover:bg-[#f5efe2]" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"}`}><X className="h-5 w-5" /></button>
         </header>
 
+        {commentsSettings ? (
+          <div className={`flex shrink-0 items-center gap-1 border-b px-4 pt-2 md:px-5 ${light ? "border-[#ded4bd] bg-[#f5efe2]" : "border-white/10 bg-[#171917]"}`}>
+            {[
+              { key: "quick_replies", label: t("aiSupport.quickReplies.title") },
+              { key: "comments", label: t("aiSupport.commentsSettings.tab") },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setTab(item.key)}
+                className={`-mb-px h-10 rounded-t-xl border-b-2 px-4 text-xs font-black transition ${
+                  tab === item.key
+                    ? light ? "border-[#b98508] text-[#8a6100]" : "border-amber-400 text-amber-200"
+                    : light ? "border-transparent text-[#8b816f] hover:text-[#5d5647]" : "border-transparent text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {tab === "comments" && commentsSettings ? (
+          <div className={`min-h-0 flex-1 overflow-y-auto p-3 md:p-4 ${light ? "bg-[#f3eee4]" : "bg-black/10"}`}>
+            {commentsSettings}
+          </div>
+        ) : (
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <div className={`min-h-0 flex-1 overflow-y-auto p-3 md:p-4 ${light ? "bg-[#f3eee4]" : "bg-black/10"}`}>
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -326,6 +355,7 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
             )}
           </aside>
         </div>
+        )}
       </section>
     </div>
   );

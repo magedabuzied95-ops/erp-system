@@ -64,6 +64,7 @@ import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCache
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import "./AiInboxPwa.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import { CommentsSettingsPanel } from "../components/CommentsSettings.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -6532,6 +6533,18 @@ export default function AiInboxPwa() {
           onDelete={quickRepliesStore.deleteReply}
           onReorder={quickRepliesStore.reorderReplies}
           light={!isDarkTheme}
+          commentsSettings={(
+            <CommentsSettingsPanel
+              globalSettings={socialReplySettings}
+              onGlobalSettingsChange={setSocialReplySettings}
+              onSaveGlobalSettings={saveSocialReplySettings}
+              selectedPost={selectedSocialPost}
+              selectedTemplate={selectedSocialTemplate}
+              onTemplateChange={setSelectedSocialTemplate}
+              onSaveTemplate={saveSelectedSocialTemplate}
+              light={!isDarkTheme}
+            />
+          )}
         />
         {contentScreen && tab === "conversations" ? (
           <header
