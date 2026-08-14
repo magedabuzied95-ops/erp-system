@@ -12,7 +12,12 @@ import crypto from "node:crypto";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId } from "../utils/requestScope.js";
-import { describeTikTokConfig, tiktokEnabled } from "../services/tiktokConfigService.js";
+import {
+  TIKTOK_CHANNEL_SETTINGS_PATH,
+  describeTikTokConfig,
+  tiktokAppOrigin,
+  tiktokEnabled,
+} from "../services/tiktokConfigService.js";
 import { redactTikTokError } from "../services/tiktokApiClient.js";
 import {
   createTikTokOAuthState,
@@ -96,13 +101,12 @@ router.post("/oauth/start", enabledGuard, ...settingsGuard, async (req, res) => 
 // Public: TikTok redirects the user's browser here. Authorisation is the
 // single-use state token, not a session.
 router.get("/oauth/callback", async (req, res) => {
-  const frontendUrl = text(
-    process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL
-  ) || "/";
+  // The ERP app origin, never the storefront — see tiktokAppOrigin().
+  const appOrigin = tiktokAppOrigin() || "/";
   const backTo = (params) => {
     // Must match the SPA route registered in src/App.jsx ("admin/ai-channels"),
     // otherwise the user lands on a 404 after approving on TikTok.
-    const url = new URL("/admin/ai-channels", frontendUrl);
+    const url = new URL(TIKTOK_CHANNEL_SETTINGS_PATH, appOrigin);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
     return url.toString();
   };

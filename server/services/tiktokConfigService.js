@@ -43,6 +43,41 @@ export const tiktokRedirectUri = () => text(process.env.TIKTOK_REDIRECT_URI);
 export const tiktokIntakePollIntervalMs = () =>
   Math.max(1_000, Number(process.env.TIKTOK_INTAKE_POLL_INTERVAL_MS || 10_000));
 
+// Where the browser is sent after the OAuth callback.
+//
+// This must be the ERP app, NOT the storefront. PUBLIC_APP_URL, FRONTEND_URL,
+// PUBLIC_STOREFRONT_URL and STORE_FRONT_URL all point at the public shop; the
+// ERP lives on a different host and has no canonical variable of its own today.
+// Using the storefront URL sent the user to <shop>/admin/ai-channels, which is
+// not an ERP route at all.
+//
+// Resolution order:
+//   1. An explicit ERP URL variable, if a deployment ever defines one.
+//   2. The ERP entry in CORS_ALLOWED_ORIGINS — the one place the ERP host is
+//      already declared, so this needs no new configuration.
+//   3. PUBLIC_APP_URL as a last resort, so a misconfigured deployment still
+//      lands somewhere rather than nowhere.
+const ERP_HOST_HINT = /^erp\./i;
+
+export const tiktokAppOrigin = () => {
+  const explicit = text(process.env.PUBLIC_ERP_URL || process.env.ERP_APP_URL);
+  if (explicit) return explicit.replace(/\/+$/g, "");
+
+  for (const entry of text(process.env.CORS_ALLOWED_ORIGINS).split(",").map((item) => text(item)).filter(Boolean)) {
+    try {
+      const parsed = new URL(entry);
+      if (ERP_HOST_HINT.test(parsed.hostname)) return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      // Ignore malformed allowlist entries rather than failing the callback.
+    }
+  }
+
+  return text(process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL).replace(/\/+$/g, "");
+};
+
+// The SPA route the TikTok card lives on, registered in src/App.jsx.
+export const TIKTOK_CHANNEL_SETTINGS_PATH = "/admin/ai-channels";
+
 export const tiktokRequestedScopes = () => {
   const configured = text(process.env.TIKTOK_SCOPES);
   if (!configured) return [...TIKTOK_DEFAULT_SCOPES];
