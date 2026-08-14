@@ -123,6 +123,7 @@ const normalizeProduct = (raw = {}) => {
     availability: stockLabel,
     slug: clean(raw.slug || raw.canonical_slug || ""),
     sku: clean(raw.sku || raw.article_code || raw.sku_code || ""),
+    sale_mode_applied: Boolean(raw.sale_mode_applied),
     product_url: clean(raw.product_url || raw.storefront_url || raw.storefrontUrl || raw.url || ""),
     storefront_url: clean(raw.storefront_url || raw.storefrontUrl || raw.product_url || raw.url || ""),
   };
@@ -956,7 +957,7 @@ export default function PostProductLinksDrawer({
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">Price {priceText(item)}</span>
-                              {Number(item.sale_price) > 0 && Number(item.regular_price) > Number(item.sale_price) ? (
+                              {item.sale_mode_applied && Number(item.regular_price) > Number(item.final_price || item.price || 0) ? (
                                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
                                   Was <span className="line-through">{Number(item.regular_price).toLocaleString("en-US")}</span>
                                 </span>
