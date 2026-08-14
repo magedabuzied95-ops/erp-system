@@ -9,6 +9,7 @@ import {
   savePostProductLinks,
   searchStorefrontProducts,
 } from "../../services/postProductMappingApi.js";
+import { resolveProductImageUrl } from "../../../../shared/lib/imageUrls.js";
 
 const clean = (value = "") => String(value ?? "").trim();
 const PRODUCT_TYPE_OPTIONS = [
@@ -56,7 +57,12 @@ const productDisplayPrice = (raw = {}) => {
 };
 
 const normalizeProduct = (raw = {}) => {
-  const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.thumbnailUrl || raw.image || raw.main_image || raw.variant_image_url || "");
+  // The API returns "/uploads/products/..." relative. On the frontend origin that path
+  // hits the SPA fallback, which answers HTTP 200 with index.html, so the browser gets
+  // text/html where an image belongs. resolveProductImageUrl rebases it on the API origin.
+  const image = resolveProductImageUrl(
+    clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.thumbnailUrl || raw.image || raw.main_image || raw.variant_image_url || "")
+  );
   const variantSources = [];
   if (Array.isArray(raw.variants)) variantSources.push(...raw.variants);
   if (Array.isArray(raw.product_variants)) variantSources.push(...raw.product_variants);
