@@ -63,7 +63,7 @@ export default function TikTokPublishPanel({
     setConnectionLoading(true);
     try {
       const response = await api.get("/tiktok/status");
-      setConnection(response?.data?.data || null);
+      setConnection(response?.data || null);
     } catch {
       setConnection(null);
     } finally {
@@ -76,10 +76,10 @@ export default function TikTokPublishPanel({
     setCreatorError("");
     try {
       const response = await api.get("/tiktok/posting-options");
-      setCreatorInfo(response?.data?.data || null);
+      setCreatorInfo(response?.data || null);
     } catch (error) {
       setCreatorInfo(null);
-      setCreatorError(error?.response?.data?.message || t("marketing.tiktok.optionsLoadFailed"));
+      setCreatorError(error?.responseBody?.message || error?.message || t("marketing.tiktok.optionsLoadFailed"));
     } finally {
       setCreatorLoading(false);
     }

@@ -51,7 +51,7 @@ export default function TikTokConnectionCard() {
   const loadStatus = useCallback(async () => {
     try {
       const response = await api.get("/tiktok/status");
-      const data = response?.data?.data || null;
+      const data = response?.data || null;
       setStatus(data);
       setUiState(data?.reconnect_required
         ? STATE.RECONNECT_REQUIRED
@@ -90,7 +90,7 @@ export default function TikTokConnectionCard() {
     setUiState(STATE.CONNECTING);
     try {
       const response = await api.post("/tiktok/oauth/start");
-      const url = text(response?.data?.data?.authorize_url);
+      const url = text(response?.data?.authorize_url);
       if (!url) throw new Error("missing_authorize_url");
       // Full navigation, not a popup: TikTok's consent page blocks framing and
       // popup blockers would silently swallow the flow.
@@ -98,7 +98,7 @@ export default function TikTokConnectionCard() {
     } catch (error) {
       setBusy(false);
       setUiState(STATE.NOT_CONNECTED);
-      toast.error(error?.response?.data?.message || t("marketing.tiktok.connectFailed"));
+      toast.error(error?.responseBody?.message || error?.message || t("marketing.tiktok.connectFailed"));
     }
   }, [t]);
 
@@ -109,7 +109,7 @@ export default function TikTokConnectionCard() {
       await api.post("/tiktok/oauth/refresh");
       toast.success(t("marketing.tiktok.refreshed"));
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("marketing.tiktok.refreshFailed"));
+      toast.error(error?.responseBody?.message || error?.message || t("marketing.tiktok.refreshFailed"));
     } finally {
       setBusy(false);
       await loadStatus();
@@ -123,7 +123,7 @@ export default function TikTokConnectionCard() {
       await api.post("/tiktok/disconnect");
       toast.success(t("marketing.tiktok.disconnected"));
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("marketing.tiktok.disconnectFailed"));
+      toast.error(error?.responseBody?.message || error?.message || t("marketing.tiktok.disconnectFailed"));
     } finally {
       setBusy(false);
       await loadStatus();
