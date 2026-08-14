@@ -4372,8 +4372,124 @@ const normalizeSocialCommentFastListRow = (row = {}) => {
     post_thumbnail: text(row.post_image_url || row.thumbnail_url || ""),
     post_full_picture: text(row.post_image_url || row.thumbnail_url || ""),
     post_caption: text(row.post_caption || row.message_preview || ""),
+    linked_products: [],
+    linked_products_count: 0,
+    product_links_count: 0,
+    has_direct_product_link: false,
+    product_link_source: "none",
+    primary_linked_product: null,
     unread,
   };
+};
+
+// The fast list is built straight off social_comment_automation_runs, so it
+// carries no manual post -> product mapping. Without this the cards always
+// render "No Product Linked" even right after saving links in the drawer.
+const attachFastListProductLinks = async ({ tenantId = null, items = [] } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const rows = Array.isArray(items) ? items : [];
+  const postKeys = [];
+  const platforms = [];
+  rows.forEach((item) => {
+    const postKey = text(item?.post_id || "");
+    if (!postKey) return;
+    postKeys.push(postKey);
+    platforms.push(normalizePlatform(item?.platform || ""));
+  });
+  if (!safeTenantId || !postKeys.length) return rows;
+  const result = await db
+    .query(
+      `
+      WITH keys AS (
+        SELECT DISTINCT post_key, platform
+        FROM UNNEST($2::text[], $3::text[]) AS k(post_key, platform)
+        WHERE NULLIF(TRIM(post_key), '') IS NOT NULL
+      ),
+      links AS (
+        SELECT DISTINCT ON (k.post_key, k.platform, l.product_id)
+          k.post_key,
+          k.platform,
+          l.product_id,
+          l.is_primary,
+          COALESCE(l.priority, 0) AS priority,
+          l.updated_at,
+          l.id
+        FROM keys k
+        JOIN marketing_post_product_links l
+          ON (l.tenant_id = $1::bigint OR l.business_id = $1::bigint)
+         AND (NULLIF(l.platform, '') IS NULL OR l.platform = k.platform)
+         AND (
+           l.platform_post_id = k.post_key
+           OR l.post_id = k.post_key
+           OR l.media_id = k.post_key
+         )
+        WHERE COALESCE(l.product_id, 0) > 0
+        ORDER BY
+          k.post_key,
+          k.platform,
+          l.product_id,
+          l.is_primary DESC NULLS LAST,
+          COALESCE(l.priority, 0) ASC,
+          l.updated_at DESC NULLS LAST,
+          l.id DESC
+      ),
+      ranked AS (
+        SELECT
+          post_key,
+          platform,
+          product_id,
+          COUNT(*) OVER (PARTITION BY post_key, platform) AS links_count,
+          ROW_NUMBER() OVER (
+            PARTITION BY post_key, platform
+            ORDER BY is_primary DESC NULLS LAST, priority ASC, updated_at DESC NULLS LAST, id DESC
+          ) AS rn
+        FROM links
+      )
+      SELECT
+        r.post_key,
+        r.platform,
+        r.links_count::int AS links_count,
+        r.product_id,
+        COALESCE(p.name, '') AS product_name,
+        COALESCE(NULLIF(p.image_url, ''), '') AS product_image_url
+      FROM ranked r
+      LEFT JOIN products p
+        ON p.id = r.product_id
+       AND (p.tenant_id = $1::bigint OR p.tenant_id IS NULL)
+      WHERE r.rn = 1
+      `,
+      [safeTenantId, postKeys, platforms]
+    )
+    .catch((error) => {
+      console.warn("[social-comments-fast-list] product link hydration failed", {
+        tenant: safeTenantId,
+        message: error?.message || "unknown",
+      });
+      return { rows: [] };
+    });
+  const summaryByKey = new Map();
+  (result.rows || []).forEach((row) => {
+    const key = `${text(row.platform || "")}::${text(row.post_key || "")}`;
+    summaryByKey.set(key, row);
+  });
+  rows.forEach((item) => {
+    const summary = summaryByKey.get(`${normalizePlatform(item?.platform || "")}::${text(item?.post_id || "")}`);
+    const count = Number(summary?.links_count || 0) || 0;
+    if (!count) return;
+    const primaryProduct = {
+      id: Number(summary.product_id || 0) || null,
+      product_id: Number(summary.product_id || 0) || null,
+      name: text(summary.product_name || ""),
+      image_url: text(summary.product_image_url || ""),
+    };
+    item.linked_products = [primaryProduct];
+    item.linked_products_count = count;
+    item.product_links_count = count;
+    item.has_direct_product_link = true;
+    item.product_link_source = "v2_direct";
+    item.primary_linked_product = primaryProduct;
+  });
+  return rows;
 };
 
 export const listSocialCommentCenterFastList = async ({ tenantId = null, platform = "", status = "", limit = 20, cursor = "" } = {}) => {
@@ -4489,6 +4605,7 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   });
   const items = (result.rows || []).map(normalizeSocialCommentFastListRow);
   const nextItems = items.slice(0, safeLimit);
+  await attachFastListProductLinks({ tenantId: safeTenantId, items: nextItems });
   const lastItem = nextItems[nextItems.length - 1] || null;
   const resultPayload = {
     items: nextItems,

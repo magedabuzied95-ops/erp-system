@@ -776,19 +776,60 @@ export const searchSocialPublisherProducts = async ({ tenantId, query = "", limi
         COALESCE(NULLIF(p.regular_price, 0), NULLIF(p.selling_price, 0), variant_summary.selling_price, NULLIF(p.price, 0), 0)::numeric AS regular_price,
         COALESCE(variant_summary.total_stock, 0)::numeric AS total_stock,
         COALESCE(variant_summary.variants, '[]'::jsonb) AS variants,
-        COALESCE(NULLIF(p.image_url, ''), variant_summary.first_image, '') AS product_image_url
+        COALESCE(NULLIF(p.image_url, ''), variant_summary.first_image, product_media.first_image, '') AS product_image_url
       FROM products p
       LEFT JOIN LATERAL (
         SELECT
           COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0) AS total_stock,
           MAX(COALESCE(NULLIF(pv.purchase_selling_price, 0), NULLIF(pv.selling_price, 0), NULLIF(pv.regular_price, 0), NULLIF(pv.price, 0))) AS selling_price,
-          JSONB_AGG(TO_JSONB(pv) ORDER BY pv.id) AS variants,
-          (ARRAY_AGG(NULLIF(pv.image_url, '') ORDER BY pv.id) FILTER (WHERE NULLIF(pv.image_url, '') IS NOT NULL))[1] AS first_image
+          JSONB_AGG(
+            TO_JSONB(pv) || JSONB_BUILD_OBJECT(
+              'variant_image_url', COALESCE(NULLIF(pv.image_url, ''), variant_media.image_url, ''),
+              'images', COALESCE(variant_media.images, '[]'::jsonb)
+            )
+            ORDER BY pv.id
+          ) AS variants,
+          (
+            ARRAY_AGG(COALESCE(NULLIF(pv.image_url, ''), variant_media.image_url) ORDER BY pv.id)
+              FILTER (WHERE COALESCE(NULLIF(pv.image_url, ''), variant_media.image_url) IS NOT NULL)
+          )[1] AS first_image
         FROM product_variants pv
+        -- Colour artwork lives in product_variant_images, not on the variant row,
+        -- so a product whose photos are all attached to its colours would
+        -- otherwise render as an empty thumbnail in the post linking drawer.
+        LEFT JOIN LATERAL (
+          SELECT
+            (ARRAY_AGG(vi.image_url ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC))[1] AS image_url,
+            JSONB_AGG(
+              JSONB_BUILD_OBJECT(
+                'image_url', vi.image_url,
+                'color_name', vi.color_name,
+                'is_primary', vi.is_primary
+              )
+              ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
+            ) AS images
+          FROM product_variant_images vi
+          WHERE vi.product_id = pv.product_id
+            AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
+            AND (
+              vi.variant_id = pv.id
+              OR LOWER(TRIM(COALESCE(vi.color_name, ''))) = LOWER(TRIM(COALESCE(pv.color, '')))
+            )
+        ) variant_media ON TRUE
         WHERE pv.product_id = p.id
           AND pv.is_active IS DISTINCT FROM FALSE
           AND pv.deleted_at IS NULL
       ) variant_summary ON TRUE
+      LEFT JOIN LATERAL (
+        -- Last-resort cover for products whose images are only attached to
+        -- colour rows that no longer match an active variant.
+        SELECT vi.image_url AS first_image
+        FROM product_variant_images vi
+        WHERE vi.product_id = p.id
+          AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
+        ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
+        LIMIT 1
+      ) product_media ON TRUE
       WHERE p.tenant_id = $1::bigint
         AND p.is_active IS DISTINCT FROM FALSE
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
