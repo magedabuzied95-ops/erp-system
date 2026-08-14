@@ -949,7 +949,7 @@ const PosVariantColorPicker = ({
 
     {/* Every colour group is rendered — no collapse. A product with many colours
         scrolls inside the picker instead of hiding options behind a toggle. */}
-    <div className="mt-2 grid max-h-[26rem] grid-cols-3 gap-2 overflow-y-auto pe-0.5">
+    <div className="mt-2 grid max-h-[34rem] grid-cols-3 gap-2 overflow-y-auto pe-0.5 sm:grid-cols-4">
       {options.map((option) => {
         const selected = String(selectedColorKey || "") === String(option.key || "");
         const codeLabel = option.hintFull || option.hint;
@@ -986,17 +986,14 @@ const PosVariantColorPicker = ({
               <span className="block w-full truncate text-center text-[11px] font-black leading-tight text-zinc-100">
                 {option.color || defaultLabel}
               </span>
-              <span className="flex items-center justify-center gap-1 leading-tight">
-                {option.hint ? (
-                  <span className="min-w-0 truncate text-[10px] font-black text-zinc-400">{option.hint}</span>
-                ) : null}
-                <span
-                  className={`shrink-0 text-[11px] font-black ${
-                    option.stock > 0 ? "text-emerald-300" : "text-rose-300"
-                  }`}
-                >
-                  {option.stock}
-                </span>
+              {/* The article code is deliberately NOT printed here — the seller picks
+                  by the photo. It stays in the tooltip for when two groups share a name. */}
+              <span
+                className={`block text-center text-[11px] font-black leading-tight ${
+                  option.stock > 0 ? "text-emerald-300" : "text-rose-300"
+                }`}
+              >
+                {option.stock}
               </span>
             </span>
             {selected ? (
@@ -8619,8 +8616,11 @@ function POSPro() {
                     </div>
                   </div>
                 </div>
+                {/* Colour first, then the sizes of that colour. The old full variant
+                    table listed every colour x size row again underneath, which on a
+                    54-variant product was a wall of rows nobody scanned. */}
                 <div className="space-y-3 sm:space-y-4">
-                  <div className="grid gap-2 sm:gap-4 md:grid-cols-2">
+                  <div className="grid gap-2 sm:gap-4">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
                       <PosVariantColorPicker
                         options={topSelectionInfo.colorOptions}
@@ -8667,64 +8667,6 @@ function POSPro() {
                       </div>
                     </div>
                   </div>
-
-                  <div className="hidden overflow-hidden rounded-2xl border border-white/10 sm:block sm:rounded-3xl">
-                    <div className="hidden grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr_0.7fr_0.8fr] bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500 lg:grid">
-                      <span>{t("pos.labels.variant")}</span>
-                      <span>{t("pos.labels.sku")}</span>
-                      <span>{t("products.fields.articleCode", "Article Code / الأرتكل")}</span>
-                      <span>{t("pos.labels.barcode")}</span>
-                      <span>{t("pos.labels.stock")}</span>
-                      <span>{t("pos.labels.action")}</span>
-                    </div>
-                    <div className="max-h-[46vh] overflow-auto bg-zinc-950 sm:max-h-[28rem]">
-                      {(activeProduct.variants || []).map((variant) => {
-                        const selected =
-                          getVariantColorKey(variant) === String(selectedColor || "") &&
-                          String(variant.size || "") === String(selectedSize || "");
-                        const stock = normalizeStockQuantity(variant.stock_quantity ?? variant.stock);
-                        const price = formatCurrency(variant.price || activeProduct.sale_price || 0);
-                        const disabled = stock <= 0;
-                        const variantArticleCode = firstTextValue(
-                          activeProduct.article_code,
-                          activeProduct.articleCode,
-                          variant.article_code,
-                          variant.articleCode
-                        );
-                        return (
-                          <div
-                            key={String(variant.variant_id || variant.id)}
-                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-white/5 px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm lg:grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr_0.7fr_0.8fr] lg:gap-3 ${ selected ? "bg-emerald-500/10" : "" }`}
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate font-black text-white sm:font-semibold">
-                                {variant.color || t("pos.labels.default")} / {getPosSizeDisplayLabel(activeProduct, variant.size) || t("pos.labels.oneSize")}
-                              </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-zinc-300 sm:text-xs lg:hidden">
-                                <span className="rounded-full bg-white/5 px-2 py-0.5">{t("pos.labels.stock")}: {stock}</span>
-                                <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-emerald-200">{t("pos.labels.price")}: {price}</span>
-                                {(variant.sku || activeProduct.sku) ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-500">SKU: {String(variant.sku || activeProduct.sku).slice(-6)}</span> : null}
-                                {variantArticleCode ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">ART: {variantArticleCode}</span> : null}
-                              </div>
-                              <div className="hidden text-xs text-zinc-500 lg:block">{price}</div>
-                            </div>
-                            <div className="hidden truncate text-zinc-300 lg:block">{variant.sku || activeProduct.sku}</div>
-                            <div className="hidden truncate text-zinc-300 lg:block">{variantArticleCode || t("common.notAvailable")}</div>
-                            <div className="hidden truncate text-zinc-300 lg:block">{variant.barcode || activeProduct.barcode || t("common.notAvailable")}</div>
-                            <div className="hidden text-zinc-300 lg:block">{stock}</div>
-                            <button
-                              type="button"
-                              onClick={() => addVariantToCart(activeProduct, variant)}
-                              disabled={disabled}
-                              className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-3 sm:py-2"
-                            >
-                              {t("pos.labels.add")}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="space-y-3 sm:space-y-4">
@@ -8766,9 +8708,6 @@ function POSPro() {
                         <div className="truncate">{t("pos.labels.barcode")}: {activeVariant?.barcode || t("common.notAvailable")}</div>
                       </div>
                     </details>
-                    <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300 sm:hidden">
-                      REAL_VARIANT_COMPONENT_DEBUG
-                    </div>
                     <button
                       type="button"
                       onClick={() => {
