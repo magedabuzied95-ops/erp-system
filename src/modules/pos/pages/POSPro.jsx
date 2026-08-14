@@ -949,7 +949,7 @@ const PosVariantColorPicker = ({
 
     {/* Every colour group is rendered — no collapse. A product with many colours
         scrolls inside the picker instead of hiding options behind a toggle. */}
-    <div className="mt-2 grid max-h-[17rem] grid-cols-4 gap-2 overflow-y-auto pe-0.5">
+    <div className="mt-2 grid max-h-[26rem] grid-cols-3 gap-2 overflow-y-auto pe-0.5">
       {options.map((option) => {
         const selected = String(selectedColorKey || "") === String(option.key || "");
         const codeLabel = option.hintFull || option.hint;
@@ -982,16 +982,16 @@ const PosVariantColorPicker = ({
                 }}
               />
             ) : null}
-            <span className="absolute inset-x-0 bottom-0 bg-black/80 px-1 pb-0.5 pt-0.5">
-              <span className="block w-full truncate text-center text-[9px] font-black leading-tight text-zinc-100">
+            <span className="absolute inset-x-0 bottom-0 bg-black/80 px-1 pb-1 pt-0.5">
+              <span className="block w-full truncate text-center text-[11px] font-black leading-tight text-zinc-100">
                 {option.color || defaultLabel}
               </span>
               <span className="flex items-center justify-center gap-1 leading-tight">
                 {option.hint ? (
-                  <span className="min-w-0 truncate text-[8px] font-black text-zinc-400">{option.hint}</span>
+                  <span className="min-w-0 truncate text-[10px] font-black text-zinc-400">{option.hint}</span>
                 ) : null}
                 <span
-                  className={`shrink-0 text-[9px] font-black ${
+                  className={`shrink-0 text-[11px] font-black ${
                     option.stock > 0 ? "text-emerald-300" : "text-rose-300"
                   }`}
                 >
