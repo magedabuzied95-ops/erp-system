@@ -1548,6 +1548,7 @@ function SocialCommentsWorkspace({
   onPostPlatformFilterChange,
   commentPlatformFilter = "all",
   onCommentPlatformFilterChange,
+  drawerRequest = { kind: "", nonce: 0 },
 }) {
   const { t } = useTranslation();
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
@@ -1557,8 +1558,6 @@ function SocialCommentsWorkspace({
   const [ignoredCommentKeys, setIgnoredCommentKeys] = useState(() => new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [openingPost, setOpeningPost] = useState(false);
-  const [savingGlobal, setSavingGlobal] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [replyLoadingKey, setReplyLoadingKey] = useState("");
   const [likeLoadingKey, setLikeLoadingKey] = useState("");
@@ -1587,15 +1586,6 @@ function SocialCommentsWorkspace({
   const [highlightedCommentKey, setHighlightedCommentKey] = useState("");
   const [commentWindowSize, setCommentWindowSize] = useState(50);
   const [optimisticCommentEntries, setOptimisticCommentEntries] = useState([]);
-  const [globalDraft, setGlobalDraft] = useState(() => ({
-    generic_enabled: false,
-    generic_like_enabled: true,
-    generic_reply_enabled: true,
-    generic_template: "",
-    mode: "manual_approval",
-    ...(globalSettings || {}),
-  }));
-  const [templateDraft, setTemplateDraft] = useState(() => selectedTemplate?.template || null);
   const commentRefs = useRef(new Map());
   const composerRef = useRef(null);
   const highlightTimerRef = useRef(null);
@@ -1650,34 +1640,6 @@ function SocialCommentsWorkspace({
   });
 
   useEffect(() => {
-    setGlobalDraft({
-      generic_enabled: false,
-      generic_like_enabled: true,
-      generic_reply_enabled: true,
-      generic_template: "",
-      mode: "manual_approval",
-      ...(globalSettings || {}),
-    });
-  }, [
-    globalSettings?.generic_enabled,
-    globalSettings?.generic_like_enabled,
-    globalSettings?.generic_reply_enabled,
-    globalSettings?.generic_template,
-    globalSettings?.mode,
-  ]);
-
-  useEffect(() => {
-    setTemplateDraft(selectedTemplate?.template || null);
-  }, [
-    selectedPost,
-    selectedTemplate?.template?.enabled,
-    selectedTemplate?.template?.like_enabled,
-    selectedTemplate?.template?.reply_enabled,
-    selectedTemplate?.template?.mode,
-    selectedTemplate?.template?.template,
-  ]);
-
-  useEffect(() => {
     const nextSelected = clean(initialSelectedCommentId);
     if (nextSelected && nextSelected !== selectedCommentKey) {
       setSelectedCommentKey(nextSelected);
@@ -1694,8 +1656,9 @@ function SocialCommentsWorkspace({
     setOptimisticCommentEntries([]);
   }, [activePostKey, initialSelectedCommentId]);
 
-  const activeTemplate = templateDraft || selectedTemplate?.template || null;
-  const currentGlobalSettings = globalDraft || globalSettings;
+  // Comment settings are owned by the Config modal; the workspace only reads them.
+  const activeTemplate = selectedTemplate?.template || null;
+  const currentGlobalSettings = globalSettings;
   const visibleComments = useMemo(() => normalizedComments.filter((comment) => {
     if (ignoredCommentKeys.has(comment.id)) return false;
     if (commentPlatformFilter === "all") return true;
@@ -1832,7 +1795,6 @@ function SocialCommentsWorkspace({
   const activePostPostId = clean(activePostDetails?.postId || activePostDetails?.id || activePostKey);
   const activePostSourceId = clean(activePostDetails?.sourcePostId || activePostDetails?.raw?.post_id || activePostDetails?.raw?.id || "");
   const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
-  const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
   const activePostPublishedAt = clean(
     activePostDisplay?.displayCreatedAt ||
       activePostDetails?.postCreatedTime ||
@@ -2242,6 +2204,18 @@ function SocialCommentsWorkspace({
     setProductLinksDrawerPostKey(drawerPostKey);
   };
 
+  // The Config modal (comments settings tab) asks the workspace to open a post drawer.
+  const drawerRequestNonce = Number(drawerRequest?.nonce || 0);
+  const drawerRequestKind = clean(drawerRequest?.kind || "");
+  const handledDrawerRequestRef = useRef(0);
+  useEffect(() => {
+    if (!drawerRequestNonce || handledDrawerRequestRef.current === drawerRequestNonce) return;
+    handledDrawerRequestRef.current = drawerRequestNonce;
+    if (drawerRequestKind === "automation") handleOpenAutomationDrawer();
+    else if (drawerRequestKind === "product_links") handleOpenProductLinksDrawer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerRequestKind, drawerRequestNonce]);
+
   useEffect(() => {
     const drawerKey = clean(automationDrawerPostKey);
     if (!drawerKey) return;
@@ -2523,62 +2497,6 @@ function SocialCommentsWorkspace({
     } catch {
       setReplyDraft(textToCopy);
       notify("amber", "تعذر النسخ، تم وضع النص في مربع الرد");
-    }
-  };
-
-  const handleSaveGlobalSettings = async () => {
-    if (clean(currentGlobalSettings.mode) === "full_auto") {
-      const confirmed = window.confirm(t("aiSupport.inbox.socialWorkspace.confirmGlobalFullAuto"));
-      if (!confirmed) {
-        notify("amber", "تم إلغاء حفظ Full Auto");
-        return;
-      }
-    }
-    setSavingGlobal(true);
-    try {
-      const payload = await api.post("/social-comments/auto-reply/settings", currentGlobalSettings);
-      setGlobalDraft({
-        generic_enabled: Boolean(payload?.settings?.generic_enabled),
-        generic_like_enabled: payload?.settings?.generic_like_enabled !== false,
-        generic_reply_enabled: payload?.settings?.generic_reply_enabled !== false,
-        generic_template: clean(payload?.settings?.generic_template || ""),
-        mode: clean(payload?.settings?.mode || "manual_approval") || "manual_approval",
-      });
-      notify("emerald", "تم حفظ إعدادات الرد التلقائي");
-      await Promise.resolve(onRefresh?.());
-    } catch (error) {
-      notify("rose", error?.message || "تعذر حفظ الإعدادات");
-    } finally {
-      setSavingGlobal(false);
-    }
-  };
-
-  const handleSaveTemplate = async () => {
-    const postId = clean(activePostPostId);
-    if (!postId) {
-      notify("amber", "اختر بوستًا أولًا");
-      return;
-    }
-    if (clean(activeTemplate?.mode) === "full_auto") {
-      const confirmed = window.confirm(t("aiSupport.inbox.socialWorkspace.confirmPostFullAuto"));
-      if (!confirmed) {
-        notify("amber", "تم إلغاء حفظ Full Auto");
-        return;
-      }
-    }
-    setSavingTemplate(true);
-    try {
-      const payload = await api.post(`/social-comments/posts/${encodeURIComponent(postId)}/template`, {
-        platform: activePostPlatform || "facebook",
-        ...(activeTemplate || {}),
-      });
-      setTemplateDraft(payload?.template || null);
-      notify("emerald", "تم حفظ قالب البوست");
-      await Promise.resolve(onRefresh?.());
-    } catch (error) {
-      notify("rose", error?.message || "تعذر حفظ قالب البوست");
-    } finally {
-      setSavingTemplate(false);
     }
   };
 
@@ -4023,154 +3941,18 @@ function SocialCommentsWorkspace({
 
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.globalTemplate")}</div>
-                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.genericReplyTemplate")}</div>
-                    </div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.preview")}</div>
                     <button
                       type="button"
-                      onClick={() => void handleSaveGlobalSettings()}
-                      disabled={savingGlobal}
-                      className="inline-flex h-8 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50"
+                      onClick={() => void handlePreviewReply()}
+                      disabled={previewLoading || !actionableComment}
+                      className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                     >
-                      {savingGlobal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      {t("aiSupport.inbox.socialWorkspace.saveGlobalTemplate")}
+                      {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                      {t("aiSupport.inbox.socialWorkspace.previewReply")}
                     </button>
                   </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <TogglePill
-                      label={t("aiSupport.inbox.socialWorkspace.enabled")}
-                      active={currentGlobalSettings.generic_enabled}
-                      onClick={() => setGlobalDraft((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
-                    />
-                    <TogglePill
-                      label={t("aiSupport.inbox.socialWorkspace.likeState", { state: currentGlobalSettings.generic_like_enabled ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
-                      active={currentGlobalSettings.generic_like_enabled}
-                      onClick={() => setGlobalDraft((current) => ({ ...current, generic_like_enabled: !current.generic_like_enabled }))}
-                    />
-                    <TogglePill
-                      label={t("aiSupport.inbox.socialWorkspace.replyState", { state: currentGlobalSettings.generic_reply_enabled ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
-                      active={currentGlobalSettings.generic_reply_enabled}
-                      onClick={() => setGlobalDraft((current) => ({ ...current, generic_reply_enabled: !current.generic_reply_enabled }))}
-                    />
-                  </div>
-
-                  <select
-                    value={currentGlobalSettings.mode || "manual_approval"}
-                    onChange={(event) => setGlobalDraft((current) => ({ ...current, mode: event.target.value }))}
-                    className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
-                  >
-                    <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
-                    <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
-                    <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
-                    <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
-                  </select>
-
-                  <textarea
-                    value={currentGlobalSettings.generic_template || ""}
-                    onChange={(event) => setGlobalDraft((current) => ({ ...current, generic_template: event.target.value }))}
-                    rows={4}
-                    className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                    placeholder={t("aiSupport.inbox.socialWorkspace.globalAutoReplyTemplate")}
-                  />
-                  <div className="mt-2 text-[11px] font-medium text-slate-400">{t("aiSupport.inbox.socialWorkspace.fullAutoWarning")}</div>
-                </div>
-
-                <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.postTemplate")}</div>
-                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.postTemplateHint")}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveTemplate()}
-                      disabled={savingTemplate}
-                      className="inline-flex h-8 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50"
-                    >
-                      {savingTemplate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      {t("aiSupport.inbox.socialWorkspace.savePostTemplate")}
-                    </button>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <TogglePill
-                      label={activeTemplateEnabled ? t("aiSupport.inbox.socialWorkspace.enabled") : t("aiSupport.inbox.socialWorkspace.disabled")}
-                      active={activeTemplateEnabled}
-                      onClick={() =>
-                        setTemplateDraft((current) => ({
-                          ...(current || {}),
-                          enabled: !activeTemplateEnabled,
-                        }))
-                      }
-                    />
-                    <TogglePill
-                      label={t("aiSupport.inbox.socialWorkspace.likeState", { state: activeTemplate?.like_enabled !== false ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
-                      active={activeTemplate?.like_enabled !== false}
-                      onClick={() =>
-                        setTemplateDraft((current) => ({
-                          ...(current || {}),
-                          like_enabled: !(current?.like_enabled !== false),
-                        }))
-                      }
-                    />
-                    <TogglePill
-                      label={t("aiSupport.inbox.socialWorkspace.replyState", { state: activeTemplate?.reply_enabled !== false ? t("aiSupport.inbox.socialWorkspace.on") : t("aiSupport.inbox.socialWorkspace.off") })}
-                      active={activeTemplate?.reply_enabled !== false}
-                      onClick={() =>
-                        setTemplateDraft((current) => ({
-                          ...(current || {}),
-                          reply_enabled: !(current?.reply_enabled !== false),
-                        }))
-                      }
-                    />
-                  </div>
-
-                  <select
-                    value={activeTemplate?.mode || "manual_approval"}
-                    onChange={(event) =>
-                      setTemplateDraft((current) => ({
-                        ...(current || {}),
-                        mode: event.target.value,
-                      }))
-                    }
-                    className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
-                  >
-                    <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
-                    <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
-                    <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
-                    <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
-                  </select>
-
-                  <textarea
-                    value={activeTemplate?.template || ""}
-                    onChange={(event) =>
-                      setTemplateDraft((current) => ({
-                        ...(current || {}),
-                        template: event.target.value,
-                      }))
-                    }
-                    rows={5}
-                    className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                    placeholder={t("aiSupport.inbox.ui.templateHint")}
-                  />
-
-                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.socialWorkspace.preview")}</div>
-                      <button
-                        type="button"
-                        onClick={() => void handlePreviewReply()}
-                        disabled={previewLoading || !actionableComment}
-                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
-                      >
-                        {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        {t("aiSupport.inbox.socialWorkspace.previewReply")}
-                      </button>
-                    </div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{suggestedReply || t("aiSupport.inbox.socialWorkspace.noTemplateText")}</div>
-                  </div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{suggestedReply || t("aiSupport.inbox.socialWorkspace.noTemplateText")}</div>
                 </div>
 
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
@@ -4242,20 +4024,6 @@ function InfoChip({ label, value }) {
       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{label}</div>
       <div className="mt-1 text-sm font-black text-white">{value || "—"}</div>
     </div>
-  );
-}
-
-function TogglePill({ label, active, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-        active ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

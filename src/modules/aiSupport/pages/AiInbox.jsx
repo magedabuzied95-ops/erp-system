@@ -94,6 +94,7 @@ import { channelWindow, channelsForFilter, mergeConversationPages } from "../ser
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import { CommentsSettingsPanel } from "../components/CommentsSettings.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -4943,6 +4944,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
+  const [socialDrawerRequest, setSocialDrawerRequest] = useState({ kind: "", nonce: 0 });
   const [replyText, setReplyText] = useState("");
   useEffect(() => {
     const handleCustomerAction = () => {
@@ -5869,14 +5871,6 @@ export default function AiInbox({ reviewerMode = false }) {
   const selectedSocialCommentPost = useMemo(
     () => normalizeSocialCommentPost(selectedSocialComment || {}),
     [selectedSocialComment]
-  );
-  const selectedSocialThreadPost = useMemo(
-    () => normalizeSocialCommentPost(selectedSocialThread?.post || selectedSocialComment || {}),
-    [selectedSocialThread?.post, selectedSocialComment]
-  );
-  const selectedSocialThreadComments = useMemo(
-    () => asArray(selectedSocialThread?.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
-    [selectedSocialThread?.comments]
   );
   const selectedSocialCommentPostId = clean(
     selectedSocialCommentPost.postLinkKey ||
@@ -8527,8 +8521,29 @@ export default function AiInbox({ reviewerMode = false }) {
     );
   };
 
+  const requestSocialDrawer = (kind) => {
+    setQuickRepliesConfigOpen(false);
+    setSocialDrawerRequest((current) => ({ kind, nonce: current.nonce + 1 }));
+  };
+
+  const renderCommentsSettingsPanel = () => (
+    <CommentsSettingsPanel
+      globalSettings={socialReplySettings}
+      onGlobalSettingsChange={setSocialReplySettings}
+      onSaveGlobalSettings={saveSocialReplySettings}
+      selectedPost={selectedSocialComment}
+      selectedTemplate={selectedSocialTemplate}
+      onTemplateChange={setSelectedSocialTemplate}
+      onSaveTemplate={saveSocialPostTemplate}
+      onOpenAutomation={() => requestSocialDrawer("automation")}
+      onOpenProductLinks={() => requestSocialDrawer("product_links")}
+      postToolsEnabled={isSocialMode}
+    />
+  );
+
   const renderSocialCommentsWorkspaceFrame = () => (
     <SocialCommentsWorkspace
+        drawerRequest={socialDrawerRequest}
         items={visibleSocialComments}
         loading={loading || socialComments.loading}
         error={socialComments.error}
@@ -8640,6 +8655,7 @@ export default function AiInbox({ reviewerMode = false }) {
             onUpdate={quickRepliesStore.updateReply}
             onDelete={quickRepliesStore.deleteReply}
             onReorder={quickRepliesStore.reorderReplies}
+            commentsSettings={renderCommentsSettingsPanel()}
           />
           <InboxChannelSidebar
             channels={[]}
@@ -8755,6 +8771,7 @@ export default function AiInbox({ reviewerMode = false }) {
           onUpdate={quickRepliesStore.updateReply}
           onDelete={quickRepliesStore.deleteReply}
           onReorder={quickRepliesStore.reorderReplies}
+          commentsSettings={renderCommentsSettingsPanel()}
         />
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
@@ -9399,368 +9416,6 @@ export default function AiInbox({ reviewerMode = false }) {
           </div>
         </section>
 
-        {inboxSection === "social_comments" ? (
-          <section dir="ltr" className="grid min-h-0 flex-1 gap-3 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,28%)_minmax(0,72%)]">
-            <aside className="min-h-0 min-w-0 space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
-              <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.kpi.socialCenter")}</div>
-                <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.socialComments")}</div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-black sm:grid-cols-3 xl:grid-cols-2">
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Facebook <span className="ml-2 text-cyan-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">Instagram <span className="ml-2 text-rose-100">{visibleSocialComments.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.newLabel2")} <span className="ml-2 text-emerald-100">{visibleSocialComments.reduce((sum, item) => sum + Number(item.new_comments_count || 0), 0)}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.needsReply2")} <span className="ml-2 text-amber-100">{visibleSocialComments.filter((item) => Number(item.new_comments_count || 0) > 0).length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.replied2")} <span className="ml-2 text-violet-100">{visibleSocialComments.filter((item) => clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent").length}</span></div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">{t("aiSupport.inbox.ui.autoReply2")} <span className="ml-2 text-slate-100">{socialReplySettings.generic_enabled ? "ON" : "OFF"}</span></div>
-                </div>
-                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.autoReplySystem")}</div>
-                      <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.genericLikeReply")}</div>
-                    </div>
-                    <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-[11px] font-black">
-                      <input
-                        type="checkbox"
-                        checked={socialReplySettings.generic_enabled}
-                        onChange={(event) => setSocialReplySettings((current) => ({ ...current, generic_enabled: event.target.checked }))}
-                      />
-                      {socialReplySettings.generic_enabled ? "Enabled" : "Disabled"}
-                    </label>
-                  </div>
-                  <select
-                    value={socialReplySettings.mode}
-                    onChange={(event) => setSocialReplySettings((current) => ({ ...current, mode: event.target.value }))}
-                    className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
-                  >
-                    <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
-                    <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
-                    <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
-                    <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
-                  </select>
-                  <textarea
-                    value={socialReplySettings.generic_template}
-                    onChange={(event) => setSocialReplySettings((current) => ({ ...current, generic_template: event.target.value }))}
-                    rows={3}
-                    className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                    placeholder={t("aiSupport.inbox.ui.genericTemplate")}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const payload = await api.post("/social-comments/auto-reply/settings", {
-                          tenant_id: tenantId,
-                          ...socialReplySettings,
-                        }, { headers, perfComponent: "AiInbox.socialReplySettings" });
-                        setSocialReplySettings({
-                          generic_enabled: Boolean(payload?.settings?.generic_enabled),
-                          generic_like_enabled: payload?.settings?.generic_like_enabled !== false,
-                          generic_reply_enabled: payload?.settings?.generic_reply_enabled !== false,
-                          generic_template: clean(payload?.settings?.generic_template || ""),
-                          mode: clean(payload?.settings?.mode || "manual_approval") || "manual_approval",
-                        });
-                        setToast({ tone: "emerald", text: "تم حفظ إعدادات الرد التلقائي" });
-                      } catch (saveError) {
-                        setToast({ tone: "rose", text: saveError?.message || "تعذر حفظ الإعدادات" });
-                      }
-                    }}
-                    className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl bg-cyan-300 px-3 text-sm font-black text-slate-950"
-                  >
-                    حفظ
-                  </button>
-                </div>
-              </div>
-
-              {null}
-            </aside>
-
-            <main className="min-h-0 min-w-0 space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
-              {selectedSocialComment ? (
-                <>
-                  <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
-                      <div className="aspect-[4/3] w-full bg-slate-900">
-                        {clean(selectedSocialThreadPost.thumbnailUrl || selectedSocialCommentPost.thumbnailUrl) ? (
-                          <img
-                            src={clean(selectedSocialThreadPost.thumbnailUrl || selectedSocialCommentPost.thumbnailUrl)}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : null}
-                      </div>
-                      <div className="p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{clean(selectedSocialCommentPost.platform).toLowerCase().includes("instagram") ? "Instagram Post" : "Facebook Post"}</div>
-                            <h2 className="mt-1 text-xl font-black text-white">{clean(selectedSocialThreadPost.caption || selectedSocialCommentPost.caption || "Post")}</h2>
-                          </div>
-                          {clean(selectedSocialThreadPost.permalinkUrl || selectedSocialCommentPost.permalinkUrl) ? (
-                            <a
-                              href={clean(selectedSocialThreadPost.permalinkUrl || selectedSocialCommentPost.permalinkUrl)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-sm font-black text-cyan-100"
-                            >
-                              فتح المنشور
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.product")}</div>
-                          <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productName || selectedSocialCommentPost.productName || "Not linked")}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.price")}</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "-"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sale")}</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "-"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.sizes")}</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productSizes || selectedSocialCommentPost.productSizes || "") || "-"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.colors")}</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productColors || selectedSocialCommentPost.productColors || "") || "-"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.stock2")}</div>
-                            <div className="mt-1 text-sm font-black text-white">-</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button type="button" disabled className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-400">
-                            نسخ تفاصيل المنتج
-                          </button>
-                          <button type="button" disabled className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-400">
-                            Reply on comment
-                          </button>
-                          <button type="button" disabled className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-400">
-                            Send private message
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.postStatus")}</div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
-                          <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "zinc"}>{selectedSocialThreadComments.length > 0 ? selectedSocialThreadComments.length : (selectedSocialCommentPost.commentsCount ?? 0)} comments</Pill>
-                          <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "emerald"}>{Number(selectedSocialCommentPost.newCount || 0)} new</Pill>
-                          <Pill tone={socialReplySettings.generic_enabled ? "emerald" : "zinc"}>{socialReplySettings.generic_enabled ? "Auto Reply ON" : "Auto Reply OFF"}</Pill>
-                        </div>
-                        {selectedSocialThread.loading ? <LoadingBlock text="جارٍ تحميل التعليقات..." /> : null}
-                        {selectedSocialThread.error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{selectedSocialThread.error}</div> : null}
-                      </div>
-
-                      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.postTemplate")}</div>
-                            <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.postTemplateHint")}</div>
-                          </div>
-                          <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-[11px] font-black">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(selectedSocialTemplate.template?.enabled)}
-                              onChange={(event) => setSelectedSocialTemplate((current) => ({
-                                ...current,
-                                template: { ...(current.template || {}), enabled: event.target.checked },
-                              }))}
-                            />
-                            {selectedSocialTemplate.template?.enabled ? "Enabled" : "Disabled"}
-                          </label>
-                        </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-[11px] font-black">
-                            <input
-                              type="checkbox"
-                              checked={selectedSocialTemplate.template?.like_enabled !== false}
-                              onChange={(event) => setSelectedSocialTemplate((current) => ({
-                                ...current,
-                                template: { ...(current.template || {}), like_enabled: event.target.checked },
-                              }))}
-                            />
-                            Like comment
-                          </label>
-                          <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-[11px] font-black">
-                            <input
-                              type="checkbox"
-                              checked={selectedSocialTemplate.template?.reply_enabled !== false}
-                              onChange={(event) => setSelectedSocialTemplate((current) => ({
-                                ...current,
-                                template: { ...(current.template || {}), reply_enabled: event.target.checked },
-                              }))}
-                            />
-                            Reply comment
-                          </label>
-                        </div>
-                        <select
-                          value={selectedSocialTemplate.template?.mode || "manual_approval"}
-                          onChange={(event) => setSelectedSocialTemplate((current) => ({
-                            ...current,
-                            template: { ...(current.template || {}), mode: event.target.value },
-                          }))}
-                          className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
-                        >
-                          <option value="draft">{t("aiSupport.inbox.ui.draftOnly")}</option>
-                          <option value="manual_approval">{t("aiSupport.inbox.ui.manualApproval")}</option>
-                          <option value="full_auto">{t("aiSupport.inbox.ui.fullAuto")}</option>
-                          <option value="off">{t("aiSupport.inbox.ui.offLabel")}</option>
-                        </select>
-                        <textarea
-                          value={selectedSocialTemplate.template?.template || ""}
-                          onChange={(event) => setSelectedSocialTemplate((current) => ({
-                            ...current,
-                            template: { ...(current.template || {}), template: event.target.value },
-                          }))}
-                          rows={4}
-                          className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
-                          placeholder={t("aiSupport.inbox.ui.templateHint")}
-                        />
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const payload = await api.post(`/social-comments/posts/${encodeURIComponent(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || "")}/template`, {
-                                  tenant_id: tenantId,
-                                  platform: clean(selectedSocialCommentPost.platform || "facebook"),
-                                  ...selectedSocialTemplate.template,
-                                }, { headers, perfComponent: "AiInbox.socialPostTemplateSave" });
-                                setSelectedSocialTemplate({
-                                  template: payload.template || null,
-                                  loading: false,
-                                  error: "",
-                                });
-                                setToast({ tone: "emerald", text: "تم حفظ القالب" });
-                              } catch (templateError) {
-                                setToast({ tone: "rose", text: templateError?.message || "تعذر حفظ القالب" });
-                              }
-                            }}
-                            className="inline-flex h-10 items-center justify-center rounded-xl bg-cyan-300 px-3 text-sm font-black text-slate-950"
-                          >
-                            Save Template
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const payload = await api.post(`/social-comments/comments/${encodeURIComponent(clean(selectedSocialThread.comments[0]?.comment_id || ""))}/auto-reply-preview`, {
-                                  tenant_id: tenantId,
-                                  platform: clean(selectedSocialCommentPost.platform || "facebook"),
-                                  post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
-                                }, { headers, perfComponent: "AiInbox.socialCommentPreview" });
-                                setToast({ tone: "emerald", text: payload?.preview?.rendered_reply ? "تم إنشاء معاينة الرد" : "لا توجد معاينة متاحة" });
-                              } catch (previewError) {
-                                setToast({ tone: "rose", text: previewError?.message || "تعذر إنشاء المعاينة" });
-                              }
-                            }}
-                            className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-200"
-                          >
-                            Preview
-                          </button>
-                        </div>
-                        {selectedSocialTemplate.loading ? <div className="mt-3 text-xs text-slate-500">{t("aiSupport.inbox.ui.loadingTemplate")}</div> : null}
-                        {selectedSocialTemplate.error ? <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-xs font-bold text-rose-100">{selectedSocialTemplate.error}</div> : null}
-                      </div>
-
-                      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.commentsTimeline")}</div>
-                            <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.ui.noPostSettings")}</div>
-                          </div>
-                          {selectedSocialThread.comments.length ? <Pill tone="zinc">{selectedSocialThread.comments.length} تعليق</Pill> : null}
-                        </div>
-                        <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto pr-1">
-                          {selectedSocialThreadComments.length ? selectedSocialThreadComments.map((comment) => {
-                            const commentKey = clean(comment.id || "");
-                            const status = clean(comment.replyStatus || "not replied");
-                            return (
-                              <div key={commentKey || comment.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex min-w-0 items-center gap-2">
-                                    <div className="h-10 w-10 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
-                                      {clean(comment.customerAvatar || "") ? (
-                                        <img src={clean(comment.customerAvatar || "")} alt="" className="h-full w-full object-cover" />
-                                      ) : null}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <div className="truncate text-sm font-black text-white">{clean(comment.customerName || "Customer")}</div>
-                                      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{absoluteTime(comment.createdTime)}</div>
-                                    </div>
-                                  </div>
-                                  <Pill tone={status === "sent" ? "emerald" : status === "failed" ? "rose" : "zinc"}>{status.replace(/_/g, " ")}</Pill>
-                                </div>
-                                <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-200">{clean(comment.message || "")}</div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      try {
-                                        await api.post(`/social-comments/comments/${encodeURIComponent(commentKey)}/auto-reply-send`, {
-                                          tenant_id: tenantId,
-                                          platform: clean(selectedSocialCommentPost.platform || "facebook"),
-                                          post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
-                                        }, { headers, perfComponent: "AiInbox.socialCommentReply" });
-                                        void loadAll({ silent: true });
-                                      } catch (replyError) {
-                                        setToast({ tone: "rose", text: replyError?.message || "تعذر إرسال الرد" });
-                                      }
-                                    }}
-                                    className="inline-flex h-9 items-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100"
-                                  >
-                                    Preview / Send Auto Reply
-                                  </button>
-                                  <button type="button" disabled className="inline-flex h-9 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-400">
-                                    تم إرسال الرد
-                                  </button>
-                                  <button type="button" disabled className="inline-flex h-9 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-400">
-                                    إرسال رسالة خاصة
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      try {
-                                        await api.post(`/social-comments/comments/${encodeURIComponent(commentKey)}/ignore`, {
-                                          tenant_id: tenantId,
-                                          platform: clean(selectedSocialCommentPost.platform || "facebook"),
-                                          post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
-                                          reason: "ignore",
-                                        }, { headers, perfComponent: "AiInbox.socialCommentIgnore" });
-                                        void loadAll({ silent: true });
-                                      } catch (ignoreError) {
-                                        setToast({ tone: "rose", text: ignoreError?.message || "تعذر تجاهل التعليق" });
-                                      }
-                                    }}
-                                    className="inline-flex h-9 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300"
-                                  >
-                                    تجاهل
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          }) : <EmptyBlock text="لا توجد تعليقات في هذا المنشور" />}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <EmptyBlock text="لا توجد تعليقات لعرضها" />
-              )}
-            </main>
-          </section>
-        ) : null}
 
         <section dir="ltr" className={`${inboxSection === "social_comments" ? "hidden" : ""} grid min-h-0 flex-1 gap-3 overflow-hidden ${fullscreenConversation ? "xl:grid-cols-1" : "xl:grid-cols-[minmax(0,18%)_minmax(0,62%)_minmax(0,20%)]"}`}>
           {!fullscreenConversation && profileOpen ? (
