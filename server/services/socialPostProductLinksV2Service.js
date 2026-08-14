@@ -19,6 +19,38 @@ const stockValue = (...values) => {
 // most products. Reading those legacy columns is what made linked products show
 // "— PRICE" here and quote "السعر: 0.00" to customers. resolveEffectiveCustomerPrice is
 // the same authority POS and the AI grounding gate use.
+// Part of the catalogue prices only its variants, so a product-only lookup returns 0 for
+// them. The pricing contract says a variant beats the product at every tier; this picks
+// the cheapest priced variant, which is what a shopper is quoted as "starting from".
+const fetchCheapestPricedVariants = async ({ tenantId = null, productIds = [] } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safeProductIds = Array.from(new Set((Array.isArray(productIds) ? productIds : [])
+    .map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
+  if (!safeTenantId || !safeProductIds.length) return new Map();
+  const result = await db.query(
+    `
+    SELECT DISTINCT ON (v.product_id) v.*
+    FROM product_variants v
+    WHERE v.tenant_id = $1::bigint
+      AND v.product_id = ANY($2::bigint[])
+      AND COALESCE(
+        NULLIF(v.purchase_selling_price, 0), NULLIF(v.selling_price, 0),
+        NULLIF(v.price, 0), NULLIF(v.regular_price, 0)
+      ) IS NOT NULL
+    ORDER BY v.product_id ASC,
+      COALESCE(NULLIF(v.purchase_selling_price, 0), NULLIF(v.selling_price, 0),
+               NULLIF(v.price, 0), NULLIF(v.regular_price, 0)) ASC
+    `,
+    [safeTenantId, safeProductIds]
+  ).catch(() => ({ rows: [] }));
+  return new Map((Array.isArray(result.rows) ? result.rows : []).map((row) => [Number(row.product_id), row]));
+};
+
+// The catalogue's live price lives in purchase_selling_price / sale_price (+ the global
+// sale-mode gate), NOT in the legacy price / selling_price columns, which are 0.00 for
+// most products. Reading those legacy columns is what made linked products show
+// "— PRICE" here and quote "السعر: 0.00" to customers. resolveEffectiveCustomerPrice is
+// the same authority POS and the AI grounding gate use.
 const resolveRowPricing = async ({ tenantId = null, rows = [] } = {}) => {
   const pricingById = new Map();
   if (!Array.isArray(rows) || !rows.length) return pricingById;
@@ -28,8 +60,21 @@ const resolveRowPricing = async ({ tenantId = null, rows = [] } = {}) => {
       import("../utils/customerDisplayPrice.js"),
     ]);
     const saleModeSettings = await loadTenantSaleModeSettings({ tenantId }).catch(() => ({ sale_mode_enabled: false }));
+    const variantsByProductId = await fetchCheapestPricedVariants({
+      tenantId,
+      productIds: rows.map((row) => Number(row.id)),
+    });
     for (const row of rows) {
-      const resolved = resolveEffectiveCustomerPrice({ product: row, variant: null, saleModeSettings });
+      const productOnly = resolveEffectiveCustomerPrice({ product: row, variant: null, saleModeSettings });
+      // Only reach for a variant when the product itself carries no price, so a normally
+      // priced product keeps quoting its own price rather than its cheapest variant.
+      const resolved = productOnly.has_price
+        ? productOnly
+        : resolveEffectiveCustomerPrice({
+            product: row,
+            variant: variantsByProductId.get(Number(row.id)) || null,
+            saleModeSettings,
+          });
       pricingById.set(Number(row.id), resolved);
     }
   } catch {
