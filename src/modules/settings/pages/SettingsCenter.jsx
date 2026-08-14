@@ -104,12 +104,6 @@ const copy = {
     shippingRules: "View Shipping Rules",
     testAi: "Test AI",
     openInbox: "Open AI Inbox",
-    socialAutomation: "Social comment automation",
-    socialAutomationWarning: "Automation may be restricted by Meta policies. Test it before enabling fully.",
-    socialAutomationSave: "Save social automation settings",
-    socialAutomationSaved: "Social automation settings saved",
-    socialAutomationLoadFailed: "Unable to load social automation settings",
-    socialAutomationSaveFailed: "Unable to save social automation settings",
     modified: "Modified",
     searchResult: "Jump to",
     collectionHint: "Type a collection slug and press Enter.",
@@ -151,12 +145,6 @@ const copy = {
     shippingRules: "عرض قواعد الشحن",
     testAi: "اختبار الذكاء الاصطناعي",
     openInbox: "فتح صندوق الذكاء الاصطناعي",
-    socialAutomation: "إعدادات أتمتة تعليقات السوشيال",
-    socialAutomationWarning: "الأتمتة قد تكون مقيدة بسياسات Meta. يفضل اختبارها قبل التفعيل الكامل.",
-    socialAutomationSave: "حفظ إعدادات الأتمتة",
-    socialAutomationSaved: "تم حفظ إعدادات أتمتة السوشيال",
-    socialAutomationLoadFailed: "تعذر تحميل إعدادات الأتمتة",
-    socialAutomationSaveFailed: "تعذر حفظ إعدادات الأتمتة",
     modified: "معدل",
     searchResult: "انتقال إلى",
     collectionHint: "اكتب معرف المجموعة ثم اضغط Enter.",
@@ -309,36 +297,7 @@ const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? nu
 
 const isHttpOrHttpsUrl = (value = "") => /^https?:\/\/\S+/i.test(String(value || "").trim());
 
-const defaultSocialAutomationSettings = {
-  auto_like_enabled: false,
-  auto_public_reply_enabled: false,
-  auto_private_message_enabled: false,
-  min_confidence: 0.9,
-  public_reply_template: "تم الرد عليك في الخاص يا صديقي ❤️\nوعندنا شحن لكل المحافظات 📦🚚\n━━━━━━━━━━━━━━━━━━\n❤️ العنوان: دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب",
-  public_reply_rotation_enabled: true,
-  public_reply_openers: [
-    "إزيك يا صديقي {{customer_name}} 👋",
-    "أهلاً وسهلاً يا {{customer_name}} ❤️",
-    "نورتنا يا صديقي {{customer_name}} ✨",
-    "منورنا يا {{customer_name}} 🙏",
-    "أهلاً بحضرتك يا {{customer_name}} 🌟",
-  ],
-  private_message_template: "",
-};
 
-const normalizeSocialAutomationSettings = (value = {}) => ({
-  ...defaultSocialAutomationSettings,
-  auto_like_enabled: Boolean(value.auto_like_enabled),
-  auto_public_reply_enabled: Boolean(value.auto_public_reply_enabled),
-  auto_private_message_enabled: Boolean(value.auto_private_message_enabled),
-  min_confidence: Math.min(1, Math.max(0, Number(value.min_confidence ?? defaultSocialAutomationSettings.min_confidence) || defaultSocialAutomationSettings.min_confidence)),
-  public_reply_template: String(value.public_reply_template ?? defaultSocialAutomationSettings.public_reply_template),
-  public_reply_rotation_enabled: value.public_reply_rotation_enabled !== false,
-  public_reply_openers: (Array.isArray(value.public_reply_openers) ? value.public_reply_openers : defaultSocialAutomationSettings.public_reply_openers)
-    .map((item) => String(item || "").trim())
-    .filter(Boolean),
-  private_message_template: String(value.private_message_template ?? ""),
-});
 
 const safeParseJson = (value, fallback) => {
   if (value && typeof value === "object") return value;
@@ -479,12 +438,6 @@ function SettingsCenterContent({ debugMode = false }) {
   const [lastSaved, setLastSaved] = useState(null);
   const [collectionDraft, setCollectionDraft] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [socialAutomationSettings, setSocialAutomationSettings] = useState(defaultSocialAutomationSettings);
-  const [originalSocialAutomationSettings, setOriginalSocialAutomationSettings] = useState(defaultSocialAutomationSettings);
-  const [socialAutomationLoading, setSocialAutomationLoading] = useState(false);
-  const [socialAutomationSaving, setSocialAutomationSaving] = useState(false);
-  const [socialAutomationError, setSocialAutomationError] = useState("");
-  const [socialAutomationToast, setSocialAutomationToast] = useState("");
   const [siteSettings, setSiteSettings] = useState({
     company_name: "",
     company_logo_url: "",
@@ -519,10 +472,6 @@ function SettingsCenterContent({ debugMode = false }) {
     })
     .map((setting) => setting.key), [definitions, originalValues, values]);
   const isDirty = dirtyKeys.length > 0;
-  const socialAutomationDirty = useMemo(
-    () => !sameValue(normalizeSocialAutomationSettings(socialAutomationSettings), normalizeSocialAutomationSettings(originalSocialAutomationSettings)),
-    [originalSocialAutomationSettings, socialAutomationSettings]
-  );
   const normalizedSiteSettings = useMemo(() => ({
     company_name: String(siteSettings.company_name || "").trim(),
     company_logo_url: String(siteSettings.company_logo_url || "").trim(),
@@ -537,7 +486,7 @@ function SettingsCenterContent({ debugMode = false }) {
     () => !sameValue(normalizedSiteSettings, normalizedOriginalSiteSettings),
     [normalizedOriginalSiteSettings, normalizedSiteSettings]
   );
-  const dirtyCount = dirtyKeys.length + (socialAutomationDirty ? 1 : 0) + (siteSettingsDirty ? 1 : 0);
+  const dirtyCount = dirtyKeys.length + (siteSettingsDirty ? 1 : 0);
   const siteBrandName = normalizedSiteSettings.company_name || "MONE";
 
   const applyPayload = useCallback((payload, category = activeCategory, extraValues = {}) => {
@@ -636,26 +585,6 @@ function SettingsCenterContent({ debugMode = false }) {
     void loadSiteSettings();
   }, [loadSiteSettings]);
 
-  const loadSocialAutomationSettings = useCallback(async () => {
-    if (activeCategory !== "ai_channels") return;
-    setSocialAutomationLoading(true);
-    setSocialAutomationError("");
-    try {
-      const payload = await api.getSocialAutomationSettings({ perfComponent: "SettingsCenterV2.loadSocialAutomation" });
-      const next = normalizeSocialAutomationSettings(payload.settings || {});
-      setSocialAutomationSettings(next);
-      setOriginalSocialAutomationSettings(next);
-    } catch (loadError) {
-      const message = loadError?.responseBody?.message || loadError?.message || ui.socialAutomationLoadFailed;
-      setSocialAutomationError(message === "Request Failed" ? ui.socialAutomationLoadFailed : message);
-    } finally {
-      setSocialAutomationLoading(false);
-    }
-  }, [activeCategory, ui.socialAutomationLoadFailed]);
-
-  useEffect(() => {
-    void loadSocialAutomationSettings();
-  }, [loadSocialAutomationSettings]);
 
   useEffect(() => {
     if (!shouldShowPreviewPanel) setPreviewOpen(false);
@@ -663,18 +592,18 @@ function SettingsCenterContent({ debugMode = false }) {
 
   useEffect(() => {
     const handler = (event) => {
-      if (!isDirty && !socialAutomationDirty && !siteSettingsDirty) return;
+      if (!isDirty && !siteSettingsDirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty, siteSettingsDirty, socialAutomationDirty]);
+  }, [isDirty, siteSettingsDirty]);
 
   const switchCategory = (category) => {
     const next = normalizeSettingsCategory(category);
     if (!next) return;
-    if (isDirty || socialAutomationDirty || siteSettingsDirty) {
+    if (isDirty || siteSettingsDirty) {
       toast.error(`${dirtyCount} ${ui.unsaved}`);
       return;
     }
@@ -690,11 +619,6 @@ function SettingsCenterContent({ debugMode = false }) {
   };
 
   const updateValue = (key, value) => setValues((current) => ({ ...current, [key]: value }));
-  const updateSocialAutomationValue = (key, value) => {
-    setSocialAutomationSettings((current) => ({ ...current, [key]: value }));
-    setSocialAutomationError("");
-    setSocialAutomationToast("");
-  };
   const resetBarcodePrintDefaults = () => {
     const nextDefaults = {
       ...barcodePrintSettingsToValues(BARCODE_PRINT_DEFAULTS),
@@ -814,34 +738,6 @@ function SettingsCenterContent({ debugMode = false }) {
     }
   };
 
-  const saveSocialAutomationSettings = async () => {
-    if (activeCategory !== "ai_channels" || !socialAutomationDirty) return;
-    setSocialAutomationSaving(true);
-    setSocialAutomationError("");
-    setSocialAutomationToast("");
-    try {
-      const payload = await api.updateSocialAutomationSettings({
-        auto_like_enabled: Boolean(socialAutomationSettings.auto_like_enabled),
-        auto_public_reply_enabled: Boolean(socialAutomationSettings.auto_public_reply_enabled),
-        auto_private_message_enabled: Boolean(socialAutomationSettings.auto_private_message_enabled),
-        min_confidence: Number(socialAutomationSettings.min_confidence),
-        public_reply_template: String(socialAutomationSettings.public_reply_template || ""),
-        public_reply_rotation_enabled: Boolean(socialAutomationSettings.public_reply_rotation_enabled),
-        public_reply_openers: Array.isArray(socialAutomationSettings.public_reply_openers)
-          ? socialAutomationSettings.public_reply_openers
-          : [],
-        private_message_template: String(socialAutomationSettings.private_message_template || ""),
-      }, { perfComponent: "SettingsCenterV2.saveSocialAutomation" });
-      const next = normalizeSocialAutomationSettings(payload.settings || {});
-      setSocialAutomationSettings(next);
-      setOriginalSocialAutomationSettings(next);
-      setSocialAutomationToast(ui.socialAutomationSaved);
-    } catch (saveError) {
-      setSocialAutomationError(saveError?.responseBody?.message || saveError?.message || ui.socialAutomationSaveFailed);
-    } finally {
-      setSocialAutomationSaving(false);
-    }
-  };
 
   const activeCategoryMeta = settingsCategories.find((category) => category.key === activeCategory) || settingsCategories[0];
   const ActiveIcon = iconMap[activeCategory] || Settings2;
@@ -1039,7 +935,7 @@ function SettingsCenterContent({ debugMode = false }) {
                   {ui.title}
                 </span>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{ui.lastSaved} {lastSaved ? timeAgo(lastSaved) : ui.neverSaved}</span>
-                {isDirty || socialAutomationDirty || siteSettingsDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
+                {isDirty || siteSettingsDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
               </div>
               <h1 className={`m1-page-title mt-3 max-w-full break-words ${headingText}`}>{ui.subtitle}</h1>
               <p className={`mt-1 text-sm font-medium ${bodyText}`}>{ui.description}</p>
@@ -1189,124 +1085,6 @@ function SettingsCenterContent({ debugMode = false }) {
                     <div className="mt-4 grid gap-4 2xl:grid-cols-2">{section.settings.map((item) => renderField(item))}</div>
                   </section>
                 ))}
-                {activeCategory === "ai_channels" ? (
-                  <section id="social-automation-settings" className={`rounded-[1.75rem] p-5 ${shellCard}`}>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h2 className={`m1-section-title ${headingText}`}>{ui.socialAutomation}</h2>
-                        <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{t("settings.social.appliesToInbox")}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={saveSocialAutomationSettings}
-                        disabled={socialAutomationLoading || socialAutomationSaving || !socialAutomationDirty}
-                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
-                      >
-                        {socialAutomationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        {ui.socialAutomationSave}
-                      </button>
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
-                      {ui.socialAutomationWarning}
-                    </div>
-                    {socialAutomationError ? (
-                      <div className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{socialAutomationError}</div>
-                    ) : null}
-                    {socialAutomationToast ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm font-bold text-emerald-100">{socialAutomationToast}</div>
-                    ) : null}
-                    <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => updateSocialAutomationValue("auto_like_enabled", !socialAutomationSettings.auto_like_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_like_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
-                      >
-                        <span className="text-sm font-black text-white">{t("settings.social.enableAutoLike")}</span>
-                        <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_like_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
-                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_like_enabled ? "translate-x-5" : ""}`} />
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateSocialAutomationValue("auto_public_reply_enabled", !socialAutomationSettings.auto_public_reply_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_public_reply_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
-                      >
-                        <span className="text-sm font-black text-white">{t("settings.social.enableAutoPublicReply")}</span>
-                        <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_public_reply_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
-                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_public_reply_enabled ? "translate-x-5" : ""}`} />
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateSocialAutomationValue("auto_private_message_enabled", !socialAutomationSettings.auto_private_message_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.auto_private_message_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
-                      >
-                        <span className="text-sm font-black text-white">{t("settings.social.enableAutoDm")}</span>
-                        <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_private_message_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
-                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_private_message_enabled ? "translate-x-5" : ""}`} />
-                        </span>
-                      </button>
-                      <label className="block">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.minConfidence")}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={socialAutomationSettings.min_confidence}
-                          onChange={(event) => updateSocialAutomationValue("min_confidence", event.target.value)}
-                          className={inputClass}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => updateSocialAutomationValue("public_reply_rotation_enabled", !socialAutomationSettings.public_reply_rotation_enabled)}
-                        className={`flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left transition ${socialAutomationSettings.public_reply_rotation_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
-                      >
-                        <span>
-                          <span className="block text-sm font-black text-white">{t("settings.social.rotateOpeners")}</span>
-                          <span className={`mt-1 block text-xs ${bodyText}`}>{t("settings.social.rotateOpenersHint")}</span>
-                        </span>
-                        <span className={`h-6 w-11 shrink-0 rounded-full p-1 transition ${socialAutomationSettings.public_reply_rotation_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
-                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.public_reply_rotation_enabled ? "translate-x-5" : ""}`} />
-                        </span>
-                      </button>
-                      <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.openersLabel")}</span>
-                        <textarea
-                          rows={6}
-                          value={(socialAutomationSettings.public_reply_openers || []).join("\n")}
-                          onChange={(event) => updateSocialAutomationValue(
-                            "public_reply_openers",
-                            event.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
-                          )}
-                          className={inputClass}
-                          placeholder={t("settings.social.openerPlaceholder")}
-                        />
-                        <span className={`mt-2 block text-xs ${bodyText}`}>{t("settings.social.use")} <bdi>{"{{customer_name}}"}</bdi> {t("settings.social.useHint")}</span>
-                      </label>
-                      <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.fixedReplyText")}</span>
-                        <textarea
-                          rows={4}
-                          value={socialAutomationSettings.public_reply_template}
-                          onChange={(event) => updateSocialAutomationValue("public_reply_template", event.target.value)}
-                          className={inputClass}
-                        />
-                      </label>
-                      <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>{t("settings.social.dmTemplate")}</span>
-                        <textarea
-                          rows={4}
-                          value={socialAutomationSettings.private_message_template}
-                          onChange={(event) => updateSocialAutomationValue("private_message_template", event.target.value)}
-                          className={inputClass}
-                          placeholder={t("settings.social.optional")}
-                        />
-                      </label>
-                    </div>
-                  </section>
-                ) : null}
               </div>
             ) : (
               <div className={`rounded-[1.75rem] p-10 text-center text-sm font-black ${shellCard} ${bodyText}`}>{ui.empty}</div>
