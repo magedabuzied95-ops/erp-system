@@ -14,6 +14,7 @@ const DEFAULT_AUTOMATION = {
   public_reply_rotation_enabled: true,
   public_reply_openers: [],
   private_message_template: "",
+  greeting_private_message_template: "",
 };
 
 const normalizeAutomation = (value = {}) => ({
@@ -27,6 +28,7 @@ const normalizeAutomation = (value = {}) => ({
     .map((item) => String(item || "").trim())
     .filter(Boolean),
   private_message_template: String(value.private_message_template ?? ""),
+  greeting_private_message_template: String(value.greeting_private_message_template ?? ""),
 });
 
 function Section({ title, hint, action, children, light }) {
@@ -225,6 +227,20 @@ function SocialAutomationSection({ light }) {
               placeholder={t("settings.social.optional")}
               className={`${inputClass} resize-none`}
             />
+          </label>
+
+          <label className="block sm:col-span-2">
+            <span className="mb-2 block text-xs font-black">{t("aiSupport.commentsSettings.greetingTemplate")}</span>
+            <textarea
+              rows={4}
+              value={settings.greeting_private_message_template}
+              onChange={(event) => patch("greeting_private_message_template", event.target.value)}
+              placeholder={t("aiSupport.commentsSettings.greetingPlaceholder")}
+              className={`${inputClass} resize-none`}
+            />
+            <span className={`mt-2 block text-[11px] leading-5 ${light ? "text-[#756c5b]" : "text-slate-400"}`}>
+              {t("aiSupport.commentsSettings.greetingHint")}
+            </span>
           </label>
         </div>
       )}

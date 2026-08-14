@@ -24,6 +24,9 @@ export const DEFAULT_SOCIAL_AUTOMATION_SETTINGS = {
   public_reply_rotation_enabled: true,
   public_reply_openers: DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS,
   private_message_template: null,
+  // Sent when the commented-on post has no product linked. Null means "use the built-in
+  // greeting" so an untouched tenant still gets one.
+  greeting_private_message_template: null,
 };
 
 const LEGACY_PUBLIC_REPLY_TEMPLATES = new Set([
@@ -160,6 +163,11 @@ const rowToSettings = (row = {}) => ({
     DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template,
     true
   ),
+  greeting_private_message_template: normalizeTemplate(
+    row.greeting_private_message_template,
+    DEFAULT_SOCIAL_AUTOMATION_SETTINGS.greeting_private_message_template,
+    true
+  ),
   created_at: row.created_at || null,
   updated_at: row.updated_at || null,
   persisted: true,
@@ -174,6 +182,7 @@ const normalizePatch = (patch = {}) => ({
   ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_rotation_enabled") ? { public_reply_rotation_enabled: booleanFrom(patch.public_reply_rotation_enabled, true) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_openers") ? { public_reply_openers: normalizePublicReplyOpeners(patch.public_reply_openers, DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "private_message_template") ? { private_message_template: normalizeTemplate(patch.private_message_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template, true) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "greeting_private_message_template") ? { greeting_private_message_template: normalizeTemplate(patch.greeting_private_message_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.greeting_private_message_template, true) } : {}),
 });
 
 const mergeSettings = (current = {}, patch = {}) => rowToSettings({
@@ -226,6 +235,7 @@ https://share.google/1e0cM7JVmxyLTpWVe',
           ADD COLUMN IF NOT EXISTS public_reply_rotation_enabled BOOLEAN NOT NULL DEFAULT TRUE,
           ADD COLUMN IF NOT EXISTS public_reply_openers JSONB NOT NULL DEFAULT '[]'::jsonb,
           ADD COLUMN IF NOT EXISTS private_message_template TEXT NULL,
+          ADD COLUMN IF NOT EXISTS greeting_private_message_template TEXT NULL,
           ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       `);
@@ -268,10 +278,11 @@ export async function getSocialAutomationSettings(tenantId) {
           public_reply_rotation_enabled,
           public_reply_openers,
           private_message_template,
+          greeting_private_message_template,
           created_at,
           updated_at
         )
-        VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (tenant_id) DO UPDATE SET
           updated_at = social_automation_settings.updated_at
         RETURNING *
@@ -286,6 +297,7 @@ export async function getSocialAutomationSettings(tenantId) {
           DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_rotation_enabled,
           JSON.stringify(DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_openers),
           DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template,
+          DEFAULT_SOCIAL_AUTOMATION_SETTINGS.greeting_private_message_template,
         ]
       );
       const settings = rowToSettings(inserted.rows[0] || {});
@@ -328,10 +340,11 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         public_reply_rotation_enabled,
         public_reply_openers,
         private_message_template,
+        greeting_private_message_template,
         created_at,
         updated_at
       )
-      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, COALESCE($10::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, COALESCE($11::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
       ON CONFLICT (tenant_id) DO UPDATE SET
         auto_like_enabled = EXCLUDED.auto_like_enabled,
         auto_public_reply_enabled = EXCLUDED.auto_public_reply_enabled,
@@ -341,6 +354,7 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         public_reply_rotation_enabled = EXCLUDED.public_reply_rotation_enabled,
         public_reply_openers = EXCLUDED.public_reply_openers,
         private_message_template = EXCLUDED.private_message_template,
+        greeting_private_message_template = EXCLUDED.greeting_private_message_template,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
       `,
@@ -354,6 +368,7 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         next.public_reply_rotation_enabled,
         JSON.stringify(next.public_reply_openers),
         next.private_message_template,
+        next.greeting_private_message_template,
         current.created_at || null,
       ]
     );

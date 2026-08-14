@@ -17,7 +17,7 @@ test("an unlinked post no longer aborts the automation run", () => {
 test("greeting mode replaces the product-aware DM", () => {
   assert.match(
     SOURCE,
-    /const effectiveRenderedPrivateReply = greetingOnly\s*\?\s*text\(renderAutomationTemplate\(resolveGreetingPrivateReplyTemplate\(\), templateContext\)\)/,
+    /const effectiveRenderedPrivateReply = greetingOnly\s*\?\s*text\(renderAutomationTemplate\(resolveGreetingPrivateReplyTemplate\(publicReplyRotationSettings\), templateContext\)\)/,
     "the DM must come from the greeting template when there is no linked product"
   );
 });
@@ -35,6 +35,30 @@ test("the greeting promises nothing it cannot ground", () => {
 
 test("the greeting stays overridable per deployment", () => {
   assert.match(SOURCE, /process\.env\.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY/);
+});
+
+test("the tenant's own greeting wins over the env override and the default", () => {
+  const match = SOURCE.match(/const resolveGreetingPrivateReplyTemplate = \(settings = \{\}\) =>([\s\S]*?);\r?\n/);
+  assert.ok(match, "the resolver must accept the tenant settings");
+  const body = match[1];
+  const tenantAt = body.indexOf("settings?.greeting_private_message_template");
+  const envAt = body.indexOf("process.env.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY");
+  const defaultAt = body.indexOf("SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT");
+  assert.ok(tenantAt >= 0 && envAt > tenantAt && defaultAt > envAt, "precedence must be tenant → env → default");
+  // The runtime must pass the loaded tenant settings in, or the field would never apply.
+  assert.match(SOURCE, /resolveGreetingPrivateReplyTemplate\(publicReplyRotationSettings\)/);
+});
+
+test("the greeting field is persisted like the other templates", () => {
+  const settingsService = fs.readFileSync("server/services/socialAutomationSettingsService.js", "utf8");
+  for (const anchor of [
+    /greeting_private_message_template: null/,                                   // default
+    /ADD COLUMN IF NOT EXISTS greeting_private_message_template TEXT NULL/,      // migration
+    /greeting_private_message_template = EXCLUDED\.greeting_private_message_template/, // upsert
+    /hasOwnProperty\.call\(patch, "greeting_private_message_template"\)/,        // accepted from the API
+  ]) {
+    assert.match(settingsService, anchor);
+  }
 });
 
 test("liking still degrades correctly on instagram", () => {

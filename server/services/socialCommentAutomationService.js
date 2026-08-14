@@ -1335,8 +1335,12 @@ const SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT = [
   "قوللي على اللي محتاجه وأنا أرشحلك المناسب وأبعتلك كل التفاصيل.",
 ].join("\n");
 
-const resolveGreetingPrivateReplyTemplate = () =>
-  text(process.env.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY || "") || SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT;
+// Precedence: what the operator typed in Social Comments settings, then the deployment
+// override, then the built-in text — so an empty field falls back instead of sending nothing.
+const resolveGreetingPrivateReplyTemplate = (settings = {}) =>
+  text(settings?.greeting_private_message_template || "") ||
+  text(process.env.SOCIAL_COMMENT_GREETING_PRIVATE_REPLY || "") ||
+  SOCIAL_COMMENT_GREETING_PRIVATE_REPLY_DEFAULT;
 
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
 const socialCommentsDebugEnabled = () =>
@@ -3234,7 +3238,7 @@ const executeSocialCommentAutomationRuntime = async ({
   // With no linked product the product-aware private reply would render with empty
   // product/price/link placeholders, so greeting mode substitutes its own message.
   const effectiveRenderedPrivateReply = greetingOnly
-    ? text(renderAutomationTemplate(resolveGreetingPrivateReplyTemplate(), templateContext))
+    ? text(renderAutomationTemplate(resolveGreetingPrivateReplyTemplate(publicReplyRotationSettings), templateContext))
     : text(salesReplies.private_reply || renderedPrivateReply);
   aiPhaseTimings.reply_render_completed_at = new Date().toISOString();
   const aiSalesRuntime = {
