@@ -5,8 +5,6 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 
-const clean = (value = "") => String(value ?? "").trim();
-
 const DEFAULT_AUTOMATION = {
   auto_like_enabled: false,
   auto_public_reply_enabled: false,
@@ -31,33 +29,6 @@ const normalizeAutomation = (value = {}) => ({
   private_message_template: String(value.private_message_template ?? ""),
 });
 
-const MODE_OPTIONS = [
-  { value: "off", labelKey: "aiSupport.inbox.ui.offLabel" },
-  { value: "draft", labelKey: "aiSupport.inbox.ui.draftOnly" },
-  { value: "manual_approval", labelKey: "aiSupport.inbox.ui.manualApproval" },
-  { value: "full_auto", labelKey: "aiSupport.inbox.ui.fullAuto" },
-];
-
-function TogglePill({ label, active, onClick, light }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex h-9 items-center rounded-xl px-3 text-[11px] font-black transition ${
-        active
-          ? light
-            ? "bg-[#b98508] text-white"
-            : "bg-amber-400 text-slate-950"
-          : light
-            ? "border border-[#ddd1b6] bg-white text-[#756c5b]"
-            : "border border-white/10 bg-white/[0.04] text-slate-300"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
 function Section({ title, hint, action, children, light }) {
   return (
     <section className={`rounded-2xl border p-4 ${light ? "border-[#ddd3be] bg-[#fffdf9]" : "border-white/10 bg-white/[0.035]"}`}>
@@ -70,22 +41,6 @@ function Section({ title, hint, action, children, light }) {
       </div>
       {children}
     </section>
-  );
-}
-
-function ModeSelect({ value, onChange, light, t }) {
-  return (
-    <select
-      value={value || "manual_approval"}
-      onChange={(event) => onChange(event.target.value)}
-      className={`mt-3 h-10 w-full rounded-xl border px-3 text-sm font-black outline-none transition ${
-        light ? "border-[#ddd1b6] bg-white text-[#28251f] focus:border-[#b98508]" : "border-white/10 bg-black/20 text-white"
-      }`}
-    >
-      {MODE_OPTIONS.map((option) => (
-        <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
-      ))}
-    </select>
   );
 }
 
@@ -278,155 +233,18 @@ function SocialAutomationSection({ light }) {
 }
 
 export function CommentsSettingsPanel({
-  globalSettings = {},
-  onGlobalSettingsChange,
-  onSaveGlobalSettings,
   selectedPost = null,
-  selectedTemplate = { template: null, loading: false, error: "" },
-  onTemplateChange,
-  onSaveTemplate,
   onOpenAutomation,
   onOpenProductLinks,
   postToolsEnabled = false,
   light = false,
 }) {
   const { t } = useTranslation();
-  const [savingGlobal, setSavingGlobal] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-
-  const template = selectedTemplate?.template || null;
   const hasPost = Boolean(selectedPost);
-  const postTitle = clean(selectedPost?.caption || selectedPost?.post_caption || selectedPost?.title || "");
-
-  const patchGlobal = (patch) => onGlobalSettingsChange?.((current) => ({ ...current, ...patch }));
-  const patchTemplate = (patch) =>
-    onTemplateChange?.((current) => ({ ...current, template: { ...(current?.template || {}), ...patch } }));
-
-  const saveGlobal = async () => {
-    // Full auto replies without review — keep the confirmation that used to live in the workspace.
-    if (clean(globalSettings.mode) === "full_auto" && !window.confirm(t("aiSupport.inbox.socialWorkspace.confirmGlobalFullAuto"))) return;
-    setSavingGlobal(true);
-    try {
-      await onSaveGlobalSettings?.();
-    } catch (error) {
-      toast.error(error?.message || t("aiSupport.commentsSettings.saveError"));
-    } finally {
-      setSavingGlobal(false);
-    }
-  };
-
-  const saveTemplate = async () => {
-    if (clean(template?.mode) === "full_auto" && !window.confirm(t("aiSupport.inbox.socialWorkspace.confirmPostFullAuto"))) return;
-    setSavingTemplate(true);
-    try {
-      await onSaveTemplate?.();
-    } catch (error) {
-      toast.error(error?.message || t("aiSupport.commentsSettings.saveError"));
-    } finally {
-      setSavingTemplate(false);
-    }
-  };
-
-  const stateLabel = (on) => (on ? t("aiSupport.commentsSettings.on") : t("aiSupport.commentsSettings.off"));
 
   return (
     <div className="space-y-3">
-      <Section
-        light={light}
-        title={t("aiSupport.commentsSettings.globalTitle")}
-        hint={t("aiSupport.commentsSettings.globalHint")}
-        action={<SaveButton onClick={() => void saveGlobal()} saving={savingGlobal} label={t("aiSupport.commentsSettings.save")} light={light} />}
-      >
-        <div className="mt-3 flex flex-wrap gap-2">
-          <TogglePill
-            light={light}
-            label={globalSettings.generic_enabled ? t("aiSupport.commentsSettings.enabled") : t("aiSupport.commentsSettings.disabled")}
-            active={Boolean(globalSettings.generic_enabled)}
-            onClick={() => patchGlobal({ generic_enabled: !globalSettings.generic_enabled })}
-          />
-          <TogglePill
-            light={light}
-            label={`${t("aiSupport.commentsSettings.like")} ${stateLabel(globalSettings.generic_like_enabled !== false)}`}
-            active={globalSettings.generic_like_enabled !== false}
-            onClick={() => patchGlobal({ generic_like_enabled: !(globalSettings.generic_like_enabled !== false) })}
-          />
-          <TogglePill
-            light={light}
-            label={`${t("aiSupport.commentsSettings.reply")} ${stateLabel(globalSettings.generic_reply_enabled !== false)}`}
-            active={globalSettings.generic_reply_enabled !== false}
-            onClick={() => patchGlobal({ generic_reply_enabled: !(globalSettings.generic_reply_enabled !== false) })}
-          />
-        </div>
-
-        <ModeSelect light={light} t={t} value={globalSettings.mode} onChange={(mode) => patchGlobal({ mode })} />
-
-        <textarea
-          value={globalSettings.generic_template || ""}
-          onChange={(event) => patchGlobal({ generic_template: event.target.value })}
-          rows={4}
-          placeholder={t("aiSupport.commentsSettings.templatePlaceholder")}
-          className={`mt-3 w-full resize-none rounded-xl border p-3 text-sm leading-6 outline-none transition ${
-            light ? "border-[#ddd1b6] bg-white text-[#28251f] focus:border-[#b98508]" : "border-white/10 bg-black/20 text-white"
-          }`}
-        />
-        {clean(globalSettings.mode) === "full_auto" ? (
-          <div className={`mt-2 rounded-xl border px-3 py-2 text-[11px] font-bold leading-5 ${light ? "border-[#e8c98a] bg-[#fff8e7] text-[#8a6100]" : "border-amber-300/20 bg-amber-400/10 text-amber-100"}`}>
-            {t("aiSupport.commentsSettings.fullAutoWarning")}
-          </div>
-        ) : null}
-      </Section>
-
       <SocialAutomationSection light={light} />
-
-      <Section
-        light={light}
-        title={t("aiSupport.commentsSettings.postTitle")}
-        hint={hasPost ? postTitle || t("aiSupport.commentsSettings.postHint") : t("aiSupport.commentsSettings.noPost")}
-        action={hasPost ? <SaveButton onClick={() => void saveTemplate()} saving={savingTemplate} label={t("aiSupport.commentsSettings.save")} light={light} /> : null}
-      >
-        {!hasPost ? null : selectedTemplate?.loading ? (
-          <div className="grid h-24 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-amber-400" /></div>
-        ) : (
-          <>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <TogglePill
-                light={light}
-                label={template?.enabled ? t("aiSupport.commentsSettings.enabled") : t("aiSupport.commentsSettings.disabled")}
-                active={Boolean(template?.enabled)}
-                onClick={() => patchTemplate({ enabled: !template?.enabled })}
-              />
-              <TogglePill
-                light={light}
-                label={`${t("aiSupport.commentsSettings.like")} ${stateLabel(template?.like_enabled !== false)}`}
-                active={template?.like_enabled !== false}
-                onClick={() => patchTemplate({ like_enabled: !(template?.like_enabled !== false) })}
-              />
-              <TogglePill
-                light={light}
-                label={`${t("aiSupport.commentsSettings.reply")} ${stateLabel(template?.reply_enabled !== false)}`}
-                active={template?.reply_enabled !== false}
-                onClick={() => patchTemplate({ reply_enabled: !(template?.reply_enabled !== false) })}
-              />
-            </div>
-
-            <ModeSelect light={light} t={t} value={template?.mode} onChange={(mode) => patchTemplate({ mode })} />
-
-            <textarea
-              value={template?.template || ""}
-              onChange={(event) => patchTemplate({ template: event.target.value })}
-              rows={5}
-              placeholder={t("aiSupport.commentsSettings.postTemplatePlaceholder")}
-              className={`mt-3 w-full resize-none rounded-xl border p-3 text-sm leading-6 outline-none transition ${
-                light ? "border-[#ddd1b6] bg-white text-[#28251f] focus:border-[#b98508]" : "border-white/10 bg-black/20 text-white"
-              }`}
-            />
-            {selectedTemplate?.error ? (
-              <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-[11px] font-bold text-rose-300">{selectedTemplate.error}</div>
-            ) : null}
-          </>
-        )}
-      </Section>
-
       {postToolsEnabled ? (
         <Section light={light} title={t("aiSupport.commentsSettings.toolsTitle")} hint={hasPost ? "" : t("aiSupport.commentsSettings.noPost")}>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">

@@ -8571,13 +8571,7 @@ export default function AiInbox({ reviewerMode = false }) {
     <CommentsSettingsModal
       open={commentsSettingsOpen}
       onClose={() => setCommentsSettingsOpen(false)}
-      globalSettings={socialReplySettings}
-      onGlobalSettingsChange={setSocialReplySettings}
-      onSaveGlobalSettings={saveSocialReplySettings}
       selectedPost={selectedSocialComment}
-      selectedTemplate={selectedSocialTemplate}
-      onTemplateChange={setSelectedSocialTemplate}
-      onSaveTemplate={saveSocialPostTemplate}
       onOpenAutomation={() => requestSocialDrawer("automation")}
       onOpenProductLinks={() => requestSocialDrawer("product_links")}
       postToolsEnabled={isSocialMode}
