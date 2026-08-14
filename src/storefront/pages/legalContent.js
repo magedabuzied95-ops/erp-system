@@ -24,13 +24,15 @@
 // enough to remain true if further platform permissions are granted later, without
 // asserting any capability that is not implemented today.
 
-// Support contact, unchanged from the previous implementation.
-// NOTE: this domain (m1store-eg.com) differs from the site domain
-// (m1store-egy.com) and from the address used by the storefront footer and by
-// outbound transactional email (support@m1store-egy.com). That discrepancy predates
-// this change and is deliberately NOT "fixed" here — it needs the owner's decision,
-// not a guess. See docs/tiktok-app-review-pack.md.
-export const SUPPORT_EMAIL = "support@m1store-eg.com";
+// Support contact for the legal pages.
+//
+// These pages previously used support@m1store-eg.com — a domain that matches
+// neither the site (m1store-egy.com) nor any other part of the system. The
+// storefront footer, the transactional email footer, and the order email service
+// default all use support@m1store-egy.com, so the legal pages were the outlier and
+// the old address is treated as a long-standing typo. Corrected on the owner's
+// decision; the fix is scoped to these pages and no global replacement was done.
+export const SUPPORT_EMAIL = "support@m1store-egy.com";
 
 export const LEGAL_PAGE_KEYS = Object.freeze(["privacy", "terms", "data-deletion"]);
 

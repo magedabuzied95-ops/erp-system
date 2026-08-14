@@ -3449,6 +3449,9 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: isRtl ? "معلومات عنا" : "About us", to: "/" },
     { label: isRtl ? "موقع العروض" : "Offers", to: "/offers" },
     { label: isRtl ? "الشروط والأحكام" : "Terms & conditions", to: "/terms" },
+    // Both legal pages must be reachable from the storefront without an account:
+    // platform reviewers follow them from the site, not only from a portal field.
+    { label: isRtl ? "سياسة الخصوصية" : "Privacy policy", to: "/privacy" },
   ];
   const categoryLinks = [
     { label: isRtl ? "سنيكرز رجالي" : "Men's sneakers", to: "/men" },
