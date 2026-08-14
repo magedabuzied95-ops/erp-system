@@ -38,17 +38,19 @@ const normalizeIdValue = (value) => {
 
 const firstImageUrl = (...values) => values.map((value) => normalizeText(value)).find(Boolean) || "";
 
-const buildPurchaseAlertImage = ({ product = {}, variants = [] } = {}) => {
+const buildPurchaseAlertImage = ({ product = {}, variants = [], preferVariant = false } = {}) => {
   const variantImage = Array.isArray(variants)
     ? variants.map((variant) => variant.variant_image_url || variant.image_url || "").find(Boolean)
     : "";
-  return firstImageUrl(
+  const productImage = firstImageUrl(
     product.image_url,
     product.image,
     product.photo_url,
-    product.thumbnail_url,
-    variantImage
+    product.thumbnail_url
   );
+  return preferVariant
+    ? firstImageUrl(variantImage, productImage)
+    : firstImageUrl(productImage, variantImage);
 };
 
 const buildPurchaseAlertCartonAction = (count) => {
@@ -184,13 +186,22 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     color,
     suggestedPurchaseCartons,
   });
+  const articleCodes = Array.from(new Set(
+    scopeVariants.map((variant) => normalizeDisplayText(variant.article_code || "")).filter(Boolean)
+  ));
+  const articleCode = articleCodes.length === 1 ? articleCodes[0] : "";
 
   return {
     product_id: product.product_id,
     product_name: product.product_name,
     color: purchaseAlertByColor ? normalizeColorLabel(color) : "",
     purchase_alert_by_color: Boolean(purchaseAlertByColor),
-    image_url: buildPurchaseAlertImage({ product, variants: scopeVariants }),
+    image_url: buildPurchaseAlertImage({
+      product,
+      variants: scopeVariants,
+      preferVariant: purchaseAlertByColor,
+    }),
+    article_code: articleCode,
     alert_type: alertType,
     alert_title: alertType === "missing_sizes" ? PURCHASE_ALERT_COPY.missing_sizes.title : PURCHASE_ALERT_COPY.carton_threshold.title,
     alert_reason: alertType === "missing_sizes" ? PURCHASE_ALERT_COPY.missing_sizes.reason : PURCHASE_ALERT_COPY.carton_threshold.reason,
@@ -292,6 +303,7 @@ export const buildPurchaseAlertsFromRows = (rows = []) => {
         size: normalizeDisplayText(row.size || ""),
         stock: normalizePositiveStock(row.stock),
         image_url: firstImageUrl(row.variant_image_url, row.image_url, row.product_image_url),
+        article_code: normalizeDisplayText(row.article_code || ""),
         manufacturer_id: row.variant_manufacturer_id ?? null,
         last_purchase_cost: Number(row.last_purchase_cost ?? row.cost_price ?? 0),
       });
@@ -394,6 +406,7 @@ const fetchPurchaseAlerts = async ({ tenantId }) => {
       v.id AS variant_id,
       v.color,
       v.size,
+      v.article_code,
       COALESCE(v.last_purchase_cost, v.cost_price, 0) AS last_purchase_cost,
       GREATEST(COALESCE(v.stock, 0), 0)::int AS stock,
       COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,

@@ -217,6 +217,7 @@
       "sizesPerColor": "Sizes per colour",
       "totalSuggestedUnits": "Total suggested quantity",
       "piecesCount": "{{count}} pieces",
+      "cartonsCount": "{{count}} cartons",
       "triggerReason": "Alert reason",
       "sizeWithValue": "Size {{size}}"
     },

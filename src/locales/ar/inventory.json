@@ -217,6 +217,7 @@
       "sizesPerColor": "المقاسات لكل لون",
       "totalSuggestedUnits": "إجمالي الكمية المقترحة",
       "piecesCount": "{{count}} قطعة",
+      "cartonsCount": "{{count}} كرتونة",
       "triggerReason": "سبب التنبيه",
       "sizeWithValue": "مقاس {{size}}"
     },

@@ -39,6 +39,7 @@ test("FULL_COLOR_RUN exposes one compact purchase composition and no size-level 
     colorCount: 1,
     sizeRange: "41–45",
     totalUnits: 10,
+    cartonCount: 1,
     reasonKey: "fullColorRunSummary",
   });
 });
@@ -59,6 +60,7 @@ test("FULL_CARTON exposes one model-level summary and no color/size trigger spam
     colorCount: 3,
     sizeRange: "41–45",
     totalUnits: 15,
+    cartonCount: 1,
     reasonKey: "fullCartonSummary",
   });
 });
@@ -102,7 +104,19 @@ test("Inventory cards gate the old missing-size section through purchase_mode pr
   assert.match(summarySource, /getUserFacingTriggerVariants\(alert\)/);
   assert.match(summarySource, /groupedPresentation\.sizeRange/);
   assert.match(summarySource, /sizesPerColor/);
+  assert.match(summarySource, /groupedPresentation\.cartonCount/);
   assert.match(summarySource, /fullCartonSummary|reasonKey/);
+});
+
+test("grouped presentation uses configured cartons instead of pieces", () => {
+  const presentation = getGroupedPurchaseAlertPresentation({
+    purchase_mode: "FULL_COLOR_RUN",
+    suggested_purchase_cartons: 2,
+    purchase_suggestion: makeSuggestion("FULL_COLOR_RUN", { pack_count: 2, total_units: 10 }),
+  });
+
+  assert.equal(presentation.cartonCount, 2);
+  assert.equal(presentation.totalUnits, 10);
 });
 
 test("presentation cleanup does not mutate purchase_suggestion.lines or draft composition", () => {

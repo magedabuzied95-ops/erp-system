@@ -214,6 +214,32 @@ test("multi-group alert suggestion exactly matches its generated purchase draft"
   assert.deepEqual(lineSignature(buildPurchaseAlertDraftItems(alert)), lineSignature(alert.purchase_suggestion.lines));
 });
 
+test("color purchase alert uses that color image and exposes its shared article code", () => {
+  const product = {
+    id: 56,
+    name: "Color image product",
+    product_image_url: "/uploads/products/cover.jpg",
+    purchase_mode: "FULL_COLOR_RUN",
+    purchase_size_group: "MEN",
+    purchase_pieces_per_size: 1,
+    suggested_purchase_cartons: 2,
+    purchase_alerts_enabled: true,
+    purchase_alert_by_color: true,
+  };
+  const variants = withTriggerStock(variantsFor(56, ["White & Beige"], SIZE_GROUPS.MEN.sizes), "White & Beige", "43", 0)
+    .map((variant) => ({
+      ...variant,
+      variant_image_url: "/uploads/products/white-beige.jpg",
+      article_code: "ART-W6",
+    }));
+
+  const [alert] = buildPurchaseAlertsFromRows(alertRows(product, variants));
+  assert.equal(alert.color, "White & Beige");
+  assert.equal(alert.image_url, "/uploads/products/white-beige.jpg");
+  assert.equal(alert.article_code, "ART-W6");
+  assert.equal(alert.purchase_suggestion.pack_count, 2);
+});
+
 test("each canonical group composes a complete five-line color run", () => {
   for (const [key, group] of Object.entries(SIZE_GROUPS)) {
     const productId = Object.keys(SIZE_GROUPS).indexOf(key) + 20;

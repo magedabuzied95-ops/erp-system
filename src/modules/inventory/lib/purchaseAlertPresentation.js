@@ -35,6 +35,7 @@ export const getGroupedPurchaseAlertPresentation = (alert = {}) => {
     colorCount: colors.length,
     sizeRange: formatPurchaseSizeRange(sizes),
     totalUnits: Number(suggestion.total_units || 0),
+    cartonCount: Math.max(1, Number(suggestion.pack_count || alert.suggested_purchase_cartons || 1)),
     reasonKey: mode === "FULL_CARTON" ? "fullCartonSummary" : "fullColorRunSummary",
   };
 };

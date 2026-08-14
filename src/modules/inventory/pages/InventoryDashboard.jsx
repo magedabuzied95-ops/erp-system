@@ -613,7 +613,7 @@ function InventoryDashboard() {
                     return (
                       <div
                         key={String(alert.scope_key)}
-                        className={`relative rounded-[var(--radius-card)] border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-border bg-surface-soft" }`}
+                        className={`relative rounded-[var(--radius-card)] border p-3 shadow-[0_12px_30px_rgba(0,0,0,0.14)] transition ${ selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-border bg-surface-soft" }`}
                       >
                         <button
                           type="button"
@@ -632,9 +632,9 @@ function InventoryDashboard() {
                           />
                         </button>
                         <div className="flex gap-3">
-                          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface">
                             {imageUrl ? (
-                              <img src={imageUrl} alt={alert.product_name} className="h-full w-full object-contain p-2" />
+                              <img src={imageUrl} alt={[alert.product_name, cardColor].filter(Boolean).join(" - ")} className="h-full w-full object-contain p-1.5" />
                             ) : (
                               <Package className="h-8 w-8 text-text-muted" />
                             )}
@@ -644,6 +644,11 @@ function InventoryDashboard() {
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-base font-black text-text">{alert.product_name}</div>
                                 {cardColor ? <div className="mt-1 text-sm font-semibold text-amber-100">{cardColor}</div> : null}
+                                {alert.article_code ? (
+                                  <div className="mt-0.5 text-xs font-bold text-text-muted">
+                                    {t("inventory.articleCode")}: <InlineLtrValue>{alert.article_code}</InlineLtrValue>
+                                  </div>
+                                ) : null}
                               </div>
                               <span className="rounded-full border border-amber-300/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-100">
                                 {userFacingAlertTitle}
@@ -653,12 +658,14 @@ function InventoryDashboard() {
                           </div>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                          <MetaPill label={t("inventory.purchaseAlerts.cards.totalStock")} value={String(alert.total_stock ?? 0)} />
-                          <MetaPill label={t("inventory.purchaseAlerts.cards.cartonSize")} value={alert.carton_size ? String(alert.carton_size) : "—"} />
-                          <MetaPill label={t("inventory.purchaseAlerts.cards.suggestedCartons")} value={alert.suggested_action || `اطلب ${alert.suggested_purchase_cartons || 1} كرتونة`} />
-                          <MetaPill label={t("inventory.purchaseAlerts.cards.alertType")} value={userFacingAlertTitle} />
-                        </div>
+                        {!groupedPresentation ? (
+                          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                            <MetaPill label={t("inventory.purchaseAlerts.cards.totalStock")} value={String(alert.total_stock ?? 0)} />
+                            <MetaPill label={t("inventory.purchaseAlerts.cards.cartonSize")} value={alert.carton_size ? String(alert.carton_size) : "—"} />
+                            <MetaPill label={t("inventory.purchaseAlerts.cards.suggestedCartons")} value={alert.suggested_action || `اطلب ${alert.suggested_purchase_cartons || 1} كرتونة`} />
+                            <MetaPill label={t("inventory.purchaseAlerts.cards.alertType")} value={userFacingAlertTitle} />
+                          </div>
+                        ) : null}
 
                         {alert.purchase_pattern_alert_aware ? <PurchaseAlertPatternSummary alert={alert} /> : null}
 
@@ -677,7 +684,7 @@ function InventoryDashboard() {
                           </div>
                         ) : null}
 
-                        <div className="mt-4 flex justify-end">
+                        <div className="mt-2 flex justify-end">
                           <Link
                             to={`/purchases/reorder-suggestions?product_id=${encodeURIComponent(String(alert.product_id || ""))}`}
                             className="inline-flex items-center justify-center rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/15"

@@ -24,10 +24,17 @@ export default function PurchaseAlertPatternSummary({ alert = {} }) {
       data-testid="purchase-alert-pattern-summary"
       data-purchase-unit={suggestion.unit || ""}
       data-total-units={suggestion.total_units ?? 0}
-      className={`mt-3 rounded-[var(--radius-control)] border px-3 py-3 text-xs ${valid ? "border-border-strong bg-success-subtle text-text" : "border-danger bg-danger-subtle text-text"}`}
+      className={`mt-2 rounded-[var(--radius-control)] border px-3 py-2.5 text-xs ${valid ? "border-border bg-surface text-text" : "border-danger bg-danger-subtle text-text"}`}
     >
-      <div className="font-black">{t("inventory.purchaseAlerts.cards.purchaseSuggestion")}</div>
-      <dl className="mt-2 grid gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-black">{t("inventory.purchaseAlerts.cards.purchaseSuggestion")}</div>
+        {groupedPresentation ? (
+          <span className="rounded-full border border-amber-300/25 bg-amber-500/10 px-2 py-1 font-black text-amber-500">
+            {t("inventory.purchaseAlerts.cards.cartonsCount", { count: groupedPresentation.cartonCount })}
+          </span>
+        ) : null}
+      </div>
+      <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
         <div className="flex flex-wrap justify-between gap-2">
           <dt className="text-text-muted">{t("inventory.purchaseAlerts.cards.purchaseMode")}</dt>
           <dd className="font-black">{suggestion.mode_label_ar || t("inventory.purchaseAlerts.cards.currentPurchaseMode")}</dd>
@@ -63,15 +70,17 @@ export default function PurchaseAlertPatternSummary({ alert = {} }) {
             <dd className="font-black">{joined(suggestion.sizes)}</dd>
           </div>
         ) : null}
-        <div className="flex flex-wrap justify-between gap-2">
-          <dt className="text-text-muted">{t("inventory.purchaseAlerts.cards.totalSuggestedUnits")}</dt>
-          <dd className="font-black">{t("inventory.purchaseAlerts.cards.piecesCount", { count: suggestion.total_units || 0 })}</dd>
-        </div>
+        {!groupedPresentation ? (
+          <div className="flex flex-wrap justify-between gap-2">
+            <dt className="text-text-muted">{t("inventory.purchaseAlerts.cards.totalSuggestedUnits")}</dt>
+            <dd className="font-black">{t("inventory.purchaseAlerts.cards.piecesCount", { count: suggestion.total_units || 0 })}</dd>
+          </div>
+        ) : null}
       </dl>
       {groupedPresentation ? (
-        <div className="mt-3 border-t border-border pt-2">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
           <div className="font-black text-text-muted">{t("inventory.purchaseAlerts.cards.triggerReason")}</div>
-          <div className="mt-1 font-bold text-text">
+          <div className="font-bold text-text">
             {t(`inventory.purchaseAlerts.reasons.${groupedPresentation.reasonKey}`)}
           </div>
         </div>
