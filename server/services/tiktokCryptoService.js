@@ -1,24 +1,43 @@
 // TikTok secret-at-rest encryption.
 //
-// Deliberately independent of metaIntegrationService.js: that file is 25k lines,
-// currently dirty in the worktree, and mixing a TikTok rollout with a Meta
-// refactor would widen the regression surface for no benefit. This module keeps
-// the same security properties (AES-256-GCM, random 96-bit IV, authenticated
-// tag, key derived from the same SECRET_ENCRYPTION_KEY) and is small enough that
-// a later shared-crypto refactor is a rename, not a rewrite.
+// KEY ISOLATION — the important property of this module
+// -----------------------------------------------------
+// TikTok tokens are encrypted with TIKTOK_ENCRYPTION_KEY and nothing else.
+// There is deliberately NO fallback to SECRET_ENCRYPTION_KEY or JWT_SECRET.
 //
-// Two deliberate differences from the Meta implementation, both tightening:
+// Why it matters: four services in this codebase derive their at-rest key from
+// `SECRET_ENCRYPTION_KEY || JWT_SECRET` — metaIntegrationService (Facebook Page
+// and Instagram tokens), metaConversionsApiService, settingsService, and
+// formerly this module. Production currently has SECRET_ENCRYPTION_KEY unset,
+// so every existing Meta ciphertext is bound to JWT_SECRET. Sharing that
+// precedence chain meant TikTok could not be given its own key without either
+// (a) riding on JWT_SECRET, or (b) introducing SECRET_ENCRYPTION_KEY, which
+// would have re-keyed Meta and silently broken live Facebook/Instagram tokens.
+// A dedicated variable removes that coupling entirely: Meta's key selection is
+// untouched, and rotating TIKTOK_ENCRYPTION_KEY can never affect Meta.
+//
+// FAIL CLOSED
+// -----------
+// A missing or unusable TIKTOK_ENCRYPTION_KEY is a hard configuration error, not
+// a reason to reach for another secret. Falling back would encrypt production
+// tokens under an unintended key — recoverable only by re-authorising every
+// account, and undetectable until the fallback secret is rotated.
+//
+// Two further deliberate differences from the Meta implementation, both tightening:
 //   1. No plaintext passthrough. Meta returns the raw value when the envelope
 //      prefix is absent (a legacy-data affordance). TikTok storage is new, so an
 //      unenveloped value is corruption, not legacy — it throws.
 //   2. No hardcoded key fallback. Meta falls back to the literal "SECRET_KEY"
 //      when no env key is set, which would encrypt production tokens under a
-//      public constant. Here a missing key is a startup-visible error.
+//      public constant.
 
 import crypto from "node:crypto";
 
 const ENVELOPE_PREFIX = "tk:v1";
 const IV_BYTES = 12;
+// Short keys are rejected outright: a two-character key would be accepted by the
+// SHA-256 derivation and produce a valid-looking but worthless envelope.
+const MIN_KEY_LENGTH = 16;
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -30,16 +49,34 @@ export class TikTokCryptoError extends Error {
   }
 }
 
-const rawKeyMaterial = () => text(process.env.SECRET_ENCRYPTION_KEY || process.env.JWT_SECRET || "");
+// The ONLY source of TikTok key material. Do not add fallbacks here — see the
+// header. `tests/tiktok/tiktok-encryption.test.js` fails the build if one appears.
+export const TIKTOK_ENCRYPTION_KEY_ENV = "TIKTOK_ENCRYPTION_KEY";
 
-export const tiktokEncryptionKeyConfigured = () => rawKeyMaterial().length > 0;
+const rawKeyMaterial = () => text(process.env[TIKTOK_ENCRYPTION_KEY_ENV]);
+
+export const tiktokEncryptionKeyConfigured = () => rawKeyMaterial().length >= MIN_KEY_LENGTH;
+
+// Presence-only description for config reporting. Never returns the key itself.
+export const describeTikTokEncryptionKey = () => {
+  const material = rawKeyMaterial();
+  if (!material) return { configured: false, reason: "missing" };
+  if (material.length < MIN_KEY_LENGTH) return { configured: false, reason: "too_short" };
+  return { configured: true, reason: "" };
+};
 
 const encryptionKey = () => {
   const material = rawKeyMaterial();
   if (!material) {
     throw new TikTokCryptoError(
-      "SECRET_ENCRYPTION_KEY (or JWT_SECRET) must be set before TikTok tokens can be stored",
+      `${TIKTOK_ENCRYPTION_KEY_ENV} must be set before TikTok tokens can be stored`,
       "TIKTOK_ENCRYPTION_KEY_MISSING"
+    );
+  }
+  if (material.length < MIN_KEY_LENGTH) {
+    throw new TikTokCryptoError(
+      `${TIKTOK_ENCRYPTION_KEY_ENV} is too short; use at least ${MIN_KEY_LENGTH} characters of high-entropy material`,
+      "TIKTOK_ENCRYPTION_KEY_WEAK"
     );
   }
   return crypto.createHash("sha256").update(material).digest();

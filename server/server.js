@@ -618,7 +618,7 @@ const { default: tiktokWebhookRoutes } = await import("./routes/tiktokWebhook.js
 const { ensureTikTokIntegrationSchema } = await import("./services/tiktokOAuthService.js");
 const { ensureTikTokPublishSchema } = await import("./services/tiktokPublisherService.js");
 const { ensureTikTokWebhookSchema, startTikTokWebhookWorker } = await import("./services/tiktokWebhookService.js");
-const { tiktokEnabled: isTikTokEnabled, tiktokIntakePollIntervalMs } = await import("./services/tiktokConfigService.js");
+const { tiktokEnabled: isTikTokEnabled, tiktokIntakePollIntervalMs, validateTikTokConfig } = await import("./services/tiktokConfigService.js");
 const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecoveryService.js");
@@ -2376,8 +2376,19 @@ const bootstrapStartup = async () => {
     await ensureTikTokPublishSchema(db);
     await ensureTikTokWebhookSchema(db);
     if (isTikTokEnabled()) {
-      startTikTokWebhookWorker(tiktokIntakePollIntervalMs());
-      console.log("[server] TikTok integration ready");
+      // Fail closed and loudly. TikTok encrypts with its own key and never
+      // borrows JWT_SECRET, so an enabled-but-misconfigured integration must
+      // refuse to start rather than come up and store tokens under a key nobody
+      // intended. The rest of the server keeps running: this is a TikTok fault,
+      // not a reason to take Meta, Telegram and the storefront down with it.
+      const tiktokConfig = validateTikTokConfig();
+      if (!tiktokConfig.valid) {
+        console.error("[server] TIKTOK_CONFIG_INVALID", { problems: tiktokConfig.problems });
+        console.error("[server] TikTok is enabled but misconfigured; the integration will not start.");
+      } else {
+        startTikTokWebhookWorker(tiktokIntakePollIntervalMs());
+        console.log("[server] TikTok integration ready");
+      }
     } else {
       console.log("[server] TikTok schema ensured (integration disabled)");
     }

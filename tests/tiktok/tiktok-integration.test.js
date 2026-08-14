@@ -9,7 +9,9 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
 
-process.env.SECRET_ENCRYPTION_KEY = process.env.SECRET_ENCRYPTION_KEY || "tiktok-test-encryption-key";
+// TikTok encrypts with its own dedicated key; SECRET_ENCRYPTION_KEY and
+// JWT_SECRET are deliberately not consulted (see tiktok-encryption.test.js).
+process.env.TIKTOK_ENCRYPTION_KEY = process.env.TIKTOK_ENCRYPTION_KEY || "tiktok-test-encryption-key-0123456789";
 process.env.TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY || "test-client-key";
 process.env.TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET || "test-client-secret";
 process.env.TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || "https://api.m1store-egy.com/api/tiktok/oauth/callback";

@@ -5,7 +5,7 @@
 // secret to a caller outside the OAuth/webhook services; `describeTikTokConfig`
 // is the only shape that may reach an API response and it is presence-only.
 
-import { tiktokEncryptionKeyConfigured } from "./tiktokCryptoService.js";
+import { TIKTOK_ENCRYPTION_KEY_ENV, describeTikTokEncryptionKey } from "./tiktokCryptoService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const flag = (value, fallback = false) => {
@@ -92,7 +92,17 @@ export const validateTikTokConfig = () => {
   }
 
   if (!tiktokRequestedScopes().length) problems.push("TIKTOK_SCOPES resolved to an empty scope list");
-  if (!tiktokEncryptionKeyConfigured()) problems.push("SECRET_ENCRYPTION_KEY (or JWT_SECRET) is required to store TikTok tokens");
+  // Fail closed: TikTok has its own key and never borrows another secret, so a
+  // missing or weak key is a hard configuration error rather than a silent
+  // downgrade onto JWT_SECRET.
+  const encryptionKeyState = describeTikTokEncryptionKey();
+  if (!encryptionKeyState.configured) {
+    problems.push(
+      encryptionKeyState.reason === "too_short"
+        ? `${TIKTOK_ENCRYPTION_KEY_ENV} is set but too short to be usable key material`
+        : `${TIKTOK_ENCRYPTION_KEY_ENV} is required to store TikTok tokens (no fallback to SECRET_ENCRYPTION_KEY or JWT_SECRET)`
+    );
+  }
 
   return { valid: problems.length === 0, problems };
 };
@@ -114,6 +124,7 @@ export const describeTikTokConfig = () => {
     configured: valid,
     problems,
     client_key_present: Boolean(tiktokClientKey()),
+    encryption_key_present: describeTikTokEncryptionKey().configured,
     client_secret_present: Boolean(tiktokClientSecret()),
     redirect_uri: tiktokRedirectUri(),
     requested_scopes: tiktokRequestedScopes(),
