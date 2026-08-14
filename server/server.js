@@ -612,6 +612,12 @@ const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
 const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
 const { default: telegramWebhookRoutes } = await import("./routes/telegramWebhook.js");
 const { ensureTelegramIntakeSchema, startTelegramIntakeWorker } = await import("./services/telegramIntakeService.js");
+const { default: tiktokRoutes } = await import("./routes/tiktok.js");
+const { default: tiktokWebhookRoutes } = await import("./routes/tiktokWebhook.js");
+const { ensureTikTokIntegrationSchema } = await import("./services/tiktokOAuthService.js");
+const { ensureTikTokPublishSchema } = await import("./services/tiktokPublisherService.js");
+const { ensureTikTokWebhookSchema, startTikTokWebhookWorker } = await import("./services/tiktokWebhookService.js");
+const { tiktokEnabled: isTikTokEnabled, tiktokIntakePollIntervalMs } = await import("./services/tiktokConfigService.js");
 const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecoveryService.js");
@@ -1902,6 +1908,9 @@ app.use("/api/internal/ai-regression", aiRegressionHarnessRoutes);
 app.use("/api/ai-support", aiSupportRoutes);
 app.use("/api/ai-agent/channels/telegram/webhook", telegramWebhookRoutes);
 app.use("/api/webhooks/telegram", telegramWebhookRoutes);
+app.use("/api/tiktok", tiktokRoutes);
+// Registered in the TikTok Developer Portal as the Webhook Callback URL.
+app.use("/api/webhooks/tiktok", tiktokWebhookRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
 app.use("/api/ai-studio", aiWorkflowRoutes);
@@ -2355,6 +2364,17 @@ const bootstrapStartup = async () => {
     await ensureTelegramIntakeSchema(db);
     startTelegramIntakeWorker();
     console.log("[server] Telegram durable intake ready");
+    // Schema is ensured unconditionally so a later TIKTOK_ENABLED=true does not
+    // need a restart-order dance; the worker only runs when TikTok is on.
+    await ensureTikTokIntegrationSchema(db);
+    await ensureTikTokPublishSchema(db);
+    await ensureTikTokWebhookSchema(db);
+    if (isTikTokEnabled()) {
+      startTikTokWebhookWorker(tiktokIntakePollIntervalMs());
+      console.log("[server] TikTok integration ready");
+    } else {
+      console.log("[server] TikTok schema ensured (integration disabled)");
+    }
     await ensureAiSalesAgentSchema(db);
     console.log("[server] AI sales agent schema ensured");
     await ensureSocialCommentsCenterSchema();

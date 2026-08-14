@@ -52,6 +52,8 @@ server/services/*
 !server/services/aiInboundIntakeService.js
 !server/services/aiInboxGroundingGate.js
 !server/services/footwearSizeResolver.js
+!server/services/aiSupportKnowledgeBaseService.js
+!server/services/tiktok*.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -81,3 +83,5 @@ server/services/*
 !server/services/aiInboundIntakeService.js
 !server/services/aiInboxGroundingGate.js
 !server/services/footwearSizeResolver.js
+!server/services/aiSupportKnowledgeBaseService.js
+!server/services/tiktok*.js

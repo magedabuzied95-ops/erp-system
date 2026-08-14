@@ -888,5 +888,41 @@
       "expires": "Expires: {{value}}",
       "missing": "missing"
     }
+  },
+  "tiktok": {
+    "title": "تيك توك",
+    "subtitle": "قناة نشر — اربط حساب تيك توك لنشر الفيديوهات من ناشر السوشيال.",
+    "notConfigured": "لم يتم ضبط تيك توك على الخادم بعد. اضبط متغيرات البيئة الخاصة بتيك توك قبل الربط.",
+    "commentsPending": "إدارة تعليقات تيك توك تتطلب صلاحية منفصلة من TikTok API for Business لم نحصل عليها بعد. لا توجد أي ميزة تعليقات مفعّلة.",
+    "lastSync": "آخر مزامنة",
+    "tokenExpires": "انتهاء صلاحية الوصول",
+    "connectedToast": "تم ربط حساب تيك توك",
+    "deniedToast": "تم رفض تفويض تيك توك",
+    "errorToast": "فشل الاتصال بتيك توك",
+    "connectFailed": "تعذّر بدء تفويض تيك توك",
+    "refreshed": "تم تجديد رمز تيك توك",
+    "refreshFailed": "تعذّر تجديد رمز تيك توك",
+    "disconnectConfirm": "فصل حساب تيك توك؟ ستتوقف منشورات تيك توك المجدولة عن العمل.",
+    "disconnected": "تم فصل حساب تيك توك",
+    "disconnectFailed": "تعذّر فصل تيك توك",
+    "state": {
+      "loading": "جارٍ التحميل",
+      "notConnected": "غير متصل",
+      "connecting": "جارٍ الاتصال",
+      "connected": "متصل",
+      "refreshing": "جارٍ التجديد",
+      "reconnectRequired": "يلزم إعادة الربط",
+      "error": "خطأ"
+    },
+    "capability": {
+      "directPost": "نشر مباشر",
+      "draft": "رفع إلى المسودات"
+    },
+    "actions": {
+      "connect": "ربط تيك توك",
+      "reconnect": "إعادة ربط تيك توك",
+      "disconnect": "فصل",
+      "refresh": "تجديد الرمز"
+    }
   }
 }

@@ -26,6 +26,7 @@ import {
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
+import TikTokConnectionCard from "../components/TikTokConnectionCard";
 import { useTenant } from "../../saas/context/TenantContext";
 
 const CHANNELS = [
@@ -684,6 +685,10 @@ export default function AiChannels() {
             </div>
           </div>
         </section>
+
+        {/* Publishing channel, not a conversation channel — rendered outside the
+            grid below so it is not read as another inbox source. */}
+        <TikTokConnectionCard />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {channelCards.map((channel) => {
