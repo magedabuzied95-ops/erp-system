@@ -15,9 +15,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
-import {
-  defaultTikTokOptions,
-  deriveTikTokOptionAvailability,
+import {  deriveTikTokOptionAvailability,
   reconcileTikTokOptions,
   tiktokAccountReadiness,
   tiktokComplianceStatementKey,
