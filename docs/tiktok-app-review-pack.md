@@ -244,9 +244,10 @@ Two things worth fixing before submission:
    English. Provide an English version or a bilingual page, otherwise the reviewer cannot
    assess it.
 
-Also note the support address on the page is `support@m1store-eg.com` while the site is
-`m1store-egy.com` — different domains. Confirm that is intentional; a reviewer testing the
-contact route on a mismatched domain is an avoidable risk.
+~~The support address on the page is `support@m1store-eg.com` while the site is
+`m1store-egy.com`.~~ **Resolved:** the legal pages were the only place using the `-eg` domain;
+the storefront footer, the transactional email footer, and the order email service default all
+use `support@m1store-egy.com`. The legal pages now use that address too.
 
 No page was created or modified in this round.
 
@@ -502,7 +503,8 @@ Paste these into the review notes.
    reviewer cannot test, and the demo cannot be recorded, until it is running in production
    with the TikTok environment variables set and the webhook URL registered.
 4. **Add TikTok to the Terms** permitted/prohibited-use sections (recommended, not blocking).
-5. **Confirm the `support@m1store-eg.com` vs `m1store-egy.com` domain mismatch** is intentional.
+5. ~~Confirm the support-address domain mismatch.~~ **Done** — the legal pages now use
+   `support@m1store-egy.com`, matching the rest of the system.
 
 ---
 

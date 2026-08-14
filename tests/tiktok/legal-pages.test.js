@@ -18,6 +18,7 @@ import {
 
 const appSource = readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
 const pagesSource = readFileSync(new URL("../../src/storefront/pages/LegalPages.jsx", import.meta.url), "utf8");
+const storefrontSource = readFileSync(new URL("../../src/storefront/Storefront.jsx", import.meta.url), "utf8");
 
 const flatten = (pageKey, language) =>
   legalSectionsFor(pageKey, language)
@@ -216,6 +217,50 @@ test("privacy covers data deletion using the project's real support address", ()
   assert.ok(privacyEn.includes(SUPPORT_EMAIL));
   assert.ok(deletionAr.includes(SUPPORT_EMAIL));
   assert.ok(deletionEn.includes(SUPPORT_EMAIL));
+});
+
+// ---------------------------------------------------------------------------
+// Support address
+// ---------------------------------------------------------------------------
+
+test("the legal pages use the same support address as the rest of the system", () => {
+  assert.equal(SUPPORT_EMAIL, "support@m1store-egy.com");
+});
+
+test("the retired m1store-eg.com address appears in no rendered legal content", () => {
+  // Scoped to what a visitor actually reads. The source comment documenting the
+  // old address is history, not content, and must not fail this check.
+  const rendered = [privacyAr, privacyEn, termsAr, termsEn, deletionAr, deletionEn].join("\n");
+  assert.ok(!/support@m1store-eg\.com/.test(rendered),
+    "the retired support address is still rendered on a legal page");
+  assert.ok(rendered.includes("support@m1store-egy.com"),
+    "the current support address must appear in the legal content");
+});
+
+test("every legal page reaches the visitor with the current address", () => {
+  for (const body of [privacyAr, privacyEn, termsAr, termsEn, deletionAr, deletionEn]) {
+    assert.ok(body.includes("support@m1store-egy.com"));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Storefront footer
+// ---------------------------------------------------------------------------
+
+test("the storefront footer links to both Terms and Privacy", () => {
+  assert.match(storefrontSource, /to: "\/terms"/, "the Terms footer link must not disappear");
+  assert.match(storefrontSource, /to: "\/privacy"/, "the footer must link to the Privacy Policy");
+});
+
+test("both footer legal links are localized in Arabic and English", () => {
+  assert.match(storefrontSource, /isRtl \? "الشروط والأحكام" : "Terms & conditions", to: "\/terms"/);
+  assert.match(storefrontSource, /isRtl \? "سياسة الخصوصية" : "Privacy policy", to: "\/privacy"/);
+});
+
+test("the footer legal links sit in the same list, so the footer layout is unchanged", () => {
+  const block = storefrontSource.split("const importantLinks = [")[1]?.split("];")[0] || "";
+  assert.ok(block.includes('to: "/terms"'), "Terms must stay in importantLinks");
+  assert.ok(block.includes('to: "/privacy"'), "Privacy must be added to the same importantLinks list");
 });
 
 test("privacy defers to TikTok's own policies", () => {
