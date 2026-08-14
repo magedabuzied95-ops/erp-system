@@ -209,8 +209,24 @@ router.post(
         tiktok_result: result.tiktok_result || null,
       });
     } catch (error) {
-      console.error("[social-publisher] publish post failed", { message: error?.message, stack: error?.stack });
-      res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to publish social publisher post" });
+      // error.status arrives already classified by the provider: 422 for a
+      // content rejection, 429 rate limit, 409 reconnect, 503/502 for a real
+      // upstream outage. It used to collapse to 502, which the browser surfaced
+      // as a bare "NetworkError" with the real reason nowhere to be seen.
+      const status = Number(error?.status) || 500;
+      console.error("[social-publisher] publish post failed", {
+        error_code: error?.code || "",
+        status,
+        message: error?.message,
+        stack: error?.stack,
+      });
+      res.status(status).json({
+        success: false,
+        // The provider's own error code, so the UI can show something
+        // actionable instead of a generic failure.
+        code: error?.code || "",
+        message: error?.message || "Failed to publish social publisher post",
+      });
     }
   }
 );

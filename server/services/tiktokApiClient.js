@@ -54,6 +54,71 @@ export const redactTikTokError = (value = "") =>
     .replace(/\b[A-Za-z0-9_-]{40,}\b/g, "[redacted]")
     .slice(0, 500);
 
+// TikTok rejecting a payload is a content problem, not a broken gateway.
+// Answering 502 for it made the browser surface "NetworkError" and hid the real
+// reason from the user, so every known code is classified explicitly.
+const RATE_LIMIT_ERROR_CODES = new Set([
+  "rate_limit_exceeded",
+  "spam_risk_too_many_posts",
+  "spam_risk_user_banned_from_posting",
+  "reached_active_user_cap",
+]);
+
+// Content, policy and validation rejections: the request itself must change,
+// so retrying it unchanged fails identically.
+const CONTENT_REJECTION_ERROR_CODES = new Set([
+  "invalid_param",
+  "unaudited_client_can_only_post_to_private_accounts",
+  "privacy_level_option_mismatch",
+  "url_ownership_unverified",
+  "file_format_check_failed",
+  "picture_size_check_failed",
+  "video_pull_failed",
+]);
+
+const UPSTREAM_OUTAGE_ERROR_CODES = new Set(["timeout", "network_error", "internal_error", "server_error"]);
+
+export const TIKTOK_ERROR_KIND = Object.freeze({
+  CONTENT_REJECTED: "content_rejected",
+  REAUTH_REQUIRED: "reauth_required",
+  RATE_LIMITED: "rate_limited",
+  UPSTREAM_UNAVAILABLE: "upstream_unavailable",
+  INTERNAL: "internal",
+});
+
+// Maps a TikTok failure onto the HTTP status the ERP should answer with.
+export const classifyTikTokError = (error) => {
+  const code = text(error?.code).toLowerCase();
+
+  if (REAUTH_ERROR_CODES.has(code)) return { kind: TIKTOK_ERROR_KIND.REAUTH_REQUIRED, status: 409, code };
+  if (RATE_LIMIT_ERROR_CODES.has(code)) return { kind: TIKTOK_ERROR_KIND.RATE_LIMITED, status: 429, code };
+  if (UPSTREAM_OUTAGE_ERROR_CODES.has(code)) return { kind: TIKTOK_ERROR_KIND.UPSTREAM_UNAVAILABLE, status: 503, code };
+  if (CONTENT_REJECTION_ERROR_CODES.has(code)) return { kind: TIKTOK_ERROR_KIND.CONTENT_REJECTED, status: 422, code };
+
+  // A transport-level HTTP failure carrying no TikTok code of its own.
+  if (/^(upload_)?http_5\d\d$/.test(code)) return { kind: TIKTOK_ERROR_KIND.UPSTREAM_UNAVAILABLE, status: 502, code };
+
+  // TikTok answered with a code we do not recognise yet. It still came from
+  // TikTok's validation layer, so 422 is closer to the truth than 502 — and
+  // unlike 502 it reaches the browser as a normal response carrying the message.
+  if (code) return { kind: TIKTOK_ERROR_KIND.CONTENT_REJECTED, status: 422, code };
+  return { kind: TIKTOK_ERROR_KIND.INTERNAL, status: 500, code: "" };
+};
+
+// Everything safe to persist and log about a failure. Never tokens, never the
+// pre-signed upload URL, never request authorization headers.
+export const describeTikTokFailure = (error) => {
+  const classification = classifyTikTokError(error);
+  return {
+    kind: classification.kind,
+    http_status: classification.status,
+    error_code: classification.code,
+    message: redactTikTokError(error),
+    log_id: text(error?.logId),
+    upstream_status: Number.isFinite(Number(error?.status)) ? Number(error.status) : null,
+  };
+};
+
 const parseBody = async (response) => {
   const body = await response.text();
   if (!body) return {};

@@ -17,6 +17,7 @@ import path from "node:path";
 import db from "../database/db.js";
 import {
   TikTokApiError,
+  describeTikTokFailure,
   fetchTikTokPublishStatus,
   initTikTokDirectPost,
   initTikTokDraftUpload,
@@ -94,6 +95,15 @@ export const ensureTikTokPublishSchema = async (client = db) => {
           UNIQUE (tenant_id, idempotency_key)
         )
       `);
+      // Additive columns. attempt preserves retry history; the fail_* columns keep
+      // the TikTok error code, log id and upstream status, which were previously
+      // collapsed into a single human message and lost for diagnosis.
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS attempt INTEGER NOT NULL DEFAULT 1`);
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS fail_code TEXT NOT NULL DEFAULT ''`);
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS fail_kind TEXT NOT NULL DEFAULT ''`);
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS fail_log_id TEXT NOT NULL DEFAULT ''`);
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS upstream_status INTEGER NULL`);
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS last_failed_at TIMESTAMP NULL`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_tiktok_publish_jobs_publish_id ON tiktok_publish_jobs (publish_id) WHERE publish_id <> ''`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_tiktok_publish_jobs_open ON tiktok_publish_jobs (tenant_id, status, created_at DESC)`);
       return true;
@@ -234,12 +244,35 @@ export const publishToTikTok = async ({
   // Claim the job first. The UNIQUE (tenant_id, idempotency_key) is what stops a
   // double-click, a retried queue job, or two app instances from creating two
   // TikTok posts — the claim happens before any TikTok call, never after.
+  //
+  // A previously FAILED attempt is reclaimable: the old `DO NOTHING` made any
+  // post that failed once permanently unpublishable, because every retry
+  // collapsed onto the dead row and was reported back as a success ("already
+  // submitted"). The reclaim is expressed as a conditional DO UPDATE so it stays
+  // a single atomic statement: two concurrent retries cannot both win, and an
+  // in-flight or terminally successful job still matches nothing and is reported
+  // as a duplicate exactly as before.
   const claim = await client.query(
     `INSERT INTO tiktok_publish_jobs (
        tenant_id, social_publisher_post_id, idempotency_key, post_mode, status,
-       media_url, privacy_level, post_options, created_by_user_id
-     ) VALUES ($1::bigint, $2::bigint, $3::text, $4::text, 'processing', $5::text, $6::text, $7::jsonb, $8::bigint)
-     ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+       media_url, privacy_level, post_options, created_by_user_id, attempt
+     ) VALUES ($1::bigint, $2::bigint, $3::text, $4::text, 'processing', $5::text, $6::text, $7::jsonb, $8::bigint, 1)
+     ON CONFLICT (tenant_id, idempotency_key) DO UPDATE
+     SET status = 'processing',
+         attempt = tiktok_publish_jobs.attempt + 1,
+         post_mode = EXCLUDED.post_mode,
+         media_url = EXCLUDED.media_url,
+         privacy_level = EXCLUDED.privacy_level,
+         post_options = EXCLUDED.post_options,
+         created_by_user_id = EXCLUDED.created_by_user_id,
+         publish_id = '',
+         fail_reason = '',
+         fail_code = '',
+         fail_kind = '',
+         fail_log_id = '',
+         upstream_status = NULL,
+         updated_at = NOW()
+     WHERE tiktok_publish_jobs.status = 'failed'
      RETURNING *`,
     [
       safeTenantId,
@@ -254,6 +287,8 @@ export const publishToTikTok = async ({
   );
 
   if (!claim.rowCount) {
+    // Either an attempt is in flight, or a previous one already succeeded.
+    // Both must stay protected; neither may start a second TikTok post.
     const existing = await client.query(
       `SELECT * FROM tiktok_publish_jobs WHERE tenant_id = $1::bigint AND idempotency_key = $2::text LIMIT 1`,
       [safeTenantId, key]
@@ -337,13 +372,41 @@ export const publishToTikTok = async ({
       status: "uploaded",
     };
   } catch (error) {
+    // Keep TikTok's own error code, log id and upstream status. Previously only
+    // the human message survived, so a rejection like
+    // "Please review our integration guidelines" reached the operator with no
+    // way to tell which of a dozen documented codes produced it.
+    const failure = describeTikTokFailure(error);
+    const operation = mode === TIKTOK_POST_MODES.INBOX_UPLOAD ? "inbox_upload_init" : "direct_post_init";
+
+    console.error("[tiktok-publish] failed", {
+      provider: "tiktok",
+      operation,
+      error_code: failure.error_code || "unknown",
+      error_kind: failure.kind,
+      upstream_status: failure.upstream_status,
+      log_id: failure.log_id || "",
+      job_id: job.id,
+      attempt: job.attempt,
+      message: failure.message,
+    });
+
     await client.query(
-      `UPDATE tiktok_publish_jobs SET status = 'failed', fail_reason = $2::text, updated_at = NOW() WHERE id = $1::bigint`,
-      [job.id, redactTikTokError(error)]
+      `UPDATE tiktok_publish_jobs
+       SET status = 'failed', fail_reason = $2::text, fail_code = $3::text, fail_kind = $4::text,
+           fail_log_id = $5::text, upstream_status = $6::int, last_failed_at = NOW(), updated_at = NOW()
+       WHERE id = $1::bigint`,
+      [job.id, failure.message, failure.error_code, failure.kind, failure.log_id, failure.upstream_status]
     ).catch(() => {});
-    throw error instanceof TikTokPublishError || error instanceof TikTokApiError
-      ? error
-      : new TikTokPublishError(redactTikTokError(error), "TIKTOK_PUBLISH_FAILED", 502);
+
+    if (error instanceof TikTokPublishError) throw error;
+    if (error instanceof TikTokApiError) {
+      // Re-tag with the classified status so the route answers 422/429/409/503
+      // instead of a blanket 502 that the browser reports as "NetworkError".
+      error.status = failure.http_status;
+      throw error;
+    }
+    throw new TikTokPublishError(failure.message, "TIKTOK_PUBLISH_FAILED", failure.http_status);
   }
 };
 
