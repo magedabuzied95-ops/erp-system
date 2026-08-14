@@ -14,11 +14,6 @@ const stockValue = (...values) => {
   return 0;
 };
 
-// The catalogue's live price lives in purchase_selling_price / sale_price (+ the global
-// sale-mode gate), NOT in the legacy price / selling_price columns, which are 0.00 for
-// most products. Reading those legacy columns is what made linked products show
-// "— PRICE" here and quote "السعر: 0.00" to customers. resolveEffectiveCustomerPrice is
-// the same authority POS and the AI grounding gate use.
 // Part of the catalogue prices only its variants, so a product-only lookup returns 0 for
 // them. The pricing contract says a variant beats the product at every tier; this picks
 // the cheapest priced variant, which is what a shopper is quoted as "starting from".
@@ -134,7 +129,21 @@ const normalizeProductRow = (row = {}, pricing = null) => {
   };
 };
 
+// Memoized: this ran three DDL statements on every call, and the posts list calls the
+// lookup once per post, so listing 25 posts issued 75 CREATE ... IF NOT EXISTS round trips
+// and took the matching locks each time.
+let schemaReadyPromise = null;
 const ensureSchema = async () => {
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = ensureSchemaOnce().catch((error) => {
+      schemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return schemaReadyPromise;
+};
+
+const ensureSchemaOnce = async () => {
   await db.query(`
     CREATE TABLE IF NOT EXISTS social_post_product_links_v2 (
       id BIGSERIAL PRIMARY KEY,
@@ -346,7 +355,74 @@ const mergeAliasRowsToPostLinkKey = async ({ tenantId = null, platform = "", aut
 export const ensureSocialPostProductLinksV2Schema = ensureSchema;
 export const resolveSocialPostLinkKey = (input = {}) => resolveSharedSocialPostLinkKey(input);
 
-export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", postLinkKey = "", selectedPostId = "", aliasPostLinkKeys = [] } = {}) => {
+// The posts list calls this once per post, and each call resolves the post identity, merges
+// alias rows (a write), reads the link rows and hydrates the products — so listing 25 posts
+// meant 25 of those. Results are cached per tenant+platform+post for a short window and any
+// write invalidates the tenant, so linking a product still shows up immediately.
+const POST_PRODUCT_LINKS_CACHE_TTL_MS = Math.max(
+  0,
+  Number(process.env.SOCIAL_POST_PRODUCT_LINKS_CACHE_TTL_MS || 30_000) || 30_000
+);
+const postProductLinksCache = new Map();
+let postProductLinksCacheHits = 0;
+let postProductLinksCacheMisses = 0;
+
+const postProductLinksCacheKey = ({ tenantId, platform, postId, postLinkKey, selectedPostId, post }) => [
+  toTenantId(tenantId) || 0,
+  text(platform).toLowerCase(),
+  text(postLinkKey || post?.post_link_key || ""),
+  text(postId || post?.post_id || ""),
+  text(selectedPostId || ""),
+].join("|");
+
+export const invalidatePostProductLinksCache = (tenantId = null) => {
+  const safeTenantId = toTenantId(tenantId) || 0;
+  if (!safeTenantId) {
+    postProductLinksCache.clear();
+    return;
+  }
+  const prefix = `${safeTenantId}|`;
+  for (const key of postProductLinksCache.keys()) {
+    if (key.startsWith(prefix)) postProductLinksCache.delete(key);
+  }
+};
+
+export const getPostProductLinksCacheStats = () => ({
+  entries: postProductLinksCache.size,
+  hits: postProductLinksCacheHits,
+  misses: postProductLinksCacheMisses,
+  ttl_ms: POST_PRODUCT_LINKS_CACHE_TTL_MS,
+});
+
+export const getPostProductLinksV2 = async (input = {}) => {
+  if (POST_PRODUCT_LINKS_CACHE_TTL_MS <= 0) return getPostProductLinksV2Uncached(input);
+  const key = postProductLinksCacheKey(input);
+  const entry = postProductLinksCache.get(key);
+  const now = Date.now();
+  // Share an in-flight lookup so one list request issues one query per post, not one per
+  // caller that happens to want the same post.
+  if (entry?.promise) {
+    postProductLinksCacheHits += 1;
+    return entry.promise;
+  }
+  if (entry && now - entry.at < POST_PRODUCT_LINKS_CACHE_TTL_MS) {
+    postProductLinksCacheHits += 1;
+    return entry.value;
+  }
+  postProductLinksCacheMisses += 1;
+  const promise = getPostProductLinksV2Uncached(input);
+  postProductLinksCache.set(key, { promise, at: now });
+  try {
+    const value = await promise;
+    postProductLinksCache.set(key, { value, at: Date.now() });
+    return value;
+  } catch (error) {
+    postProductLinksCache.delete(key);
+    throw error;
+  }
+};
+
+const getPostProductLinksV2Uncached = async ({ tenantId = null, platform = "", post = {}, postId = "", postLinkKey = "", selectedPostId = "", aliasPostLinkKeys = [] } = {}) => {
   await ensureSchema();
   const identity = resolveSocialPostLinkKey({
     tenant_id: tenantId,
@@ -426,6 +502,8 @@ export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", po
 };
 
 export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", postLinkKey = "", selectedPostId = "", aliasPostLinkKeys = [], productIds = [], primaryProductId = null } = {}) => {
+  // A stale read here would leave the gear the wrong colour after linking a product.
+  invalidatePostProductLinksCache(tenantId);
   await ensureSchema();
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform);
@@ -545,6 +623,7 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
 };
 
 export const removePostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", productId = null } = {}) => {
+  invalidatePostProductLinksCache(tenantId);
   await ensureSchema();
   const identity = resolveSocialPostLinkKey({
     tenant_id: tenantId,
