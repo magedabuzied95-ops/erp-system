@@ -935,7 +935,6 @@ const PosVariantColorPicker = ({
   onSelect,
   label,
   defaultLabel,
-  countLabel,
 }) => (
   <div>
     <div className="flex min-w-0 items-center justify-between gap-2">
@@ -953,7 +952,8 @@ const PosVariantColorPicker = ({
     <div className="mt-2 grid max-h-[17rem] grid-cols-4 gap-2 overflow-y-auto pe-0.5">
       {options.map((option) => {
         const selected = String(selectedColorKey || "") === String(option.key || "");
-        const title = option.hint ? `${option.color || defaultLabel} — ${option.hint}` : option.color || defaultLabel;
+        const codeLabel = option.hintFull || option.hint;
+        const title = codeLabel ? `${option.color || defaultLabel} — ${codeLabel}` : option.color || defaultLabel;
         return (
           <button
             key={option.key}
@@ -968,31 +968,35 @@ const PosVariantColorPicker = ({
                 : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10"
             }`}
           >
-            {/* The image sits BEHIND the caption strip: product photos are mostly
-                white, so a caption painted under the image was invisible. */}
+            {/* The image fills the tile and the caption is painted OVER it. The
+                caption used to sit under the image, whose white background hid it. */}
             {option.imageUrl ? (
               <img
                 src={option.imageUrl}
                 alt=""
                 loading="lazy"
                 decoding="async"
-                className="absolute inset-x-0 top-0 bottom-[38%] w-full object-contain p-0.5"
+                className="absolute inset-0 h-full w-full bg-white object-contain p-0.5"
                 onError={(event) => {
                   event.currentTarget.style.display = "none";
                 }}
               />
             ) : null}
-            <span className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-0.5 bg-black/75 px-1 pb-1 pt-0.5">
-              <span className="w-full truncate text-center text-[9px] font-black leading-tight text-zinc-100">
+            <span className="absolute inset-x-0 bottom-0 bg-black/80 px-1 pb-0.5 pt-0.5">
+              <span className="block w-full truncate text-center text-[9px] font-black leading-tight text-zinc-100">
                 {option.color || defaultLabel}
               </span>
-              <span
-                className={`w-full truncate text-center text-[9px] font-black leading-tight ${
-                  option.stock > 0 ? "text-emerald-300" : "text-rose-300"
-                }`}
-              >
-                {option.hint ? `${option.hint} · ` : ""}
-                {countLabel ? `${countLabel} ${option.stock}` : option.stock}
+              <span className="flex items-center justify-center gap-1 leading-tight">
+                {option.hint ? (
+                  <span className="min-w-0 truncate text-[8px] font-black text-zinc-400">{option.hint}</span>
+                ) : null}
+                <span
+                  className={`shrink-0 text-[9px] font-black ${
+                    option.stock > 0 ? "text-emerald-300" : "text-rose-300"
+                  }`}
+                >
+                  {option.stock}
+                </span>
               </span>
             </span>
             {selected ? (
@@ -7504,9 +7508,10 @@ function POSPro() {
         preferredVariant?.image_url,
         preferredVariant?.images
       );
-      // Same colour name on several groups is legitimate, so show a disambiguator
-      // (the article/colour code) on those tiles instead of leaving them identical.
-      const hint =
+      // Same colour name on several groups is legitimate, so show a disambiguator on
+      // those tiles. Only the LAST code segment is shown: the tile is ~55px wide, and
+      // the shared "CRO-CRO-IMP-7-" prefix would truncate away the telling part.
+      const hintCode =
         (nameCounts.get(String(color || "").trim()) || 0) > 1
           ? firstTextValue(
               preferredVariant?.color_article_code,
@@ -7516,10 +7521,12 @@ function POSPro() {
               preferredVariant?.sku
             )
           : "";
+      const hint = hintCode.split(/[-_\s]+/).filter(Boolean).slice(-1)[0] || hintCode;
       return {
         key,
         color,
         hint,
+        hintFull: hintCode,
         imageUrl: rawImageUrl ? getDisplayImageUrl(rawImageUrl) : "",
         stock: colorVariants.reduce((sum, variant) => sum + getVariantStockQuantity(variant), 0),
       };
@@ -8476,7 +8483,6 @@ function POSPro() {
                     onSelect={handleSelectVariantColor}
                     label={t("pos.labels.color")}
                     defaultLabel={t("pos.labels.default")}
-                    countLabel={t("pos.labels.stock")}
                   />
                 </div>
 
@@ -8623,7 +8629,6 @@ function POSPro() {
                         onSelect={handleSelectVariantColor}
                         label={t("pos.labels.color")}
                         defaultLabel={t("pos.labels.default")}
-                        countLabel={t("pos.labels.stock")}
                       />
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
