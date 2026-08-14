@@ -7,7 +7,7 @@ import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
 import { isSchoolBagType, SCHOOL_BAG_SIZE_OPTIONS } from "../lib/schoolBagSizes";
 import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
-import { getSizeGroup, SIZE_GROUP_KEYS } from "../../../../server/utils/sizeGroups.js";
+import { getSizeGroup, resolveSizeGroups, SIZE_GROUP_KEYS } from "../../../../server/utils/sizeGroups.js";
 
 const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "men", label: "رجال" },
@@ -35,7 +35,7 @@ function ProductForm({
   cartonSize = "",
   suggestedPurchaseCartons = 1,
   purchaseMode = "",
-  purchaseSizeGroup = "",
+  purchaseSizeGroups = [],
   purchaseColorsPerCarton = "",
   purchasePiecesPerSize = "",
   purchaseCartonColors = [],
@@ -54,7 +54,7 @@ function ProductForm({
   onCartonSizeChange,
   onSuggestedPurchaseCartonsChange,
   onPurchaseModeChange,
-  onPurchaseSizeGroupChange,
+  onPurchaseSizeGroupsChange,
   onPurchaseColorsPerCartonChange,
   onPurchasePiecesPerSizeChange,
   onPurchaseCartonColorsChange,
@@ -74,11 +74,11 @@ function ProductForm({
     () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, bagType, grade }, { includeInactive: false, includeCurrentValue: false }),
     [classificationGroups, selectedAudiences, gender, productType, bagType, grade]
   );
-  const purchaseGroup = getSizeGroup(purchaseSizeGroup);
+  const purchaseGroups = resolveSizeGroups(purchaseSizeGroups);
   const piecesPerSize = Number(purchasePiecesPerSize);
   const colorsPerCarton = Number(purchaseColorsPerCarton);
-  const runPieces = purchaseGroup && Number.isInteger(piecesPerSize) && piecesPerSize > 0
-    ? purchaseGroup.sizes.length * piecesPerSize
+  const runPieces = purchaseGroups.count > 0 && Number.isInteger(piecesPerSize) && piecesPerSize > 0
+    ? purchaseGroups.count * piecesPerSize
     : 0;
   const cartonPieces = runPieces > 0 && Number.isInteger(colorsPerCarton) && colorsPerCarton > 0
     ? runPieces * colorsPerCarton
@@ -392,13 +392,41 @@ function ProductForm({
                 { value: "FULL_CARTON", label: t("products.form.purchaseModeFullCarton", "كرتونة كاملة") },
               ]}
             />
-            <FormSelect
-              label={t("products.form.purchaseSizeGroup", "مجموعة المقاسات")}
-              value={purchaseSizeGroup || ""}
-              onChange={(value) => onPurchaseSizeGroupChange?.(value || null)}
-              placeholder={t("products.form.purchaseSizeGroupRequired", "اختر مجموعة المقاسات")}
-              options={SIZE_GROUP_KEYS.map((key) => ({ value: key, label: getSizeGroup(key)?.label || key }))}
-            />
+            <div>
+              <label className="text-sm font-semibold text-text-muted">
+                {t("products.form.purchaseSizeGroups", "مجموعات المقاسات")}
+              </label>
+              <div className="mt-2 grid gap-2 rounded-[var(--radius-control)] border border-border bg-surface p-3 sm:grid-cols-2">
+                {SIZE_GROUP_KEYS.map((key) => {
+                  const group = getSizeGroup(key);
+                  const selected = purchaseGroups.keys.includes(key);
+                  return (
+                    <label key={key} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${selected ? "border-amber-400/50 bg-amber-400/10 text-text" : "border-border bg-surface-soft text-text-muted"}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => onPurchaseSizeGroupsChange?.(
+                          selected
+                            ? purchaseGroups.keys.filter((item) => item !== key)
+                            : [...purchaseGroups.keys, key]
+                        )}
+                        className="h-4 w-4 rounded border-border accent-[var(--primary)]"
+                      />
+                      <span className="font-semibold">{group?.label || key}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {purchaseGroups.count > 0 ? (
+                <div className="mt-2 rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-text">
+                  <span>{t("products.form.combinedSizes", "المقاسات المجمعة")}: {purchaseGroups.sizes.join(" / ")}</span>
+                  <span className="mx-2 text-text-muted">·</span>
+                  <span>{purchaseGroups.range}</span>
+                  <span className="mx-2 text-text-muted">·</span>
+                  <span>{purchaseGroups.count} {t("products.form.sizes", "مقاس")}</span>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {purchaseMode === "FULL_COLOR_RUN" || purchaseMode === "FULL_CARTON" ? (
@@ -428,12 +456,12 @@ function ProductForm({
               ) : null}
               {purchaseMode === "FULL_COLOR_RUN" && runPieces > 0 ? (
                 <div className="md:col-span-2 rounded-[var(--radius-control)] border border-border-strong bg-info-subtle px-4 py-3 text-sm font-black text-text">
-                  {purchaseGroup.sizes.join(" / ")} × {piecesPerSize} = {runPieces} {t("products.form.pieces", "قطعة")}
+                  {purchaseGroups.sizes.join(" / ")} × {piecesPerSize} = {runPieces} {t("products.form.pieces", "قطعة")}
                 </div>
               ) : null}
               {purchaseMode === "FULL_CARTON" && cartonPieces > 0 ? (
                 <div className="md:col-span-2 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-100">
-                  {colorsPerCarton} × {purchaseGroup.sizes.length} × {piecesPerSize} = {cartonPieces} {t("products.form.pieces", "قطعة")}
+                  {colorsPerCarton} × {purchaseGroups.count} × {piecesPerSize} = {cartonPieces} {t("products.form.pieces", "قطعة")}
                 </div>
               ) : null}
             </div>

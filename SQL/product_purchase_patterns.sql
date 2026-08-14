@@ -3,6 +3,7 @@
 ALTER TABLE products
   ADD COLUMN IF NOT EXISTS purchase_mode VARCHAR(30) NULL,
   ADD COLUMN IF NOT EXISTS purchase_size_group VARCHAR(30) NULL,
+  ADD COLUMN IF NOT EXISTS purchase_size_groups JSONB NULL,
   ADD COLUMN IF NOT EXISTS purchase_colors_per_carton INTEGER NULL,
   ADD COLUMN IF NOT EXISTS purchase_pieces_per_size INTEGER NULL,
   ADD COLUMN IF NOT EXISTS purchase_carton_colors JSONB NULL;
@@ -28,6 +29,20 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.products'::regclass AND conname = 'products_purchase_size_groups_chk'
+  ) THEN
+    ALTER TABLE public.products ADD CONSTRAINT products_purchase_size_groups_chk
+      CHECK (
+        purchase_size_groups IS NULL
+        OR (
+          jsonb_typeof(purchase_size_groups) = 'array'
+          AND jsonb_array_length(purchase_size_groups) > 0
+          AND purchase_size_groups <@ '["WOMEN", "MEN", "KIDS_CLOG", "BABY", "BOYS"]'::jsonb
+        )
+      ) NOT VALID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
     WHERE conrelid = 'public.products'::regclass AND conname = 'products_purchase_positive_counts_chk'
   ) THEN
     ALTER TABLE public.products ADD CONSTRAINT products_purchase_positive_counts_chk
@@ -46,12 +61,12 @@ BEGIN
         OR purchase_mode = 'INDIVIDUAL'
         OR (
           purchase_mode = 'FULL_COLOR_RUN'
-          AND purchase_size_group IS NOT NULL
+          AND CASE WHEN jsonb_typeof(purchase_size_groups) = 'array' THEN jsonb_array_length(purchase_size_groups) ELSE CASE WHEN purchase_size_group IS NULL THEN 0 ELSE 1 END END > 0
           AND purchase_pieces_per_size IS NOT NULL
         )
         OR (
           purchase_mode = 'FULL_CARTON'
-          AND purchase_size_group IS NOT NULL
+          AND CASE WHEN jsonb_typeof(purchase_size_groups) = 'array' THEN jsonb_array_length(purchase_size_groups) ELSE CASE WHEN purchase_size_group IS NULL THEN 0 ELSE 1 END END > 0
           AND purchase_pieces_per_size IS NOT NULL
           AND purchase_colors_per_carton IS NOT NULL
           AND purchase_carton_colors IS NOT NULL
@@ -65,5 +80,6 @@ END $$;
 
 ALTER TABLE public.products VALIDATE CONSTRAINT products_purchase_mode_chk;
 ALTER TABLE public.products VALIDATE CONSTRAINT products_purchase_size_group_chk;
+ALTER TABLE public.products VALIDATE CONSTRAINT products_purchase_size_groups_chk;
 ALTER TABLE public.products VALIDATE CONSTRAINT products_purchase_positive_counts_chk;
 ALTER TABLE public.products VALIDATE CONSTRAINT products_purchase_pattern_shape_chk;

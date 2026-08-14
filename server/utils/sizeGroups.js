@@ -23,6 +23,48 @@ export const normalizeSizeGroupKey = (value = "") => {
   return SIZE_GROUPS[key] ? key : null;
 };
 
+export const parseSizeGroupKeys = (value) => {
+  if (Array.isArray(value)) return value.flat(Infinity).map((item) => String(item ?? "").trim()).filter(Boolean);
+  if (value === null || value === undefined || value === "") return [];
+  if (typeof value === "string") {
+    const raw = value.trim();
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parseSizeGroupKeys(parsed);
+    } catch {
+      // Legacy values are stored as a single key, not JSON.
+    }
+    return [raw];
+  }
+  return [String(value).trim()].filter(Boolean);
+};
+
+export const normalizeSizeGroupKeys = (value) => {
+  const selected = new Set(parseSizeGroupKeys(value).map(normalizeSizeGroupKey).filter(Boolean));
+  return SIZE_GROUP_KEYS.filter((key) => selected.has(key));
+};
+
+export const resolveSizeGroups = (value) => {
+  const rawKeys = parseSizeGroupKeys(value);
+  const keys = normalizeSizeGroupKeys(rawKeys);
+  const invalid_keys = rawKeys.filter((key) => !normalizeSizeGroupKey(key));
+  const sizes = Array.from(new Set(keys.flatMap((key) => SIZE_GROUPS[key].sizes)))
+    .sort((left, right) => (numericSize(left) ?? Number.MAX_SAFE_INTEGER) - (numericSize(right) ?? Number.MAX_SAFE_INTEGER));
+  const min = sizes[0] || null;
+  const max = sizes[sizes.length - 1] || null;
+  return {
+    keys,
+    groups: keys.map((key) => SIZE_GROUPS[key]),
+    sizes,
+    min,
+    max,
+    range: min && max ? (min === max ? min : `${min}–${max}`) : "",
+    count: sizes.length,
+    invalid_keys,
+  };
+};
+
 export const numericSize = (value) => {
   const match = String(value ?? "").replace(",", ".").match(/\d+(?:\.\d+)?/);
   return match ? Number(match[0]) : null;

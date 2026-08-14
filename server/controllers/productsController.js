@@ -36,7 +36,7 @@ import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.
 import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterValues } from "../lib/productFilterValues.js";
 import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSearch.js";
 import { normalizeCartonColors, normalizePurchaseMode, validatePurchasePatternConfiguration } from "../services/purchasePatternService.js";
-import { normalizeSizeGroupKey } from "../utils/sizeGroups.js";
+import { normalizeSizeGroupKey, normalizeSizeGroupKeys } from "../utils/sizeGroups.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -1082,6 +1082,7 @@ const normalizeProductRow = (row = {}) => {
       : 1,
   purchase_mode: normalizePurchaseMode(row.purchase_mode),
   purchase_size_group: normalizeSizeGroupKey(row.purchase_size_group),
+  purchase_size_groups: normalizeSizeGroupKeys(row.purchase_size_groups ?? row.purchase_size_group),
   purchase_colors_per_carton: row.purchase_colors_per_carton == null ? null : Number(row.purchase_colors_per_carton),
   purchase_pieces_per_size: row.purchase_pieces_per_size == null ? null : Number(row.purchase_pieces_per_size),
   purchase_carton_colors: normalizeCartonColors(row.purchase_carton_colors),
@@ -4650,6 +4651,7 @@ export const getProductByQrToken = async (req, res) => {
         p.suggested_purchase_cartons,
         p.purchase_mode,
         p.purchase_size_group,
+        p.purchase_size_groups,
         p.purchase_colors_per_carton,
         p.purchase_pieces_per_size,
         p.purchase_carton_colors,
@@ -4833,6 +4835,7 @@ export const createProduct = async (req, res) => {
       suggested_purchase_cartons,
       purchase_mode,
       purchase_size_group,
+      purchase_size_groups,
       purchase_colors_per_carton,
       purchase_pieces_per_size,
       purchase_carton_colors,
@@ -4913,6 +4916,7 @@ export const createProduct = async (req, res) => {
     const normalizedPurchasePattern = requireValidPurchasePattern({
       purchase_mode,
       purchase_size_group,
+      purchase_size_groups,
       purchase_colors_per_carton,
       purchase_pieces_per_size,
       purchase_carton_colors,
@@ -5145,6 +5149,7 @@ export const createProduct = async (req, res) => {
       "suggested_purchase_cartons",
       "purchase_mode",
       "purchase_size_group",
+      "purchase_size_groups",
       "purchase_colors_per_carton",
       "purchase_pieces_per_size",
       "purchase_carton_colors",
@@ -5216,6 +5221,7 @@ export const createProduct = async (req, res) => {
       normalizedSuggestedPurchaseCartons,
       normalizedPurchasePattern.mode,
       normalizedPurchasePattern.size_group || null,
+      normalizedPurchasePattern.size_groups.length ? JSON.stringify(normalizedPurchasePattern.size_groups) : null,
       normalizedPurchasePattern.colors_per_carton,
       normalizedPurchasePattern.pieces_per_size,
       normalizedPurchasePattern.mode === "FULL_CARTON" ? JSON.stringify(normalizedPurchasePattern.carton_colors) : null,
@@ -5446,6 +5452,7 @@ export const updateProduct = async (req, res) => {
       suggested_purchase_cartons,
       purchase_mode,
       purchase_size_group,
+      purchase_size_groups,
       purchase_colors_per_carton,
       purchase_pieces_per_size,
       purchase_carton_colors,
@@ -5536,6 +5543,7 @@ export const updateProduct = async (req, res) => {
     const suggestedPurchaseCartonsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "suggested_purchase_cartons");
     const purchaseModeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_mode");
     const purchaseSizeGroupProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_size_group");
+    const purchaseSizeGroupsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_size_groups");
     const purchaseColorsPerCartonProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_colors_per_carton");
     const purchasePiecesPerSizeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_pieces_per_size");
     const purchaseCartonColorsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_carton_colors");
@@ -5816,6 +5824,9 @@ export const updateProduct = async (req, res) => {
     const nextPurchasePatternInput = {
       purchase_mode: purchaseModeProvided ? purchase_mode : currentProductRow.purchase_mode,
       purchase_size_group: purchaseSizeGroupProvided ? purchase_size_group : currentProductRow.purchase_size_group,
+      purchase_size_groups: purchaseSizeGroupsProvided
+        ? purchase_size_groups
+        : (currentProductRow.purchase_size_groups ?? (purchaseSizeGroupProvided ? null : currentProductRow.purchase_size_group)),
       purchase_colors_per_carton: purchaseColorsPerCartonProvided ? purchase_colors_per_carton : currentProductRow.purchase_colors_per_carton,
       purchase_pieces_per_size: purchasePiecesPerSizeProvided ? purchase_pieces_per_size : currentProductRow.purchase_pieces_per_size,
       purchase_carton_colors: purchaseCartonColorsProvided ? purchase_carton_colors : currentProductRow.purchase_carton_colors,
@@ -5993,6 +6004,7 @@ export const updateProduct = async (req, res) => {
       `suggested_purchase_cartons = CASE WHEN ${addUpdateValue(suggestedPurchaseCartonsProvided)} THEN ${addUpdateValue(nextSuggestedPurchaseCartons)} ELSE suggested_purchase_cartons END`,
       `purchase_mode = ${addUpdateValue(nextPurchasePattern.mode)}`,
       `purchase_size_group = ${addUpdateValue(nextPurchasePattern.size_group || null)}`,
+      `purchase_size_groups = ${addUpdateValue(nextPurchasePattern.size_groups.length ? JSON.stringify(nextPurchasePattern.size_groups) : null)}::jsonb`,
       `purchase_colors_per_carton = ${addUpdateValue(nextPurchasePattern.colors_per_carton)}`,
       `purchase_pieces_per_size = ${addUpdateValue(nextPurchasePattern.pieces_per_size)}`,
       `purchase_carton_colors = ${addUpdateValue(nextPurchasePattern.mode === "FULL_CARTON" ? JSON.stringify(nextPurchasePattern.carton_colors) : null)}::jsonb`,

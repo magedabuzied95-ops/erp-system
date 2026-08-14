@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS products (
   suggested_purchase_cartons INTEGER NOT NULL DEFAULT 1,
   purchase_mode VARCHAR(30) NULL,
   purchase_size_group VARCHAR(30) NULL,
+  purchase_size_groups JSONB NULL,
   purchase_colors_per_carton INTEGER NULL,
   purchase_pieces_per_size INTEGER NULL,
   purchase_carton_colors JSONB NULL,

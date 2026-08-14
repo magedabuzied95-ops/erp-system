@@ -63,6 +63,23 @@ test("FULL_CARTON exposes one model-level summary and no color/size trigger spam
   });
 });
 
+test("multi-group FULL_CARTON shows the merged range once and hides size-level noise", () => {
+  const alert = {
+    purchase_mode: "FULL_CARTON",
+    purchase_size_groups: ["KIDS_CLOG", "BABY", "BOYS"],
+    missing_sizes: ["22", "29", "36"],
+    purchase_suggestion: makeSuggestion("FULL_CARTON", {
+      sizes: Array.from({ length: 15 }, (_, index) => String(index + 22)),
+      total_units: 45,
+    }),
+  };
+  assert.equal(shouldShowSizeLevelAlertDetails(alert), false);
+  assert.deepEqual(getUserFacingTriggerVariants(alert), []);
+  const presentation = getGroupedPurchaseAlertPresentation(alert);
+  assert.equal(presentation.sizeRange, "22–36");
+  assert.equal(presentation.totalUnits, 45);
+});
+
 test("Legacy NULL and INDIVIDUAL keep the existing size-level UX and trigger details", () => {
   for (const purchaseMode of [null, "INDIVIDUAL"]) {
     const alert = {

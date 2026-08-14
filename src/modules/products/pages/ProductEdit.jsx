@@ -123,7 +123,7 @@ const emptyProduct = {
   carton_size: "",
   suggested_purchase_cartons: 1,
   purchase_mode: "",
-  purchase_size_group: "",
+  purchase_size_groups: [],
   purchase_colors_per_carton: 3,
   purchase_pieces_per_size: 1,
   purchase_carton_colors: [],
@@ -516,7 +516,9 @@ const normalizeProductForm = (row = {}) => ({
   carton_size: row.carton_size === null || row.carton_size === undefined ? "" : String(row.carton_size),
   suggested_purchase_cartons: String(row.suggested_purchase_cartons ?? 1),
   purchase_mode: row.purchase_mode || "",
-  purchase_size_group: row.purchase_size_group || "",
+  purchase_size_groups: Array.isArray(row.purchase_size_groups)
+    ? row.purchase_size_groups
+    : (row.purchase_size_group ? [row.purchase_size_group] : []),
   purchase_colors_per_carton: String(row.purchase_colors_per_carton ?? 3),
   purchase_pieces_per_size: String(row.purchase_pieces_per_size ?? 1),
   purchase_carton_colors: Array.isArray(row.purchase_carton_colors) ? row.purchase_carton_colors : [],
@@ -598,7 +600,7 @@ const buildProductEditCoreSnapshot = ({
       carton_size: product.carton_size ?? "",
       suggested_purchase_cartons: product.suggested_purchase_cartons ?? "",
       purchase_mode: product.purchase_mode || "",
-      purchase_size_group: product.purchase_size_group || "",
+      purchase_size_groups: Array.isArray(product.purchase_size_groups) ? product.purchase_size_groups : [],
       purchase_colors_per_carton: product.purchase_colors_per_carton ?? 3,
       purchase_pieces_per_size: product.purchase_pieces_per_size ?? 1,
       purchase_carton_colors: Array.isArray(product.purchase_carton_colors) ? product.purchase_carton_colors : [],
@@ -3421,7 +3423,7 @@ function ProductEdit() {
             carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
             suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
             purchase_mode: product.purchase_mode || null,
-            purchase_size_group: product.purchase_size_group || null,
+            purchase_size_groups: product.purchase_size_groups || [],
             purchase_colors_per_carton: product.purchase_mode === "FULL_CARTON" && product.purchase_colors_per_carton !== "" ? Number(product.purchase_colors_per_carton) : null,
             purchase_pieces_per_size: ["FULL_COLOR_RUN", "FULL_CARTON"].includes(product.purchase_mode) && product.purchase_pieces_per_size !== "" ? Number(product.purchase_pieces_per_size) : null,
             purchase_carton_colors: product.purchase_mode === "FULL_CARTON" ? product.purchase_carton_colors || [] : [],
@@ -3533,7 +3535,7 @@ function ProductEdit() {
         carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
         suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
         purchase_mode: product.purchase_mode || null,
-        purchase_size_group: product.purchase_size_group || null,
+        purchase_size_groups: product.purchase_size_groups || [],
         purchase_colors_per_carton: product.purchase_mode === "FULL_CARTON" && product.purchase_colors_per_carton !== "" ? Number(product.purchase_colors_per_carton) : null,
         purchase_pieces_per_size: ["FULL_COLOR_RUN", "FULL_CARTON"].includes(product.purchase_mode) && product.purchase_pieces_per_size !== "" ? Number(product.purchase_pieces_per_size) : null,
         purchase_carton_colors: product.purchase_mode === "FULL_CARTON" ? product.purchase_carton_colors || [] : [],
@@ -3950,7 +3952,7 @@ function ProductEdit() {
               cartonSize={product.carton_size}
               suggestedPurchaseCartons={product.suggested_purchase_cartons}
               purchaseMode={product.purchase_mode}
-              purchaseSizeGroup={product.purchase_size_group}
+              purchaseSizeGroups={product.purchase_size_groups}
               purchaseColorsPerCarton={product.purchase_colors_per_carton}
               purchasePiecesPerSize={product.purchase_pieces_per_size}
               purchaseCartonColors={product.purchase_carton_colors}
@@ -3959,7 +3961,7 @@ function ProductEdit() {
               onCartonSizeChange={(value) => updateProductField("carton_size", value)}
               onSuggestedPurchaseCartonsChange={(value) => updateProductField("suggested_purchase_cartons", value)}
               onPurchaseModeChange={(value) => updateProductField("purchase_mode", value || "")}
-              onPurchaseSizeGroupChange={(value) => updateProductField("purchase_size_group", value || "")}
+              onPurchaseSizeGroupsChange={(value) => updateProductField("purchase_size_groups", value || [])}
               onPurchaseColorsPerCartonChange={(value) => updateProductField("purchase_colors_per_carton", value)}
               onPurchasePiecesPerSizeChange={(value) => updateProductField("purchase_pieces_per_size", value)}
               onPurchaseCartonColorsChange={(value) => updateProductField("purchase_carton_colors", value)}

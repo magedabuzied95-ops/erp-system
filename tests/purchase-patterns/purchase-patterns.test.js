@@ -7,6 +7,7 @@ import {
   SIZE_GROUPS,
   normalizeProductAudiences,
   resolveCanonicalSizeGroup,
+  resolveSizeGroups,
 } from "../../server/utils/sizeGroups.js";
 import {
   buildPurchaseComposition,
@@ -70,6 +71,22 @@ test("all canonical size groups have the exact five-size source of truth", () =>
   assert.deepEqual(SIZE_GROUPS.BOYS.sizes, ["32", "33", "34", "35", "36"]);
 });
 
+test("multiple size groups merge, deduplicate overlaps and keep canonical numeric order", () => {
+  assert.deepEqual(resolveSizeGroups(["KIDS_CLOG", "BABY"]).sizes, ["22", "23", "24", "25", "26", "27", "28", "29", "30", "31"]);
+  assert.deepEqual(resolveSizeGroups(["KIDS_CLOG", "BABY", "BOYS"]).sizes, Array.from({ length: 15 }, (_, index) => String(index + 22)));
+  const adults = resolveSizeGroups(["WOMEN", "MEN"]);
+  assert.deepEqual(adults.sizes, ["37", "38", "39", "40", "41", "42", "43", "44", "45"]);
+  assert.equal(adults.count, 9);
+  assert.equal(adults.range, "37–45");
+});
+
+test("every single canonical group still resolves to exactly five sizes", () => {
+  for (const key of Object.keys(SIZE_GROUPS)) {
+    assert.deepEqual(resolveSizeGroups([key]).sizes, SIZE_GROUPS[key].sizes);
+    assert.equal(resolveSizeGroups(key).count, 5);
+  }
+});
+
 test("real UTF-8 Arabic classifications resolve correctly", () => {
   assert.deepEqual(normalizeProductAudiences("رجالي"), ["men"]);
   assert.deepEqual(normalizeProductAudiences("حريمي"), ["women"]);
@@ -97,6 +114,104 @@ test("FULL_COLOR_RUN supports one and two pieces per size", () => {
     assert.equal(result.lines.length, 5);
     assert.equal(result.total_pieces, 5 * pieces);
   }
+});
+
+test("FULL_COLOR_RUN composes 15 merged kids sizes at one or two pieces per size", () => {
+  const sizes = resolveSizeGroups(["KIDS_CLOG", "BABY", "BOYS"]).sizes;
+  const variants = variantsFor(52, ["Black"], sizes);
+  for (const pieces of [1, 2]) {
+    const result = buildPurchaseComposition({
+      product: { id: 52, purchase_mode: "FULL_COLOR_RUN", purchase_size_groups: ["KIDS_CLOG", "BABY", "BOYS"], purchase_pieces_per_size: pieces },
+      variants,
+      triggerColor: "Black",
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.lines.length, 15);
+    assert.equal(result.total_pieces, 15 * pieces);
+    assert.deepEqual(result.lines.map((line) => line.size), sizes);
+  }
+});
+
+test("FULL_CARTON composes 3 colors by 15 merged sizes at one or two pieces per size", () => {
+  const sizes = resolveSizeGroups(["KIDS_CLOG", "BABY", "BOYS"]).sizes;
+  const variants = variantsFor(53, ["Black", "White", "Blue"], sizes);
+  for (const pieces of [1, 2]) {
+    const result = buildPurchaseComposition({
+      product: cartonProduct({
+        id: 53,
+        product_id: 53,
+        purchase_size_group: null,
+        purchase_size_groups: ["KIDS_CLOG", "BABY", "BOYS"],
+        purchase_pieces_per_size: pieces,
+        purchase_carton_colors: ["Black", "White", "Blue"],
+      }),
+      variants,
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.lines.length, 45);
+    assert.equal(result.total_pieces, 45 * pieces);
+  }
+});
+
+test("missing Blue / 29 rejects the complete multi-group carton without partial lines", () => {
+  const sizes = resolveSizeGroups(["KIDS_CLOG", "BABY", "BOYS"]).sizes;
+  const variants = variantsFor(54, ["Black", "White", "Blue"], sizes, { missing: { color: "Blue", size: "29" } });
+  const result = buildPurchaseComposition({
+    product: cartonProduct({
+      id: 54,
+      product_id: 54,
+      purchase_size_group: null,
+      purchase_size_groups: ["KIDS_CLOG", "BABY", "BOYS"],
+      purchase_carton_colors: ["Black", "White", "Blue"],
+    }),
+    variants,
+  });
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.lines, []);
+  assert.match(result.errors.map((item) => item.message).join("; "), /Missing variant: Blue \/ 29/);
+});
+
+test("legacy single purchase_size_group reloads as one canonical group", () => {
+  const pattern = resolveProductPurchasePattern({ purchase_mode: "FULL_COLOR_RUN", purchase_size_group: "MEN", purchase_pieces_per_size: 1 });
+  assert.deepEqual(pattern.size_groups, ["MEN"]);
+  assert.deepEqual(pattern.sizes, SIZE_GROUPS.MEN.sizes);
+});
+
+test("multi-group save and reload preserves canonical selected groups", () => {
+  const saved = validatePurchasePatternConfiguration({
+    purchase_mode: "FULL_COLOR_RUN",
+    purchase_size_groups: ["BOYS", "KIDS_CLOG", "BABY", "BABY"],
+    purchase_pieces_per_size: 1,
+  });
+  assert.equal(saved.valid, true);
+  const reloaded = resolveProductPurchasePattern(JSON.parse(JSON.stringify({
+    purchase_mode: saved.mode,
+    purchase_size_group: saved.size_group,
+    purchase_size_groups: saved.size_groups,
+    purchase_pieces_per_size: saved.pieces_per_size,
+  })));
+  assert.deepEqual(reloaded.size_groups, ["KIDS_CLOG", "BABY", "BOYS"]);
+  assert.deepEqual(reloaded.sizes, Array.from({ length: 15 }, (_, index) => String(index + 22)));
+});
+
+test("multi-group alert suggestion exactly matches its generated purchase draft", () => {
+  const product = {
+    id: 55,
+    name: "Kids carton",
+    purchase_mode: "FULL_CARTON",
+    purchase_size_groups: ["KIDS_CLOG", "BABY", "BOYS"],
+    purchase_colors_per_carton: 3,
+    purchase_pieces_per_size: 1,
+    purchase_carton_colors: ["Black", "White", "Blue"],
+    purchase_alerts_enabled: true,
+    purchase_alert_by_color: true,
+  };
+  const sizes = resolveSizeGroups(product.purchase_size_groups).sizes;
+  const variants = withTriggerStock(variantsFor(55, product.purchase_carton_colors, sizes), "Black", "29", 0);
+  const [alert] = buildPurchaseAlertsFromRows(alertRows(product, variants));
+  assert.deepEqual(alert.purchase_suggestion.sizes, sizes);
+  assert.equal(alert.purchase_suggestion.total_units, 45);
+  assert.deepEqual(lineSignature(buildPurchaseAlertDraftItems(alert)), lineSignature(alert.purchase_suggestion.lines));
 });
 
 test("each canonical group composes a complete five-line color run", () => {
@@ -386,6 +501,7 @@ test("Smart Reorder processing remains near-linear at 7,500 variants", () => {
 
 test("migration is additive and runtime Purchase Pattern schema mutation is absent", async () => {
   const migration = await readFile(new URL("../../SQL/product_purchase_patterns.sql", import.meta.url), "utf8");
+  const multiGroupMigration = await readFile(new URL("../../SQL/product_purchase_multi_size_groups.sql", import.meta.url), "utf8");
   const runtimeSources = await Promise.all([
     "../../server/controllers/productsController.js",
     "../../server/controllers/inventoryController.js",
@@ -394,6 +510,9 @@ test("migration is additive and runtime Purchase Pattern schema mutation is abse
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   assert.doesNotMatch(migration, /DROP\s+CONSTRAINT/i);
   assert.match(migration, /purchase_mode\s+VARCHAR\(30\)\s+NULL/i);
+  assert.match(migration, /purchase_size_groups\s+JSONB\s+NULL/i);
+  assert.match(multiGroupMigration, /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+purchase_size_groups\s+JSONB\s+NULL/i);
+  assert.doesNotMatch(multiGroupMigration, /UPDATE\s+public\.products|DROP\s+COLUMN|DROP\s+CONSTRAINT/i);
   assert.match(migration, /NOT VALID/i);
   for (const source of runtimeSources) {
     assert.doesNotMatch(source, /ALTER\s+TABLE[\s\S]{0,240}purchase_(?:mode|size_group|colors_per_carton|pieces_per_size|carton_colors)/i);

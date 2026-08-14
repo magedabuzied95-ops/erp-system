@@ -500,7 +500,7 @@ function CreateProduct() {
   const [cartonSize, setCartonSize] = useState("");
   const [suggestedPurchaseCartons, setSuggestedPurchaseCartons] = useState(1);
   const [purchaseMode, setPurchaseMode] = useState("");
-  const [purchaseSizeGroup, setPurchaseSizeGroup] = useState("");
+  const [purchaseSizeGroups, setPurchaseSizeGroups] = useState([]);
   const [purchaseColorsPerCarton, setPurchaseColorsPerCarton] = useState(3);
   const [purchasePiecesPerSize, setPurchasePiecesPerSize] = useState(1);
   const [purchaseCartonColors, setPurchaseCartonColors] = useState([]);
@@ -2306,7 +2306,7 @@ function CreateProduct() {
         carton_size: cartonSize === "" ? null : Number(cartonSize),
         suggested_purchase_cartons: Number(suggestedPurchaseCartons || 1),
         purchase_mode: purchaseMode || null,
-        purchase_size_group: purchaseSizeGroup || null,
+        purchase_size_groups: purchaseSizeGroups,
         purchase_colors_per_carton: purchaseMode === "FULL_CARTON" && purchaseColorsPerCarton !== "" ? Number(purchaseColorsPerCarton) : null,
         purchase_pieces_per_size: ["FULL_COLOR_RUN", "FULL_CARTON"].includes(purchaseMode) && purchasePiecesPerSize !== "" ? Number(purchasePiecesPerSize) : null,
         purchase_carton_colors: purchaseMode === "FULL_CARTON" ? purchaseCartonColors : [],
@@ -2373,7 +2373,7 @@ function CreateProduct() {
         carton_size: cartonSize === "" ? null : Number(cartonSize),
         suggested_purchase_cartons: Number(suggestedPurchaseCartons || 1),
         purchase_mode: purchaseMode || null,
-        purchase_size_group: purchaseSizeGroup || null,
+        purchase_size_groups: purchaseSizeGroups,
         purchase_colors_per_carton: purchaseMode === "FULL_CARTON" && purchaseColorsPerCarton !== "" ? Number(purchaseColorsPerCarton) : null,
         purchase_pieces_per_size: ["FULL_COLOR_RUN", "FULL_CARTON"].includes(purchaseMode) && purchasePiecesPerSize !== "" ? Number(purchasePiecesPerSize) : null,
         purchase_carton_colors: purchaseMode === "FULL_CARTON" ? purchaseCartonColors : [],
@@ -2783,7 +2783,7 @@ function CreateProduct() {
                 cartonSize={cartonSize}
                 suggestedPurchaseCartons={suggestedPurchaseCartons}
                 purchaseMode={purchaseMode}
-                purchaseSizeGroup={purchaseSizeGroup}
+                purchaseSizeGroups={purchaseSizeGroups}
                 purchaseColorsPerCarton={purchaseColorsPerCarton}
                 purchasePiecesPerSize={purchasePiecesPerSize}
                 purchaseCartonColors={purchaseCartonColors}
@@ -2792,7 +2792,7 @@ function CreateProduct() {
                 onCartonSizeChange={setCartonSize}
                 onSuggestedPurchaseCartonsChange={setSuggestedPurchaseCartons}
                 onPurchaseModeChange={setPurchaseMode}
-                onPurchaseSizeGroupChange={setPurchaseSizeGroup}
+                onPurchaseSizeGroupsChange={setPurchaseSizeGroups}
                 onPurchaseColorsPerCartonChange={setPurchaseColorsPerCarton}
                 onPurchasePiecesPerSizeChange={setPurchasePiecesPerSize}
                 onPurchaseCartonColorsChange={setPurchaseCartonColors}

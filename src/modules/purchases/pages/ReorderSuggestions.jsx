@@ -312,7 +312,7 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
         <div className="line-clamp-2 text-xs font-bold leading-5 text-zinc-200">{item.reason}</div>
         {item.purchase_pattern_configured ? (
           <div className={`rounded-xl border px-3 py-2 text-xs font-black ${invalidPurchasePattern ? "border-rose-400/30 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>
-            <div>{item.purchase_pattern_mode} · {item.purchase_pattern_size_group}</div>
+            <div>{item.purchase_pattern_mode} · {(item.purchase_pattern_size_groups || [item.purchase_pattern_size_group]).filter(Boolean).join(" + ")}</div>
             {invalidPurchasePattern ? <div className="mt-1 font-bold">{purchasePatternError || "Purchase pattern configuration is incomplete"}</div> : null}
           </div>
         ) : null}

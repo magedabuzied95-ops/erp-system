@@ -1,4 +1,4 @@
-import { getSizeGroup, normalizeSizeGroupKey } from "../utils/sizeGroups.js";
+import { resolveSizeGroups } from "../utils/sizeGroups.js";
 
 export const PURCHASE_MODES = Object.freeze({ INDIVIDUAL: "INDIVIDUAL", FULL_COLOR_RUN: "FULL_COLOR_RUN", FULL_CARTON: "FULL_CARTON" });
 const text = (value = "") => String(value ?? "").trim();
@@ -41,11 +41,14 @@ export const validatePurchasePatternConfiguration = (product = {}, variants = []
   const errors = [];
   if (!mode) errors.push(error("invalid_purchase_mode", `Unknown purchase mode: ${rawMode}`, { field: "purchase_mode" }));
 
-  const rawGroup = text(product.purchase_size_group);
-  const sizeGroupKey = normalizeSizeGroupKey(rawGroup);
+  const hasMultiGroupValue = product.purchase_size_groups !== undefined && product.purchase_size_groups !== null;
+  const rawGroups = hasMultiGroupValue ? product.purchase_size_groups : product.purchase_size_group;
+  const resolvedGroups = resolveSizeGroups(rawGroups);
   const needsRun = mode === PURCHASE_MODES.FULL_COLOR_RUN || mode === PURCHASE_MODES.FULL_CARTON;
-  if (needsRun && !rawGroup) errors.push(error("size_group_required", "Size group is required", { field: "purchase_size_group" }));
-  if (rawGroup && !sizeGroupKey) errors.push(error("invalid_size_group", `Unknown size group: ${rawGroup}`, { field: "purchase_size_group" }));
+  if (needsRun && resolvedGroups.keys.length === 0) errors.push(error("size_group_required", "At least one size group is required", { field: "purchase_size_groups" }));
+  if (resolvedGroups.invalid_keys.length) errors.push(error("invalid_size_group", `Unknown size group: ${resolvedGroups.invalid_keys.join(", ")}`, {
+    field: "purchase_size_groups", size_groups: resolvedGroups.invalid_keys,
+  }));
 
   const piecesPerSize = needsRun ? strictPositiveInt(product.purchase_pieces_per_size) : null;
   if (needsRun && piecesPerSize === null) {
@@ -83,19 +86,21 @@ export const validatePurchasePatternConfiguration = (product = {}, variants = []
     if (unknown.length) errors.push(error("unknown_carton_colors", `Unknown carton colors: ${unknown.join(", ")}`, { colors: unknown }));
   }
 
-  const sizeGroup = getSizeGroup(sizeGroupKey);
   return {
     valid: errors.length === 0,
     configured: true,
     mode,
-    size_group: sizeGroupKey,
-    size_group_label: sizeGroup?.label || "",
-    sizes: sizeGroup ? [...sizeGroup.sizes] : [],
+    size_group: resolvedGroups.keys[0] || null,
+    size_groups: resolvedGroups.keys,
+    size_group_label: resolvedGroups.groups.map((group) => group.label).join(" + "),
+    size_group_labels: resolvedGroups.groups.map((group) => group.label),
+    size_range: resolvedGroups.range,
+    sizes: resolvedGroups.sizes,
     pieces_per_size: piecesPerSize,
     colors_per_carton: colorsPerCarton,
     carton_colors: rawColors,
-    pieces_per_color_run: sizeGroup && piecesPerSize ? sizeGroup.sizes.length * piecesPerSize : 0,
-    pieces_per_carton: sizeGroup && piecesPerSize && colorsPerCarton ? sizeGroup.sizes.length * piecesPerSize * colorsPerCarton : 0,
+    pieces_per_color_run: resolvedGroups.count && piecesPerSize ? resolvedGroups.count * piecesPerSize : 0,
+    pieces_per_carton: resolvedGroups.count && piecesPerSize && colorsPerCarton ? resolvedGroups.count * piecesPerSize * colorsPerCarton : 0,
     errors,
   };
 };
