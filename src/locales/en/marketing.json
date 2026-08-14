@@ -497,7 +497,8 @@
       "colorCount": "Colour count",
       "discountRate": "Discount rate",
       "availableColorImages": "Available colour images"
-    }
+    },
+    "tiktokVideoOnly": "Video only"
   },
   "templates": {
     "eyebrow": "Templates",
@@ -1587,6 +1588,72 @@
       "reconnect": "Reconnect TikTok",
       "disconnect": "Disconnect",
       "refresh": "Refresh token"
+    },
+    "optionsTitle": "TikTok posting options",
+    "loadingAccount": "Checking your TikTok account…",
+    "loadingOptions": "Loading options from TikTok…",
+    "reloadOptions": "Reload",
+    "optionsLoadFailed": "Could not load posting options from TikTok",
+    "goToChannelSettings": "Go to Channel Settings",
+    "privacyLabel": "Who can view this video",
+    "privacyPlaceholder": "Select a privacy level",
+    "allowComment": "Allow comments",
+    "allowDuet": "Allow Duet",
+    "allowStitch": "Allow Stitch",
+    "creatorDisabled": "Disabled on this TikTok account",
+    "maxDuration": "Maximum video length for this account: {{max}}s",
+    "currentDuration": "this video: {{seconds}}s",
+    "commercialToggle": "Disclose commercial content",
+    "commercialHint": "Turn this on if the video promotes a brand, product, or service.",
+    "yourBrand": "Your Brand",
+    "yourBrandHint": "You are promoting yourself or your own business.",
+    "brandedContent": "Branded Content",
+    "brandedContentHint": "You are promoting another brand or a third party.",
+    "brandedContentSelfOnly": "not available with Branded Content",
+    "submitted": "Sent to TikTok — tracking publish status",
+    "uploadDraft": "Upload to TikTok Draft",
+    "draftSubmitted": "Video sent to your TikTok drafts",
+    "draftFailed": "Could not send the video to TikTok drafts",
+    "draftTikTokOnly": "Uploading to TikTok drafts works for TikTok only. Unselect Facebook and Instagram first.",
+    "privacy": {
+      "public": "Everyone",
+      "friends": "Friends",
+      "followers": "Followers",
+      "selfOnly": "Only me"
+    },
+    "label": {
+      "paidPartnership": "This video will be labeled \"Paid partnership\".",
+      "promotionalContent": "This video will be labeled \"Promotional content\"."
+    },
+    "consent": {
+      "music": "By posting, you agree to TikTok's Music Usage Confirmation.",
+      "brandedAndMusic": "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+    },
+    "status": {
+      "uploading": "Uploading to TikTok…",
+      "processing": "TikTok is processing your video…",
+      "published": "Published on TikTok",
+      "draftReady": "Ready in your TikTok drafts",
+      "failed": "TikTok publishing failed"
+    },
+    "blocked": {
+      "unknown": "TikTok account status is unavailable.",
+      "disabled": "The TikTok integration is switched off on this server.",
+      "notConfigured": "TikTok is not configured on this server yet.",
+      "notConnected": "Connect a TikTok account before publishing.",
+      "reconnectRequired": "Your TikTok connection expired. Reconnect it to publish.",
+      "missingPublishScope": "This TikTok account did not grant posting permission. Reconnect and approve it."
+    },
+    "errors": {
+      "videoRequired": "TikTok accepts video only. Select a video file.",
+      "unsupportedFormat": "TikTok supports these video formats: {{formats}}",
+      "fileTooLarge": "This video is too large for TikTok.",
+      "tooLong": "This video is longer than the {{max}}s allowed for this account.",
+      "privacyRequired": "Select who can view this TikTok video.",
+      "privacyUnavailable": "That privacy level is not available for this TikTok account.",
+      "disclosureRequired": "Turn on commercial content disclosure first.",
+      "disclosureSelectionRequired": "Indicate whether the content promotes yourself, a third party, or both.",
+      "brandedContentSelfOnly": "Branded Content cannot be posted with \"Only me\" privacy."
     }
   }
 }

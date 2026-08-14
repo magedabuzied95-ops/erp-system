@@ -19,6 +19,7 @@ import {
   Send,
   ShoppingCart,
   Share2,
+  Music2,
   ShieldAlert,
   Sparkles,
   Tag,
@@ -43,11 +44,20 @@ import {
   getSocialPublisherProducts,
   startMetaOAuth,
   publishSocialPublisherPost,
+  publishSocialPublisherPostDetailed,
+  getTikTokPublishStatus,
 } from "../services/marketingApi";
 import { generateSocialPublisherCaption, getProductsWithVariants } from "../../products/services/productsApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import MarketingStudioHeader from "../components/MarketingStudioHeader";
 import { buildSuggestedFirstComment, collectFirstCommentAvailability } from "../lib/suggestedFirstComment";
+import TikTokPublishPanel from "../components/TikTokPublishPanel";
+import {
+  TIKTOK_POST_MODES,
+  buildTikTokPublishSettings,
+  defaultTikTokOptions,
+  tiktokStatusPresentation,
+} from "../lib/tiktokPublishOptions";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -62,11 +72,12 @@ const platformOptions = [
   {
     key: "tiktok",
     labelKey: "marketing.social.platforms.tiktok",
-    icon: ShieldAlert,
+    icon: Music2,
     tone: "slate",
-    disabled: true,
-    subtitleKey: "marketing.socialPublisher.tiktokComingSoon",
-    helperKey: "marketing.socialPublisher.connectTikTokLater",
+    // Selectable now. Readiness is decided at runtime from /tiktok/status, not
+    // by a static flag, so a disconnected account blocks publishing with a real
+    // reason instead of the old permanent "coming soon".
+    subtitleKey: "marketing.socialPublisher.tiktokVideoOnly",
   },
 ];
 
@@ -767,6 +778,10 @@ export default function SocialMediaPublisher() {
   const [mediaPreview, setMediaPreview] = useState("");
   const [mediaType, setMediaType] = useState("image");
   const [platforms, setPlatforms] = useState({ facebook: true, instagram: false, tiktok: false });
+  const [tiktokOptions, setTiktokOptions] = useState(() => defaultTikTokOptions());
+  const [tiktokReadiness, setTiktokReadiness] = useState({ ready: false, loading: true, accountReady: false, reasonKey: "", errors: [], durationSec: 0 });
+  // Post-publish job tracking, polled until TikTok reaches a terminal state.
+  const [tiktokJob, setTiktokJob] = useState(null);
   const [createSource, setCreateSource] = useState("device");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [metaAccountsLoading, setMetaAccountsLoading] = useState(true);
@@ -803,12 +818,32 @@ export default function SocialMediaPublisher() {
   const previewSubtitle = mediaFile ? `${mediaType.toUpperCase()} ready` : selectedCatalogProduct ? "Catalog product selected" : "No media selected";
   const firstCommentPreview = firstComment.trim() || "Select a product to generate the first comment.";
 
+  // TikTok is a real selection now, so it is no longer filtered out here.
   const selectedPlatforms = useMemo(
-    () => platformOptions.filter((platform) => platforms[platform.key] && platform.key !== "tiktok").map((platform) => platform.key),
+    () => platformOptions.filter((platform) => platforms[platform.key]).map((platform) => platform.key),
     [platforms]
   );
 
-  const hasDisabledTikTok = Boolean(platforms.tiktok);
+  const tiktokSelected = Boolean(platforms.tiktok);
+  // Meta account checks must only gate Meta publishing: a TikTok-only post has
+  // no Facebook Page and must not be blocked by one.
+  const selectedMetaPlatforms = useMemo(
+    () => selectedPlatforms.filter((platform) => platform !== "tiktok"),
+    [selectedPlatforms]
+  );
+
+  // Meta accounts only gate Meta platforms; TikTok only gates itself. Both were
+  // previously inlined three times per button, which is how the Facebook check
+  // ended up blocking every platform.
+  const metaAccountsMissing = (selectedMetaPlatforms.length > 0 && !hasFacebookAccount)
+    || (selectedMetaPlatforms.includes("instagram") && !hasInstagramAccount);
+  // TikTok blocks the button until the account is live AND the required options
+  // (privacy level, disclosure selection, valid video) are satisfied.
+  const tiktokBlocksPublish = tiktokSelected && !(tiktokReadiness.accountReady && tiktokReadiness.ready);
+  const publishDisabled = saving || !canCreate || !canPublish || !selectedPlatforms.length || metaAccountsMissing || tiktokBlocksPublish;
+  const scheduleDisabled = saving || !canCreate || !selectedPlatforms.length || metaAccountsMissing || tiktokBlocksPublish;
+  const tiktokDraftDisabled = saving || !canCreate || !canPublish || !tiktokSelected
+    || selectedMetaPlatforms.length > 0 || !tiktokReadiness.accountReady || mediaType !== "video";
   const hasCatalogProduct = Boolean(selectedCatalogProduct);
   const selectedFacebookPage = useMemo(
     () => facebookPages.find((page) => page.facebook_page_id === selectedFacebookPageId) || null,
@@ -1397,6 +1432,7 @@ export default function SocialMediaPublisher() {
     closeAiTemplateModal();
     setMediaType("image");
     setPlatforms({ facebook: true, instagram: false, tiktok: false });
+    setTiktokOptions(defaultTikTokOptions());
     setCreateSource("device");
     if (mediaInputRef.current) {
       mediaInputRef.current.value = "";
@@ -1411,17 +1447,53 @@ export default function SocialMediaPublisher() {
   };
 
   const togglePlatform = (key) => {
-    if (key === "tiktok") return;
     setPlatforms((current) => ({ ...current, [key]: !current[key] }));
   };
 
-  const blockTikTokPayload = () => {
-    if (!hasDisabledTikTok) return false;
-    toast.error(t("marketing.socialPublisher.tiktokNotConnected"));
-    return true;
+  // Poll the real TikTok publish status until it is terminal. "uploaded" is not
+  // success — TikTok is still processing — so the tracker keeps running until
+  // published / draft_ready / failed comes back.
+  useEffect(() => {
+    if (!tiktokJob?.id) return undefined;
+    if (tiktokStatusPresentation(tiktokJob.status).terminal) return undefined;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const result = await getTikTokPublishStatus(tiktokJob.id);
+        if (cancelled || !result) return;
+        setTiktokJob((current) => (current ? { ...current, status: result.status, failReason: result.job?.fail_reason || "" } : current));
+      } catch {
+        // A transient status read failure must not clear the tracker; the next
+        // tick retries and the terminal state still arrives.
+      }
+    }, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [tiktokJob?.id, tiktokJob?.status]);
+
+  // Replaces the old unconditional TikTok block. Returns true (and explains why)
+  // only when TikTok is selected but genuinely cannot publish right now.
+  const blockTikTokPayload = ({ postMode = TIKTOK_POST_MODES.DIRECT_POST } = {}) => {
+    if (!tiktokSelected) return false;
+    if (!tiktokReadiness.accountReady) {
+      toast.error(t(tiktokReadiness.reasonKey || "marketing.tiktok.blocked.notConnected"));
+      return true;
+    }
+    if (mediaType !== "video") {
+      toast.error(t("marketing.tiktok.errors.videoRequired"));
+      return true;
+    }
+    // A draft skips caption/privacy/disclosure validation — those are chosen
+    // inside the TikTok app — so only the account and the video are required.
+    if (postMode === TIKTOK_POST_MODES.INBOX_UPLOAD) return false;
+    if (!tiktokReadiness.ready) {
+      const firstError = tiktokReadiness.errors?.[0];
+      toast.error(firstError ? t(firstError.key, firstError.params || {}) : t("marketing.tiktok.errors.privacyRequired"));
+      return true;
+    }
+    return false;
   };
 
-  const buildPayload = () => {
+  const buildPayload = ({ tiktokPostMode = TIKTOK_POST_MODES.DIRECT_POST } = {}) => {
     const formData = new FormData();
     formData.append("caption", caption);
     if (firstComment.trim()) {
@@ -1440,15 +1512,24 @@ export default function SocialMediaPublisher() {
       ).slice(0, 10);
       formData.append("media_urls", JSON.stringify(carouselUrls));
     }
-    formData.append(
-      "publish_settings",
-      JSON.stringify({
-        facebook_page_id: selectedFacebookPageId,
-        facebook_page_name: selectedFacebookPageLabel,
-        instagram_account_id: selectedInstagramAccountId,
-        instagram_username: selectedInstagramAccountLabel,
-      })
-    );
+    // Provider payloads stay separate: Meta keys are unchanged and the TikTok
+    // block is added only when TikTok is actually selected, so a Facebook or
+    // Instagram post carries exactly the settings shape it carried before.
+    const publishSettingsPayload = {
+      facebook_page_id: selectedFacebookPageId,
+      facebook_page_name: selectedFacebookPageLabel,
+      instagram_account_id: selectedInstagramAccountId,
+      instagram_username: selectedInstagramAccountLabel,
+    };
+    if (tiktokSelected) {
+      publishSettingsPayload.tiktok = buildTikTokPublishSettings({
+        options: tiktokOptions,
+        creatorInfo: tiktokReadiness.creatorInfo || {},
+        postMode: tiktokPostMode,
+        durationSec: tiktokReadiness.durationSec,
+      });
+    }
+    formData.append("publish_settings", JSON.stringify(publishSettingsPayload));
     if (scheduledAt) {
       formData.append("scheduled_at", scheduledAt);
     }
@@ -1468,25 +1549,72 @@ export default function SocialMediaPublisher() {
       toast.error(t("marketing.socialPublisher.selectAtLeastOnePlatform"));
       return;
     }
-    if (!hasFacebookAccount) {
+    // Meta connection checks are scoped to Meta platforms so a TikTok-only post
+    // is not blocked by a missing Facebook Page.
+    if (selectedMetaPlatforms.length && !hasFacebookAccount) {
       toast.error(t("marketing.socialPublisher.toasts.connectFacebookFirst"));
       return;
     }
-    if (selectedPlatforms.includes("instagram") && !hasInstagramAccount) {
+    if (selectedMetaPlatforms.includes("instagram") && !hasInstagramAccount) {
       toast.error(t("marketing.socialPublisher.toasts.connectInstagramFirst"));
       return;
     }
 
     setSaving(true);
+    setTiktokJob(null);
     try {
       const created = await createSocialPublisherPost(buildPayload());
-      const published = await publishSocialPublisherPost(created.id);
-      toast.success(published?.message || t("marketing.socialPublisher.publishedSuccessfully"));
+      const published = await publishSocialPublisherPostDetailed(created.id);
+      const tiktokResult = published?.tiktok_result || null;
+      if (tiktokResult?.job_id) {
+        // TikTok has only accepted the upload at this point. Do NOT report
+        // success: the composer switches to a live status tracker and the real
+        // outcome comes from /tiktok/publish/:jobId/status.
+        setTiktokJob({ id: tiktokResult.job_id, status: tiktokResult.status || "uploaded", draft: Boolean(tiktokResult.draft) });
+        toast.success(t("marketing.tiktok.submitted"));
+      } else {
+        toast.success(published?.message || t("marketing.socialPublisher.publishedSuccessfully"));
+      }
       resetComposer();
       await loadPosts();
     } catch (err) {
       toast.error(err?.message || t("marketing.socialPublisher.publishFailed"));
       await loadPosts();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Distinct action, never merged with Publish: the video lands in the
+  // creator's TikTok drafts and is not posted anywhere.
+  const handleUploadTikTokDraft = async () => {
+    if (!canCreate || !canPublish) {
+      toast.error(t("marketing.common.permissionPublish"));
+      return;
+    }
+    if (!tiktokSelected) return;
+    if (selectedMetaPlatforms.length) {
+      // A draft is TikTok-only by nature; publishing Meta at the same time would
+      // make one button do two very different things.
+      toast.error(t("marketing.tiktok.draftTikTokOnly"));
+      return;
+    }
+    if (blockTikTokPayload({ postMode: TIKTOK_POST_MODES.INBOX_UPLOAD })) return;
+
+    setSaving(true);
+    setTiktokJob(null);
+    try {
+      const created = await createSocialPublisherPost(buildPayload({ tiktokPostMode: TIKTOK_POST_MODES.INBOX_UPLOAD }));
+      const published = await publishSocialPublisherPostDetailed(created.id);
+      const tiktokResult = published?.tiktok_result || null;
+      if (tiktokResult?.job_id) {
+        setTiktokJob({ id: tiktokResult.job_id, status: tiktokResult.status || "uploaded", draft: true });
+      }
+      toast.success(t("marketing.tiktok.draftSubmitted"));
+      resetComposer();
+      await loadPosts();
+    } catch (err) {
+      toast.error(err?.message || t("marketing.tiktok.draftFailed"));
     } finally {
       setSaving(false);
     }
@@ -1506,11 +1634,11 @@ export default function SocialMediaPublisher() {
       toast.error(t("marketing.socialPublisher.chooseScheduleTime"));
       return;
     }
-    if (!hasFacebookAccount) {
+    if (selectedMetaPlatforms.length && !hasFacebookAccount) {
       toast.error(t("marketing.socialPublisher.toasts.connectFacebookFirst"));
       return;
     }
-    if (selectedPlatforms.includes("instagram") && !hasInstagramAccount) {
+    if (selectedMetaPlatforms.includes("instagram") && !hasInstagramAccount) {
       toast.error(t("marketing.socialPublisher.toasts.connectInstagramFirst"));
       return;
     }
@@ -1552,11 +1680,9 @@ export default function SocialMediaPublisher() {
       toast.error(t("marketing.common.permissionPublish"));
       return;
     }
-    const platformsWithNoTiktok = safeArray(post.platforms).filter((platform) => String(platform || "").trim().toLowerCase() !== "tiktok");
-    if (safeArray(post.platforms).length !== platformsWithNoTiktok.length) {
-      toast.error(t("marketing.socialPublisher.tiktokNotConnected"));
-      return;
-    }
+    // TikTok posts are no longer blocked here. Republishing the same post reuses
+    // the per-post idempotency key, so the backend returns the existing job
+    // rather than creating a second TikTok video.
     setPublishingId(post.id);
     try {
       const result = await publishSocialPublisherPost(post.id);
@@ -2061,16 +2187,42 @@ export default function SocialMediaPublisher() {
                               <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                               <span className="min-w-0 space-y-0.5">
                                 <span className="block text-sm font-semibold">{t(platform.labelKey)}</span>
-                                {platform.disabled ? <span className="block text-xs text-slate-400">{t(platform.helperKey)}</span> : null}
+                                {platform.disabled && platform.helperKey ? <span className="block text-xs text-slate-400">{t(platform.helperKey)}</span> : null}
                               </span>
                             </span>
                             <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                              {platform.disabled ? t(platform.subtitleKey) : checked ? "Selected" : "Off"}
+                              {platform.disabled && platform.subtitleKey ? t(platform.subtitleKey) : checked ? "Selected" : "Off"}
                             </span>
                           </button>
                         );
                       })}
                     </div>
+
+                    {/* TikTok posting options, rendered inline in the composer so
+                        TikTok reads as another channel rather than a side screen. */}
+                    <TikTokPublishPanel
+                      active={tiktokSelected}
+                      mediaType={mediaType}
+                      mediaFile={mediaFile}
+                      options={tiktokOptions}
+                      onOptionsChange={setTiktokOptions}
+                      onReadinessChange={setTiktokReadiness}
+                    />
+
+                    {tiktokJob ? (() => {
+                      const presentation = tiktokStatusPresentation(tiktokJob.status);
+                      const toneClass = presentation.tone === "success"
+                        ? "border-emerald-300/25 bg-emerald-400/[0.06] text-emerald-100"
+                        : presentation.tone === "error"
+                          ? "border-rose-300/25 bg-rose-400/[0.06] text-rose-100"
+                          : "border-sky-300/25 bg-sky-400/[0.06] text-sky-100";
+                      return (
+                        <div className={`mt-3 rounded-2xl border p-3 text-xs ${toneClass}`}>
+                          <p className="font-semibold">{t(presentation.labelKey)}</p>
+                          {tiktokJob.failReason ? <p className="mt-1 text-[11px] opacity-80">{tiktokJob.failReason}</p> : null}
+                        </div>
+                      );
+                    })() : null}
                 </div>
 
               </div>
@@ -2199,12 +2351,6 @@ export default function SocialMediaPublisher() {
                   </div>
                 </label>
 
-                <div className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-200">TikTok</span>
-                  <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
-                    {t("marketing.socialPublisher.connectTikTokLater")}
-                  </div>
-                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
@@ -2219,7 +2365,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handleSchedule}
-                  disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
+                  disabled={scheduleDisabled}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
@@ -2228,19 +2374,32 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handlePublishNow}
-                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
+                  disabled={publishDisabled}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {t("marketing.socialPublisher.publishNow")}
                 </button>
+                {/* Separate action: sends the video to TikTok drafts. It never
+                    publishes, so it is deliberately not merged with Publish. */}
+                {tiktokSelected ? (
+                  <button
+                    type="button"
+                    onClick={handleUploadTikTokDraft}
+                    disabled={tiktokDraftDisabled}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music2 className="h-4 w-4" />}
+                    {t("marketing.tiktok.uploadDraft")}
+                  </button>
+                ) : null}
               </div>
 
               <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-[var(--border)] bg-[var(--card)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 md:hidden">
                 <button
                   type="button"
                   onClick={handleSchedule}
-                  disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
+                  disabled={scheduleDisabled}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
@@ -2249,12 +2408,25 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handlePublishNow}
-                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
+                  disabled={publishDisabled}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {t("marketing.socialPublisher.publishNow")}
                 </button>
+                {/* Separate action: sends the video to TikTok drafts. It never
+                    publishes, so it is deliberately not merged with Publish. */}
+                {tiktokSelected ? (
+                  <button
+                    type="button"
+                    onClick={handleUploadTikTokDraft}
+                    disabled={tiktokDraftDisabled}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music2 className="h-4 w-4" />}
+                    {t("marketing.tiktok.uploadDraft")}
+                  </button>
+                ) : null}
               </div>
             </div>
           </section>
@@ -2347,7 +2519,7 @@ export default function SocialMediaPublisher() {
                     <button
                       type="button"
                       onClick={handleSchedule}
-                      disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
+                      disabled={scheduleDisabled}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
@@ -2356,7 +2528,7 @@ export default function SocialMediaPublisher() {
                     <button
                       type="button"
                       onClick={handlePublishNow}
-                      disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
+                      disabled={publishDisabled}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

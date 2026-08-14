@@ -204,6 +204,9 @@ router.post(
         message: result.message || (result.success ? "Published successfully" : "Publish failed"),
         data: refreshed || result.data,
         meta_result: result.meta_result || null,
+        // Needed by the composer to poll the real TikTok publish status; the
+        // initial 202 only means TikTok accepted the upload, not that it is live.
+        tiktok_result: result.tiktok_result || null,
       });
     } catch (error) {
       console.error("[social-publisher] publish post failed", { message: error?.message, stack: error?.stack });

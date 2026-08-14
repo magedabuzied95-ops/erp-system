@@ -399,7 +399,7 @@
   },
   "socialPublisher": {
     "eyebrow": "التسويق",
-    "title": "ناشر السوشيال ميديا",
+    "title": "Social Media Publisher",
     "subtitle": "انشر يدويًا على Facebook وInstagram مع توضيح أن TikTok قادم قريبًا.",
     "uploadTitle": "رفع الوسائط",
     "uploadHint": "ارفع الوسائط، اكتب الوصف، اختر المنصات، ثم راجع المعاينة قبل النشر.",
@@ -497,7 +497,8 @@
       "colorCount": "عدد الألوان",
       "discountRate": "نسبة الخصم",
       "availableColorImages": "صور الألوان المتاحة"
-    }
+    },
+    "tiktokVideoOnly": "فيديو فقط"
   },
   "templates": {
     "eyebrow": "القوالب",
@@ -1587,6 +1588,72 @@
       "reconnect": "إعادة ربط تيك توك",
       "disconnect": "فصل",
       "refresh": "تجديد الرمز"
+    },
+    "optionsTitle": "خيارات النشر على تيك توك",
+    "loadingAccount": "جارٍ التحقق من حساب تيك توك…",
+    "loadingOptions": "جارٍ تحميل الخيارات من تيك توك…",
+    "reloadOptions": "إعادة التحميل",
+    "optionsLoadFailed": "تعذّر تحميل خيارات النشر من تيك توك",
+    "goToChannelSettings": "الذهاب إلى إعدادات القنوات",
+    "privacyLabel": "من يمكنه مشاهدة هذا الفيديو",
+    "privacyPlaceholder": "اختر مستوى الخصوصية",
+    "allowComment": "السماح بالتعليقات",
+    "allowDuet": "السماح بالـDuet",
+    "allowStitch": "السماح بالـStitch",
+    "creatorDisabled": "معطّل في حساب تيك توك هذا",
+    "maxDuration": "أقصى مدة فيديو لهذا الحساب: {{max}} ثانية",
+    "currentDuration": "هذا الفيديو: {{seconds}} ثانية",
+    "commercialToggle": "الإفصاح عن محتوى تجاري",
+    "commercialHint": "فعّل هذا إذا كان الفيديو يروّج لعلامة تجارية أو منتج أو خدمة.",
+    "yourBrand": "علامتك التجارية",
+    "yourBrandHint": "أنت تروّج لنفسك أو لنشاطك التجاري.",
+    "brandedContent": "محتوى براندد",
+    "brandedContentHint": "أنت تروّج لعلامة تجارية أخرى أو لطرف ثالث.",
+    "brandedContentSelfOnly": "غير متاح مع المحتوى البراندد",
+    "submitted": "تم الإرسال إلى تيك توك — جارٍ تتبّع حالة النشر",
+    "uploadDraft": "رفع إلى مسودات تيك توك",
+    "draftSubmitted": "تم إرسال الفيديو إلى مسودات تيك توك",
+    "draftFailed": "تعذّر إرسال الفيديو إلى مسودات تيك توك",
+    "draftTikTokOnly": "الرفع إلى مسودات تيك توك يعمل مع تيك توك فقط. ألغِ اختيار فيسبوك وإنستجرام أولًا.",
+    "privacy": {
+      "public": "الجميع",
+      "friends": "الأصدقاء",
+      "followers": "المتابعون",
+      "selfOnly": "أنا فقط"
+    },
+    "label": {
+      "paidPartnership": "سيُوسم هذا الفيديو بـ«شراكة مدفوعة».",
+      "promotionalContent": "سيُوسم هذا الفيديو بـ«محتوى ترويجي»."
+    },
+    "consent": {
+      "music": "بالنشر، فإنك توافق على إقرار استخدام الموسيقى الخاص بتيك توك.",
+      "brandedAndMusic": "بالنشر، فإنك توافق على سياسة المحتوى البراندد وإقرار استخدام الموسيقى الخاصين بتيك توك."
+    },
+    "status": {
+      "uploading": "جارٍ الرفع إلى تيك توك…",
+      "processing": "تيك توك يعالج الفيديو…",
+      "published": "تم النشر على تيك توك",
+      "draftReady": "جاهز في مسودات تيك توك",
+      "failed": "فشل النشر على تيك توك"
+    },
+    "blocked": {
+      "unknown": "حالة حساب تيك توك غير متاحة.",
+      "disabled": "تكامل تيك توك مُعطّل على هذا الخادم.",
+      "notConfigured": "لم يتم ضبط تيك توك على هذا الخادم بعد.",
+      "notConnected": "اربط حساب تيك توك قبل النشر.",
+      "reconnectRequired": "انتهت صلاحية اتصال تيك توك. أعد الربط للنشر.",
+      "missingPublishScope": "هذا الحساب لم يمنح صلاحية النشر. أعد الربط ووافق عليها."
+    },
+    "errors": {
+      "videoRequired": "تيك توك يقبل الفيديو فقط. اختر ملف فيديو.",
+      "unsupportedFormat": "صيغ الفيديو المدعومة في تيك توك: {{formats}}",
+      "fileTooLarge": "حجم هذا الفيديو أكبر مما يقبله تيك توك.",
+      "tooLong": "مدة الفيديو أطول من {{max}} ثانية المسموح بها لهذا الحساب.",
+      "privacyRequired": "اختر من يمكنه مشاهدة فيديو تيك توك.",
+      "privacyUnavailable": "مستوى الخصوصية هذا غير متاح لحساب تيك توك.",
+      "disclosureRequired": "فعّل الإفصاح عن المحتوى التجاري أولًا.",
+      "disclosureSelectionRequired": "حدّد ما إذا كان المحتوى يروّج لك أو لطرف ثالث أو للاثنين.",
+      "brandedContentSelfOnly": "لا يمكن نشر المحتوى البراندد بخصوصية «أنا فقط»."
     }
   }
 }

@@ -241,6 +241,16 @@ export const getSocialPublisherMetaAccounts = async (options = {}) => unwrapItem
 export const createSocialPublisherPost = async (body) => unwrapItem(await api.post("/social-publisher/posts", body));
 export const publishSocialPublisherPost = async (id) => unwrapItem(await api.post(`/social-publisher/posts/${id}/publish`, {}));
 
+// Same endpoint, full envelope. unwrapItem() collapses the response to `data`
+// (the post row), which drops the sibling `tiktok_result` the composer needs to
+// start status tracking. Kept as a separate export so every existing caller of
+// publishSocialPublisherPost keeps its current return shape.
+export const publishSocialPublisherPostDetailed = async (id) =>
+  (await api.post(`/social-publisher/posts/${id}/publish`, {}))?.data ?? null;
+
+export const getTikTokPublishStatus = async (jobId) =>
+  (await api.get(`/tiktok/publish/${jobId}/status`))?.data?.data ?? null;
+
 export const getMarketingSettings = async () => {
   try {
     return unwrapItem(await api.get("/marketing/settings"));
