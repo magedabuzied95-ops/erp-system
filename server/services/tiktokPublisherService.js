@@ -414,9 +414,44 @@ export const publishToTikTok = async ({
 // Status tracking
 // ---------------------------------------------------------------------------
 
-// TikTok's own status vocabulary from /post/publish/status/fetch/.
+// TikTok's own status vocabulary from /post/publish/status/fetch/:
+//   PROCESSING_UPLOAD / PROCESSING_DOWNLOAD — transfer still running
+//   SEND_TO_USER_INBOX — the video reached the creator's inbox for the draft flow
+//   PUBLISH_COMPLETE   — the post is live on the profile
+//   FAILED             — the whole operation failed
 const TERMINAL_OK = new Set(["PUBLISH_COMPLETE"]);
 const TERMINAL_FAIL = new Set(["FAILED"]);
+
+// SEND_TO_USER_INBOX is where an inbox upload ENDS as far as this system is
+// concerned: TikTok has the video and has notified the creator. Reaching
+// PUBLISH_COMPLETE from there requires the creator to open TikTok and finish the
+// post themselves, which may never happen and is not ours to wait for. Treating
+// it as non-terminal left every draft stuck on "processing" and the composer
+// polling forever.
+const INBOX_DELIVERED = "SEND_TO_USER_INBOX";
+
+// Internal statuses that end polling. draft_ready and published are successes;
+// failed is terminal too.
+export const TIKTOK_TERMINAL_JOB_STATUSES = Object.freeze(["published", "draft_ready", "failed"]);
+
+export const resolveTikTokJobStatus = ({ postMode, remoteStatus, currentStatus = "" } = {}) => {
+  const remote = text(remoteStatus).toUpperCase();
+  const isInbox = postMode === TIKTOK_POST_MODES.INBOX_UPLOAD;
+
+  if (remote === INBOX_DELIVERED) {
+    // Only an inbox upload is finished here. For a Direct Post this status is
+    // not an outcome at all, and must never be read as "published".
+    return isInbox ? "draft_ready" : "processing";
+  }
+  if (TERMINAL_OK.has(remote)) {
+    // For an inbox upload PUBLISH_COMPLETE still means the draft flow finished,
+    // not that we published anything — keep the distinct status.
+    return isInbox ? "draft_ready" : "published";
+  }
+  if (TERMINAL_FAIL.has(remote)) return "failed";
+  if (remote) return "processing";
+  return text(currentStatus);
+};
 
 export const syncTikTokPublishStatus = async ({ tenantId, jobId, client = db } = {}) => {
   await ensureTikTokPublishSchema(client);
@@ -432,17 +467,13 @@ export const syncTikTokPublishStatus = async ({ tenantId, jobId, client = db } =
   const remote = await fetchTikTokPublishStatus({ accessToken, publishId: job.publish_id });
   const remoteStatus = text(remote.status).toUpperCase();
 
-  let nextStatus = job.status;
-  if (TERMINAL_OK.has(remoteStatus)) {
-    // For an inbox upload, PUBLISH_COMPLETE means the draft reached the app —
-    // not that anything is live. Keeping a distinct status stops the UI from
-    // ever reporting a draft as published.
-    nextStatus = job.post_mode === TIKTOK_POST_MODES.INBOX_UPLOAD ? "draft_ready" : "published";
-  } else if (TERMINAL_FAIL.has(remoteStatus)) {
-    nextStatus = "failed";
-  } else if (remoteStatus) {
-    nextStatus = "processing";
-  }
+  // Status only. This path never re-uploads: it reads the existing publish_id
+  // and asks TikTok what became of it.
+  const nextStatus = resolveTikTokJobStatus({
+    postMode: job.post_mode,
+    remoteStatus,
+    currentStatus: job.status,
+  });
 
   const publiclyAvailablePostId = Array.isArray(remote.publicaly_available_post_id)
     ? text(remote.publicaly_available_post_id[0])
