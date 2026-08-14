@@ -100,7 +100,9 @@ router.get("/oauth/callback", async (req, res) => {
     process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL
   ) || "/";
   const backTo = (params) => {
-    const url = new URL("/ai-channels", frontendUrl);
+    // Must match the SPA route registered in src/App.jsx ("admin/ai-channels"),
+    // otherwise the user lands on a 404 after approving on TikTok.
+    const url = new URL("/admin/ai-channels", frontendUrl);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
     return url.toString();
   };
