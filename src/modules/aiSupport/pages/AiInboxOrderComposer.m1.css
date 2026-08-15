@@ -361,6 +361,16 @@
   font-weight: 700;
 }
 
+/* The figure the seller is actually committing to. It sits inside
+   .ai-order__total, so it only needs the separator and the extra weight. */
+.ai-order__grand-total {
+  border-top: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  color: var(--text);
+  font-size: var(--font-body-lg, var(--font-body));
+  line-height: var(--font-body-lh);
+  font-weight: 900;
+}
+
 /* ---- notices ------------------------------------------------------------ */
 
 .ai-order__notice {

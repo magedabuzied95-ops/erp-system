@@ -1156,6 +1156,59 @@ const resolveAiOrderCustomer = async ({ tenantId, phone = "", name = "" } = {}) 
   }
 };
 
+/**
+ * The single authority for what an AI-inbox order is charged for shipping.
+ *
+ * Shipping comes from the SAME price list the storefront charges by: the zone
+ * table in shipping settings, with its free-shipping threshold. Bosta only
+ * carries the parcel; it does not set the price.
+ *
+ * A `shipping_cost` on the payload is the seller's manual override and wins
+ * outright — including an explicit 0, which is how free delivery is granted.
+ * Anything below zero, empty or absent means "quote it".
+ *
+ * The order composer previews the price through this exact function before the
+ * seller saves, so the figure on screen is the figure on the invoice.
+ */
+export const resolveAiOrderShipping = async (payload = {}) => {
+  // An empty string is a field the seller never filled, NOT a price of zero.
+  // numeric("") is 0, so testing the number alone would silently turn every
+  // order whose composer serialised a blank field into free delivery.
+  const rawOverride = payload.shipping_cost;
+  const overrideProvided = rawOverride !== undefined && rawOverride !== null && String(rawOverride).trim() !== "";
+  const override = overrideProvided ? numeric(rawOverride, -1) : -1;
+  if (override >= 0) {
+    const cost = Math.max(0, override);
+    return { cost, quote: null, source: "manual", free_shipping_applied: false, zone: "" };
+  }
+
+  const netSubtotal = Math.max(0, numeric(payload.net_subtotal ?? payload.subtotal ?? payload.order_total, 0));
+  try {
+    const quote = await resolveStorefrontShippingQuote({
+      governorate: text(payload.governorate),
+      city: text(payload.city_area),
+      area: text(payload.city_area),
+      city_id: text(payload.shipping_city_id),
+      zone_id: text(payload.shipping_zone_id),
+      district_id: text(payload.shipping_district_id || payload.district_id),
+      subtotal: netSubtotal,
+      order_total: netSubtotal,
+    });
+    return {
+      cost: Math.max(0, numeric(quote?.price, 0)),
+      quote,
+      source: "zones",
+      free_shipping_applied: Boolean(quote?.free_shipping_applied),
+      zone: text(quote?.zone_name || quote?.zone?.governorate || quote?.zone?.id || ""),
+    };
+  } catch (error) {
+    // Never block an order on the price list. Charging 0 is visible on the
+    // invoice and can be corrected; a thrown error loses the whole sale.
+    console.warn("[ai-agent:orders] shipping quote failed, charging 0", { message: error?.message });
+    return { cost: 0, quote: null, source: "unavailable", free_shipping_applied: false, zone: "" };
+  }
+};
+
 export const createAiOrderDraftLines = async (payload = {}) => {
   await ensureAiAgentOrderSchema();
   const tenantId = numeric(payload.tenant_id ?? payload.tenantId, 0);
@@ -1327,30 +1380,10 @@ export const createAiOrderDraftLines = async (payload = {}) => {
   const rawDiscount = discountType === "percent" ? (subtotal * discountValue) / 100 : discountValue;
   const discountAmount = Math.min(subtotal, Math.max(0, Math.round(rawDiscount * 100) / 100));
 
-  // Shipping comes from the SAME authority the storefront charges by: the zone
-  // price list in shipping settings (with its free-shipping threshold), not from
-  // the courier. Bosta is only who carries it.
-  let shippingCost = 0;
-  let shippingQuote = null;
-  if (numeric(payload.shipping_cost, -1) >= 0) {
-    shippingCost = numeric(payload.shipping_cost, 0);
-  } else {
-    try {
-      shippingQuote = await resolveStorefrontShippingQuote({
-        governorate: text(payload.governorate),
-        city: text(payload.city_area),
-        area: text(payload.city_area),
-        city_id: text(payload.shipping_city_id),
-        zone_id: text(payload.shipping_zone_id),
-        district_id: text(payload.shipping_district_id || payload.district_id),
-        subtotal: subtotal - discountAmount,
-        order_total: subtotal - discountAmount,
-      });
-      shippingCost = Math.max(0, numeric(shippingQuote?.price, 0));
-    } catch (error) {
-      console.warn("[ai-agent:orders] shipping quote failed, charging 0", { message: error?.message });
-    }
-  }
+  const { cost: shippingCost, quote: shippingQuote } = await resolveAiOrderShipping({
+    ...payload,
+    net_subtotal: subtotal - discountAmount,
+  });
   const orderTotal = Math.max(0, subtotal - discountAmount + shippingCost);
   const idempotencyKey = text(payload.idempotency_key || payload.idempotencyKey || "");
   const hash = idempotencyKey

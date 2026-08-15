@@ -61,6 +61,7 @@ import {
   listCustomerSavedAddresses,
   saveCustomerAddress,
   listAiOrderDrafts,
+  resolveAiOrderShipping,
   searchAiOrderProducts,
   updateAiOrderStatus,
 } from "../services/aiAgentOrderService.js";
@@ -4428,6 +4429,31 @@ router.get("/customer-addresses", protect, permit("settings", "edit"), async (re
   }
 });
 
+// What the order composer shows as shipping before the seller saves. It calls
+// the same resolver the order itself is priced through, so the previewed figure
+// and the invoiced figure cannot disagree.
+router.get("/shipping-quote", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const shipping = await resolveAiOrderShipping({
+      governorate: req.query?.governorate || "",
+      city_area: req.query?.city_area || "",
+      shipping_city_id: req.query?.shipping_city_id || req.query?.city_id || "",
+      shipping_zone_id: req.query?.shipping_zone_id || req.query?.zone_id || "",
+      shipping_district_id: req.query?.shipping_district_id || req.query?.district_id || "",
+      net_subtotal: req.query?.net_subtotal || req.query?.subtotal || 0,
+    });
+    return res.json({
+      success: true,
+      shipping_cost: shipping.cost,
+      source: shipping.source,
+      free_shipping_applied: shipping.free_shipping_applied,
+      zone: shipping.zone,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to resolve shipping price");
+  }
+});
+
 router.post("/conversations/:conversationId/create-draft-order", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
@@ -4464,6 +4490,10 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
         discount_type: req.body?.discount_type || "amount",
         discount_value: req.body?.discount_value || 0,
         discount_reason: req.body?.discount_reason || "",
+        // Absent means "quote it from the zone price list". Present — including
+        // an explicit 0 for free delivery — is the seller overriding it in the
+        // composer, and it must survive the trip to the invoice.
+        shipping_cost: req.body?.shipping_cost,
         customer_name: req.body?.customer_name || conversation.customer_name || conversation.first_name || "Meta customer",
         customer_phone: req.body?.customer_phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
         customer_address: req.body?.customer_address || "",

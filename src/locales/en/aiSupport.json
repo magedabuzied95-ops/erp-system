@@ -746,7 +746,15 @@
       "savedAddress": "Saved address",
       "discount": "Invoice discount",
       "discountAmount": "Amount",
-      "shippingAddedNote": "Shipping is priced from the shipping zones and added on the invoice."
+      "shippingAddedNote": "Shipping is priced from the shipping zones and added on the invoice.",
+      "shippingLabel": "Shipping",
+      "shippingFromZones": "Priced from the shipping zones",
+      "shippingFree": "Free shipping on this invoice",
+      "shippingManual": "Manual price — saved as typed",
+      "shippingResetAuto": "Back to the automatic price",
+      "shippingLoading": "Pricing shipping…",
+      "shippingNeedsAddress": "Choose the governorate and area to price shipping",
+      "orderTotal": "Order total"
     },
     "panel": {
       "noTranscript": "No transcript yet.",

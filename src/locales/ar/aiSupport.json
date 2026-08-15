@@ -746,7 +746,15 @@
       "savedAddress": "عنوان محفوظ",
       "discount": "خصم على الفاتورة",
       "discountAmount": "مبلغ",
-      "shippingAddedNote": "الشحن بيتحسب من أسعار مناطق الشحن ويتضاف في الفاتورة."
+      "shippingAddedNote": "الشحن بيتحسب من أسعار مناطق الشحن ويتضاف في الفاتورة.",
+      "shippingLabel": "الشحن",
+      "shippingFromZones": "محسوب من أسعار مناطق الشحن",
+      "shippingFree": "شحن مجاني على هذه الفاتورة",
+      "shippingManual": "سعر يدوي — هيتحفظ زي ما هو",
+      "shippingResetAuto": "رجّع للسعر التلقائي",
+      "shippingLoading": "بيحسب سعر الشحن…",
+      "shippingNeedsAddress": "اختر المحافظة والمنطقة عشان يظهر سعر الشحن",
+      "orderTotal": "إجمالي الأوردر"
     },
     "panel": {
       "noTranscript": "لا يوجد سجل محادثة بعد.",

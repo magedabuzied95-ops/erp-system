@@ -3734,6 +3734,11 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const [cityArea, setCityArea] = useState("");
   const [shippingLocations, setShippingLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
   const [notes, setNotes] = useState("");
+  // Quoted = what the zone price list says for this address. Override = what the
+  // seller typed instead. Only the override travels in the payload; leaving it
+  // null keeps the server as the single authority on the price.
+  const [quotedShipping, setQuotedShipping] = useState({ cost: null, source: "", freeShipping: false, loading: false });
+  const [shippingOverride, setShippingOverride] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -3755,6 +3760,8 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
     setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
     setNotes("");
+    setQuotedShipping({ cost: null, source: "", freeShipping: false, loading: false });
+    setShippingOverride(null);
     // Deliberately NOT keyed on `products`: the parent passes it as an inline
     // `cond ? list : []`, so it is a new array on every parent render. Adding a
     // model re-renders the parent, which used to re-run this effect and wipe the
@@ -3834,10 +3841,60 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     return () => { active = false; };
   }, [headers, open, shippingProvider, shippingZoneId]);
 
+  // Hoisted above the `open` guard so the shipping quote effect can price
+  // against the same net subtotal the server will.
+  const cartTotal = useMemo(
+    () => lines.reduce((sum, line) => sum + Number(line.price || 0) * Math.max(1, Number(line.quantity) || 1), 0),
+    [lines]
+  );
+  const discountAmount = useMemo(() => {
+    const raw = discountType === "percent" ? (cartTotal * (Number(discountValue) || 0)) / 100 : (Number(discountValue) || 0);
+    return Math.max(0, Math.min(cartTotal, Math.round(raw * 100) / 100));
+  }, [cartTotal, discountType, discountValue]);
+  const netSubtotal = Math.max(0, cartTotal - discountAmount);
+
+  // The zone price list is re-quoted whenever the address or the amount it is
+  // priced against changes, because a free-shipping threshold makes the price a
+  // function of both. Debounced so typing a discount does not spray requests.
+  useEffect(() => {
+    if (!open) return undefined;
+    const addressKnown = shippingProvider === "bosta"
+      ? Boolean(shippingCityId)
+      : Boolean(governorate);
+    if (!addressKnown) {
+      setQuotedShipping({ cost: null, source: "", freeShipping: false, loading: false });
+      return undefined;
+    }
+    let active = true;
+    setQuotedShipping((current) => ({ ...current, loading: true }));
+    const timer = window.setTimeout(() => {
+      const query = new URLSearchParams({
+        governorate: shippingProvider === "bosta" ? shippingLocationLabel(shippingLocations.cities.find((item) => shippingLocationId(item) === shippingCityId)) : governorate,
+        city_area: shippingProvider === "bosta"
+          ? (shippingLocationLabel(shippingLocations.districts.find((item) => shippingLocationId(item) === shippingDistrictId))
+            || shippingLocationLabel(shippingLocations.zones.find((item) => shippingLocationId(item) === shippingZoneId)))
+          : cityArea,
+        shipping_city_id: shippingCityId,
+        shipping_zone_id: shippingZoneId,
+        shipping_district_id: shippingDistrictId,
+        net_subtotal: String(netSubtotal),
+      });
+      api.get(`/ai-inbox/shipping-quote?${query.toString()}`, { headers, suppressErrorStatuses: [404, 500] })
+        .then((data) => active && setQuotedShipping({
+          cost: Number(data?.shipping_cost || 0),
+          source: clean(data?.source),
+          freeShipping: Boolean(data?.free_shipping_applied),
+          loading: false,
+        }))
+        .catch(() => active && setQuotedShipping({ cost: null, source: "unavailable", freeShipping: false, loading: false }));
+    }, 300);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [cityArea, governorate, headers, netSubtotal, open, shippingCityId, shippingDistrictId, shippingLocations, shippingProvider, shippingZoneId]);
+
   if (!open) return null;
-  const discountRaw = discountType === "percent" ? (lines.reduce((sum, line) => sum + Number(line.price || 0) * Math.max(1, Number(line.quantity) || 1), 0) * (Number(discountValue) || 0)) / 100 : (Number(discountValue) || 0);
-  const cartTotal = lines.reduce((sum, line) => sum + Number(line.price || 0) * Math.max(1, Number(line.quantity) || 1), 0);
-  const discountAmount = Math.max(0, Math.min(cartTotal, Math.round(discountRaw * 100) / 100));
+  const shippingIsOverridden = shippingOverride !== null;
+  const shippingCost = shippingIsOverridden ? Math.max(0, Number(shippingOverride) || 0) : Math.max(0, Number(quotedShipping.cost) || 0);
+  const orderTotal = Math.max(0, netSubtotal + shippingCost);
   const selectedCity = shippingLocations.cities.find((item) => shippingLocationId(item) === shippingCityId) || null;
   const selectedZone = shippingLocations.zones.find((item) => shippingLocationId(item) === shippingZoneId) || null;
   const selectedDistrict = shippingLocations.districts.find((item) => shippingLocationId(item) === shippingDistrictId) || null;
@@ -3850,6 +3907,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     payment_method: paymentMethod,
     discount_type: discountType,
     discount_value: Math.max(0, Number(discountValue) || 0),
+    // Sent only when the seller typed a price. Omitting the key entirely leaves
+    // the server to quote from the zone list, which is the default authority.
+    ...(shippingIsOverridden ? { shipping_cost: shippingCost } : {}),
     items: lines.map((line) => ({
       variant_id: line.variant_id,
       product_id: line.product_id,
@@ -4057,6 +4117,43 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                   </div>
                 </div>
 
+                {/* Shipping: quoted from the zone price list for the chosen
+                    address, and editable here. The seller sees the real figure
+                    before saving instead of discovering it on the invoice. */}
+                <div className="ai-order__discount p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="ai-order__label">{t("aiSupport.inbox.order.shippingLabel")}</span>
+                    {shippingIsOverridden ? (
+                      <button type="button" onClick={() => setShippingOverride(null)} className="ai-order__segment-option h-8 px-2 text-xs">
+                        {t("aiSupport.inbox.order.shippingResetAuto")}
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={shippingIsOverridden ? shippingOverride : (quotedShipping.cost ?? "")}
+                      onChange={(event) => setShippingOverride(Math.max(0, Number(event.target.value) || 0))}
+                      placeholder={quotedShipping.loading ? "…" : "0"}
+                      aria-label={t("aiSupport.inbox.order.shippingLabel")}
+                      className="ai-order__qty h-10 w-28 px-3"
+                    />
+                    <span className="ai-order__total-note">
+                      {quotedShipping.loading
+                        ? t("aiSupport.inbox.order.shippingLoading")
+                        : shippingIsOverridden
+                          ? t("aiSupport.inbox.order.shippingManual")
+                          : quotedShipping.cost === null
+                            ? t("aiSupport.inbox.order.shippingNeedsAddress")
+                            : quotedShipping.freeShipping
+                              ? t("aiSupport.inbox.order.shippingFree")
+                              : t("aiSupport.inbox.order.shippingFromZones")}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="ai-order__total p-3">
                   <div className="flex items-center justify-between">
                     <span>{lines.length} {t("aiSupport.inbox.order.lineCount")}</span>
@@ -4068,7 +4165,14 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                       <span>- {money(discountAmount)}</span>
                     </div>
                   ) : null}
-                  <div className="ai-order__total-note mt-1">{t("aiSupport.inbox.order.shippingAddedNote")}</div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span>{t("aiSupport.inbox.order.shippingLabel")}</span>
+                    <span>+ {money(shippingCost)}</span>
+                  </div>
+                  <div className="ai-order__grand-total mt-2 flex items-center justify-between pt-2">
+                    <span>{t("aiSupport.inbox.order.orderTotal")}</span>
+                    <span>{money(orderTotal)}</span>
+                  </div>
                 </div>
               </div>
             )}
