@@ -26,7 +26,7 @@ import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlag
 ====================================================== */
 
 import Login from "./pages/Login";
-import { getToken, getUserRole, setAuth } from "./shared/auth/authStorage";
+import { getToken, isMetaReviewerUser, setAuth } from "./shared/auth/authStorage";
 
 /* ======================================================
    DASHBOARD
@@ -315,11 +315,11 @@ function StorefrontLegacyRedirect() {
 }
 
 function ScopedInbox() {
-  return getUserRole() === "meta_reviewer" ? <MetaReviewerInbox /> : <AiInboxPwa />;
+  return isMetaReviewerUser() ? <MetaReviewerInbox /> : <AiInboxPwa />;
 }
 
 function ErpMainRoute() {
-  return getUserRole() === "meta_reviewer" ? <Navigate to="/inbox" replace /> : <MainLayout />;
+  return isMetaReviewerUser() ? <Navigate to="/inbox" replace /> : <MainLayout />;
 }
 
 function App() {
@@ -398,7 +398,7 @@ function App() {
     );
   }
 
-  if (enableErpAppRoutes && getToken() && getUserRole() === "meta_reviewer" && !location.pathname.startsWith("/inbox") && location.pathname !== "/login") {
+  if (enableErpAppRoutes && getToken() && isMetaReviewerUser() && !location.pathname.startsWith("/inbox") && location.pathname !== "/login") {
     return <Navigate to="/inbox" replace />;
   }
 

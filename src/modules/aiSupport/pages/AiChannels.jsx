@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
-import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
+import { getCurrentTenant, getCurrentUser, isMetaReviewerUser } from "../../../shared/auth/authStorage";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import TikTokConnectionCard from "../components/TikTokConnectionCard";
 import { useTenant } from "../../saas/context/TenantContext";
@@ -256,6 +256,13 @@ function SkeletonBlock() {
 }
 
 export default function AiChannels() {
+  // Keep this guard close to the settings page as a second UI boundary in case a
+  // reviewer follows a saved settings URL directly.
+  if (isMetaReviewerUser()) return <Navigate to="/inbox" replace />;
+  return <AiChannelsWorkspace />;
+}
+
+function AiChannelsWorkspace() {
   const { t, i18n } = useTranslation();
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);

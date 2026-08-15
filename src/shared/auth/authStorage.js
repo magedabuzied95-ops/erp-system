@@ -43,6 +43,11 @@ const CURRENT_TENANT_KEY = "erp.saas.currentTenant";
 export const getUserRole = (user = getCurrentUser()) =>
   String(user?.role || user?.role_name || "admin").toLowerCase();
 
+// Roles from older accounts may use a space or a hyphen in their display name.
+// Treat all of those representations as the same restricted reviewer role.
+export const isMetaReviewerUser = (user = getCurrentUser()) =>
+  getUserRole(user).trim().replace(/[\s-]+/g, "_") === "meta_reviewer";
+
 export const isCashierUser = (user = getCurrentUser()) => {
   const role = getUserRole(user)
     .trim()
