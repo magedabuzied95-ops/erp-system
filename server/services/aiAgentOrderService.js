@@ -1105,6 +1105,57 @@ export const saveCustomerAddress = async ({ tenantId, phone, customerName = "", 
   return result.rows[0] || null;
 };
 
+// Find the customer this phone already belongs to, or register them once.
+//
+// Matching is on the last 9 digits so the same person is one record whether the
+// number was stored as 01024960585, +201024960585 or 201024960585. The exact
+// match runs first because `phone` is the indexed form; the digit-suffix scan is
+// only the fallback for rows written by an older path.
+//
+// Never throws: an order must not fail because the customer directory did.
+const resolveAiOrderCustomer = async ({ tenantId, phone = "", name = "" } = {}) => {
+  const normalizedPhone = normalizePhone(phone);
+  if (!tenantId || !normalizedPhone) return null;
+  try {
+    const existing = await db.query(
+      `
+      SELECT id, name, phone
+      FROM customers
+      WHERE tenant_id = $1::bigint
+        AND (
+          phone = $2::text
+          OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 9) = RIGHT($2::text, 9)
+        )
+      ORDER BY updated_at DESC NULLS LAST, id DESC
+      LIMIT 1
+      `,
+      [tenantId, normalizedPhone]
+    );
+    if (existing.rows[0]) {
+      console.log("[ai-agent:orders] existing customer matched by phone", {
+        tenantId,
+        customer_id: existing.rows[0].id,
+      });
+      return existing.rows[0];
+    }
+    const created = await db.query(
+      `
+      INSERT INTO customers (tenant_id, name, phone, status)
+      VALUES ($1::bigint, $2::text, $3::text, 'active')
+      RETURNING id, name, phone
+      `,
+      [tenantId, text(name) || "AI inbox customer", normalizedPhone]
+    );
+    return created.rows[0] || null;
+  } catch (error) {
+    console.warn("[ai-agent:orders] resolving the customer failed, ordering unlinked", {
+      tenantId,
+      message: error?.message || "unknown",
+    });
+    return null;
+  }
+};
+
 export const createAiOrderDraftLines = async (payload = {}) => {
   await ensureAiAgentOrderSchema();
   const tenantId = numeric(payload.tenant_id ?? payload.tenantId, 0);
@@ -1257,6 +1308,18 @@ export const createAiOrderDraftLines = async (payload = {}) => {
 
   const paymentMethod = text(payload.payment_method || "cash_on_delivery") || "cash_on_delivery";
 
+  // One phone is one customer. Without this the AI inbox created an order that
+  // was linked to nobody, so the invoice fell back to the messaging display name
+  // and printed no phone at all, and the same shopper was a stranger on every
+  // order. Only a real Egyptian number identifies a person — the Meta id
+  // placeholder must never become a customer record.
+  const customerRecord = normalizedPhone
+    ? await resolveAiOrderCustomer({ tenantId, phone: normalizedPhone, name: text(payload.customer_name) })
+    : null;
+  const customerId = numberOrNull(payload.customer_id) || customerRecord?.id || null;
+  // A registered customer's own name outranks whatever the channel calls them.
+  const customerName = text(customerRecord?.name) || text(payload.customer_name);
+
   // Discount is entered by the seller on the invoice, as an amount or a percent of
   // the goods. It never drops below zero and never exceeds the goods themselves.
   const discountType = text(payload.discount_type).toLowerCase() === "percent" ? "percent" : "amount";
@@ -1318,8 +1381,8 @@ export const createAiOrderDraftLines = async (payload = {}) => {
       order: {
         tenant_id: tenantId,
         invoice_number: buildTemporaryInvoiceNumber(),
-        customer_id: numberOrNull(payload.customer_id),
-        customer_name: text(payload.customer_name),
+        customer_id: customerId,
+        customer_name: customerName,
         customer_phone: phone,
         channel,
         source,

@@ -4458,6 +4458,12 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
         channel: conversation.channel || conversation.source || "facebook_messenger",
         lines: requestedLines,
         payment_method: req.body?.payment_method || "cash_on_delivery",
+        // The seller's invoice discount. Not forwarding it here is what made the
+        // composer's discount vanish somewhere between the drawer and the invoice:
+        // the service has always priced it, the request never carried it.
+        discount_type: req.body?.discount_type || "amount",
+        discount_value: req.body?.discount_value || 0,
+        discount_reason: req.body?.discount_reason || "",
         customer_name: req.body?.customer_name || conversation.customer_name || conversation.first_name || "Meta customer",
         customer_phone: req.body?.customer_phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
         customer_address: req.body?.customer_address || "",

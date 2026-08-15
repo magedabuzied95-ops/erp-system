@@ -1544,8 +1544,27 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     [order.id]
   );
 
-  const customerName = order.order_customer_name || order.customer_record_name || "Walk-in Customer";
-  const customerPhone = order.customer_record_phone || "";
+  // A registered customer's own record is the identity; the name copied onto the
+  // order is the fallback. That ordering is what stops a messaging display name
+  // from printing on the invoice of a shopper the store already knows.
+  const customerName = order.customer_record_name || order.order_customer_name || "Walk-in Customer";
+  // The phone lives on the order for every channel that has no customer record
+  // yet. Reading only the joined record is what printed "unavailable" on orders
+  // that carried the number all along.
+  const customerPhone = order.customer_record_phone || order.customer_phone || "";
+  // The composer stores the address in parts; the invoice needs it as one line.
+  const customerAddress = [
+    order.street_address,
+    order.building_number ? `مبنى ${order.building_number}` : "",
+    order.floor_number ? `دور ${order.floor_number}` : "",
+    order.apartment_number ? `شقة ${order.apartment_number}` : "",
+    order.landmark,
+    order.city_area,
+    order.governorate,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join("، ") || String(order.customer_address || "").trim();
   const identifier = publicInvoiceIdentifier(order);
   const publicInvoiceUrl = buildPublicInvoiceUrl(req, identifier);
   const shortInvoiceUrl = buildShortPublicInvoiceUrl(req, identifier);
@@ -1607,6 +1626,15 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     order_date: order.created_at,
     customer_name: customerName,
     customer_phone: customerPhone,
+    customer_address: customerAddress,
+    governorate: order.governorate || "",
+    city_area: order.city_area || "",
+    street_address: order.street_address || "",
+    building_number: order.building_number || "",
+    floor_number: order.floor_number || "",
+    apartment_number: order.apartment_number || "",
+    landmark: order.landmark || "",
+    shipping_cost: normalizeInvoiceMoney(order.shipping_cost),
     store: {
       name: process.env.STORE_NAME || process.env.APP_NAME || "ERP Store",
       logo_url: process.env.STORE_LOGO_URL || "",
@@ -1622,11 +1650,16 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     customer: {
       name: customerName,
       phone: customerPhone,
+      address: customerAddress,
     },
     items,
     totals: {
       subtotal: normalizeInvoiceMoney(order.subtotal),
       discount: normalizeInvoiceMoney(order.discount_amount),
+      // The order has always carried a shipping figure; leaving it out of the
+      // projection is why a 900 subtotal printed under a 940 total with nothing
+      // in between to explain the difference.
+      shipping: normalizeInvoiceMoney(order.shipping_cost),
       invoice_discount_type: order.invoice_discount_type || "",
       invoice_discount_value: normalizeInvoiceMoney(order.invoice_discount_value),
       invoice_discount_amount: normalizeInvoiceMoney(order.invoice_discount_amount),

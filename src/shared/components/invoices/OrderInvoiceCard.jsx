@@ -1,4 +1,4 @@
-import { CalendarDays, CreditCard, Phone, ShoppingBag, User } from "lucide-react";
+import { CalendarDays, CreditCard, MapPin, Phone, ShoppingBag, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { formatCurrency } from "../../lib/currency";
@@ -15,6 +15,7 @@ const AR_INVOICE_COPY = {
   orderDate: "تاريخ الطلب",
   customer: "العميل",
   phone: "رقم الهاتف",
+  address: "العنوان",
   status: "الحالة",
   paymentMethod: "طريقة الدفع",
   product: "المنتج",
@@ -58,6 +59,7 @@ const EN_INVOICE_COPY = {
   orderDate: "Order date",
   customer: "Customer",
   phone: "Phone number",
+  address: "Address",
   status: "Status",
   paymentMethod: "Payment method",
   product: "Product",
@@ -332,6 +334,20 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
       <div className={`${luxury ? `grid gap-3 p-5 sm:p-6 ${publicView ? "sm:grid-cols-2 lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}` : `grid gap-3 p-5 ${publicView ? "sm:grid-cols-2 lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}`}>
         <Meta luxury={luxury} icon={User} label={copy.customer} value={data?.customer?.name || copy.walkInCustomer} unavailable={unavailable} inline={publicView} />
         <Meta luxury={luxury} icon={Phone} label={copy.phone} value={data?.customer?.phone || unavailable} unavailable={unavailable} inline={publicView} />
+        {/* The delivery address only appears when the order actually carries one,
+            so a walk-in POS invoice keeps its two-column header. */}
+        {data?.customer?.address ? (
+          <Meta
+            luxury={luxury}
+            icon={MapPin}
+            label={copy.address}
+            value={data.customer.address}
+            unavailable={unavailable}
+            inline={publicView}
+            wrap
+            className={publicView ? "sm:col-span-2" : "lg:col-span-2"}
+          />
+        ) : null}
         {!publicView ? <Meta luxury={luxury} label={copy.status} value={getStatusLabel(data.status || "pending", copy)} unavailable={unavailable} badge /> : null}
         {!publicView ? <Meta luxury={luxury} icon={CreditCard} label={copy.paymentMethod} value={resolvedPaymentMethod} unavailable={unavailable} /> : null}
       </div>
@@ -418,10 +434,10 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
   );
 }
 
-function Meta({ icon: Icon, label, value, unavailable, luxury = false, badge = false, inline = false }) {
+function Meta({ icon: Icon, label, value, unavailable, luxury = false, badge = false, inline = false, className = "", wrap = false }) {
   const tone = getStatusTone(value);
   return (
-    <div className={`rounded-[var(--radius-card)] border px-4 py-3 ${luxury ? "border-slate-200/90 bg-white/70 shadow-[0_12px_32px_rgba(15,23,42,0.05)] print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"}`}>
+    <div className={`rounded-[var(--radius-card)] border px-4 py-3 ${luxury ? "border-slate-200/90 bg-white/70 shadow-[0_12px_32px_rgba(15,23,42,0.05)] print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"} ${className}`}>
       {!inline ? (
         <div className={`flex items-center gap-2 text-xs font-black ${luxury ? "uppercase tracking-[0.14em] text-slate-400" : "text-stone-500"}`}>
           {Icon ? <Icon className="h-4 w-4" /> : null}
@@ -433,7 +449,7 @@ function Meta({ icon: Icon, label, value, unavailable, luxury = false, badge = f
           <span className="truncate">{value || unavailable}</span>
         </div>
       ) : (
-        <div className={`${inline ? "truncate" : "mt-1 truncate"} font-black ${luxury ? "text-slate-950" : "text-stone-950"}`}>
+        <div className={`${wrap ? "break-words" : "truncate"}${inline ? "" : " mt-1"} font-black ${luxury ? "text-slate-950" : "text-stone-950"}`}>
           {inline ? `${label}: ${value || unavailable}` : (value || unavailable)}
         </div>
       )}
