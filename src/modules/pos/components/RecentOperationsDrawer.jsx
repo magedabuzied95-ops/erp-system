@@ -291,7 +291,7 @@ const buildAuditTimeline = (order = {}) => {
   ].filter(Boolean);
 };
 
-function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "", onClose, onEditOrder, onExchangeStarted, onPrintOrder, currentCartTotal = 0 }) {
+function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "", onClose, onEditOrder, onPrefetchEditOrder, onExchangeStarted, onPrintOrder, currentCartTotal = 0 }) {
   const { t } = useTranslation();
   // Only seed a plain open. A barcode scan opens the drawer already filtered to one
   // invoice, so painting the last unsearched page there would flash the wrong rows.
@@ -369,7 +369,8 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   const prefetchOrderSummary = useCallback((order) => {
     if (!order?.id) return;
     void loadOrderSummary(order).catch(() => {});
-  }, [loadOrderSummary]);
+    onPrefetchEditOrder?.(order);
+  }, [loadOrderSummary, onPrefetchEditOrder]);
 
   const loadOrders = useCallback(async ({ reset = false } = {}) => {
     const seq = requestSeqRef.current + 1;
@@ -478,18 +479,39 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     return () => window.clearTimeout(timer);
   }, [debouncedSearch, loadOrders, open]);
 
+  // Measured against production: the server does ~15ms of SQL, but a round trip from
+  // the shop to the origin costs 250-930ms. So the click cannot be made fast — the data
+  // has to already be here. Warming only the top two rows left rows 3-10 paying the full
+  // trip, which is exactly what تفاصيل / طباعة / مرتجع felt like. Warm every visible row,
+  // two at a time so the browser's six-per-host budget stays free for whatever the
+  // cashier actually clicks.
   useEffect(() => {
     if (!open || loading || !orders.length) return undefined;
-    const warmRecentOrders = () => {
-      orders.slice(0, 2).forEach(prefetchOrderSummary);
+    let cancelled = false;
+    const warmRecentOrders = async () => {
+      const queue = [...orders];
+      const worker = async () => {
+        while (!cancelled) {
+          const order = queue.shift();
+          if (!order) return;
+          await loadOrderSummary(order).catch(() => {});
+        }
+      };
+      await Promise.all([worker(), worker()]);
     };
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warmRecentOrders, { timeout: 800 });
-      return () => window.cancelIdleCallback?.(idleId);
+      const idleId = window.requestIdleCallback(() => { void warmRecentOrders(); }, { timeout: 800 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(idleId);
+      };
     }
-    const timer = window.setTimeout(warmRecentOrders, 120);
-    return () => window.clearTimeout(timer);
-  }, [loading, open, orders, prefetchOrderSummary]);
+    const timer = window.setTimeout(() => { void warmRecentOrders(); }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [loading, open, orders, loadOrderSummary]);
 
   useEffect(() => {
     if (!open || !pendingRenderStartedAtRef.current) return undefined;
@@ -658,6 +680,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
 
   const handleReturnCreated = async (payload) => {
     const event = payload.mode === "exchange" ? "exchange_created" : "return_created";
+    // Returned quantities just changed, so the warmed summary would re-open with the
+    // pre-return lines and could be reprinted that way.
+    if (returnOrder?.id) orderSummaryCache.delete(String(returnOrder.id));
     if (payload.mode === "exchange" && onExchangeStarted) {
       onExchangeStarted({ order: returnOrder, returnRecord: payload.returnRecord, returnTotal: payload.returnTotal });
     }

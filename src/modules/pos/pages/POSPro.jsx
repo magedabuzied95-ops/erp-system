@@ -154,6 +154,37 @@ const prefetchRecentOperationsDrawer = () => {
   void loadRecentOperationsDrawerModule().catch(() => {});
 };
 
+// تعديل reads /orders/:id/pos-edit, which the drawer's summary cache does not cover —
+// so the button always paid a full round trip (250-930ms measured from the shop). Warm
+// it when the cashier's pointer reaches the row and hold it briefly, so the click that
+// follows a fraction of a second later is answered from memory.
+const POS_EDIT_CACHE_TTL_MS = 60_000;
+const posEditCache = new Map();
+const posEditRequests = new Map();
+
+const loadPosEditOrder = (orderId) => {
+  const key = String(orderId);
+  const cached = posEditCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.response);
+  const pending = posEditRequests.get(key);
+  if (pending) return pending;
+
+  const request = api.get(`/orders/${orderId}/pos-edit`, { timeoutMs: 8000 })
+    .then((response) => {
+      posEditCache.set(key, { response, expiresAt: Date.now() + POS_EDIT_CACHE_TTL_MS });
+      return response;
+    })
+    .finally(() => {
+      if (posEditRequests.get(key) === request) posEditRequests.delete(key);
+    });
+  posEditRequests.set(key, request);
+  return request;
+};
+
+export const invalidatePosEditOrder = (orderId) => {
+  posEditCache.delete(String(orderId));
+};
+
 const RecentOperationsDrawer = lazy(loadRecentOperationsDrawerModule);
 
 const defaultState = {
@@ -5227,7 +5258,7 @@ function POSPro() {
     try {
       if (POS_CHECKOUT_DEBUG) console.log("[pos-edit-ui] click start", { order_id: order.id, source: "recent-orders" });
       const fetchStartedAt = performance.now();
-      const response = await api.get(`/orders/${order.id}/pos-edit`, { timeoutMs: 8000 });
+      const response = await loadPosEditOrder(order.id);
       markEditTiming("fetch_invoice_details_ms", fetchStartedAt);
       const loadedOrder = response.order || order;
       const loadedItems = extractOrderItemsFromResponse(response, order);
@@ -6223,6 +6254,8 @@ function POSPro() {
           ...payload,
           reason: `POS edit for invoice ${editingOrder.invoice_number || editingOrder.id}`,
         }, { timeoutMs: 30000 });
+        // The warmed copy is now stale — re-opening this invoice for edit must refetch.
+        invalidatePosEditOrder(editingOrder.id);
         const updatedOrder = response.order || {};
         setLastOrder({
           ...editingOrder,
@@ -8462,6 +8495,9 @@ function POSPro() {
               }}
               onPrintOrder={(order) => handlePrint(order)}
               onEditOrder={handleEditRecentOrder}
+              onPrefetchEditOrder={(order) => {
+                if (order?.id) void loadPosEditOrder(order.id).catch(() => {});
+              }}
               onExchangeStarted={handleExchangeStarted}
               currentCartTotal={cartTotals.total}
             />
