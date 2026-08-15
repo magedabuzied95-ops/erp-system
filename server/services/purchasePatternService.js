@@ -33,9 +33,31 @@ const strictPositiveInt = (value) => {
 
 const error = (code, message, details = {}) => ({ code, message, ...details });
 
+// An unconfigured pattern must carry the same keys as a configured one. Callers
+// read size_groups/carton_colors straight off the result (products create and
+// update both do `pattern.size_groups.length`), so a short shape crashes any
+// product saved without a purchase mode.
+const unconfiguredPattern = () => ({
+  valid: true,
+  configured: false,
+  mode: null,
+  size_group: null,
+  size_groups: [],
+  size_group_label: "",
+  size_group_labels: [],
+  size_range: "",
+  sizes: [],
+  pieces_per_size: null,
+  colors_per_carton: null,
+  carton_colors: [],
+  pieces_per_color_run: 0,
+  pieces_per_carton: 0,
+  errors: [],
+});
+
 export const validatePurchasePatternConfiguration = (product = {}, variants = []) => {
   const rawMode = text(product.purchase_mode);
-  if (!rawMode) return { valid: true, configured: false, mode: null, errors: [] };
+  if (!rawMode) return unconfiguredPattern();
 
   const mode = normalizePurchaseMode(rawMode);
   const errors = [];

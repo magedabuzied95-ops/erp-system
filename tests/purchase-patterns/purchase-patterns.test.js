@@ -194,6 +194,30 @@ test("multi-group save and reload preserves canonical selected groups", () => {
   assert.deepEqual(reloaded.sizes, Array.from({ length: 15 }, (_, index) => String(index + 22)));
 });
 
+test("a product saved without a purchase mode still returns the full pattern shape", () => {
+  const configured = validatePurchasePatternConfiguration({
+    purchase_mode: "FULL_CARTON",
+    purchase_size_groups: ["MEN"],
+    purchase_pieces_per_size: 1,
+    purchase_colors_per_carton: 1,
+    purchase_carton_colors: ["Black"],
+  }, [{ color: "Black", size: "41" }]);
+  const unconfigured = validatePurchasePatternConfiguration({});
+
+  assert.equal(unconfigured.valid, true);
+  assert.equal(unconfigured.configured, false);
+  assert.deepEqual(Object.keys(unconfigured).sort(), Object.keys(configured).sort());
+
+  // Products create and update read these off the result with no guard, so a
+  // missing key is a 500 on every product saved without a purchase mode.
+  assert.deepEqual(unconfigured.size_groups, []);
+  assert.deepEqual(unconfigured.carton_colors, []);
+  assert.equal(unconfigured.size_groups.length ? "json" : null, null);
+  assert.equal(unconfigured.size_group, null);
+  assert.equal(unconfigured.pieces_per_size, null);
+  assert.equal(unconfigured.colors_per_carton, null);
+});
+
 test("multi-group alert suggestion exactly matches its generated purchase draft", () => {
   const product = {
     id: 55,
