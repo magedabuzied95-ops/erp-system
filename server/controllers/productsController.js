@@ -3036,10 +3036,69 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
   return result.rows;
 };
 
+// Storefront visibility is decided per COLOUR in the product editor, but it is
+// stored on every size row. A row the editor never submitted — a size added from
+// another screen, a row skipped as a placeholder — kept the old value, so one
+// stray row could keep a "hidden" colour on the storefront while the editor
+// showed it hidden. Apply the colour's decision to every active row it owns.
+const syncColorGroupStorefrontVisibility = async (client, { productId, tenantId, variants = [] }) => {
+  const decisions = new Map();
+  variants.forEach((variant) => {
+    const groupKey = String(variant?.color_group_key ?? variant?.colorGroupKey ?? "").trim().toLowerCase();
+    const color = String(variant?.color ?? "").trim().toLowerCase();
+    const key = groupKey || color;
+    if (!key) return;
+    const visible = variant?.is_storefront_visible !== false;
+    const previous = decisions.get(key);
+    decisions.set(key, {
+      groupKey,
+      color,
+      // The editor sends one decision per colour, so the rows agree. Folding with
+      // AND keeps the hidden answer if a caller ever sends a mixed colour.
+      visible: previous ? previous.visible && visible : visible,
+    });
+  });
+
+  let healedRows = 0;
+  for (const decision of decisions.values()) {
+    const result = await client.query(
+      `
+      UPDATE product_variants
+      SET is_storefront_visible = $3
+      WHERE product_id = $1
+        AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+        AND is_storefront_visible IS DISTINCT FROM $3
+        AND (
+          (NULLIF($4, '') IS NOT NULL AND LOWER(TRIM(COALESCE(color_group_key, ''))) = $4)
+          OR (
+            NULLIF($5, '') IS NOT NULL
+            AND LOWER(TRIM(COALESCE(color, ''))) = $5
+            AND (NULLIF($4, '') IS NULL OR COALESCE(TRIM(color_group_key), '') = '')
+          )
+        )
+      RETURNING id
+      `,
+      [productId, tenantId, decision.visible, decision.groupKey, decision.color]
+    );
+    healedRows += result.rowCount || 0;
+  }
+
+  if (healedRows > 0) {
+    console.log("[products:update] colour visibility applied to rows the form did not send", {
+      productId,
+      healedRows,
+      colours: Array.from(decisions.values()).map((decision) => `${decision.color || decision.groupKey}:${decision.visible}`),
+    });
+  }
+  return healedRows;
+};
+
 const loadActiveProductVariantSnapshot = async (client, { productId, tenantId }) => {
   const result = await client.query(
     `
-    SELECT id, color_group_key, color_sort_order, color, size, audience, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
+    SELECT id, color_group_key, color_sort_order, color, size, audience, stock, default_purchase_qty, is_storefront_visible, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -6248,6 +6307,11 @@ export const updateProduct = async (req, res) => {
         savedVariantIds: savedVariants.map((variant) => variant.id),
       });
       archivedVariants = [...explicitlyArchivedVariants, ...missingArchivedVariants];
+      await syncColorGroupStorefrontVisibility(client, {
+        productId,
+        tenantId,
+        variants: normalizedVariants,
+      });
       activeVariantsAfterSave = await loadActiveProductVariantSnapshot(client, { productId, tenantId });
     }
     performanceLogger.markStage("Save variants");
@@ -6655,6 +6719,14 @@ export const updateProductStatus = async (req, res) => {
     );
 
     const refreshed = updated.rows[0] ? normalizeProductRow(updated.rows[0]) : null;
+
+    // This route flips storefront visibility and the offer flags, so the cached
+    // storefront payload is stale the moment it returns. Without this the site
+    // kept showing a product for up to the cache TTL after it was hidden, which
+    // reads as a toggle that does nothing.
+    await invalidateProductStorefrontCache(tenantId).catch((error) => {
+      console.warn("[products-status-toggle] storefront cache invalidation skipped", error?.message || error);
+    });
 
     console.log("[products-status-toggle]", {
       product_id: productId,
@@ -7146,6 +7218,14 @@ export const createVariant = async (req, res) => {
     );
     const previousThermalUrlMap = buildThermalImageUrlMap(previousColorImages);
 
+    // A size added to a colour that is hidden from the storefront must not come
+    // back visible: that single row would put the whole colour back on the site.
+    const colorKeyForVisibility = String(color || "").trim().toLowerCase();
+    const inheritedStorefrontVisible = colorKeyForVisibility
+      ? previousActiveVariants
+          .filter((row) => String(row.color || "").trim().toLowerCase() === colorKeyForVisibility)
+          .every((row) => row.is_storefront_visible !== false)
+      : true;
     const createdVariant = await insertProductVariant(client, {
       productId: req.params.id,
       tenantId,
@@ -7168,7 +7248,7 @@ export const createVariant = async (req, res) => {
         branch_id,
         edition_name,
         edition_slug,
-        is_storefront_visible,
+        is_storefront_visible: is_storefront_visible ?? inheritedStorefrontVisible,
       }),
       skuPrefix,
       userId: req.user?.id || null,
@@ -7191,6 +7271,9 @@ export const createVariant = async (req, res) => {
     });
 
     await client.query("COMMIT");
+    await invalidateProductStorefrontCache(tenantId).catch((error) => {
+      console.warn("[variant:create] storefront cache invalidation skipped", error?.message || error);
+    });
     const createdVariantRow = normalizeVariantRow(createdVariant);
     const currentActiveVariants = await loadActiveProductVariantSnapshot(client, { productId: req.params.id, tenantId });
     const currentImageBundleMap = await loadProductVariantImages(client, [req.params.id]).catch(() => new Map());
@@ -7406,6 +7489,9 @@ export const updateVariant = async (req, res) => {
     });
 
     await client.query("COMMIT");
+    await invalidateProductStorefrontCache(tenantId).catch((error) => {
+      console.warn("[variant:update] storefront cache invalidation skipped", error?.message || error);
+    });
     const updatedVariantRow = normalizeVariantRow(updated.rows[0]);
     const currentActiveVariants = await loadActiveProductVariantSnapshot(client, { productId: currentVariant.product_id, tenantId });
     const currentImageBundleMap = await loadProductVariantImages(client, [currentVariant.product_id]).catch(() => new Map());
@@ -7523,6 +7609,9 @@ export const deleteVariant = async (req, res) => {
     });
 
     await client.query("COMMIT");
+    await invalidateProductStorefrontCache(tenantId).catch((error) => {
+      console.warn("[variant:delete] storefront cache invalidation skipped", error?.message || error);
+    });
 
     return res.json({
       success: true,

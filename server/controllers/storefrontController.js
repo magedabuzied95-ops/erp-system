@@ -3082,7 +3082,11 @@ export const listProducts = async (req, res) => {
   const cacheDiag = perf.enabled ? {} : undefined;
   try {
     console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
-    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
+    // The server-side entry is dropped the moment a product is saved, but a
+    // browser or CDN copy outlives that invalidation — hiding a product or a
+    // colour looked like it did nothing for up to max-age + the stale window.
+    // 15s + 30s keeps the burst protection while bounding that lie to ~45s.
+    res.set("Cache-Control", "public, max-age=15, stale-while-revalidate=30");
     await perf.step("ensure_storefront_schema", () => ensureStorefrontSchema());
     await perf.step("ensure_variant_images_schema", () => ensureProductVariantImagesSchema());
     const tenantId = tenantFromRequest(req);
