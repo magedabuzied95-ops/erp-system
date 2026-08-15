@@ -52,7 +52,8 @@
     "pdfDownloadFailed": "Unable to download invoice PDF",
     "pdfDownloadError": "PDF download failed",
     "print": "Print",
-    "whatsapp": "WhatsApp"
+    "whatsapp": "WhatsApp",
+    "facebookPage": "Our Facebook page"
   },
   "purchase": {
     "purchaseInvoice": "Purchase invoice",

@@ -52,7 +52,8 @@
     "pdfDownloadFailed": "تعذر تحميل PDF الفاتورة",
     "pdfDownloadError": "فشل تحميل PDF",
     "print": "طباعة",
-    "whatsapp": "واتساب"
+    "whatsapp": "واتساب",
+    "facebookPage": "صفحتنا على فيسبوك"
   },
   "purchase": {
     "purchaseInvoice": "فاتورة شراء",
