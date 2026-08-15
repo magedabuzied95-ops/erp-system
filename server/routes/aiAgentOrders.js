@@ -128,6 +128,7 @@ import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReply
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
+import { normalizeWhatsappLid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 import {
   createAiInboxQuickReply,
@@ -4291,6 +4292,22 @@ const recipientIdFromConversationKey = ({ conversationId = "", channel = "" } = 
   return envText(safeConversationId.slice(separatorIndex + 1));
 };
 
+// A WhatsApp customer who hides their number behind a username leaves us a LID
+// and no phone at all, so the LID is the address staff replies have to use.
+const whatsappLidRecipient = ({ conversation = {}, channelMetadata = {} } = {}) => {
+  const candidates = [
+    channelMetadata.lid_jid,
+    channelMetadata.sender_lid,
+    conversation.external_conversation_id,
+    conversation.session_id,
+  ];
+  for (const candidate of candidates) {
+    const lid = normalizeWhatsappLid(candidate);
+    if (lid) return `${lid}@lid`;
+  }
+  return "";
+};
+
 const isWhatsAppStoredOnlyIssue = (error = {}) => {
   const code = envText(error?.code || "");
   if ([
@@ -5275,15 +5292,16 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       console.warn("[ai-inbox:send-route] draft load failed", { conversation_id: conversationId, error: String(draftLoadError?.message || draftLoadError).slice(0, 120) });
     }
     const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
+    const isWhatsAppConversation = normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP;
     const recipientId = envText(
       (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
         channelMetadata.customer_psid ||
         channelMetadata.sender_psid ||
         channelMetadata.resolved_customer_id ||
         conversation.external_customer_id ||
-        conversation.customer_id
+        conversation.customer_id ||
+        (isWhatsAppConversation ? whatsappLidRecipient({ conversation, channelMetadata }) : "")
     );
-    const isWhatsAppConversation = normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP;
     const isMetaConversation = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM;
     const isTelegramConversation = normalizedChannel === TELEGRAM_CHANNEL;
     if (!isWhatsAppConversation && !isMetaConversation && !isTelegramConversation) {
@@ -5452,7 +5470,8 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       whatsappInstance: isWhatsAppConversation ? (sendResult?.instanceName || sendResult?.instance || "") : "",
       remoteJid: recipientId || "",
       resolvedReplyJid: recipientId || "",
-      resolvedPhone: isWhatsAppConversation ? (recipientId || "") : "",
+      // A LID is an account id, not a number — it must not be stored as one.
+      resolvedPhone: isWhatsAppConversation && !normalizeWhatsappLid(recipientId) ? (recipientId || "") : "",
     });
     if (deliveryStatus === "sent") {
       if (isAssistedApprove && envText(aiReplyDraft.text) !== messageText) {

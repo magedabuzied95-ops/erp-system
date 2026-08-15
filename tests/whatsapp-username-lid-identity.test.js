@@ -8,7 +8,11 @@ import {
   normalizeWhatsappRemoteJid,
   normalizeWhatsappSessionId,
 } from "../server/utils/whatsappIdentity.js";
-import { resolveWebhookChatJid, resolveWhatsappReplyTarget } from "../server/services/whatsappGatewayService.js";
+import {
+  resolveOutboundWhatsappReplyTarget,
+  resolveWebhookChatJid,
+  resolveWhatsappReplyTarget,
+} from "../server/services/whatsappGatewayService.js";
 
 // WhatsApp's username rollout means an inbound chat no longer carries the
 // customer's phone number: it carries a LID ("46995733500101@lid"), sometimes
@@ -121,4 +125,30 @@ test("an ordinary phone chat is untouched by any of this", () => {
   const resolved = route(inbound({ key: { remoteJid: `${CUSTOMER}@s.whatsapp.net` } }));
   assert.equal(resolved.phone, CUSTOMER);
   assert.equal(resolved.identity, `whatsapp:${CUSTOMER}`);
+});
+
+// Replying: WhatsApp sends no phone number for a username customer, so the LID
+// is the only address their chat has.
+
+test("a reply to a username customer is addressed to the LID", () => {
+  const target = resolveOutboundWhatsappReplyTarget({ remoteJid: LID_JID, isLid: true, replyTargetReason: "lid_unresolved" });
+  assert.equal(target.resolvedNumber, LID_JID);
+  assert.equal(target.resolvedJid, LID_JID);
+  assert.equal(target.reason, "lid_addressing");
+});
+
+test("a known phone still wins over the LID when replying", () => {
+  const target = resolveOutboundWhatsappReplyTarget({ remoteJid: LID_JID, isLid: true, resolvedPhone: CUSTOMER });
+  assert.equal(target.resolvedNumber, CUSTOMER);
+});
+
+test("a reply to an ordinary chat is still addressed to the number", () => {
+  const target = resolveOutboundWhatsappReplyTarget({ remoteJid: `${CUSTOMER}@s.whatsapp.net`, phone: CUSTOMER });
+  assert.equal(target.resolvedNumber, CUSTOMER);
+  assert.ok(!target.addressing);
+});
+
+test("a group is still never given a reply target", () => {
+  const target = resolveOutboundWhatsappReplyTarget({ remoteJid: "120363023609197653@g.us", isGroup: true });
+  assert.equal(target.resolvedNumber, "");
 });

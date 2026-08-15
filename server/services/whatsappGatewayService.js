@@ -714,23 +714,29 @@ export const getStatus = async () => {
 };
 
 export const sendTextMessage = async ({ phone, message } = {}) => {
-  if (isLidJid(phone)) throw gatewayError("Cannot send WhatsApp message to unresolved @lid JID", "WHATSAPP_LID_UNRESOLVED", 422);
-  const normalizedPhone = normalizeEgyptPhone(phone);
+  // A customer who hides their number behind a WhatsApp username reaches us with
+  // a LID and nothing else — the webhook carries no phone number anywhere. The
+  // LID addresses that one chat, so it is the only way to answer them.
+  const lid = normalizeWhatsappLid(phone);
+  const normalizedPhone = lid ? "" : normalizeEgyptPhone(phone);
+  const sendTarget = lid ? `${lid}@lid` : normalizedPhone;
   const body = String(message ?? "");
-  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  if (!sendTarget) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!body.trim()) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
   const current = requireEvolutionConfig();
   const hasLink = /https?:\/\/[^\s]+/i.test(body);
   const requestBody = JSON.stringify({
-    number: normalizedPhone,
+    number: sendTarget,
     text: body,
     ...(hasLink ? { linkPreview: true } : {}),
   });
+  const targetSuffix = sendTarget.slice(-4);
   const messageDebug = buildWhatsappTextDebug(body, 300);
   const jsonDebug = buildWhatsappTextDebug(requestBody, 500);
   console.info("[whatsapp:evolution-payload-preview]", {
     instanceName: current.instanceName,
-    phoneSuffix: normalizedPhone.slice(-4),
+    phoneSuffix: targetSuffix,
+    addressing: lid ? "lid" : "phone",
     hasEmojis: messageDebug.hasEmojis,
     codePoints: messageDebug.codePoints,
     textFirst300Chars: messageDebug.firstChars,
@@ -740,7 +746,7 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
   if (messageDebug.hasEmojis && !jsonDebug.hasEmojis) {
     console.warn("[whatsapp:evolution-payload-emoji-serialization-warning]", {
       instanceName: current.instanceName,
-      phoneSuffix: normalizedPhone.slice(-4),
+      phoneSuffix: targetSuffix,
     });
   }
   const endpoint = `/message/sendText/${encodeURIComponent(current.instanceName)}`;
@@ -749,7 +755,8 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
     instanceName: current.instanceName,
     url: `${current.apiUrl}${endpoint}`,
     endpoint,
-    number: normalizedPhone,
+    number: sendTarget,
+    addressing: lid ? "lid" : "phone",
     payload_shape: { number: "string", text: "string", linkPreview: hasLink },
     textLength: body.length,
   });
@@ -763,17 +770,17 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
       instanceName: current.instanceName,
       endpoint,
       status: "ok",
-      number: normalizedPhone,
+      number: sendTarget,
       result: data,
     });
-    return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, result: data };
+    return { success: true, provider: current.provider, instanceName: current.instanceName, phone: sendTarget, result: data };
   } catch (error) {
     console.error("[evolution:send-response]", {
       provider: current.provider,
       instanceName: current.instanceName,
       endpoint,
       status: "error",
-      number: normalizedPhone,
+      number: sendTarget,
       message: error?.message || String(error),
       code: error?.code || "",
       statusCode: error?.status || "",
@@ -784,7 +791,7 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
       provider: current.provider,
       instanceName: current.instanceName,
       endpoint,
-      number: normalizedPhone,
+      number: sendTarget,
       message: error?.message || String(error),
       code: error?.code || "",
       status: error?.status || "",
@@ -827,8 +834,10 @@ export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "
 };
 
 export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) => {
-  if (isLidJid(phone)) throw gatewayError("Cannot send WhatsApp image to unresolved @lid JID", "WHATSAPP_LID_UNRESOLVED", 422);
-  const normalizedPhone = normalizeEgyptPhone(phone);
+  // Same LID addressing as sendTextMessage: a username customer has no number,
+  // so product photos have to travel over the LID too.
+  const lid = normalizeWhatsappLid(phone);
+  const normalizedPhone = lid ? `${lid}@lid` : normalizeEgyptPhone(phone);
   const media = resolvePublicImageUrl(imageUrl);
   const safeCaption = text(caption).slice(0, 500);
   const mimetype = imageMimeType(media) || "image/jpeg";
@@ -2251,7 +2260,7 @@ const resolveStoredLidReplyTarget = async ({ tenantId, remoteJid = "", ownerJids
   return null;
 };
 
-const resolveOutboundWhatsappReplyTarget = (message = {}) => {
+export const resolveOutboundWhatsappReplyTarget = (message = {}) => {
   const remoteJid = text(message.remoteJid || message.remote_jid || "");
   const participant = text(message.participant || "");
   const sender = text(message.sender || "");
@@ -2281,6 +2290,19 @@ const resolveOutboundWhatsappReplyTarget = (message = {}) => {
       resolvedJid: text(message.resolvedReplyJid || message.resolved_reply_jid || jidFromNumber(resolvedPhone)),
       resolvedNumber: resolvedPhone,
       reason: replyTargetReason || "resolved_phone",
+    };
+  }
+  // A username customer reaches us with a LID and no number anywhere in the
+  // webhook, so the LID is the only address they have. Groups keep their old
+  // behaviour — a group JID is not a person to answer.
+  const outboundLid = isGroup ? "" : normalizeWhatsappLid(remoteJid || message.resolvedReplyJid || message.resolved_reply_jid || message.phone);
+  if (outboundLid) {
+    return {
+      ...base,
+      resolvedJid: `${outboundLid}@lid`,
+      resolvedNumber: `${outboundLid}@lid`,
+      addressing: "lid",
+      reason: "lid_addressing",
     };
   }
   const unresolvedReason = replyTargetReason || (isLid ? "lid_unresolved" : isGroup ? "group_reply_target_unresolved" : "");
@@ -4957,7 +4979,11 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   if (!generated.replyText && !generatedCards.length) return generated;
 
   const outboundReplyTarget = resolveOutboundWhatsappReplyTarget(message);
+  // The address we send to — a phone number, or a LID for a username customer.
   const sendTargetNumber = outboundReplyTarget.resolvedNumber;
+  // The same value only when it really is a phone, so a LID never gets written
+  // into a resolved_phone column and mistaken for a number later.
+  const sendTargetPhone = isLidJid(sendTargetNumber) ? "" : sendTargetNumber;
   console.info("[whatsapp:reply-target-resolution]", {
     remoteJid: outboundReplyTarget.remoteJid,
     participant: outboundReplyTarget.participant,
@@ -5039,7 +5065,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     conversation_id: outboundReplyTarget.conversation_id || outboundReplyTarget.resolvedJid || outboundReplyTarget.remoteJid || `whatsapp:${message?.phone || ""}`,
     remoteJid: outboundReplyTarget.remoteJid || "",
     resolved_jid: outboundReplyTarget.resolvedJid || "",
-    resolved_phone: sendTargetNumber,
+    resolved_phone: sendTargetPhone,
     reply_length: generated.replyText.length,
   });
   const ownerTarget = { jid: outboundReplyTarget.resolvedJid || jidFromNumber(sendTargetNumber), number: sendTargetNumber };
@@ -5581,13 +5607,13 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         whatsappInstance: result?.instanceName || result?.provider || instanceName(),
         remoteJid: outboundReplyTarget.remoteJid || "",
         resolvedReplyJid: outboundReplyTarget.resolvedJid || "",
-        resolvedPhone: sendTargetNumber || generated.phone || message.phone || "",
+        resolvedPhone: sendTargetPhone || generated.phone || message.phone || "",
         sourcePath: "whatsapp_ai_auto_reply_sent",
         insertSource: "whatsapp_ai_send_success",
       };
       console.info("[ai-auto-reply] outbound-session-debug", {
         session_id: outboundSessionId,
-        resolved_phone: sendTargetNumber || generated.phone || message.phone || "",
+        resolved_phone: sendTargetPhone || generated.phone || message.phone || "",
         resolved_reply_jid: outboundReplyTarget.resolvedJid || "",
         remote_jid: outboundReplyTarget.remoteJid || "",
       });
@@ -5737,7 +5763,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     }).catch(() => {});
     console.info("[ai-auto-reply] outbound-session-debug", {
       session_id: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
-      resolved_phone: sendTargetNumber || generated.phone || message.phone || "",
+      resolved_phone: sendTargetPhone || generated.phone || message.phone || "",
       resolved_reply_jid: outboundReplyTarget.resolvedJid || "",
       remote_jid: outboundReplyTarget.remoteJid || "",
     });
