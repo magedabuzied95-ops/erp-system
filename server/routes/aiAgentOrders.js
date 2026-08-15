@@ -4317,6 +4317,8 @@ const whatsappLidRecipient = ({ conversation = {}, channelMetadata = {} } = {}) 
  * reaches a stranger. WhatsApp sends resolve here and nowhere else.
  */
 const whatsappRecipient = ({ conversation = {}, channelMetadata = {} } = {}) => {
+  const lidJid = whatsappLidRecipient({ conversation, channelMetadata });
+  const lidDigits = normalizeWhatsappLid(lidJid);
   const phone = [
     channelMetadata.resolved_phone,
     channelMetadata.phone,
@@ -4324,9 +4326,13 @@ const whatsappRecipient = ({ conversation = {}, channelMetadata = {} } = {}) => 
     conversation.external_customer_id,
     conversation.customer_phone,
     conversation.phone,
-  ].map((value) => normalizeWhatsappPhone(value)).find(Boolean);
-  if (phone) return phone;
-  return whatsappLidRecipient({ conversation, channelMetadata });
+  ]
+    .map((value) => normalizeWhatsappPhone(value))
+    // The old code wrote flattened LID digits into phone fields. They are long
+    // enough to pass for an international number, so a stored "phone" that is
+    // just this chat's LID has to be recognised for what it is.
+    .find((value) => value && value !== lidDigits);
+  return phone || lidJid;
 };
 
 const isWhatsAppStoredOnlyIssue = (error = {}) => {
