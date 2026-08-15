@@ -72,12 +72,16 @@ const Toggle = ({ label, hint, checked, onChange }) => (
       <span className="block text-sm font-black text-white">{label}</span>
       {hint ? <span className="mt-1 block text-xs font-semibold leading-5 text-slate-400">{hint}</span> : null}
     </span>
+    {/* The M1 marketing scope repaints cyan surfaces gold, but only on buttons and
+        links — a bare cyan span stayed literal cyan next to the gold it sits on. */}
     <span
-      className={`mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full p-1 transition ${
-        checked ? "bg-cyan-300" : "bg-white/15"
-      }`}
+      className="mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full p-1 transition"
+      style={{ background: checked ? "var(--primary)" : "rgba(255,255,255,0.15)" }}
     >
-      <span className={`h-4 w-4 rounded-full bg-slate-950 transition ${checked ? "translate-x-5" : ""}`} />
+      <span
+        className={`h-4 w-4 rounded-full transition ${checked ? "translate-x-5" : ""}`}
+        style={{ background: checked ? "var(--primary-contrast)" : "var(--card)" }}
+      />
     </span>
   </button>
 );
@@ -299,7 +303,15 @@ const StoryAutopilotSettingsModal = ({ open, onClose, canUpdate = true, canPubli
                       <div className="mt-1 text-xs font-black text-cyan-100">{slot.label}</div>
                       <div className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">{slot.reason}</div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${slot.score}%` }} />
+                        {/* Inline, not a bg-[linear-gradient(…)] class: the scope's
+                            gradient rule repaints that utility to the page background. */}
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${slot.score}%`,
+                            background: "linear-gradient(90deg, color-mix(in srgb, var(--primary) 70%, transparent), var(--primary))",
+                          }}
+                        />
                       </div>
                     </button>
                   );
