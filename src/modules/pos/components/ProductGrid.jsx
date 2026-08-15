@@ -5,14 +5,34 @@ import {
   AlertTriangle,
   Box,
   PackageSearch,
+  Pencil,
   Star,
 } from "lucide-react";
 
 import { formatCurrency } from "../lib/posUtils";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { VirtualGrid } from "../../../shared/components/VirtualList";
+import { hasPermission } from "../../permissions/lib/rbacStore";
 
 const failedProductImageUrls = new Set();
+
+// The grid renders dozens of cards at once and the permission read walks the
+// role catalog, so resolve it once per signed-in user instead of per card.
+let productEditAccess = { key: undefined, value: false };
+
+const canOpenProductEditor = () => {
+  const key = typeof localStorage === "undefined" ? null : localStorage.getItem("user");
+  if (productEditAccess.key !== key) {
+    productEditAccess = { key, value: hasPermission("products.edit") };
+  }
+  return productEditAccess.value;
+};
+
+const getProductEditId = (product = {}) => {
+  const id = product.product_id ?? product.id;
+  const value = String(id ?? "").trim();
+  return value && value !== "undefined" && value !== "null" ? value : "";
+};
 
 const getVariantStock = (variant = {}) =>
   Number(
@@ -239,6 +259,11 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
   const sizes = product?.employee_card_size ? [] : uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
   const isFavorite = product?.is_pos_favorite === true || product?.isPosFavorite === true;
+  const editId = getProductEditId(product);
+  const canEditProduct = Boolean(editId) && canOpenProductEditor();
+  const stopCardActivation = useCallback((event) => {
+    event.stopPropagation();
+  }, []);
   const isEmployeeScopedVariant = Boolean(product?.employee_card_color || product?.employee_card_size);
   const employeeFilteredSizes = uniqueTextValues(
     Array.isArray(product?.employee_card_sizes) && product.employee_card_sizes.length
@@ -258,13 +283,32 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
     >
       <div className="relative p-1.5 pb-0">
         <div className="pos-product-card-image relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
-          {isFavorite ? (
-            <div
-              className="pos-product-favorite absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
-              title={t("pos.productGrid.favorite")}
-              aria-label={t("pos.productGrid.favorite")}
-            >
-              <Star className="h-3.5 w-3.5 fill-current" />
+          {(isFavorite || canEditProduct) ? (
+            <div className="absolute left-1.5 top-1.5 z-10 flex flex-col items-start gap-1">
+              {isFavorite ? (
+                <div
+                  className="pos-product-favorite flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
+                  title={t("pos.productGrid.favorite")}
+                  aria-label={t("pos.productGrid.favorite")}
+                >
+                  <Star className="h-3.5 w-3.5 fill-current" />
+                </div>
+              ) : null}
+              {canEditProduct ? (
+                <a
+                  href={`/products/${editId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={stopCardActivation}
+                  onKeyDown={stopCardActivation}
+                  onPointerDown={stopCardActivation}
+                  className="pos-product-edit flex h-6 w-6 items-center justify-center rounded-full border border-sky-200/50 bg-zinc-950/90 text-sky-200 shadow-md backdrop-blur transition hover:border-sky-200 hover:text-white"
+                  title={t("pos.productGrid.editProduct")}
+                  aria-label={t("pos.productGrid.editProduct")}
+                >
+                  <Pencil className="h-3 w-3" />
+                </a>
+              ) : null}
             </div>
           ) : null}
           {cover ? (

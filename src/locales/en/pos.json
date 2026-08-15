@@ -96,7 +96,8 @@
     "globalSale": "Global sale",
     "sale": "Sale",
     "price": "Price",
-    "favorite": "Favorite"
+    "favorite": "Favorite",
+    "editProduct": "Edit product in a new tab"
   },
   "treasury": {
     "adjustment": "Treasury adjustment",

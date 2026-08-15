@@ -96,7 +96,8 @@
     "globalSale": "عرض عام",
     "sale": "عرض",
     "price": "السعر",
-    "favorite": "مفضّل"
+    "favorite": "مفضّل",
+    "editProduct": "تعديل المنتج في تبويب جديد"
   },
   "treasury": {
     "adjustment": "تسوية الخزنة",
