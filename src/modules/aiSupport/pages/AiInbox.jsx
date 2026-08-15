@@ -3745,7 +3745,12 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
     setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
     setNotes("");
-  }, [conversation?.session_id, open, products]);
+    // Deliberately NOT keyed on `products`: the parent passes it as an inline
+    // `cond ? list : []`, so it is a new array on every parent render. Adding a
+    // model re-renders the parent, which used to re-run this effect and wipe the
+    // cart the moment it was filled. Reset belongs to open/conversation only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation?.session_id, open]);
 
   // Models chosen in the popup arrive here. Picking the same model twice bumps its
   // quantity instead of adding a second identical row.

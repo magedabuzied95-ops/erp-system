@@ -1290,7 +1290,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           <div className="min-w-0">
             <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>{t("aiSupport.inbox.picker.aiInbox")}</div>
             <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{orderMode ? t("aiSupport.inbox.order.pickerOrderTitle") : t("aiSupport.inbox.picker.sendProduct")}</h3>
-            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>{t("aiSupport.inbox.picker.sendProductHint")}</p>
+            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>{orderMode ? t("aiSupport.inbox.order.pickerOrderSubtitle") : t("aiSupport.inbox.picker.sendProductHint")}</p>
           </div>
           <button
             type="button"
