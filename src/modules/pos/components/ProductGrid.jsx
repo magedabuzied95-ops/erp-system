@@ -155,7 +155,7 @@ function ProductGrid({
         <div className="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2">
           {Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-[0_8px_20px_rgba(0,0,0,0.22)]">
-              <div className="m-1.5 h-32 animate-pulse rounded-xl bg-white/10" />
+              <div className="m-1.5 h-36 animate-pulse rounded-xl bg-white/10" />
               <div className="space-y-2 p-2 pt-1">
                 <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/10" />
                 <div className="h-8 animate-pulse rounded-xl bg-white/10" />
@@ -221,7 +221,7 @@ function ProductGrid({
       <VirtualGrid
         items={products}
         columns={columns}
-        estimateRowHeight={196}
+        estimateRowHeight={206}
         className="h-full min-h-0 overflow-auto pr-1 [-webkit-overflow-scrolling:touch]"
         gridClassName="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
         itemKey={(product) => String(product.product_id || product.id)}
@@ -293,11 +293,11 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
       tabIndex={0}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "144px 218px" }}
-      className="pos-product-card group relative flex min-h-[13.5rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-white/20 lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "144px 222px" }}
+      className="pos-product-card group relative flex min-h-[12.75rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-white/20 lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
     >
       <div className="relative p-1.5 pb-0">
-        <div className="pos-product-card-image relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
+        <div className="pos-product-card-image relative h-36 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-40 sm:h-32 lg:h-28">
           {(isFavorite || canEditProduct) ? (
             <div className="absolute left-1.5 top-1.5 z-10 flex flex-col items-start gap-1">
               {canToggleFavorite ? (
@@ -391,9 +391,9 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
 
       </div>
 
-      <div className="pos-product-card-body flex flex-1 flex-col gap-1.5 p-1.5 pt-1.5 sm:p-2 lg:gap-1">
+      <div className="pos-product-card-body flex flex-1 flex-col gap-1 p-1.5 pt-1 sm:p-2 sm:pt-1.5 lg:gap-0.5">
         <h3 className="pos-product-title min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
-          <span className="line-clamp-2 min-h-[2rem] sm:min-h-[1.9rem]">{product.name}</span>
+          <span className="line-clamp-2 min-h-[1.8rem] sm:min-h-[1.7rem]">{product.name}</span>
         </h3>
 
         {(colors.length || sizes.length) ? (
@@ -454,7 +454,7 @@ function ProductImage({ src, fallbackSrc, alt }) {
       decoding="async"
       width="320"
       height="240"
-      className="h-full w-full object-contain p-1.5 transition duration-300 group-hover:scale-[1.03]"
+      className="h-full w-full object-contain p-1 transition duration-300 group-hover:scale-[1.03]"
       onError={() => {
         failedProductImageUrls.add(currentSrc);
         if (resolvedFallbackSrc && resolvedFallbackSrc !== currentSrc) {
