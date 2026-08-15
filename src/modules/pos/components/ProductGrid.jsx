@@ -356,14 +356,24 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
           </div>
         )}
 
-          <div className="pos-product-stock absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
+          <div
+            className="pos-product-stock absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur"
+            title={isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
+          >
             <span className="inline-flex items-center gap-0.5">
               {employeeFilteredSizes.length ? (
                 <span dir="ltr" className="text-amber-100">{employeeFilteredSizes.join(" / ")}</span>
               ) : (
                 <>
                   <Box className="h-2.5 w-2.5 text-emerald-500" />
-                  {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
+                  {/* The count alone keeps the badge off the product photo; the
+                      wording stays in the tooltip and for screen readers. */}
+                  <span className="sr-only">
+                    {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
+                  </span>
+                  <span aria-hidden="true" dir="ltr">
+                    {isOutOfStock ? t("pos.labels.outOfStock") : stock}
+                  </span>
                 </>
               )}
             </span>
