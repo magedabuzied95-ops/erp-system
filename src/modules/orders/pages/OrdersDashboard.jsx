@@ -41,7 +41,6 @@ import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { Pagination } from "../../../shared/ui";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
-import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import {
   buildSearchText,
@@ -1114,9 +1113,9 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
   if (!orders.length) return empty;
   return (
     <div className="mt-3 w-full min-w-0 overflow-x-auto overflow-y-visible pb-2">
-      <div className="min-w-[1480px] overflow-visible">
+      <div className="min-w-[1520px] overflow-visible">
         <div
-          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
           dir={tableDir}
         >
           <div className="flex items-center justify-center py-1 text-center">{t("orders.table.actions")}</div>
@@ -1146,7 +1145,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_8rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-surface-hover hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.2fr)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-surface-hover hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
@@ -1564,7 +1563,6 @@ function OrderCode({ order }) {
         {orderCode(order)}
       </div>
       <div className="mt-0.5 truncate text-[10px] font-semibold text-text-muted">#{order.id}</div>
-      <div className="mt-1 flex justify-center"><AiInboxOrderLink order={order} compact /></div>
     </div>
   );
 }
@@ -1620,16 +1618,21 @@ function PhoneCell({ t, order }) {
     }
   };
 
+  // A phone number is the one field in this row that is useless when elided:
+  // half a number cannot be dialled or recognised. It gets a column wide enough
+  // for the longest form written here (+20 and eleven local digits), never
+  // shrinks, and renders LTR so the digits keep their order inside the RTL table.
   return (
-    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+    <div className="flex items-center justify-center px-2 text-center">
       <a
         href={`tel:${phone.replace(/[^\d+]/g, "")}`}
         onClick={copyOnDesktop}
-        className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 truncate text-xs font-bold text-primary transition hover:text-primary"
+        className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-bold tabular-nums text-primary transition hover:text-primary"
         title={phone}
+        dir="ltr"
       >
         <Phone className="table-cell-stack__icon h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{phone}</span>
+        <span>{phone}</span>
       </a>
     </div>
   );
