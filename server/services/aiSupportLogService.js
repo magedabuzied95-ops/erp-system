@@ -904,27 +904,44 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       `);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS added_to_cart_after_chat BOOLEAN NULL`);
+      // Canonicalise legacy WhatsApp keys to whatsapp:<digits>.
+      //
+      // Two rules this migration has to respect, both learned the hard way:
+      //
+      // 1. whatsapp:lid:<id> is already canonical. A customer who hides their
+      //    number behind a WhatsApp username has no phone at all, so their LID
+      //    is the key. Flattening it to digits mints a fake phone number and
+      //    silently undoes that on every boot.
+      // 2. It must never collide. This runs inside startup, so a duplicate key
+      //    here does not skip a row — it takes the whole server down.
       await clientOrPool.query(`
-        UPDATE ai_support_sessions
-        SET session_id = CASE
-          WHEN NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '') IS NOT NULL
-            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '')
-          ELSE session_id
-        END
-        WHERE lower(channel) = 'whatsapp'
-          AND COALESCE(session_id, '') <> ''
-          AND session_id !~ '^whatsapp:[0-9]+$'
+        UPDATE ai_support_sessions AS s
+        SET session_id = 'whatsapp:' || regexp_replace(regexp_replace(lower(s.session_id), '^whatsapp:', ''), '[^0-9]', '', 'g')
+        WHERE lower(s.channel) = 'whatsapp'
+          AND COALESCE(s.session_id, '') <> ''
+          AND s.session_id !~ '^whatsapp:[0-9]+$'
+          AND s.session_id !~ '^whatsapp:lid:[0-9]+$'
+          AND NULLIF(regexp_replace(regexp_replace(lower(s.session_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM ai_support_sessions AS existing
+            WHERE existing.tenant_id = s.tenant_id
+              AND existing.session_id = 'whatsapp:' || regexp_replace(regexp_replace(lower(s.session_id), '^whatsapp:', ''), '[^0-9]', '', 'g')
+          )
       `);
       await clientOrPool.query(`
-        UPDATE ai_channel_conversations
-        SET external_conversation_id = CASE
-          WHEN NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '') IS NOT NULL
-            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '')
-          ELSE external_conversation_id
-        END
-        WHERE lower(channel) = 'whatsapp'
-          AND COALESCE(external_conversation_id, '') <> ''
-          AND external_conversation_id !~ '^whatsapp:[0-9]+$'
+        UPDATE ai_channel_conversations AS c
+        SET external_conversation_id = 'whatsapp:' || regexp_replace(regexp_replace(lower(c.external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g')
+        WHERE lower(c.channel) = 'whatsapp'
+          AND COALESCE(c.external_conversation_id, '') <> ''
+          AND c.external_conversation_id !~ '^whatsapp:[0-9]+$'
+          AND c.external_conversation_id !~ '^whatsapp:lid:[0-9]+$'
+          AND NULLIF(regexp_replace(regexp_replace(lower(c.external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM ai_channel_conversations AS existing
+            WHERE existing.tenant_id = c.tenant_id
+              AND existing.channel = c.channel
+              AND existing.external_conversation_id = 'whatsapp:' || regexp_replace(regexp_replace(lower(c.external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g')
+          )
       `);
       await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
       await clientOrPool.query(`
