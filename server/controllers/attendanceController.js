@@ -2485,10 +2485,15 @@ export const checkOut = async (req, res) => {
     const shift = await findLatestShift(client, attendanceRow.employee_id, tenantId, attendanceRow.shift_id);
     const attendanceLog = attendanceRow;
     const shiftStartTime = shift?.start_time || attendanceLog?.check_in_time || attendanceLog?.check_in;
+    // check_in is written from a JS Date, so the checkout has to come from the
+    // same clock. Persisting NOW() instead put the two ends of one shift on the
+    // database clock and the application clock, and the stored duration then
+    // disagreed with the stored timestamps whenever the two differ.
+    const checkOutAt = new Date();
     const metrics = calculateAttendanceMetrics({
       attendanceDate: attendanceRow.attendance_date,
       checkIn: attendanceRow.check_in_time || attendanceRow.check_in,
-      checkOut: new Date(),
+      checkOut: checkOutAt,
       shift: shift ? { ...shift, start_time: shiftStartTime } : { start_time: shiftStartTime },
     });
 
@@ -2496,8 +2501,8 @@ export const checkOut = async (req, res) => {
       `
       UPDATE attendance_logs
       SET
-        check_out = NOW(),
-        check_out_at = NOW(),
+        check_out = $10,
+        check_out_at = $10,
         status = 'checked_out',
         work_minutes = $1,
         late_minutes = $2,
@@ -2505,7 +2510,7 @@ export const checkOut = async (req, res) => {
         overtime_minutes = $4,
         next_opening_employee_id = $8,
         closed_by_user_id = $9,
-        closed_at = NOW(),
+        closed_at = $10,
         notes = CASE
           WHEN COALESCE(notes, '') = '' THEN $5
           WHEN $5 = '' THEN notes
@@ -2526,6 +2531,7 @@ export const checkOut = async (req, res) => {
         tenantId,
         nextOpeningEmployeeId,
         getUserId(req),
+        checkOutAt,
       ]
     );
 
@@ -3425,11 +3431,18 @@ export const getAttendanceReports = async (req, res) => {
   }
 };
 
+const centerPad = (value) => String(value).padStart(2, "0");
+
+// `date` columns come back from pg as local midnight, so their calendar day is
+// the process-local one. Reading that back through `toISOString()` files every
+// attendance row under the previous day whenever the process runs east of
+// Greenwich, which hides the record from the day it was actually saved for.
 const centerDateKey = (value) => {
   if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value.trim())) return value.trim().slice(0, 10);
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
-  return date.toISOString().slice(0, 10);
+  return `${date.getFullYear()}-${centerPad(date.getMonth() + 1)}-${centerPad(date.getDate())}`;
 };
 
 const centerEachDate = (start, end) => {
@@ -3471,7 +3484,7 @@ const centerIsExpectedWeekday = (dateValue, workingDays = [], workingDaysPerWeek
 };
 
 const centerBuildFilters = (req) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getAttendanceDate();
   const startDate = centerDateKey(req.query.startDate || req.query.start_date || req.query.from || req.query.date || today);
   const endDate = centerDateKey(req.query.endDate || req.query.end_date || req.query.to || req.query.date || startDate);
   return {
@@ -3575,15 +3588,15 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
     SELECT al.employee_id, COALESCE(al.branch_id, e.branch_id) AS branch_id, al.attendance_date,
       MIN(COALESCE(al.check_in_at, al.check_in)) AS check_in_time,
       MAX(COALESCE(al.check_out_at, al.check_out)) AS check_out_time,
-      MAX(GREATEST(
-        COALESCE(al.work_minutes, 0),
-        COALESCE(al.worked_hours, 0) * 60,
-        CASE
-          WHEN COALESCE(al.check_in_at, al.check_in) IS NOT NULL AND COALESCE(al.check_out_at, al.check_out) IS NOT NULL
-            THEN EXTRACT(EPOCH FROM (COALESCE(al.check_out_at, al.check_out) - COALESCE(al.check_in_at, al.check_in))) / 60
-          ELSE 0
-        END
-      ))::numeric AS worked_minutes,
+      MAX(CASE
+        -- A closed shift is defined by its own two timestamps. Taking the
+        -- GREATEST of those and the stored columns let a stale work_minutes
+        -- survive every later correction, so an edited day kept reporting the
+        -- hours it had before the edit.
+        WHEN COALESCE(al.check_in_at, al.check_in) IS NOT NULL AND COALESCE(al.check_out_at, al.check_out) IS NOT NULL
+          THEN GREATEST(EXTRACT(EPOCH FROM (COALESCE(al.check_out_at, al.check_out) - COALESCE(al.check_in_at, al.check_in))) / 60, 0)
+        ELSE GREATEST(COALESCE(al.work_minutes, 0), COALESCE(al.worked_hours, 0) * 60)
+      END)::numeric AS worked_minutes,
       MAX(COALESCE(al.late_minutes, 0))::numeric AS late_minutes,
       MAX(COALESCE(al.early_leave_minutes, 0))::numeric AS early_leave_minutes,
       MAX(COALESCE(al.overtime_minutes, 0))::numeric AS overtime_minutes,
@@ -3599,7 +3612,33 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
     `,
     logParams
   );
-  const logsByKey = new Map(logResult.rows.map((row) => [`${row.employee_id}:${centerDateKey(row.attendance_date)}`, row]));
+  // The unique index allows one row per branch per day, so an employee who moved
+  // between branches has several rows for the same date. Keying by employee+date
+  // alone made the last branch silently replace the others.
+  const logsByKey = new Map();
+  logResult.rows.forEach((row) => {
+    const key = `${row.employee_id}:${centerDateKey(row.attendance_date)}`;
+    const existing = logsByKey.get(key);
+    if (!existing) {
+      logsByKey.set(key, row);
+      return;
+    }
+    const earliest = (a, b) => (!a ? b : !b ? a : (new Date(a) <= new Date(b) ? a : b));
+    const latest = (a, b) => (!a ? b : !b ? a : (new Date(a) >= new Date(b) ? a : b));
+    const joinText = (a, b) => [a, b].map((item) => String(item || "").trim()).filter(Boolean).join("; ");
+    logsByKey.set(key, {
+      ...existing,
+      check_in_time: earliest(existing.check_in_time, row.check_in_time),
+      check_out_time: latest(existing.check_out_time, row.check_out_time),
+      worked_minutes: centerNumber(existing.worked_minutes) + centerNumber(row.worked_minutes),
+      late_minutes: Math.max(centerNumber(existing.late_minutes), centerNumber(row.late_minutes)),
+      early_leave_minutes: Math.max(centerNumber(existing.early_leave_minutes), centerNumber(row.early_leave_minutes)),
+      overtime_minutes: centerNumber(existing.overtime_minutes) + centerNumber(row.overtime_minutes),
+      attendance_source: joinText(existing.attendance_source, row.attendance_source),
+      notes: joinText(existing.notes, row.notes),
+      records_count: centerNumber(existing.records_count) + centerNumber(row.records_count),
+    });
+  });
 
   const leaveResult = await db.query(
     `
@@ -4858,10 +4897,14 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       throw error;
     }
 
+    // The stored checkout and the stored duration have to come from one clock:
+    // check_in is written from a JS Date, so NOW() put the two ends of the same
+    // shift on the database clock and the application clock.
+    const checkOutAt = new Date();
     const metrics = calculateAttendanceMetrics({
       attendanceDate,
       checkIn: attendanceState.attendance.check_in,
-      checkOut: new Date(),
+      checkOut: checkOutAt,
       shift: {},
     });
 
@@ -4870,8 +4913,8 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       UPDATE attendance_logs
       SET
         branch_id = COALESCE(branch_id, $1),
-        check_out = NOW(),
-        check_out_at = NOW(),
+        check_out = $12,
+        check_out_at = $12,
         check_out_latitude = $2,
         check_out_longitude = $3,
         check_out_gps_distance_meters = $4,
@@ -4900,6 +4943,7 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
         deviceContext?.deviceKey || null,
         deviceContext?.userAgent || null,
         deviceContext?.ipAddress || null,
+        checkOutAt,
       ]
     );
     attendanceLog = updated.rows[0];
@@ -6125,10 +6169,13 @@ export const scanQrAttendance = async (req, res) => {
 
     const todayLog = eligibility.attendance;
 
+    // One clock for the stored checkout and the stored duration; see the branch
+    // QR path above.
+    const checkOutAt = new Date();
     const metrics = calculateAttendanceMetrics({
       attendanceDate: todayLog.attendance_date,
       checkIn: todayLog.check_in_at || todayLog.check_in,
-      checkOut: new Date(),
+      checkOut: checkOutAt,
       shift: {},
     });
 
@@ -6136,8 +6183,8 @@ export const scanQrAttendance = async (req, res) => {
       `
       UPDATE attendance_logs
       SET
-        check_out = NOW(),
-        check_out_at = NOW(),
+        check_out = $11,
+        check_out_at = $11,
         check_out_latitude = $1,
         check_out_longitude = $2,
         check_out_gps_distance_meters = $3,
@@ -6164,6 +6211,7 @@ export const scanQrAttendance = async (req, res) => {
         deviceContext.deviceKey || null,
         deviceContext.userAgent || null,
         deviceContext.ipAddress || null,
+        checkOutAt,
       ]
     );
 

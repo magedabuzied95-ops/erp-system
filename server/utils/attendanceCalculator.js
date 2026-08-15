@@ -35,9 +35,15 @@ const combineDateAndTime = (dateValue, timeValue) => {
     const parsedTime = toDate(timeValue);
     if (parsedTime && !Number.isNaN(parsedTime.getTime())) return parsedTime;
   }
+  // `attendance_date` arrives from pg as local midnight; reading it back in UTC
+  // anchors the shift window to the wrong calendar day east of Greenwich, which
+  // turns late and early-leave minutes into whole-day values.
   const dateKey = typeof dateValue === "string"
     ? String(dateValue).slice(0, 10)
-    : new Date(dateValue).toISOString().slice(0, 10);
+    : (() => {
+        const date = new Date(dateValue);
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      })();
   const [year, month, day] = dateKey.split("-").map(Number);
   if (!year || !month || !day) return null;
   const [hours = 0, minutes = 0, seconds = 0] = rawTime

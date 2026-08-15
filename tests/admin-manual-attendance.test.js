@@ -12,9 +12,39 @@ test("manual attendance route is tenant scoped, audited and does not duplicate a
   assert.match(routeSource, /attendance_source = 'admin_manual'/);
   assert.match(routeSource, /attendance_manual_upsert/);
   assert.match(routeSource, /calculateAttendanceMetrics/);
-  assert.match(routeSource, /overtime_minutes = \$13/);
-  assert.match(routeSource, /shift_resolution_status = \$17/);
+  assert.match(routeSource, /overtime_minutes = \$11/);
+  assert.match(routeSource, /shift_resolution_status = \$15/);
   assert.match(routeSource, /reason.*required/s);
+});
+
+test("a correction rewrites only the row it locked and keeps one reason line", () => {
+  // The update used to match every row for the employee and date, so an
+  // employee with a row in a second branch had both rewritten at once.
+  assert.match(routeSource, /UPDATE attendance_logs[\s\S]*WHERE tenant_id = \$1 AND id = \$2/);
+  assert.doesNotMatch(routeSource, /notes = CASE WHEN COALESCE\(notes, ''\) = '' THEN \$10 ELSE notes \|\| E'\\n' \|\| \$10 END/);
+  assert.match(routeSource, /const mergedNotes/);
+  assert.match(routeSource, /!line\.startsWith\("Admin attendance correction:"\)/);
+});
+
+test("the attendance center reads calendar days in local time, not UTC", () => {
+  const controllerSource = fs.readFileSync(new URL("../server/controllers/attendanceController.js", import.meta.url), "utf8");
+  // pg materialises a `date` column at local midnight, so slicing its ISO string
+  // filed every record under the previous day east of Greenwich and the day the
+  // admin saved showed the employee as absent.
+  assert.match(controllerSource, /const centerDateKey = \(value\) => \{[\s\S]*?getFullYear\(\)[\s\S]*?getMonth\(\) \+ 1[\s\S]*?getDate\(\)/);
+  assert.doesNotMatch(controllerSource, /const centerDateKey = \(value\) => \{[\s\S]*?toISOString\(\)\.slice\(0, 10\);\n\};/);
+  // Both ends of one shift have to come from one clock.
+  assert.doesNotMatch(controllerSource, /check_out = NOW\(\),\s*check_out_at = NOW\(\)/);
+});
+
+test("the correction form edits the saved record instead of overwriting it with defaults", () => {
+  assert.match(uiSource, /manualAttendanceFormFromRow/);
+  assert.match(uiSource, /const selectManualTarget/);
+  assert.match(uiSource, /onEdit=\{openManualAttendance\}/);
+  // The checkout used to default to the next day, silently turning a same-day
+  // correction into a 24-hour shift.
+  assert.match(uiSource, /checkOutDate: attendanceDate/);
+  assert.doesNotMatch(uiSource, /checkOutDate: nextDayValue\(todayValue\(\)\)/);
 });
 
 test("a real attendance log overrides generated weekly or monthly off status", () => {

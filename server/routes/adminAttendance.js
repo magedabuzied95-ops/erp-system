@@ -384,17 +384,22 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
       return res.status(404).json({ success: false, code: "EMPLOYEE_NOT_FOUND", message: "Employee not found" });
     }
 
+    const requestedBranchId = Number(req.body?.branch_id || req.body?.branchId || 0);
+    const branchId = requestedBranchId > 0 ? requestedBranchId : (employee.branch_id || null);
+
     await client.query("BEGIN");
+    // A day can hold one row per branch, so pick the row for the branch this
+    // correction is aimed at before falling back to the most recent one.
     const existingResult = await client.query(
       `
       SELECT *
       FROM attendance_logs
       WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
-      ORDER BY id DESC
+      ORDER BY (branch_id IS NOT DISTINCT FROM $4::bigint) DESC, id DESC
       LIMIT 1
       FOR UPDATE
       `,
-      [tenantId, employeeId, attendanceDate]
+      [tenantId, employeeId, attendanceDate, branchId]
     );
     const before = existingResult.rows[0] || null;
     if (!before && correctionScope === "check_out") {
@@ -423,8 +428,6 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
       });
     }
 
-    const requestedBranchId = Number(req.body?.branch_id || req.body?.branchId || 0);
-    const branchId = requestedBranchId > 0 ? requestedBranchId : (employee.branch_id || null);
     const shiftResult = await client.query(
       `
       SELECT * FROM (
@@ -489,6 +492,17 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
     const workMinutes = metrics.work_minutes;
     const status = checkOutAt ? "checked_out" : "checked_in";
     const auditNote = `Admin attendance correction: ${reason}`;
+    // Every correction used to append another line, so a record edited a few
+    // times ended up with an unreadable pile of notes in the attendance table.
+    // Keep whatever the shift itself recorded and carry only the latest reason;
+    // the full history already lives in audit_logs.
+    const mergedNotes = [
+      ...String(before?.notes || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("Admin attendance correction:")),
+      auditNote,
+    ].join("\n");
 
     let saved;
 
@@ -496,31 +510,31 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
       const updated = await client.query(
         `
         UPDATE attendance_logs
-        SET branch_id = COALESCE($4, branch_id),
-            check_in = $5,
-            check_in_at = $5,
-            check_out = $6,
-            check_out_at = $6,
+        SET branch_id = COALESCE($3, branch_id),
+            check_in = $4,
+            check_in_at = $4,
+            check_out = $5,
+            check_out_at = $5,
             attendance_source = 'admin_manual',
-            status = $7,
-            worked_hours = $8,
-            work_minutes = $9,
-            late_minutes = $11,
-            early_leave_minutes = $12,
-            overtime_minutes = $13,
-            shift_id = COALESCE($14, shift_id),
-            selected_shift_id = COALESCE($14, selected_shift_id),
-            resolved_shift_start_time = $15,
-            resolved_shift_end_time = $16,
-            shift_resolution_status = $17,
-            notes = CASE WHEN COALESCE(notes, '') = '' THEN $10 ELSE notes || E'\n' || $10 END,
+            status = $6,
+            worked_hours = $7,
+            work_minutes = $8,
+            late_minutes = $9,
+            early_leave_minutes = $10,
+            overtime_minutes = $11,
+            shift_id = COALESCE($12, shift_id),
+            selected_shift_id = COALESCE($12, selected_shift_id),
+            resolved_shift_start_time = $13,
+            resolved_shift_end_time = $14,
+            shift_resolution_status = $15,
+            notes = $16,
             updated_at = CURRENT_TIMESTAMP
-        WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
+        WHERE tenant_id = $1 AND id = $2
         RETURNING *
         `,
-        [tenantId, employeeId, attendanceDate, branchId, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes, auditNote,
+        [tenantId, before.id, branchId, checkInAt, checkOutAt, status, Number((workMinutes / 60).toFixed(2)), workMinutes,
           metrics.late_minutes, metrics.early_leave_minutes, metrics.overtime_minutes, resolvedShift?.shift_id || null,
-          resolvedShiftStartAt, resolvedShiftEndAt, resolvedShift ? "matched" : "unresolved"]
+          resolvedShiftStartAt, resolvedShiftEndAt, resolvedShift ? "matched" : "unresolved", mergedNotes]
       );
       saved = updated.rows[0];
     } else {

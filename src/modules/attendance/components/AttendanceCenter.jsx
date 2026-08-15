@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Filter,
+  Pencil,
   Printer,
   Plus,
   QrCode,
@@ -42,7 +43,15 @@ import {
   updateAttendanceOvertimeApproval,
 } from "../attendanceApi";
 
-const todayValue = () => new Date().toISOString().slice(0, 10);
+const pad2 = (value) => String(value).padStart(2, "0");
+// The calendar day has to be the viewer's own, not the UTC one: an overnight
+// shift is corrected in the small hours, exactly when the two disagree.
+const localDateValue = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (!Number.isFinite(date.getTime())) return "";
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
+const todayValue = () => localDateValue();
 const nextDayValue = (value) => {
   const date = new Date(`${value || todayValue()}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + 1);
@@ -51,7 +60,7 @@ const nextDayValue = (value) => {
 const monthStartValue = () => {
   const date = new Date();
   date.setDate(1);
-  return date.toISOString().slice(0, 10);
+  return localDateValue(date);
 };
 const formatDayFirstDate = (value) => {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -95,19 +104,50 @@ const formatDateTime = (value) => {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 const csvEscape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-const manualAttendanceForm = (employeeId = "") => ({
+const manualAttendanceForm = (employeeId = "", attendanceDate = todayValue()) => ({
   editMode: "both",
   employeeId,
-  attendanceDate: todayValue(),
+  attendanceDate,
   checkInHour: "",
   checkInMinute: "00",
   checkInPeriod: "PM",
-  checkOutDate: nextDayValue(todayValue()),
+  // Defaulting the checkout to the next day turned every same-day correction
+  // into a 24-hour shift unless the admin noticed and changed it back. Overnight
+  // is now something you opt into, not something you have to undo.
+  checkOutDate: attendanceDate,
   checkOutHour: "",
   checkOutMinute: "00",
   checkOutPeriod: "AM",
   reason: "",
 });
+// Splits a stored timestamp back into the hour / minute / AM-PM the form edits,
+// so opening a saved record shows what is actually recorded instead of a blank
+// form that silently overwrites it.
+const twelveHourParts = (value, fallbackPeriod) => {
+  const date = safeDate(value);
+  if (!date) return { hour: "", minute: "00", period: fallbackPeriod };
+  const hours24 = date.getHours();
+  return {
+    hour: String(hours24 % 12 === 0 ? 12 : hours24 % 12),
+    minute: pad2(date.getMinutes()),
+    period: hours24 >= 12 ? "PM" : "AM",
+  };
+};
+const manualAttendanceFormFromRow = (row = {}) => {
+  const attendanceDate = String(row.attendance_date || "").slice(0, 10) || todayValue();
+  const checkIn = twelveHourParts(row.check_in_time, "PM");
+  const checkOut = twelveHourParts(row.check_out_time, "AM");
+  return {
+    ...manualAttendanceForm(String(row.employee_id || ""), attendanceDate),
+    checkInHour: checkIn.hour,
+    checkInMinute: checkIn.minute,
+    checkInPeriod: checkIn.period,
+    checkOutDate: localDateValue(row.check_out_time) || attendanceDate,
+    checkOutHour: checkOut.hour,
+    checkOutMinute: checkOut.minute,
+    checkOutPeriod: checkOut.period,
+  };
+};
 const twelveHourTime = (hour, minute, period) => {
   const hourNumber = Number(hour);
   const minuteNumber = Number(minute);
@@ -730,11 +770,32 @@ export default function AttendanceCenter() {
 
   const printPage = () => window.print();
 
-  const openManualAttendance = () => {
-    setManualForm(manualAttendanceForm(filters.employeeId || ""));
+  const findSavedAttendance = (employeeId, attendanceDate) => rows.find((row) =>
+    String(row.employee_id) === String(employeeId) &&
+    String(row.attendance_date || "").slice(0, 10) === attendanceDate &&
+    (row.check_in_time || row.check_out_time)
+  ) || null;
+
+  const openManualAttendance = (row = null) => {
+    setManualForm(row?.check_in_time || row?.check_out_time
+      ? manualAttendanceFormFromRow(row)
+      : manualAttendanceForm(String(row?.employee_id || filters.employeeId || ""), String(row?.attendance_date || "").slice(0, 10) || todayValue()));
     setManualError("");
     setManualOpen(true);
   };
+
+  // Changing the employee or the date reloads whatever is already recorded for
+  // that day. Without this the form stayed blank and every "correction" wrote
+  // the defaults over the saved shift instead of editing it.
+  const selectManualTarget = (patch) => setManualForm((prev) => {
+    const next = { ...prev, ...patch };
+    const existing = findSavedAttendance(next.employeeId, next.attendanceDate);
+    if (existing) return { ...manualAttendanceFormFromRow(existing), editMode: next.editMode, reason: next.reason };
+    const keptOvernight = prev.checkOutDate === nextDayValue(prev.attendanceDate);
+    return { ...next, checkOutDate: keptOvernight ? nextDayValue(next.attendanceDate) : next.attendanceDate };
+  });
+
+  const manualTargetExists = Boolean(findSavedAttendance(manualForm.employeeId, manualForm.attendanceDate));
 
   const handleManualAttendanceSubmit = async (event) => {
     event.preventDefault();
@@ -784,7 +845,7 @@ export default function AttendanceCenter() {
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={openManualAttendance} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">
+            <button type="button" onClick={() => openManualAttendance()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">
               <Plus className="h-4 w-4" />
               {isArabic ? "إضافة حضور / انصراف" : "Add attendance"}
             </button>
@@ -843,7 +904,7 @@ export default function AttendanceCenter() {
       ) : null}
 
       {activeTab === "live" ? <LiveAttendance rows={liveRows} text={text} /> : null}
-      {["daily", "late", "missing", "absences"].includes(activeTab) ? <AttendanceTable rows={filteredRows} text={text} dense={dense} onSelect={setSelectedRow} isArabic={isArabic} /> : null}
+      {["daily", "late", "missing", "absences"].includes(activeTab) ? <AttendanceTable rows={filteredRows} text={text} dense={dense} onSelect={setSelectedRow} onEdit={openManualAttendance} isArabic={isArabic} /> : null}
       {activeTab === "leaves" ? <LeavesTable rows={leaveRows} text={text} /> : null}
       {activeTab === "qr" ? <QrSessionsTable rows={qrRows} text={text} /> : null}
       {activeTab === "payroll" ? (
@@ -885,9 +946,14 @@ export default function AttendanceCenter() {
             <p className="mt-2 text-xs font-bold text-[var(--muted)]">
               {isArabic ? "عند اختيار الحضور فقط أو الانصراف فقط، لن تتغير القيمة الأخرى المسجلة." : "Choosing check-in only or checkout only keeps the other saved timestamp unchanged."}
             </p>
+            <div className={`mt-2 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-black ${manualTargetExists ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"}`}>
+              {manualTargetExists
+                ? (isArabic ? "تعديل سجل محفوظ — الحقول معبأة بالقيم الحالية." : "Editing a saved record — the fields show the current values.")
+                : (isArabic ? "إنشاء سجل جديد لهذا اليوم." : "Creating a new record for this day.")}
+            </div>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <Field label={isArabic ? "الموظف" : "Employee"}><NativeSelect value={manualForm.employeeId} onChange={(event) => setManualForm((prev) => ({ ...prev, employeeId: event.target.value }))} required><option value="">{isArabic ? "اختر الموظف" : "Select employee"}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
-              <Field label={isArabic ? "تاريخ سجل الحضور" : "Attendance record date"}><DayFirstDateInput value={manualForm.attendanceDate} onChange={(event) => setManualForm((prev) => ({ ...prev, attendanceDate: event.target.value, checkOutDate: [prev.attendanceDate, nextDayValue(prev.attendanceDate)].includes(prev.checkOutDate) ? nextDayValue(event.target.value) : prev.checkOutDate }))} required /></Field>
+              <Field label={isArabic ? "الموظف" : "Employee"}><NativeSelect value={manualForm.employeeId} onChange={(event) => selectManualTarget({ employeeId: event.target.value })} required><option value="">{isArabic ? "اختر الموظف" : "Select employee"}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
+              <Field label={isArabic ? "تاريخ سجل الحضور" : "Attendance record date"}><DayFirstDateInput value={manualForm.attendanceDate} onChange={(event) => selectManualTarget({ attendanceDate: event.target.value })} required /></Field>
               {manualForm.editMode !== "check_out" ? (
                 <Field label={isArabic ? "وقت الحضور — الافتراضي PM" : "Check-in time — PM default"}>
                   <ManualTimeInput
@@ -1024,8 +1090,9 @@ function ChartPanel({ title, data, xKey = "date", type = "line", lines = [], bar
   );
 }
 
-function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
-  const headers = [text.columns.employee, text.columns.branch, text.columns.date, text.columns.checkIn, text.columns.checkOut, text.columns.workedHours, text.columns.status, text.columns.lateDuration, text.columns.missingHours, text.columns.overtime, text.columns.source, text.columns.payrollImpact, text.columns.notes];
+function AttendanceTable({ rows, text, dense, onSelect, onEdit, isArabic }) {
+  const editLabel = isArabic ? "تعديل" : "Edit";
+  const headers = [text.columns.employee, text.columns.branch, text.columns.date, text.columns.checkIn, text.columns.checkOut, text.columns.workedHours, text.columns.status, text.columns.lateDuration, text.columns.missingHours, text.columns.overtime, text.columns.source, text.columns.payrollImpact, text.columns.notes, editLabel];
   const groupedRows = useMemo(() => {
     const groups = new Map();
     rows.forEach((row) => {
@@ -1061,6 +1128,16 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
       <td className="px-3 py-2"><SourceBadge value={row.source_label} /></td>
       <td className="px-3 py-2 font-black text-rose-400" dir="ltr">{formatMoney(row.payroll_impact)}</td>
       <td className="max-w-[240px] truncate px-3 py-2" title={row.notes || ""}>{row.notes || "-"}</td>
+      <td className="px-3 py-2">
+        <button
+          type="button"
+          onClick={(event) => { event.stopPropagation(); onEdit?.(row); }}
+          className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 text-xs font-black text-[var(--text)]"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          {editLabel}
+        </button>
+      </td>
     </tr>
   ));
   return (
@@ -1072,7 +1149,7 @@ function AttendanceTable({ rows, text, dense, onSelect, isArabic }) {
             <span className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-black text-[var(--muted)]">{dateRows.length} {isArabic ? "موظف" : "employees"}</span>
           </div>
           <div className="overflow-auto">
-            <table className="m1-table m1-table--compact min-w-[1280px] w-full text-sm">
+            <table className="m1-table m1-table--compact min-w-[1380px] w-full text-sm">
               <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
               <tbody className="divide-[var(--border)]">{renderRows(dateRows)}</tbody>
             </table>
