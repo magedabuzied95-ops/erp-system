@@ -895,6 +895,27 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const activeVariant = useMemo(() => findMatchingVariant(selectedProduct || {}, selectedColor, selectedSize), [selectedColor, selectedProduct, selectedSize]);
   const activeColorVariant = useMemo(() => findMatchingColorVariant(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
   const activeCard = useMemo(() => (selectedProduct ? buildProductCardPayload(selectedProduct, activeVariant) : null), [activeVariant, selectedProduct]);
+
+  // A ticked product stores its card at tick time, built from its FIRST variant.
+  // Choosing a different colour/size afterwards has to move that stored card too,
+  // otherwise the tile is ticked as "Brown" and the cart receives the first colour.
+  useEffect(() => {
+    if (!activeCard) return;
+    const productId = String(activeCard.product_id ?? activeCard.id ?? "");
+    if (!productId) return;
+    setSelectedCardsById((current) => {
+      if (!current[productId]) return current;
+      const stored = current[productId];
+      if (
+        String(stored.variant_id ?? "") === String(activeCard.variant_id ?? "") &&
+        String(stored.color ?? "") === String(activeCard.color ?? "") &&
+        String(stored.size ?? "") === String(activeCard.size ?? "")
+      ) {
+        return current;
+      }
+      return { ...current, [productId]: activeCard };
+    });
+  }, [activeCard]);
   const activeImage = useMemo(() => {
     const selectedImage = firstText(
       activeColorVariant?.color_image_url,
@@ -977,10 +998,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       setError(t("aiSupport.inbox.picker.maxBatchReached", { count: MAX_BATCH_PRODUCTS }));
       return;
     }
-    const card = buildProductCardPayload(product, asArray(product.variants)[0] || null);
+    // Prefer the colour/size actually on screen for this product; fall back to its
+    // first variant only when the seller ticked it without opening it.
+    const chosenVariant =
+      String(selectedProductId || "") === productId && activeVariant ? activeVariant : asArray(product.variants)[0] || null;
+    const card = buildProductCardPayload(product, chosenVariant);
     setSelectedProductIds((cur) => [...cur, productId]);
     setSelectedCardsById((m) => ({ ...m, [productId]: card }));
-  }, [allowMultiple, selectedProductIds, t]);
+  }, [activeVariant, allowMultiple, selectedProductId, selectedProductIds, t]);
 
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
