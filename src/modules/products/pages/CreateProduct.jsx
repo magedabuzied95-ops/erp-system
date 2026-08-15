@@ -83,20 +83,17 @@ import {
   uploadProductImageValue,
 } from "../services/productsApi";
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
 import { isSchoolBagType } from "../lib/schoolBagSizes";
 
-const resolveAssetUrl = (url) => {
-  const value = String(url || "").trim();
-  if (!value) return "";
-  if (value.startsWith("data:") || value.startsWith("blob:")) return value;
-  if (/^https?:\/\//i.test(value)) return value;
-  if (value.startsWith("/uploads/")) return value;
-  if (value.startsWith("uploads/")) return `/${value}`;
-  if (value.startsWith("/")) return value;
-  return `/uploads/products/${value}`;
-};
+// Uploads are served by the API origin, not by the origin this SPA is hosted
+// on. A bare "/uploads/..." path hits the frontend host, where the SPA rewrite
+// answers with index.html, so the image silently renders as nothing even though
+// the value stored on the product is correct. Resolve every rendered image
+// through the shared helper, exactly as ProductEdit does.
+const resolveAssetUrl = (url) => resolveProductImageUrl(url);
 
 const AI_PROGRESS_STEPS = ["جاري تحليل الصورة...", "جاري توليد تحسينات البحث...", "جاري توليد الأوصاف..."];
 
@@ -2586,7 +2583,7 @@ function CreateProduct() {
             the theme. Same for the <img> below. */}
         <div className="relative aspect-[1.91/1] w-full overflow-hidden bg-white">
           {coverImage ? (
-            <img src={coverImage} alt={t("products.editor.openGraphPreviewAlt")} className="h-full w-full bg-white object-contain" />
+            <img src={resolveAssetUrl(coverImage)} alt={t("products.editor.openGraphPreviewAlt")} className="h-full w-full bg-white object-contain" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-surface-soft">
               <Share2 className="text-text-muted" size={28} />
@@ -2824,7 +2821,7 @@ function CreateProduct() {
                 <div>
                   <label className="flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-border bg-surface-soft p-6 text-center hover:border-primary/60">
                     {coverImage ? (
-                      <img src={coverImage} alt="cover" className="h-full max-h-[220px] w-full rounded-[var(--radius-card)] object-cover" />
+                      <img src={resolveAssetUrl(coverImage)} alt="cover" className="h-full max-h-[220px] w-full rounded-[var(--radius-card)] object-cover" />
                     ) : (
                       <>
                         <Upload className="text-primary" size={42} />
@@ -2912,7 +2909,7 @@ function CreateProduct() {
                       {gallery.map((item) => (
                         <ImageThumbnailActions
                           key={item.id || item.name}
-                          image={item}
+                          image={{ ...item, preview: resolveAssetUrl(item.preview || item.image_url) }}
                           alt={item.name || "Gallery image"}
                           isPrimary={Boolean(coverImage && (coverImage === item.preview || coverImage === item.image_url))}
                           onPrimary={setGalleryItemAsPrimary}
@@ -3141,7 +3138,7 @@ function CreateProduct() {
                               <div className="relative w-full aspect-[1.91/1] overflow-hidden rounded-t-[var(--radius-card)] bg-white">
                                 {coverImage ? (
                                   <img
-                                    src={coverImage}
+                                    src={resolveAssetUrl(coverImage)}
                                     alt={t("products.editor.openGraphPreviewAlt")}
                                     className="h-full w-full object-contain bg-white"
                                   />
@@ -3556,7 +3553,7 @@ function CreateProduct() {
                         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface sm:h-[72px] sm:w-[72px]">
                           {group.imagePreview ? (
                             <img
-                              src={group.imagePreview}
+                              src={resolveAssetUrl(group.imagePreview)}
                               alt={group.color || `Color ${groupIndex + 1}`}
                               className="h-full w-full object-contain p-2"
                             />
@@ -3646,7 +3643,7 @@ function CreateProduct() {
                               <label className="flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                                 {getPrimaryColorImage(group) ? (
                                   <img
-                                    src={getPrimaryColorImage(group)}
+                                    src={resolveAssetUrl(getPrimaryColorImage(group))}
                                     alt={group.color || `Color ${groupIndex + 1}`}
                                     className="h-full w-full object-contain p-2"
                                   />
@@ -3705,7 +3702,7 @@ function CreateProduct() {
                                   <div className="flex h-20 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-surface">
                                     {getPrimaryColorImage(group) ? (
                                       <img
-                                        src={getPrimaryColorImage(group)}
+                                        src={resolveAssetUrl(getPrimaryColorImage(group))}
                                         alt={`${group.color || `Color ${groupIndex + 1}`} original`}
                                         className="h-full w-full object-contain"
                                       />
@@ -3724,7 +3721,7 @@ function CreateProduct() {
                                 {(normalizeColorImages(group.images).length > 0 ? normalizeColorImages(group.images) : []).map((image, imageIndex) => (
                                   <ImageThumbnailActions
                                     key={image.id || `${group.id}-${imageIndex}`}
-                                    image={image}
+                                    image={{ ...image, preview: resolveAssetUrl(image.preview || image.image_url) }}
                                     alt={image.name || group.color || "Color image"}
                                     isPrimary={Boolean(image.is_primary)}
                                     onPrimary={() => setPrimaryColorImage(group.id, image.id)}
@@ -3918,7 +3915,7 @@ function CreateProduct() {
                                 <div className="flex flex-wrap items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => detectColorNameForGroup(group.id, getPrimaryColorImage(group) || group.imagePreview || group.image_url, { overwrite: true })}
+                                  onClick={() => detectColorNameForGroup(group.id, resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url), { overwrite: true })}
                                   disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
                                   className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                                 >
@@ -3930,7 +3927,7 @@ function CreateProduct() {
                                   onClick={() =>
                                     setColorPickTarget({
                                       groupId: group.id,
-                                      source: getPrimaryColorImage(group) || group.imagePreview || group.image_url,
+                                      source: resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url),
                                       alt: group.color || `Color ${groupIndex + 1}`,
                                     })
                                   }
