@@ -1,4 +1,4 @@
-﻿import crypto from "crypto";
+import crypto from "crypto";
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -16,7 +16,7 @@ import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus, upsertAiSupportMessageReaction } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
-import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
+import { legacyWhatsappLidSessionId, normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -580,12 +580,20 @@ export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = 
 };
 
 export const normalizeEgyptPhone = (phone = "") => {
-  let digits = String(phone || "").replace(/\D/g, "");
+  const raw = String(phone || "").trim().replace(/^whatsapp:/i, "");
+  // A LID or a WhatsApp username is an identity, not a number. Scraping digits
+  // out of either one mints a fake phone that lands the message in somebody
+  // else's conversation.
+  if (/@lid$/i.test(raw) || /^lid:/i.test(raw)) return "";
+  const localPart = raw.includes("@") ? raw.split("@")[0] : raw;
+  if (/[A-Za-z]/.test(localPart)) return "";
+  let digits = localPart.replace(/\D/g, "");
   if (!digits) return "";
   if (digits.startsWith("00")) digits = digits.slice(2);
   if (digits.startsWith("20") && digits.length === 12) return digits;
   if (digits.startsWith("0") && digits.length === 11) return `20${digits.slice(1)}`;
   if (digits.startsWith("1") && digits.length === 10) return `20${digits}`;
+  if (digits.length < 8 || digits.length > 15) return "";
   return digits;
 };
 
@@ -1701,22 +1709,6 @@ const findFirstString = (value, keys = []) => {
   return "";
 };
 
-const collectStrings = (value, output = [], seen = new WeakSet()) => {
-  if (output.length >= 250 || value === null || value === undefined) return output;
-  if (typeof value === "string" || typeof value === "number") {
-    const current = text(value);
-    if (current) output.push(current);
-    return output;
-  }
-  if (typeof value !== "object" || seen.has(value)) return output;
-  seen.add(value);
-  for (const child of Object.values(value)) {
-    collectStrings(child, output, seen);
-    if (output.length >= 250) break;
-  }
-  return output;
-};
-
 const collectStringsWithPaths = (value, path = "payload", output = [], seen = new WeakSet()) => {
   if (output.length >= 500 || value === null || value === undefined) return output;
   if (typeof value === "string" || typeof value === "number") {
@@ -1751,6 +1743,28 @@ const primaryEvolutionData = (payload = {}) => {
   const data = payload?.data ?? payload?.body?.data ?? payload;
   if (Array.isArray(data)) return data[0] || {};
   return data || {};
+};
+
+// Field names that actually identify the other side of a chat. Any other string
+// in the payload — a quoted message, a mention, a vCard — may hold a phone JID
+// that belongs to somebody who is not the sender.
+const IDENTITY_FIELD_NAMES = new Set([
+  "remotejid",
+  "previousremotejid",
+  "participant",
+  "participantpn",
+  "participantalt",
+  "senderpn",
+  "senderalt",
+  "sender",
+  "from",
+  "chatid",
+  "jid",
+]);
+
+const isIdentityFieldPath = (path = "") => {
+  const leaf = String(path || "").split(".").pop()?.replace(/\[\d+\]$/g, "").toLowerCase() || "";
+  return IDENTITY_FIELD_NAMES.has(leaf);
 };
 
 const isLidJid = (value = "") => /@lid$/i.test(text(value));
@@ -1876,7 +1890,7 @@ const logLidResolutionFailed = (payload = {}) => {
   console.info("[lid-resolution-failed]", payload);
 };
 
-const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJid = "", fromMe = null } = {}) => {
+export const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJid = "", fromMe = null } = {}) => {
   const message = data?.message || data?.messages?.[0]?.message || {};
   const contextInfo =
     message?.contextInfo ||
@@ -1933,18 +1947,28 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
       fromMe: base.fromMe,
       ownerJid: base.ownerJid,
       configuredBotNumber,
-      sources: ["key.participant", "data.participant", "data.sender", "contextInfo.participant", "data.key.remoteJid", "data.remoteJid", "embedded_jid_fields", "stored_conversation_mapping", "previous_resolved_customer"],
+      sources: ["key.senderPn", "key.participantPn", "key.participant", "data.participant", "data.sender", "contextInfo.participant", "data.key.remoteJid", "data.remoteJid", "identity_jid_fields", "stored_conversation_mapping", "previous_resolved_customer"],
     });
     const lidCandidates = [
+      // Since the username rollout WhatsApp carries the real number alongside the
+      // LID in these fields — they are the only trustworthy source, so try them first.
+      { label: "key.senderPn", value: key?.senderPn || data?.key?.senderPn },
+      { label: "key.participantPn", value: key?.participantPn || data?.key?.participantPn },
+      { label: "key.previousRemoteJid", value: key?.previousRemoteJid || data?.key?.previousRemoteJid },
+      { label: "data.senderPn", value: data?.senderPn },
+      { label: "contextInfo.participantPn", value: contextInfo?.participantPn },
       { label: "key.participant", value: keyParticipant },
       { label: "data.participant", value: data?.participant },
       { label: "data.sender", value: data?.sender },
       { label: "contextInfo.participant", value: contextParticipant },
       { label: "data.key.remoteJid", value: data?.key?.remoteJid },
       { label: "data.remoteJid", value: data?.remoteJid },
+      // Scoped to identity-bearing field names only. Scanning every string in the
+      // payload picks up numbers quoted inside a forwarded message or a contact
+      // card and files the chat under a stranger.
       ...nestedStrings
-        .filter((item) => isWhatsappPhoneJid(item.value))
-        .map((item) => ({ label: `embedded_jid_fields:${item.path}`, value: item.value })),
+        .filter((item) => isWhatsappPhoneJid(item.value) && isIdentityFieldPath(item.path))
+        .map((item) => ({ label: `identity_jid_fields:${item.path}`, value: item.value })),
     ];
     console.info("[evolution:lid-candidates]", {
       remoteJid: base.remoteJid,
@@ -2076,14 +2100,17 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
     }
   }
   const senderValues = new Set([text(data?.sender), text(payload?.sender)].filter(Boolean));
-  const recursivePhoneJid = collectStrings(payload).find((value) => {
+  const recursivePhoneJid = collectStringsWithPaths(payload).find((item) => {
+    const value = item.value;
     if (isLid && senderValues.has(text(value))) return false;
     if (!isWhatsappPhoneJid(value)) return false;
+    // Same rule as the LID scan: only fields that name an identity count.
+    if (!isIdentityFieldPath(item.path)) return false;
     const target = replyTargetFromValue(value);
     if (!target) return false;
     if (rejectOwnTarget(target, value)) return false;
     return true;
-  });
+  })?.value;
   const recursiveTarget = replyTargetFromValue(recursivePhoneJid);
   if (recursiveTarget) {
     return {
@@ -2109,6 +2136,16 @@ const resolveStoredLidReplyTarget = async ({ tenantId, remoteJid = "", ownerJids
     if (!target || targetEqualsOwner(target, ownerJids)) return null;
     return target;
   };
+  // The writer stores remote_jid canonicalised, never as the raw "<id>@lid" the
+  // webhook carries. Looking up only the raw form matched nothing, so a LID we
+  // had already resolved once was re-guessed on every single message.
+  const lidKeys = [
+    safeRemoteJid,
+    normalizeWhatsappSessionId(safeRemoteJid),
+    legacyWhatsappLidSessionId(safeRemoteJid),
+    normalizeWhatsappLid(safeRemoteJid),
+  ].filter(Boolean);
+  const uniqueLidKeys = [...new Set(lidKeys)];
   try {
     const messageRows = await db.query(
       `
@@ -2116,12 +2153,12 @@ const resolveStoredLidReplyTarget = async ({ tenantId, remoteJid = "", ownerJids
       FROM ai_support_messages
       WHERE tenant_id = $1
         AND channel = 'whatsapp'
-        AND remote_jid = $2
+        AND remote_jid = ANY($2::text[])
         AND COALESCE(resolved_phone, '') <> ''
       ORDER BY created_at DESC
       LIMIT 10
       `,
-      [tenantId, safeRemoteJid]
+      [tenantId, uniqueLidKeys]
     );
     for (const row of messageRows.rows || []) {
       const target = buildTarget(row.resolved_reply_jid) || buildTarget(row.resolved_phone);
@@ -2153,16 +2190,16 @@ const resolveStoredLidReplyTarget = async ({ tenantId, remoteJid = "", ownerJids
       WHERE tenant_id = $1
         AND channel = 'whatsapp'
         AND (
-          external_conversation_id = $2
-          OR external_customer_id = $3
-          OR metadata->>'remote_jid' = $3
-          OR metadata->>'lid_jid' = $3
-          OR metadata->>'sender_lid' = $3
+          external_conversation_id = ANY($2::text[])
+          OR external_customer_id = ANY($2::text[])
+          OR metadata->>'remote_jid' = ANY($2::text[])
+          OR metadata->>'lid_jid' = ANY($2::text[])
+          OR metadata->>'sender_lid' = ANY($2::text[])
         )
       ORDER BY updated_at DESC
       LIMIT 10
       `,
-      [tenantId, `whatsapp:${safeRemoteJid}`, safeRemoteJid]
+      [tenantId, uniqueLidKeys]
     );
     for (const row of conversationRows.rows || []) {
       const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
@@ -2618,7 +2655,7 @@ const resolveCaptionVariant = (product = {}) => {
   return product?.selected_variant || product?.variant || product?.matched_variant || variants[0] || null;
 };
 const buildWhatsappOutboundPlan = ({ message = {}, aiPayload = {}, replyText = "", cards = [] } = {}) => {
-  const conversationId = text(message.inbox?.session_id || message.sessionId || `whatsapp:${message.phone || ""}`);
+  const conversationId = text(message.inbox?.session_id || message.sessionId || message.conversationIdentity || `whatsapp:${message.phone || ""}`);
   const inboundMessageId = text(message.messageId || message.message_id || message.external_message_id || "");
   const messageText = text(message.message_text || message.text || aiPayload?.message_text || "");
   const wantsAllImages =
@@ -3048,6 +3085,51 @@ const materializeEvolutionWebhookMedia = async ({ payload = {}, descriptor = {},
   }
 };
 
+/**
+ * Pick the JID of the chat this webhook belongs to.
+ *
+ * `data.sender` is the *connected instance* in Evolution, not the customer. It
+ * sat in this fallback chain, so any event that arrived without `key.remoteJid`
+ * — which is what the username/LID rollout started producing — resolved the
+ * chat to the store's own number and filed the customer's message into the
+ * owner's own thread. Owner-looking candidates are now skipped outright.
+ */
+export const resolveWebhookChatJid = ({ payload = {}, data = {}, key = {}, ownerJids = [] } = {}) => {
+  // `authoritative` fields name the chat itself; the rest are guesses that may
+  // hold the instance's own identity.
+  const candidates = [
+    { value: key?.remoteJid, authoritative: true },
+    { value: data?.remoteJid, authoritative: true },
+    { value: data?.remote_jid, authoritative: true },
+    { value: data?.chatId, authoritative: true },
+    { value: data?.chat_id, authoritative: true },
+    { value: data?.conversationId, authoritative: true },
+    { value: data?.conversation_id, authoritative: true },
+    { value: data?.from, authoritative: false },
+    { value: data?.sender, authoritative: false },
+    { value: data?.participant, authoritative: false },
+    { value: data?.number, authoritative: false },
+    { value: findFirstString(data, ["remoteJid", "remote_jid", "from", "sender", "participant", "number", "phone"]), authoritative: false },
+    { value: findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"]), authoritative: false },
+  ];
+  let ownerChatJid = "";
+  for (const candidate of candidates) {
+    const value = text(candidate.value);
+    if (!value) continue;
+    const target = replyTargetFromValue(value);
+    if (target && targetEqualsOwner(target, ownerJids)) {
+      // The owner stands as the chat identity only when an authoritative field
+      // says so — that is the real "message yourself" thread. Reached through a
+      // guess field it is just the instance leaking into the chain.
+      if (candidate.authoritative && !ownerChatJid) ownerChatJid = value;
+      else logReplyTargetCandidateRejected({ candidateJid: value, candidateNumber: target.number, reason: "owner_chat_jid" });
+      continue;
+    }
+    return value;
+  }
+  return ownerChatJid;
+};
+
 const extractWhatsappWebhookEnvelope = (payload = {}) => {
   const data = primaryEvolutionData(payload);
   const key = data?.key || payload?.key || {};
@@ -3067,25 +3149,11 @@ const extractWhatsappWebhookEnvelope = (payload = {}) => {
     data?.action,
   ].filter((value) => value !== undefined && value !== null && String(value).trim() !== "");
   const rawEvent = text(eventCandidates[0] || "");
-  const remoteJid = text(
-    key?.remoteJid ||
-    data?.remoteJid ||
-    data?.remote_jid ||
-    data?.chatId ||
-    data?.chat_id ||
-    data?.conversationId ||
-    data?.conversation_id ||
-    data?.from ||
-    data?.sender ||
-    data?.participant ||
-    data?.number ||
-    findFirstString(data, ["remoteJid", "remote_jid", "from", "sender", "participant", "number", "phone"]) ||
-    findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"])
-  );
   const fromMe = boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe);
+  const ownerJids = ownerJidsFromPayload({ payload, data, fromMe });
+  const remoteJid = resolveWebhookChatJid({ payload, data, key, ownerJids });
   const sender = text(data?.sender || payload?.sender || "");
   const participant = text(key?.participant || data?.key?.participant || data?.participant || payload?.participant || "");
-  const ownerJids = ownerJidsFromPayload({ payload, data, fromMe });
   const ownerJid = ownerJids[0] || "";
   const configuredBotNumber = ownerNumberFromJids(ownerJids);
   const isGroup = isGroupConversationContext(
@@ -3156,22 +3224,9 @@ const extractIncomingWhatsapp = async (payload = {}) => {
   ].filter((value) => value !== undefined && value !== null && String(value).trim() !== "");
   const rawEvent = text(eventCandidates[0] || "");
   const normalizedEvent = rawEvent.toLowerCase().replace(/[_\s]+/g, ".");
-  const remoteJid = text(
-    key?.remoteJid ||
-    data?.remoteJid ||
-    data?.remote_jid ||
-    data?.chatId ||
-    data?.chat_id ||
-    data?.conversationId ||
-    data?.conversation_id ||
-    data?.from ||
-    data?.sender ||
-    data?.participant ||
-    data?.number ||
-    findFirstString(data, ["remoteJid", "remote_jid", "from", "sender", "participant", "number", "phone"]) ||
-    findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"])
-  );
   const fromMe = boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe);
+  const inboundOwnerJids = ownerJidsFromPayload({ payload, data, fromMe });
+  const remoteJid = resolveWebhookChatJid({ payload, data, key, ownerJids: inboundOwnerJids });
   const sender = text(data?.sender || payload?.sender || "");
   const participant = text(key?.participant || data?.key?.participant || data?.participant || payload?.participant || "");
   let replyTarget = resolveWhatsappReplyTarget({ payload, data, key, remoteJid, fromMe });
@@ -3179,12 +3234,26 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     const storedReplyTarget = await resolveStoredLidReplyTarget({
       tenantId: tenantIdForWhatsapp(payload),
       remoteJid,
-      ownerJids: ownerJidsFromPayload({ payload, data, fromMe }),
+      ownerJids: inboundOwnerJids,
       base: replyTarget,
     });
     if (storedReplyTarget) replyTarget = storedReplyTarget;
   }
-  const phone = replyTarget.resolvedNumber || (isLidJid(remoteJid) ? "" : normalizeEgyptPhone(jidNumber(remoteJid)));
+  // The resolver rejects the store's own number on purpose. This fallback used
+  // to re-admit it straight from remoteJid, which is how a customer's message
+  // ended up inside the owner's own conversation.
+  const remoteJidPhone = isLidJid(remoteJid) ? "" : normalizeEgyptPhone(jidNumber(remoteJid));
+  const remoteJidPhoneIsOwner = Boolean(
+    remoteJidPhone && fromMe !== true && targetEqualsOwner({ jid: jidFromNumber(remoteJidPhone), number: remoteJidPhone }, inboundOwnerJids)
+  );
+  if (remoteJidPhoneIsOwner) {
+    logReplyTargetCandidateRejected({ candidateJid: remoteJid, candidateNumber: remoteJidPhone, reason: "owner_number_inbound_fallback" });
+  }
+  const phone = replyTarget.resolvedNumber || (remoteJidPhoneIsOwner ? "" : remoteJidPhone);
+  // A username-only customer has no number at all. Keep their LID as a first
+  // class identity instead of dropping the message or inventing a phone.
+  const lidId = normalizeWhatsappLid(remoteJid);
+  const conversationIdentity = normalizeWhatsappSessionId(phone || remoteJid, phone);
   const isGroup = Boolean(replyTarget.isGroup || isGroupConversationContext(
     remoteJid,
     sender,
@@ -3321,6 +3390,8 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     rawEvent,
     eventCandidates,
     phone,
+    lidId,
+    conversationIdentity,
     remoteJid,
     resolvedReplyJid: replyTarget.resolvedJid,
     resolvedPhone: replyTarget.resolvedNumber,
@@ -3727,7 +3798,11 @@ const loadWhatsappDuplicateDiagnostics = async ({
 
 const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   const tenantId = tenantIdForWhatsapp(message.raw || {});
-  const sessionId = normalizeWhatsappSessionId(message.raw?.external_conversation_id || message.raw?.conversation_id || message.remoteJid || message.phone, message.phone);
+  // A known phone always wins over the LID, so a customer we can identify keeps
+  // one thread even when WhatsApp hides their number behind a username.
+  const sessionId = message.conversationIdentity
+    || normalizeWhatsappSessionId(message.raw?.external_conversation_id || message.raw?.conversation_id || message.remoteJid || message.phone, message.phone);
+  const lidId = text(message.lidId) || normalizeWhatsappLid(message.remoteJid);
   const customerName = text(message.senderName);
   const body = text(message.text);
   const visualAttachments = Array.isArray(message.visualAttachments)
@@ -3792,11 +3867,17 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     tenantId,
     channel: AI_AGENT_CHANNELS.WHATSAPP,
     externalConversationId: sessionId,
-    externalCustomerId: message.phone,
+    // Left empty when the customer hides behind a username: the ERP must never
+    // show a LID where a phone number belongs.
+    externalCustomerId: message.phone || "",
     customerName,
     customerAvatarUrl,
     metadata: {
       phone: message.phone,
+      // Remembering the LID here is what lets the next message from this chat
+      // resolve straight to the customer instead of being guessed again.
+      lid_jid: lidId ? `${lidId}@lid` : "",
+      sender_lid: lidId || "",
       remote_jid: remoteJid,
       resolved_reply_jid: resolvedReplyJid,
       resolved_phone: resolvedPhone,
@@ -4586,7 +4667,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
   trace = await startTrace({
     tenantId: traceTenantId,
     channel: AI_AGENT_CHANNELS.WHATSAPP,
-    sessionId: normalized.phone ? `whatsapp:${normalized.phone}` : "",
+    sessionId: normalized.conversationIdentity || "",
     externalMessageId: normalized.messageId,
     metadata: { source: "evolution_api_webhook" },
   });
@@ -4605,10 +4686,13 @@ export const handleIncomingWebhook = async (payload = {}) => {
     await finishTrace(trace, { status: "skipped", reason: "from_me" });
     return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "from_me" }, text: "" };
   }
-  if (!normalized.phone) {
-    console.info("[whatsapp:inbox-skipped]", { reason: "missing_phone", remoteJid: normalized.remoteJid, message_id: normalized.messageId });
-    await finishTrace(trace, { status: "skipped", reason: "missing_phone" });
-    return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_phone" } };
+  // A username-only customer carries a LID and no number. Dropping the message
+  // for want of a phone loses a real conversation, so only a message with no
+  // usable identity at all is skipped.
+  if (!normalized.conversationIdentity) {
+    console.info("[whatsapp:inbox-skipped]", { reason: "missing_identity", remoteJid: normalized.remoteJid, message_id: normalized.messageId });
+    await finishTrace(trace, { status: "skipped", reason: "missing_identity" });
+    return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_identity" } };
   }
   await autoRegisterWhatsappCustomer({
     tenantId: traceTenantId,
@@ -4639,17 +4723,20 @@ export const handleIncomingWebhook = async (payload = {}) => {
   }
   if (!normalized.text) {
     if (mediaDescriptor.type) {
-      const sessionId = normalizeWhatsappSessionId(normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
+      const sessionId = normalized.conversationIdentity
+        || normalizeWhatsappSessionId(normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
       const mediaMessage = mediaDescriptor.label || "📎 مرفق";
       await upsertChannelConversationMapping({
         tenantId: traceTenantId,
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         externalConversationId: sessionId,
-        externalCustomerId: normalized.phone,
+        externalCustomerId: normalized.phone || "",
         customerName: normalized.senderName,
         customerAvatarUrl: normalized.customerAvatarUrl,
         metadata: {
           phone: normalized.phone,
+          lid_jid: normalized.lidId ? `${normalized.lidId}@lid` : "",
+          sender_lid: normalized.lidId || "",
           remote_jid: normalized.remoteJid,
           resolved_reply_jid: normalized.resolvedReplyJid,
           resolved_phone: normalized.resolvedPhone || normalized.phone,
@@ -4716,8 +4803,8 @@ export const handleIncomingWebhook = async (payload = {}) => {
     });
     await setTraceInboundMessage(trace, inbox?.message?.id || null);
     await addTraceStep(trace, "inbox_saved", {
-      session_id: inbox?.session_id || `whatsapp:${normalized.phone}`,
-      conversation_id: inbox?.session_id || `whatsapp:${normalized.phone}`,
+      session_id: inbox?.session_id || normalized.conversationIdentity,
+      conversation_id: inbox?.session_id || normalized.conversationIdentity,
       ai_support_message_id: inbox?.message?.id || null,
       saved: inbox?.saved === true,
       duplicate: inbox?.duplicate === true,
@@ -4803,7 +4890,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   const blockedByInboxGate = !message?.text || message?.fromMe || message?.inbox?.saved === false || message?.inbox?.duplicate === true || message?.inbox?.saved !== true;
   console.info("[ai-duplicate-gate]", {
     message_id: message?.message_id || message?.messageId || message?.inbox?.message?.external_message_id || "",
-    conversation_id: message?.inbox?.session_id || message?.conversation_id || `whatsapp:${message?.phone || ""}`,
+    conversation_id: message?.inbox?.session_id || message?.conversation_id || message?.conversationIdentity || `whatsapp:${message?.phone || ""}`,
     saved: message?.inbox?.saved === true,
     duplicate: message?.inbox?.duplicate === true,
     shouldAutoSend: !blockedByInboxGate,
@@ -4830,7 +4917,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   });
   console.info("[ai-auto-reply] stage=inbound_saved", {
     messageId: text(message?.message_id || message?.messageId || ""),
-    conversation_id: text(message?.inbox?.session_id || message?.conversation_id || `whatsapp:${message?.phone || ""}`),
+    conversation_id: text(message?.inbox?.session_id || message?.conversation_id || message?.conversationIdentity || `whatsapp:${message?.phone || ""}`),
     inbox_saved: message?.inbox?.saved === true,
     inbox_duplicate: message?.inbox?.duplicate === true,
     ai_support_message_id: text(message?.inbox?.message?.id || message?.inbox?.message?.external_message_id || ""),
@@ -4838,7 +4925,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   const generated = await generateWhatsappAiAutoReply({
     tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
     phone: message.phone,
-    sessionId: message.inbox?.session_id || `whatsapp:${message.phone}`,
+    sessionId: message.inbox?.session_id || message.conversationIdentity || `whatsapp:${message.phone}`,
     customerName: message.customer_name || message.senderName || "",
     messageText: message.text,
     timestamp: message.received_at || message.timestamp,
@@ -4846,7 +4933,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   });
   console.info("[ai-auto-reply] stage=ai_generation_done", {
     messageId: text(message?.message_id || message?.messageId || ""),
-    conversation_id: text(message?.inbox?.session_id || message?.conversation_id || `whatsapp:${message?.phone || ""}`),
+    conversation_id: text(message?.inbox?.session_id || message?.conversation_id || message?.conversationIdentity || `whatsapp:${message?.phone || ""}`),
     triggered: generated?.triggered === true,
     sent: generated?.sent === true,
     reason: text(generated?.reason || ""),

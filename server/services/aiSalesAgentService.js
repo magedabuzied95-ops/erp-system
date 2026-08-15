@@ -1407,8 +1407,14 @@ export const resolveConversationDisplayName = ({ conversation = {}, customerProf
     conversation.phone,
     conversation.external_conversation_id,
     conversation.session_id,
-  ].map((value) => text(value).replace(/^whatsapp:/i, "").replace(/@[^@]+$/i, "").replace(/\D/g, ""))
-    .find(Boolean);
+  ].map((value) => {
+    const raw = text(value).replace(/^whatsapp:/i, "");
+    // A LID belongs to a customer who hides their number behind a username.
+    // Stripping it down to digits would print an account id where the ERP shows
+    // a phone number.
+    if (/^lid:/i.test(raw) || /@lid$/i.test(raw)) return "";
+    return raw.replace(/@[^@]+$/i, "").replace(/\D/g, "");
+  }).find(Boolean);
   return whatsappIdentity || "";
 };
 const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) => {
