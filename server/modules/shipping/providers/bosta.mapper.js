@@ -71,6 +71,49 @@ export const normalizeBostaMasterLocations = (payload) => {
   return { cities: rows, skippedInvalidRows };
 };
 
+// Bosta reports state as an object — `{"code":10,"value":"Pickup requested"}` — not
+// a string. Reading it straight through String() stored the literal "[object Object]"
+// as the shipment status, which no status map or KPI bucket can match.
+export const bostaStateText = (value) => {
+  if (value && typeof value === "object") {
+    return text(value.value ?? value.name ?? value.state ?? value.status ?? value.code ?? "");
+  }
+  return text(value);
+};
+
+const BOSTA_STATE_ALIASES = {
+  created: "shipment_created",
+  pickup_requested: "shipment_created",
+  waiting_for_route: "shipment_created",
+  route_assigned: "shipment_created",
+  picked_up: "picked_up",
+  pickedup: "picked_up",
+  received_at_warehouse: "in_transit",
+  in_transit: "in_transit",
+  intransit: "in_transit",
+  out_for_delivery: "out_for_delivery",
+  delivered: "delivered",
+  returned: "returned",
+  returned_to_business: "returned",
+  return_to_business: "returned",
+  cancelled: "cancelled",
+  canceled: "cancelled",
+  terminated: "cancelled",
+  exception: "failed_delivery",
+  failed: "failed_delivery",
+  delivery_failed: "failed_delivery",
+  failed_delivery: "failed_delivery",
+};
+
+// Bosta's own vocabulary reduced to the statuses the ERP tracks. An unknown state is
+// returned normalized rather than dropped, so a new Bosta state shows up as itself
+// instead of silently becoming "created".
+export const normalizeBostaStatus = (value) => {
+  const key = bostaStateText(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (!key) return "";
+  return BOSTA_STATE_ALIASES[key] || key;
+};
+
 export const normalizeBostaDeliveryResponse = (payload = {}) => {
   const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
   const errorPayload = payload?.error && typeof payload.error === "object" ? payload.error : {};
@@ -84,7 +127,7 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
     tracking_number: trackingNumber,
     tracking_url: text(pick(data, ["trackingUrl", "tracking_url", "trackingURL"])),
     label_url: text(pick(data, ["labelUrl", "label_url", "airwayBillUrl", "awbUrl"])),
-    status: text(pick(data, ["status", "state", "deliveryStatus"])) || "created",
+    status: normalizeBostaStatus(pick(data, ["status", "state", "deliveryStatus"])) || "created",
     raw_response: payload,
     error: text(pick(payload, ["message", "errorMessage"])) || text(pick(errorPayload, ["message", "errorMessage", "details"])) || (typeof payload?.error === "string" ? text(payload.error) : ""),
     error_code: text(pick(payload, ["errorCode", "code"])) || text(pick(errorPayload, ["errorCode", "code"])),

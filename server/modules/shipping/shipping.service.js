@@ -4,7 +4,7 @@ import { getSetting, setSetting } from "../../services/settingsService.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
-import { buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations } from "./providers/bosta.mapper.js";
+import { bostaStateText, buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const nowIso = () => new Date().toISOString();
@@ -83,6 +83,8 @@ const BOSTA_WEBHOOK_STATUS_MAP = {
   failed_delivery: "failed_delivery",
 };
 
+const ERP_SHIPPING_STATUSES = new Set(Object.values(BOSTA_WEBHOOK_STATUS_MAP));
+
 export const BOSTA_WEBHOOK_SAMPLE_PAYLOAD = {
   event: "delivery.status_changed",
   deliveryId: "BOSTA_DELIVERY_ID",
@@ -116,7 +118,7 @@ const extractBostaWebhook = (payload = {}) => {
   const delivery = payload?.delivery && typeof payload.delivery === "object" ? payload.delivery : {};
   const order = payload?.order && typeof payload.order === "object" ? payload.order : {};
   const source = { ...payload, data, delivery, order };
-  const rawStatus = text(pickFirst(source, [
+  const rawStatusValue = pickFirst(source, [
     "status",
     "state",
     "deliveryStatus",
@@ -130,8 +132,15 @@ const extractBostaWebhook = (payload = {}) => {
     "delivery.status",
     "delivery.state",
     "order.status",
-  ]));
-  const mappedStatus = BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(rawStatus)] || BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(payload?.event)] || "";
+  ]);
+  // Bosta sends state as `{code, value}` on some events and as a plain string on
+  // others; unwrap before matching or every object-shaped event reads as unsupported.
+  const rawStatus = bostaStateText(rawStatusValue);
+  const aliased = normalizeBostaStatus(rawStatusValue);
+  const mappedStatus = (ERP_SHIPPING_STATUSES.has(aliased) ? aliased : "") ||
+    BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(rawStatus)] ||
+    BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(payload?.event)] ||
+    "";
   return {
     rawStatus,
     status: mappedStatus,
