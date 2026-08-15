@@ -120,9 +120,12 @@ for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
     );
     const last = tail.rows[0] || null;
     await client.query(
+      // customer_name is NOT NULL: a nameless chat on both sides must land on
+      // '' rather than NULL, or the merge fails on the customers who have no
+      // pushName at all — exactly the ones this script exists for.
       `UPDATE ai_support_sessions
-       SET last_message = COALESCE(NULLIF($3, ''), last_message),
-           customer_name = COALESCE(NULLIF(customer_name, ''), NULLIF($4, '')),
+       SET last_message = COALESCE(NULLIF($3, ''), last_message, ''),
+           customer_name = COALESCE(NULLIF(customer_name, ''), NULLIF($4, ''), ''),
            updated_at = NOW()
        WHERE tenant_id = $1 AND session_id = $2`,
       [tenantId, canonical, last?.last_message || "", last?.customer_name || ""]
@@ -155,8 +158,8 @@ for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
     }
     await client.query(
       `UPDATE ai_channel_conversations
-       SET customer_name = COALESCE(NULLIF(customer_name, ''), NULLIF($3, ''), NULLIF($4, '')),
-           last_message = COALESCE(NULLIF($5, ''), last_message),
+       SET customer_name = COALESCE(NULLIF(customer_name, ''), NULLIF($3, ''), NULLIF($4, ''), ''),
+           last_message = COALESCE(NULLIF($5, ''), last_message, ''),
            last_message_at = COALESCE($6, last_message_at),
            external_customer_id = '',
            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('lid_jid', $7::text, 'sender_lid', $8::text),
