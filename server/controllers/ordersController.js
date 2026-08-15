@@ -8229,7 +8229,13 @@ export const getPosEditOrder = async (req, res) => {
 
 export const getPublicInvoiceByToken = async (req, res) => {
   try {
-    await ensurePosShiftOrderColumnsNow(db, getTenantId(req, req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId));
+    // Memoised per process. This used to call the raw ensurePosShiftOrderColumnsNow,
+    // which issues 246 sequential statements (198 ALTER TABLE, 35 CREATE INDEX,
+    // 10 CREATE TABLE) plus four full-table UPDATEs on EVERY public invoice view —
+    // measured at ~500ms of the request against a 2ms round-trip. The schema is
+    // already ensured at boot and by every write path; a public read never needs
+    // to re-issue it.
+    await ensureOrdersSchema(db, getTenantId(req, req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId));
     console.log("[public invoice token]", req.params.token);
     const invoice = await loadPublicInvoiceByToken(req.params.token, req);
     if (!invoice) {
@@ -8261,7 +8267,13 @@ export const getPublicInvoiceByToken = async (req, res) => {
 
 export const getPublicInvoicePdfByToken = async (req, res) => {
   try {
-    await ensurePosShiftOrderColumnsNow(db, getTenantId(req, req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId));
+    // Memoised per process. This used to call the raw ensurePosShiftOrderColumnsNow,
+    // which issues 246 sequential statements (198 ALTER TABLE, 35 CREATE INDEX,
+    // 10 CREATE TABLE) plus four full-table UPDATEs on EVERY public invoice view —
+    // measured at ~500ms of the request against a 2ms round-trip. The schema is
+    // already ensured at boot and by every write path; a public read never needs
+    // to re-issue it.
+    await ensureOrdersSchema(db, getTenantId(req, req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId));
     console.log("[public invoice token]", req.params.token);
     const invoice = await loadPublicInvoiceByToken(req.params.token, req);
     if (!invoice) {

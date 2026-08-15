@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../shared/api/api";
+import { getPublicSettings } from "../shared/api/publicSettings";
 import OrderInvoiceCard from "../shared/components/invoices/OrderInvoiceCard";
 import { normalizeOrderInvoiceData } from "../shared/utils/orderInvoice";
 import { getPrintDirection, normalizePrintLanguage, tPrint } from "../shared/utils/printLocalization";
@@ -163,15 +164,13 @@ export default function PublicInvoice() {
   useEffect(() => {
     let cancelled = false;
 
-    api
-      .get("/settings/public", {
-        suppressErrorStatuses: [401, 403, 404, 500],
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      })
-      .then((response) => {
+    // Shared with the App-level fetch. This page used to re-request the same
+    // ~334 KB with cache: "no-store", costing a measured 456ms for data that was
+    // already in flight.
+    getPublicSettings()
+      .then((settings) => {
         if (cancelled) return;
-        setPublicSettings(response?.settings || {});
+        setPublicSettings(settings || {});
       })
       .catch(() => undefined);
 

@@ -96,7 +96,19 @@ export default defineConfig(({ mode }) => {
           entryFileNames: `assets/[name]-[hash]-${buildVersion}.js`,
           chunkFileNames: `assets/[name]-[hash]-${buildVersion}.js`,
           manualChunks(id) {
-            if (!id.includes("node_modules")) return undefined;
+            const path = id.replace(/\\/g, "/");
+
+            // App source is left to automatic splitting on purpose. Grouping the
+            // public invoice route into one manual chunk was tried and reverted: it
+            // dragged the page's whole static import subtree in with it and produced
+            // a 1.1 MB chunk, replacing many small cached requests with one large
+            // uncached download. Same trap the note below describes.
+            if (!path.includes("node_modules")) return undefined;
+
+            // lucide-react ships one module per icon, and automatic splitting turned
+            // each into its own sub-1 KB chunk — a whole round trip per icon. Grouping
+            // them costs nothing in bytes and removes a request per icon everywhere.
+            if (/[\\/]node_modules[\\/]lucide-react[\\/]/.test(id)) return "icons";
             // Split only the framework libs that the entry always needs, for stable
             // long-term caching. Everything else — including admin/export-only heavy
             // libs (recharts, jspdf, xlsx, html2canvas, qr, react-select, socket.io)
