@@ -10,6 +10,8 @@ import {
   Loader2,
   MessageCircle,
   MessageSquareText,
+  Maximize2,
+  Minimize2,
   RefreshCw,
   Send,
   Settings,
@@ -1545,6 +1547,8 @@ function SocialCommentsWorkspace({
     mode: "manual_approval",
   },
   onRefresh,
+  isExpanded = false,
+  onToggleExpanded,
   onSelectPost,
   onPrefetchPost,
   onSelectCustomer,
@@ -2883,6 +2887,17 @@ function SocialCommentsWorkspace({
               >
                 {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </button>
+              {onToggleExpanded ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleExpanded()}
+                  aria-label={isExpanded ? "Restore layout" : "Expand layout"}
+                  title={isExpanded ? "Restore layout" : "Expand layout"}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)] hover:border-[var(--primary)]"
+                >
+                  {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
+              ) : null}
               </div>
             </div>
 
