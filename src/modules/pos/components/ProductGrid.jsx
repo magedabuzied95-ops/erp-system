@@ -20,7 +20,7 @@ const failedProductImageUrls = new Set();
 // role catalog, so resolve it once per signed-in user instead of per card.
 let productEditAccess = { key: undefined, value: false };
 
-const canOpenProductEditor = () => {
+const canEditCatalogProducts = () => {
   const key = typeof localStorage === "undefined" ? null : localStorage.getItem("user");
   if (productEditAccess.key !== key) {
     productEditAccess = { key, value: hasPermission("products.edit") };
@@ -135,6 +135,7 @@ function ProductGrid({
   products,
   search,
   onSelectProduct,
+  onToggleFavorite,
 }) {
   const { t } = useTranslation();
   const renderCountRef = useRef(0);
@@ -211,6 +212,7 @@ function ProductGrid({
       key={key}
       product={product}
       onSelectProduct={onSelectProduct}
+      onToggleFavorite={onToggleFavorite}
     />
   );
 
@@ -235,8 +237,9 @@ function ProductGrid({
   );
 }
 
-export const PosProductCard = memo(function PosProductCard({ product, onSelectProduct }) {
+export const PosProductCard = memo(function PosProductCard({ product, onSelectProduct, onToggleFavorite }) {
   const { t } = useTranslation();
+  const [favoritePending, setFavoritePending] = useState(false);
   const stock = getProductStock(product);
   const isOutOfStock = stock <= 0;
   const cover = product?.employee_exact_variant_image
@@ -260,10 +263,22 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
   const articleCode = getSharedArticleCode(product);
   const isFavorite = product?.is_pos_favorite === true || product?.isPosFavorite === true;
   const editId = getProductEditId(product);
-  const canEditProduct = Boolean(editId) && canOpenProductEditor();
+  const canEditProduct = Boolean(editId) && canEditCatalogProducts();
+  const canToggleFavorite = Boolean(onToggleFavorite) && canEditProduct;
   const stopCardActivation = useCallback((event) => {
     event.stopPropagation();
   }, []);
+  const handleToggleFavorite = useCallback(async (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (favoritePending) return;
+    setFavoritePending(true);
+    try {
+      await onToggleFavorite?.(product);
+    } finally {
+      setFavoritePending(false);
+    }
+  }, [favoritePending, onToggleFavorite, product]);
   const isEmployeeScopedVariant = Boolean(product?.employee_card_color || product?.employee_card_size);
   const employeeFilteredSizes = uniqueTextValues(
     Array.isArray(product?.employee_card_sizes) && product.employee_card_sizes.length
@@ -285,7 +300,25 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
         <div className="pos-product-card-image relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
           {(isFavorite || canEditProduct) ? (
             <div className="absolute left-1.5 top-1.5 z-10 flex flex-col items-start gap-1">
-              {isFavorite ? (
+              {canToggleFavorite ? (
+                <button
+                  type="button"
+                  onClick={handleToggleFavorite}
+                  onKeyDown={stopCardActivation}
+                  onPointerDown={stopCardActivation}
+                  disabled={favoritePending}
+                  aria-pressed={isFavorite}
+                  className={`pos-product-favorite flex h-7 w-7 items-center justify-center rounded-full border shadow-md backdrop-blur transition disabled:opacity-60 ${
+                    isFavorite
+                      ? "border-amber-200/60 bg-zinc-950/90 text-amber-300"
+                      : "pos-product-favorite-off border-white/25 bg-zinc-950/70 text-zinc-400 hover:border-amber-200/60 hover:text-amber-300"
+                  }`}
+                  title={isFavorite ? t("pos.productGrid.removeFavorite") : t("pos.productGrid.addFavorite")}
+                  aria-label={isFavorite ? t("pos.productGrid.removeFavorite") : t("pos.productGrid.addFavorite")}
+                >
+                  <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current" : ""}`} />
+                </button>
+              ) : isFavorite ? (
                 <div
                   className="pos-product-favorite flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
                   title={t("pos.productGrid.favorite")}

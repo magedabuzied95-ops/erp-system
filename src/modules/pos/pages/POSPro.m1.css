@@ -128,6 +128,18 @@
   color: var(--warning) !important;
 }
 
+/* Not-yet-favourite reads as a quiet affordance until it is switched on. */
+.pos-pro-shell .pos-product-favorite.pos-product-favorite-off {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  color: var(--muted) !important;
+}
+
+.pos-pro-shell .pos-product-favorite.pos-product-favorite-off:hover {
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border)) !important;
+  color: var(--warning) !important;
+}
+
 /* Edit shortcut is an informational action, so it borrows the primary tone. */
 .pos-pro-shell .pos-product-edit {
   border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;

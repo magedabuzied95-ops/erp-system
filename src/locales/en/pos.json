@@ -97,6 +97,11 @@
     "sale": "Sale",
     "price": "Price",
     "favorite": "Favorite",
+    "addFavorite": "Add to favorites",
+    "removeFavorite": "Remove from favorites",
+    "favoriteAdded": "Added to favorites",
+    "favoriteRemoved": "Removed from favorites",
+    "favoriteFailed": "Could not update favorites",
     "editProduct": "Edit product in a new tab"
   },
   "treasury": {

@@ -52,7 +52,7 @@ import {
   getLoyaltyCustomerById,
   validateLoyaltyRedemption,
 } from "../../loyalty/loyaltyApi";
-import { getProductByQrToken, getProductFull, getProductsWithVariants, getPosCatalogVersion } from "../../products/services/productsApi";
+import { getProductByQrToken, getProductFull, getProductsWithVariants, getPosCatalogVersion, toggleProductPosFavorite } from "../../products/services/productsApi";
 import {
   calcTotals,
   clearPosPersistedState,
@@ -4750,6 +4750,34 @@ function POSPro() {
     quickAddProduct(productForModal);
   }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct]);
 
+  // The star on the card is the only place a cashier can curate the POS feed,
+  // so flip it locally first and let the request confirm it in the background.
+  const handleToggleFavorite = useCallback(async (product) => {
+    const productId = String(product?.product_id || product?.id || "").trim();
+    if (!productId) return;
+    const nextFavorite = !(product?.is_pos_favorite === true || product?.isPosFavorite === true);
+    const applyFavorite = (value) =>
+      setProducts((current) => {
+        const nextProducts = current.map((item) =>
+          String(item.product_id || item.id) === productId
+            ? { ...item, is_pos_favorite: value, isPosFavorite: value }
+            : item
+        );
+        void savePosCatalogSnapshot(nextProducts);
+        return nextProducts;
+      });
+
+    applyFavorite(nextFavorite);
+    try {
+      await toggleProductPosFavorite(productId, nextFavorite);
+      toast.success(nextFavorite ? t("pos.productGrid.favoriteAdded") : t("pos.productGrid.favoriteRemoved"));
+    } catch (favoriteError) {
+      console.error("[pos] favorite toggle failed", favoriteError);
+      applyFavorite(!nextFavorite);
+      toast.error(favoriteError?.responseBody?.message || favoriteError?.message || t("pos.productGrid.favoriteFailed"));
+    }
+  }, [t]);
+
   const handleRemoveCartItem = useCallback((key) => setCart((prev) => prev.filter((item) => item.key !== key)), []);
   const handleIncrease = useCallback((key) =>
     setCart((prev) =>
@@ -8132,6 +8160,7 @@ function POSPro() {
                 products={orderedVisibleProducts}
                 search={search}
                 onSelectProduct={handleSelectProduct}
+                onToggleFavorite={handleToggleFavorite}
               />
             </div>
             </div>
