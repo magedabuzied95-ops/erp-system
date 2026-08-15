@@ -24,6 +24,7 @@ import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   getSocialAutomationSettings,
+  renderSocialTemplateText,
   resolveSocialPublicReplyBaseTemplate,
   selectSocialPublicReplyTemplate,
 } from "./socialAutomationSettingsService.js";
@@ -1500,10 +1501,9 @@ const buildStoredSocialCommentPrivateReplyTemplate = ({ row = {}, settings = {} 
 };
 
 const renderSocialCommentTemplateText = (templateText = "", context = {}) =>
-  text(templateText).replace(/\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}/g, (_match, leftKey, rightKey) => {
-    const key = leftKey || rightKey || "";
-    return text(context[key] ?? context[key.toLowerCase()] ?? "");
-  });
+  renderSocialTemplateText(text(templateText), (key) =>
+    text(context[key] ?? context[key.toLowerCase()] ?? "")
+  );
 
 const renderAutomationTemplate = (templateText = "", context = {}) => renderSocialCommentTemplateText(templateText, context);
 
@@ -1995,7 +1995,13 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
 };
 
 const buildAutomationTemplateContext = ({ row = {}, productContext = {}, websiteLinks = {} } = {}) => {
-  const customerName = text(row.commenter_name || row.customer_name || row.from?.name || row.metadata?.from?.name || "");
+  // The four shallow fields miss a name that only exists inside raw_payload, which
+  // is why the Comments Center could show a name the reply had rendered empty.
+  // A placeholder like "Customer" is treated as no name at all — greeting someone
+  // by it reads worse than greeting them by nothing.
+  const resolvedCustomerName = resolveAutomationCommenterIdentity(row).commenterName
+    || text(row.customer_name || row.metadata?.from?.name || "");
+  const customerName = isGenericSocialCommentDisplayName(resolvedCustomerName) ? "" : resolvedCustomerName;
   const productName = text(productContext?.product_name || row.product_name || row.metadata?.product_name || "");
   const price = firstUsablePriceText(productContext?.price, productContext?.sale_price, productContext?.selling_price, row.product_price, row.sale_price, row.price);
   const finalPrice = firstUsablePriceText(productContext?.final_price, row.final_price, row.metadata?.final_price);

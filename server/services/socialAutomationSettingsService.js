@@ -89,6 +89,55 @@ const normalizePublicReplyOpeners = (value, fallback = DEFAULT_SOCIAL_PUBLIC_REP
   return normalized.length ? normalized : [...fallback];
 };
 
+// Facebook returns no `from` object at all on Reel comments, so the commenter
+// name is legitimately unknown and {{customer_name}} renders empty. Dropping the
+// placeholder alone leaves the Arabic vocative stranded ("أهلاً وسهلاً يا ❤️"),
+// so the particle that introduces the name has to go with it.
+const NAME_PLACEHOLDER_KEYS = new Set([
+  "customer_name",
+  "customername",
+  "commenter_name",
+  "commentername",
+  "name",
+  "full_name",
+  "fullname",
+  "first_name",
+  "firstname",
+]);
+
+// Group 1: the optional vocative particle, only when it is a standalone word
+// (the lookbehind keeps words that merely end in "يا" — e.g. "دنيا" — intact).
+// Group 2: the placeholder. Groups 3/4: the key in {{key}} or {key} form.
+const TEMPLATE_PLACEHOLDER_PATTERN = /(?:(?<!\p{L})(يا[ \t]+))?(\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\})/gu;
+
+/**
+ * Renders {{key}} / {key} placeholders.
+ *
+ * `resolve(key)` returns the replacement, or `undefined` to leave the
+ * placeholder untouched — callers that only own some keys rely on that.
+ * An empty string drops the placeholder, and for name keys the vocative too.
+ */
+export const renderSocialTemplateText = (templateText = "", resolve = () => "") => {
+  let droppedName = false;
+  const rendered = String(templateText ?? "").replace(
+    TEMPLATE_PLACEHOLDER_PATTERN,
+    (match, vocative, _placeholder, curlyKey, braceKey) => {
+      const key = curlyKey || braceKey || "";
+      const resolved = resolve(key);
+      if (resolved === undefined || resolved === null) return match;
+      const value = String(resolved).trim();
+      if (value) return `${vocative || ""}${value}`;
+      if (!NAME_PLACEHOLDER_KEYS.has(key.toLowerCase())) return vocative || "";
+      droppedName = true;
+      return "";
+    }
+  );
+  if (!droppedName) return rendered;
+  // Only tidy the gap the dropped name left behind: horizontal runs and
+  // trailing spaces. Newlines and separator lines stay exactly as authored.
+  return rendered.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+(\n|$)/g, "$1");
+};
+
 const stableRotationIndex = (key = "", length = 0) => {
   if (!length) return -1;
   const source = String(key || "social-comment");
@@ -140,10 +189,11 @@ export const renderOfficialSocialPublicReply = async ({
     commentId,
     postId,
   });
-  return selectedTemplate
-    .replaceAll("{{customer_name}}", text(commenterName || "").trim())
-    .replaceAll("{customer_name}", text(commenterName || "").trim())
-    .trim();
+  const resolvedName = text(commenterName || "");
+  return renderSocialTemplateText(
+    selectedTemplate,
+    (key) => (key.toLowerCase() === "customer_name" ? resolvedName : undefined)
+  ).trim();
 };
 
 const rowToSettings = (row = {}) => ({

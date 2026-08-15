@@ -9,6 +9,7 @@ import {
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
 } from "./socialCommentPrivateReplyService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { tidyGreetingText } from "../utils/greetingText.js";
 import { renderOfficialSocialPublicReply } from "./socialAutomationSettingsService.js";
 import { savePostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 
@@ -387,6 +388,91 @@ const callMetaPost = async ({ businessId, endpoint, params, label }) => {
 };
 
 const getGraphBaseUrlForVersion = (version = GRAPH_API_VERSION) => `https://graph.facebook.com/${trimString(version || GRAPH_API_VERSION)}`;
+
+const maskPsidForLog = (value = "") => {
+  const normalized = trimString(value);
+  if (normalized.length <= 6) return normalized ? "***" : "";
+  return `${normalized.slice(0, 3)}...${normalized.slice(-3)}`;
+};
+
+/**
+ * Facebook strips the `from` object from Reel comments, so the commenter stays
+ * anonymous no matter what fields we ask Graph for. The private reply is sent to
+ * `recipient: { comment_id }` though, and Meta answers with `recipient_id` — the
+ * PSID — which the Messenger User Profile API will name (`pages_messaging`).
+ *
+ * Best effort only: it records what Meta gives us and backfills the run row so
+ * the Comments Center stops showing a nameless customer. It never throws, and it
+ * never changes the reply that was already sent.
+ */
+const enrichCommenterIdentityFromPrivateReply = async ({
+  tenantId = null,
+  platform = "facebook",
+  commentId = "",
+  recipientId = "",
+  accessToken = "",
+} = {}) => {
+  const safeTenantId = Number(tenantId || 0) || null;
+  const safeCommentId = trimString(commentId);
+  const safeRecipientId = trimString(recipientId);
+  if (!safeRecipientId || !safeCommentId) {
+    console.log("SOCIAL_COMMENT_COMMENTER_IDENTITY_UNRESOLVED", {
+      tenant_id: safeTenantId,
+      comment_id: safeCommentId,
+      reason: safeRecipientId ? "missing_comment_id" : "no_recipient_id_in_meta_response",
+    });
+    return null;
+  }
+  let profileName = "";
+  let profileError = "";
+  if (accessToken) {
+    try {
+      const target = new URL(`${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(safeRecipientId)}`);
+      target.searchParams.set("fields", "name,first_name,last_name,profile_pic");
+      target.searchParams.set("access_token", accessToken);
+      const response = await fetch(target.toString(), { method: "GET" });
+      const payload = await parseMetaResponse(response);
+      if (response.ok) {
+        profileName = trimString(payload?.name)
+          || trimString([payload?.first_name, payload?.last_name].map(trimString).filter(Boolean).join(" "));
+      } else {
+        profileError = getMetaErrorMessage(payload, "profile_lookup_failed");
+      }
+    } catch (error) {
+      profileError = trimString(error?.message) || "profile_lookup_threw";
+    }
+  }
+  console.log("SOCIAL_COMMENT_COMMENTER_IDENTITY_RESOLVED", {
+    tenant_id: safeTenantId,
+    platform: trimString(platform) || "facebook",
+    comment_id: safeCommentId,
+    recipient_id: maskPsidForLog(safeRecipientId),
+    profile_name: profileName,
+    profile_name_present: Boolean(profileName),
+    profile_error: profileError,
+  });
+  if (!safeTenantId) return { recipientId: safeRecipientId, name: profileName };
+  try {
+    await db.query(
+      `
+      UPDATE social_comment_automation_runs
+      SET commenter_id = COALESCE(NULLIF(commenter_id, ''), $3::text),
+          commenter_name = COALESCE(NULLIF(commenter_name, ''), NULLIF($4::text, '')),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint
+        AND comment_id = $2::text
+      `,
+      [safeTenantId, safeCommentId, safeRecipientId, profileName]
+    );
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_COMMENTER_IDENTITY_PERSIST_FAILED", {
+      tenant_id: safeTenantId,
+      comment_id: safeCommentId,
+      message: trimString(error?.message),
+    });
+  }
+  return { recipientId: safeRecipientId, name: profileName };
+};
 
 const buildSocialCommentMessengerProductCardPayload = ({
   commentId = "",
@@ -822,7 +908,9 @@ export const replyToComment = async (platform, commentId, message, businessId, o
         existing_reply_id: trimString(existingPageReply.id || ""),
       };
     }
-    const officialMessage = trimString(await renderOfficialSocialPublicReply({
+    // Same last-step guard the private reply already had: a tenant-authored
+    // template can strand a vocative in ways the renderer cannot see.
+    const officialMessage = tidyGreetingText(await renderOfficialSocialPublicReply({
       tenantId: businessId,
       commenterName: options?.commenterName,
       commentId,
@@ -1328,6 +1416,13 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         page_id: pageId,
         token_delivery: "query",
       });
+      await enrichCommenterIdentityFromPrivateReply({
+        tenantId: businessId,
+        platform: normalizedPlatform,
+        commentId: graphCommentId,
+        recipientId: payload?.recipient_id || "",
+        accessToken,
+      }).catch(() => null);
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_DONE", {
         platform: trimString(platform || ""),
         comment_id: trimString(commentId || ""),
