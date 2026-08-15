@@ -301,6 +301,28 @@ const requireEvolutionConfig = () => {
   return current;
 };
 
+// Evolution answers a rejected send with `{status, error, response: {message}}`,
+// where `error` is only the HTTP reason phrase ("Bad Request") and `response.message`
+// carries the reason the send was actually refused. Reading `data.error` first meant
+// every failure reached the agent — and the logs — as the word "Bad Request", with
+// the one field that explains it dropped on the floor. Read the detail first and keep
+// the reason phrase as the fallback.
+const evolutionErrorMessage = (data, status) => {
+  const detail = data?.response?.message ?? data?.response?.error ?? data?.message;
+  const flattened = (Array.isArray(detail) ? detail : [detail])
+    .map((entry) => {
+      if (!entry) return "";
+      if (typeof entry === "string") return entry.trim();
+      return text(entry.message || entry.error || "") || JSON.stringify(entry);
+    })
+    .filter(Boolean)
+    .join("; ");
+  if (flattened) return flattened;
+  const reason = text(data?.error || "");
+  if (reason) return `Evolution API returned ${status} (${reason})`;
+  return `Evolution API returned ${status}`;
+};
+
 const evolutionFetch = async (path, options = {}) => {
   const current = requireEvolutionConfig();
   const url = `${current.apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
@@ -332,7 +354,7 @@ const evolutionFetch = async (path, options = {}) => {
     data = { raw };
   }
   if (!response.ok) {
-    throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, { data });
+    throw gatewayError(evolutionErrorMessage(data, response.status), "EVOLUTION_API_ERROR", response.status, { data, raw });
   }
   return data;
 };
@@ -1990,12 +2012,18 @@ export const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, 
       })).filter((candidate) => candidate.value),
     });
     const seenLidCandidates = new Set();
+    const ownLidDigits = normalizeWhatsappLid(remoteJid);
     for (const candidate of lidCandidates) {
       const candidateValue = text(candidate.value);
       if (!candidateValue || seenLidCandidates.has(candidateValue)) continue;
       seenLidCandidates.add(candidateValue);
       const target = replyTargetFromValue(candidateValue);
       if (!target) continue;
+      // This chat's own LID is not a phone number, however much it looks like one.
+      if (ownLidDigits && target.number === ownLidDigits) {
+        console.info("[lid-resolution-rejected-own-lid]", { remoteJid, candidate: candidateValue, label: candidate.label });
+        continue;
+      }
       if (targetEqualsOwner(target, ownerJids)) {
         logReplyTargetCandidateRejected({
           candidateJid: candidateValue,
@@ -2140,9 +2168,18 @@ export const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, 
 const resolveStoredLidReplyTarget = async ({ tenantId, remoteJid = "", ownerJids = [], base = {} } = {}) => {
   const safeRemoteJid = text(remoteJid);
   if (!tenantId || !isLidJid(safeRemoteJid)) return null;
+  // Earlier code flattened LIDs into phone columns, and a LID is long enough to
+  // pass for an international number. Reading one back as this chat's "phone"
+  // rebuilds the flattened session key and splits the conversation again on
+  // every message.
+  const ownLidDigits = normalizeWhatsappLid(safeRemoteJid);
   const buildTarget = (value = "") => {
     const target = replyTargetFromValue(value);
     if (!target || targetEqualsOwner(target, ownerJids)) return null;
+    if (ownLidDigits && target.number === ownLidDigits) {
+      console.info("[lid-resolution-rejected-own-lid]", { remoteJid: safeRemoteJid, candidate: text(value) });
+      return null;
+    }
     return target;
   };
   // The writer stores remote_jid canonicalised, never as the raw "<id>@lid" the

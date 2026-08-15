@@ -223,9 +223,57 @@ for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
   }
 }
 
+// A LID is 13-15 digits, so anything that reads a stored "phone" will happily
+// take one. Earlier code wrote LIDs into these columns; while they sit there the
+// resolver keeps rebuilding the flattened key and re-splitting the chat.
+console.log("\nScrubbing LID digits out of phone fields:");
+let scrubbed = 0;
+for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
+  const targets = await db.query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM ai_support_messages
+         WHERE tenant_id = $1 AND (resolved_phone = $2 OR resolved_reply_jid = $2)) AS message_fields,
+       (SELECT COUNT(*)::int FROM ai_channel_conversations
+         WHERE tenant_id = $1 AND channel = 'whatsapp'
+           AND (external_customer_id = $2
+                OR metadata->>'resolved_phone' = $2
+                OR metadata->>'phone' = $2
+                OR metadata->>'customer_phone' = $2)) AS conversation_fields`,
+    [tenantId, lidId]
+  );
+  const { message_fields: messageFields, conversation_fields: conversationFields } = targets.rows[0];
+  if (!messageFields && !conversationFields) continue;
+  console.log(`  ${lidId}: ${messageFields} message field(s), ${conversationFields} conversation field(s)`);
+  if (!APPLY) continue;
+  await db.query(
+    `UPDATE ai_support_messages
+     SET resolved_phone = CASE WHEN resolved_phone = $2 THEN '' ELSE resolved_phone END,
+         resolved_reply_jid = CASE WHEN resolved_reply_jid = $2 THEN '' ELSE resolved_reply_jid END
+     WHERE tenant_id = $1 AND (resolved_phone = $2 OR resolved_reply_jid = $2)`,
+    [tenantId, lidId]
+  );
+  await db.query(
+    `UPDATE ai_channel_conversations
+     SET external_customer_id = CASE WHEN external_customer_id = $2 THEN '' ELSE external_customer_id END,
+         metadata = metadata
+           || CASE WHEN metadata->>'resolved_phone' = $2 THEN jsonb_build_object('resolved_phone', '') ELSE '{}'::jsonb END
+           || CASE WHEN metadata->>'phone' = $2 THEN jsonb_build_object('phone', '') ELSE '{}'::jsonb END
+           || CASE WHEN metadata->>'customer_phone' = $2 THEN jsonb_build_object('customer_phone', '') ELSE '{}'::jsonb END,
+         updated_at = NOW()
+     WHERE tenant_id = $1 AND channel = 'whatsapp'
+       AND (external_customer_id = $2
+            OR metadata->>'resolved_phone' = $2
+            OR metadata->>'phone' = $2
+            OR metadata->>'customer_phone' = $2)`,
+    [tenantId, lidId]
+  );
+  scrubbed += 1;
+}
+if (!scrubbed) console.log("  nothing to scrub.");
+
 console.log(
   APPLY
-    ? `\nDone. ${movedMessages} message(s) moved, ${mergedSessions} session row(s) merged, ${mergedConversations} conversation row(s) merged.\n`
+    ? `\nDone. ${movedMessages} message(s) moved, ${mergedSessions} session row(s) merged, ${mergedConversations} conversation row(s) merged, ${scrubbed} chat(s) scrubbed.\n`
     : "\nDry run — nothing was written. Re-run with --apply.\n"
 );
 process.exit(0);

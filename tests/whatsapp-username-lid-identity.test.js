@@ -122,6 +122,19 @@ test("a number quoted inside the message never hijacks the conversation", () => 
   assert.equal(resolved.identity, "whatsapp:lid:46995733500101");
 });
 
+test("this chat's own LID is never accepted as its phone number", () => {
+  // A LID is 13-15 digits, so it passes for an international number. Earlier
+  // code wrote LIDs into phone columns; reading one back rebuilt the flattened
+  // session key and split the conversation again on every message.
+  const resolved = route(inbound({
+    key: { remoteJid: LID_JID },
+    // the LID arriving as a bare number, the shape a polluted phone field has
+    number: "46995733500101",
+  }));
+  assert.equal(resolved.phone, "");
+  assert.equal(resolved.identity, "whatsapp:lid:46995733500101");
+});
+
 test("an ordinary phone chat is untouched by any of this", () => {
   const resolved = route(inbound({ key: { remoteJid: `${CUSTOMER}@s.whatsapp.net` } }));
   assert.equal(resolved.phone, CUSTOMER);
