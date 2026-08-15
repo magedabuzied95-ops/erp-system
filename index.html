@@ -177,6 +177,7 @@
       (function () {
         var GUARD_KEY = "erp.chunk-reload-attempted";
         var GUARD_MS = 5 * 60 * 1000;
+        var recovering = false;
 
         function alreadyAttempted() {
           try {
@@ -197,12 +198,64 @@
           return src.indexOf("/assets/") !== -1 || /\.m?js(\?|$)/.test(src);
         }
 
-        function recover() {
+        // A recovery that lands on a blank page is worse than the failure it was
+        // recovering from, so the operator always gets something to look at and
+        // -- if it strands -- something to press.
+        var overlay = null;
+        function paintOverlay(message, actionLabel, onAction) {
+          if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+          overlay = document.createElement("div");
+          overlay.setAttribute("dir", "rtl");
+          overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:flex;"
+            + "flex-direction:column;align-items:center;justify-content:center;gap:16px;"
+            + "padding:24px;text-align:center;font:500 16px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif;"
+            + "background:var(--bg,#eae7e0);color:var(--text,#1b1915)";
+          var text = document.createElement("div");
+          text.textContent = message;
+          text.style.cssText = "max-width:28rem";
+          overlay.appendChild(text);
+          if (actionLabel) {
+            var button = document.createElement("button");
+            button.type = "button";
+            button.textContent = actionLabel;
+            button.style.cssText = "cursor:pointer;border:1px solid var(--border,#ded8cb);border-radius:12px;"
+              + "padding:10px 24px;font:inherit;background:var(--surface,#fff);color:inherit";
+            button.addEventListener("click", onAction);
+            overlay.appendChild(button);
+          }
+          (document.body || document.documentElement).appendChild(overlay);
+        }
+
+        // Reloading while the new deployment is still propagating is what turns a
+        // single blank flash into a page that never comes back: the fresh load
+        // fails too, and the guard below then blocks any further attempt. So
+        // confirm the CDN is serving a bootable document BEFORE handing the tab
+        // over to it.
+        function freshBuildReady() {
+          return fetch("/index.html", { cache: "no-store", credentials: "omit" })
+            .then(function (response) { return response.ok ? response.text() : ""; })
+            .then(function (html) {
+              var match = html.match(/<script[^>]+type="module"[^>]+src="(\/assets\/[^"]+)"/);
+              if (!match) return false;
+              // HEAD, so the probe costs headers rather than the whole entry bundle.
+              return fetch(match[1], { method: "HEAD", cache: "no-store", credentials: "omit" }).then(function (response) {
+                var type = String(response.headers.get("content-type") || "").toLowerCase();
+                // The SPA rewrite serves index.html for anything it cannot find,
+                // so a 200 alone proves nothing -- the MIME type is the real test.
+                return response.ok && type.indexOf("javascript") !== -1;
+              });
+            })
+            .catch(function () { return false; });
+        }
+
+        function recover(force) {
           try {
             sessionStorage.setItem(GUARD_KEY, String(Date.now()));
           } catch (error) {
-            return;
+            if (!force) return;
           }
+          recovering = true;
+          paintOverlay("جارٍ تحديث نسخة النظام…", null, null);
 
           var settled = false;
           function finish() {
@@ -229,14 +282,29 @@
             }
           } catch (error) { /* service workers can be unavailable */ }
 
-          Promise.all(jobs).then(finish, finish);
-          setTimeout(finish, 3000); // never let cleanup stall the recovery
+          // Wait for the deployment to become bootable, but never indefinitely --
+          // reloading blind still beats sitting on a dead page.
+          var waits = [0, 1500, 4000];
+          function attempt(index) {
+            if (settled) return;
+            if (index >= waits.length) return finish();
+            setTimeout(function () {
+              if (settled) return;
+              freshBuildReady().then(function (ready) {
+                if (ready) return finish();
+                attempt(index + 1);
+              }, function () { attempt(index + 1); });
+            }, waits[index]);
+          }
+
+          Promise.all(jobs).then(function () { attempt(0); }, function () { attempt(0); });
+          setTimeout(finish, 12000); // never let the probe stall the recovery
         }
 
         // Script load failures do not bubble, so listen in the capture phase.
         window.addEventListener("error", function (event) {
           if (alreadyAttempted()) return;
-          if (isAssetScript(event && event.target)) recover();
+          if (isAssetScript(event && event.target)) recover(false);
         }, true);
 
         // Release the guard once the app has clearly booted, so a genuine future
@@ -246,8 +314,21 @@
             var root = document.getElementById("root");
             if (root && root.childElementCount > 0) {
               try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
+              return;
             }
-          }, 10000);
+            if (recovering) return; // a recovery already owns the screen
+            // Nothing mounted and nothing is recovering: either the guard blocked
+            // a second attempt or storage is unavailable. Both used to leave a
+            // silent blank page with no way out but a manual hard reload.
+            paintOverlay(
+              "النظام مقدرش يفتح النسخة الحالية. اضغط تحديث لتحميل آخر نسخة.",
+              "تحديث الآن",
+              function () {
+                try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
+                recover(true);
+              }
+            );
+          }, 12000);
         });
 
         // Deployment diagnostics. Defined here rather than in the app bundle so
