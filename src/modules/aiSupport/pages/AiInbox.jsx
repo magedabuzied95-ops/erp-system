@@ -3709,10 +3709,11 @@ const composerLineFromCard = (card = {}) => ({
   quantity: 1,
 });
 
-function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = [], onRequestPick, onPicksConsumed }) {
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick }) {
   const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const [lines, setLines] = useState([]);
+  const consumedPickBatchRef = useRef("");
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -3755,23 +3756,28 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.session_id, open]);
 
-  // Models chosen in the popup arrive here. Picking the same model twice bumps its
-  // quantity instead of adding a second identical row.
+  // Models chosen in the popup arrive here as a batch. A batch is appended once —
+  // tracked by its id rather than by clearing the parent's state, because clearing
+  // shared state from inside the effect raced the append. A card without a
+  // variant_id is still a real pick: the server resolves the model from
+  // product + colour + size, so nothing is dropped here.
   useEffect(() => {
-    if (!open || !asArray(picks).length) return;
+    const batch = picks?.batch || "";
+    const cards = asArray(picks?.cards);
+    if (!open || !batch || !cards.length || consumedPickBatchRef.current === batch) return;
+    consumedPickBatchRef.current = batch;
     setLines((current) => {
       const next = [...current];
-      asArray(picks).forEach((card) => {
+      cards.forEach((card) => {
         const line = composerLineFromCard(card);
-        if (!line.variant_id) return;
+        if (!line.product_id) return;
         const existing = next.find((item) => composerLineKey(item) === composerLineKey(line));
         if (existing) existing.quantity += 1;
         else next.push(line);
       });
       return next;
     });
-    onPicksConsumed?.();
-  }, [open, picks, onPicksConsumed]);
+  }, [open, picks]);
 
   useEffect(() => {
     if (!open || shippingProvider !== "bosta") return;
@@ -5133,7 +5139,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
   const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false });
   // Models picked for the order composer cart, handed over once and then cleared.
-  const [composerPicks, setComposerPicks] = useState([]);
+  const [composerPicks, setComposerPicks] = useState(null);
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [leadAssignEmployeeId, setLeadAssignEmployeeId] = useState("");
@@ -6979,7 +6985,15 @@ export default function AiInbox({ reviewerMode = false }) {
       // variant_id (the multi-select path builds its card before a colour/size is
       // chosen), so the colour+size travel with the line and the server resolves
       // the variant. Filtering on variant_id here silently emptied the cart.
-      setComposerPicks(asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.product_id));
+      const picked = asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.product_id);
+      console.info("[ai-inbox:order-picks]", {
+        received: asArray(cards).length,
+        kept: picked.length,
+        first: picked[0] ? { product_id: picked[0].product_id, variant_id: picked[0].variant_id, color: picked[0].color, size: picked[0].size } : null,
+      });
+      // Each hand-over carries a batch id: the composer appends a batch once and
+      // never has to clear this shared state (clearing it raced the append).
+      setComposerPicks({ batch: `${picked.length}:${picked.map((card) => `${card.product_id}-${card.variant_id || ""}-${card.color}-${card.size}`).join("|")}:${performance.now()}`, cards: picked });
       closeProductCardPicker();
       return Promise.resolve();
     }
@@ -9459,8 +9473,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
         picks={composerPicks}
-        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
-        onPicksConsumed={() => setComposerPicks([])}
+        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
       />
     </div>
@@ -9977,8 +9990,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
         picks={composerPicks}
-        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
-        onPicksConsumed={() => setComposerPicks([])}
+        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
       />
     </div>
