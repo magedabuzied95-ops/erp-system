@@ -104,6 +104,24 @@ for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
     movedMessages += moved.rowCount;
 
     if (hasCanonical) {
+      // ai_support_messages.session_ref_id is ON DELETE CASCADE. Moving a
+      // message by session_id is not enough: any row still pointing at the row
+      // about to be dropped would be deleted with it. Repoint every reference
+      // first, then drop.
+      const flatRow = existing.rows.find((row) => row.session_id === flat);
+      if (flatRow) {
+        await client.query(
+          `UPDATE ai_support_messages SET session_ref_id = $2 WHERE session_ref_id = $1`,
+          [flatRow.id, sessionRefId]
+        );
+        const stillReferenced = await client.query(
+          `SELECT COUNT(*)::int AS n FROM ai_support_messages WHERE session_ref_id = $1`,
+          [flatRow.id]
+        );
+        if (stillReferenced.rows[0].n > 0) {
+          throw new Error(`refusing to drop session ${flat}: ${stillReferenced.rows[0].n} message(s) still reference it`);
+        }
+      }
       const dropped = await client.query(
         `DELETE FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 RETURNING id`,
         [tenantId, flat]
