@@ -571,6 +571,41 @@ const flattenProductsWithVariants = (rows = []) =>
     })
     .filter((item) => item.product_id);
 
+const mergeProductRowsById = (...rowSets) => {
+  const byId = new Map();
+  rowSets.forEach((rows) => {
+    toArray(rows).forEach((product) => {
+      if (!product || typeof product !== "object") return;
+      const key = String(product.id ?? product.product_id ?? "").trim();
+      if (!key || byId.has(key)) return;
+      byId.set(key, product);
+    });
+  });
+  return Array.from(byId.values());
+};
+
+const PURCHASE_QTY_PAGE_SIZE = 500;
+const PURCHASE_QTY_MAX_PAGES = 6;
+
+// Every product holding a purchase quantity, however far back in the catalog it
+// was created. Paged rather than unbounded: the whole-catalog fetch this screen
+// used to run was the reason it took seconds to open.
+const loadPurchaseQtyProducts = async () => {
+  const rows = [];
+  for (let page = 1; page <= PURCHASE_QTY_MAX_PAGES; page += 1) {
+    const response = await api.get("/products/with-variants", {
+      params: { purchaseQtyOnly: 1, limit: PURCHASE_QTY_PAGE_SIZE, page },
+    });
+    rows.push(...normalizeProductsResponse(response));
+    if (!response?.has_more) return rows;
+  }
+  console.warn("[purchase-quantity-catalog-truncated]", {
+    pages: PURCHASE_QTY_MAX_PAGES,
+    products: rows.length,
+  });
+  return rows;
+};
+
 const mergeReorderFlags = (products, reorderRows) => {
   const byVariant = new Map();
   const byProduct = new Map();
@@ -834,7 +869,7 @@ function PurchaseOrder() {
         });
       }
 
-      const [productsRes, reorderRes, financialAccountsRes, paymentMappingsRes] = await Promise.allSettled([
+      const [productsRes, purchaseQtyRes, reorderRes, financialAccountsRes, paymentMappingsRes] = await Promise.allSettled([
         // Bounded initial browse set instead of the entire catalog. Loading the
         // full products-with-variants payload here was ~55 MB / 8k variants and
         // was the dominant cost of opening Purchases. Typing (>=2 chars) already
@@ -842,16 +877,25 @@ function PurchaseOrder() {
         // still reachable. Kept non-compact so cost/purchase price fields (which
         // the compact projection strips) remain available for the picker.
         api.get("/products/with-variants", { params: { limit: 200 } }),
+        // The grid below opens on the variants carrying a purchase quantity, and
+        // those are spread across the whole catalog — the browse slice above only
+        // ever holds the newest products, so without this the older ones read as
+        // if their quantities were never saved.
+        loadPurchaseQtyProducts(),
         api.get("/purchases/reorder-suggestions"),
         accountingApi.getFinancialAccounts({ include_inactive: true }),
         accountingApi.getPaymentMethodMappings(),
       ]);
 
       const rows = productsRes.status === "fulfilled" ? normalizeProductsResponse(productsRes.value) : [];
+      const purchaseQtyRows = purchaseQtyRes.status === "fulfilled" ? purchaseQtyRes.value : [];
+      if (purchaseQtyRes.status === "rejected") {
+        console.error("[purchase-quantity-catalog-failed]", purchaseQtyRes.reason);
+      }
       const reorderRows = reorderRes.status === "fulfilled" ? normalizeReorderResponse(reorderRes.value) : [];
       setReorderRows(reorderRows);
-      if (productsRes.status === "fulfilled") {
-        setProducts(mergeReorderFlags(flattenProductsWithVariants(rows), reorderRows));
+      if (productsRes.status === "fulfilled" || purchaseQtyRows.length) {
+        setProducts(mergeReorderFlags(flattenProductsWithVariants(mergeProductRowsById(rows, purchaseQtyRows)), reorderRows));
       } else {
         setProducts([]);
         setError((prev) => `${prev ? `${prev} ` : ""}${t("purchases.create.productsLoadFailed")}`);

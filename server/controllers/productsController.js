@@ -3961,6 +3961,25 @@ export const getProductsWithVariants = async (req, res) => {
         )`,
       ].filter(Boolean).join("\n");
     }
+    // Create Purchase lists one card per variant carrying a purchase quantity
+    // saved on the product editor. Those products sit anywhere in the catalog,
+    // so a bounded browse page cannot find them — the filter has to run here.
+    const purchaseQtyOnly = ["1", "true", "yes", "on"].includes(
+      String(req.query.purchaseQtyOnly ?? req.query.purchase_qty_only ?? "").trim().toLowerCase()
+    );
+    if (purchaseQtyOnly) {
+      productWhereSql = [
+        productWhereSql,
+        `${productWhereSql ? "AND" : "WHERE"} EXISTS (
+          SELECT 1
+          FROM product_variants purchase_variant
+          WHERE purchase_variant.product_id = p.id
+            AND purchase_variant.is_active IS DISTINCT FROM FALSE
+            AND purchase_variant.deleted_at IS NULL
+            AND COALESCE(purchase_variant.default_purchase_qty, 0) > 0
+        )`,
+      ].filter(Boolean).join("\n");
+    }
     const requestedProductId = Number(req.query.productId ?? req.query.product_id ?? 0);
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
       productQueryValues.push(requestedProductId);
@@ -3972,7 +3991,10 @@ export const getProductsWithVariants = async (req, res) => {
     const page = Math.max(1, Number(req.query.page || 1) || 1);
     const requestedLimit = Number(req.query.limit || 0) || 0;
     const isEmployeePortalCatalog = String(req.originalUrl || "").includes("employee-portal-products");
-    const limitCap = isEmployeePortalCatalog && requestedSize ? 500 : 48;
+    // 48 is the picker page size. A caller asking for an already-narrow slice
+    // (one size in the employee portal, or the purchase-quantity set) needs the
+    // whole slice, not its first page, or the rows it is missing look deleted.
+    const limitCap = (isEmployeePortalCatalog && requestedSize) || purchaseQtyOnly ? 500 : 48;
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, limitCap) : null;
     const offset = limit ? (page - 1) * limit : 0;
     const limitSql = limit ? `LIMIT $${productQueryValues.length + 1} OFFSET $${productQueryValues.length + 2}` : "";
