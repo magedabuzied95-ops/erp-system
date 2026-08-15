@@ -65,12 +65,24 @@ for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
     [tenantId, [canonical, flat]]
   );
   const split = before.rows.length > 1 || before.rows.some((row) => row.session_id === flat);
+
+  // The startup migration renamed session rows without moving their messages,
+  // so a chat can be whole in ai_support_messages and still invisible: the
+  // inbox list is driven by ai_support_sessions, and its row now sits under the
+  // flattened key.
+  const canonicalMessages = before.rows.find((row) => row.session_id === canonical)?.messages || 0;
+  const sessionRows = await db.query(
+    `SELECT session_id FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = ANY($2::text[])`,
+    [tenantId, [canonical, flat]]
+  );
+  const orphaned = canonicalMessages > 0 && !sessionRows.rows.some((row) => row.session_id === canonical);
+
   const counts = before.rows.map((row) => `${row.session_id}=${row.messages}`).join(", ") || "no messages";
-  if (!split) {
+  if (!split && !orphaned) {
     console.log(`  ok    ${canonical} (${counts})`);
     continue;
   }
-  console.log(`  SPLIT ${lidId}: ${counts}`);
+  console.log(`  ${split ? "SPLIT" : "NO SESSION ROW"} ${lidId}: ${counts}`);
   if (!APPLY) continue;
 
   const client = await db.connect();
@@ -87,6 +99,16 @@ for (const { tenant_id: tenantId, lid_id: lidId } of lids) {
     const hasCanonical = existing.rows.some((row) => row.session_id === canonical);
     if (!hasCanonical && existing.rows.length) {
       await client.query(`UPDATE ai_support_sessions SET session_id = $3 WHERE tenant_id = $1 AND session_id = $2`, [tenantId, flat, canonical]);
+      mergedSessions += 1;
+    } else if (!hasCanonical) {
+      // Neither key has a session row: the messages are here but the thread has
+      // nothing to hang off, so the inbox cannot list it.
+      await client.query(
+        `INSERT INTO ai_support_sessions (tenant_id, session_id, source, status, channel, customer_name, last_message, updated_at)
+         VALUES ($1, $2, 'whatsapp', 'ai_active', 'whatsapp', '', '', NOW())
+         ON CONFLICT (tenant_id, session_id) DO NOTHING`,
+        [tenantId, canonical]
+      );
       mergedSessions += 1;
     }
     const sessionRef = await client.query(
