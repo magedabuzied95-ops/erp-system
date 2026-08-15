@@ -638,7 +638,7 @@ function CartSidebar({
         filtersModalOpen={filtersModalOpen}
       />
 
-      <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)]">
+      <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)] xl:min-h-[13rem]">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{posLabel("cart.invoice", "Invoice")}</div>
@@ -654,7 +654,10 @@ function CartSidebar({
           </button>
         </div>
 
-        <div className="mt-2 min-h-[11rem] flex-1 space-y-1.5 overflow-auto pr-1">
+        {/* A tall floor here made the list refuse to shrink, so the card clipped its
+            own totals bar instead of scrolling. Keep the floor small; flex-1 still
+            hands the list every pixel the card has to spare. */}
+        <div className="mt-2 min-h-[6rem] flex-1 space-y-1.5 overflow-auto pr-1">
           {cart.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center">
               <ReceiptText className="mx-auto h-10 w-10 text-[var(--muted)]" />
@@ -840,7 +843,16 @@ function CartSidebar({
         ) : null}
       </div>
 
-      <div className="pos-payment-panel flex min-h-0 flex-col rounded-2xl border border-white/10 bg-zinc-950/90 p-2.5 shadow-xl shadow-black/10 xl:max-h-[calc(100vh-13rem)]">
+      {/* Edit mode adds the invoice-difference card on top of the normal payment
+          body. The cart card is flex-1 with a 0 basis, so it only ever gets the
+          leftover height - without a tighter cap the taller edit panel pushed the
+          cart (and its totals bar) out of view. Cap it at half the sidebar and let
+          the panel body scroll instead. */}
+      <div
+        className={`pos-payment-panel flex min-h-0 flex-col rounded-2xl border border-white/10 bg-zinc-950/90 p-2.5 shadow-xl shadow-black/10 ${
+          editActive ? "xl:max-h-[50%]" : "xl:max-h-[calc(100vh-13rem)]"
+        }`}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <div className="text-xs font-black text-white">{posLabel("cart.payment", "Payment")}</div>
@@ -2518,13 +2530,38 @@ function EditPaymentDifferenceCard({
   compact = false,
 }) {
   const noExtraPayment = Number(amountDue || 0) <= 0.009 && Number(refundOrCreditDue || 0) <= 0.009;
+  // Nothing to collect or refund means the whole breakdown is read-only detail:
+  // keep it folded so the payment panel does not swallow the cart. It re-opens by
+  // itself the moment the edit needs a decision (collection or refund method).
+  const needsAction = !noExtraPayment;
+  const [open, setOpen] = useState(needsAction);
+  useEffect(() => {
+    if (needsAction) setOpen(true);
+  }, [needsAction]);
+  const headlineLabel = refundOrCreditDue > 0.009
+    ? posLabel("cart.refundCustomerCreditDue", "Refund / customer credit due")
+    : posLabel("payment.dueNow", "Due to collect now");
+  const headlineValue = refundOrCreditDue > 0.009 ? refundOrCreditDue : Number(amountDue || 0);
   return (
     <div className={`rounded-xl border border-cyan-300/25 bg-cyan-400/10 ${compact ? "p-2.5" : "mt-2 p-3"}`} dir="rtl">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-xs font-black text-cyan-50">{posLabel("cart.editInvoice", "Edit the invoice")}</div>
-        {invoiceNumber ? <div className="truncate text-[10px] font-black text-cyan-100">{invoiceNumber}</div> : null}
-      </div>
-      <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 text-right"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="shrink-0 text-xs font-black text-cyan-50">{posLabel("cart.editInvoice", "Edit the invoice")}</div>
+          {invoiceNumber ? <div className="truncate text-[10px] font-black text-cyan-100">{invoiceNumber}</div> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className={`text-[10px] font-black ${noExtraPayment ? "text-emerald-200" : "text-amber-200"}`}>
+            {headlineLabel}: <span className="tabular-nums">{formatCurrency(headlineValue)}</span>
+          </span>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-cyan-100 transition ${open ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+      <div className={`mt-2 space-y-1 ${open ? "" : "hidden"}`}>
         <BreakdownTotalRow label={posLabel("payment.previouslyPaid", "Previously paid")} value={alreadyPaid} tone="emerald" />
         {Array.isArray(originalPaymentBreakdown) && originalPaymentBreakdown.length ? (
           <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
