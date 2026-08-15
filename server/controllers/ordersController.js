@@ -1426,6 +1426,24 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       ${orderColumns.has("exchange_difference") ? "COALESCE(o.exchange_difference, 0)" : "0"} AS exchange_difference,
       ${orderColumns.has("exchange_invoice_number") ? "COALESCE(o.exchange_invoice_number, '')" : "''"} AS exchange_invoice_number,
       o.created_at,
+      -- The public invoice has to explain itself: where the order came from, who it
+      -- goes to, and what the shipping line is.
+      ${optionalTextColumn("source")} AS source,
+      ${optionalTextColumn("channel")} AS channel,
+      ${optionalTextColumn("customer_phone")} AS customer_phone,
+      ${optionalTextColumn("customer_address")} AS customer_address,
+      ${optionalTextColumn("governorate")} AS governorate,
+      ${optionalTextColumn("city_area")} AS city_area,
+      ${optionalTextColumn("street_address")} AS street_address,
+      ${optionalTextColumn("building_number")} AS building_number,
+      ${optionalTextColumn("floor_number")} AS floor_number,
+      ${optionalTextColumn("apartment_number")} AS apartment_number,
+      ${optionalTextColumn("landmark")} AS landmark,
+      ${orderColumns.has("shipping_cost")
+        ? "COALESCE(o.shipping_cost, 0)"
+        : orderColumns.has("shipping_fee")
+          ? "COALESCE(o.shipping_fee, 0)"
+          : "0"} AS shipping_cost,
       b.name AS branch_name,
       b.code AS branch_code,
       b.address AS branch_address,

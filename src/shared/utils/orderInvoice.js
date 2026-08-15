@@ -89,8 +89,26 @@ const resolveOrderTotal = (order = {}) =>
     0
   );
 
+// shipping_cost is the canonical column on orders; shipping_fee/delivery_fee are
+// the older aliases that some paths still write.
 const resolveShippingFee = (order = {}) =>
-  toNumber(order.shipping_fee ?? order.delivery_fee ?? order.totals?.shipping, 0);
+  toNumber(order.shipping_cost ?? order.shipping_fee ?? order.delivery_fee ?? order.totals?.shipping, 0);
+
+// The composer stores the address in parts. Print it as one line, skipping the
+// parts that were left empty.
+const composeCustomerAddress = (order = {}) =>
+  [
+    order.street_address,
+    order.building_number ? `مبنى ${order.building_number}` : "",
+    order.floor_number ? `دور ${order.floor_number}` : "",
+    order.apartment_number ? `شقة ${order.apartment_number}` : "",
+    order.landmark,
+    order.city_area,
+    order.governorate,
+  ]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" — ");
 
 const resolveCollectedPaymentMethod = (order = {}) => {
   const methods = normalizeInvoicePaymentBreakdown(
@@ -212,7 +230,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
     customer: {
       name: firstText(order.customer_name, order.customer?.name, options.customerName, "عميلنا العزيز"),
       phone: firstText(order.customer_phone, order.phone, order.customer?.phone, options.customerPhone),
-      address: firstText(order.customer_address, order.address, order.customer?.address),
+      address: firstText(composeCustomerAddress(order), order.customer_address, order.address, order.customer?.address),
     },
     status: firstText(order.status, order.order_status, "pending"),
     paymentMethod: firstText(resolveCollectedPaymentMethod(order), options.paymentMethod, "cod"),

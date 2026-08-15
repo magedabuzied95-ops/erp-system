@@ -3715,6 +3715,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const [lines, setLines] = useState([]);
   const consumedPickBatchRef = useRef("");
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
+  const [discountType, setDiscountType] = useState("amount");
+  const [discountValue, setDiscountValue] = useState(0);
+  const [savedAddresses, setSavedAddresses] = useState([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [shippingProvider, setShippingProvider] = useState("bosta");
@@ -3735,6 +3738,8 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     if (!open) return;
     setLines([]);
     setPaymentMethod("cash_on_delivery");
+    setDiscountType("amount");
+    setDiscountValue(0);
     setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
     setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
     setShippingProvider(clean(profile.shipping_provider || profile.shipping_provider_id || conversation?.shipping_provider || "bosta").toLowerCase());
@@ -3779,6 +3784,20 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     });
   }, [open, picks]);
 
+  // "My addresses": everything this phone has ordered to before, so a returning
+  // customer's address is one tap instead of eight fields.
+  useEffect(() => {
+    if (!open || !clean(customerPhone)) {
+      setSavedAddresses([]);
+      return undefined;
+    }
+    let active = true;
+    api.get(`/ai-inbox/customer-addresses?phone=${encodeURIComponent(clean(customerPhone))}`, { headers, suppressErrorStatuses: [404, 500] })
+      .then((data) => active && setSavedAddresses(asArray(data?.addresses)))
+      .catch(() => active && setSavedAddresses([]));
+    return () => { active = false; };
+  }, [customerPhone, headers, open]);
+
   useEffect(() => {
     if (!open || shippingProvider !== "bosta") return;
     let active = true;
@@ -3815,7 +3834,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   }, [headers, open, shippingProvider, shippingZoneId]);
 
   if (!open) return null;
+  const discountRaw = discountType === "percent" ? (lines.reduce((sum, line) => sum + Number(line.price || 0) * Math.max(1, Number(line.quantity) || 1), 0) * (Number(discountValue) || 0)) / 100 : (Number(discountValue) || 0);
   const cartTotal = lines.reduce((sum, line) => sum + Number(line.price || 0) * Math.max(1, Number(line.quantity) || 1), 0);
+  const discountAmount = Math.max(0, Math.min(cartTotal, Math.round(discountRaw * 100) / 100));
   const selectedCity = shippingLocations.cities.find((item) => shippingLocationId(item) === shippingCityId) || null;
   const selectedZone = shippingLocations.zones.find((item) => shippingLocationId(item) === shippingZoneId) || null;
   const selectedDistrict = shippingLocations.districts.find((item) => shippingLocationId(item) === shippingDistrictId) || null;
@@ -3826,6 +3847,8 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const submitPayload = (confirm) => ({
     confirm,
     payment_method: paymentMethod,
+    discount_type: discountType,
+    discount_value: Math.max(0, Number(discountValue) || 0),
     items: lines.map((line) => ({
       variant_id: line.variant_id,
       product_id: line.product_id,
@@ -3876,6 +3899,39 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />{t("aiSupport.inbox.order.shippingSection")}</div>
             <p className="mb-3 text-xs text-slate-400">{t("aiSupport.inbox.order.shippingNote")}</p>
+
+            {/* Addresses this customer has ordered to before — one tap instead of
+                retyping the whole block. */}
+            {savedAddresses.length ? (
+              <div className="mb-3 rounded-xl border border-emerald-300/15 bg-emerald-300/5 p-2.5">
+                <div className="mb-2 text-[11px] font-black text-emerald-200">{t("aiSupport.inbox.order.myAddresses")}</div>
+                <div className="flex flex-wrap gap-2">
+                  {savedAddresses.map((address) => (
+                    <button
+                      key={address.id}
+                      type="button"
+                      onClick={() => {
+                        setShippingProvider(clean(address.shipping_provider) || shippingProvider);
+                        setGovernorate(clean(address.governorate));
+                        setCityArea(clean(address.city_area));
+                        setShippingCityId(clean(address.shipping_city_id));
+                        setShippingZoneId(clean(address.shipping_zone_id));
+                        setShippingDistrictId(clean(address.shipping_district_id));
+                        setStreetAddress(clean(address.street_address));
+                        setBuildingNumber(clean(address.building_number));
+                        setFloorNumber(clean(address.floor_number));
+                        setApartmentNumber(clean(address.apartment_number));
+                        setLandmark(clean(address.landmark));
+                      }}
+                      className="max-w-full truncate rounded-lg border border-white/10 bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-slate-200 transition hover:border-emerald-300/40 hover:text-white"
+                      title={[address.street_address, address.city_area, address.governorate].filter(Boolean).join(" — ")}
+                    >
+                      {[address.street_address, address.city_area || address.governorate].filter(Boolean).join(" — ") || t("aiSupport.inbox.order.savedAddress")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <span className="mb-1.5 block text-xs font-black text-slate-300">{t("aiSupport.inbox.order.courierRequired")}</span>
@@ -3972,9 +4028,46 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                     </button>
                   </div>
                 ))}
-                <div className="flex items-center justify-between rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black text-white">
-                  <span>{lines.length} {t("aiSupport.inbox.order.lineCount")}</span>
-                  <span>{t("aiSupport.inbox.order.cartTotal")} {money(cartTotal)}</span>
+                {/* Invoice discount: an amount or a percent of the goods. Zero means
+                    the invoice prints no discount line at all. */}
+                <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+                  <div className="mb-2 text-[11px] font-black text-slate-300">{t("aiSupport.inbox.order.discount")}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex overflow-hidden rounded-lg border border-white/10">
+                      {["amount", "percent"].map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setDiscountType(type)}
+                          className={`h-10 px-3 text-[11px] font-black transition ${discountType === type ? "bg-emerald-400/20 text-emerald-100" : "bg-slate-950/70 text-slate-400 hover:text-white"}`}
+                        >
+                          {type === "amount" ? t("aiSupport.inbox.order.discountAmount") : "%"}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      value={discountValue}
+                      onChange={(event) => setDiscountValue(Math.max(0, Number(event.target.value) || 0))}
+                      className="h-10 w-28 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none"
+                    />
+                    {discountAmount > 0 ? <span className="text-xs font-black text-rose-200">- {money(discountAmount)}</span> : null}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black text-white">
+                  <div className="flex items-center justify-between">
+                    <span>{lines.length} {t("aiSupport.inbox.order.lineCount")}</span>
+                    <span>{t("aiSupport.inbox.order.cartTotal")} {money(cartTotal)}</span>
+                  </div>
+                  {discountAmount > 0 ? (
+                    <div className="mt-1 flex items-center justify-between text-xs text-rose-200">
+                      <span>{t("aiSupport.inbox.order.discount")}</span>
+                      <span>- {money(discountAmount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="mt-1 text-[10px] font-bold text-slate-400">{t("aiSupport.inbox.order.shippingAddedNote")}</div>
                 </div>
               </div>
             )}
@@ -9473,7 +9566,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
         picks={composerPicks}
-        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
+        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
       />
     </div>
@@ -9990,7 +10083,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
         picks={composerPicks}
-        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
+        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
       />
     </div>

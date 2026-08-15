@@ -58,6 +58,8 @@ import {
   confirmAiOrder,
   createAiOrderDraft,
   createAiOrderDraftLines,
+  listCustomerSavedAddresses,
+  saveCustomerAddress,
   listAiOrderDrafts,
   searchAiOrderProducts,
   updateAiOrderStatus,
@@ -4414,6 +4416,18 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
   return { conversation, lookupFields, hasConversationKeyColumn };
 };
 
+// "My addresses" for the order composer: every address this phone has ordered to
+// before, most recent first. Keyed by phone so it follows the customer across channels.
+router.get("/customer-addresses", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const addresses = await listCustomerSavedAddresses({ tenantId, phone: req.query?.phone || "" });
+    return res.json({ success: true, addresses });
+  } catch (error) {
+    return sendError(res, error, "Failed to load saved addresses");
+  }
+});
+
 router.post("/conversations/:conversationId/create-draft-order", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
@@ -4476,6 +4490,26 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
           user_id: req.user?.id || null,
         });
       }
+
+      // Remember the address for next time. Never blocks the order.
+      saveCustomerAddress({
+        tenantId,
+        phone: req.body?.customer_phone || conversation.customer_profile?.phone || "",
+        customerName: req.body?.customer_name || "",
+        address: {
+          shipping_provider: req.body?.shipping_provider || "",
+          governorate: req.body?.governorate || "",
+          city_area: req.body?.city_area || "",
+          shipping_city_id: req.body?.shipping_city_id || "",
+          shipping_zone_id: req.body?.shipping_zone_id || "",
+          shipping_district_id: req.body?.shipping_district_id || "",
+          street_address: req.body?.street_address || req.body?.customer_address || "",
+          building_number: req.body?.building_number || "",
+          floor_number: req.body?.floor_number || "",
+          apartment_number: req.body?.apartment_number || "",
+          landmark: req.body?.landmark || "",
+        },
+      }).catch((error) => console.warn("[ai-inbox] saving the address failed", { message: error?.message }));
 
       const finalOrder = confirmed?.order || draft.order;
       const invoiceUrl = buildPublicInvoiceUrl(finalOrder?.invoice_number || "");

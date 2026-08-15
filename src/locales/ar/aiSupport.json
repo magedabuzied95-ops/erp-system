@@ -741,7 +741,12 @@
       "invoiceSavedSendFailed": "الفاتورة {{number}} اتحفظت، لكن تعذر إرسالها: {{reason}}",
       "invoiceSavedNoLink": "تم حفظ الفاتورة {{number}} — لا يوجد رابط فاتورة للإرسال",
       "saveFailed": "تعذر حفظ الطلب",
-      "outOfStockLines": "الكمية غير كافية: {{lines}}"
+      "outOfStockLines": "الكمية غير كافية: {{lines}}",
+      "myAddresses": "عناويني",
+      "savedAddress": "عنوان محفوظ",
+      "discount": "خصم على الفاتورة",
+      "discountAmount": "مبلغ",
+      "shippingAddedNote": "الشحن بيتحسب من أسعار مناطق الشحن ويتضاف في الفاتورة."
     },
     "panel": {
       "noTranscript": "لا يوجد سجل محادثة بعد.",

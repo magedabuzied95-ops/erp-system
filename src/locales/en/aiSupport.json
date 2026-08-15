@@ -741,7 +741,12 @@
       "invoiceSavedSendFailed": "Invoice {{number}} was saved, but sending failed: {{reason}}",
       "invoiceSavedNoLink": "Invoice {{number}} saved — no invoice link to send",
       "saveFailed": "Could not save the order",
-      "outOfStockLines": "Not enough stock: {{lines}}"
+      "outOfStockLines": "Not enough stock: {{lines}}",
+      "myAddresses": "My addresses",
+      "savedAddress": "Saved address",
+      "discount": "Invoice discount",
+      "discountAmount": "Amount",
+      "shippingAddedNote": "Shipping is priced from the shipping zones and added on the invoice."
     },
     "panel": {
       "noTranscript": "No transcript yet.",

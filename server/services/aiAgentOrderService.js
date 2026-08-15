@@ -14,6 +14,7 @@ import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publ
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
+import { resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -107,6 +108,36 @@ export const ensureAiAgentOrderSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS governorate VARCHAR(120)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS city_area VARCHAR(160)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delivery_notes TEXT`);
+      // Saved addresses ("my addresses"): keyed by the customer's phone so the same
+      // person reuses them across channels and conversations.
+      await clientOrPool.query(`
+        CREATE TABLE IF NOT EXISTS customer_saved_addresses (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT,
+          customer_phone VARCHAR(80) NOT NULL,
+          customer_name VARCHAR(200) DEFAULT '',
+          label VARCHAR(120) DEFAULT '',
+          shipping_provider VARCHAR(60) DEFAULT '',
+          governorate VARCHAR(120) DEFAULT '',
+          city_area VARCHAR(160) DEFAULT '',
+          shipping_city_id VARCHAR(80) DEFAULT '',
+          shipping_zone_id VARCHAR(80) DEFAULT '',
+          shipping_district_id VARCHAR(80) DEFAULT '',
+          street_address TEXT DEFAULT '',
+          building_number VARCHAR(60) DEFAULT '',
+          floor_number VARCHAR(60) DEFAULT '',
+          apartment_number VARCHAR(60) DEFAULT '',
+          landmark VARCHAR(200) DEFAULT '',
+          fingerprint TEXT NOT NULL,
+          use_count INTEGER NOT NULL DEFAULT 1,
+          last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await clientOrPool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS customer_saved_addresses_unique
+        ON customer_saved_addresses (COALESCE(tenant_id, 0), customer_phone, fingerprint)
+      `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_id BIGINT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_id BIGINT`);
@@ -992,6 +1023,88 @@ const loadOrderLineVariants = async ({ tenantId, variantIds = [] }) => {
   return new Map(result.rows.map((row) => [Number(row.variant_id), row]));
 };
 
+/* ======================================================
+   SAVED CUSTOMER ADDRESSES ("my addresses")
+   ------------------------------------------------------
+   Keyed by phone, not by conversation: the same customer writes from WhatsApp
+   today and Instagram tomorrow, and should not retype an address either time.
+====================================================== */
+const addressFingerprint = (address = {}) =>
+  [
+    address.governorate,
+    address.city_area,
+    address.shipping_city_id,
+    address.shipping_zone_id,
+    address.shipping_district_id,
+    address.street_address,
+    address.building_number,
+    address.floor_number,
+    address.apartment_number,
+  ]
+    .map((value) => text(value).trim().toLowerCase())
+    .join("|");
+
+export const listCustomerSavedAddresses = async ({ tenantId, phone } = {}) => {
+  await ensureAiAgentOrderSchema();
+  const normalized = normalizePhone(phone) || text(phone);
+  if (!normalized) return [];
+  const result = await db.query(
+    `
+    SELECT *
+    FROM customer_saved_addresses
+    WHERE (COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0))
+      AND customer_phone = $2
+    ORDER BY last_used_at DESC, id DESC
+    LIMIT 12
+    `,
+    [tenantId || null, normalized]
+  );
+  return result.rows;
+};
+
+export const saveCustomerAddress = async ({ tenantId, phone, customerName = "", address = {} } = {}) => {
+  await ensureAiAgentOrderSchema();
+  const normalized = normalizePhone(phone) || text(phone);
+  const fingerprint = addressFingerprint(address);
+  // An address with no street and no district is not an address worth keeping.
+  if (!normalized || !text(address.street_address).trim() || fingerprint.replace(/\|/g, "") === "") return null;
+  const result = await db.query(
+    `
+    INSERT INTO customer_saved_addresses (
+      tenant_id, customer_phone, customer_name, label, shipping_provider, governorate, city_area,
+      shipping_city_id, shipping_zone_id, shipping_district_id, street_address,
+      building_number, floor_number, apartment_number, landmark, fingerprint
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+    ON CONFLICT (COALESCE(tenant_id, 0), customer_phone, fingerprint)
+    DO UPDATE SET
+      use_count = customer_saved_addresses.use_count + 1,
+      last_used_at = NOW(),
+      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), customer_saved_addresses.customer_name)
+    RETURNING *
+    `,
+    [
+      tenantId || null,
+      normalized,
+      text(customerName),
+      text(address.label),
+      text(address.shipping_provider),
+      text(address.governorate),
+      text(address.city_area),
+      text(address.shipping_city_id),
+      text(address.shipping_zone_id),
+      text(address.shipping_district_id),
+      text(address.street_address),
+      text(address.building_number),
+      text(address.floor_number),
+      text(address.apartment_number),
+      text(address.landmark),
+      fingerprint,
+    ]
+  );
+  return result.rows[0] || null;
+};
+
 export const createAiOrderDraftLines = async (payload = {}) => {
   await ensureAiAgentOrderSchema();
   const tenantId = numeric(payload.tenant_id ?? payload.tenantId, 0);
@@ -1143,6 +1256,39 @@ export const createAiOrderDraftLines = async (payload = {}) => {
   if (!phone) throw Object.assign(new Error("Valid Egyptian phone number is required"), { status: 400, code: "INVALID_PHONE" });
 
   const paymentMethod = text(payload.payment_method || "cash_on_delivery") || "cash_on_delivery";
+
+  // Discount is entered by the seller on the invoice, as an amount or a percent of
+  // the goods. It never drops below zero and never exceeds the goods themselves.
+  const discountType = text(payload.discount_type).toLowerCase() === "percent" ? "percent" : "amount";
+  const discountValue = Math.max(0, numeric(payload.discount_value ?? payload.discount ?? 0, 0));
+  const rawDiscount = discountType === "percent" ? (subtotal * discountValue) / 100 : discountValue;
+  const discountAmount = Math.min(subtotal, Math.max(0, Math.round(rawDiscount * 100) / 100));
+
+  // Shipping comes from the SAME authority the storefront charges by: the zone
+  // price list in shipping settings (with its free-shipping threshold), not from
+  // the courier. Bosta is only who carries it.
+  let shippingCost = 0;
+  let shippingQuote = null;
+  if (numeric(payload.shipping_cost, -1) >= 0) {
+    shippingCost = numeric(payload.shipping_cost, 0);
+  } else {
+    try {
+      shippingQuote = await resolveStorefrontShippingQuote({
+        governorate: text(payload.governorate),
+        city: text(payload.city_area),
+        area: text(payload.city_area),
+        city_id: text(payload.shipping_city_id),
+        zone_id: text(payload.shipping_zone_id),
+        district_id: text(payload.shipping_district_id || payload.district_id),
+        subtotal: subtotal - discountAmount,
+        order_total: subtotal - discountAmount,
+      });
+      shippingCost = Math.max(0, numeric(shippingQuote?.price, 0));
+    } catch (error) {
+      console.warn("[ai-agent:orders] shipping quote failed, charging 0", { message: error?.message });
+    }
+  }
+  const orderTotal = Math.max(0, subtotal - discountAmount + shippingCost);
   const idempotencyKey = text(payload.idempotency_key || payload.idempotencyKey || "");
   const hash = idempotencyKey
     ? intentHash({ conversationId, idempotencyKey })
@@ -1181,9 +1327,16 @@ export const createAiOrderDraftLines = async (payload = {}) => {
         payment_status: "unpaid",
         payment_method: paymentMethod,
         subtotal,
-        total_amount: subtotal,
-        total_price: subtotal,
-        total: subtotal,
+        discount_amount: discountAmount,
+        invoice_discount_type: discountAmount > 0 ? discountType : "",
+        invoice_discount_value: discountAmount > 0 ? discountValue : 0,
+        invoice_discount_amount: discountAmount,
+        invoice_discount_reason: discountAmount > 0 ? text(payload.discount_reason) : "",
+        shipping_cost: shippingCost,
+        shipping_fee: shippingCost,
+        total_amount: orderTotal,
+        total_price: orderTotal,
+        total: orderTotal,
         paid_amount: 0,
         customer_address: text(payload.customer_address),
         governorate: text(payload.governorate),
@@ -1213,6 +1366,11 @@ export const createAiOrderDraftLines = async (payload = {}) => {
           payment_method: paymentMethod,
           external_customer_id: text(payload.external_customer_id),
           idempotency_key: idempotencyKey,
+          // Kept so the invoice can explain the shipping figure it prints.
+          shipping_quote: shippingQuote
+            ? { zone: shippingQuote.zone_name || shippingQuote.zone || "", price: shippingCost, free_shipping_applied: Boolean(shippingQuote.free_shipping_applied) }
+            : { price: shippingCost, source: "explicit" },
+          discount: { type: discountType, value: discountValue, amount: discountAmount },
         }),
       },
       items,
