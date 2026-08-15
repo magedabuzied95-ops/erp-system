@@ -142,10 +142,10 @@ function SocialButton({ link, className = "" }) {
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`h-14 w-full items-center justify-start gap-3 rounded-2xl border border-white/10 px-4 text-sm font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${SOCIAL_TONE[link.key] || SOCIAL_TONE.google} ${className || "inline-flex"}`}
+      className={`h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 text-xs font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${SOCIAL_TONE[link.key] || SOCIAL_TONE.google} ${className || "inline-flex"}`}
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
-        <BrandedSocialIcon type={iconType} className="h-5 w-5" />
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
+        <BrandedSocialIcon type={iconType} className="h-4 w-4" />
       </span>
       <span className="truncate">{link.label}</span>
     </a>
