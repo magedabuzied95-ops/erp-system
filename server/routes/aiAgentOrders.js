@@ -5299,8 +5299,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         channelMetadata.sender_psid ||
         channelMetadata.resolved_customer_id ||
         conversation.external_customer_id ||
-        conversation.customer_id ||
-        (isWhatsAppConversation ? whatsappLidRecipient({ conversation, channelMetadata }) : "")
+        // A WhatsApp chat is addressed by a phone number or by a LID, and by
+        // nothing else. conversation.customer_id is an internal row id that
+        // addresses no one — it used to win here the moment a username customer
+        // left the phone field empty, and every send to them failed.
+        (isWhatsAppConversation
+          ? whatsappLidRecipient({ conversation, channelMetadata })
+          : conversation.customer_id)
     );
     const isMetaConversation = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM;
     const isTelegramConversation = normalizedChannel === TELEGRAM_CHANNEL;

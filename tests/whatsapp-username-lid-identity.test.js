@@ -154,6 +154,19 @@ test("a group is still never given a reply target", () => {
   assert.equal(target.resolvedNumber, "");
 });
 
+test("an internal customer id is never used as a WhatsApp recipient", () => {
+  // conversation.customer_id is a database row id. It addresses nobody, and it
+  // used to win the recipient chain whenever a username customer left the phone
+  // field empty — so every reply to them failed.
+  const source = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  // The invariant is the branch itself: on WhatsApp the LID is consulted, and
+  // conversation.customer_id is reachable only on the other channels.
+  assert.match(
+    source,
+    /isWhatsAppConversation\s*\?\s*whatsappLidRecipient\(\{ conversation, channelMetadata \}\)\s*:\s*conversation\.customer_id/
+  );
+});
+
 test("the PWA keeps a LID conversation key instead of scraping its digits", () => {
   // The inbox normalises the conversation key before it sends. Reducing
   // "whatsapp:lid:<id>" to "whatsapp:<id>" there put the staff reply into a
