@@ -872,33 +872,29 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       /* ignore */
     }
   }, []);
+  // The button only asks the browser to expand or collapse. isExpanded is not the
+  // source of truth — it only follows what the browser reports, so the icon can
+  // never disagree with the actual state.
   const toggleExpanded = useCallback(() => {
-    setIsExpanded((current) => {
-      const next = !current;
-      if (next) requestWorkspaceFullscreen();
-      else exitWorkspaceFullscreen();
-      return next;
-    });
+    if (document.fullscreenElement) exitWorkspaceFullscreen();
+    else requestWorkspaceFullscreen();
   }, [exitWorkspaceFullscreen, requestWorkspaceFullscreen]);
-  // Leaving fullscreen by Esc/F11 has to collapse the layout too, or the page
-  // stays expanded with no obvious way back.
   useEffect(() => {
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement) setIsExpanded(false);
+      setIsExpanded(Boolean(document.fullscreenElement));
     };
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
+  // Expanding leaves the layout completely alone: the button hands this element to
+  // the browser's Fullscreen API, which fills the screen natively. Swapping classes
+  // here (fixed/overflow) broke the height maths and hid the channel rail.
   return (
     <div
       ref={fullscreenHostRef}
       dir="rtl"
-      className={`bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white ${
-        isExpanded
-          ? "fixed inset-0 z-[9999] h-[100dvh] w-[100vw] overflow-auto p-2 md:p-3"
-          : "min-h-[100dvh] px-2 py-2 md:px-3 md:py-3"
-      }`}
+      className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3"
     >
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full flex-col gap-2 overflow-hidden">
         <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
