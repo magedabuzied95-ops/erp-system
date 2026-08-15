@@ -4248,6 +4248,20 @@ export const handleIncomingWebhook = async (payload = {}) => {
   });
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
+  // WhatsApp's username rollout is still moving. Dump the whole envelope for the
+  // chats it affects — a LID chat, or one we could not identify at all — so the
+  // fields carrying the customer's real number can be read off a live message
+  // instead of guessed. Ordinary phone chats are untouched, so this stays quiet.
+  if (isLidJid(envelope.remoteJid) || !envelope.remoteJid) {
+    console.info("[whatsapp:lid-payload-dump]", {
+      event: envelope.event,
+      remoteJid: envelope.remoteJid,
+      fromMe: envelope.fromMe === true,
+      key_fields: Object.keys(envelope.key || {}),
+      data_fields: Object.keys(envelope.data || {}),
+      payload_json: JSON.stringify(sanitizedPayload).slice(0, 6000),
+    });
+  }
   const fullPayloadText = extractMessageText(envelope.data, payload);
   const reactionEvent = extractWhatsappReactionEvent(payload);
   let mediaDescriptor = extractWhatsappMediaDescriptor(payload);
