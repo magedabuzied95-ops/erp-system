@@ -95,6 +95,7 @@ import inboxCache from "../services/inboxCache/inboxCache";
 import { channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
+import "./AiInboxOrderComposer.m1.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
@@ -3876,35 +3877,35 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     notes,
   });
   const content = (
-    <div className="fixed inset-0 z-[140] flex justify-end bg-slate-950/75 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
-      <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+    <div className="ai-order ai-order__scrim fixed inset-0 z-[140] flex justify-end backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+      <section dir="rtl" className="ai-order__dialog h-full w-full max-w-2xl overflow-y-auto p-5">
+        <div className="ai-order__header flex items-start justify-between gap-3 pb-4">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{t("aiSupport.inbox.order.orderTitle")}</div>
-            <h2 className="mt-1 text-2xl font-black text-white">{t("aiSupport.inbox.order.orderHeading")}</h2>
-            <p className="mt-1 text-sm text-slate-400">{t("aiSupport.inbox.order.orderNote")}</p>
+            <div className="ai-order__eyebrow">{t("aiSupport.inbox.order.orderTitle")}</div>
+            <h2 className="ai-order__title mt-1">{t("aiSupport.inbox.order.orderHeading")}</h2>
+            <p className="ai-order__subtitle mt-1">{t("aiSupport.inbox.order.orderNote")}</p>
           </div>
-          <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-white"><XCircle className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="ai-order__close grid h-10 w-10 place-items-center"><XCircle className="h-5 w-5" /></button>
         </div>
 
         <div className="mt-5 space-y-5">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><User className="h-4 w-4 text-emerald-300" />{t("aiSupport.inbox.order.customerData")}</div>
+          <div className="ai-order__group p-4">
+            <div className="ai-order__group-title mb-3 flex items-center gap-2"><User className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.customerData")}</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t("aiSupport.inbox.order.customerName")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t("aiSupport.inbox.order.phone")} inputMode="tel" className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t("aiSupport.inbox.order.customerName")} className="ai-order__field h-11 px-3" />
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t("aiSupport.inbox.order.phone")} inputMode="tel" className="ai-order__field h-11 px-3" />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-1 flex items-center gap-2 font-black text-white"><Truck className="h-4 w-4 text-cyan-300" />{t("aiSupport.inbox.order.shippingSection")}</div>
-            <p className="mb-3 text-xs text-slate-400">{t("aiSupport.inbox.order.shippingNote")}</p>
+          <div className="ai-order__group p-4">
+            <div className="ai-order__group-title mb-1 flex items-center gap-2"><Truck className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.shippingSection")}</div>
+            <p className="ai-order__group-hint mb-3">{t("aiSupport.inbox.order.shippingNote")}</p>
 
             {/* Addresses this customer has ordered to before — one tap instead of
                 retyping the whole block. */}
             {savedAddresses.length ? (
-              <div className="mb-3 rounded-xl border border-emerald-300/15 bg-emerald-300/5 p-2.5">
-                <div className="mb-2 text-[11px] font-black text-emerald-200">{t("aiSupport.inbox.order.myAddresses")}</div>
+              <div className="ai-order__saved mb-3 p-2.5">
+                <div className="ai-order__label mb-2">{t("aiSupport.inbox.order.myAddresses")}</div>
                 <div className="flex flex-wrap gap-2">
                   {savedAddresses.map((address) => (
                     <button
@@ -3923,7 +3924,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                         setApartmentNumber(clean(address.apartment_number));
                         setLandmark(clean(address.landmark));
                       }}
-                      className="max-w-full truncate rounded-lg border border-white/10 bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-slate-200 transition hover:border-emerald-300/40 hover:text-white"
+                      className="ai-order__saved-chip max-w-full truncate px-3 py-1.5"
                       title={[address.street_address, address.city_area, address.governorate].filter(Boolean).join(" — ")}
                     >
                       {[address.street_address, address.city_area || address.governorate].filter(Boolean).join(" — ") || t("aiSupport.inbox.order.savedAddress")}
@@ -3934,7 +3935,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-xs font-black text-slate-300">{t("aiSupport.inbox.order.courierRequired")}</span>
+                <span className="ai-order__label mb-1.5 block">{t("aiSupport.inbox.order.courierRequired")}</span>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label={t("aiSupport.inbox.order.courier")}>
                   {AI_INBOX_SHIPPING_PROVIDERS.map((provider) => {
                     const active = shippingProvider === provider.id;
@@ -3950,7 +3951,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                           setShippingZoneId("");
                           setShippingDistrictId("");
                         }}
-                        className={`h-11 rounded-xl border px-2 text-xs font-black transition ${active ? "border-amber-300 bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/30" : "border-white/10 bg-slate-950/70 text-slate-200 hover:border-white/25"}`}
+                        className={`ai-order__choice px-2${active ? " is-active" : ""}`}
                       >
                         {filterLabel(t, provider)}
                       </button>
@@ -3961,57 +3962,57 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
 
               {shippingProvider === "bosta" ? (
                 <>
-                  <select value={shippingCityId} onChange={(event) => { setShippingCityId(event.target.value); setShippingZoneId(""); setShippingDistrictId(""); }} disabled={shippingLocations.loading} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
+                  <select value={shippingCityId} onChange={(event) => { setShippingCityId(event.target.value); setShippingZoneId(""); setShippingDistrictId(""); }} disabled={shippingLocations.loading} className="ai-order__field h-11 px-3">
                     <option value="">{shippingLocations.loading ? "تحميل المدن..." : "المدينة *"}</option>
                     {shippingLocations.cities.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
-                  <select value={shippingZoneId} onChange={(event) => { setShippingZoneId(event.target.value); setShippingDistrictId(""); }} disabled={!shippingCityId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50">
+                  <select value={shippingZoneId} onChange={(event) => { setShippingZoneId(event.target.value); setShippingDistrictId(""); }} disabled={!shippingCityId} className="ai-order__field h-11 px-3">
                     <option value="">{t("aiSupport.inbox.order.zone")}</option>
                     {shippingLocations.zones.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
-                  <select value={shippingDistrictId} onChange={(event) => setShippingDistrictId(event.target.value)} disabled={!shippingZoneId} className="h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-bold text-white outline-none disabled:opacity-50 sm:col-span-2">
+                  <select value={shippingDistrictId} onChange={(event) => setShippingDistrictId(event.target.value)} disabled={!shippingZoneId} className="ai-order__field h-11 px-3 sm:col-span-2">
                     <option value="">{t("aiSupport.inbox.order.district")}</option>
                     {shippingLocations.districts.map((item) => <option key={shippingLocationId(item)} value={shippingLocationId(item)}>{shippingLocationLabel(item)}</option>)}
                   </select>
                 </>
               ) : (
                 <>
-                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder={t("aiSupport.inbox.order.governorate")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder={t("aiSupport.inbox.order.cityArea")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+                  <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder={t("aiSupport.inbox.order.governorate")} className="ai-order__field h-11 px-3" />
+                  <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder={t("aiSupport.inbox.order.cityArea")} className="ai-order__field h-11 px-3" />
                 </>
               )}
 
-              <div className="sm:col-span-2 flex items-center gap-2 pt-1 text-xs font-black text-slate-300"><MapPin className="h-4 w-4 text-rose-300" />{t("aiSupport.inbox.order.addressSection")}</div>
-              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder={t("aiSupport.inbox.order.streetAddress")} className="min-h-20 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none sm:col-span-2" />
-              <input value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} placeholder={shippingProvider === "bosta" ? "رقم المبنى *" : "رقم المبنى"} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.floor")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.apartment")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={t("aiSupport.inbox.order.landmark")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+              <div className="ai-order__label sm:col-span-2 flex items-center gap-2 pt-1"><MapPin className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.addressSection")}</div>
+              <textarea value={streetAddress} onChange={(event) => setStreetAddress(event.target.value)} placeholder={t("aiSupport.inbox.order.streetAddress")} className="ai-order__field min-h-20 p-3 sm:col-span-2" />
+              <input value={buildingNumber} onChange={(event) => setBuildingNumber(event.target.value)} placeholder={shippingProvider === "bosta" ? "رقم المبنى *" : "رقم المبنى"} className="ai-order__field h-11 px-3" />
+              <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.floor")} className="ai-order__field h-11 px-3" />
+              <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={t("aiSupport.inbox.order.apartment")} className="ai-order__field h-11 px-3" />
+              <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={t("aiSupport.inbox.order.landmark")} className="ai-order__field h-11 px-3" />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="ai-order__group p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />{t("aiSupport.inbox.order.productsSection")}</div>
-              <button type="button" onClick={() => onRequestPick?.()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-400/15 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/25">
+              <div className="ai-order__group-title flex items-center gap-2"><ShoppingBag className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.productsSection")}</div>
+              <button type="button" onClick={() => onRequestPick?.()} className="ai-order__add inline-flex items-center gap-2 px-3">
                 <Plus className="h-4 w-4" />{t("aiSupport.inbox.order.addProduct")}
               </button>
             </div>
 
             {lines.length === 0 ? (
-              <button type="button" onClick={() => onRequestPick?.()} className="w-full rounded-xl border border-dashed border-white/15 bg-slate-950/50 p-6 text-center text-sm font-bold text-slate-400 transition hover:border-emerald-300/40 hover:text-slate-200">
+              <button type="button" onClick={() => onRequestPick?.()} className="ai-order__empty w-full p-6 text-center">
                 {t("aiSupport.inbox.order.emptyCart")}
               </button>
             ) : (
               <div className="space-y-2">
                 {lines.map((line) => (
-                  <div key={composerLineKey(line)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-2">
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white">
+                  <div key={composerLineKey(line)} className="ai-order__line flex items-center gap-3 p-2">
+                    <div className="ai-order__line-thumb h-12 w-12 shrink-0 overflow-hidden">
                       {line.image_url ? <img src={line.image_url} alt="" className="h-full w-full object-contain" /> : null}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-black text-white">{line.product_name}</div>
-                      <div className="truncate text-xs font-bold text-slate-400">{[line.color, line.size].filter(Boolean).join(" / ") || "—"} · {money(line.price)}</div>
+                      <div className="ai-order__line-name truncate">{line.product_name}</div>
+                      <div className="ai-order__line-meta truncate">{[line.color, line.size].filter(Boolean).join(" / ") || "—"} · {money(line.price)}</div>
                     </div>
                     <input
                       type="number"
@@ -4021,25 +4022,25 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                         const quantity = Math.max(1, Number(event.target.value) || 1);
                         setLines((current) => current.map((item) => (composerLineKey(item) === composerLineKey(line) ? { ...item, quantity } : item)));
                       }}
-                      className="h-10 w-16 shrink-0 rounded-lg border border-white/10 bg-slate-950 px-2 text-center text-sm font-black text-white outline-none"
+                      className="ai-order__qty h-10 w-16 shrink-0 px-2 text-center"
                     />
-                    <button type="button" aria-label={t("aiSupport.inbox.order.removeLine")} onClick={() => setLines((current) => current.filter((item) => composerLineKey(item) !== composerLineKey(line)))} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-rose-300/20 bg-rose-400/10 text-rose-200 transition hover:bg-rose-400/20">
+                    <button type="button" aria-label={t("aiSupport.inbox.order.removeLine")} onClick={() => setLines((current) => current.filter((item) => composerLineKey(item) !== composerLineKey(line)))} className="ai-order__line-remove grid h-9 w-9 shrink-0 place-items-center">
                       <XCircle className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
                 {/* Invoice discount: an amount or a percent of the goods. Zero means
                     the invoice prints no discount line at all. */}
-                <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                  <div className="mb-2 text-[11px] font-black text-slate-300">{t("aiSupport.inbox.order.discount")}</div>
+                <div className="ai-order__discount p-3">
+                  <div className="ai-order__label mb-2">{t("aiSupport.inbox.order.discount")}</div>
                   <div className="flex items-center gap-2">
-                    <div className="flex overflow-hidden rounded-lg border border-white/10">
+                    <div className="ai-order__segment flex">
                       {["amount", "percent"].map((type) => (
                         <button
                           key={type}
                           type="button"
                           onClick={() => setDiscountType(type)}
-                          className={`h-10 px-3 text-[11px] font-black transition ${discountType === type ? "bg-emerald-400/20 text-emerald-100" : "bg-slate-950/70 text-slate-400 hover:text-white"}`}
+                          className={`ai-order__segment-option h-10 px-3${discountType === type ? " is-active" : ""}`}
                         >
                           {type === "amount" ? t("aiSupport.inbox.order.discountAmount") : "%"}
                         </button>
@@ -4050,36 +4051,36 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                       min="0"
                       value={discountValue}
                       onChange={(event) => setDiscountValue(Math.max(0, Number(event.target.value) || 0))}
-                      className="h-10 w-28 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none"
+                      className="ai-order__qty h-10 w-28 px-3"
                     />
-                    {discountAmount > 0 ? <span className="text-xs font-black text-rose-200">- {money(discountAmount)}</span> : null}
+                    {discountAmount > 0 ? <span className="ai-order__deduction">- {money(discountAmount)}</span> : null}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black text-white">
+                <div className="ai-order__total p-3">
                   <div className="flex items-center justify-between">
                     <span>{lines.length} {t("aiSupport.inbox.order.lineCount")}</span>
                     <span>{t("aiSupport.inbox.order.cartTotal")} {money(cartTotal)}</span>
                   </div>
                   {discountAmount > 0 ? (
-                    <div className="mt-1 flex items-center justify-between text-xs text-rose-200">
+                    <div className="ai-order__deduction mt-1 flex items-center justify-between">
                       <span>{t("aiSupport.inbox.order.discount")}</span>
                       <span>- {money(discountAmount)}</span>
                     </div>
                   ) : null}
-                  <div className="mt-1 text-[10px] font-bold text-slate-400">{t("aiSupport.inbox.order.shippingAddedNote")}</div>
+                  <div className="ai-order__total-note mt-1">{t("aiSupport.inbox.order.shippingAddedNote")}</div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><CreditCard className="h-4 w-4 text-cyan-300" />{t("aiSupport.inbox.order.paymentSection")}</div>
+          <div className="ai-order__group p-4">
+            <div className="ai-order__group-title mb-3 flex items-center gap-2"><CreditCard className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.paymentSection")}</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label={t("aiSupport.inbox.order.paymentSection")}>
               {AI_INBOX_PAYMENT_METHODS.map((method) => {
                 const active = paymentMethod === method.id;
                 return (
-                  <button key={method.id} type="button" role="radio" aria-checked={active} onClick={() => setPaymentMethod(method.id)} className={`h-11 rounded-xl border px-2 text-xs font-black transition ${active ? "border-emerald-300 bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-300/30" : "border-white/10 bg-slate-950/70 text-slate-200 hover:border-white/25"}`}>
+                  <button key={method.id} type="button" role="radio" aria-checked={active} onClick={() => setPaymentMethod(method.id)} className={`ai-order__choice px-2${active ? " is-active" : ""}`}>
                     {t(method.labelKey)}
                   </button>
                 );
@@ -4087,16 +4088,16 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
             </div>
           </div>
 
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
-          {!lines.length ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.addAtLeastOne")}</div> : null}
-          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.completeShippingShort")}</div> : null}
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="ai-order__field min-h-20 w-full p-3" />
+          {!lines.length ? <div className="ai-order__notice p-3">{t("aiSupport.inbox.order.addAtLeastOne")}</div> : null}
+          {!shippingComplete ? <div className="ai-order__notice p-3">{t("aiSupport.inbox.order.completeShippingShort")}</div> : null}
           <div className="grid gap-2 sm:grid-cols-2">
-            <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(submitPayload(false))} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.createDraft")}</button>
+            <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(submitPayload(false))} className="ai-order__action inline-flex items-center justify-center gap-2 px-4"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.createDraft")}</button>
             {/* Save = the POS behaviour: confirmed invoice, stock out now, and the
                 invoice link goes to the customer on this conversation channel. */}
-            <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(submitPayload(true))} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"><CheckCircle2 className="h-5 w-5" />{t("aiSupport.inbox.order.saveInvoice")}</button>
+            <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(submitPayload(true))} className="ai-order__action ai-order__action--primary inline-flex items-center justify-center gap-2 px-4"><CheckCircle2 className="h-5 w-5" />{t("aiSupport.inbox.order.saveInvoice")}</button>
           </div>
-          <p className="text-center text-[11px] font-bold text-slate-500">{t("aiSupport.inbox.order.saveHint")}</p>
+          <p className="ai-order__hint text-center">{t("aiSupport.inbox.order.saveHint")}</p>
         </div>
       </section>
     </div>

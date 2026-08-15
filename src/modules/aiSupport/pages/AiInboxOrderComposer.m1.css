@@ -1,0 +1,423 @@
+/* AI Inbox — order composer drawer ("Create an order from this conversation").
+ *
+ * Why this file exists. The drawer is rendered through createPortal into a
+ * portal target outside `.m1-shell-root .m1-shell-content`, so none of
+ * foundation.css's palette→token normalisations can reach it. Its chrome was
+ * written as fixed-dark literals (bg-[#111512], bg-slate-950/70, text-white,
+ * text-slate-400) plus emerald/cyan/amber/rose accents, which left the whole
+ * drawer unreadable inside a Light ERP: white text on a normalised light panel.
+ * A surface audit scoped to the shell cannot see any of it.
+ *
+ * Contract: every colour below resolves through the M1 theme tokens that
+ * ThemeProvider writes onto :root, so one stylesheet serves both themes and the
+ * drawer re-points with the rest of the ERP. No palette literals, no wildcard
+ * selectors, no blanket !important — these class hooks own their elements, so
+ * plain specificity is enough.
+ *
+ * Hierarchy: scrim → dialog (--surface) → group (--surface-soft) → control
+ * (--surface). Same ladder as the Product Link modal, so the two dialogs that
+ * open off the same conversation read as one system.
+ */
+
+.ai-order {
+  font-family: var(--font-ui);
+}
+
+/* ---- dialog shell ------------------------------------------------------- */
+
+.ai-order__scrim {
+  background: var(--overlay-scrim);
+}
+
+.ai-order__dialog {
+  background: var(--surface);
+  color: var(--text);
+  border-inline-start: 1px solid var(--border);
+  box-shadow: var(--shadow-overlay);
+}
+
+.ai-order__header {
+  border-bottom: 1px solid var(--border);
+}
+
+/* Section eyebrow. Deliberately NOT gold: #a47a12 on white measures 3.91:1,
+   which fails AA at this size. --text-secondary measures 7.9:1 Light /
+   9.8:1 Dark. Gold stays reserved for the CTA and the selected state, where it
+   carries a compliant foreground. */
+.ai-order__eyebrow {
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.ai-order__title {
+  color: var(--text);
+  font-size: var(--font-page-title);
+  line-height: var(--font-page-title-lh);
+  font-weight: 800;
+}
+
+.ai-order__subtitle {
+  color: var(--muted);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 500;
+}
+
+.ai-order__close {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-order__close:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+/* ---- grouped sections --------------------------------------------------- */
+
+.ai-order__group {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.ai-order__group-title {
+  color: var(--text);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+}
+
+/* Decorative glyph beside a text label that already carries the meaning, so
+   gold is safe here in a way it is not for the eyebrow. */
+.ai-order__group-icon {
+  color: var(--primary);
+}
+
+.ai-order__group-hint {
+  color: var(--muted);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 500;
+}
+
+.ai-order__label {
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ---- saved addresses ---------------------------------------------------- */
+
+.ai-order__saved {
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+}
+
+.ai-order__saved-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 700;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-order__saved-chip:hover {
+  border-color: var(--primary);
+  background: var(--surface-hover);
+}
+
+/* ---- fields ------------------------------------------------------------- */
+
+.ai-order__field {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ai-order__field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.ai-order__field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.ai-order__field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The native option list is painted by the OS; giving it the token surface is
+   what keeps a Light dropdown from opening dark over a light dialog. */
+.ai-order__field option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* ---- segmented choices (courier, payment method) ------------------------ */
+
+.ai-order__choice {
+  min-height: var(--control-height-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 800;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.ai-order__choice:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.ai-order__choice.is-active {
+  border-color: var(--primary-active);
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.ai-order__choice.is-active:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-active);
+}
+
+/* ---- products ----------------------------------------------------------- */
+
+.ai-order__add {
+  min-height: var(--control-height-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 800;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-order__add:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.ai-order__empty {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 600;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.ai-order__empty:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.ai-order__line {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.ai-order__line-thumb {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.ai-order__line-name {
+  color: var(--text);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+}
+
+.ai-order__line-meta {
+  color: var(--muted);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 600;
+}
+
+.ai-order__qty {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+  outline: none;
+}
+
+.ai-order__qty:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.ai-order__line-remove {
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-order__line-remove:hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+}
+
+/* ---- discount ----------------------------------------------------------- */
+
+.ai-order__discount {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.ai-order__segment {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.ai-order__segment-option {
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 800;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ai-order__segment-option:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ai-order__segment-option.is-active {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+/* A deduction is a real state change on the total, so it earns the danger
+   token rather than a decorative rose. */
+.ai-order__deduction {
+  color: var(--danger);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 800;
+}
+
+.ai-order__total {
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  color: var(--text);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+}
+
+.ai-order__total-note {
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+  font-weight: 700;
+}
+
+/* ---- notices ------------------------------------------------------------ */
+
+.ai-order__notice {
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  /* --text, not --warning: amber-on-amber is exactly the 1.x:1 tint-on-tint
+     pairing that made these banners invisible in Light. */
+  color: var(--text);
+  font-size: var(--font-label);
+  line-height: var(--font-label-lh);
+  font-weight: 700;
+}
+
+/* ---- footer actions ----------------------------------------------------- */
+
+.ai-order__action {
+  min-height: var(--control-height-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  line-height: var(--font-body-lh);
+  font-weight: 800;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ai-order__action:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.ai-order__action--primary {
+  border-color: var(--primary-active);
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.ai-order__action--primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-active);
+}
+
+/* Disabled must stay a real surface, not an opacity wash over gold — that is
+   what makes a disabled CTA unreadable in Light. */
+.ai-order__action:disabled {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.ai-order__hint {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  line-height: var(--font-caption-lh);
+  font-weight: 600;
+}
