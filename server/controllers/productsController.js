@@ -31,6 +31,14 @@ import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../
 import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/productSlug.js";
+import {
+  buildVariantSaveContext,
+  claimBarcodeFromContext,
+  claimUniqueSkuFromContext,
+  findSkuBarcodeConflict,
+  registerCreatedVariant,
+  resolveExistingVariantIdFromContext,
+} from "../utils/variantSaveContext.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.js";
 import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterValues } from "../lib/productFilterValues.js";
@@ -2712,7 +2720,76 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
   }));
 };
 
-const insertProductVariant = async (client, { productId, tenantId, variant, skuPrefix = "", reservedSkus = new Set() }) => {
+// Saving a product used to cost 5-8 round trips PER VARIANT — resolve the id, lock the
+// row, probe products+product_variants for every SKU candidate, then re-probe both for
+// the barcode — all issued one variant at a time on a single connection. The catalog has
+// a product with 304 variants, so one save meant well over two thousand sequential
+// queries inside a write transaction.
+//
+// The create path already solved this (`prepareVariantsForCreate` loads the tenant's
+// SKU/barcode sets once and resolves uniqueness in memory); the update path never got
+// the same treatment. This context is that treatment, shared by both branches: two
+// queries up front, then every per-variant decision is answered from memory.
+//
+// The owner maps deliberately keep WHO holds each value rather than a plain Set, for two
+// reasons the naive set version would get wrong:
+//   * a variant keeping its own SKU must not be seen as a conflict with itself, which a
+//     Set would report and "resolve" by renaming every SKU on every save;
+//   * duplicate errors have to name the offending product/variant, as the queries did.
+const loadVariantSaveContext = async (client, { productId, tenantId }) => {
+  const [ownerResult, existingResult] = await Promise.all([
+    client.query(
+      `
+      SELECT 'product' AS kind, id, id AS owner_product_id, sku, barcode
+      FROM products
+      WHERE ($1::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $1::bigint)
+      UNION ALL
+      SELECT 'variant' AS kind, id, product_id AS owner_product_id, sku, barcode
+      FROM product_variants
+      WHERE ($1::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $1::bigint)
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+      `,
+      [tenantId]
+    ),
+    // One lock acquisition for the whole product instead of one per variant. Same rows
+    // locked, same tenant scoping, same columns the per-variant SELECT ... FOR UPDATE read.
+    productId
+      ? client.query(
+          `
+          SELECT id, product_id, stock, tenant_id, color, size, sku, barcode, is_active, deleted_at,
+                 image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+          FROM product_variants
+          WHERE product_id = $1
+            AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+          ORDER BY id ASC
+          FOR UPDATE
+          `,
+          [productId, tenantId]
+        )
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  return buildVariantSaveContext({ ownerRows: ownerResult.rows || [], existingRows: existingResult.rows || [] });
+};
+
+const assertVariantSkuBarcodeAvailableFromContext = (context, { productId, variant }) => {
+  const conflict = findSkuBarcodeConflict(context, { productId, variant });
+  if (!conflict) return;
+  if (conflict.scope === "variant") {
+    throw duplicateConflictError(`Variant ${conflict.field} is already used by another product variant`, {
+      field: conflict.field,
+      variant_id: conflict.variantId,
+      product_id: conflict.productId,
+    });
+  }
+  throw duplicateConflictError(`Variant ${conflict.field} is already used by another product`, {
+    field: conflict.field,
+    product_id: conflict.productId,
+  });
+};
+
+const insertProductVariant = async (client, { productId, tenantId, variant, skuPrefix = "", reservedSkus = new Set(), saveContext = null }) => {
   if (!tenantId) {
     throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
   }
@@ -2722,16 +2799,15 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
   const nextVariantThermalImageUrl = normalizedVariantImageUrl ? "" : normalizedThermalImageUrl;
   const nextVariantThermalImageGeneratedAt = normalizedVariantImageUrl ? null : normalizedThermalImageUrl ? new Date().toISOString() : null;
   const nextVariantThermalImageError = "";
+  const requestedSku = variant.sku || buildVariantSku({ prefix: skuPrefix, color: variant.color, size: variant.size });
   const nextVariant = {
     ...variant,
-    sku: await makeUniqueSku(client, {
-      tenantId,
-      sku: variant.sku || buildVariantSku({ prefix: skuPrefix, color: variant.color, size: variant.size }),
-      productId,
-      reservedSkus,
-    }),
+    sku: saveContext
+      ? claimUniqueSkuFromContext(saveContext, { sku: requestedSku, reservedSkus, productId }, normalizeSku)
+      : await makeUniqueSku(client, { tenantId, sku: requestedSku, productId, reservedSkus }),
   };
-  await assertVariantSkuBarcodeAvailable(client, { tenantId, productId, variant: nextVariant });
+  if (saveContext) assertVariantSkuBarcodeAvailableFromContext(saveContext, { productId, variant: nextVariant });
+  else await assertVariantSkuBarcodeAvailable(client, { tenantId, productId, variant: nextVariant });
   const created = await client.query(
     `
     INSERT INTO product_variants (
@@ -2800,6 +2876,9 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
   );
 
   const createdVariant = created.rows[0];
+  // The row now exists, so later variants in this same save must see it as an owner —
+  // the query-per-variant version saw it because it re-read the table each time.
+  if (saveContext) registerCreatedVariant(saveContext, { variant: createdVariant, productId });
   console.log("[product-save] persisted variant image", {
     productId,
     variantId: createdVariant.id,
@@ -2813,50 +2892,77 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
   };
 };
 
-const updateProductVariant = async (client, { productId, tenantId, variant, userId, skuPrefix = "", reservedSkus = new Set() }) => {
+const updateProductVariant = async (client, { productId, tenantId, variant, userId, skuPrefix = "", reservedSkus = new Set(), saveContext = null }) => {
   const requestedVariantId = normalizeOptionalForeignKey(variant.id);
-  const resolvedVariantId = await resolveExistingVariantId(client, {
-    productId,
-    tenantId,
-    variant: {
-      ...variant,
-      id: requestedVariantId,
-    },
-  });
+  const resolvedVariantId = saveContext
+    ? resolveExistingVariantIdFromContext(saveContext, { ...variant, id: requestedVariantId })
+    : await resolveExistingVariantId(client, {
+        productId,
+        tenantId,
+        variant: {
+          ...variant,
+          id: requestedVariantId,
+        },
+      });
   const hasExistingVariantId = Boolean(requestedVariantId);
   const nextVariant = {
     ...variant,
     id: resolvedVariantId,
   };
-  const currentResult = await client.query(
-    `
-    SELECT id, product_id, stock, tenant_id, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
-    FROM product_variants
-    WHERE id = $1
-      AND product_id = $2
-      AND ($3::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $3::bigint)
-    FOR UPDATE
-    `,
-    [resolvedVariantId, productId, tenantId]
-  );
+  let currentRows;
+  if (saveContext) {
+    const existing = resolvedVariantId ? saveContext.byId.get(String(resolvedVariantId)) : null;
+    currentRows = existing ? [existing] : [];
+  } else {
+    const currentResult = await client.query(
+      `
+      SELECT id, product_id, stock, tenant_id, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+      FROM product_variants
+      WHERE id = $1
+        AND product_id = $2
+        AND ($3::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $3::bigint)
+      FOR UPDATE
+      `,
+      [resolvedVariantId, productId, tenantId]
+    );
+    currentRows = currentResult.rows;
+  }
 
-  if (currentResult.rows.length === 0) {
+  if (currentRows.length === 0) {
     if (hasExistingVariantId) {
       throw new Error(`Variant ${requestedVariantId} was not found for product ${productId}`);
     }
 
-    return insertProductVariant(client, { productId, tenantId, variant: nextVariant, userId, referenceType: "product_edit", skuPrefix, reservedSkus });
+    return insertProductVariant(client, { productId, tenantId, variant: nextVariant, userId, referenceType: "product_edit", skuPrefix, reservedSkus, saveContext });
   }
 
-  nextVariant.sku = await makeUniqueSku(client, {
-    tenantId,
-    sku: nextVariant.sku || buildVariantSku({ prefix: skuPrefix, color: nextVariant.color, size: nextVariant.size }),
-    productId,
-    variantId: nextVariant.id,
-    reservedSkus,
-  });
-  await assertVariantSkuBarcodeAvailable(client, { tenantId, productId, variant: nextVariant });
-  const currentVariantRow = currentResult.rows[0] || {};
+  const currentVariantRow = currentRows[0] || {};
+  const requestedVariantSku = nextVariant.sku || buildVariantSku({ prefix: skuPrefix, color: nextVariant.color, size: nextVariant.size });
+  if (saveContext) {
+    nextVariant.sku = claimUniqueSkuFromContext(saveContext, {
+      sku: requestedVariantSku,
+      reservedSkus,
+      productId,
+      variantId: nextVariant.id,
+      previousSku: currentVariantRow.sku || "",
+    });
+    assertVariantSkuBarcodeAvailableFromContext(saveContext, { productId, variant: nextVariant });
+    claimBarcodeFromContext(saveContext, {
+      barcode: nextVariant.barcode,
+      productId,
+      variantId: nextVariant.id,
+      previousBarcode: currentVariantRow.barcode || "",
+    });
+  } else {
+    nextVariant.sku = await makeUniqueSku(client, {
+      tenantId,
+      sku: requestedVariantSku,
+      productId,
+      variantId: nextVariant.id,
+      reservedSkus,
+    });
+    await assertVariantSkuBarcodeAvailable(client, { tenantId, productId, variant: nextVariant });
+  }
   const incomingVariantImageUrl = String(variant.image_url || variant.variant_image_url || variant.color_image_url || variant.image || "").trim();
   const incomingVariantThermalImageUrl = String(
     variant.thermal_image_url ||
@@ -6261,6 +6367,10 @@ export const updateProduct = async (req, res) => {
     let activeVariantsAfterSave = activeVariantsBeforeSave;
     if (shouldSyncVariants) {
       savedVariants = [];
+      // Two queries, once, instead of five to eight per variant. Everything the loop
+      // needs to decide — which row a variant maps to, its locked current state, and
+      // whether a SKU/barcode is free — is answered from here.
+      const variantSaveContext = await loadVariantSaveContext(client, { productId, tenantId });
       for (const variant of variantsToSave) {
         savedVariants.push(
           await updateProductVariant(client, {
@@ -6270,6 +6380,7 @@ export const updateProduct = async (req, res) => {
             skuPrefix: finalProductSku,
             reservedSkus: reservedVariantSkus,
             userId: req.user?.id || null,
+            saveContext: variantSaveContext,
           })
         );
       }
