@@ -266,7 +266,7 @@ export default function PublicInvoice() {
     const facebookUrl = normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl);
     return [
       facebookUrl ? { key: "facebookPage", label: invoicePrintLabel("facebookPage", "صفحتنا على فيسبوك"), url: facebookUrl } : null,
-      { key: "whatsapp", label: invoicePrintLabel("whatsapp", "تواصل واتساب"), url: M1_STORE_WHATSAPP_HREF },
+      { key: "whatsapp", label: invoicePrintLabel("whatsapp", "تواصل معنا واتساب"), url: M1_STORE_WHATSAPP_HREF },
     ].filter(Boolean);
   }, [invoice]);
 
