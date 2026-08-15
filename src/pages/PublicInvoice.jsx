@@ -59,6 +59,10 @@ const normalizePublicUrl = (value) => {
   return raw;
 };
 
+// Egypt local number -> international wa.me form. Derived from the number the
+// footer already shows, so there is one source of truth for the phone.
+const M1_STORE_WHATSAPP_HREF = `https://wa.me/2${M1_STORE_PHONE.replace(/^0+/, "")}`;
+
 const getSocialLinks = (invoice) => [
   { key: "google", label: invoicePrintLabel("rateGoogle", "قيّمنا على Google"), url: normalizePublicUrl(invoice?.google_review_url || DEFAULT_SOCIAL_LINKS.googleReviewUrl), icon: Star },
   { key: "facebook", label: invoicePrintLabel("rateFacebook", "قيّمنا على Facebook"), url: normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl), icon: ExternalLink },
@@ -66,6 +70,16 @@ const getSocialLinks = (invoice) => [
 ].filter((link) => link.url);
 
 function BrandedSocialIcon({ type, className = "" }) {
+  if (type === "whatsapp") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+        <path
+          fill="currentColor"
+          d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.700-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.1-.2 0-.4.1-.5l.4-.5c.1-.2.1-.3 0-.5l-.7-1.7c-.2-.4-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.7.7-1 1.6-.9 2.6.3 1.6 1.2 3 2.6 4.2 1.7 1.5 3.3 2 4.5 2 .9 0 1.7-.3 2.2-.9.2-.3.3-.6.3-.9v-.4c0-.1-.1-.2-.3-.3Z"
+        />
+      </svg>
+    );
+  }
   if (type === "facebook") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
@@ -96,6 +110,40 @@ function BrandedSocialIcon({ type, className = "" }) {
       <path fill="#FBBC05" d="M6.4 13.9a6 6 0 0 1 0-3.8V7.6H3.2a10 10 0 0 0 0 8.8l3.2-2.5Z" />
       <path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.8-2.8A9.8 9.8 0 0 0 12 2C8.1 2 4.8 4.3 3.2 7.6l3.2 2.5C7.2 7.8 9.4 6 12 6Z" />
     </svg>
+  );
+}
+
+const SOCIAL_TONE = {
+  google: "bg-[linear-gradient(135deg,#1e293b,#334155)]",
+  facebook: "bg-[#1452a4]",
+  facebookPage: "bg-[#1452a4]",
+  whatsapp: "bg-[linear-gradient(135deg,#128c7e,#25d366)]",
+  instagram: "bg-[linear-gradient(135deg,#3b0764,#7e22ce)]",
+};
+
+const SOCIAL_ICON_TONE = {
+  facebook: "text-[#1877f2]",
+  facebookPage: "text-[#1877f2]",
+  whatsapp: "text-[#25d366]",
+  instagram: "text-white",
+};
+
+// One renderer for every social/contact button so the mobile and desktop rows
+// cannot drift apart in styling.
+function SocialButton({ link, className = "" }) {
+  const iconType = link.key === "facebookPage" ? "facebook" : link.key;
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-xs font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${SOCIAL_TONE[link.key] || SOCIAL_TONE.google} ${className || "inline-flex"}`}
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/95 shadow-sm">
+        <BrandedSocialIcon type={iconType} className={`h-4 w-4 ${SOCIAL_ICON_TONE[link.key] || ""}`} />
+      </span>
+      {link.label}
+    </a>
   );
 }
 
@@ -195,6 +243,28 @@ export default function PublicInvoice() {
   );
   const socialLinks = useMemo(() => getSocialLinks(invoice), [invoice]);
 
+  // "Rate us on Google / Facebook" — shown at the top on mobile, at the bottom
+  // on desktop.
+  const reviewLinks = useMemo(
+    () => socialLinks.filter((link) => link.key === "google" || link.key === "facebook"),
+    [socialLinks]
+  );
+  const instagramLink = useMemo(
+    () => socialLinks.find((link) => link.key === "instagram") || null,
+    [socialLinks]
+  );
+  // Mobile-only bottom row: the store's Facebook page and a direct WhatsApp
+  // chat, which are what a customer on a phone actually wants after reading the
+  // invoice. The Facebook URL is the store's own page link already used for the
+  // review action — there is no separate page URL in the invoice payload.
+  const mobileContactLinks = useMemo(() => {
+    const facebookUrl = normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl);
+    return [
+      facebookUrl ? { key: "facebookPage", label: invoicePrintLabel("facebookPage", "صفحتنا على فيسبوك"), url: facebookUrl } : null,
+      { key: "whatsapp", label: invoicePrintLabel("whatsapp", "تواصل واتساب"), url: M1_STORE_WHATSAPP_HREF },
+    ].filter(Boolean);
+  }, [invoice]);
+
   if (loading) {
     return (
       <div className="public-invoice-shell min-h-screen text-white">
@@ -240,11 +310,18 @@ export default function PublicInvoice() {
             {invoicePrintLabel("back", "عودة")}
           </Link>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            {/* Mobile puts the two review buttons here, where download/print used
+                to sit: on a phone the customer is far more likely to rate the
+                store than to print an invoice. Download and print stay on
+                desktop, where printing actually happens. */}
+            {reviewLinks.map((link) => (
+              <SocialButton key={`top-${link.key}`} link={link} className="sm:hidden" />
+            ))}
             <a
               href={`${getPublicAppUrl()}/api/public/invoices/${encodeURIComponent(resolvedToken)}/pdf`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-2.5 text-sm font-black text-amber-100 transition hover:-translate-y-0.5 hover:bg-amber-300/15"
+              className="hidden min-h-11 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-2.5 text-sm font-black text-amber-100 transition hover:-translate-y-0.5 hover:bg-amber-300/15 sm:inline-flex"
             >
               <Download className="h-4 w-4" />
               {invoicePrintLabel("download", "تحميل PDF")}
@@ -252,7 +329,7 @@ export default function PublicInvoice() {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300"
+              className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 sm:inline-flex"
             >
               <Printer className="h-4 w-4" />
               {invoicePrintLabel("print", "طباعة")}
@@ -279,24 +356,18 @@ export default function PublicInvoice() {
         </div>
         <div className="mx-auto mt-3 h-px max-w-3xl bg-gradient-to-r from-transparent via-emerald-700/55 to-transparent" />
 
-        {socialLinks.length ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {socialLinks.map(({ key, label, url }) => (
-              <a
-                key={label}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-xs font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${ key === "google" ? "bg-[linear-gradient(135deg,#1e293b,#334155)]" : key === "facebook" ? "bg-[#1452a4]" : "bg-[linear-gradient(135deg,#3b0764,#7e22ce)]" }`}
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/95 shadow-sm">
-                  <BrandedSocialIcon type={key} className={`h-4 w-4 ${key === "facebook" ? "text-[#1877f2]" : key === "instagram" ? "text-white" : ""}`} />
-                </span>
-                {label}
-              </a>
-            ))}
-          </div>
-        ) : null}
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          {/* The two review buttons moved to the top on mobile, so this row now
+              carries the follow/contact actions instead. Desktop keeps the
+              original three. */}
+          {mobileContactLinks.map((link) => (
+            <SocialButton key={`bottom-${link.key}`} link={link} className="sm:hidden" />
+          ))}
+          {reviewLinks.map((link) => (
+            <SocialButton key={`bottom-desktop-${link.key}`} link={link} className="hidden sm:inline-flex" />
+          ))}
+          {instagramLink ? <SocialButton link={instagramLink} /> : null}
+        </div>
 
         <footer className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-xs font-bold text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4" dir="ltr">
