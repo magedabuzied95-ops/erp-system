@@ -3602,7 +3602,7 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
       MAX(COALESCE(al.late_minutes, 0))::numeric AS late_minutes,
       MAX(COALESCE(al.early_leave_minutes, 0))::numeric AS early_leave_minutes,
       MAX(COALESCE(al.overtime_minutes, 0))::numeric AS overtime_minutes,
-      STRING_AGG(DISTINCT COALESCE(al.attendance_source, 'manual'), ', ') AS attendance_source,
+      STRING_AGG(DISTINCT COALESCE(NULLIF(al.attendance_source, ''), 'manual'), ', ') AS attendance_source,
       STRING_AGG(NULLIF(al.notes, ''), '; ') AS notes,
       COUNT(*)::int AS records_count,
       b.name AS branch_name

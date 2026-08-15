@@ -1892,11 +1892,18 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     currentShift: attendanceCalendarShift,
     timeZone,
   });
+  // The payroll period is the last run's month, which is usually behind today.
+  // Ending the timeline there hid the day the employee is actually working: the
+  // portal kept showing "لم يتم تسجيل الحضور" after a real check-in, and the
+  // check-in button stayed live over a day that already had a record. The
+  // deduction summary stays on the payroll period; only what the employee sees
+  // of their own days reaches today.
+  const todayIsoDate = localIsoDate(new Date(), timeZone);
   const recordedAttendanceTimeline = await getAttendanceTimeline({
     tenantId: employee.tenant_id,
     employeeId: employee.id,
     periodStart: bounds.start,
-    periodEnd: bounds.end,
+    periodEnd: bounds.end > todayIsoDate ? bounds.end : todayIsoDate,
     currentShift: effectiveCurrentShift,
   });
   const generatedAbsenceTimeline = (attendanceSummary.absence_dates || [])
@@ -2596,14 +2603,35 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
       if ((existingRow.check_in || existingRow.check_in_at) && !existingHasCheckout) {
         throw employeePortalError("already_checked_in", "تم تسجيل الحضور بالفعل", 409);
       }
+      // A finished day used to be reopened here: the new check-in overwrote the
+      // old one and cleared the checkout, so the hours already worked that day
+      // disappeared from payroll. A second check-in over a stored day is now
+      // refused, and only the admin can reopen it from the attendance center.
       if (existingHasCheckout) {
-        console.info("[employee-portal-attendance] reopening checked-out attendance", {
+        console.warn("[employee-portal-attendance] second check-in refused", {
           employee_id: employee.id,
           branch_id: branch.id,
           attendance_record_id: existingRow.id || null,
           attendance_date: attendanceDate,
+          check_in_at: existingRow.check_in_at || existingRow.check_in || null,
+          check_out_at: existingRow.check_out_at || existingRow.check_out || null,
         });
+        throw employeePortalError(
+          "already_checked_out_today",
+          "لقد سجّلت حضورك وانصرافك اليوم بالفعل، ولا يمكن تسجيل حضور جديد على نفس اليوم. لو محتاج تعديل تواصل مع الإدارة.",
+          409,
+          {
+            attendance: {
+              id: existingRow.id || null,
+              attendance_date: attendanceDate,
+              check_in_at: existingRow.check_in_at || existingRow.check_in || null,
+              check_out_at: existingRow.check_out_at || existingRow.check_out || null,
+            },
+          }
+        );
       }
+      // What is left is a stored day that was never checked in (an admin shell
+      // row), so filling it in adds a check-in instead of replacing one.
       const result = await db.query(
         `
         UPDATE attendance_logs
@@ -2955,7 +2983,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     });
     throw employeePortalError(
       "attendance_checkout_failed",
-      "طھط¹ط°ط± طھط³ط¬ظٹظ„ ط§ظ„ط§ظ†طµط±ط§ظپ ط­ط§ظ„ظٹظ‹ط§. ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰ ط£ظˆ طھظˆط§طµظ„ ظ…ط¹ ط§ظ„ط¥ط¯ط§ط±ط©.",
+      "تعذر تسجيل الانصراف حاليًا. حاول مرة أخرى أو تواصل مع الإدارة.",
       500
     );
   }

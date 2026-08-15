@@ -18,6 +18,7 @@ import {
   Gift,
   Home,
   Loader2,
+  MapPin,
   MessageCircle,
   Moon,
   Play,
@@ -284,6 +285,14 @@ Object.assign(labels.ar, {
   attendanceError: "تعذر تسجيل الحضور",
   outsideBranchRadius: "أنت خارج نطاق الفرع",
   locationRequired: "يجب السماح بالموقع",
+  alreadyCheckedInToday: "سجّلت حضورك اليوم",
+  dayCompletedToday: "تم إنهاء يوم العمل",
+  alreadyCheckedInNotice: "سجّلت حضورك اليوم بالفعل، ومينفعش تسجّل حضور تاني على نفس اليوم.",
+  dayCompletedNotice: "سجّلت حضورك وانصرافك اليوم بالفعل. لو محتاج تعديل تواصل مع الإدارة.",
+  locationGateTitle: "الموقع مقفول — مينفعش تسجّل حضور",
+  locationGateSteps: "1) افتح خدمة الموقع (GPS) من إعدادات الجهاز.\n2) في المتصفح اضغط على القفل بجانب عنوان الموقع ثم الأذونات ثم الموقع واختر السماح.\n3) ارجع هنا واضغط \"جرّب تاني\".",
+  locationGateRetry: "جرّب تاني",
+  locationGateClose: "إغلاق",
   requests: "طلبات الموظف",
   requestVacation: "طلب إجازة",
   requestAdvance: "طلب سلفة",
@@ -338,6 +347,14 @@ Object.assign(labels.en, {
   attendanceError: "Unable to record attendance",
   outsideBranchRadius: "You are outside the branch radius",
   locationRequired: "Location permission is required",
+  alreadyCheckedInToday: "Already checked in today",
+  dayCompletedToday: "Working day completed",
+  alreadyCheckedInNotice: "You already checked in today, so a second check-in is not allowed on the same day.",
+  dayCompletedNotice: "You already checked in and out today. Contact HR if this needs a correction.",
+  locationGateTitle: "Location is off — attendance is blocked",
+  locationGateSteps: "1) Turn on location (GPS) in your device settings.\n2) In the browser tap the lock next to the address, then Permissions, then Location, and allow it.\n3) Come back here and tap \"Try again\".",
+  locationGateRetry: "Try again",
+  locationGateClose: "Close",
   requests: "Employee requests",
   requestVacation: "Request vacation",
   requestAdvance: "Request advance",
@@ -1026,6 +1043,16 @@ const attendanceLocalDate = (row, language = "en") => {
   return formatIsoDateLocal(source, language);
 };
 
+// attendance_logs stores a machine status ('checked_in' / 'checked_out'), and
+// printing it raw put English words in front of employees who read Arabic only.
+const attendanceStatusLabel = (row = {}, text = labels.ar) => {
+  const status = String(row?.status || "").trim().toLowerCase();
+  if (status === "absent") return text.absent;
+  if (row?.check_out) return text.checkedOut;
+  if (row?.check_in) return text.checkedIn;
+  return text.absent;
+};
+
 const todayIsoLocal = (language = "en") => formatIsoDateLocal(new Date(), language);
 
 const minutesBetween = (startValue, endValue = new Date()) => {
@@ -1096,10 +1123,21 @@ const formatWalletDateLocal = (value, language = "en", fallback = "-") => {
   }
 };
 
+// The browser reports a denied or unavailable GPS in English, and that message
+// used to reach the employee verbatim. Every location failure is translated
+// here so the portal only ever speaks Arabic, and is tagged so the caller can
+// block the action behind the location gate instead of a passing notice.
+const locationBlockedError = (message) => {
+  const error = new Error(message);
+  error.code = "location_blocked";
+  error.locationBlocked = true;
+  return error;
+};
+
 const getBrowserLocation = () =>
   new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
-      reject(new Error("GPS is not available on this device"));
+      reject(locationBlockedError("جهازك لا يدعم تحديد الموقع، ولا يمكن تسجيل الحضور بدونه. استخدم هاتفًا آخر أو تواصل مع الإدارة."));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -1108,7 +1146,17 @@ const getBrowserLocation = () =>
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
       }),
-      reject,
+      (error) => {
+        if (error?.code === 1) {
+          reject(locationBlockedError("لازم تسمح بالوصول لموقعك عشان تقدر تسجّل الحضور أو الانصراف. اسمح بالموقع من إعدادات المتصفح ثم حاول مرة أخرى."));
+          return;
+        }
+        if (error?.code === 3) {
+          reject(locationBlockedError("مش قادرين نحدد موقعك دلوقتي. تأكد إن خدمة الموقع (GPS) مفتوحة واستنى ثواني في مكان الإشارة فيه أوضح ثم حاول مرة أخرى."));
+          return;
+        }
+        reject(locationBlockedError("خدمة الموقع (GPS) مقفولة أو غير متاحة. افتح الموقع من إعدادات جهازك ثم حاول مرة أخرى."));
+      },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   });
@@ -1312,11 +1360,13 @@ function EmployeeStatsCards({ cards = [] }) {
 
 function AttendancePanel({
   attendanceSaving,
+  canCheckInToday,
   canCheckOutToday,
   currentShift = {},
   tomorrowShift = null,
   employeeStatus,
   isCheckedIn,
+  isCheckedOut,
   onCheckIn,
   onCheckOut,
   portalNotice,
@@ -1332,7 +1382,7 @@ function AttendancePanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
-          <h3 className="m1-section-title mt-1">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
+          <h3 className="m1-section-title mt-1">{isCheckedIn ? ui("checkedIn") : isCheckedOut ? ui("checkedOut") : ui("notCheckedIn")}</h3>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
       </div>
@@ -1371,10 +1421,18 @@ function AttendancePanel({
         </div>
       ) : null}
       <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
-        <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
-          {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-          {text.checkIn}
-        </button>
+        {canCheckInToday ? (
+          <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
+            {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {text.checkIn}
+          </button>
+        ) : (
+          // The day already carries a check-in, so offering the button again
+          // only invites a second one over the stored record.
+          <div className="min-h-12 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
+            {ui(isCheckedIn ? "alreadyCheckedInToday" : "dayCompletedToday")}
+          </div>
+        )}
         {canCheckOutToday ? (
           <button type="button" onClick={() => onCheckOut()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
             {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
@@ -1382,7 +1440,7 @@ function AttendancePanel({
           </button>
         ) : (
           <div className="min-h-12 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
-            {ui("notCheckedIn")}
+            {ui(isCheckedOut ? "checkedOut" : "notCheckedIn")}
           </div>
         )}
       </div>
@@ -1456,6 +1514,7 @@ export default function EmployeePayrollPortal() {
   const [optionalLoading, setOptionalLoading] = useState(false);
   const [optionalLoaded, setOptionalLoaded] = useState(false);
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false);
+  const [locationGate, setLocationGate] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [standalone, setStandalone] = useState(() => isStandaloneApp());
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
@@ -1961,6 +2020,9 @@ export default function EmployeePayrollPortal() {
   const isCheckedIn = Boolean(todayCheckIn && !todayCheckOut);
   const isCheckedOut = Boolean(todayCheckOut);
   const canCheckOutToday = Boolean(todayCheckIn && !todayCheckOut);
+  // One check-in per stored day: once the day has one, the only way back is an
+  // admin correction, never a second portal check-in over the old record.
+  const canCheckInToday = !todayCheckIn;
   const employeeStatus = isCheckedOut ? ui("checkedOut") : isCheckedIn ? ui("present") : ui("absent");
   const employeeStatusDotClassName = isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500";
   const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
@@ -3215,11 +3277,19 @@ export default function EmployeePayrollPortal() {
   const notificationsReady = notificationState === "granted" && notificationSubscriptionActive;
 
   const submitAttendanceAction = async (actionType) => {
+    // The stored day is the authority: a second check-in on a day that already
+    // has one would land on the old record, so it is stopped before the request
+    // instead of after it.
+    if (actionType === "check_in" && todayCheckIn) {
+      setPortalNotice(ui(todayCheckOut ? "dayCompletedNotice" : "alreadyCheckedInNotice"));
+      return;
+    }
     if (actionType === "check_out" && !earlyCheckoutOpen && isBeforeShiftEnd(currentShift)) {
       setEarlyCheckoutOpen(true);
       return;
     }
     setEarlyCheckoutOpen(false);
+    setLocationGate(null);
     const startedAt = safeNow();
     try {
       setAttendanceSaving(actionType);
@@ -3250,7 +3320,7 @@ export default function EmployeePayrollPortal() {
       logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType });
     } catch (err) {
       const code = err?.responseBody?.code;
-      if (code === "already_checked_in") {
+      if (code === "already_checked_in" || code === "already_checked_out_today") {
         const refreshedPortal = await loadPortalByToken({ silent: true, clearNotice: false });
         if (!refreshedPortal && err?.responseBody?.portal) setPortal(err.responseBody.portal);
       }
@@ -3264,13 +3334,26 @@ export default function EmployeePayrollPortal() {
           message: err?.responseBody?.message || err?.responseBody?.message_ar || err?.message || "",
         });
       }
-      setPortalNotice(
-        code === "outside_branch_radius"
-          ? text.outsideBranchRadius
-          : code === "location_required"
-            ? text.locationRequired
+      // A missing location is not a passing notice: nothing can be recorded
+      // until the employee turns it on, so it takes over the screen with the
+      // steps to fix it and a retry that repeats the same action.
+      const locationMessage = err?.locationBlocked
+        ? err.message
+        : code === "location_required"
+          ? "خدمة الموقع (GPS) مقفولة أو الإشارة ضعيفة، فمفيش موقع وصل للنظام. افتح الموقع ثم حاول مرة أخرى."
+          : code === "branch_location_missing"
+            ? "لم يتم تحديد موقع الفرع على النظام، فمينفعش تسجيل الحضور. تواصل مع الإدارة."
+            : "";
+      if (locationMessage) {
+        setLocationGate({ action: actionType, message: locationMessage, showSteps: code !== "branch_location_missing" });
+        setPortalNotice(locationMessage);
+      } else {
+        setPortalNotice(
+          code === "outside_branch_radius"
+            ? text.outsideBranchRadius
             : err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || text.attendanceError
-      );
+        );
+      }
       logPagePerf("employee-wallet.attendance-action", startedAt, {
         action: actionType,
         failed: true,
@@ -4113,11 +4196,13 @@ export default function EmployeePayrollPortal() {
 
                 <AttendancePanel
                   attendanceSaving={attendanceSaving}
+                  canCheckInToday={canCheckInToday}
                   canCheckOutToday={canCheckOutToday}
                   currentShift={currentShift}
                   tomorrowShift={tomorrowShift}
                   employeeStatus={employeeStatus}
                   isCheckedIn={isCheckedIn}
+                  isCheckedOut={isCheckedOut}
                   onCheckIn={() => submitAttendanceAction("check_in")}
                   onCheckOut={() => submitAttendanceAction("check_out")}
                   portalNotice={portalNotice}
@@ -4170,7 +4255,7 @@ export default function EmployeePayrollPortal() {
                   <div key={`${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
                       <div className="font-black tabular-nums"><DateSafe>{formatEmployeePortalDate(row.attendance_date || row.date || row.check_in || row.check_out, language)}</DateSafe></div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{row.status || "-"}</span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{attendanceStatusLabel(row, text)}</span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
                       <div className="col-span-2"><span className="font-black text-slate-950">{text.shift}: </span><span dir="auto">{formatShiftLabelLocal(row, language)}</span></div>
@@ -4504,6 +4589,39 @@ export default function EmployeePayrollPortal() {
               </button>
               <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
                 {ui("confirmCheckout")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {locationGate ? (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-950/70 p-4" dir="rtl">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
+                <MapPin className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="m1-section-title text-slate-950">{ui("locationGateTitle")}</h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700" dir="auto">{locationGate.message}</p>
+              </div>
+            </div>
+            {locationGate.showSteps ? (
+              <p className="mt-4 whitespace-pre-line rounded-2xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600" dir="auto">
+                {ui("locationGateSteps")}
+              </p>
+            ) : null}
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setLocationGate(null)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 px-4 text-sm font-black text-slate-700">
+                {ui("locationGateClose")}
+              </button>
+              <button
+                type="button"
+                onClick={() => submitAttendanceAction(locationGate.action)}
+                disabled={Boolean(attendanceSaving) || !locationGate.showSteps}
+                className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
+              >
+                {ui("locationGateRetry")}
               </button>
             </div>
           </div>

@@ -1125,7 +1125,7 @@ function AttendanceTable({ rows, text, dense, onSelect, onEdit, isArabic }) {
       <td className="px-3 py-2" dir="ltr">{row.late_minutes || 0}m</td>
       <td className="px-3 py-2" dir="ltr">{row.missing_hours || 0}</td>
       <td className="px-3 py-2" dir="ltr">{row.overtime_hours || 0}</td>
-      <td className="px-3 py-2"><SourceBadge value={row.source_label} /></td>
+      <td className="px-3 py-2"><SourceBadge value={row.source_label} isArabic={isArabic} /></td>
       <td className="px-3 py-2 font-black text-rose-400" dir="ltr">{formatMoney(row.payroll_impact)}</td>
       <td className="max-w-[240px] truncate px-3 py-2" title={row.notes || ""}>{row.notes || "-"}</td>
       <td className="px-3 py-2">
@@ -1174,10 +1174,15 @@ function AttendanceTable({ rows, text, dense, onSelect, onEdit, isArabic }) {
   );
 }
 
-function SourceBadge({ value }) {
+function SourceBadge({ value, isArabic = false }) {
   const normalized = String(value || "").toLowerCase();
   const status = normalized.includes("qr") ? "still_working" : normalized.includes("manual") ? "weekly_off" : "present";
-  return value ? <Chip status={status}>{value}</Chip> : <span className="text-[var(--muted)]">-</span>;
+  if (value) return <Chip status={status}>{value}</Chip>;
+  // A stored record always resolves to a source, so an empty label means the day
+  // has no record at all and the row was derived by the system. A bare dash read
+  // as missing data; naming it keeps every row answering "where did this
+  // come from?".
+  return <Chip status={null}>{isArabic ? "تلقائي" : "Auto"}</Chip>;
 }
 
 function LiveAttendance({ rows, text }) {
