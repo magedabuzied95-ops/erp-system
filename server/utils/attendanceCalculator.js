@@ -1,5 +1,8 @@
 const toDate = (value) => (value ? new Date(value) : null);
-const ATTENDANCE_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+// This module stays free of database and settings imports so it can be unit
+// tested on its own; callers that know the configured zone pass it in, and this
+// is only the floor for the ones that do not.
+const FALLBACK_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || "").trim() || "Africa/Cairo";
 
 const pad = (value) => String(value).padStart(2, "0");
 
@@ -27,7 +30,7 @@ const timeZoneOffsetMs = (date, timeZone) => {
   return zonedAsUtc - date.getTime();
 };
 
-const combineDateAndTime = (dateValue, timeValue) => {
+const combineDateAndTime = (dateValue, timeValue, timeZone = FALLBACK_TIMEZONE) => {
   if (!dateValue || !timeValue) return null;
   if (timeValue instanceof Date) return timeValue;
   const rawTime = String(timeValue);
@@ -50,7 +53,7 @@ const combineDateAndTime = (dateValue, timeValue) => {
     .split(":")
     .map((part) => Number(part || 0));
   const utcGuess = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
-  return new Date(utcGuess.getTime() - timeZoneOffsetMs(utcGuess, ATTENDANCE_TIMEZONE));
+  return new Date(utcGuess.getTime() - timeZoneOffsetMs(utcGuess, timeZone));
 };
 
 export const normalizeWorkingDays = (workingDays) => {
@@ -83,14 +86,15 @@ export const calculateAttendanceMetrics = ({
   checkIn,
   checkOut,
   shift = {},
+  timeZone = FALLBACK_TIMEZONE,
 }) => {
   const safeShift = shift || {};
   const inDate = toDate(checkIn);
   const outDate = toDate(checkOut);
   const dateBase = attendanceDate || inDate || new Date();
   const shiftEndTime = safeShift.end_time || safeShift.endTime || null;
-  const shiftStart = combineDateAndTime(dateBase, safeShift.start_time || safeShift.startTime || checkIn);
-  let shiftEnd = combineDateAndTime(dateBase, shiftEndTime);
+  const shiftStart = combineDateAndTime(dateBase, safeShift.start_time || safeShift.startTime || checkIn, timeZone);
+  let shiftEnd = combineDateAndTime(dateBase, shiftEndTime, timeZone);
   if (shiftStart && shiftEnd && shiftEnd <= shiftStart) {
     shiftEnd = new Date(shiftEnd.getTime() + 24 * 60 * 60000);
   }

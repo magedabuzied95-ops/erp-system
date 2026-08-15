@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { isSuperAdminUser } from "../utils/requestScope.js";
 import { calculateAttendanceMetrics, formatMinutes, buildShiftSummaryNotification, buildAttendanceAlertNotification } from "../utils/attendanceCalculator.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { haversineDistanceMeters } from "../utils/geoDistance.js";
 import { createEmployeePortalSession, ensureStaffTasksSchema, getEmployeePortalSettings, handleBranchQrCheckInStaffTasks } from "../services/staffTasksService.js";
 import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "../services/attendanceShiftResolver.js";
@@ -41,7 +42,7 @@ const resolveAuthenticatedTenantId = (req) => {
 const getTenantScope = (req) => (isSuperAdminUser(req.user) ? null : resolveAuthenticatedTenantId(req));
 
 const GPS_VERIFICATION_MODE = String(process.env.ATTENDANCE_GPS_VERIFICATION_MODE || "strict").toLowerCase() === "warning" ? "warning" : "strict";
-const ATTENDANCE_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
 const analyticsDebugEnabled = () =>
   ["1", "true", "yes", "on"].includes(String(process.env.ERP_ANALYTICS_DEBUG || "").toLowerCase());
 const DEFAULT_NEW_DEVICE_POLICY = ["block", "pending"].includes(String(process.env.ATTENDANCE_NEW_DEVICE_POLICY || "").toLowerCase())
@@ -779,7 +780,7 @@ const parseOptionalCoordinate = (value) => {
 const getAttendanceDate = (date = new Date()) => {
   try {
     const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: ATTENDANCE_TIMEZONE,
+      timeZone: getAttendanceTimeZone(),
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -788,7 +789,7 @@ const getAttendanceDate = (date = new Date()) => {
     return `${values.year}-${values.month}-${values.day}`;
   } catch (error) {
     console.warn("[attendance] timezone date fallback used", {
-      timezone: ATTENDANCE_TIMEZONE,
+      timezone: getAttendanceTimeZone(),
       error: error.message,
     });
     return new Date(date).toISOString().slice(0, 10);
@@ -874,7 +875,7 @@ const buildAttendanceEligibility = ({ rows = [], branchId, attendanceDate }) => 
 
 const logAttendanceEligibility = (label, context = {}, rows = [], eligibility = {}) => {
   console.info(`[attendance:${label}] eligibility`, {
-    timezone: ATTENDANCE_TIMEZONE,
+    timezone: getAttendanceTimeZone(),
     attendance_date: context.attendanceDate,
     tenant_id: context.tenantId,
     employee_id: context.employeeId,
@@ -2240,7 +2241,7 @@ export const checkIn = async (req, res) => {
       employeeId,
       checkInAt,
       requestedShiftId: shiftId,
-      timeZone: req.body?.timezone || req.body?.time_zone || ATTENDANCE_TIMEZONE,
+      timeZone: req.body?.timezone || req.body?.time_zone || getAttendanceTimeZone(),
     });
     const shift = shiftResolution.shift || await findLatestShift(client, employeeId, tenantId, shiftId);
 
@@ -2495,6 +2496,7 @@ export const checkOut = async (req, res) => {
       checkIn: attendanceRow.check_in_time || attendanceRow.check_in,
       checkOut: checkOutAt,
       shift: shift ? { ...shift, start_time: shiftStartTime } : { start_time: shiftStartTime },
+      timeZone: getAttendanceTimeZone(),
     });
 
     const updated = await client.query(
@@ -4829,7 +4831,7 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       tenantId: branch.tenant_id,
       employeeId: employee.id,
       checkInAt,
-      timeZone: req.body?.timezone || req.body?.time_zone || ATTENDANCE_TIMEZONE,
+      timeZone: req.body?.timezone || req.body?.time_zone || getAttendanceTimeZone(),
     });
     const selectedShift = shiftResolution.shift;
 
@@ -4906,6 +4908,7 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       checkIn: attendanceState.attendance.check_in,
       checkOut: checkOutAt,
       shift: {},
+      timeZone: getAttendanceTimeZone(),
     });
 
     const updated = await client.query(
@@ -6177,6 +6180,7 @@ export const scanQrAttendance = async (req, res) => {
       checkIn: todayLog.check_in_at || todayLog.check_in,
       checkOut: checkOutAt,
       shift: {},
+      timeZone: getAttendanceTimeZone(),
     });
 
     const updated = await client.query(

@@ -30,9 +30,15 @@ test("the attendance center reads calendar days in local time, not UTC", () => {
   const controllerSource = fs.readFileSync(new URL("../server/controllers/attendanceController.js", import.meta.url), "utf8");
   // pg materialises a `date` column at local midnight, so slicing its ISO string
   // filed every record under the previous day east of Greenwich and the day the
-  // admin saved showed the employee as absent.
-  assert.match(controllerSource, /const centerDateKey = \(value\) => \{[\s\S]*?getFullYear\(\)[\s\S]*?getMonth\(\) \+ 1[\s\S]*?getDate\(\)/);
-  assert.doesNotMatch(controllerSource, /const centerDateKey = \(value\) => \{[\s\S]*?toISOString\(\)\.slice\(0, 10\);\n\};/);
+  // admin saved showed the employee as absent. Read just this one function —
+  // a file-wide regex matches unrelated date helpers.
+  const start = controllerSource.indexOf("const centerDateKey =");
+  assert.notEqual(start, -1, "centerDateKey must still exist");
+  const centerDateKeySource = controllerSource.slice(start, controllerSource.indexOf("\n};", start));
+  assert.match(centerDateKeySource, /getFullYear\(\)/);
+  assert.match(centerDateKeySource, /getMonth\(\) \+ 1/);
+  assert.match(centerDateKeySource, /getDate\(\)/);
+  assert.doesNotMatch(centerDateKeySource, /toISOString/);
   // Both ends of one shift have to come from one clock.
   assert.doesNotMatch(controllerSource, /check_out = NOW\(\),\s*check_out_at = NOW\(\)/);
 });

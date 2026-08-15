@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import { emitStaffTaskEvent } from "../utils/socket.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 import { createNotification } from "./notificationsService.js";
@@ -21,7 +22,7 @@ const STATIC_ATTENDANCE_TASKS_ENABLED = String(process.env.STAFF_TASK_STATIC_ATT
 const STAFFING_LOW_THRESHOLD = Math.max(Number(process.env.STAFF_TASK_LOW_STAFF_THRESHOLD || 2), 1);
 const EMPLOYEE_PORTAL_SESSION_MINUTES = Math.max(Number(process.env.EMPLOYEE_PORTAL_SESSION_MINUTES || 720), 60);
 const EMPLOYEE_PORTAL_CHECKOUT_ACTION_MODE = String(process.env.EMPLOYEE_PORTAL_CHECKOUT_ACTION_MODE || "read_only").toLowerCase() === "allow" ? "allow" : "read_only";
-const STAFF_TASK_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
 
 const text = (value = "") => String(value ?? "").trim();
 const firstText = (...values) => values.map(text).find(Boolean) || "";
@@ -111,7 +112,7 @@ const dateKey = (value = null) => {
   if (!value) {
     try {
       const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: STAFF_TASK_TIMEZONE,
+        timeZone: getAttendanceTimeZone(),
         year: "numeric",
         month: "2-digit",
         day: "2-digit",

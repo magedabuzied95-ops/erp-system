@@ -22,6 +22,21 @@ export const settingsCategories = [
 
 const option = (value, en, ar) => ({ value, label: label(en, ar) });
 
+// Offered as a list rather than free text: a typo here would silently move the
+// attendance business day, and the shop only ever operates in one of these.
+const attendanceTimeZoneOptions = [
+  option("Africa/Cairo", "Cairo (Egypt)", "القاهرة (مصر)"),
+  option("Asia/Riyadh", "Riyadh (Saudi Arabia)", "الرياض (السعودية)"),
+  option("Asia/Dubai", "Dubai (UAE)", "دبي (الإمارات)"),
+  option("Asia/Kuwait", "Kuwait", "الكويت"),
+  option("Asia/Amman", "Amman (Jordan)", "عمّان (الأردن)"),
+  option("Asia/Baghdad", "Baghdad (Iraq)", "بغداد (العراق)"),
+  option("Africa/Khartoum", "Khartoum (Sudan)", "الخرطوم (السودان)"),
+  option("Africa/Casablanca", "Casablanca (Morocco)", "الدار البيضاء (المغرب)"),
+  option("Europe/Istanbul", "Istanbul (Türkiye)", "إسطنبول (تركيا)"),
+  option("UTC", "UTC", "التوقيت العالمي UTC"),
+];
+
 const defaultStorefrontShippingZones = [
   { id: "cairo", governorate: "Cairo", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", provider: "manual", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
   { id: "giza", governorate: "Giza", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", provider: "manual", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
@@ -232,7 +247,7 @@ const definitions = [
   ["accounting.vat_enabled", "accounting", "boolean", false, "Tax/VAT enabled", "تفعيل الضريبة", "Enable tax/VAT calculations.", "تفعيل حسابات الضريبة."],
   ["accounting.vat_rate_percent", "accounting", "number", 14, "VAT rate percent", "نسبة الضريبة", "Default VAT percent.", "نسبة الضريبة الافتراضية.", { validation: { min: 0, max: 100 } }],
 
-  ["employees.default_attendance_timezone", "employees", "text", "Africa/Cairo", "Default attendance timezone", "منطقة الحضور الزمنية", "Timezone used for attendance calculations.", "المنطقة الزمنية المستخدمة في الحضور."],
+  ["employees.default_attendance_timezone", "employees", "select", "Africa/Cairo", "Default attendance timezone", "منطقة الحضور الزمنية", "Decides when the attendance day starts and ends, and anchors shift, late and overtime calculations.", "تحدد بداية ونهاية يوم الحضور، وعليها يُحسب الشيفت والتأخير والإضافي.", { options: attendanceTimeZoneOptions }],
   ["employees.default_shift_behavior", "employees", "select", "scheduled", "Default shift behavior", "نظام الشفت الافتراضي", "How missing shifts are handled.", "طريقة التعامل مع الشفتات غير المحددة.", { options: [option("scheduled", "Scheduled", "حسب الجدول"), option("flexible", "Flexible", "مرن")] }],
   ["employees.grace_period_minutes", "employees", "number", 10, "Grace period minutes", "دقائق السماح", "Late grace period.", "فترة السماح للتأخير.", { validation: { min: 0 } }],
   ["employees.late_deduction_rules", "employees", "json", [], "Late deduction rules", "قواعد خصم التأخير", "JSON rules for late deductions.", "قواعد JSON لخصم التأخير."],

@@ -16,6 +16,7 @@ import { getWebsiteSettings } from "../services/liveActivityService.js";
 import { getTenantId } from "../utils/requestScope.js";
 import { normalizeSettingsCategory, settingsByCategory } from "../../shared/settingsRegistry.js";
 import { refreshOpenAiCredentialOverrides } from "../services/openaiCredentials.js";
+import { refreshAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 
 const router = express.Router();
 
@@ -135,6 +136,10 @@ router.put("/:category", protect, permit("settings", "edit"), async (req, res) =
     }
     clearSettingsCache();
     if (category === "ai_channels") await refreshOpenAiCredentialOverrides();
+    // Attendance date maths reads the timezone synchronously from a warm cache,
+    // so it has to be re-read here for the change to take effect without a
+    // restart.
+    if (category === "employees") await refreshAttendanceTimeZone();
     const settings = await getSettingsByCategory(category);
     res.json({ success: true, category, settings });
   } catch (error) {

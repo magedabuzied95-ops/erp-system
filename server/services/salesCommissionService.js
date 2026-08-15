@@ -3,6 +3,7 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 
@@ -102,7 +103,7 @@ const monthBounds = (month = "") => {
   return { start, end };
 };
 
-const payrollDateTimeZone = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
 
 const dateKey = (value) => {
   if (!value) return "";
@@ -111,7 +112,7 @@ const dateKey = (value) => {
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
   try {
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: payrollDateTimeZone,
+      timeZone: getAttendanceTimeZone(),
       year: "numeric",
       month: "2-digit",
       day: "2-digit",

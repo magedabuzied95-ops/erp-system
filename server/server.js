@@ -2362,6 +2362,8 @@ const bootstrapStartup = async () => {
     await ensureLoyaltySchema(db);
     await ensureAttendanceSchema(db);
     console.log("[server] attendance schema ensured");
+    const { refreshAttendanceTimeZone } = await import("./utils/attendanceTimezone.js");
+    console.log("[server] attendance timezone", await refreshAttendanceTimeZone());
     await ensurePosCheckoutSchema();
     console.log("[server] POS checkout schema warmed");
     await ensureSalesCommissionSchema(db);

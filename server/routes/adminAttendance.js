@@ -7,16 +7,15 @@ import permit from "../middleware/permissionMiddleware.js";
 import { ensureStaffTasksSchema } from "../services/staffTasksService.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { calculateAttendanceMetrics } from "../utils/attendanceCalculator.js";
+import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { isSuperAdminUser } from "../utils/requestScope.js";
 
 const router = express.Router();
 
-const ATTENDANCE_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
-
 const getAttendanceDate = (date = new Date()) => {
   try {
     const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: ATTENDANCE_TIMEZONE,
+      timeZone: getAttendanceTimeZone(),
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -156,8 +155,9 @@ const getBusinessDateUtcRange = (businessDate) => {
   const [year, month, day] = String(businessDate || getAttendanceDate()).slice(0, 10).split("-").map(Number);
   const utcStartGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
   const utcEndGuess = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0));
-  const start = new Date(utcStartGuess.getTime() - getTimeZoneOffsetMs(utcStartGuess, ATTENDANCE_TIMEZONE));
-  const end = new Date(utcEndGuess.getTime() - getTimeZoneOffsetMs(utcEndGuess, ATTENDANCE_TIMEZONE));
+  const timeZone = getAttendanceTimeZone();
+  const start = new Date(utcStartGuess.getTime() - getTimeZoneOffsetMs(utcStartGuess, timeZone));
+  const end = new Date(utcEndGuess.getTime() - getTimeZoneOffsetMs(utcEndGuess, timeZone));
   return { start, end };
 };
 
@@ -488,6 +488,7 @@ router.post("/manual-entry", permit("attendance", "edit"), async (req, res) => {
       checkIn: checkInAt,
       checkOut: checkOutAt,
       shift: resolvedShift || {},
+      timeZone: getAttendanceTimeZone(),
     });
     const workMinutes = metrics.work_minutes;
     const status = checkOutAt ? "checked_out" : "checked_in";

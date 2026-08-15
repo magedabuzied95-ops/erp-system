@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { calculateAttendanceMetrics, normalizeWorkingDays } from "../utils/attendanceCalculator.js";
+import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { createNotification } from "./notificationsService.js";
 import { listStaffTasks, updateStaffTaskStatus } from "./staffTasksService.js";
@@ -2855,6 +2856,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
       start_time: attendanceRow.resolved_shift_start_time || shift?.start_time || shift?.startTime,
       end_time: attendanceRow.resolved_shift_end_time || shift?.end_time || shift?.endTime,
     },
+    timeZone: getAttendanceTimeZone(),
   });
   if (attendanceRow.check_out || attendanceRow.check_out_at || String(attendanceRow.status || "").toLowerCase() === "checked_out") {
     console.warn("[employee-portal-attendance] checkout rejected", {

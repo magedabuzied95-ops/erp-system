@@ -1,8 +1,9 @@
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { createEmployeePortalNotification } from "./employeePayrollPortalService.js";
 import { createNotification } from "./notificationsService.js";
 
-const DEFAULT_TIMEZONE = String(process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
 
 const toPositiveNumber = (value) => {
   const number = Number(value);
@@ -84,7 +85,7 @@ const notifyOpeningAssignmentChange = async ({
   await Promise.allSettled(jobs);
 };
 
-const datePartsInZone = (date = new Date(), timeZone = DEFAULT_TIMEZONE) => {
+const datePartsInZone = (date = new Date(), timeZone = getAttendanceTimeZone()) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -107,7 +108,7 @@ const addDaysToParts = ({ year, month, day }, days = 0) => {
   };
 };
 
-export const getDefaultOpeningWorkDate = (date = new Date(), timeZone = DEFAULT_TIMEZONE) =>
+export const getDefaultOpeningWorkDate = (date = new Date(), timeZone = getAttendanceTimeZone()) =>
   formatDate(addDaysToParts(datePartsInZone(date, timeZone), 1));
 
 export const getHrAttendanceSettings = async (clientOrPool, tenantId) => {
