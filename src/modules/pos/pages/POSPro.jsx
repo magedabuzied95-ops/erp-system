@@ -130,12 +130,31 @@ import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { MobileBottomSheet, StickyMobileActionBar } from "../../../shared/components/mobile/ResponsiveMobile";
 import "./POSPro.m1.css";
 
-const RecentOperationsDrawer = lazy(async () => {
-  const startedAt = performance.now();
-  const module = await import("../components/RecentOperationsDrawer");
-  logPagePerf("pos.recent-operations-drawer", startedAt, { heavy_component_load_ms: Math.round(performance.now() - startedAt) });
-  return module;
-});
+// Split out of the POS bundle, which means the FIRST "العمليات الأخيرة" click used to
+// pay a chunk download before React could even mount the drawer. Warm it once the POS
+// itself is idle so the click only ever costs the list fetch.
+let recentOperationsDrawerModulePromise = null;
+const loadRecentOperationsDrawerModule = () => {
+  if (!recentOperationsDrawerModulePromise) {
+    const startedAt = performance.now();
+    recentOperationsDrawerModulePromise = import("../components/RecentOperationsDrawer")
+      .then((module) => {
+        logPagePerf("pos.recent-operations-drawer", startedAt, { heavy_component_load_ms: Math.round(performance.now() - startedAt) });
+        return module;
+      })
+      .catch((error) => {
+        recentOperationsDrawerModulePromise = null;
+        throw error;
+      });
+  }
+  return recentOperationsDrawerModulePromise;
+};
+
+const prefetchRecentOperationsDrawer = () => {
+  void loadRecentOperationsDrawerModule().catch(() => {});
+};
+
+const RecentOperationsDrawer = lazy(loadRecentOperationsDrawerModule);
 
 const defaultState = {
   search: "",
@@ -1788,6 +1807,16 @@ function POSPro() {
   useEffect(() => {
     if (recentOperationsOpen) warmThermalReceiptPrinter();
   }, [recentOperationsOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(prefetchRecentOperationsDrawer, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(prefetchRecentOperationsDrawer, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const searchRef = useRef(null);
   const posShellRef = useRef(null);

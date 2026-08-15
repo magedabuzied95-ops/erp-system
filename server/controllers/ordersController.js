@@ -399,6 +399,70 @@ const warnRuntimeSchemaExecution = (name) => {
   console.warn("[schema-warning] runtime schema execution detected", { name });
 };
 
+// `deleteOrderRelatedRows` walks ~15 ledgers to purge an invoice, and most of those
+// lookups key off a plain `order_id` / `reference_id` / `source_id` column that nobody
+// had indexed. On tables that grow forever — activity_logs, notifications,
+// journal_entries — that turned "حذف نهائي" into one sequential scan per ledger inside
+// a write transaction, which is why the button sat there for seconds.
+//
+// Each entry is applied only when the table and column actually exist, so this stays
+// safe across tenants whose schema predates a given ledger.
+const ORDER_PURGE_INDEXES = [
+  ["payment_transactions", ["order_id"]],
+  ["payment_transactions", ["reference_id"]],
+  ["payment_transaction_events", ["transaction_id"]],
+  ["wallet_transactions", ["order_id"]],
+  ["wallet_transactions", ["reference_id"]],
+  ["loyalty_transactions", ["order_id"]],
+  ["loyalty_transactions", ["reference_id"]],
+  ["employee_commissions", ["order_id"]],
+  ["employee_commissions", ["reference_id"]],
+  ["employee_sales", ["order_id"]],
+  ["employee_sales", ["reference_id"]],
+  ["cash_drawer_shift_events", ["order_id"]],
+  ["cash_drawer_shift_events", ["reference_id"]],
+  ["cash_drawer_shift_events", ["source_id"]],
+  ["financial_account_entries", ["source_id"]],
+  ["journal_entries", ["reference_id"]],
+  ["marketing_attribution_events", ["order_id"]],
+  ["notifications", ["entity_id"]],
+  ["notifications", ["action_url"]],
+  ["activity_logs", ["entity_id"]],
+  ["returns", ["order_id"]],
+  ["return_items", ["return_id"]],
+];
+
+// The two notification tables are purged by digging an id out of a JSONB blob, which
+// no plain column index can answer — these need the expression itself indexed.
+const ORDER_PURGE_METADATA_INDEXES = ["notifications", "website_notifications"];
+
+const ensureOrderPurgeIndexes = async (client) => {
+  for (const [table, columns] of ORDER_PURGE_INDEXES) {
+    try {
+      if (!(await tableExists(client, table))) continue;
+      const existing = await getTableColumnSet(client, table);
+      if (!columns.every((column) => existing.has(column))) continue;
+      const indexName = `idx_${table}_purge_${columns.join("_")}`.slice(0, 63);
+      await client.query(`CREATE INDEX IF NOT EXISTS ${indexName} ON ${table} (${columns.join(", ")})`);
+    } catch (error) {
+      console.warn("[orders-schema] purge index skipped", { table, columns, message: error?.message });
+    }
+  }
+
+  for (const table of ORDER_PURGE_METADATA_INDEXES) {
+    try {
+      if (!(await tableExists(client, table))) continue;
+      const existing = await getTableColumnSet(client, table);
+      if (!existing.has("metadata")) continue;
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS idx_${table}_purge_metadata_order_id ON ${table} ((metadata->>'order_id'))`
+      );
+    } catch (error) {
+      console.warn("[orders-schema] purge metadata index skipped", { table, message: error?.message });
+    }
+  }
+};
+
 const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'open'`);
@@ -785,6 +849,11 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_cashier_user_id ON orders (cashier_user_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_channel_created ON orders (channel, created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_created_id ON orders (tenant_id, created_at DESC, id DESC)`);
+  // The POS recent-operations list is `deleted_at IS NULL` ordered by created_at DESC.
+  // The unfiltered index above still has to read and discard soft-deleted rows, which
+  // the COUNT(*) feels most; a partial index lets both the page and the count walk
+  // only live orders.
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_live_tenant_created ON orders (tenant_id, created_at DESC, id DESC) WHERE deleted_at IS NULL`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_channel_created_id ON orders (tenant_id, channel, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_source_created_id ON orders (tenant_id, source, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_customer_created ON orders (tenant_id, customer_id, created_at DESC)`);
@@ -826,6 +895,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       END IF;
     END $$;
   `);
+  await ensureOrderPurgeIndexes(client);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_commission_rules_tenant_id ON commission_rules (tenant_id, is_active, scope_type)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_sales_tenant_id ON employee_sales (tenant_id, sales_employee_id, cashier_id, created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_commissions_tenant_id ON employee_commissions (tenant_id, employee_id, created_at DESC)`);
@@ -4260,7 +4330,9 @@ const getPosRecentOrders = async (req, res) => {
     const whereSql = `WHERE ${where.join(" AND ")}`;
 
     const ordersStartedAt = nowMs();
-    const rowsResult = await db.query(
+    // Probe one row past the page so `has_more` is exact without a COUNT(*).
+    const probeLimit = limit + 1;
+    const rowsQuery = db.query(
       `
       SELECT
         o.id,
@@ -4286,28 +4358,44 @@ const getPosRecentOrders = async (req, res) => {
       ${customerJoin}
       ${whereSql}
       ORDER BY ${createdExpr} DESC, o.id DESC
-      LIMIT ${addParam(limit)}
+      LIMIT ${addParam(probeLimit)}
       OFFSET ${addParam(offset)}
       `,
       params
     );
-    timings.orders_query_ms = nowMs() - ordersStartedAt;
 
-    const countStartedAt = nowMs();
+    // COUNT(*) has to walk every matching order — with a search term that is a full
+    // scan of the LIKE predicates. It only feeds the "showing X of Y" line, so it now
+    // runs concurrently with the page instead of after it, and only for the first
+    // page; "load more" keeps the total the client already holds.
     const countParams = params.slice(0, params.length - 2);
-    const countResult = await db.query(
-      `
-      SELECT COUNT(*)::int AS total
-      FROM orders o
-      ${customerJoin}
-      ${whereSql}
-      `,
-      countParams
-    );
-    timings.count_query_ms = nowMs() - countStartedAt;
+    const countQuery = offset === 0
+      ? db.query(
+          `
+          SELECT COUNT(*)::int AS total
+          FROM orders o
+          ${customerJoin}
+          ${whereSql}
+          `,
+          countParams
+        ).then((result) => {
+          timings.count_query_ms = nowMs() - ordersStartedAt;
+          return result;
+        })
+      : null;
 
-    const total = Number(countResult.rows[0]?.total || 0);
-    const orders = rowsResult.rows.map((order) => ({
+    const [rowsResult, countResult] = await Promise.all([
+      rowsQuery.then((result) => {
+        timings.orders_query_ms = nowMs() - ordersStartedAt;
+        return result;
+      }),
+      countQuery,
+    ]);
+
+    const hasMore = rowsResult.rows.length > limit;
+    const pageRows = hasMore ? rowsResult.rows.slice(0, limit) : rowsResult.rows;
+    const total = countResult ? Number(countResult.rows[0]?.total || 0) : null;
+    const orders = pageRows.map((order) => ({
       id: order.id,
       invoice_number: order.invoice_number || `INV-${order.id}`,
       total: Number(order.total || 0),
@@ -4332,7 +4420,7 @@ const getPosRecentOrders = async (req, res) => {
         limit,
         offset,
         total,
-        has_more: offset + orders.length < total,
+        has_more: hasMore,
       },
     });
   } catch (error) {
@@ -8045,7 +8133,243 @@ export const getSingleOrder = async (req, res) => {
   }
 };
 
-export const getPosOrderSummary = getSingleOrder;
+// The POS "recent operations" drawer opens this for تفاصيل / طباعة / مرتجع, so it is
+// on the critical path of three buttons. It used to alias `getSingleOrder`, which
+// carries three shipping lookups joined as `sc.id::text = o.shipping_city_id OR
+// sc.provider_city_id = o.shipping_city_id`. A cast plus an OR is unindexable, so
+// every drawer click seq-scanned shipping_cities, shipping_zones AND
+// shipping_districts — for columns the drawer never renders. The item query paid a
+// second unindexable OR inside a correlated LATERAL over product_variant_images,
+// once per invoice line, and then shipped whole gallery arrays for a 48px thumbnail.
+//
+// This handler answers the same shape from equality-only joins: one order row, items
+// resolved through two index-backed LATERALs (variant_id, then product_id+colour),
+// and the three timeline queries issued in parallel with the items instead of after
+// them. Shipping names stay on `getSingleOrder` for GET /orders/:id, which needs them.
+export const getPosOrderSummary = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const { id } = req.params;
+
+    const [hasSalesEmployeesTable, hasEmployeesTable] = await Promise.all([
+      tableExists(db, "sales_employees"),
+      tableExists(db, "employees"),
+    ]);
+    const salesEmployeeColumns = hasSalesEmployeesTable ? await getTableColumnSet(db, "sales_employees") : new Set();
+    const employeeColumns = hasEmployeesTable ? await getTableColumnSet(db, "employees") : new Set();
+    const salesEmployeeNameColumn = firstExistingColumn(salesEmployeeColumns, ["name", "full_name", "employee_name"]);
+    const employeeNameColumn = firstExistingColumn(employeeColumns, ["full_name", "name", "employee_name"]);
+    const assignedSellerIdExpr = "COALESCE(o.sales_employee_id, o.salesperson_id)";
+    const employeeDeletedFilter = employeeColumns.has("is_deleted") ? "AND seller_employee.is_deleted IS DISTINCT FROM TRUE" : "";
+    const employeeSellerJoin = hasEmployeesTable && employeeNameColumn
+      ? `
+        LEFT JOIN employees seller_employee ON seller_employee.id = ${assignedSellerIdExpr}
+          ${employeeDeletedFilter}
+      `
+      : "";
+    const salesEmployeeJoin = hasSalesEmployeesTable && salesEmployeeNameColumn
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT se.${salesEmployeeNameColumn} AS name
+          FROM sales_employees se
+          WHERE se.id = ${assignedSellerIdExpr}
+             OR ${salesEmployeeColumns.has("employee_id") ? `se.employee_id = ${assignedSellerIdExpr}` : "FALSE"}
+          ORDER BY se.id ASC
+          LIMIT 1
+        ) se ON TRUE
+      `
+      : "";
+    const salesEmployeeExpr = salesEmployeeJoin ? "COALESCE(se.name, '')" : "''";
+    const employeeSellerExpr = employeeSellerJoin ? `COALESCE(seller_employee.${employeeNameColumn}, '')` : "''";
+
+    const orderPromise = db.query(
+      `
+      SELECT
+        o.*,
+        creator.name AS created_by_name,
+        canceller.name AS cancelled_by_name,
+        COALESCE(o.sales_employee_id, o.salesperson_id, o.seller_user_id) AS seller_id,
+        ${assignedSellerIdExpr} AS assigned_seller_id,
+        COALESCE(NULLIF(o.seller_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.salesperson_name, ''), '') AS seller_name,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS sales_employee_name,
+        COALESCE(NULLIF(o.salesperson_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), '') AS salesperson_name,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS assigned_seller_name
+      FROM orders o
+      LEFT JOIN users creator ON creator.id = COALESCE(o.cashier_id, o.created_by)
+      LEFT JOIN users canceller ON canceller.id = o.cancelled_by
+      ${employeeSellerJoin}
+      ${salesEmployeeJoin}
+      WHERE o.id = $1
+        AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
+      `,
+      [id, tenantId]
+    );
+
+    const itemsPromise = db.query(
+      `
+      SELECT
+        oi.id,
+        oi.order_id,
+        oi.product_id,
+        oi.variant_id,
+        oi.quantity,
+        oi.returned_quantity,
+        oi.discount_amount,
+        oi.tax_amount,
+        oi.variant_name,
+        oi.sku,
+        oi.barcode,
+        oi.sale_price AS unit_price,
+        oi.price AS stored_price,
+        oi.sale_price AS price,
+        oi.sale_price AS sale_price,
+        oi.sale_price AS selling_price,
+        oi.sale_price AS line_unit_price,
+        oi.total_amount,
+        oi.total_amount AS line_total,
+        oi.total_amount AS subtotal,
+        oi.total_amount AS item_total,
+        pv.price AS variant_price,
+        pv.sale_price AS variant_sale_price,
+        p.price AS product_price,
+        p.sale_price AS product_sale_price,
+        COALESCE(pv.size, '') AS size,
+        COALESCE(pv.color, '') AS color,
+        CONCAT_WS(' / ', NULLIF(pv.color, ''), NULLIF(pv.size, '')) AS variant_label,
+        COALESCE(NULLIF(p.name, ''), NULLIF(oi.product_name, ''), '') AS product_name,
+        COALESCE(NULLIF(p.name, ''), NULLIF(oi.product_name, ''), '') AS name,
+        COALESCE(
+          NULLIF(oi.variant_image, ''),
+          NULLIF(pv.image_url, ''),
+          NULLIF(variant_image.image_url, ''),
+          NULLIF(colour_image.image_url, ''),
+          ''
+        ) AS variant_image,
+        COALESCE(NULLIF(oi.product_image, ''), NULLIF(p.image_url, ''), '') AS product_image,
+        COALESCE(
+          NULLIF(oi.image_url, ''),
+          NULLIF(oi.variant_image, ''),
+          NULLIF(pv.image_url, ''),
+          NULLIF(variant_image.image_url, ''),
+          NULLIF(colour_image.image_url, ''),
+          NULLIF(oi.product_image, ''),
+          NULLIF(p.image_url, ''),
+          ''
+        ) AS image_url
+      FROM order_items oi
+      LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+      LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+      LEFT JOIN LATERAL (
+        SELECT pvi.image_url
+        FROM product_variant_images pvi
+        WHERE pvi.variant_id = pv.id
+          AND NULLIF(pvi.image_url, '') IS NOT NULL
+        ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+        LIMIT 1
+      ) variant_image ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT pvi.image_url
+        FROM product_variant_images pvi
+        WHERE pvi.product_id = p.id
+          AND NULLIF(pvi.image_url, '') IS NOT NULL
+          AND (
+            NULLIF(pvi.color_name, '') IS NULL
+            OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, ''))
+          )
+        ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+        LIMIT 1
+      ) colour_image ON TRUE
+      WHERE oi.order_id = $1
+        AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint)
+      ORDER BY oi.id ASC
+      `,
+      [id, tenantId]
+    );
+
+    const editAuditsPromise = db.query(
+      `
+      SELECT a.created_at, COALESCE(u.name, u.email, 'أدمن') AS user_name
+      FROM order_edit_audits a
+      LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.order_id = $1
+        AND ($2::bigint IS NULL OR a.tenant_id = $2::bigint OR a.tenant_id IS NULL)
+      ORDER BY a.created_at ASC
+      `,
+      [id, tenantId]
+    );
+    const reprintLogsPromise = db.query(
+      `
+      SELECT r.created_at, COALESCE(u.name, u.email, 'أدمن') AS user_name
+      FROM order_reprint_logs r
+      LEFT JOIN users u ON u.id = r.user_id
+      WHERE r.order_id = $1
+        AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint OR r.tenant_id IS NULL)
+      ORDER BY r.created_at ASC
+      `,
+      [id, tenantId]
+    );
+    const returnLogsPromise = db.query(
+      `
+      SELECT r.created_at, r.reason, COALESCE(u.name, u.email, 'أدمن') AS user_name
+      FROM returns r
+      LEFT JOIN users u ON u.id = r.created_by
+      WHERE r.order_id = $1
+        AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint OR r.tenant_id IS NULL)
+      ORDER BY r.created_at ASC
+      `,
+      [id, tenantId]
+    );
+
+    const [orderResult, itemsResult, editAudits, reprintLogs, returnLogs] = await Promise.all([
+      orderPromise,
+      itemsPromise,
+      editAuditsPromise,
+      reprintLogsPromise,
+      returnLogsPromise,
+    ]);
+
+    const order = orderResult.rows[0];
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const timeline = [
+      {
+        action: "created",
+        user: order.created_by_name || order.cashier_name || "أدمن",
+        at: order.created_at,
+      },
+    ];
+    editAudits.rows.forEach((row) => {
+      timeline.push({ action: "edited", user: row.user_name || "أدمن", at: row.created_at });
+    });
+    reprintLogs.rows.forEach((row) => {
+      timeline.push({ action: "reprinted", user: row.user_name || "أدمن", at: row.created_at });
+    });
+    returnLogs.rows.forEach((row) => {
+      const isExchange = String(row.reason || "").includes("استبدال") || String(row.reason || "").toLowerCase().includes("exchange");
+      timeline.push({ action: isExchange ? "exchange_created" : "return_created", user: row.user_name || "أدمن", at: row.created_at });
+    });
+    if (order.cancelled_at) {
+      timeline.push({
+        action: "cancelled",
+        user: order.cancelled_by_name || "أدمن",
+        at: order.cancelled_at,
+      });
+    }
+    timeline.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
+
+    const normalizedItems = normalizeReturnedOrderItems(order, itemsResult.rows);
+    return res.status(200).json({
+      order: withPaymentProofAliases({ ...order, items: normalizedItems, audit_timeline: timeline }),
+      items: normalizedItems,
+      audit_timeline: timeline,
+    });
+  } catch (error) {
+    console.error("[pos-summary] failed", { order_id: req.params?.id, message: error?.message });
+    return res.status(500).json({ message: "Server Error" });
+  }
+};
 
 export const getPosEditOrder = async (req, res) => {
   try {

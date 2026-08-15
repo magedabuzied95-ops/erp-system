@@ -243,6 +243,22 @@ const ORDER_SUMMARY_CACHE_TTL_MS = 45_000;
 const orderSummaryCache = new Map();
 const orderSummaryRequests = new Map();
 
+// The drawer unmounts on close, so every re-open used to repaint five skeleton cards
+// and wait a full round trip for a list the cashier had just been looking at. Holding
+// the unsearched first page at module scope lets a re-open paint real rows on the
+// first frame while the refresh runs behind it.
+const RECENT_ORDERS_CACHE_TTL_MS = 30_000;
+let recentOrdersPageCache = null;
+
+const readRecentOrdersCache = () => {
+  if (!recentOrdersPageCache) return null;
+  if (recentOrdersPageCache.expiresAt <= Date.now()) {
+    recentOrdersPageCache = null;
+    return null;
+  }
+  return recentOrdersPageCache;
+};
+
 const primeOrderImages = (order = {}) => {
   if (typeof window === "undefined" || typeof window.Image !== "function") return;
   const urls = new Set((order.items || []).map((item) => getItemImage(item)).filter(Boolean));
@@ -277,15 +293,18 @@ const buildAuditTimeline = (order = {}) => {
 
 function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "", onClose, onEditOrder, onExchangeStarted, onPrintOrder, currentCartTotal = 0 }) {
   const { t } = useTranslation();
-  const [orders, setOrders] = useState([]);
+  // Only seed a plain open. A barcode scan opens the drawer already filtered to one
+  // invoice, so painting the last unsearched page there would flash the wrong rows.
+  const seedCache = () => (String(requestedInvoiceNumber || "").trim() ? null : readRecentOrdersCache());
+  const [orders, setOrders] = useState(() => seedCache()?.orders || []);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [scannedInvoiceLookup, setScannedInvoiceLookup] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [hasMore, setHasMore] = useState(false);
-  const [totalCount, setTotalCount] = useState(null);
+  const [hasMore, setHasMore] = useState(() => Boolean(seedCache()?.hasMore));
+  const [totalCount, setTotalCount] = useState(() => seedCache()?.total ?? null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [returnOrder, setReturnOrder] = useState(null);
   const [permanentDeleteOrder, setPermanentDeleteOrder] = useState(null);
@@ -376,11 +395,20 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
       if (seq !== requestSeqRef.current) return;
       const nextOrders = Array.isArray(response.data) ? response.data : Array.isArray(response.orders) ? response.orders : [];
       const pagination = response.pagination || {};
-      const nextTotal = Number.isFinite(Number(pagination.total)) ? Number(pagination.total) : null;
+      // `total` is omitted on "load more" — the server only counts the first page now,
+      // so an absent total means "keep what you already have", not "zero results".
+      const nextTotal = pagination.total === null || pagination.total === undefined
+        ? null
+        : Number.isFinite(Number(pagination.total))
+          ? Number(pagination.total)
+          : null;
       pendingRenderStartedAtRef.current = performance.now();
       setOrders((current) => (reset ? nextOrders : [...current, ...nextOrders]));
-      setTotalCount(nextTotal);
+      if (nextTotal !== null || reset) setTotalCount(nextTotal);
       setHasMore(Boolean(pagination.has_more ?? (nextOrders.length === RECENT_ORDERS_PAGE_SIZE)));
+      if (reset && !debouncedSearch) {
+        recentOrdersPageCache = { orders: nextOrders, total: nextTotal, hasMore: Boolean(pagination.has_more), expiresAt: Date.now() + RECENT_ORDERS_CACHE_TTL_MS };
+      }
       if (POS_DEBUG) {
         console.log("[pos-recent-operations-timing]", {
           recent_orders_fetch_ms: Math.round(performance.now() - fetchStartedAt),
@@ -613,6 +641,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
       try {
         await api.delete(`/orders/${permanentDeleteOrder.id}/permanent`, { body: { confirmation } });
         orderSummaryCache.delete(String(permanentDeleteOrder.id));
+        // Drop the warm page too, otherwise the next open paints the deleted invoice
+        // for the length of one refresh.
+        recentOrdersPageCache = null;
         setOrders((current) => current.filter((order) => String(order.id) !== String(permanentDeleteOrder.id)));
         setSelectedOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
         setReturnOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
