@@ -595,11 +595,25 @@ export const searchShippingLocations = async ({ provider = "bosta", q = "", limi
   return result.rows;
 };
 
-const orderCodAmount = (order = {}) => {
+// `cash_on_delivery` is what the POS and the AI inbox composer actually write, and
+// it does not contain the substring "cod" — so the old check read every one of them
+// as prepaid and handed Bosta cod: 0. The courier would deliver and collect nothing.
+const isCodPayment = (value = "") => {
+  const key = normalizeKey(value);
+  if (!key) return false;
+  return key.includes("cash_on_delivery") || key.includes("cashondelivery") || /(^|_)cod(_|$)/.test(key);
+};
+
+export const orderCodAmount = (order = {}) => {
   const total = Number(order.total_amount ?? order.total_price ?? order.total ?? 0);
   const paid = Number(order.paid_amount ?? 0);
-  if (String(order.payment_method || order.payment_status || "").toLowerCase().includes("cod")) return Math.max(0, total - paid);
-  return Math.max(0, Number(order.cod_amount || 0));
+  const explicit = Number(order.cod_amount || 0);
+  if (isCodPayment(order.payment_method) || isCodPayment(order.payment_status)) {
+    // An explicitly recorded collection amount wins; otherwise the courier collects
+    // whatever the customer still owes.
+    return Math.max(0, explicit > 0 ? explicit : total - paid);
+  }
+  return Math.max(0, explicit);
 };
 
 const loadOrderShipmentContext = async (client, orderId) => {
