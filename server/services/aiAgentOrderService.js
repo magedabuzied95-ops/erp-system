@@ -13,6 +13,7 @@ import { assignSequentialInvoiceNumber, buildTemporaryInvoiceNumber } from "../u
 import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { getWebsiteSettings } from "./liveActivityService.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -939,6 +940,257 @@ export const createAiOrderDraft = async (payload = {}) => {
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[ai-agent:orders] draft failed", { tenantId, conversation_id: conversationId, message: error?.message, code: error?.code });
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+/* ======================================================
+   MULTI-LINE DRAFT (AI Inbox order composer cart)
+   ------------------------------------------------------
+   createAiOrderDraft above resolves ONE product by fuzzy match, because it serves
+   the autonomous agent reading a customer sentence. This one serves a human who
+   picked exact variants in the product picker: every line carries a variant_id, so
+   the variants are read straight from the DB and no confidence matching runs at
+   all. One order, N order_items — which is what confirmAiOrder already iterates.
+====================================================== */
+const loadOrderLineVariants = async ({ tenantId, variantIds = [] }) => {
+  if (!variantIds.length) return new Map();
+  const result = await db.query(
+    `
+    SELECT
+      v.id AS variant_id,
+      v.product_id,
+      v.size,
+      v.color,
+      v.sku,
+      v.barcode,
+      COALESCE(v.stock, 0)::int AS stock,
+      v.price AS variant_price,
+      v.sale_price AS variant_sale_price,
+      v.purchase_selling_price AS variant_purchase_selling_price,
+      v.selling_price AS variant_selling_price,
+      p.name AS product_name,
+      p.price AS product_price,
+      p.sale_price AS product_sale_price,
+      p.sale_price_enabled AS product_sale_price_enabled,
+      p.sale_start_at,
+      p.sale_end_at,
+      p.purchase_selling_price AS product_purchase_selling_price,
+      p.selling_price AS product_selling_price,
+      p.regular_price AS product_regular_price
+    FROM product_variants v
+    JOIN products p ON p.id = v.product_id
+    WHERE v.id = ANY($1::bigint[])
+      AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint)
+      AND v.is_active IS DISTINCT FROM FALSE
+      AND v.deleted_at IS NULL
+    `,
+    [variantIds, tenantId || null]
+  );
+  return new Map(result.rows.map((row) => [Number(row.variant_id), row]));
+};
+
+export const createAiOrderDraftLines = async (payload = {}) => {
+  await ensureAiAgentOrderSchema();
+  const tenantId = numeric(payload.tenant_id ?? payload.tenantId, 0);
+  if (!tenantId) throw Object.assign(new Error("Tenant is required"), { status: 400 });
+  const conversationId = text(payload.conversation_id || payload.conversationId || payload.session_id);
+  if (!conversationId) throw Object.assign(new Error("conversation_id is required"), { status: 400 });
+  const channel = normalizeOrderChannel(payload.channel || payload.source || payload.metadata?.channel);
+  const source = text(payload.source || payload.metadata?.source || channel || "");
+
+  const requestedLines = (Array.isArray(payload.lines) ? payload.lines : [])
+    .map((line) => ({
+      variant_id: numberOrNull(line?.variant_id ?? line?.variantId),
+      quantity: Math.max(1, integer(line?.quantity, 1)),
+    }))
+    .filter((line) => line.variant_id);
+  if (!requestedLines.length) {
+    throw Object.assign(new Error("At least one product line with a variant is required"), { status: 400, code: "NO_ORDER_LINES" });
+  }
+
+  // The same variant picked twice is one line with the summed quantity, so the
+  // stock check below sees the real requested amount instead of two half checks.
+  const mergedLines = [];
+  for (const line of requestedLines) {
+    const existing = mergedLines.find((item) => item.variant_id === line.variant_id);
+    if (existing) existing.quantity += line.quantity;
+    else mergedLines.push({ ...line });
+  }
+
+  const variantsById = await loadOrderLineVariants({ tenantId, variantIds: mergedLines.map((line) => line.variant_id) });
+  const missing = mergedLines.filter((line) => !variantsById.has(line.variant_id));
+  if (missing.length) {
+    throw Object.assign(new Error("Some selected variants no longer exist"), {
+      status: 409,
+      code: "VARIANT_NOT_FOUND",
+      variant_ids: missing.map((line) => line.variant_id),
+    });
+  }
+
+  const saleModeSettings = await getWebsiteSettings({ tenantId }).catch(() => ({}));
+  const saleModeEnabled = Boolean(saleModeSettings?.sale_mode_enabled);
+  const allowOutOfStock = payload.allow_out_of_stock_draft === true;
+  const outOfStock = [];
+  const items = [];
+  let subtotal = 0;
+
+  for (const line of mergedLines) {
+    const row = variantsById.get(line.variant_id);
+    if (!allowOutOfStock && numeric(row.stock, 0) < line.quantity) {
+      outOfStock.push({
+        variant_id: line.variant_id,
+        product_name: row.product_name,
+        variant_name: [row.size, row.color].filter(Boolean).join(" / "),
+        requested: line.quantity,
+        available: numeric(row.stock, 0),
+      });
+      continue;
+    }
+    // Same authority as POS: resolveCustomerDisplayPrice with the tenant sale-mode
+    // gate. Never price an order line off an already-serialized API object.
+    const priced = resolveCustomerDisplayPrice({
+      sale_mode_enabled: saleModeEnabled,
+      product: {
+        id: row.product_id,
+        name: row.product_name,
+        price: row.product_price,
+        sale_price: row.product_sale_price,
+        sale_price_enabled: row.product_sale_price_enabled,
+        sale_start_at: row.sale_start_at,
+        sale_end_at: row.sale_end_at,
+        purchase_selling_price: row.product_purchase_selling_price,
+        selling_price: row.product_selling_price,
+        regular_price: row.product_regular_price,
+      },
+      variant: {
+        id: row.variant_id,
+        price: row.variant_price,
+        sale_price: row.variant_sale_price,
+        purchase_selling_price: row.variant_purchase_selling_price,
+        selling_price: row.variant_selling_price,
+      },
+    });
+    const unitPrice = numeric(priced.display_price, 0) || numeric(row.variant_price || row.product_price, 0);
+    const lineTotal = unitPrice * line.quantity;
+    subtotal += lineTotal;
+    items.push({
+      tenant_id: tenantId,
+      product_id: numberOrNull(row.product_id),
+      variant_id: numberOrNull(row.variant_id),
+      product_name: row.product_name,
+      variant_name: [row.size, row.color].filter(Boolean).join(" / "),
+      sku: row.sku || "",
+      barcode: row.barcode || "",
+      quantity: line.quantity,
+      price: unitPrice,
+      sale_price: unitPrice,
+      total_amount: lineTotal,
+    });
+  }
+
+  if (outOfStock.length) {
+    throw Object.assign(new Error("Some selected models are out of stock"), {
+      status: 409,
+      code: "OUT_OF_STOCK",
+      out_of_stock: outOfStock,
+    });
+  }
+
+  const normalizedPhone = normalizePhone(payload.customer_phone || payload.phone);
+  const allowMissingPhone = payload.allow_missing_phone === true;
+  const phone = normalizedPhone || (allowMissingPhone ? text(payload.customer_phone || payload.external_customer_id || "meta_customer_pending_phone") : "");
+  if (!phone) throw Object.assign(new Error("Valid Egyptian phone number is required"), { status: 400, code: "INVALID_PHONE" });
+
+  const paymentMethod = text(payload.payment_method || "cash_on_delivery") || "cash_on_delivery";
+  const idempotencyKey = text(payload.idempotency_key || payload.idempotencyKey || "");
+  const hash = idempotencyKey
+    ? intentHash({ conversationId, idempotencyKey })
+    : intentHash({
+        conversationId,
+        phone,
+        lines: mergedLines.map((line) => `${line.variant_id}x${line.quantity}`).sort().join(","),
+      });
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(
+      `SELECT * FROM orders WHERE tenant_id = $1 AND ai_agent_conversation_id = $2 AND ai_agent_intent_hash = $3 LIMIT 1`,
+      [tenantId, conversationId, hash]
+    );
+    if (existing.rows[0]) {
+      await client.query("COMMIT");
+      return {
+        order: attachPublicOrderNumber(existing.rows[0], channel),
+        existing_order_id: existing.rows[0].id,
+        items: [],
+        duplicate: true,
+      };
+    }
+    const { order, items: itemRows } = await insertOrderWithItems(client, {
+      order: {
+        tenant_id: tenantId,
+        invoice_number: buildTemporaryInvoiceNumber(),
+        customer_id: numberOrNull(payload.customer_id),
+        customer_name: text(payload.customer_name),
+        customer_phone: phone,
+        channel,
+        source,
+        status: "ai_draft",
+        payment_status: "unpaid",
+        payment_method: paymentMethod,
+        subtotal,
+        total_amount: subtotal,
+        total_price: subtotal,
+        total: subtotal,
+        paid_amount: 0,
+        customer_address: text(payload.customer_address),
+        governorate: text(payload.governorate),
+        city_area: text(payload.city_area),
+        shipping_provider: text(payload.shipping_provider),
+        shipping_provider_id: text(payload.shipping_provider_id || payload.shipping_provider),
+        shipping_city_id: text(payload.shipping_city_id),
+        shipping_zone_id: text(payload.shipping_zone_id),
+        shipping_district_id: text(payload.shipping_district_id),
+        district_id: text(payload.district_id || payload.shipping_district_id),
+        street_address: text(payload.street_address || payload.customer_address),
+        building_number: text(payload.building_number),
+        floor_number: text(payload.floor_number),
+        apartment_number: text(payload.apartment_number),
+        landmark: text(payload.landmark),
+        notes: text(payload.notes || `AI inbox order from ${channel}`),
+        ai_agent_session_id: text(payload.session_id || conversationId),
+        ai_agent_conversation_id: conversationId,
+        ai_agent_intent_hash: hash,
+        ai_agent_status: "ai_draft",
+        ai_agent_confidence: 1,
+        ai_agent_metadata: json({
+          source: "ai_inbox_order_composer",
+          channel,
+          line_count: items.length,
+          variant_ids: items.map((item) => item.variant_id),
+          payment_method: paymentMethod,
+          external_customer_id: text(payload.external_customer_id),
+          idempotency_key: idempotencyKey,
+        }),
+      },
+      items,
+    });
+    await client.query("COMMIT");
+    console.log("[ai-agent:orders] multi-line draft created", {
+      tenantId,
+      order_id: order.id,
+      conversation_id: conversationId,
+      line_count: itemRows.length,
+      subtotal,
+    });
+    return { order: attachPublicOrderNumber(order, channel), items: itemRows, duplicate: false };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[ai-agent:orders] multi-line draft failed", { tenantId, conversation_id: conversationId, message: error?.message, code: error?.code });
     throw error;
   } finally {
     client.release();

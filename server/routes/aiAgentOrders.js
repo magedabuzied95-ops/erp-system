@@ -57,10 +57,12 @@ import {
 import {
   confirmAiOrder,
   createAiOrderDraft,
+  createAiOrderDraftLines,
   listAiOrderDrafts,
   searchAiOrderProducts,
   updateAiOrderStatus,
 } from "../services/aiAgentOrderService.js";
+import { buildPublicInvoiceUrl } from "../utils/whatsapp.js";
 import { productCardReplyText } from "../services/aiProductCards.js";
 import {
   buildAiSalesCloserPlan,
@@ -4428,6 +4430,73 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
       item.external_customer_id === conversationId
     );
     if (!conversation) throw Object.assign(new Error("Conversation not found"), { status: 404 });
+
+    // Cart path: the agent picked exact variants in the product picker, so the
+    // conversation's fuzzy recommendations are irrelevant — build the order from
+    // the lines as given, and optionally confirm it in the same request (the
+    // composer's "save invoice" button, which sells like the POS does).
+    const requestedLines = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (requestedLines.length) {
+      const draft = await createAiOrderDraftLines({
+        tenant_id: tenantId,
+        conversation_id: conversation.session_id,
+        session_id: conversation.session_id,
+        channel: conversation.channel || conversation.source || "facebook_messenger",
+        lines: requestedLines,
+        payment_method: req.body?.payment_method || "cash_on_delivery",
+        customer_name: req.body?.customer_name || conversation.customer_name || conversation.first_name || "Meta customer",
+        customer_phone: req.body?.customer_phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
+        customer_address: req.body?.customer_address || "",
+        governorate: req.body?.governorate || "",
+        city_area: req.body?.city_area || "",
+        shipping_provider: req.body?.shipping_provider || "",
+        shipping_provider_id: req.body?.shipping_provider_id || req.body?.shipping_provider || "",
+        shipping_city_id: req.body?.shipping_city_id || "",
+        shipping_zone_id: req.body?.shipping_zone_id || "",
+        shipping_district_id: req.body?.shipping_district_id || "",
+        district_id: req.body?.district_id || req.body?.shipping_district_id || "",
+        street_address: req.body?.street_address || req.body?.customer_address || "",
+        building_number: req.body?.building_number || "",
+        floor_number: req.body?.floor_number || "",
+        apartment_number: req.body?.apartment_number || "",
+        landmark: req.body?.landmark || "",
+        external_customer_id: conversation.external_customer_id || "",
+        allow_missing_phone: true,
+        notes: req.body?.notes || "AI inbox order composer",
+        idempotency_key: req.body?.idempotency_key || "",
+      });
+
+      let confirmed = null;
+      if (req.body?.confirm === true && !draft.duplicate) {
+        // Same call the autonomous path uses: locks each variant row, refuses on
+        // insufficient stock, decrements with a SALE_OUT movement.
+        confirmed = await confirmAiOrder({
+          tenant_id: tenantId,
+          order_id: draft.order?.id,
+          user_id: req.user?.id || null,
+        });
+      }
+
+      const finalOrder = confirmed?.order || draft.order;
+      const invoiceUrl = buildPublicInvoiceUrl(finalOrder?.invoice_number || "");
+      console.log("ai_inbox_composer_order", {
+        tenant_id: tenantId,
+        conversation_id: conversation.session_id,
+        order_id: finalOrder?.id || null,
+        line_count: requestedLines.length,
+        confirmed: Boolean(confirmed),
+        duplicate: Boolean(draft.duplicate),
+      });
+      return res.status(201).json({
+        success: true,
+        order: finalOrder,
+        items: confirmed?.items || draft.items,
+        confirmed: Boolean(confirmed),
+        duplicate: Boolean(draft.duplicate),
+        invoice_url: invoiceUrl,
+      });
+    }
+
     const recommendations = await loadAiInboxRecommendations({ tenantId, conversationId: conversation.session_id, limit: 8 });
     const latestCustomerMessage = [...(conversation.messages || [])].reverse().find((message) => envText(message.customer_message || message.message_text))?.customer_message ||
       conversation.latest_message_preview ||

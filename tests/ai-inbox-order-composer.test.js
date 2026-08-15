@@ -12,11 +12,13 @@ const pwaStyles = readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPw
 
 test("AI Inbox exposes an in-conversation order composer", () => {
   assert.match(inbox, /function InboxOrderComposer/);
-  // Localized: the heading, the stock line and the submit control are pinned by
-  // translation key now rather than by one locale's copy.
+  // Localized: the heading and the submit controls are pinned by translation key
+  // rather than by one locale's copy. The composer now carries a cart and BOTH
+  // actions: draft (reserve only) and save (confirmed invoice, stock out, invoice
+  // sent to the customer).
   assert.match(inbox, /aiSupport\.inbox\.order\.orderHeading/);
-  assert.match(inbox, /aiSupport\.inbox\.order\.stock/);
   assert.match(inbox, /aiSupport\.inbox\.order\.createDraft/);
+  assert.match(inbox, /aiSupport\.inbox\.order\.saveInvoice/);
 });
 
 test("desktop AI Inbox mounts the order composer in the active workspace", () => {
@@ -27,7 +29,7 @@ test("desktop AI Inbox mounts the order composer in the active workspace", () =>
   const activeWorkspace = inbox.slice(activeWorkspaceStart, legacyWorkspaceStart);
   assert.match(activeWorkspace, /<InboxOrderComposer/);
   assert.match(activeWorkspace, /open=\{orderComposerOpen\}/);
-  assert.match(activeWorkspace, /onSubmit=\{createDraftFromProduct\}/);
+  assert.match(activeWorkspace, /onSubmit=\{submitComposerOrder\}/);
 });
 
 test("AI Inbox order composer forwards reviewed customer and variant data", () => {

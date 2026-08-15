@@ -38,6 +38,7 @@ import {
   Paperclip,
   Pencil,
   PlayCircle,
+  Plus,
   Star,
   RefreshCw,
   Radio,
@@ -3680,13 +3681,36 @@ const AI_INBOX_SHIPPING_PROVIDERS = [
   { id: "in_store_delivery", labelKey: "aiSupport.inbox.panel.inStoreDelivery" },
 ];
 
-function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null }) {
+// Payment methods offered on an AI Inbox invoice. Cash on delivery is the default
+// because that is how the chat channels sell; the rest mirror the POS row for when
+// the customer already paid before the order is written.
+const AI_INBOX_PAYMENT_METHODS = [
+  { id: "cash_on_delivery", labelKey: "aiSupport.inbox.order.paymentCod" },
+  { id: "cash", labelKey: "aiSupport.inbox.order.paymentCash" },
+  { id: "visa", labelKey: "aiSupport.inbox.order.paymentVisa" },
+  { id: "instapay", labelKey: "aiSupport.inbox.order.paymentInstapay" },
+  { id: "vodafone_cash", labelKey: "aiSupport.inbox.order.paymentVodafoneCash" },
+];
+
+const composerLineKey = (line = {}) => `${line.product_id || ""}:${line.variant_id || ""}`;
+
+// The picker returns product cards; the cart needs one row per chosen model.
+const composerLineFromCard = (card = {}) => ({
+  product_id: card.product_id || card.id || null,
+  variant_id: card.variant_id || null,
+  product_name: clean(card.product_name || card.name || ""),
+  color: clean(card.color || ""),
+  size: clean(card.size || ""),
+  image_url: card.image_url || card.image || card.thumbnail_url || "",
+  price: Number(card.display_price ?? card.price ?? 0) || 0,
+  quantity: 1,
+});
+
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = [], onRequestPick, onPicksConsumed }) {
   const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [size, setSize] = useState("");
-  const [color, setColor] = useState("");
+  const [lines, setLines] = useState([]);
+  const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [shippingProvider, setShippingProvider] = useState("bosta");
@@ -3705,11 +3729,8 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
 
   useEffect(() => {
     if (!open) return;
-    const firstProduct = asArray(products)[0] || null;
-    setProductId(clean(firstProduct?.product_id || firstProduct?.id));
-    setQuantity(1);
-    setSize(clean(conversation?.channel_metadata?.last_size || profile.preferred_size || ""));
-    setColor(clean(conversation?.channel_metadata?.last_color || ""));
+    setLines([]);
+    setPaymentMethod("cash_on_delivery");
     setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
     setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
     setShippingProvider(clean(profile.shipping_provider || profile.shipping_provider_id || conversation?.shipping_provider || "bosta").toLowerCase());
@@ -3725,6 +3746,24 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
     setNotes("");
   }, [conversation?.session_id, open, products]);
+
+  // Models chosen in the popup arrive here. Picking the same model twice bumps its
+  // quantity instead of adding a second identical row.
+  useEffect(() => {
+    if (!open || !asArray(picks).length) return;
+    setLines((current) => {
+      const next = [...current];
+      asArray(picks).forEach((card) => {
+        const line = composerLineFromCard(card);
+        if (!line.variant_id) return;
+        const existing = next.find((item) => composerLineKey(item) === composerLineKey(line));
+        if (existing) existing.quantity += 1;
+        else next.push(line);
+      });
+      return next;
+    });
+    onPicksConsumed?.();
+  }, [open, picks, onPicksConsumed]);
 
   useEffect(() => {
     if (!open || shippingProvider !== "bosta") return;
@@ -3762,17 +3801,36 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   }, [headers, open, shippingProvider, shippingZoneId]);
 
   if (!open) return null;
-  const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
-  const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
-  const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
-  const safeQuantity = Math.max(1, Number(quantity) || 1);
+  const cartTotal = lines.reduce((sum, line) => sum + Number(line.price || 0) * Math.max(1, Number(line.quantity) || 1), 0);
   const selectedCity = shippingLocations.cities.find((item) => shippingLocationId(item) === shippingCityId) || null;
   const selectedZone = shippingLocations.zones.find((item) => shippingLocationId(item) === shippingZoneId) || null;
   const selectedDistrict = shippingLocations.districts.find((item) => shippingLocationId(item) === shippingDistrictId) || null;
   const shippingComplete = shippingProvider === "bosta"
     ? Boolean(shippingCityId && shippingZoneId && shippingDistrictId && streetAddress && buildingNumber)
     : Boolean(governorate && cityArea && streetAddress);
-  const canSubmit = Boolean(selectedProduct && customerName && customerPhone && shippingProvider && shippingComplete) && safeQuantity <= stock && !busy;
+  const canSubmit = Boolean(lines.length && customerName && customerPhone && shippingProvider && shippingComplete) && !busy;
+  const submitPayload = (confirm) => ({
+    confirm,
+    payment_method: paymentMethod,
+    items: lines.map((line) => ({ variant_id: line.variant_id, product_id: line.product_id, quantity: Math.max(1, Number(line.quantity) || 1) })),
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    customer_address: streetAddress,
+    governorate: shippingProvider === "bosta" ? shippingLocationLabel(selectedCity) : governorate,
+    city_area: shippingProvider === "bosta" ? shippingLocationLabel(selectedDistrict) || shippingLocationLabel(selectedZone) : cityArea,
+    shipping_provider: shippingProvider,
+    shipping_provider_id: shippingProvider,
+    shipping_city_id: shippingCityId,
+    shipping_zone_id: shippingZoneId,
+    shipping_district_id: shippingDistrictId,
+    district_id: shippingDistrictId,
+    street_address: streetAddress,
+    building_number: buildingNumber,
+    floor_number: floorNumber,
+    apartment_number: apartmentNumber,
+    landmark,
+    notes,
+  });
   const content = (
     <div className="fixed inset-0 z-[140] flex justify-end bg-slate-950/75 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
       <section dir="rtl" className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#111512] p-5 shadow-2xl">
@@ -3856,43 +3914,75 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />{t("aiSupport.inbox.order.productSection")}</div>
-            <select value={productId} onChange={(e) => setProductId(e.target.value)} className="h-12 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-sm font-black text-white outline-none">
-              <option value="">{t("aiSupport.inbox.order.chooseMatched")}</option>
-              {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? 0) || 0}</option>)}
-            </select>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder={t("aiSupport.inbox.order.size")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={color} onChange={(e) => setColor(e.target.value)} placeholder={t("aiSupport.inbox.order.colour")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
-              <input value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} min="1" type="number" placeholder={t("aiSupport.inbox.order.quantity")} className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none" />
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-black text-white"><ShoppingBag className="h-4 w-4 text-amber-300" />{t("aiSupport.inbox.order.productsSection")}</div>
+              <button type="button" onClick={() => onRequestPick?.()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-400/15 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/25">
+                <Plus className="h-4 w-4" />{t("aiSupport.inbox.order.addProduct")}
+              </button>
             </div>
-            {selectedProduct ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black"><span className={safeQuantity <= stock ? "text-emerald-100" : "text-rose-200"}>{t("aiSupport.inbox.order.stock")} {stock} — {t("aiSupport.inbox.order.required")} {safeQuantity}</span><span className="text-white">{t("aiSupport.inbox.order.total")} {money(unitPrice * safeQuantity)}</span></div> : null}
+
+            {lines.length === 0 ? (
+              <button type="button" onClick={() => onRequestPick?.()} className="w-full rounded-xl border border-dashed border-white/15 bg-slate-950/50 p-6 text-center text-sm font-bold text-slate-400 transition hover:border-emerald-300/40 hover:text-slate-200">
+                {t("aiSupport.inbox.order.emptyCart")}
+              </button>
+            ) : (
+              <div className="space-y-2">
+                {lines.map((line) => (
+                  <div key={composerLineKey(line)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-2">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white">
+                      {line.image_url ? <img src={line.image_url} alt="" className="h-full w-full object-contain" /> : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black text-white">{line.product_name}</div>
+                      <div className="truncate text-xs font-bold text-slate-400">{[line.color, line.size].filter(Boolean).join(" / ") || "—"} · {money(line.price)}</div>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      value={line.quantity}
+                      onChange={(event) => {
+                        const quantity = Math.max(1, Number(event.target.value) || 1);
+                        setLines((current) => current.map((item) => (composerLineKey(item) === composerLineKey(line) ? { ...item, quantity } : item)));
+                      }}
+                      className="h-10 w-16 shrink-0 rounded-lg border border-white/10 bg-slate-950 px-2 text-center text-sm font-black text-white outline-none"
+                    />
+                    <button type="button" aria-label={t("aiSupport.inbox.order.removeLine")} onClick={() => setLines((current) => current.filter((item) => composerLineKey(item) !== composerLineKey(line)))} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-rose-300/20 bg-rose-400/10 text-rose-200 transition hover:bg-rose-400/20">
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-black text-white">
+                  <span>{lines.length} {t("aiSupport.inbox.order.lineCount")}</span>
+                  <span>{t("aiSupport.inbox.order.cartTotal")} {money(cartTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mb-3 flex items-center gap-2 font-black text-white"><CreditCard className="h-4 w-4 text-cyan-300" />{t("aiSupport.inbox.order.paymentSection")}</div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label={t("aiSupport.inbox.order.paymentSection")}>
+              {AI_INBOX_PAYMENT_METHODS.map((method) => {
+                const active = paymentMethod === method.id;
+                return (
+                  <button key={method.id} type="button" role="radio" aria-checked={active} onClick={() => setPaymentMethod(method.id)} className={`h-11 rounded-xl border px-2 text-xs font-black transition ${active ? "border-emerald-300 bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-300/30" : "border-white/10 bg-slate-950/70 text-slate-200 hover:border-white/25"}`}>
+                    {t(method.labelKey)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="min-h-20 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm font-bold text-white outline-none" />
-          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.completeShipping")}</div> : null}
-          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, {
-            quantity: safeQuantity,
-            size,
-            color,
-            customer_name: customerName,
-            customer_phone: customerPhone,
-            customer_address: streetAddress,
-            governorate: shippingProvider === "bosta" ? shippingLocationLabel(selectedCity) : governorate,
-            city_area: shippingProvider === "bosta" ? shippingLocationLabel(selectedDistrict) || shippingLocationLabel(selectedZone) : cityArea,
-            shipping_provider: shippingProvider,
-            shipping_provider_id: shippingProvider,
-            shipping_city_id: shippingCityId,
-            shipping_zone_id: shippingZoneId,
-            shipping_district_id: shippingDistrictId,
-            district_id: shippingDistrictId,
-            street_address: streetAddress,
-            building_number: buildingNumber,
-            floor_number: floorNumber,
-            apartment_number: apartmentNumber,
-            landmark,
-            notes,
-          })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.createDraft")}</button>
+          {!lines.length ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.addAtLeastOne")}</div> : null}
+          {!shippingComplete ? <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-xs font-bold text-amber-100">{t("aiSupport.inbox.order.completeShippingShort")}</div> : null}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(submitPayload(false))} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.createDraft")}</button>
+            {/* Save = the POS behaviour: confirmed invoice, stock out now, and the
+                invoice link goes to the customer on this conversation channel. */}
+            <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(submitPayload(true))} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"><CheckCircle2 className="h-5 w-5" />{t("aiSupport.inbox.order.saveInvoice")}</button>
+          </div>
+          <p className="text-center text-[11px] font-bold text-slate-500">{t("aiSupport.inbox.order.saveHint")}</p>
         </div>
       </section>
     </div>
@@ -5026,7 +5116,9 @@ export default function AiInbox({ reviewerMode = false }) {
   // Phase 11.2 — inline edit buffer for the AI suggestion (separate from the manual composer).
   const [aiSuggestionEditText, setAiSuggestionEditText] = useState("");
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
-  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false, selectMode: false });
+  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false });
+  // Models picked for the order composer cart, handed over once and then cleared.
+  const [composerPicks, setComposerPicks] = useState([]);
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [leadAssignEmployeeId, setLeadAssignEmployeeId] = useState("");
@@ -6844,6 +6936,8 @@ export default function AiInbox({ reviewerMode = false }) {
     const selectMode = Boolean(options.selectMode);
     setProductCardPickerConfig({
       open: true,
+      // orderMode: picked models go to the order composer cart instead of being sent.
+      orderMode: Boolean(options.orderMode),
       sizeMode: Boolean(options.sizeMode),
       // Phase 13.4 — the manual "إرسال منتج" picker is multi-select by default (batch up to MAX_BATCH_PRODUCTS).
       // selectMode (AI single-product identity disambiguation "Change product") stays SINGLE-select.
@@ -6852,7 +6946,7 @@ export default function AiInbox({ reviewerMode = false }) {
     });
   }, []);
   const closeProductCardPicker = useCallback(() => {
-    setProductCardPickerConfig({ open: false, sizeMode: false, allowMultiple: false, selectMode: false });
+    setProductCardPickerConfig({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false });
   }, []);
   // Phase 11.2 — "Change Product": pick a real catalog product to attach to the suggestion (does NOT send).
   const normalizeChosenSuggestionCard = (c = {}) => ({
@@ -6865,6 +6959,11 @@ export default function AiInbox({ reviewerMode = false }) {
     available_sizes: c.available_sizes || c.sizes || [], grounded: false, in_stock: true,
   });
   const handleProductCardPickerSubmit = (cards = []) => {
+    if (productCardPickerConfig.orderMode) {
+      setComposerPicks(asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.variant_id));
+      closeProductCardPicker();
+      return Promise.resolve();
+    }
     if (productCardPickerConfig.selectMode) {
       const first = asArray(cards)[0];
       if (first) { setSuggestionChosenCard(normalizeChosenSuggestionCard(first)); setSuggestionProductRemoved(false); }
@@ -8212,6 +8311,57 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   }, [headers, selectedConversation, selectedConversationRouteId, tenantId]);
 
+  // Order composer submit. `confirm: false` writes a draft; `confirm: true` sells it
+  // like the POS does (stock out now) and then sends the invoice link to the
+  // customer on this conversation's own channel.
+  const submitComposerOrder = async (payload = {}) => {
+    if (!selectedConversation?.session_id) return;
+    const confirm = payload.confirm === true;
+    setError("");
+    setLoading(true);
+    try {
+      const response = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation?.session_id, "/create-draft-order"), {
+        tenant_id: tenantId,
+        ...payload,
+      }, { headers });
+      const order = response?.order || {};
+      const number = order.public_order_number || order.invoice_number || order.id || "";
+      if (confirm) {
+        const invoiceUrl = clean(response?.invoice_url);
+        if (invoiceUrl) {
+          try {
+            // Customer-facing text stays Arabic on purpose: it is read by the
+            // shopper, not by whoever set the ERP interface language.
+            await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation?.session_id, "/send"), {
+              tenant_id: tenantId,
+              message: `تم تأكيد طلبك ✅\nرقم الفاتورة: ${number}\n\n🧾 الفاتورة:\n${invoiceUrl}`,
+            }, { headers });
+            setToast({ tone: "emerald", text: t("aiSupport.inbox.order.invoiceSaved", { number }) });
+          } catch (sendError) {
+            setToast({ tone: "amber", text: t("aiSupport.inbox.order.invoiceSavedSendFailed", { number, reason: sendError?.message || "" }) });
+          }
+        } else {
+          setToast({ tone: "amber", text: t("aiSupport.inbox.order.invoiceSavedNoLink", { number }) });
+        }
+      } else {
+        setToast({ tone: "emerald", text: t("aiSupport.inbox.order.draftCreated", { number }) });
+      }
+      setOrderComposerOpen(false);
+      setComposerPicks([]);
+      await loadAll();
+      await loadSalesCloser();
+    } catch (err) {
+      const outOfStock = asArray(err?.responseBody?.out_of_stock);
+      const message = outOfStock.length
+        ? t("aiSupport.inbox.order.outOfStockLines", { lines: outOfStock.map((item) => `${item.product_name} ${item.variant_name} (${item.available})`).join("، ") })
+        : err?.message || t("aiSupport.inbox.order.saveFailed");
+      setToast({ tone: "rose", text: message });
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const createDraftFromProduct = async (product, options = {}) => {
     if (!selectedConversation?.session_id || !product) return;
     setError("");
@@ -8789,6 +8939,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onSubmitLink={sendAvailableBySizeLink}
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
+        orderMode={productCardPickerConfig.orderMode}
         mode="desktopInbox"
         portalTarget={fullscreenOverlayTarget}
       />
@@ -9287,7 +9438,10 @@ export default function AiInbox({ reviewerMode = false }) {
         busy={loading}
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
-        onSubmit={createDraftFromProduct}
+        onSubmit={submitComposerOrder}
+        picks={composerPicks}
+        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
+        onPicksConsumed={() => setComposerPicks([])}
         portalTarget={fullscreenOverlayTarget}
       />
     </div>
@@ -9802,7 +9956,10 @@ export default function AiInbox({ reviewerMode = false }) {
         busy={loading}
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
-        onSubmit={createDraftFromProduct}
+        onSubmit={submitComposerOrder}
+        picks={composerPicks}
+        onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
+        onPicksConsumed={() => setComposerPicks([])}
         portalTarget={fullscreenOverlayTarget}
       />
     </div>
