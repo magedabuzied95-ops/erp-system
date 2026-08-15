@@ -16,7 +16,7 @@ import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus, upsertAiSupportMessageReaction } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
-import { legacyWhatsappLidSessionId, normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
+import { legacyWhatsappLidSessionId, normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -825,7 +825,11 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
 };
 
 export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "", targetFromMe = false, emoji = "" } = {}) => {
-  const safeRemoteJid = text(remoteJid).replace(/^whatsapp:/i, "");
+  // Accepts any spelling of the chat identity — whatsapp:lid:<id>, <id>@lid, a
+  // phone, a phone JID — and hands Evolution a real JID. Stripping the prefix
+  // alone left a LID chat addressed as "lid:<id>", which is not a JID at all.
+  const safeRemoteJid = normalizeWhatsappRemoteJid(remoteJid)
+    || text(remoteJid).replace(/^whatsapp:/i, "");
   const safeTargetMessageId = text(targetMessageId);
   const safeEmoji = String(emoji ?? "").trim();
   if (!safeRemoteJid) throw gatewayError("WhatsApp conversation target is required", "WHATSAPP_REACTION_TARGET_REQUIRED", 400);
@@ -2307,7 +2311,11 @@ export const resolveOutboundWhatsappReplyTarget = (message = {}) => {
   const configuredBotNumber = text(message.configuredBotNumber || message.configured_bot_number || numberFromWhatsappJid(ownerJid || instanceOwnerJid));
   const isGroup = Boolean(message.isGroup ?? message.is_group ?? isGroupJid(remoteJid));
   const isLid = Boolean(message.isLid ?? message.is_lid ?? isLidJid(remoteJid || message.phone));
-  const resolvedPhone = normalizeEgyptPhone(message.resolvedPhone || message.resolved_phone || "");
+  const outboundOwnLid = normalizeWhatsappLid(remoteJid || message.resolvedReplyJid || message.resolved_reply_jid || message.phone);
+  const storedPhone = normalizeEgyptPhone(message.resolvedPhone || message.resolved_phone || "");
+  // Same trap as everywhere else: a stored "phone" that is this chat's own LID
+  // is not a number to send to.
+  const resolvedPhone = storedPhone && storedPhone === outboundOwnLid ? "" : storedPhone;
   const replyTargetReason = text(message.replyTargetReason || message.reply_target_reason || "");
   const base = {
     remoteJid,

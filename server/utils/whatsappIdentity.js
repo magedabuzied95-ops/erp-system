@@ -52,18 +52,20 @@ const normalizeWhatsAppDigits = (value = "") => {
 
 export const normalizeWhatsappSessionId = (sessionId = "", phone = "") => {
   const candidates = [sessionId, phone];
+  const lid = candidates.map((candidate) => normalizeWhatsappLid(candidate)).find(Boolean) || "";
   for (const candidate of candidates) {
     const normalized = normalizeWhatsAppDigits(candidate);
-    if (normalized) return `whatsapp:${normalized}`;
+    // A LID is 13-15 digits, so it satisfies every phone check we have. Older
+    // rows stored LIDs in phone columns, and callers pass those straight in
+    // here: when this identity is a LID chat, a "phone" equal to that LID is
+    // the LID, and treating it as a number rebuilds the flattened key and
+    // splits the conversation. Guarding it here covers every caller at once.
+    if (normalized && normalized !== lid) return `whatsapp:${normalized}`;
   }
   // Only once no real phone is available do we fall back to the LID key space,
   // so a customer whose number we later learn merges into `whatsapp:<phone>`
   // instead of living in two threads forever.
-  for (const candidate of candidates) {
-    const lid = normalizeWhatsappLid(candidate);
-    if (lid) return `whatsapp:lid:${lid}`;
-  }
-  return "";
+  return lid ? `whatsapp:lid:${lid}` : "";
 };
 
 export const legacyWhatsappLidSessionId = (value = "") => {

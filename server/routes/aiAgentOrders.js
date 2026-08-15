@@ -128,7 +128,7 @@ import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReply
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
-import { normalizeWhatsappLid, normalizeWhatsappPhone } from "../utils/whatsappIdentity.js";
+import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 import {
   createAiInboxQuickReply,
@@ -5174,8 +5174,12 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
       conversation.customer_phone ||
       conversation.customer_profile?.phone
     ).replace(/^whatsapp:/i, "");
+    // A LID chat is addressed @lid, not @s.whatsapp.net. Scraping the digits and
+    // appending the phone domain aimed the reaction at a number that does not
+    // exist.
     const remoteDigits = rawRemoteJid.replace(/\D/g, "");
-    const remoteJid = rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "";
+    const remoteJid = normalizeWhatsappRemoteJid(rawRemoteJid)
+      || (rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "");
     const targetFromMe = req.body?.target_from_me === true || ["staff", "ai", "system"].includes(envText(target.sender_type).toLowerCase());
     const instagramRecipientId = envText(
       conversation.external_customer_id ||

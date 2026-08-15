@@ -897,21 +897,32 @@ const normalizeConversationChannel = (conversation = {}) => {
   if (key.includes("web")) return "web";
   return key || "unknown";
 };
+const whatsappLidOf = (value = "") => {
+  const raw = clean(value).replace(/^whatsapp:/i, "");
+  const match = /^lid:(\d+)$/i.exec(raw) || /^(\d+)@lid$/i.exec(raw);
+  return match ? match[1] : "";
+};
 const normalizeWhatsappSessionIdentity = (value = "", phone = "") => {
   const candidates = [value, phone];
+  // A customer who hides their number behind a WhatsApp username is keyed by a
+  // LID, which has its own key space. And a LID is 13-15 digits, so a stored
+  // "phone" equal to it is the LID, not a number — scraping either one down to
+  // digits rewrites the key and splits the conversation.
+  const lid = candidates.map((candidate) => whatsappLidOf(candidate)).find(Boolean) || "";
   for (const candidate of candidates) {
     const raw = clean(candidate);
-    if (!raw) continue;
+    if (!raw || whatsappLidOf(raw)) continue;
     const digits = raw
       .replace(/^whatsapp:/i, "")
       .replace(/@(?:s\.whatsapp\.net|lid)$/i, "")
       .replace(/\D/g, "");
-    if (digits) {
+    if (digits && digits !== lid) {
       if (digits.startsWith("20") && digits.length === 12) return `whatsapp:${digits}`;
       if (digits.startsWith("0") && digits.length === 11) return `whatsapp:20${digits.slice(1)}`;
       return `whatsapp:${digits}`;
     }
   }
+  if (lid) return `whatsapp:lid:${lid}`;
   return "";
 };
 const conversationKey = (conversation = {}) => {

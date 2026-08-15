@@ -78,6 +78,30 @@ test("a customer whose number we know keeps one thread, LID or not", () => {
   assert.equal(normalizeWhatsappSessionId(LID_JID, CUSTOMER), `whatsapp:${CUSTOMER}`);
 });
 
+test("a stored phone that is really the chat's own LID cannot flatten the key", () => {
+  // Older rows kept LIDs in phone columns. Callers pass those straight in, and
+  // every one of them used to rebuild whatsapp:<lid digits> from it. The guard
+  // lives in this helper so it covers all of them at once.
+  assert.equal(normalizeWhatsappSessionId(LID_JID, "46995733500101"), "whatsapp:lid:46995733500101");
+  assert.equal(normalizeWhatsappSessionId("whatsapp:lid:46995733500101", "46995733500101"), "whatsapp:lid:46995733500101");
+  // A genuine second number still wins — the guard is about this chat's own LID.
+  assert.equal(normalizeWhatsappSessionId(LID_JID, CUSTOMER), `whatsapp:${CUSTOMER}`);
+});
+
+test("a reaction is addressed to a real JID in both key spaces", () => {
+  assert.equal(normalizeWhatsappRemoteJid("whatsapp:lid:46995733500101"), LID_JID);
+  assert.equal(normalizeWhatsappRemoteJid("lid:46995733500101"), LID_JID);
+  assert.equal(normalizeWhatsappRemoteJid(LID_JID), LID_JID);
+  assert.equal(normalizeWhatsappRemoteJid(`whatsapp:${CUSTOMER}`), `${CUSTOMER}@s.whatsapp.net`);
+});
+
+test("the desktop inbox keeps a LID conversation key too", () => {
+  // The desktop page carries its own copy of the normaliser; both had the bug.
+  const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+  assert.match(source, /return `whatsapp:lid:\$\{lid\}`/);
+  assert.match(source, /digits && digits !== lid/);
+});
+
 test("the connected instance never becomes the customer", () => {
   // Evolution puts the connected instance in data.sender. Events that arrive
   // without a chat JID used to fall through to it and file the customer's
