@@ -620,6 +620,10 @@ const { ensureTikTokIntegrationSchema } = await import("./services/tiktokOAuthSe
 const { ensureTikTokPublishSchema } = await import("./services/tiktokPublisherService.js");
 const { ensureTikTokWebhookSchema, startTikTokWebhookWorker } = await import("./services/tiktokWebhookService.js");
 const { tiktokEnabled: isTikTokEnabled, tiktokIntakePollIntervalMs, validateTikTokConfig } = await import("./services/tiktokConfigService.js");
+// TikTok API for Business — a DIFFERENT app from the lines above (which are
+// TikTok for Developers / Content Posting). Status endpoint only: the Business
+// app is PENDING review, so there is no App ID, no OAuth, and no webhook mount.
+const { default: tiktokBusinessRoutes } = await import("./routes/tiktokBusiness.js");
 const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecoveryService.js");
@@ -1916,6 +1920,9 @@ app.use("/api/webhooks/telegram", telegramWebhookRoutes);
 app.use("/api/tiktok", tiktokRoutes);
 // Registered in the TikTok Developer Portal as the Webhook Callback URL.
 app.use("/api/webhooks/tiktok", tiktokWebhookRoutes);
+// Read-only status for the pending TikTok API for Business app. No OAuth and no
+// webhook mount until the app is approved — see routes/tiktokBusinessWebhook.js.
+app.use("/api/tiktok-business", tiktokBusinessRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
 app.use("/api/ai-studio", aiWorkflowRoutes);

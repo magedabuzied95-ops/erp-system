@@ -1556,9 +1556,29 @@
     "friendly": "ودّي",
     "sales": "عروض"
   },
+  "tiktokBusiness": {
+    "title": "رسائل وتعليقات تيك توك للأعمال",
+    "subtitle": "تطبيق تيك توك منفصل عن النشر. غير مفعّل بعد.",
+    "separateFromPublishing": "هذا ليس نفس ربط «نشر تيك توك» بالأعلى. ربط حساب تيك توك للنشر لا يمنح صلاحية الرسائل أو التعليقات.",
+    "appReview": "تطبيق المطوّر",
+    "appStatusPending": "قيد المراجعة",
+    "requestedPermissions": "الصلاحيات المطلوبة",
+    "messagingTitle": "رسائل الأعمال (صندوق الذكاء الاصطناعي)",
+    "messagingPending": "في انتظار صلاحية TikTok Business Messaging",
+    "commentsTitle": "التعليقات (مركز تعليقات السوشيال)",
+    "commentsPending": "في انتظار اعتماد تطبيق TikTok API for Business",
+    "blockersTitle": "ما زال مطلوبًا",
+    "blocker": {
+      "developer_app_approved": "اعتماد تيك توك لتطبيق M1 Store ERP",
+      "business_app_id_issued": "إصدار تيك توك لـBusiness App ID",
+      "data_security_privacy_review": "إتمام مراجعة أمان وخصوصية البيانات",
+      "business_messaging_permission": "منح صلاحية Business Messaging بطلب منفصل"
+    },
+    "noFakeData": "لا تظهر أي محادثات أو تعليقات تيك توك في أي مكان بالتطبيق، لأنه لا يمكن قراءة أي منها بعد."
+  },
   "tiktok": {
-    "title": "تيك توك",
-    "subtitle": "قناة نشر — اربط حساب تيك توك لنشر الفيديوهات من ناشر السوشيال.",
+    "title": "نشر تيك توك",
+    "subtitle": "قناة نشر — اربط حساب تيك توك لنشر الفيديوهات من ناشر السوشيال. لا تشمل الرسائل أو التعليقات.",
     "notConfigured": "لم يتم ضبط تيك توك على الخادم بعد. اضبط متغيرات البيئة الخاصة بتيك توك قبل الربط.",
     "commentsPending": "إدارة تعليقات تيك توك تتطلب صلاحية منفصلة من TikTok API for Business لم نحصل عليها بعد. لا توجد أي ميزة تعليقات مفعّلة.",
     "lastSync": "آخر مزامنة",

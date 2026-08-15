@@ -27,6 +27,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser, isMetaReviewerUser } from "../../../shared/auth/authStorage";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import TikTokConnectionCard from "../components/TikTokConnectionCard";
+import TikTokBusinessCard from "../components/TikTokBusinessCard";
 import { useTenant } from "../../saas/context/TenantContext";
 
 const CHANNELS = [
@@ -697,6 +698,13 @@ function AiChannelsWorkspace() {
         {/* Publishing channel, not a conversation channel — rendered outside the
             grid below so it is not read as another inbox source. */}
         <TikTokConnectionCard />
+
+        {/* The OTHER TikTok app. Sits directly beneath the publishing card so the
+            two approval states are read together: publishing is connectable
+            today, messaging and comments are not. Still outside the grid — it is
+            not an inbox source either, and will not become one until TikTok
+            grants Business Messaging. */}
+        <TikTokBusinessCard />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {channelCards.map((channel) => {

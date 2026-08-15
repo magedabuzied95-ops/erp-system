@@ -13,6 +13,7 @@ import {
   DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   updateSocialAutomationSettings,
 } from "./socialAutomationSettingsService.js";
+import { normalizePlatform, isInstagram, isFacebook } from "./socialCommentPlatforms.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -323,9 +324,12 @@ const ensureSocialCommentsCenterSchema = async () => {
   return socialCommentsCenterSchemaReadyPromise;
 };
 
-const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
-const isInstagram = (value = "") => normalizePlatform(value) === "instagram";
-const isFacebook = (value = "") => normalizePlatform(value) === "facebook";
+// normalizePlatform / isInstagram / isFacebook now come from the platform
+// registry (imported at the top of this file). Behaviour is unchanged: the
+// registry's normalizePlatform is byte-for-byte the previous implementation
+// ("instagram" -> instagram, everything else -> facebook), so the binary SQL
+// CASE sites below still receive exactly the two values they always did.
+// See socialCommentPlatforms.js for why those sites are not converted yet.
 
 const cleanCommentText = (value = "") => text(value);
 

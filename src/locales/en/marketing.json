@@ -1556,9 +1556,29 @@
     "friendly": "Friendly",
     "sales": "Sales"
   },
+  "tiktokBusiness": {
+    "title": "TikTok Business Messaging & Comments",
+    "subtitle": "A separate TikTok app from publishing. Not active yet.",
+    "separateFromPublishing": "This is not the same connection as TikTok Publishing above. Connecting a TikTok account for posting does not grant messaging or comments.",
+    "appReview": "Developer app",
+    "appStatusPending": "Pending review",
+    "requestedPermissions": "Requested permissions",
+    "messagingTitle": "Business Messaging (AI Inbox)",
+    "messagingPending": "Awaiting TikTok Business Messaging permission",
+    "commentsTitle": "Comments (Social Comments Center)",
+    "commentsPending": "Awaiting TikTok API for Business app approval",
+    "blockersTitle": "Still required",
+    "blocker": {
+      "developer_app_approved": "TikTok approves the M1 Store ERP developer app",
+      "business_app_id_issued": "TikTok issues a Business App ID",
+      "data_security_privacy_review": "Data Security & Privacy review is completed",
+      "business_messaging_permission": "Business Messaging permission is granted separately"
+    },
+    "noFakeData": "No TikTok conversations or comments are shown anywhere in the app, because none can be read yet."
+  },
   "tiktok": {
-    "title": "TikTok",
-    "subtitle": "Publishing channel — connect a TikTok account to post videos from the Social Publisher.",
+    "title": "TikTok Publishing",
+    "subtitle": "Publishing channel — connect a TikTok account to post videos from the Social Publisher. Does not include DMs or comments.",
     "notConfigured": "TikTok is not configured on the server yet. Set the TikTok environment variables before connecting.",
     "commentsPending": "TikTok comment management requires separate TikTok API for Business access, which has not been granted yet. No comment features are active.",
     "lastSync": "Last sync",

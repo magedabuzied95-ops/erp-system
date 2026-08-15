@@ -62,6 +62,7 @@ server/services/*
 !server/services/aiSupportKnowledgeBaseService.js
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
+!server/services/socialCommentPlatforms.js
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -101,3 +102,4 @@ server/services/*
 !server/services/aiSupportKnowledgeBaseService.js
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
+!server/services/socialCommentPlatforms.js
