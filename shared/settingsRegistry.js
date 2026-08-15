@@ -123,6 +123,7 @@ const definitions = [
   ["orders.bosta_enabled", "shipping", "boolean", false, "Bosta enabled", "Bosta enabled", "Enable Bosta delivery integration.", "Enable Bosta delivery integration.", { usedBy: ["Shipping"] }],
   ["orders.bosta_api_base_url", "shipping", "url", "https://app.bosta.co/api/v2", "Bosta API base URL", "Bosta API base URL", "Base URL for Bosta API requests.", "Base URL for Bosta API requests.", { usedBy: ["Shipping"] }],
   ["orders.bosta_api_key", "shipping", "secret", "", "Bosta API key", "مفتاح بوسطة", "Secret key for Bosta shipping.", "مفتاح سري لتكامل بوسطة.", { isSecret: true, usedBy: ["Shipping"] }],
+  ["orders.bosta_webhook_secret", "shipping", "secret", "", "Bosta webhook secret", "مفتاح ويبهوك بوسطة", "Shared secret Bosta signs status callbacks with.", "المفتاح الذي توقّع به بوسطة تحديثات حالة الشحنة.", { isSecret: true, usedBy: ["Shipping"] }],
   ["orders.mylerz_api_key", "shipping", "secret", "", "Mylerz API key", "مفتاح مايلرز", "Placeholder for Mylerz integration.", "عنصر جاهز لتكامل مايلرز لاحقا.", { isSecret: true, placeholder: true, usedBy: ["Shipping"] }],
   ["orders.shipblu_api_key", "shipping", "secret", "", "ShipBlu API key", "مفتاح شيب بلو", "Placeholder for ShipBlu integration.", "عنصر جاهز لتكامل شيب بلو لاحقا.", { isSecret: true, placeholder: true, usedBy: ["Shipping"] }],
 

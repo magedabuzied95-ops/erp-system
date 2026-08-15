@@ -47,6 +47,7 @@ export const updateBostaProviderSettings = async (req, res) => {
       enabled: req.body?.enabled ?? req.body?.is_enabled,
       apiKey: req.body?.api_key ?? req.body?.apiKey,
       apiBaseUrl: req.body?.api_base_url ?? req.body?.apiBaseUrl,
+      webhookSecret: req.body?.webhook_secret ?? req.body?.webhookSecret,
       updatedBy: req.user?.id || null,
     });
     return res.json({ success: true, provider });

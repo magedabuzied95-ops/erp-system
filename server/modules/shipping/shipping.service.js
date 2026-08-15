@@ -13,6 +13,29 @@ let shippingSchemaEnsured = false;
 let shippingSchemaEnsurePromise = null;
 
 const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.";
+const BOSTA_NOT_CONFIGURED_MESSAGE = "لم يتم إنشاء أي شحنة على بوسطة: مفتاح الـ API غير مضبوط. أضفه من إعدادات الشحن ثم أعد المحاولة.";
+const BOSTA_DISABLED_MESSAGE = "تكامل بوسطة معطّل في إعدادات الشحن. فعّله أولاً قبل إنشاء الشحنات.";
+
+// Turning the integration off has to actually stop new deliveries, otherwise the
+// toggle is decoration. Refresh and cancel stay open on purpose: shipments already
+// with the courier still need tracking and cancelling after the switch is flipped.
+const bostaDisabledError = () => {
+  const error = new Error(BOSTA_DISABLED_MESSAGE);
+  error.status = 409;
+  error.code = "BOSTA_DISABLED";
+  return error;
+};
+
+// A shipment that never reached Bosta must never look like one that did. This used
+// to write a `manual-bosta-<id>` number and report success, so an order could sit
+// in the ERP as "shipment created" while the courier had never heard of it.
+const bostaNotConfiguredError = (reason = "bosta_credentials_missing") => {
+  const error = new Error(BOSTA_NOT_CONFIGURED_MESSAGE);
+  error.status = 409;
+  error.code = "BOSTA_NOT_CONFIGURED";
+  error.payload = { reason };
+  return error;
+};
 
 const bostaErrorCode = (payload = {}) => {
   const nestedError = payload?.error && typeof payload.error === "object" ? payload.error : {};
@@ -340,6 +363,7 @@ export const getBostaSettings = async () => {
     enabled: Boolean(provider.is_enabled),
     api_base_url: provider.api_base_url || settingsBaseUrl || process.env.BOSTA_API_BASE_URL || "https://app.bosta.co/api/v2",
     has_api_key: Boolean(provider.api_key || settingsKey || process.env.BOSTA_API_KEY),
+    has_webhook_secret: Boolean(await webhookSecret()),
     last_locations_sync_at: provider.last_locations_sync_at,
     last_locations_sync_counts: provider.last_locations_sync_counts || {},
   };
@@ -390,13 +414,16 @@ export const getBostaIntegrationStatus = async ({ req } = {}) => {
   };
 };
 
-export const saveBostaSettings = async ({ enabled, apiKey, apiBaseUrl, updatedBy } = {}) => {
+export const saveBostaSettings = async ({ enabled, apiKey, apiBaseUrl, webhookSecret: nextWebhookSecret, updatedBy } = {}) => {
   await ensureShippingSchema();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     if (apiKey !== undefined) await setSetting("orders.bosta_api_key", apiKey, "shipping", updatedBy);
     if (apiBaseUrl !== undefined) await setSetting("orders.bosta_api_base_url", apiBaseUrl, "shipping", updatedBy);
+    // Without this the webhook secret had no UI at all, so every Bosta status
+    // callback was rejected in production for a missing secret.
+    if (nextWebhookSecret !== undefined) await setSetting("orders.bosta_webhook_secret", nextWebhookSecret, "shipping", updatedBy);
     const provider = await upsertShippingProvider(client, {
       code: "bosta",
       name: "Bosta",
@@ -406,7 +433,7 @@ export const saveBostaSettings = async ({ enabled, apiKey, apiBaseUrl, updatedBy
     });
     await client.query("COMMIT");
     const { api_key: _apiKey, api_key_encrypted: _apiKeyEncrypted, ...safeProvider } = provider;
-    return { ...safeProvider, has_api_key: Boolean(provider.api_key || apiKey) };
+    return { ...safeProvider, has_api_key: Boolean(provider.api_key || apiKey), has_webhook_secret: Boolean(await webhookSecret()) };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -418,6 +445,7 @@ export const saveBostaSettings = async ({ enabled, apiKey, apiBaseUrl, updatedBy
 const bostaConfig = async () => {
   const provider = await getProvider(db, "bosta");
   return {
+    enabled: Boolean(provider.is_enabled),
     apiKey: provider.api_key || (await getSetting("orders.bosta_api_key", "")) || process.env.BOSTA_API_KEY || "",
     apiBaseUrl: provider.api_base_url || (await getSetting("orders.bosta_api_base_url", "")) || process.env.BOSTA_API_BASE_URL || "https://app.bosta.co/api/v2",
   };
@@ -589,73 +617,6 @@ const loadOrderShipmentContext = async (client, orderId) => {
   return { order, items: itemsResult.rows, city: cityResult.rows[0], zone: zoneResult.rows[0], district: districtResult.rows[0] };
 };
 
-const markBostaShipmentCreatedFallback = async (client, order, reason = "bosta_credentials_missing") => {
-  const status = "shipment_created";
-  const shipmentId = text(order.shipping_provider_delivery_id || order.shipment_id || order.shipping_tracking_number || order.tracking_number) || `manual-bosta-${order.id}`;
-  const trackingNumber = text(order.shipping_tracking_number || order.tracking_number) || null;
-  const trackingUrl = text(order.tracking_url) || null;
-  const rawResponse = {
-    fallback: true,
-    reason,
-    message: "Bosta is not configured. Shipment was marked as created manually.",
-  };
-  const timelineEvent = {
-    at: nowIso(),
-    action: "bosta_create_fallback",
-    provider: "bosta",
-    status,
-    shipment_id: shipmentId,
-    tracking_number: trackingNumber,
-    reason,
-  };
-  const params = [order.id, shipmentId, trackingNumber, trackingUrl, status, JSON.stringify(rawResponse), JSON.stringify([timelineEvent])];
-  console.info("[shipment-status-update]", {
-    order_id: order.id,
-    old_status: text(order.shipment_status || order.shipping_status) || "pending",
-    new_status: status,
-    params,
-  });
-
-  const updateResult = await client.query(
-    `
-    UPDATE orders SET
-      shipping_provider = 'bosta',
-      shipping_provider_id = 'bosta',
-      shipping_provider_delivery_id = $2::varchar,
-      shipment_id = $2::varchar,
-      shipping_tracking_number = $3::varchar,
-      tracking_number = $3::varchar,
-      tracking_url = $4::text,
-      shipping_status = $5::varchar,
-      shipment_status = $5::varchar,
-      shipping_last_synced_at = CURRENT_TIMESTAMP,
-      last_shipping_sync_at = CURRENT_TIMESTAMP,
-      shipping_raw_payload = $6::jsonb,
-      shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $7::jsonb,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1
-    RETURNING *
-    `,
-    params
-  );
-  const updatedOrder = updateResult.rows[0];
-  return {
-    success: true,
-    provider: "bosta",
-    provider_id: "bosta",
-    status,
-    shipping_status: status,
-    shipment_id: shipmentId,
-    tracking_number: trackingNumber,
-    tracking_url: trackingUrl,
-    fallback: true,
-    reason,
-    message: rawResponse.message,
-    raw_response: rawResponse,
-    order: updatedOrder,
-  };
-};
-
 export const createBostaShipmentForOrder = async (orderId) => {
   await ensureShippingSchema();
   const client = await db.connect();
@@ -664,13 +625,13 @@ export const createBostaShipmentForOrder = async (orderId) => {
     const context = await loadOrderShipmentContext(client, orderId);
     const { order, items, city, zone, district } = context;
     const config = await bostaConfig();
+    if (!config.enabled) {
+      console.error("[bosta] refusing to create a shipment while the integration is disabled", { orderId: order.id });
+      throw bostaDisabledError();
+    }
     if (!text(config.apiKey)) {
-      const response = await markBostaShipmentCreatedFallback(client, order, "bosta_credentials_missing");
-      await client.query("COMMIT");
-      sendShipmentCreated(response.order).catch((error) => {
-        console.warn("[whatsapp:shipment-notification-skipped]", { orderId: response.order?.id, status: response.status, message: error?.message || String(error) });
-      });
-      return response;
+      console.error("[bosta] refusing to create a shipment without credentials", { orderId: order.id });
+      throw bostaNotConfiguredError("bosta_credentials_missing");
     }
 
     const missing = [];
@@ -703,12 +664,8 @@ export const createBostaShipmentForOrder = async (orderId) => {
       console.log("[bosta-create-response]", JSON.stringify(rawBostaResponse));
     } catch (apiError) {
       if (isBostaCredentialsMissingError(apiError)) {
-        const response = await markBostaShipmentCreatedFallback(client, order, "bosta_credentials_missing");
-        await client.query("COMMIT");
-        sendShipmentCreated(response.order).catch((error) => {
-          console.warn("[whatsapp:shipment-notification-skipped]", { orderId: response.order?.id, status: response.status, message: error?.message || String(error) });
-        });
-        return response;
+        console.error("[bosta] delivery rejected for missing credentials", { orderId: order.id, message: apiError?.message });
+        throw bostaNotConfiguredError("bosta_credentials_rejected");
       }
       const rawErrorPayload = apiError?.payload || { message: apiError?.message, status: apiError?.status };
       console.error("[bosta-create-response]", JSON.stringify(rawErrorPayload));

@@ -221,7 +221,7 @@ const sectionMap = {
     ["Free Shipping Rules", ["storefront.shipping_zones"]],
     ["COD Rules", ["storefront.shipping_zones"]],
     ["Shipping Proof Rules", ["storefront.shipping_zones"]],
-    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.mylerz_api_key", "orders.shipblu_api_key"]],
+    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.mylerz_api_key", "orders.shipblu_api_key"]],
   ],
   payments: [
     ["Cash on Delivery", ["orders.allow_cod"]],
@@ -1704,7 +1704,7 @@ function ProviderBadgePicker({ value, onChange }) {
 
 function BostaIntegrationPanel({ copy }) {
   const { t } = useTranslation();
-  const [settings, setSettings] = useState({ enabled: false, api_base_url: "https://app.bosta.co/api/v2", api_key: "" });
+  const [settings, setSettings] = useState({ enabled: false, api_base_url: "https://app.bosta.co/api/v2", api_key: "", webhook_secret: "" });
   const [status, setStatus] = useState(null);
   const [syncState, setSyncState] = useState({ loading: false, counts: null, error: "" });
   const [locations, setLocations] = useState([]);
@@ -1728,6 +1728,7 @@ function BostaIntegrationPanel({ copy }) {
         enabled: Boolean(next.enabled),
         api_base_url: next.api_base_url || "https://app.bosta.co/api/v2",
         api_key: next.has_api_key ? "********" : "",
+        webhook_secret: next.has_webhook_secret ? "********" : "",
         last_locations_sync_at: next.last_locations_sync_at || "",
         last_locations_sync_counts: next.last_locations_sync_counts || {},
       });
@@ -1764,6 +1765,7 @@ function BostaIntegrationPanel({ copy }) {
       enabled: settings.enabled,
       api_base_url: settings.api_base_url,
       api_key: settings.api_key === "********" ? undefined : settings.api_key,
+      webhook_secret: settings.webhook_secret === "********" ? undefined : settings.webhook_secret,
     };
     await api.put("/shipping/providers/bosta/settings", payload);
     toast.success(copy.bostaSaved || "Bosta settings saved");
@@ -1790,7 +1792,7 @@ function BostaIntegrationPanel({ copy }) {
   const statusItems = [
     ["API Connected", status?.api_connected],
     ["Locations Synced", status?.locations_synced],
-    ["Webhook Registered", status?.webhook_registered],
+    ["Webhook Secret", status?.webhook_secret_configured],
     ["Last Webhook Received", Boolean(status?.last_webhook_received_at), status?.last_webhook_received_at ? new Date(status.last_webhook_received_at).toLocaleString() : "No events yet"],
     ["Last Sync Date", Boolean(status?.last_locations_sync_at || settings.last_locations_sync_at), status?.last_locations_sync_at || settings.last_locations_sync_at ? new Date(status?.last_locations_sync_at || settings.last_locations_sync_at).toLocaleString() : "Not synced"],
   ];
@@ -1816,6 +1818,11 @@ function BostaIntegrationPanel({ copy }) {
               <label>
                 <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.apiKey")}</span>
                 <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder={t("settings.shipping.apiKeyPlaceholder")} />
+              </label>
+              <label>
+                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.bostaWebhookSecret || "Webhook secret"}</span>
+                <input type="password" value={settings.webhook_secret} onChange={(event) => setSettings((current) => ({ ...current, webhook_secret: event.target.value }))} className={inputClass} placeholder={t("settings.shipping.apiKeyPlaceholder")} />
+                <span className={`mt-2 block text-[11px] leading-5 ${bodyText}`}>{copy.bostaWebhookSecretHint || "Paste the same value into the Bosta dashboard webhook. Without it every status callback is rejected."}</span>
               </label>
               <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 dark:bg-white dark:text-[var(--primary-contrast)]">
                 <Save className="h-4 w-4" />
