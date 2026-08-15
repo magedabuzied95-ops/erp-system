@@ -74,13 +74,17 @@ test("the private reply captures the commenter identity Meta returns", () => {
   // The DM is sent to recipient:{comment_id}; Meta answers with recipient_id (the PSID),
   // which is the only identity handle a reel comment ever exposes.
   assert.match(MARKETING_SERVICE, /recipientId: payload\?\.recipient_id \|\| ""/);
-  assert.match(MARKETING_SERVICE, /target\.searchParams\.set\("fields", "name,first_name,last_name,profile_pic"\)/);
+  // A PSID is a Messenger user node: it has no `name` field, and asking for one
+  // fails the whole lookup with "(#100) nonexisting field".
+  assert.match(MARKETING_SERVICE, /target\.searchParams\.set\("fields", "first_name,last_name,profile_pic"\)/);
   assert.match(MARKETING_SERVICE, /SOCIAL_COMMENT_COMMENTER_IDENTITY_RESOLVED/);
 });
 
 test("identity enrichment backfills without overwriting a known name", () => {
-  assert.match(MARKETING_SERVICE, /commenter_name = COALESCE\(NULLIF\(commenter_name, ''\), NULLIF\(\$4::text, ''\)\)/);
-  assert.match(MARKETING_SERVICE, /commenter_id = COALESCE\(NULLIF\(commenter_id, ''\), \$3::text\)/);
+  // Both columns are NOT NULL DEFAULT '', so the COALESCE has to end in '' —
+  // without it an unresolved name wrote NULL and the whole update failed.
+  assert.match(MARKETING_SERVICE, /commenter_name = COALESCE\(NULLIF\(commenter_name, ''\), NULLIF\(\$4::text, ''\), ''\)/);
+  assert.match(MARKETING_SERVICE, /commenter_id = COALESCE\(NULLIF\(commenter_id, ''\), NULLIF\(\$3::text, ''\), ''\)/);
 });
 
 test("identity enrichment can never break the reply that already shipped", () => {

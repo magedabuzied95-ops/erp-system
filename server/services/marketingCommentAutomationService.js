@@ -428,13 +428,15 @@ const enrichCommenterIdentityFromPrivateReply = async ({
   if (accessToken) {
     try {
       const target = new URL(`${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(safeRecipientId)}`);
-      target.searchParams.set("fields", "name,first_name,last_name,profile_pic");
+      // A PSID resolves to a Messenger user node, which has no `name` field —
+      // asking for it fails the whole call with "(#100) nonexisting field".
+      target.searchParams.set("fields", "first_name,last_name,profile_pic");
       target.searchParams.set("access_token", accessToken);
       const response = await fetch(target.toString(), { method: "GET" });
       const payload = await parseMetaResponse(response);
       if (response.ok) {
-        profileName = trimString(payload?.name)
-          || trimString([payload?.first_name, payload?.last_name].map(trimString).filter(Boolean).join(" "));
+        profileName = trimString([payload?.first_name, payload?.last_name].map(trimString).filter(Boolean).join(" "))
+          || trimString(payload?.name);
       } else {
         profileError = getMetaErrorMessage(payload, "profile_lookup_failed");
       }
@@ -456,8 +458,8 @@ const enrichCommenterIdentityFromPrivateReply = async ({
     await db.query(
       `
       UPDATE social_comment_automation_runs
-      SET commenter_id = COALESCE(NULLIF(commenter_id, ''), $3::text),
-          commenter_name = COALESCE(NULLIF(commenter_name, ''), NULLIF($4::text, '')),
+      SET commenter_id = COALESCE(NULLIF(commenter_id, ''), NULLIF($3::text, ''), ''),
+          commenter_name = COALESCE(NULLIF(commenter_name, ''), NULLIF($4::text, ''), ''),
           updated_at = CURRENT_TIMESTAMP
       WHERE tenant_id = $1::bigint
         AND comment_id = $2::text
