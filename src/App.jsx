@@ -400,7 +400,7 @@ function App() {
     );
   }
 
-  if (enableErpAppRoutes && getToken() && isMetaReviewerUser() && location.pathname === "/login") {
+  if (enableErpAppRoutes && getToken() && isMetaReviewerUser() && location.pathname !== "/admin/ai-inbox") {
     return <Navigate to="/admin/ai-inbox" replace />;
   }
 

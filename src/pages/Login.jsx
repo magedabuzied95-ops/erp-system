@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../shared/api/api";
-import { setAuth, getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
+import { isMetaReviewerUser, setAuth, getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
 import { API_BASE_URL } from "../shared/constants/app.js?m1PreviewApi=2";
 
 function BrandBadge({ name, logoUrl }) {
@@ -125,8 +125,7 @@ function Login() {
         },
       });
 
-      const role = String(data?.user?.role || data?.user?.role_name || "").toLowerCase();
-      window.location.href = data?.user?.account_mode === "meta_reviewer" || role === "meta_reviewer" ? "/admin/ai-inbox" : "/dashboard";
+      window.location.href = isMetaReviewerUser(data?.user) ? "/admin/ai-inbox" : "/dashboard";
     } catch (loginError) {
       console.log(loginError);
       console.error("[login] fetch error details:", {
