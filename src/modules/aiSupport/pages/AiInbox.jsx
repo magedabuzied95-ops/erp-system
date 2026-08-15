@@ -3692,7 +3692,10 @@ const AI_INBOX_PAYMENT_METHODS = [
   { id: "vodafone_cash", labelKey: "aiSupport.inbox.order.paymentVodafoneCash" },
 ];
 
-const composerLineKey = (line = {}) => `${line.product_id || ""}:${line.variant_id || ""}`;
+// A cart row is identified by the model, and a model without a variant id is still
+// pinned by its colour+size — which is what the server resolves it from.
+const composerLineKey = (line = {}) =>
+  `${line.product_id || ""}:${line.variant_id || ""}:${clean(line.color || "").toLowerCase()}:${clean(line.size || "").toLowerCase()}`;
 
 // The picker returns product cards; the cart needs one row per chosen model.
 const composerLineFromCard = (card = {}) => ({
@@ -3817,7 +3820,14 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const submitPayload = (confirm) => ({
     confirm,
     payment_method: paymentMethod,
-    items: lines.map((line) => ({ variant_id: line.variant_id, product_id: line.product_id, quantity: Math.max(1, Number(line.quantity) || 1) })),
+    items: lines.map((line) => ({
+      variant_id: line.variant_id,
+      product_id: line.product_id,
+      // Sent so the server can resolve the variant when the picker card had none.
+      color: line.color,
+      size: line.size,
+      quantity: Math.max(1, Number(line.quantity) || 1),
+    })),
     customer_name: customerName,
     customer_phone: customerPhone,
     customer_address: streetAddress,
@@ -6965,7 +6975,11 @@ export default function AiInbox({ reviewerMode = false }) {
   });
   const handleProductCardPickerSubmit = (cards = []) => {
     if (productCardPickerConfig.orderMode) {
-      setComposerPicks(asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.variant_id));
+      // Keep every card that names a product. The picker does NOT always carry a
+      // variant_id (the multi-select path builds its card before a colour/size is
+      // chosen), so the colour+size travel with the line and the server resolves
+      // the variant. Filtering on variant_id here silently emptied the cart.
+      setComposerPicks(asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.product_id));
       closeProductCardPicker();
       return Promise.resolve();
     }

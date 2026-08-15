@@ -1001,14 +1001,52 @@ export const createAiOrderDraftLines = async (payload = {}) => {
   const channel = normalizeOrderChannel(payload.channel || payload.source || payload.metadata?.channel);
   const source = text(payload.source || payload.metadata?.source || channel || "");
 
-  const requestedLines = (Array.isArray(payload.lines) ? payload.lines : [])
+  const rawLines = (Array.isArray(payload.lines) ? payload.lines : [])
     .map((line) => ({
       variant_id: numberOrNull(line?.variant_id ?? line?.variantId),
+      product_id: numberOrNull(line?.product_id ?? line?.productId),
+      color: text(line?.color),
+      size: text(line?.size),
       quantity: Math.max(1, integer(line?.quantity, 1)),
     }))
-    .filter((line) => line.variant_id);
+    .filter((line) => line.variant_id || line.product_id);
+  if (!rawLines.length) {
+    throw Object.assign(new Error("At least one product line is required"), { status: 400, code: "NO_ORDER_LINES" });
+  }
+
+  // A line can arrive as product + colour + size with no variant id: the picker
+  // builds its card before a colour is chosen. Resolving it here keeps the sellable
+  // identity on the server instead of guessing it in the browser.
+  const unresolved = rawLines.filter((line) => !line.variant_id && line.product_id);
+  if (unresolved.length) {
+    const resolved = await db.query(
+      `
+      SELECT v.id, v.product_id, v.color, v.size, COALESCE(v.stock, 0)::int AS stock
+      FROM product_variants v
+      JOIN products p ON p.id = v.product_id
+      WHERE v.product_id = ANY($1::bigint[])
+        AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint)
+        AND v.is_active IS DISTINCT FROM FALSE
+        AND v.deleted_at IS NULL
+      ORDER BY v.id ASC
+      `,
+      [unresolved.map((line) => line.product_id), tenantId || null]
+    );
+    const norm = (value) => text(value).trim().toLowerCase();
+    unresolved.forEach((line) => {
+      const candidates = resolved.rows.filter((row) => Number(row.product_id) === Number(line.product_id));
+      const match =
+        candidates.find((row) => norm(row.color) === norm(line.color) && norm(row.size) === norm(line.size)) ||
+        (line.color ? candidates.find((row) => norm(row.color) === norm(line.color) && row.stock > 0) : null) ||
+        candidates.find((row) => row.stock > 0) ||
+        candidates[0];
+      if (match) line.variant_id = Number(match.id);
+    });
+  }
+
+  const requestedLines = rawLines.filter((line) => line.variant_id);
   if (!requestedLines.length) {
-    throw Object.assign(new Error("At least one product line with a variant is required"), { status: 400, code: "NO_ORDER_LINES" });
+    throw Object.assign(new Error("Could not resolve a model for the selected products"), { status: 409, code: "VARIANT_NOT_RESOLVED" });
   }
 
   // The same variant picked twice is one line with the summed quantity, so the
