@@ -31,6 +31,7 @@ import { buildHumanizedReply } from "./aiHumanizedReplies.js";
 import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema, getTenantStyleProfile } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
+import { arabicSearchContainsSql, arabicSearchSql } from "../utils/arabicSearch.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -2070,6 +2071,50 @@ export const conversationPhoneKeys = (conversation = {}) => {
   ].flatMap(customerPhoneKeys))];
 };
 
+// The name shown on a conversation row is usually the ERP customer name,
+// resolved by phone AFTER the list query has already run (see
+// loadSystemCustomersByPhone). That makes it invisible to the WHERE clause, so
+// searching for the name printed on the screen finds nothing. Walk the join the
+// other way first: find the ERP customers whose name matches, and hand back the
+// phone keys their conversations can be matched on.
+const loadErpCustomerPhoneKeysByName = async ({ tenantId, searchTerm = "" } = {}) => {
+  const term = text(searchTerm);
+  if (!tenantId || !term) return [];
+
+  try {
+    const columnsResult = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customers'`
+    );
+    const columns = new Set(columnsResult.rows.map((row) => text(row.column_name)));
+    const nameColumn = columns.has("name") ? "name" : columns.has("customer_name") ? "customer_name" : "";
+    const phoneColumns = ["phone", "mobile", "phone_number", "mobile_number", "whatsapp", "whatsapp_number"].filter((column) => columns.has(column));
+    if (!nameColumn || !phoneColumns.length) return [];
+
+    const tenantClause = columns.has("tenant_id") ? "AND (c.tenant_id = $1 OR c.tenant_id IS NULL)" : "";
+    const result = await db.query(
+      `
+      SELECT ${phoneColumns.map((column) => `c.${column}::text AS ${column}`).join(", ")}
+      FROM customers c
+      WHERE ${arabicSearchContainsSql(`c.${nameColumn}`, "$2::text")}
+        ${tenantClause}
+      LIMIT 500
+      `,
+      [tenantId, term]
+    );
+
+    const phoneKeys = new Set();
+    for (const row of result.rows) {
+      for (const column of phoneColumns) {
+        for (const key of customerPhoneKeys(row[column])) phoneKeys.add(key);
+      }
+    }
+    return [...phoneKeys];
+  } catch (error) {
+    console.warn("ai_inbox_customer_name_search_failed", { tenant_id: tenantId, message: error?.message || "Customer name search failed" });
+    return [];
+  }
+};
+
 const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {}) => {
   const phoneKeys = [...new Set(conversations.flatMap(conversationPhoneKeys))];
   if (!tenantId || !phoneKeys.length) return new Map();
@@ -2168,17 +2213,45 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     clauses.push("COALESCE(c.channel, s.channel, s.source) = 'telegram'");
   }
   if (searchTerm) {
+    // Raw term for the folded comparisons; the SQL folds it the same way it
+    // folds each column, so "عبدالرحمن" and "عبد الرحمن" find each other.
+    params.push(searchTerm);
+    const termIdx = `$${params.length}`;
     params.push(`%${searchTerm.toLowerCase()}%`);
-    const idx = params.length;
-    clauses.push(`(
-      LOWER(COALESCE(s.customer_name, '')) LIKE $${idx}
-      OR LOWER(COALESCE(c.customer_name, '')) LIKE $${idx}
-      OR LOWER(COALESCE(p.first_name, '')) LIKE $${idx}
-      OR LOWER(COALESCE(p.phone, '')) LIKE $${idx}
-      OR LOWER(COALESCE(c.external_customer_id, '')) LIKE $${idx}
-      OR LOWER(COALESCE(s.session_id, '')) LIKE $${idx}
-      OR LOWER(COALESCE(m.customer_message, m.message_text, s.last_message, c.last_message, '')) LIKE $${idx}
-    )`);
+    const likeIdx = `$${params.length}`;
+
+    const nameMatches = [
+      "s.customer_name",
+      "c.customer_name",
+      "p.display_name",
+      "p.customer_name",
+      "p.first_name",
+      "p.last_name",
+      "CONCAT_WS(' ', p.first_name, p.last_name)",
+      "m.customer_message",
+      "m.message_text",
+      "s.last_message",
+      "c.last_message",
+    ].map((column) => arabicSearchContainsSql(column, `${termIdx}::text`));
+
+    // Phones and opaque ids are digits and latin text; folding them would only
+    // lose information, so they keep the plain contains match.
+    const identifierMatches = [
+      "p.phone",
+      "c.external_customer_id",
+      "s.session_id",
+    ].map((column) => `LOWER(COALESCE(${column}, '')) LIKE ${likeIdx}`);
+
+    const erpCustomerPhoneKeys = await loadErpCustomerPhoneKeysByName({ tenantId, searchTerm });
+    if (erpCustomerPhoneKeys.length) {
+      params.push(erpCustomerPhoneKeys);
+      const keysIdx = `$${params.length}`;
+      for (const column of ["c.external_customer_id", "p.phone", "s.session_id"]) {
+        identifierMatches.push(`${phoneSqlDigits(column)} = ANY(${keysIdx}::text[])`);
+      }
+    }
+
+    clauses.push(`(${[...nameMatches, ...identifierMatches].join(" OR ")})`);
   }
   if (summaryOnly) {
     const summaryStartedAt = Date.now();
