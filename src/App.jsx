@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 ====================================================== */
 
 import { api } from "./shared/api/api";
+import { getPublicSettings } from "./shared/api/publicSettings";
 import { setCurrency } from "./shared/lib/currency";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
 
@@ -356,10 +357,12 @@ function App() {
   useEffect(() => {
     if (isEmployeeAppRoute) return undefined;
     let cancelled = false;
-    api.get("/settings/public", { suppressErrorStatuses: [401, 403, 404, 500] })
-      .then((response) => {
+    // Shared with PublicInvoice and every other consumer. This endpoint returns
+    // ~334KB and was being fetched twice on the invoice page; one in-flight
+    // promise now serves all callers.
+    getPublicSettings()
+      .then((settings) => {
         if (cancelled) return;
-        const settings = response?.settings || {};
         const code = settings["general.default_currency"];
         const symbol = settings["general.currency_symbol"];
         const faviconUrl = isStorefrontRootHost() || isErpHost()
