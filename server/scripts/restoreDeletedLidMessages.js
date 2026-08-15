@@ -27,14 +27,21 @@ const argValue = (name, fallback) => {
 };
 const sourceDatabase = argValue("source", "erp_recover");
 
-const sourcePool = new pg.Pool({
-  host: process.env.DB_HOST || process.env.PGHOST || "erp-postgres",
-  port: Number(process.env.DB_PORT || process.env.PGPORT || 5432),
-  user: process.env.DB_USER || process.env.PGUSER || "erp_user",
-  password: process.env.DB_PASSWORD || process.env.PGPASSWORD || "",
-  database: sourceDatabase,
-  max: 2,
-});
+// Same credentials the app already uses, pointed at the restored backup. When
+// DATABASE_URL is set its database name is swapped for the source one so the
+// two connections cannot drift apart.
+const sourcePool = new pg.Pool(
+  process.env.DATABASE_URL
+    ? { connectionString: process.env.DATABASE_URL.replace(/\/[^/?]+(\?|$)/, `/${sourceDatabase}$1`), max: 2 }
+    : {
+        host: process.env.PGHOST || process.env.DB_HOST || "erp-postgres",
+        port: Number(process.env.PGPORT || process.env.DB_PORT || 5432),
+        user: process.env.PGUSER || process.env.DB_USER || "erp_user",
+        password: process.env.PGPASSWORD || process.env.DB_PASSWORD || "065342",
+        database: sourceDatabase,
+        max: 2,
+      }
+);
 
 // Every WhatsApp message the backup holds for a LID conversation. Anything
 // already present in production is skipped, so this only ever fills gaps.
