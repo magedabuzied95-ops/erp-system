@@ -159,11 +159,20 @@ test("an internal customer id is never used as a WhatsApp recipient", () => {
   // used to win the recipient chain whenever a username customer left the phone
   // field empty — so every reply to them failed.
   const source = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
-  // The invariant is the branch itself: on WhatsApp the LID is consulted, and
-  // conversation.customer_id is reachable only on the other channels.
+  // Every WhatsApp send resolves through whatsappRecipient, which yields a phone
+  // or a LID and nothing else. The PSID / resolved-customer-id / row-id chain is
+  // reachable only on the other channels.
+  assert.match(source, /const whatsappRecipient = /);
+  assert.match(source, /isWhatsAppConversation\s*\n?\s*\?\s*whatsappRecipient\(\{ conversation, channelMetadata \}\)/);
   assert.match(
     source,
-    /isWhatsAppConversation\s*\?\s*whatsappLidRecipient\(\{ conversation, channelMetadata \}\)\s*:\s*conversation\.customer_id/
+    /normalizedChannel === AI_AGENT_CHANNELS\.WHATSAPP\s*\n?\s*\?\s*whatsappRecipient\(\{ conversation, channelMetadata \}\)/
+  );
+  // The helper must never reach for an identifier that is not an address.
+  const helper = source.slice(source.indexOf("const whatsappRecipient = "), source.indexOf("const isWhatsAppStoredOnlyIssue"));
+  assert.ok(
+    !/\.customer_psid|\.sender_psid|\.resolved_customer_id|\.customer_id\b/.test(helper),
+    "whatsappRecipient must not use non-address identifiers"
   );
 });
 

@@ -128,7 +128,7 @@ import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReply
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
-import { normalizeWhatsappLid } from "../utils/whatsappIdentity.js";
+import { normalizeWhatsappLid, normalizeWhatsappPhone } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 import {
   createAiInboxQuickReply,
@@ -4308,6 +4308,27 @@ const whatsappLidRecipient = ({ conversation = {}, channelMetadata = {} } = {}) 
   return "";
 };
 
+/**
+ * The only two things that address a WhatsApp chat: a phone number, or a LID.
+ *
+ * The generic recipient chains also carry Messenger PSIDs, resolved customer
+ * ids and internal row ids. Any of those can be a bare number, so on a WhatsApp
+ * conversation they sail through as a "recipient" and the send fails — or worse,
+ * reaches a stranger. WhatsApp sends resolve here and nowhere else.
+ */
+const whatsappRecipient = ({ conversation = {}, channelMetadata = {} } = {}) => {
+  const phone = [
+    channelMetadata.resolved_phone,
+    channelMetadata.phone,
+    channelMetadata.customer_phone,
+    conversation.external_customer_id,
+    conversation.customer_phone,
+    conversation.phone,
+  ].map((value) => normalizeWhatsappPhone(value)).find(Boolean);
+  if (phone) return phone;
+  return whatsappLidRecipient({ conversation, channelMetadata });
+};
+
 const isWhatsAppStoredOnlyIssue = (error = {}) => {
   const code = envText(error?.code || "");
   if ([
@@ -5294,18 +5315,14 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
     const isWhatsAppConversation = normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP;
     const recipientId = envText(
-      (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
-        channelMetadata.customer_psid ||
-        channelMetadata.sender_psid ||
-        channelMetadata.resolved_customer_id ||
-        conversation.external_customer_id ||
-        // A WhatsApp chat is addressed by a phone number or by a LID, and by
-        // nothing else. conversation.customer_id is an internal row id that
-        // addresses no one — it used to win here the moment a username customer
-        // left the phone field empty, and every send to them failed.
-        (isWhatsAppConversation
-          ? whatsappLidRecipient({ conversation, channelMetadata })
-          : conversation.customer_id)
+      isWhatsAppConversation
+        ? whatsappRecipient({ conversation, channelMetadata })
+        : (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
+          channelMetadata.customer_psid ||
+          channelMetadata.sender_psid ||
+          channelMetadata.resolved_customer_id ||
+          conversation.external_customer_id ||
+          conversation.customer_id
     );
     const isMetaConversation = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM;
     const isTelegramConversation = normalizedChannel === TELEGRAM_CHANNEL;
@@ -5718,15 +5735,17 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       channel: normalizedChannel,
     });
     const externalCustomerId = envText(
-      (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
-        channelMetadata.customer_psid ||
-        channelMetadata.sender_psid ||
-        channelMetadata.resolved_customer_id ||
-        conversation.external_customer_id ||
-        conversation.customer_profile?.external_customer_id ||
-        conversation.customer_profile?.psid ||
-        conversationRecipientId ||
-        ""
+      normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP
+        ? whatsappRecipient({ conversation, channelMetadata }) || conversationRecipientId
+        : (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
+          channelMetadata.customer_psid ||
+          channelMetadata.sender_psid ||
+          channelMetadata.resolved_customer_id ||
+          conversation.external_customer_id ||
+          conversation.customer_profile?.external_customer_id ||
+          conversation.customer_profile?.psid ||
+          conversationRecipientId ||
+          ""
     );
     console.info("[ai-inbox][product-card-send][request]", {
       tenant_id: tenantId,
