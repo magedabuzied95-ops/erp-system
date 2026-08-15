@@ -8864,12 +8864,14 @@ export default function AiInbox({ reviewerMode = false }) {
   );
 
   const renderSocialCommentsWorkspaceFrame = () => (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col">
-      {/* Overlaid so the workspace layout underneath is untouched. */}
+    <>
+      {/* position:fixed — deliberately OUTSIDE the layout. A wrapper div here (even
+          a flex passthrough) sat between the workspace and its parent and tore the
+          panel a few seconds after load. Nothing about the workspace's box changes. */}
       <button
         type="button"
         onClick={handleToggleConversationExpansion}
-        className="absolute left-2 top-2 z-30 grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-slate-950/80 text-white shadow-lg transition hover:bg-slate-900"
+        className="fixed left-[9.5rem] top-[7.2rem] z-[60] grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-slate-950/85 text-white shadow-lg transition hover:bg-slate-900"
         aria-label={conversationExpanded ? "Restore layout" : "Expand layout"}
         title={conversationExpanded ? "Restore layout" : "Expand layout"}
       >
@@ -8911,7 +8913,7 @@ export default function AiInbox({ reviewerMode = false }) {
                   actionLoading={socialCommentActionLoading}
                   tenantId={tenantId}
                 />
-    </div>
+    </>
   );
 
   if (isAnalyticsMode) {
