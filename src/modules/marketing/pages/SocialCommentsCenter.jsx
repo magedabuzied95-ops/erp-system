@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../../shared/api/api";
@@ -845,10 +845,61 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
     setTargetCommentMissing(false);
   }, [platformParam, searchParams, setSearchParams, tenantId]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
   const missingCommentMessage = targetCommentMissing ? "Comment not found or already deleted." : "";
 
+  // Same expand behaviour as the AI Inbox: an in-page overlay AND the real
+  // Fullscreen API, so the workspace fills the screen either way.
+  const fullscreenHostRef = useRef(null);
+  const requestWorkspaceFullscreen = useCallback(() => {
+    const host = fullscreenHostRef.current;
+    if (!host || document.fullscreenElement) return;
+    const request = host.requestFullscreen || host.webkitRequestFullscreen || host.msRequestFullscreen;
+    try {
+      const result = request?.call(host);
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch {
+      /* keep the in-page overlay */
+    }
+  }, []);
+  const exitWorkspaceFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) return;
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    try {
+      const result = exit?.call(document);
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded((current) => {
+      const next = !current;
+      if (next) requestWorkspaceFullscreen();
+      else exitWorkspaceFullscreen();
+      return next;
+    });
+  }, [exitWorkspaceFullscreen, requestWorkspaceFullscreen]);
+  // Leaving fullscreen by Esc/F11 has to collapse the layout too, or the page
+  // stays expanded with no obvious way back.
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setIsExpanded(false);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
   return (
-    <div dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3">
+    <div
+      ref={fullscreenHostRef}
+      dir="rtl"
+      className={`bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white ${
+        isExpanded
+          ? "fixed inset-0 z-[9999] h-[100dvh] w-[100vw] overflow-auto p-2 md:p-3"
+          : "min-h-[100dvh] px-2 py-2 md:px-3 md:py-3"
+      }`}
+    >
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full flex-col gap-2 overflow-hidden">
         <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
           <div className="min-w-0">
@@ -856,15 +907,27 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
             <div className="mt-1 text-xl font-black text-white">{t("marketing.comments.title")}</div>
             <div className="mt-1 text-sm leading-6 text-slate-300">{t("marketing.comments.subtitle")}</div>
           </div>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Refresh
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={loading}
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh
+            </button>
+            {/* Same control the AI Inbox header carries, doing the same thing here. */}
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.07] px-3 text-white shadow-sm transition hover:bg-white/[0.12]"
+              aria-label={isExpanded ? t("marketing.comments.restoreLayout") : t("marketing.comments.expandLayout")}
+              title={isExpanded ? t("marketing.comments.restoreLayout") : t("marketing.comments.expandLayout")}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
         {error ? (

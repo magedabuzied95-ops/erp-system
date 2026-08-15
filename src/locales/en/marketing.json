@@ -1048,7 +1048,9 @@
     "socketPatches": "Socket patches",
     "cacheHits": "Cache hits",
     "cacheMisses": "Cache misses",
-    "customer360": "Customer 360"
+    "customer360": "Customer 360",
+    "expandLayout": "Expand layout",
+    "restoreLayout": "Restore layout"
   },
   "aiCenter": {
     "toasts": {

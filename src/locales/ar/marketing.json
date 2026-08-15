@@ -1048,7 +1048,9 @@
     "socketPatches": "تحديثات السوكيت",
     "cacheHits": "إصابات الذاكرة المؤقتة",
     "cacheMisses": "إخفاقات الذاكرة المؤقتة",
-    "customer360": "ملف العميل 360"
+    "customer360": "ملف العميل 360",
+    "expandLayout": "تكبير الشاشة",
+    "restoreLayout": "استعادة الحجم"
   },
   "aiCenter": {
     "toasts": {
