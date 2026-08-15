@@ -565,6 +565,11 @@ const normalizeConversationSessionId = (value = "", channel = "") => {
     /@(?:s\.whatsapp\.net|lid)$/i.test(raw) ||
     (!detectedPrefix && /^\+?\d+$/.test(baseSessionId))
   ) {
+    // A customer who hides their number behind a WhatsApp username is keyed by
+    // their LID, which has its own key space. Scraping its digits out rewrites
+    // the key and sends the reply into a thread of its own.
+    const lid = (/^lid:(\d+)$/i.exec(baseSessionId) || /^(\d+)@lid$/i.exec(raw) || [])[1] || "";
+    if (lid) return `whatsapp:lid:${lid}`;
     const digits = clean(baseSessionId).replace(/^whatsapp:/i, "").replace(/@(?:s\.whatsapp\.net|lid)$/i, "").replace(/\D/g, "");
     if (digits) return `whatsapp:${digits.startsWith("20") && digits.length === 12 ? digits : digits.startsWith("0") && digits.length === 11 ? `20${digits.slice(1)}` : digits}`;
   }

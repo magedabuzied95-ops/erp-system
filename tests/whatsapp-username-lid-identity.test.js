@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import {
@@ -151,4 +152,16 @@ test("a reply to an ordinary chat is still addressed to the number", () => {
 test("a group is still never given a reply target", () => {
   const target = resolveOutboundWhatsappReplyTarget({ remoteJid: "120363023609197653@g.us", isGroup: true });
   assert.equal(target.resolvedNumber, "");
+});
+
+test("the PWA keeps a LID conversation key instead of scraping its digits", () => {
+  // The inbox normalises the conversation key before it sends. Reducing
+  // "whatsapp:lid:<id>" to "whatsapp:<id>" there put the staff reply into a
+  // second thread even though the backend had the customer keyed correctly.
+  const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+  assert.match(source, /return `whatsapp:lid:\$\{lid\}`/);
+  const normalizer = source.slice(source.indexOf("const normalizeConversationSessionId"));
+  const lidBranch = normalizer.indexOf("whatsapp:lid:${lid}");
+  const digitsBranch = normalizer.indexOf("replace(/\\D/g, \"\")");
+  assert.ok(lidBranch > 0 && lidBranch < digitsBranch, "the LID branch must run before the digits fallback");
 });
