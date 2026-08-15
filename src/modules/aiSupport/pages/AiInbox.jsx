@@ -8951,8 +8951,17 @@ export default function AiInbox({ reviewerMode = false }) {
   }
 
   if (isSocialMode) {
+    // Expanding hands THIS element to the Fullscreen API and paints the same
+    // overlay classes the conversation view uses. The comments section had no such
+    // wrapper, which is why the toggle flipped but nothing actually grew.
     return (
-      <div dir="ltr" className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
+      <div
+        ref={fullscreenHostRef}
+        dir="ltr"
+        className={`ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] ${
+          conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] h-[100vh] w-[100vw] max-w-none" : ""
+        }`}
+      >
         {toast.text ? (
           <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
             toast.tone === "rose"
