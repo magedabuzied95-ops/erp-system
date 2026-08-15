@@ -320,7 +320,7 @@ export default function PublicInvoice() {
                 store than to print an invoice. Download and print stay on
                 desktop, where printing actually happens. */}
             {reviewLinks.map((link) => (
-              <SocialButton key={`top-${link.key}`} link={link} className="sm:hidden" />
+              <SocialButton key={`top-${link.key}`} link={link} className="inline-flex sm:hidden" />
             ))}
             <a
               href={`${getPublicAppUrl()}/api/public/invoices/${encodeURIComponent(resolvedToken)}/pdf`}
@@ -366,7 +366,7 @@ export default function PublicInvoice() {
               carries the follow/contact actions instead. Desktop keeps the
               original three. */}
           {mobileContactLinks.map((link) => (
-            <SocialButton key={`bottom-${link.key}`} link={link} className="sm:hidden" />
+            <SocialButton key={`bottom-${link.key}`} link={link} className="inline-flex sm:hidden" />
           ))}
           {reviewLinks.map((link) => (
             <SocialButton key={`bottom-desktop-${link.key}`} link={link} className="hidden sm:inline-flex" />
