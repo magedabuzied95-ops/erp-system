@@ -6993,7 +6993,13 @@ export default function AiInbox({ reviewerMode = false }) {
         !["token_expired", "expired", "invalid", "revoked", "error"].includes(clean(selectedChannelStatus.token_status || selectedChannelStatus.token_health_status).toLowerCase()))
   );
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
-  const conversationExpanded = Boolean(isConversationExpanded && selectedConversation && inboxSection === "conversations");
+  // The expand control serves the comments section too — same overlay, same
+  // Fullscreen API, same host element. The conversation view needs a conversation
+  // open to be worth expanding; the comments workspace is expandable on its own.
+  const conversationExpanded = Boolean(
+    isConversationExpanded &&
+      (inboxSection === "social_comments" || (selectedConversation && inboxSection === "conversations"))
+  );
   const fullscreenConversation = conversationExpanded;
   const fullscreenOverlayTarget = conversationExpanded ? fullscreenHostRef.current : null;
   // The expand button used to only stretch the conversation inside the ERP shell:
@@ -8858,6 +8864,17 @@ export default function AiInbox({ reviewerMode = false }) {
   );
 
   const renderSocialCommentsWorkspaceFrame = () => (
+    <div className="relative flex min-h-0 w-full flex-1 flex-col">
+      {/* Overlaid so the workspace layout underneath is untouched. */}
+      <button
+        type="button"
+        onClick={handleToggleConversationExpansion}
+        className="absolute left-2 top-2 z-30 grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-slate-950/80 text-white shadow-lg transition hover:bg-slate-900"
+        aria-label={conversationExpanded ? "Restore layout" : "Expand layout"}
+        title={conversationExpanded ? "Restore layout" : "Expand layout"}
+      >
+        {conversationExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      </button>
     <SocialCommentsWorkspace
         drawerRequest={socialDrawerRequest}
         items={visibleSocialComments}
@@ -8894,6 +8911,7 @@ export default function AiInbox({ reviewerMode = false }) {
                   actionLoading={socialCommentActionLoading}
                   tenantId={tenantId}
                 />
+    </div>
   );
 
   if (isAnalyticsMode) {
