@@ -5277,8 +5277,44 @@ export const buildAiSupportImageRankingDebug = async ({ tenantId, query = "jorda
   };
 };
 
+const envFlagEnabled = (value) => ["1", "true", "yes", "on"].includes(toText(value).toLowerCase());
+
+/**
+ * Promotes an intent to human_support when the understanding pass sees a person is
+ * needed and the keyword list did not.
+ *
+ * The keyword list (HUMAN_SUPPORT_TERMS) only matches explicit requests for a person.
+ * It reads "عايز فلوسي ترجع" as product_discovery, so a customer asking for their
+ * money back is answered with product suggestions, and "انتوا نصابين، بقالي اسبوع
+ * مستني" as general. Those are the worst replies the system can send, and they are
+ * exactly what the understanding pass classifies correctly.
+ *
+ * Escalation only ever ADDS a handoff — it never takes one away, and it never
+ * downgrades an intent the keyword list already resolved to human_support.
+ *
+ * Behind AI_UNDERSTANDING_ESCALATION_ENABLED because it is a real behaviour change:
+ * more conversations reach a human. The direction is the safe one, but that is a
+ * staffing decision, so it is switched on deliberately rather than by deploying.
+ */
+const escalateIntentFromUnderstanding = (intent, understanding) => {
+  if (!understanding?.requires_human) return intent;
+  if (!envFlagEnabled(process.env.AI_UNDERSTANDING_ESCALATION_ENABLED)) return intent;
+  if (!intent || intent.type === "human_support" || intent.type === "internal_data") return intent;
+
+  console.log("[ai-support] understanding escalation", {
+    from_intent: intent.type,
+    understanding_intent: understanding.primary_intent,
+  });
+  return {
+    ...intent,
+    type: "human_support",
+    escalated_by_understanding: true,
+    original_intent_type: intent.type,
+  };
+};
+
 const buildAiSupportTrustedContextInner = async ({ tenantId, message, req = null, understanding = null } = {}) => {
-  const intent = detectAiSupportIntent(message);
+  const intent = escalateIntentFromUnderstanding(detectAiSupportIntent(message), understanding);
   const traceChannel = toText(req?.body?.channel || req?.body?.metadata?.channel || req?.body?.metadata?.source || "");
   if (intent.type === "greeting_only") {
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "greeting_only", tenantId });

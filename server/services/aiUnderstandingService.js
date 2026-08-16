@@ -267,6 +267,7 @@ const legacyIntentFor = (primaryIntent, fallbackMessage) =>
  */
 const DETERMINISTIC_INTENT_RULES = Object.freeze([
   ["human_handoff", /(اكلم|أكلم|كلم)\s*(حد|حدا|موظف|شخص|واحد)|موظف|خدمه العملاء|خدمة العملاء|بشري|حد من|customer service|talk to (a )?(human|agent|person)/i],
+  ["complaint", /نصاب|نصابين|زباله|زبالة|وحش اوي|مستني من|بقالي\s*(اسبوع|يوم|شهر)|زعلان|متضايق|هرفع قضيه|هبلغ|scam|terrible|awful|مش راضي|مش عاجبني|خدمه سيئه|خدمة سيئة|سيئه جدا|مستاء|اشتكي|شكوى|شكوي|تعبت معاكم|مضايقني/i],
   ["order_status", /(اوردر|أوردر|طلب|اردر|order)[^؟?]{0,24}(فين|وصل|اتشحن|حالته|حالة|رقم)|وصل فين|فين طلبي|تراك|تتبع|track/i],
   ["return_or_exchange", /استبدال|ابدل|أبدل|بدل|ارجع|أرجع|مرتجع|استرجاع|ترجيع|فلوسي|refund|return|exchange/i],
   ["restock_request", /بلغني|ابلغني|أبلغني|عرفني|ينزل تاني|هينزل|هيتوفر|لما ي(نزل|توفر)|notify|restock|back in stock/i],
@@ -280,7 +281,6 @@ const DETERMINISTIC_INTENT_RULES = Object.freeze([
   ["price_question", /بكام|كام|السعر|سعر|بيتباع بكام|price|how much/i],
   ["product_availability", /عندكم|عندك|متوفر|متاح|موجود|موجوده|موجودة|فيه|in stock|available/i],
   ["product_discovery", /عايز|عاوز|عايزه|عايزة|محتاج|محتاجه|بدور|أدور|ادور|رشحلي|اقترح|هديه|هدية|looking for|suggest|recommend/i],
-  ["complaint", /نصاب|نصابين|زباله|زبالة|وحش اوي|مستني من|بقالي\s*(اسبوع|يوم|شهر)|زعلان|متضايق|هرفع قضيه|هبلغ|scam|terrible|awful/i],
   // Anchored rules are matched against the raw and normalized forms separately —
   // see ANCHORED_INTENTS.
 ]);

@@ -55,6 +55,70 @@ test("an empty message never throws and still returns the shape", async () => {
   assert.ok(result.intent);
 });
 
+/**
+ * Escalation. The flag is read at call time, so each test sets it explicitly rather
+ * than relying on the ambient environment.
+ */
+const withEscalation = async (enabled, run) => {
+  const previous = process.env.AI_UNDERSTANDING_ESCALATION_ENABLED;
+  process.env.AI_UNDERSTANDING_ESCALATION_ENABLED = enabled ? "true" : "";
+  try {
+    await run();
+  } finally {
+    if (previous === undefined) delete process.env.AI_UNDERSTANDING_ESCALATION_ENABLED;
+    else process.env.AI_UNDERSTANDING_ESCALATION_ENABLED = previous;
+  }
+};
+
+test("escalation is dormant while the flag is off", async () => {
+  await withEscalation(false, async () => {
+    // The reply a refund request used to get: product suggestions.
+    const refund = await buildAiSupportTrustedContext({ tenantId: null, message: "عايز فلوسي ترجع" });
+    assert.equal(refund.intent.type, "product_discovery");
+    assert.ok(!refund.intent.escalated_by_understanding);
+  });
+});
+
+test("a refund demand reaches a human instead of a product pitch", async () => {
+  await withEscalation(true, async () => {
+    const refund = await buildAiSupportTrustedContext({ tenantId: null, message: "عايز فلوسي ترجع" });
+    assert.equal(refund.intent.type, "human_support");
+    assert.equal(refund.intent.escalated_by_understanding, true);
+    // The original reading is kept so the promotion is auditable.
+    assert.equal(refund.intent.original_intent_type, "product_discovery");
+  });
+});
+
+test("anger the keyword list cannot see is escalated", async () => {
+  await withEscalation(true, async () => {
+    for (const message of ["انتوا نصابين", "مش راضي عن الخدمة خالص", "عايز اشتكي"]) {
+      const result = await buildAiSupportTrustedContext({ tenantId: null, message });
+      assert.equal(result.intent.type, "human_support", `${message} must reach a human`);
+    }
+  });
+});
+
+test("ordinary shopping is never escalated", async () => {
+  await withEscalation(true, async () => {
+    for (const message of ["عندكم بوما مقاس 44؟", "عايز اديداس للجري", "بكام دي؟", "السلام عليكم"]) {
+      const result = await buildAiSupportTrustedContext({ tenantId: null, message });
+      assert.ok(
+        !result.intent.escalated_by_understanding,
+        `${message} must not be escalated`
+      );
+    }
+  });
+});
+
+test("an explicit human request is not double-flagged", async () => {
+  await withEscalation(true, async () => {
+    // The keyword list already resolves this one; escalation must leave it alone.
+    const result = await buildAiSupportTrustedContext({ tenantId: null, message: "عايز اكلم حد من الموظفين" });
+    assert.equal(result.intent.type, "human_support");
+    assert.ok(!result.intent.escalated_by_understanding);
+  });
+});
+
 test("a complaint is read as requiring a human on this path", async () => {
   const result = await buildAiSupportTrustedContext({
     tenantId: null,
