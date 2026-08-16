@@ -33,6 +33,7 @@
     "test:ai-commerce-cards": "node server/scripts/testAiCommerceCardReplies.js",
     "test:ai-sales-render": "node server/scripts/runAiSalesRegressionSuite.js",
     "test:ai-brain": "node --test tests/ai-brain/*.test.js",
+    "check:arabic-boundaries": "node server/scripts/checkArabicWordBoundaries.js",
     "ai:eval": "node server/scripts/evalAiBrain.js",
     "ai:eval:gate": "node server/scripts/evalAiBrain.js --baseline tests/ai-brain/baseline.json",
     "test:ai-marketing": "node --test tests/ai-marketing/*.test.js",
