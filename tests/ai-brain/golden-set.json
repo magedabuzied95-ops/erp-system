@@ -426,5 +426,70 @@
         "target": null
       }
     }
+  },
+  {
+    "id": "G45",
+    "message": "3ayez crocs mas 44",
+    "note": "Franco-Arabic. Brand and size resolved before the rewrite existed but intent did not, so the reader knew which product and had no idea what was being asked about it.",
+    "expected": {
+      "entities": {
+        "brand": "Crocs",
+        "size": "44"
+      },
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G46",
+    "message": "bkam da?",
+    "note": "Franco price question plus a franco pronoun.",
+    "expected": {
+      "primary_intent": "price_question",
+      "refers_to_previous": {
+        "is_followup": true,
+        "target": "price"
+      }
+    }
+  },
+  {
+    "id": "G47",
+    "message": "3andokom puma?",
+    "expected": {
+      "primary_intent": "product_availability",
+      "entities": {
+        "brand": "Puma"
+      },
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G48",
+    "message": "msh 3ageb ghali awy",
+    "note": "Franco objection. Read as no intent at all before the rewrite.",
+    "expected": {
+      "primary_intent": "objection",
+      "objection": "price_high"
+    }
+  },
+  {
+    "id": "G49",
+    "message": "3ayez felosy terga3",
+    "note": "A refund demand in Latin letters. Answered with product suggestions before the rewrite.",
+    "expected": {
+      "requires_human": true
+    }
+  },
+  {
+    "id": "G50",
+    "message": "do you have crocs in size 44",
+    "note": "Guards the franco detector against swallowing plain English, whose vocabulary overlaps (el, fe, da).",
+    "expected": {
+      "primary_intent": "product_availability",
+      "entities": {
+        "brand": "Crocs",
+        "size": "44"
+      },
+      "requires_human": false
+    }
   }
 ]

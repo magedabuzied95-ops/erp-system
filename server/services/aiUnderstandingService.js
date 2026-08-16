@@ -20,6 +20,7 @@
  *    the deterministic reading — i.e. exactly today's behaviour.
  */
 import { normalizeArabicIntentPayload, normalizeArabicForIntent } from "../utils/arabicTextNormalizer.js";
+import { withFrancoExpansion } from "../utils/francoArabic.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { resolveIntent } from "./aiIntentResolver.js";
@@ -431,9 +432,15 @@ const FUNNEL_BY_INTENT = Object.freeze({
 export const buildDeterministicUnderstanding = (message = "") => {
   const raw = text(message);
   const normalized = text(normalizeArabicForIntent(raw)) || raw;
-  const haystack = `${raw} ${normalized}`.toLowerCase();
-  const legacyFromResolver = resolveIntent(raw);
-  const escalation = detectEscalation(raw);
+  // Every rule below is written in Arabic script, so a franco message ("3ayez crocs mas
+  // 44") matched none of them. Brand and size still resolved, because those are already
+  // Latin and digits — which made the failure look partial when it was total: the
+  // reader knew which product and what size and had no idea what was being asked about
+  // it. The expansion is additive, so a mixed-script message keeps both halves.
+  const francoExpanded = withFrancoExpansion(raw);
+  const haystack = `${raw} ${normalized} ${francoExpanded}`.toLowerCase();
+  const legacyFromResolver = resolveIntent(francoExpanded);
+  const escalation = detectEscalation(francoExpanded);
   const size = extractShoeSize(raw);
 
   let primaryIntent = "other";

@@ -1,8 +1,8 @@
 {
-  "cases": 44,
+  "cases": 50,
   "intent": {
-    "scored": 33,
-    "passed": 33,
+    "scored": 37,
+    "passed": 37,
     "accuracy": 1
   },
   "legacy_intent": {
@@ -11,18 +11,18 @@
     "accuracy": 1
   },
   "objection": {
-    "scored": 5,
-    "passed": 5,
+    "scored": 6,
+    "passed": 6,
     "accuracy": 1
   },
   "reference": {
-    "scored": 5,
-    "passed": 5,
+    "scored": 6,
+    "passed": 6,
     "accuracy": 1
   },
   "escalation": {
-    "scored": 38,
-    "passed": 38,
+    "scored": 42,
+    "passed": 42,
     "accuracy": 1
   },
   "retrieval": {
