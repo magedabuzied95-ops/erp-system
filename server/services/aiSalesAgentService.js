@@ -16,6 +16,9 @@ import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
 import { summarizeUnderstanding, understandCustomerMessage } from "./aiUnderstandingService.js";
 import { searchProductsHybrid } from "./aiHybridProductSearchService.js";
+import { isAgentLoopEnabled, runAgentLoop, verifyFactProvenance } from "./aiAgentLoopService.js";
+import { loadCustomer360, customer360SalesHint, summarizeCustomer360 } from "./aiCustomer360Service.js";
+import { buildInstructions as buildPersonaInstructions, loadPersona } from "./aiPersonaService.js";
 import { buildProductContext, ensureProductLinkInReply } from "./aiProductContext.js";
 import { buildCrossSellUpsellSuggestions } from "./crossSellUpsellService.js";
 import { scoreConversationConversion } from "./conversionScoringService.js";
@@ -4336,6 +4339,28 @@ const latestCustomerMessage = (messages = []) =>
   [...asArray(messages)].reverse().find((message) => text(message.customer_message))?.customer_message || "";
 
 /**
+ * Persona + this customer's history, as one instruction block for the agent loop.
+ * Failure-isolated: a missing persona or an unreachable customer record degrades to
+ * the default voice with no card, never to a lost reply.
+ */
+const buildAgentInstructions = async ({ tenantId, understanding, conversation }) => {
+  const [persona, profile] = await Promise.all([
+    loadPersona({ tenantId }).catch(() => undefined),
+    loadCustomer360({
+      tenantId,
+      phone: conversation?.customer_phone || conversation?.phone || "",
+    }).catch(() => null),
+  ]);
+
+  return buildPersonaInstructions({
+    ...(persona ? { persona } : {}),
+    understanding,
+    customerCard: profile ? summarizeCustomer360(profile) : "",
+    salesHint: profile ? customer360SalesHint(profile) : "",
+  });
+};
+
+/**
  * Recent turns in the shape the understanding pass reads. It needs BOTH sides — a
  * pronoun like "ده" only resolves against what the store last showed — so customer
  * messages and our replies are interleaved in original order.
@@ -5799,6 +5824,48 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     source: "ai_inbox",
   });
   stageTimings.generation_ms = Date.now() - generationStartedAt;
+
+  // Phase 4 — tool-calling draft. The template composer above is precise where a
+  // branch exists and generic where one does not; this lets the model reason, but
+  // only over facts it fetched from the ERP itself. It replaces the PROSE only: the
+  // composer's product cards, actions and attachments are kept, and the grounding
+  // gate still runs afterwards and still wins. Any failure — flag off, no credentials,
+  // deadline, unverified provenance — silently keeps the composer's answer.
+  let agentLoop = null;
+  if (isAgentLoopEnabled()) {
+    const agentStartedAt = Date.now();
+    agentLoop = await runAgentLoop({
+      tenantId,
+      conversationId,
+      message: lastMessage,
+      history: recentTurnsForUnderstanding(conversation.messages),
+      customerPhone: conversation.customer_phone || conversation.phone || "",
+      instructions: await buildAgentInstructions({ tenantId, understanding, conversation }),
+      searchProducts: ({ query, limit: queryLimit }) => searchAiSalesProducts({ tenantId, query, limit: queryLimit }),
+    }).catch((error) => {
+      console.warn("[ai-inbox] agent loop error", { message: error?.message });
+      return { ok: false, reason: "threw" };
+    });
+    stageTimings.agent_loop_ms = Date.now() - agentStartedAt;
+
+    if (agentLoop?.ok) {
+      const provenance = verifyFactProvenance(agentLoop);
+      if (provenance.verified) {
+        reply.answer = agentLoop.answer;
+        reply.confidence = agentLoop.confidence;
+        reply.generation_source = "agent_loop";
+      } else {
+        // A claim attributed to a tool that was never called is a confident
+        // hallucination. Drop the whole draft rather than ship the good parts of it.
+        console.warn("[ai-inbox] agent draft rejected on provenance", {
+          conversation_id: maskIdForLog(conversationId),
+          unsupported: provenance.unsupported_claims.map((claim) => claim.tool),
+        });
+        agentLoop.rejected_reason = "unverified_provenance";
+      }
+    }
+  }
+
   const validationStartedAt = Date.now();
   let validation = {
     is_valid: true,
@@ -5956,6 +6023,18 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       // intent accuracy against a golden label and an employee can see WHY the draft
       // says what it says.
       understanding,
+      // Which ERP tools the draft actually consulted, and whether every claim in it
+      // traced back to one. This is what makes a wrong number debuggable.
+      agent_loop: agentLoop
+        ? {
+            ok: agentLoop.ok === true,
+            reason: agentLoop.reason || null,
+            rejected_reason: agentLoop.rejected_reason || null,
+            iterations: agentLoop.iterations ?? null,
+            tools_called: asArray(agentLoop.tool_trace).map((entry) => entry.tool),
+            facts_used: asArray(agentLoop.facts_used),
+          }
+        : null,
       validation,
       confidence_engine: confidenceEngine,
       grounding: groundingResult?.grounding || null,
