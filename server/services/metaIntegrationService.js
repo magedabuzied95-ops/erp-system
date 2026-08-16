@@ -396,7 +396,9 @@ const detectNorthFaceCorrection = (message = "") => {
 const detectNegativeCommerceIntent = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
   return Boolean(
-    /^(no|nah|لا|لأ|لاء)\b/.test(raw) ||
+    // \b after the group never matched the Arabic alternatives, so only "no"/"nah"
+    // registered as a refusal and an Arabic "لا" did not.
+    /^(?:no|nah|لا|لأ|لاء)(?![\p{L}\p{N}])/u.test(raw) ||
       raw.includes("\u0644\u0627 \u0639\u0627\u064a\u0632") ||
       raw.includes("\u0644\u0623 \u0639\u0627\u064a\u0632") ||
       raw.includes("\u0645\u0634 \u0639\u0627\u064a\u0632") ||

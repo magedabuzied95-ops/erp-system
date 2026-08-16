@@ -282,8 +282,14 @@ const overlap = (left = [], right = []) => {
   return left.filter((item) => rightSet.has(item)).length / Math.max(1, left.length);
 };
 
-const TRAIL_OUTDOOR_PATTERN = /\b(trail|running|runner|outdoor|hiking|hike|trek|trekking|mountain|rugged|chunky|aggressive|lug|lugs|tread|outsole|sole|terrex|goretex|gore tex|north face|tnf)\b|\b(تريل|جري|جرى|هايكنج|هايكينج|اوتدور|أوتدور|جبل|نعل|سول|نورث\s*فيس|نورت\s*فيس)\b/;
-const CASUAL_FLAT_PATTERN = /\b(dc|casual|lifestyle|skate|skater|court|flat|flat sole|low profile|dunk|air force|af1|samba|campus|gazelle|vans|converse)\b|\b(كاجوال|سكيت|فلات|دانك)\b/;
+// The Arabic halves of both patterns were wrapped in \b, which cannot match at the
+// edge of an Arabic word — so an Arabic description of a trail shoe or a casual shoe
+// matched nothing and only the English half of each list was ever doing any work.
+// Unicode lookarounds behave correctly for both scripts.
+const TRAIL_OUTDOOR_PATTERN =
+  /(?<![\p{L}\p{N}])(?:trail|running|runner|outdoor|hiking|hike|trek|trekking|mountain|rugged|chunky|aggressive|lug|lugs|tread|outsole|sole|terrex|goretex|gore tex|north face|tnf|تريل|جري|جرى|هايكنج|هايكينج|اوتدور|أوتدور|جبل|نعل|سول|نورث\s*فيس|نورت\s*فيس)(?![\p{L}\p{N}])/u;
+const CASUAL_FLAT_PATTERN =
+  /(?<![\p{L}\p{N}])(?:dc|casual|lifestyle|skate|skater|court|flat|flat sole|low profile|dunk|air force|af1|samba|campus|gazelle|vans|converse|كاجوال|سكيت|فلات|دانك)(?![\p{L}\p{N}])/u;
 
 const hasTrailOutdoorIntent = (attributes = {}) =>
   TRAIL_OUTDOOR_PATTERN.test(normalizeVisualProText([

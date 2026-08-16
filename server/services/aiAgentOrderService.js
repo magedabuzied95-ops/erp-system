@@ -191,12 +191,18 @@ const normalizePhone = (value = "") => {
 };
 
 const extractQuantity = (message = "") => {
-  const match = text(message).match(/(?:عدد|quantity|qty|x)\s*(\d{1,2})|\b(\d{1,2})\s*(?:قطع|قطعة|pairs?|جزمة|جزم)\b/i);
+  // The trailing \b sat after Arabic alternatives and could never match, so "2 قطع"
+  // and "3 جزم" extracted no quantity while the English "pairs" did.
+  const match = text(message).match(
+    /(?:عدد|quantity|qty|x)\s*(\d{1,2})|(\d{1,2})\s*(?:قطع|قطعة|pairs?|جزمة|جزم)(?![\p{L}\p{N}])/iu
+  );
   return Math.max(1, integer(match?.[1] || match?.[2], 1));
 };
 
 const extractSize = (message = "") => {
-  const match = text(message).match(/\b(?:مقاس|size|sz)?\s*(3[0-9]|4[0-9]|5[0-2]|xs|s|m|l|xl|xxl)\b/i);
+  const match = text(message).match(
+    /(?<![\p{L}\p{N}])(?:مقاس|size|sz)?\s*(3[0-9]|4[0-9]|5[0-2]|xs|s|m|l|xl|xxl)(?![\p{L}\p{N}])/iu
+  );
   return text(match?.[1] || "");
 };
 

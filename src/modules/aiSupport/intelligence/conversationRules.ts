@@ -9,28 +9,63 @@ export const CONVERSATION_RULES = Object.freeze({
   MIN_CONFIDENCE: 25,
 });
 
+/**
+ * Word boundaries that work in both scripts.
+ *
+ * Every pattern in this file was written as /\b(price|...|سعر)\b/i. JavaScript's \b is
+ * defined over ASCII word characters, so it cannot match at the edge of an Arabic
+ * word: the English alternatives fired and the Arabic ones never did. These rules
+ * drive intent labels, buying signals and objection detection for a store whose
+ * customers write Arabic, so the Arabic half of every list was decoration.
+ *
+ * The old "Size Inquiry" rule read `| مقاس|مقاس` — the same word twice, once with a
+ * leading space. That is someone noticing the matches were failing and padding the
+ * pattern until one stuck, rather than the boundary being the cause. With a real
+ * boundary the duplicate is unnecessary.
+ */
+const boundary = (alternatives: string) =>
+  new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives})(?![\\p{L}\\p{N}])`, "iu");
+
+/** Anchored at the start, for rules that only count when they open the message. */
+const leading = (alternatives: string) =>
+  new RegExp(`^(?:${alternatives})(?![\\p{L}\\p{N}])`, "iu");
+
 export const INTENT_PATTERNS: ReadonlyArray<[string, RegExp]> = [
-  ["Price Inquiry", /\b(price|cost|how much|كام|سعر)\b/i], ["Size Inquiry", /\b(size|fit| مقاس|مقاس)\b/i],
-  ["Availability", /\b(available|availability|stock|in stock|متاح|موجود)\b/i], ["Delivery", /\b(delivery|shipping|arrive|توصيل|شحن)\b/i],
-  ["Exchange", /\b(exchange|replace|swap|استبدال|تبديل)\b/i], ["Complaint", /\b(complaint|problem|broken|damaged|bad service|شكوى|مشكلة|تالف)\b/i],
-  ["Payment", /\b(payment|pay|card|cash|installment|دفع|فيزا|كاش|تقسيط)\b/i], ["Order Tracking", /\b(track|tracking|where.*order|order status|تتبع|طلبي فين)\b/i],
-  ["Purchase Ready", /\b(buy|order now|take it|send invoice|confirm order|اشتري|اطلب|أكد الطلب)\b/i], ["Greeting", /^(hi|hello|hey|good (morning|evening)|السلام|مرحبا|اهلا)\b/i],
-  ["Spam", /\b(free money|crypto giveaway|click here|work from home)\b/i], ["Support", /\b(help|support|issue|not working|مساعدة|دعم|مش شغال)\b/i],
+  ["Price Inquiry", boundary("price|cost|how much|كام|بكام|سعر|السعر|اسعار")],
+  ["Size Inquiry", boundary("size|fit|مقاس|المقاس|مقاسات")],
+  ["Availability", boundary("available|availability|stock|in stock|متاح|متوفر|موجود|عندكم")],
+  ["Delivery", boundary("delivery|shipping|arrive|توصيل|شحن|الشحن")],
+  // Verb forms as well as the noun: customers write "عايز استبدل", not "عايز استبدال".
+  ["Exchange", boundary("exchange|replace|swap|استبدال|استبدل|ابدل|بدل|تبديل|ارجاع|ارجع|استرجاع")],
+  ["Complaint", boundary("complaint|problem|broken|damaged|bad service|شكوى|شكوي|اشتكي|مشكلة|مشكله|تالف|نصاب|نصابين|مش راضي")],
+  ["Payment", boundary("payment|pay|card|cash|installment|دفع|فيزا|كاش|تقسيط")],
+  ["Order Tracking", boundary("track|tracking|where.*order|order status|تتبع|تراك|طلبي فين|الاوردر فين")],
+  ["Purchase Ready", boundary("buy|order now|take it|send invoice|confirm order|اشتري|اطلب|أكد الطلب|اكد الطلب|هاخده")],
+  ["Greeting", leading("hi|hello|hey|good (morning|evening)|السلام|مرحبا|اهلا|أهلا")],
+  ["Spam", boundary("free money|crypto giveaway|click here|work from home")],
+  ["Support", boundary("help|support|issue|not working|مساعدة|مساعده|دعم|مش شغال")],
 ];
 
 export const BUYING_SIGNAL_PATTERNS: ReadonlyArray<[string, RegExp]> = [
-  ["Asked price", /\b(price|cost|how much|سعر|كام)\b/i], ["Asked size", /\b(size|fit|مقاس)\b/i], ["Asked colors", /\b(colou?r|shade|لون|ألوان)\b/i],
-  ["Asked payment", /\b(payment|pay|card|cash|installment|دفع|فيزا|كاش|تقسيط)\b/i], ["Asked shipping", /\b(delivery|shipping|arrive|توصيل|شحن)\b/i],
-  ["Asked availability", /\b(available|stock|in stock|متاح|موجود)\b/i], ["Asked invoice", /\b(invoice|payment link|فاتورة|لينك دفع)\b/i], ["Asked discount", /\b(discount|offer|best price|خصم|عرض)\b/i],
+  ["Asked price", boundary("price|cost|how much|سعر|السعر|كام|بكام")],
+  ["Asked size", boundary("size|fit|مقاس|المقاس")],
+  ["Asked colors", boundary("colou?rs?|shade|لون|اللون|ألوان|الوان")],
+  ["Asked payment", boundary("payment|pay|card|cash|installment|دفع|فيزا|كاش|تقسيط")],
+  ["Asked shipping", boundary("delivery|shipping|arrive|توصيل|شحن|الشحن")],
+  ["Asked availability", boundary("available|stock|in stock|متاح|متوفر|موجود")],
+  ["Asked invoice", boundary("invoice|payment link|فاتورة|فاتوره|لينك دفع")],
+  ["Asked discount", boundary("discount|offer|best price|خصم|عرض|تخفيض")],
 ];
 
 export const OBJECTION_PATTERNS: ReadonlyArray<[string, RegExp]> = [
-  ["Price", /\b(expensive|too much|cheaper|high price|غالي|أرخص)\b/i], ["Trust", /\b(trust|original|authentic|scam|ضمان|أصلي|موثوق)\b/i],
-  ["Delivery", /\b(late|slow delivery|delivery time|تأخير|متأخر)\b/i], ["Availability", /\b(out of stock|unavailable|مش موجود|غير متاح)\b/i],
-  ["Payment", /\b(payment failed|card declined|cannot pay|الدفع فشل|مش عارف ادفع)\b/i], ["Size", /\b(no size|wrong size|doesn't fit|المقاس مش موجود|مقاس غلط)\b/i],
-  ["Color", /\b(no colou?r|wrong colou?r|اللون مش موجود|لون غلط)\b/i],
+  ["Price", boundary("expensive|too much|cheaper|high price|غالي|غالية|غاليه|أرخص|ارخص")],
+  ["Trust", boundary("trust|original|authentic|scam|ضمان|أصلي|اصلي|موثوق|تقليد|مضروب")],
+  ["Delivery", boundary("late|slow delivery|delivery time|تأخير|تاخير|متأخر|متاخر")],
+  ["Availability", boundary("out of stock|unavailable|مش موجود|غير متاح|خلص")],
+  ["Payment", boundary("payment failed|card declined|cannot pay|الدفع فشل|مش عارف ادفع")],
+  ["Size", boundary("no size|wrong size|doesn't fit|المقاس مش موجود|مقاس غلط")],
+  ["Color", boundary("no colou?rs?|wrong colou?rs?|اللون مش موجود|لون غلط")],
 ];
 
 export const normalizeConversation = (messages: Array<{ text?: string; message?: string; content?: string }>) =>
   messages.map((item) => String(item.text || item.message || item.content || "").trim()).filter(Boolean).join(" \n");
-

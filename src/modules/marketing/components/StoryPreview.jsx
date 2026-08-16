@@ -224,7 +224,9 @@ const cleanProductTitle = (value = "") => {
     .replace(/\[[^\]]*\]/g, " ")
     .replace(/\b(for\s+(men|women|kids|boys|girls|unisex|male|female)|mens|women'?s|kids'?|boys'?|girls'?)\b/gi, " ")
     .replace(/\b(sneakers?|shoes?|shoe|running|casual|fashion|original|premium|high\s*quality|new\s*arrival|latest|202\d|size\s*\d+)\b/gi, " ")
-    .replace(/\b(حذاء|كوتشي|رجالي|حريمي|اطفال|أطفال|اصلي|أصلي|جديد)\b/gi, " ")
+    // \b cannot match at the edge of an Arabic word, so this line stripped nothing and
+    // Arabic product names kept the filler words the story title is meant to drop.
+    .replace(/(?<![\p{L}\p{N}])(?:حذاء|كوتشي|رجالي|حريمي|اطفال|أطفال|اصلي|أصلي|جديد)(?![\p{L}\p{N}])/giu, " ")
     .replace(/[|/_,]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

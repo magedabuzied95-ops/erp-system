@@ -41,9 +41,12 @@ const sanitizeForbiddenPhrases = (value = "") => {
     output = output.replace(pattern, replacement);
   }
   return output
-    .replace(/\b(حضرتك|سيادتك)\b/g, "إنت")
-    .replace(/\b(يمكنك)\b/g, "تقدر")
-    .replace(/\b(يرجى)\b/g, "لو سمحت")
+    // Unicode boundaries: \b is an ASCII-word-character boundary and never matches at
+    // the edge of an Arabic word, so all three of these rewrites were inert and the
+    // formal register they exist to strip was reaching customers untouched.
+    .replace(/(?<![\p{L}\p{N}])(?:حضرتك|سيادتك)(?![\p{L}\p{N}])/gu, "إنت")
+    .replace(/(?<![\p{L}\p{N}])يمكنك(?![\p{L}\p{N}])/gu, "تقدر")
+    .replace(/(?<![\p{L}\p{N}])يرجى(?![\p{L}\p{N}])/gu, "لو سمحت")
     .replace(/\s+\./g, ".")
     .replace(/\s+،/g, "،")
     .replace(/\s+\?/g, "?")
