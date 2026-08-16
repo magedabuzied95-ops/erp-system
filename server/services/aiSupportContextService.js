@@ -33,6 +33,7 @@ import { normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/a
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { latinizeArabicProductText } from "./aiEntityLexicon.js";
+import { understandCustomerMessage } from "./aiUnderstandingService.js";
 import { buildConversationMemoryV2, mergeConversationMemoryV2, resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import {
@@ -1323,7 +1324,7 @@ const runJordan4ProductionProbe = async ({ productColumns, limit = 50 } = {}) =>
   }
 };
 
-const normalizeSearchTerms = (message, intent) => {
+const normalizeSearchTerms = (message, intent, understanding = null) => {
   const normalizedMessage = normalizeProductMatchText(message);
   const modelIntent = detectStrictModelIntent(message);
   const aliasTerms = findByAlias(message).flatMap((entry) => [entry.canonical_name, ...entry.canonical_name.split(/\s+/)]);
@@ -1343,7 +1344,18 @@ const normalizeSearchTerms = (message, intent) => {
     .filter((word) => !IMAGE_MODEL_TERMS.includes(word.toLowerCase()))
     .filter((word) => !STORE_INTENT_TERMS.includes(word.toLowerCase()))
     .filter((word) => !INTERNAL_INTENT_TERMS.includes(word.toLowerCase()));
+  // What the understanding pass read the customer as asking for. Placed FIRST because
+  // these are the resolved catalog spellings ("Puma", "running") rather than the raw
+  // Arabic words, and `unique` keeps the earliest occurrence — so the searchable form
+  // wins the 32-term budget over the token it was derived from.
+  const understoodTerms = [
+    understanding?.entities?.product_model,
+    understanding?.entities?.brand,
+    understanding?.entities?.category,
+  ].filter(Boolean);
+
   return unique(expandColorSearchTerms([
+    ...understoodTerms,
     ...intent.product.codes,
     ...intent.product.colors,
     intent.product.size,
@@ -2376,14 +2388,14 @@ const hydrateProductsWithStorefrontImages = async (products = [], req = null) =>
   });
 };
 
-const searchProducts = async ({ tenantId, message, intent, req = null, memory = null }) => {
+const searchProducts = async ({ tenantId, message, intent, req = null, memory = null, understanding = null }) => {
   const traceChannel = toText(req?.body?.channel || req?.body?.metadata?.channel || req?.body?.metadata?.source || "");
   const [productColumns, variantColumns] = await Promise.all([getColumns("products"), getColumns("product_variants")]);
   const productNameExpr = columnExpr("p", productColumns, ["name", "title", "name_en", "name_ar", "title_en", "title_ar"], "''");
   const productNameColumns = columnList("p", productColumns, ["name", "title", "name_ar", "name_en", "title_ar", "title_en"]);
   if (!productColumns.has("tenant_id") || !productNameColumns.length) return [];
 
-  const terms = normalizeSearchTerms(message, intent);
+  const terms = normalizeSearchTerms(message, intent, understanding);
   const strictModelIntent = detectStrictModelIntent(message);
   const aliasResult = resolveProductAlias(message);
   const aliasAwareHints = buildAliasAwareSearchHints({ text: message, aliasResult });
@@ -5265,7 +5277,7 @@ export const buildAiSupportImageRankingDebug = async ({ tenantId, query = "jorda
   };
 };
 
-export const buildAiSupportTrustedContext = async ({ tenantId, message, req = null } = {}) => {
+const buildAiSupportTrustedContextInner = async ({ tenantId, message, req = null, understanding = null } = {}) => {
   const intent = detectAiSupportIntent(message);
   const traceChannel = toText(req?.body?.channel || req?.body?.metadata?.channel || req?.body?.metadata?.source || "");
   if (intent.type === "greeting_only") {
@@ -5567,7 +5579,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     const searchMessage = currentTurnModelIntent
       ? message
       : [message, currentRequestedModelIntent?.displayName || "", memorySearchHint(effectiveMemory)].filter(Boolean).join(" ");
-    products = await searchProducts({ tenantId, message: searchMessage, intent, req, memory: effectiveMemory });
+    products = await searchProducts({ tenantId, message: searchMessage, intent, req, memory: effectiveMemory, understanding });
     products = filterProductsByConversationState({
       products,
       state: recommendationState,
@@ -5745,6 +5757,41 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     conversation_memory: conversationMemory,
     directResponse: directStoreResponse || undefined,
   };
+};
+
+/**
+ * Adds the understanding pass to the channel path, then delegates.
+ *
+ * The same structured read of the customer the AI Inbox performs, on the path
+ * Messenger, Instagram and WhatsApp actually take. Until now the two engines read the
+ * customer differently: the inbox had entities, funnel stage, objection and urgency,
+ * while this path had only the regex buckets in `intent`. That is the concrete half of
+ * the "three brains" problem — the same sentence got a different reading per channel.
+ *
+ * Deliberately a wrapper rather than an edit inside: the inner function has eleven
+ * return points, and attaching the field at each one would be eleven chances to miss
+ * one and ship an inconsistent shape. Here every caller sees `understanding` on every
+ * path, including the early returns.
+ *
+ * `intent` is untouched and still owns every routing decision, so this cannot change
+ * behaviour. The reading rides alongside as evidence, and feeds retrieval through
+ * `normalizeSearchTerms`. With AI_UNDERSTANDING_ENABLED off it is the deterministic
+ * reading — no network call and no new failure mode.
+ */
+export const buildAiSupportTrustedContext = async ({ tenantId, message, req = null } = {}) => {
+  const channel = toText(req?.body?.channel || req?.body?.metadata?.channel || req?.body?.metadata?.source || "");
+  const understanding = await understandCustomerMessage({
+    tenantId,
+    message,
+    channel: channel || "web_chat",
+  }).catch((error) => {
+    // Never fatal: the path this serves is a live customer reply.
+    console.warn("[ai-support] understanding skipped", { tenantId, message: error?.message });
+    return null;
+  });
+
+  const result = await buildAiSupportTrustedContextInner({ tenantId, message, req, understanding });
+  return result && typeof result === "object" ? { ...result, understanding } : result;
 };
 
 export const buildAiSupportProductSearchDebug = async ({ tenantId, query, req = null } = {}) => {
