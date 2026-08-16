@@ -289,5 +289,87 @@
       "primary_intent": "complaint",
       "requires_human": true
     }
+  },
+  {
+    "id": "G31",
+    "message": "ايه اسعاركم",
+    "note": "Plural أسعار contains سعار, never سعر — the singular-only rule read this as no intent at all.",
+    "expected": {
+      "primary_intent": "price_question",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G32",
+    "message": "ده اصلي ولا تقليد؟",
+    "note": "A doubt about authenticity, not a request to compare. The bare ولا in the comparison rule used to win.",
+    "expected": {
+      "primary_intent": "objection",
+      "objection": "authenticity_doubt",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G33",
+    "message": "الخامة وحشة؟",
+    "note": "Quality doubt stated without any price or fake wording.",
+    "expected": {
+      "primary_intent": "objection",
+      "objection": "quality_doubt",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G34",
+    "message": "ايه الخامة بتاعتها",
+    "note": "A plain spec question. Must NOT read as an objection — matching bare خامة had the reply defending goods nobody attacked.",
+    "expected": {
+      "objection": "none",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G35",
+    "message": "الجودة سيئة",
+    "note": "Objection cue fired while the intent stayed other, so the reply did not know it was answering a complaint.",
+    "expected": {
+      "primary_intent": "objection",
+      "objection": "quality_doubt"
+    }
+  },
+  {
+    "id": "G36",
+    "message": "عايز فلوسي ترجع",
+    "note": "Refund demand. The channel keyword list read this as product_discovery and answered with product suggestions.",
+    "expected": {
+      "requires_human": true
+    }
+  },
+  {
+    "id": "G37",
+    "message": "عايز اشتكي",
+    "note": "The complaint rule sat last, so عايز matched product_discovery before it was ever reached.",
+    "expected": {
+      "primary_intent": "complaint",
+      "requires_human": true
+    }
+  },
+  {
+    "id": "G38",
+    "message": "مش راضي عن الخدمة خالص",
+    "note": "Dissatisfaction that names no insult — the original complaint cues only caught explicit abuse.",
+    "expected": {
+      "requires_human": true
+    }
+  },
+  {
+    "id": "G39",
+    "message": "ايه الفرق بين نايك واديداس",
+    "note": "Genuine comparison. Guards the objection-over-comparison reorder from swallowing real comparisons.",
+    "expected": {
+      "primary_intent": "comparison",
+      "objection": "none",
+      "requires_human": false
+    }
   }
 ]

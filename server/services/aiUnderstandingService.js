@@ -273,12 +273,17 @@ const DETERMINISTIC_INTENT_RULES = Object.freeze([
   ["restock_request", /بلغني|ابلغني|أبلغني|عرفني|ينزل تاني|هينزل|هيتوفر|لما ي(نزل|توفر)|notify|restock|back in stock/i],
   ["shipping_question", /شحن|الشحن|توصيل|التوصيل|يوصل|هيوصل|مندوب|delivery|shipping/i],
   ["image_request", /صور|صوره|صورة|بص|شكلها|شكله|فيديو|photo|picture|image/i],
+  // Objection outranks comparison: "ده اصلي ولا تقليد؟" is a doubt about authenticity,
+  // not a request to compare two products, but the bare "ولا" in the comparison rule
+  // matched it first and read a suspicious customer as a curious one.
+  ["objection", /غالي|غاليه|غالية|كتير اوي|كتير أوي|ارخص|أرخص|تقليد|مضروب|مش اصلي|مش أصلي|خصم|expensive|cheaper|discount|(?:ال)?خام[هة]\s*(?:وحش|سيئ|رديئ|بايظ|مش كويس)|رديئ|مش كويس[هة]?|بايظ/i],
   ["comparison", /الفرق بين|ايه احسن|أيه أحسن|مقارنه|مقارنة|ولا|أفضل من|احسن من|compare|difference between/i],
-  ["objection", /غالي|غاليه|غالية|كتير اوي|كتير أوي|ارخص|أرخص|تقليد|مضروب|مش اصلي|مش أصلي|خصم|expensive|cheaper|discount/i],
   ["buying_intent", /هاخده|هاخدها|هاخد|تمام هاخد|ابعتهولي|ابعتهالي|اطلبه|أطلبه|اكد|أكد|اوردرلي|عايز اشتري|هشتري|i'?ll take it|order it/i],
   ["color_question", /لون|الوان|ألوان|اللون|colou?rs?/i],
   ["size_question", /مقاس|مقاسات|المقاس|size|sizes/i],
-  ["price_question", /بكام|كام|السعر|سعر|بيتباع بكام|price|how much/i],
+  // "اسعاركم" is أسعار + كم, so it contains "سعار" and never "سعر" — the plural has to
+  // be listed or "ايه اسعاركم" reads as no intent at all.
+  ["price_question", /بكام|كام|السعر|سعر|اسعار|أسعار|الاسعار|بيتباع بكام|price|how much/i],
   ["product_availability", /عندكم|عندك|متوفر|متاح|موجود|موجوده|موجودة|فيه|in stock|available/i],
   ["product_discovery", /عايز|عاوز|عايزه|عايزة|محتاج|محتاجه|بدور|أدور|ادور|رشحلي|اقترح|هديه|هدية|looking for|suggest|recommend/i],
   // Anchored rules are matched against the raw and normalized forms separately —
@@ -366,7 +371,10 @@ const extractBudget = (raw) => {
 const OBJECTION_CUES = Object.freeze([
   ["price_high", /غالي|غاليه|غالية|كتير اوي|كتير أوي|ارخص|أرخص|expensive|cheaper/i],
   ["authenticity_doubt", /تقليد|مضروب|مش اصلي|مش أصلي|اوريجينال|أصلي\s*\?|fake|original/i],
-  ["quality_doubt", /خامه|خامة|جوده|جودة|بيقطع|هيقطع|وحش|quality/i],
+  // Requires an actual negative near the word. Matching bare خامة/جودة read "ايه
+  // الخامة بتاعتها" — a plain spec question — as a customer doubting the product, which
+  // would have the reply defending goods nobody attacked.
+  ["quality_doubt", /(?:ال)?(?:خام[هة]|جود[هة])[^؟?]{0,12}(?:وحش|سيئ|رديئ|بايظ|ضعيف|مش كويس|مش حلو)|(?:وحش|سيئ|رديئ)[^؟?]{0,12}(?:الخام|الجود)|بيقطع|هيقطع|بيتقطع|poor quality|bad quality|low quality/i],
   ["shipping_cost", /الشحن غالي|شحن غالي|شحن كام/i],
   ["shipping_time", /هيتأخر|بيتأخر|طويل اوي|امتى هيوصل|متأخر/i],
   ["size_risk", /لو المقاس مش|مش مظبوط|مش هيجيلي|لو ماجاش/i],
@@ -426,6 +434,13 @@ export const buildDeterministicUnderstanding = (message = "") => {
   const objection =
     OBJECTION_CUES.find(([, pattern]) => pattern.test(haystack))?.[0]
     || (primaryIntent === "objection" ? "price_high" : "none");
+
+  // A named objection IS an intent. The two lists are separate patterns and drifted
+  // apart: "الجودة سيئة" and "بيقطع بسرعة" produced objection=quality_doubt while the
+  // intent stayed "other", so the reply had no idea it was answering a complaint about
+  // the goods. Deriving one from the other keeps them from drifting again, rather than
+  // copying the cues into both lists where only one would get updated next time.
+  if (objection !== "none" && primaryIntent === "other") primaryIntent = "objection";
 
   const entities = {
     ...emptyEntities(),
