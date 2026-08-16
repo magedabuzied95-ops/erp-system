@@ -43,7 +43,8 @@
     "migrate:merchant-policies": "node server/scripts/migrateMerchantPolicySettings.js",
     "start": "npm --prefix \"./server\" run start",
     "check:encoding": "node scripts/fix-arabic-mojibake.cjs --check server scripts tests",
-    "fix:encoding": "node scripts/fix-arabic-mojibake.cjs"
+    "fix:encoding": "node scripts/fix-arabic-mojibake.cjs",
+    "test:ai-brain": "node --test tests/ai-brain/*.test.js"
   },
   "dependencies": {
     "@xyflow/react": "^12.11.2",
