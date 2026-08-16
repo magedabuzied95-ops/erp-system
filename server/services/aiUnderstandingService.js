@@ -19,7 +19,7 @@
  * 4. It is off by default (AI_UNDERSTANDING_ENABLED). Dormant, the service returns
  *    the deterministic reading — i.e. exactly today's behaviour.
  */
-import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
+import { normalizeArabicIntentPayload, normalizeArabicForIntent } from "../utils/arabicTextNormalizer.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { resolveIntent } from "./aiIntentResolver.js";
@@ -254,33 +254,239 @@ const legacyIntentFor = (primaryIntent, fallbackMessage) =>
  * every failure path AND the value returned when the feature flag is off, so turning
  * the flag off is a true no-op rather than a degraded mode.
  */
+/**
+ * Egyptian-Arabic cues per intent, most specific first.
+ *
+ * Order is the whole design. "الأوردر بتاعي رقم 4412 وصل فين؟" contains both an order
+ * reference and a shipping word; whichever rule is tested first wins, so order_status
+ * has to precede shipping_question. The same applies to restock before size, and
+ * return/exchange before size — each of those pairs shares vocabulary.
+ */
+const DETERMINISTIC_INTENT_RULES = Object.freeze([
+  ["human_handoff", /(اكلم|أكلم|كلم)\s*(حد|حدا|موظف|شخص|واحد)|موظف|خدمه العملاء|خدمة العملاء|بشري|حد من|customer service|talk to (a )?(human|agent|person)/i],
+  ["order_status", /(اوردر|أوردر|طلب|اردر|order)[^؟?]{0,24}(فين|وصل|اتشحن|حالته|حالة|رقم)|وصل فين|فين طلبي|تراك|تتبع|track/i],
+  ["return_or_exchange", /استبدال|ابدل|أبدل|بدل|ارجع|أرجع|مرتجع|استرجاع|ترجيع|فلوسي|refund|return|exchange/i],
+  ["restock_request", /بلغني|ابلغني|أبلغني|عرفني|ينزل تاني|هينزل|هيتوفر|لما ي(نزل|توفر)|notify|restock|back in stock/i],
+  ["shipping_question", /شحن|الشحن|توصيل|التوصيل|يوصل|هيوصل|مندوب|delivery|shipping/i],
+  ["image_request", /صور|صوره|صورة|بص|شكلها|شكله|فيديو|photo|picture|image/i],
+  ["comparison", /الفرق بين|ايه احسن|أيه أحسن|مقارنه|مقارنة|ولا|أفضل من|احسن من|compare|difference between/i],
+  ["objection", /غالي|غاليه|غالية|كتير اوي|كتير أوي|ارخص|أرخص|تقليد|مضروب|مش اصلي|مش أصلي|خصم|expensive|cheaper|discount/i],
+  ["buying_intent", /هاخده|هاخدها|هاخد|تمام هاخد|ابعتهولي|ابعتهالي|اطلبه|أطلبه|اكد|أكد|اوردرلي|عايز اشتري|هشتري|i'?ll take it|order it/i],
+  ["color_question", /لون|الوان|ألوان|اللون|colou?rs?/i],
+  ["size_question", /مقاس|مقاسات|المقاس|size|sizes/i],
+  ["price_question", /بكام|كام|السعر|سعر|بيتباع بكام|price|how much/i],
+  ["product_availability", /عندكم|عندك|متوفر|متاح|موجود|موجوده|موجودة|فيه|in stock|available/i],
+  ["product_discovery", /عايز|عاوز|عايزه|عايزة|محتاج|محتاجه|بدور|أدور|ادور|رشحلي|اقترح|هديه|هدية|looking for|suggest|recommend/i],
+  ["complaint", /نصاب|نصابين|زباله|زبالة|وحش اوي|مستني من|بقالي\s*(اسبوع|يوم|شهر)|زعلان|متضايق|هرفع قضيه|هبلغ|scam|terrible|awful/i],
+  // Anchored rules are matched against the raw and normalized forms separately —
+  // see ANCHORED_INTENTS.
+]);
+
+/**
+ * Rules that must see the message alone, not the raw+normalized haystack the unanchored
+ * rules use. `^`/`$` are meaningless against a concatenation of two spellings of the
+ * same sentence, which is why "السلام عليكم" was reading as `other`.
+ *
+ * No `\b` anywhere in here: JavaScript's word boundary is ASCII-based, so it never
+ * fires between an Arabic letter and a space and silently defeats the whole pattern.
+ */
+const ANCHORED_INTENTS = Object.freeze([
+  ["greeting", /^\s*(السلام عليكم|سلام عليكم|اهلا|أهلا|هاي|هلا|مساء الخير|صباح الخير|ازيك|إزيك|hi|hello|hey)/i],
+  ["smalltalk", /^\s*(شكرا|شكرن|متشكر|ميرسي|تسلم|ربنا يكرمك|thanks|thank you|ok|تمام)(\s+(ليك|ليكي|جدا|اوي|جزيلا))?\s*[!.؟?]*\s*$/i],
+]);
+
+/** Cheap entity reads that do not need a model. Wrong-but-confident is worse than null. */
+const EGYPT_CITIES = Object.freeze([
+  ["القاهره", "القاهرة"], ["القاهرة", "القاهرة"], ["اسكندريه", "الإسكندرية"], ["اسكندرية", "الإسكندرية"],
+  ["الاسكندريه", "الإسكندرية"], ["الاسكندرية", "الإسكندرية"], ["الجيزه", "الجيزة"], ["الجيزة", "الجيزة"],
+  ["المنصوره", "المنصورة"], ["المنصورة", "المنصورة"], ["طنطا", "طنطا"], ["اسيوط", "أسيوط"],
+  ["المنيا", "المنيا"], ["الفيوم", "الفيوم"], ["بورسعيد", "بورسعيد"], ["السويس", "السويس"],
+  ["دمياط", "دمياط"], ["الاقصر", "الأقصر"], ["اسوان", "أسوان"], ["الغردقه", "الغردقة"], ["الغردقة", "الغردقة"],
+]);
+
+const COLOR_WORDS = Object.freeze([
+  ["اسود", "أسود"], ["أسود", "أسود"], ["ابيض", "أبيض"], ["أبيض", "أبيض"], ["احمر", "أحمر"], ["أحمر", "أحمر"],
+  ["ازرق", "أزرق"], ["أزرق", "أزرق"], ["اخضر", "أخضر"], ["أخضر", "أخضر"], ["اصفر", "أصفر"],
+  ["بني", "بني"], ["رمادي", "رمادي"], ["بيج", "بيج"], ["وردي", "وردي"], ["بمبي", "وردي"], ["نبيتي", "نبيتي"],
+]);
+
+const OCCASION_WORDS = Object.freeze([
+  ["هديه", "هدية"], ["هدية", "هدية"], ["فرح", "فرح"], ["جواز", "زفاف"], ["عيد", "عيد"],
+  ["شغل", "شغل"], ["مدرسه", "مدرسة"], ["مدرسة", "مدرسة"], ["جامعه", "جامعة"], ["رياضه", "رياضة"], ["جري", "رياضة"],
+]);
+
+const RECIPIENT_WORDS = Object.freeze([
+  ["لاخويا", "أخي"], ["لأخويا", "أخي"], ["اخويا", "أخي"], ["لابني", "ابني"], ["ابني", "ابني"],
+  ["لبنتي", "ابنتي"], ["بنتي", "ابنتي"], ["لمراتي", "زوجتي"], ["مراتي", "زوجتي"], ["لجوزي", "زوجي"],
+  ["لماما", "والدتي"], ["لبابا", "والدي"], ["لصاحبي", "صديقي"], ["لنفسي", "نفسي"],
+]);
+
+const AVAILABILITY_CUE = /عندكم|عندك|متوفر|متاح|موجود|in stock|available|do you have|got any/i;
+
+/**
+ * Words that are pure grammar or pure attribute — never the name of a thing. A message
+ * left with nothing outside this set is not asking about a specific product.
+ */
+const NON_PRODUCT_WORDS = new Set([
+  "عندكم", "عندك", "متوفر", "متوفره", "متوفرة", "متاح", "متاحه", "متاحة", "موجود", "موجوده", "موجودة",
+  "ايه", "إيه", "ده", "دي", "دى", "دول", "في", "فيه", "من", "على", "علي", "مع", "لو", "سمحت",
+  "عايز", "عاوز", "عايزه", "عايزة", "محتاج", "ممكن", "اعرف", "أعرف", "بكام", "كام", "سعر", "السعر",
+  "مقاس", "مقاسات", "المقاس", "لون", "الوان", "ألوان", "اللون", "الالوان", "الألوان",
+  "شكرا", "السلام", "عليكم", "اهلا", "أهلا", "بس", "كده", "تمام", "يا", "ال",
+  "size", "sizes", "color", "colors", "colour", "colours", "available", "have", "you", "the", "do",
+  "what", "which", "is", "are", "in", "stock", "and", "for", "a", "an", "i", "want", "need",
+]);
+
+const namesAProduct = (normalized = "") =>
+  text(normalized)
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.toLowerCase())
+    .some((token) => {
+      if (token.length < 2 || /^\d+$/.test(token)) return false;
+      // Both spellings must be checked: the list holds "الوان" and "متاحة", and only
+      // testing one form let the other slip through as a product name.
+      const stripped = token.replace(/^ال(?=.{3,})/, "");
+      return !NON_PRODUCT_WORDS.has(token) && !NON_PRODUCT_WORDS.has(stripped);
+    });
+
+/**
+ * Brands worth recognising without a model. Deliberately the Latin catalog spelling on
+ * the right: an entity the retriever cannot search is not worth extracting.
+ */
+const BRAND_LEXICON = Object.freeze([
+  ["نايك", "Nike"], ["nike", "Nike"], ["اديداس", "Adidas"], ["أديداس", "Adidas"], ["adidas", "Adidas"],
+  ["بوما", "Puma"], ["puma", "Puma"], ["فانز", "Vans"], ["vans", "Vans"],
+  ["كروكس", "Crocs"], ["crocs", "Crocs"], ["نيو بالانس", "New Balance"], ["new balance", "New Balance"],
+  ["كونفرس", "Converse"], ["converse", "Converse"], ["ريبوك", "Reebok"], ["reebok", "Reebok"],
+  ["جوردن", "Jordan"], ["jordan", "Jordan"], ["فيلا", "Fila"], ["سكيتشرز", "Skechers"],
+  ["تيمبرلاند", "Timberland"], ["لاكوست", "Lacoste"], ["اسيكس", "Asics"],
+]);
+
+const CATEGORY_LEXICON = Object.freeze([
+  ["للجري", "running"], ["جري", "running"], ["رياضه", "sports"], ["رياضة", "sports"],
+  ["كاجوال", "casual"], ["رسمي", "formal"], ["شبشب", "slippers"], ["صندل", "sandals"],
+  ["بوت", "boots"], ["كوتشي", "sneakers"], ["سنيكرز", "sneakers"], ["حذاء", "shoes"], ["جزمه", "shoes"], ["جزمة", "shoes"],
+]);
+
+const firstLexiconHit = (haystack, lexicon) => {
+  for (const [needle, canonical] of lexicon) {
+    if (haystack.includes(needle)) return canonical;
+  }
+  return null;
+};
+
+/** Budget only when a currency or budget word anchors it — a bare number is a size. */
+const extractBudget = (raw) => {
+  const match = raw.match(/(?:ميزانيتي|ميزانية|ميزانيه|في حدود|حوالي|لحد|budget)\D{0,12}(\d{2,6})/i)
+    || raw.match(/(\d{2,6})\s*(?:جنيه|ج\.م|جم|le|egp|pounds?)/i);
+  const parsed = Number(match?.[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const OBJECTION_CUES = Object.freeze([
+  ["price_high", /غالي|غاليه|غالية|كتير اوي|كتير أوي|ارخص|أرخص|expensive|cheaper/i],
+  ["authenticity_doubt", /تقليد|مضروب|مش اصلي|مش أصلي|اوريجينال|أصلي\s*\?|fake|original/i],
+  ["quality_doubt", /خامه|خامة|جوده|جودة|بيقطع|هيقطع|وحش|quality/i],
+  ["shipping_cost", /الشحن غالي|شحن غالي|شحن كام/i],
+  ["shipping_time", /هيتأخر|بيتأخر|طويل اوي|امتى هيوصل|متأخر/i],
+  ["size_risk", /لو المقاس مش|مش مظبوط|مش هيجيلي|لو ماجاش/i],
+  ["trust", /مش واثق|نصب|محتال|scam/i],
+]);
+
+const FUNNEL_BY_INTENT = Object.freeze({
+  buying_intent: "ready_to_buy",
+  objection: "objecting",
+  comparison: "comparing",
+  order_status: "post_purchase",
+  return_or_exchange: "post_purchase",
+  complaint: "complaint",
+});
+
+/**
+ * Reads the message with rules only. This is not a downgrade path that exists to be
+ * ignored: it runs whenever the flag is off, the API key is missing, or the model call
+ * fails, so its quality is the floor on the assistant's understanding.
+ */
 export const buildDeterministicUnderstanding = (message = "") => {
   const raw = text(message);
-  const legacyIntent = resolveIntent(raw);
+  const normalized = text(normalizeArabicForIntent(raw)) || raw;
+  const haystack = `${raw} ${normalized}`.toLowerCase();
+  const legacyFromResolver = resolveIntent(raw);
   const escalation = detectEscalation(raw);
   const size = extractShoeSize(raw);
 
-  const primaryByLegacy = {
-    AVAILABILITY_INQUIRY: "product_availability",
-    SIZE_INQUIRY: "size_question",
-    PRICE_INQUIRY: "price_question",
-    GREETING: "greeting",
-    GENERAL: "other",
+  let primaryIntent = "other";
+  const secondary = [];
+  for (const [intent, pattern] of DETERMINISTIC_INTENT_RULES) {
+    if (!pattern.test(haystack)) continue;
+    if (primaryIntent === "other") primaryIntent = intent;
+    else if (secondary.length < 3) secondary.push(intent);
+  }
+  for (const [intent, pattern] of ANCHORED_INTENTS) {
+    if (!pattern.test(raw) && !pattern.test(normalized)) continue;
+    if (primaryIntent === "other") primaryIntent = intent;
+    else if (!secondary.includes(intent) && secondary.length < 3) secondary.push(intent);
+  }
+
+  // "عندكم كروكس مقاس 44" is an availability question that happens to name a size;
+  // "الوان ايه المتاحة؟" is a colour question that happens to use an availability word.
+  // What separates them is whether a product is named at all.
+  if (
+    ["size_question", "color_question"].includes(primaryIntent)
+    && AVAILABILITY_CUE.test(haystack)
+    && namesAProduct(normalized)
+  ) {
+    if (!secondary.includes(primaryIntent) && secondary.length < 3) secondary.unshift(primaryIntent);
+    primaryIntent = "product_availability";
+  }
+  // Escalation outranks every read: a customer asking for a human, or angry enough to
+  // trip the detector, must not be answered as a product question.
+  if (escalation.shouldEscalate && primaryIntent !== "human_handoff") primaryIntent = "complaint";
+
+  const objection =
+    OBJECTION_CUES.find(([, pattern]) => pattern.test(haystack))?.[0]
+    || (primaryIntent === "objection" ? "price_high" : "none");
+
+  const entities = {
+    ...emptyEntities(),
+    size: size || null,
+    color: firstLexiconHit(haystack, COLOR_WORDS),
+    city: firstLexiconHit(haystack, EGYPT_CITIES),
+    brand: firstLexiconHit(haystack, BRAND_LEXICON),
+    category: firstLexiconHit(haystack, CATEGORY_LEXICON),
+    occasion: firstLexiconHit(haystack, OCCASION_WORDS),
+    recipient: firstLexiconHit(haystack, RECIPIENT_WORDS),
+    budget_max: extractBudget(haystack),
   };
 
+  // A complaint is a human's job even when the escalation keyword list misses the
+  // particular insult the customer used.
+  const requiresHuman = escalation.shouldEscalate || ["human_handoff", "complaint"].includes(primaryIntent);
+  const knownIntent = primaryIntent !== "other";
+
   return {
-    primary_intent: escalation.shouldEscalate ? "complaint" : primaryByLegacy[legacyIntent] || "other",
-    secondary_intents: [],
-    entities: { ...emptyEntities(), size: size || null },
-    funnel_stage: escalation.shouldEscalate ? "complaint" : "browsing",
-    sentiment: escalation.shouldEscalate ? "negative" : "neutral",
-    urgency: "normal",
-    formality: "casual",
-    objection: "none",
-    refers_to_previous: { is_followup: false, target: null },
-    requires_human: escalation.shouldEscalate,
-    confidence: { intent: escalation.shouldEscalate ? 0.6 : 0.35, entities: size ? 0.6 : 0.2 },
-    legacy_intent: legacyIntent,
+    primary_intent: primaryIntent,
+    secondary_intents: secondary,
+    entities,
+    funnel_stage: requiresHuman && primaryIntent !== "human_handoff"
+      ? "complaint"
+      : FUNNEL_BY_INTENT[primaryIntent] || "browsing",
+    sentiment: escalation.shouldEscalate || objection !== "none" ? "negative" : "neutral",
+    urgency: /ضروري|بسرعه|بسرعة|حالا|النهارده|النهاردة|urgent|asap/i.test(haystack) ? "high" : "normal",
+    formality: /حضرتك|لو سمحت|من فضلك|تفضل/i.test(haystack) ? "formal" : "casual",
+    objection,
+    refers_to_previous: {
+      is_followup: /\b(ده|دي|دى|دول|الموديل ده|نفسه|نفسها|هو ده|it|this one)\b/i.test(haystack),
+      target: null,
+    },
+    requires_human: requiresHuman,
+    confidence: {
+      intent: requiresHuman ? 0.7 : knownIntent ? 0.55 : 0.3,
+      entities: Object.values(entities).some(Boolean) ? 0.5 : 0.2,
+    },
+    legacy_intent: LEGACY_INTENT_BY_PRIMARY[primaryIntent] || legacyFromResolver,
     source: "deterministic",
     model: "",
   };

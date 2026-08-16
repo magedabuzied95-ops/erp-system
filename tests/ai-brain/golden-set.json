@@ -1,0 +1,293 @@
+[
+  {
+    "id": "G01",
+    "message": "السلام عليكم عندكم كروكس اسود مقاس 44 ؟",
+    "note": "The exact live message from the Phase 10.6 incident: it was read as GREETING and answered with Air Jordan.",
+    "expected": {
+      "primary_intent": "product_availability",
+      "legacy_intent": "AVAILABILITY_INQUIRY",
+      "entities": {
+        "brand": "Crocs",
+        "color": "أسود",
+        "size": "44"
+      },
+      "requires_human": false,
+      "product_id": 1
+    }
+  },
+  {
+    "id": "G02",
+    "message": "السلام عليكم",
+    "note": "Greeting only — nothing else in the message, so greeting must win.",
+    "expected": {
+      "primary_intent": "greeting",
+      "legacy_intent": "GREETING",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G03",
+    "message": "بكام دي؟",
+    "expected": {
+      "primary_intent": "price_question",
+      "legacy_intent": "PRICE_INQUIRY",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G04",
+    "message": "عايز مقاس ٤٤",
+    "note": "Arabic-Indic digits must normalise to 44.",
+    "expected": {
+      "primary_intent": "size_question",
+      "legacy_intent": "SIZE_INQUIRY",
+      "entities": {
+        "size": "44"
+      },
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G05",
+    "message": "فيه مشكلة في الأوردر وعايز فلوسي ترجع",
+    "expected": {
+      "primary_intent": "complaint",
+      "requires_human": true
+    }
+  },
+  {
+    "id": "G06",
+    "message": "عايز اكلم حد من الموظفين",
+    "expected": {
+      "primary_intent": "human_handoff",
+      "requires_human": true
+    }
+  },
+  {
+    "id": "G07",
+    "message": "عايز حاجة كاجوال لأخويا هدية وميزانيتي 1500",
+    "note": "The case the keyword resolver returns GENERAL for: gift, third party, budget.",
+    "expected": {
+      "primary_intent": "product_discovery",
+      "entities": {
+        "budget_max": 1500,
+        "occasion": "هدية",
+        "recipient": "أخي"
+      },
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G08",
+    "message": "ده غالي اوي، فيه حاجة أرخص؟",
+    "expected": {
+      "primary_intent": "objection",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G09",
+    "message": "نايك عندكم؟",
+    "note": "Arabic-spelled Latin brand — no alias table entry exists.",
+    "expected": {
+      "primary_intent": "product_availability",
+      "legacy_intent": "AVAILABILITY_INQUIRY",
+      "entities": {
+        "brand": "Nike"
+      },
+      "requires_human": false,
+      "product_id": 3
+    }
+  },
+  {
+    "id": "G10",
+    "message": "عايز اديداس للجري",
+    "expected": {
+      "primary_intent": "product_discovery",
+      "entities": {
+        "brand": "Adidas"
+      },
+      "requires_human": false,
+      "product_id": 5
+    }
+  },
+  {
+    "id": "G11",
+    "message": "فانز موجودة؟",
+    "expected": {
+      "primary_intent": "product_availability",
+      "legacy_intent": "AVAILABILITY_INQUIRY",
+      "requires_human": false,
+      "product_id": 7
+    }
+  },
+  {
+    "id": "G12",
+    "message": "بوما بكام؟",
+    "expected": {
+      "primary_intent": "price_question",
+      "legacy_intent": "PRICE_INQUIRY",
+      "requires_human": false,
+      "product_id": 6
+    }
+  },
+  {
+    "id": "G13",
+    "message": "نيو بالانس عندكم منها ايه؟",
+    "expected": {
+      "requires_human": false,
+      "product_id": 8
+    }
+  },
+  {
+    "id": "G14",
+    "message": "الشحن لاسكندرية بكام وهيوصل امتى؟",
+    "expected": {
+      "primary_intent": "shipping_question",
+      "entities": {
+        "city": "الإسكندرية"
+      },
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G15",
+    "message": "ينفع استبدال لو المقاس مش مظبوط؟",
+    "expected": {
+      "primary_intent": "return_or_exchange",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G16",
+    "message": "الأوردر بتاعي رقم 4412 وصل فين؟",
+    "expected": {
+      "primary_intent": "order_status",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G17",
+    "message": "تمام هاخده، ابعتهولي",
+    "expected": {
+      "primary_intent": "buying_intent",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G18",
+    "message": "ابعتلي صور تانية للموديل ده",
+    "expected": {
+      "primary_intent": "image_request",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G19",
+    "message": "بلغني لما مقاس 43 ينزل تاني",
+    "expected": {
+      "primary_intent": "restock_request",
+      "entities": {
+        "size": "43"
+      },
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G20",
+    "message": "الوان ايه المتاحة؟",
+    "expected": {
+      "primary_intent": "color_question",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G21",
+    "message": "ايه الفرق بين دي ودي؟",
+    "expected": {
+      "primary_intent": "comparison",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G22",
+    "message": "الدفع عند الاستلام متاح؟",
+    "expected": {
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G23",
+    "message": "شكرا ليك",
+    "expected": {
+      "primary_intent": "smalltalk",
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G24",
+    "message": "محتاجها النهاردة ضروري",
+    "expected": {
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G25",
+    "message": "do you have crocs size 44 in black?",
+    "note": "English customer — the reply language contract must flip, the intent must not.",
+    "expected": {
+      "primary_intent": "product_availability",
+      "entities": {
+        "size": "44"
+      },
+      "requires_human": false,
+      "product_id": 1
+    }
+  },
+  {
+    "id": "G26",
+    "message": "3andko crocs mkas 44?",
+    "note": "Franco-Arabic — Arabic typed in Latin letters, extremely common on WhatsApp.",
+    "expected": {
+      "requires_human": false,
+      "product_id": 1
+    }
+  },
+  {
+    "id": "G27",
+    "message": "لا مش عايز ده، وريني بديل",
+    "expected": {
+      "requires_human": false
+    }
+  },
+  {
+    "id": "G28",
+    "message": "جوردن فور متاح؟",
+    "note": "Alias-table path — this one IS in the alias engine.",
+    "expected": {
+      "primary_intent": "product_availability",
+      "legacy_intent": "AVAILABILITY_INQUIRY",
+      "requires_human": false,
+      "product_id": 3
+    }
+  },
+  {
+    "id": "G29",
+    "message": "السلام عليكم ورحمة الله، ممكن اعرف سعر الكروكس؟",
+    "note": "Greeting plus a real question: the business signal must beat the greeting.",
+    "expected": {
+      "primary_intent": "price_question",
+      "legacy_intent": "PRICE_INQUIRY",
+      "requires_human": false,
+      "product_id": 1
+    }
+  },
+  {
+    "id": "G30",
+    "message": "انتوا نصابين، بقالي اسبوع مستني",
+    "expected": {
+      "primary_intent": "complaint",
+      "requires_human": true
+    }
+  }
+]

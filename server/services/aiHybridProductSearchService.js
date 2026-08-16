@@ -166,6 +166,69 @@ const latinSkeleton = (value = "") => {
 };
 
 /**
+ * Latin brand names the catalog is likely to use, keyed by consonant skeleton.
+ *
+ * The skeleton alone cannot be handed to SQL: `LIKE '%bm%'` does not find "Puma". The
+ * skeleton is a JOIN KEY between the two spellings, so it has to resolve back to a
+ * real Latin string before it can be searched. Without this step the Arabic token was
+ * sent to SQL verbatim, matched nothing in a Latin catalog, and left
+ * `applyEntityConstraints` with an empty list to filter — retrieval returned zero.
+ *
+ * Seeded statically because a lexicon that only learns from the catalog cannot help on
+ * the first request. `listBrands` overlays the tenant's real brands on top, which is
+ * what covers brands nobody thought to list here.
+ */
+const BRAND_LEXICON_SEED = [
+  "Nike", "Adidas", "Puma", "Vans", "Crocs", "New Balance", "Converse", "Reebok",
+  "Fila", "Skechers", "Timberland", "Jordan", "Under Armour", "Asics", "Lacoste",
+  "Levis", "Zara", "Bershka", "Pull and Bear", "Tommy Hilfiger", "Calvin Klein",
+  "The North Face", "Columbia", "Salomon", "Hoka", "Birkenstock", "Dr Martens",
+];
+
+const brandSkeletonIndex = (extraBrands = []) => {
+  const index = new Map();
+  for (const brand of [...BRAND_LEXICON_SEED, ...asArray(extraBrands)]) {
+    const name = text(brand);
+    if (name.length < 2) continue;
+    // Multi-word brands are searchable whole and per word: "بالانس" alone should still
+    // reach "New Balance".
+    for (const variant of [name, ...name.split(/\s+/)]) {
+      const skeleton = latinSkeleton(variant);
+      if (skeleton.length < 2) continue;
+      if (!index.has(skeleton)) index.set(skeleton, name);
+    }
+  }
+  return index;
+};
+
+/**
+ * Latin brand names whose consonant skeleton matches a token in the message.
+ *
+ * Exact skeleton equality only. Substring matching here was tried and rejected: the
+ * skeleton alphabet is tiny, so "sk" is inside a large share of the lexicon and every
+ * short Arabic token dragged in unrelated brands.
+ */
+const bridgeArabicBrands = (message, extraBrands = []) => {
+  const index = brandSkeletonIndex(extraBrands);
+  const found = new Set();
+  const tokens = meaningfulTokens(message);
+
+  for (const token of tokens) {
+    // Already Latin — the phrase and token retrievers handle it.
+    if (/^[a-z0-9-]+$/i.test(token)) continue;
+    const skeleton = latinSkeleton(token);
+    if (skeleton.length >= 2 && index.has(skeleton)) found.add(index.get(skeleton));
+  }
+  // Adjacent pairs, so "نيو بالانس" resolves to "New Balance" as one brand.
+  for (let i = 0; i < tokens.length - 1; i += 1) {
+    const skeleton = latinSkeleton(`${tokens[i]} ${tokens[i + 1]}`);
+    if (skeleton.length >= 3 && index.has(skeleton)) found.add(index.get(skeleton));
+  }
+
+  return [...found];
+};
+
+/**
  * Acceptable spellings of one entity: the folded Arabic form, the raw Latin form, the
  * alias engine's canonical form and search terms, and the consonant skeleton. Matching
  * any one of them satisfies the constraint.
@@ -236,7 +299,7 @@ const applyEntityConstraints = (products, understanding) => {
  * can explain which retriever found a product — that provenance is what makes a bad
  * recommendation debuggable instead of mysterious.
  */
-export const buildRetrievalQueries = ({ message = "", understanding = null } = {}) => {
+export const buildRetrievalQueries = ({ message = "", understanding = null, catalogBrands = [] } = {}) => {
   const queries = [];
   const seen = new Set();
   const push = (name, query, weight) => {
@@ -267,6 +330,12 @@ export const buildRetrievalQueries = ({ message = "", understanding = null } = {
     for (const hint of asArray(hints.searchTerms).slice(0, 3)) push("alias", hint, 1.3);
   }
 
+  // Above the raw tokens: a resolved Latin brand is a far stronger signal than the
+  // Arabic token it came from, which SQL cannot match at all.
+  for (const brand of bridgeArabicBrands([message, entities.brand, entities.product_model].filter(Boolean).join(" "), catalogBrands)) {
+    push("brand", brand, 1.25);
+  }
+
   for (const token of meaningfulTokens(message).slice(0, MAX_TOKEN_QUERIES)) {
     push("token", token, 0.7);
   }
@@ -287,10 +356,11 @@ export const searchProductsHybrid = async ({
   understanding = null,
   limit = 8,
   runQuery,
+  catalogBrands = [],
 } = {}) => {
   if (typeof runQuery !== "function") throw new TypeError("runQuery is required");
 
-  const queries = buildRetrievalQueries({ message, understanding });
+  const queries = buildRetrievalQueries({ message, understanding, catalogBrands });
   if (!queries.length) return [];
 
   // One retriever failing must not fail the search — that is the whole point of
