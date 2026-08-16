@@ -4952,6 +4952,14 @@ const deleteOrderRelatedRows = async (client, orderId) => {
     deleted[key] = (deleted[key] || 0) + Number(count || 0);
   };
 
+  // A return's own accounting is keyed by the RETURN id, not the order id, and the
+  // returns rows are about to be deleted -- so capture the ids first or the refund
+  // outlives the order it belonged to.
+  const returnIds = (await tableExists(client, "returns"))
+    ? (await client.query(`SELECT id FROM returns WHERE order_id = $1`, [orderId])).rows.map((row) => Number(row.id))
+    : [];
+  const refIds = returnIds.length ? returnIds : [-1];
+
   const returnCounts = await deleteReturnRowsForOrder(client, orderId);
   Object.entries(returnCounts).forEach(([key, count]) => addCount(key, count));
 
@@ -5007,24 +5015,71 @@ const deleteOrderRelatedRows = async (client, orderId) => {
                ELSE 0
              END) AS delta
       FROM cash_drawer_shift_events
-      WHERE source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')
+      WHERE (source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale'))
+         OR (LOWER(source_type) = 'return' AND source_id = ANY($2::bigint[]))
       GROUP BY shift_id
     ) d
     WHERE s.id = d.shift_id
     `,
-    [orderId]
+    [orderId, refIds]
   );
   addCount("cash_drawer_shift_events", await deleteFromTableByPredicates(client, "cash_drawer_shift_events", [
     { columns: ["order_id"], sql: "order_id = $1" },
     { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
     { columns: ["source_id", "source_type"], sql: "source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
-  ], [orderId]));
+    { columns: ["source_id", "source_type"], sql: "LOWER(source_type) = 'return' AND source_id = ANY($2::bigint[])" },
+  ], [orderId, refIds]));
   addCount("financial_account_entries", await deleteFromTableByPredicates(client, "financial_account_entries", [
     { columns: ["source_id", "source_type"], sql: "source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
-  ], [orderId]));
+    { columns: ["source_id", "source_type"], sql: "LOWER(source_type) LIKE '%return%' AND source_id = ANY($2::bigint[])" },
+  ], [orderId, refIds]));
+  // journal_entry_lines has no FK to journal_entries in this schema, so the lines
+  // have to go first or they outlive their entry as unattached debits and credits.
+  if (await tableExists(client, "journal_entry_lines")) {
+    const orphanLines = await client.query(
+      `
+      DELETE FROM journal_entry_lines
+      WHERE journal_entry_id IN (
+        SELECT id FROM journal_entries
+        WHERE (reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale'))
+           OR (LOWER(reference_type) LIKE '%return%' AND reference_id = ANY($2::bigint[]))
+      )
+      `,
+      [orderId, refIds]
+    );
+    addCount("journal_entry_lines", orphanLines.rowCount);
+  }
   addCount("journal_entries", await deleteFromTableByPredicates(client, "journal_entries", [
     { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
-  ], [orderId]));
+    { columns: ["reference_id", "reference_type"], sql: "LOWER(reference_type) LIKE '%return%' AND reference_id = ANY($2::bigint[])" },
+  ], [orderId, refIds]));
+  addCount("inventory_movements", await deleteFromTableByPredicates(client, "inventory_movements", [
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
+    { columns: ["reference_id", "reference_type"], sql: "LOWER(reference_type) LIKE '%return%' AND reference_id = ANY($2::bigint[])" },
+  ], [orderId, refIds]));
+  // money_transactions is an append-only ledger and account balances are derived
+  // from it, so deleting rows here would move real money. Relabel instead: the
+  // amounts stay, but the reference stops pointing at an order that no longer
+  // exists (and whose id will be handed to a future invoice).
+  if (await tableExists(client, "money_transactions")) {
+    const moneyColumns = await getTableColumnSet(client, "money_transactions");
+    if (moneyColumns.has("reference_type") && moneyColumns.has("reference_id")) {
+      const relabelled = await client.query(
+        `
+        UPDATE money_transactions
+        SET reference_type = 'deleted_order'
+            ${moneyColumns.has("metadata") ? `, metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                 'original_reference_type', reference_type,
+                 'original_reference_id', reference_id,
+                 'quarantine_reason', 'the order this money moved for was permanently deleted')` : ""}
+        WHERE (reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale', 'order_payment'))
+           OR (LOWER(reference_type) LIKE '%return%' AND reference_id = ANY($2::bigint[]))
+        `,
+        [orderId, refIds]
+      );
+      addCount("money_transactions_quarantined", relabelled.rowCount);
+    }
+  }
   addCount("marketing_attribution_events", await deleteFromTableByPredicates(client, "marketing_attribution_events", [
     { columns: ["order_id"], sql: "order_id = $1" },
   ], [orderId]));
