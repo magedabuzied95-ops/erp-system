@@ -3550,16 +3550,29 @@ function CreateProduct() {
                         className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-surface"
                         aria-expanded={isExpanded}
                       >
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface sm:h-[72px] sm:w-[72px]">
+                        <div className="group/thumb relative shrink-0">
+                          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface sm:h-[72px] sm:w-[72px]">
+                            {group.imagePreview ? (
+                              <img
+                                src={resolveAssetUrl(group.imagePreview)}
+                                alt={group.color || `Color ${groupIndex + 1}`}
+                                className="h-full w-full object-contain p-2"
+                              />
+                            ) : (
+                              <ImagePlus className="text-text-muted" size={22} />
+                            )}
+                          </div>
                           {group.imagePreview ? (
-                            <img
-                              src={resolveAssetUrl(group.imagePreview)}
-                              alt={group.color || `Color ${groupIndex + 1}`}
-                              className="h-full w-full object-contain p-2"
-                            />
-                          ) : (
-                            <ImagePlus className="text-text-muted" size={22} />
-                          )}
+                            <div className="pointer-events-none invisible absolute bottom-full right-0 z-50 mb-2 origin-bottom-right scale-95 opacity-0 transition duration-150 group-hover/thumb:visible group-hover/thumb:scale-100 group-hover/thumb:opacity-100">
+                              <div className="h-64 w-64 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl">
+                                <img
+                                  src={resolveAssetUrl(group.imagePreview)}
+                                  alt={group.color || `Color ${groupIndex + 1}`}
+                                  className="h-full w-full object-contain p-3"
+                                />
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="min-w-0 flex-1">
