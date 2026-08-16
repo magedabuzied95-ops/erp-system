@@ -2184,6 +2184,23 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
     }
 
     try {
+      // Conversations already hold pictures the customer records never got.
+      // Best-effort and after listen, so a slow or failing pass can never hold
+      // the boot hostage.
+      const { backfillCustomerAvatarsFromConversations } = await import("./services/whatsappGatewayService.js");
+      const avatarBackfill = await backfillCustomerAvatarsFromConversations({});
+      console.log("[server] customer avatar backfill", avatarBackfill);
+    } catch (error) {
+      failures.push({
+        step: "backfillCustomerAvatarsFromConversations",
+        message: error?.message || String(error),
+      });
+      console.warn("[server] customer avatar backfill skipped", {
+        message: error?.message || String(error),
+      });
+    }
+
+    try {
       registerBackgroundJobHandlers();
       startAiShoeCoverWorker();
       registerMarketingJobHandlers();

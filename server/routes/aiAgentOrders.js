@@ -1522,6 +1522,8 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         tenantId,
         phone: message.external_customer_id,
         whatsappName: message.customer_name,
+        avatarUrl: message.customer_avatar_url || "",
+        avatarSource: "whatsapp",
       }).catch((error) => {
         console.warn("[ai-agent:whatsapp] customer auto-registration failed", {
           tenantId,

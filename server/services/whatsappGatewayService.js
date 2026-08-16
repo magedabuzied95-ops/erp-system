@@ -24,7 +24,7 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMessage.js";
 import { getConversationMemory } from "./aiConversationMemory.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
-import { autoRegisterWhatsappCustomer } from "./whatsappCustomerAutoRegistrationService.js";
+import { autoRegisterWhatsappCustomer, ensureWhatsappCustomerAvatarSchema } from "./whatsappCustomerAutoRegistrationService.js";
 import { extractWhatsappReactionEvent } from "../utils/whatsappReaction.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
@@ -673,8 +673,58 @@ export const fetchWhatsappCustomerProfilePicture = async ({ phone = "", instance
   return profilePictureUrl;
 };
 
+// Thousands of conversations already carry a picture the customer record never
+// saw. Copying them across is one set-based pass keyed on the last ten digits,
+// which is the part an Egyptian number keeps in every format it is stored in.
+export const backfillCustomerAvatarsFromConversations = async ({ tenantId = null } = {}) => {
+  await ensureWhatsappCustomerAvatarSchema();
+  const params = tenantId ? [Number(tenantId)] : [];
+  const tenantFilter = tenantId ? "AND c.tenant_id = $1" : "";
+  const result = await db.query(
+    `
+    WITH conversation_phones AS (
+      SELECT
+        tenant_id,
+        customer_avatar_url,
+        COALESCE(last_message_at, updated_at) AS ranked_at,
+        RIGHT(regexp_replace(COALESCE(NULLIF(external_customer_id, ''), metadata->>'resolved_phone', metadata->>'phone', ''), '\\D', '', 'g'), 10) AS phone_key,
+        LENGTH(regexp_replace(COALESCE(NULLIF(external_customer_id, ''), metadata->>'resolved_phone', metadata->>'phone', ''), '\\D', '', 'g')) AS phone_digits
+      FROM ai_channel_conversations
+      WHERE channel = 'whatsapp'
+        AND COALESCE(customer_avatar_url, '') <> ''
+        ${tenantId ? "AND tenant_id = $1" : ""}
+    ),
+    conversation_avatars AS (
+      SELECT DISTINCT ON (tenant_id, phone_key) tenant_id, phone_key, customer_avatar_url
+      FROM conversation_phones
+      WHERE phone_digits >= 10
+      ORDER BY tenant_id, phone_key, ranked_at DESC
+    )
+    UPDATE customers c
+    SET avatar_url = a.customer_avatar_url,
+        avatar_source = 'whatsapp',
+        avatar_updated_at = NOW(),
+        updated_at = NOW()
+    FROM conversation_avatars a
+    WHERE c.tenant_id = a.tenant_id
+      AND LENGTH(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g')) >= 10
+      AND RIGHT(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), 10) = a.phone_key
+      AND COALESCE(c.avatar_url, '') <> a.customer_avatar_url
+      ${tenantFilter}
+    `,
+    params
+  );
+  const linked = result.rowCount || 0;
+  if (linked > 0) console.info("[whatsapp:customer-avatar-backfill]", { tenantId: tenantId ? Number(tenantId) : null, linked });
+  return { linked };
+};
+
 export const syncWhatsappCustomerProfilePictures = async ({ tenantId = null, limit = 250, force = false } = {}) => {
   await ensureAiSupportLogSchema();
+  const backfill = await backfillCustomerAvatarsFromConversations({ tenantId }).catch((error) => {
+    console.warn("[whatsapp:customer-avatar-backfill-failed]", { message: error?.message || String(error) });
+    return { linked: 0 };
+  });
   const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 250));
   const params = tenantId ? [Number(tenantId), safeLimit] : [safeLimit];
   const tenantFilter = tenantId ? "AND tenant_id = $1" : "";
@@ -693,6 +743,7 @@ export const syncWhatsappCustomerProfilePictures = async ({ tenantId = null, lim
     params
   );
   let updated = 0;
+  let customersUpdated = 0;
   let unavailable = 0;
   const rows = result.rows || [];
   const concurrency = 4;
@@ -715,11 +766,35 @@ export const syncWhatsappCustomerProfilePictures = async ({ tenantId = null, lim
           `UPDATE ai_support_sessions SET customer_avatar_url = $1 WHERE tenant_id = $2 AND session_id = $3`,
           [avatarUrl, row.tenant_id, row.external_conversation_id]
         ),
+        // The same picture belongs on the customer record, not only on the
+        // conversation. No name is passed, so this can refresh an existing
+        // customer but never mint one.
+        autoRegisterWhatsappCustomer({
+          tenantId: row.tenant_id,
+          phone,
+          whatsappName: "",
+          avatarUrl,
+          avatarSource: "whatsapp",
+        }).then((result) => {
+          if (result?.avatarUpdated) customersUpdated += 1;
+        }).catch((error) => {
+          console.warn("[whatsapp:customer-avatar-sync-failed]", {
+            tenantId: row.tenant_id,
+            phoneSuffix: String(phone || "").slice(-4),
+            message: error?.message || String(error),
+          });
+        }),
       ]);
       updated += 1;
     }));
   }
-  return { scanned: rows.length, updated, unavailable };
+  return {
+    scanned: rows.length,
+    updated,
+    customers_updated: customersUpdated,
+    customers_backfilled: backfill.linked || 0,
+    unavailable,
+  };
 };
 
 export const getStatus = async () => {
@@ -4775,17 +4850,28 @@ export const handleIncomingWebhook = async (payload = {}) => {
     await finishTrace(trace, { status: "skipped", reason: "missing_identity" });
     return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_identity" } };
   }
+  // The picture is resolved before registration so the customer record is born
+  // with a face on it, instead of waiting for the nightly backfill.
+  if (!normalized.customerAvatarUrl) {
+    normalized.customerAvatarUrl = await fetchWhatsappCustomerProfilePicture({
+      phone: normalized.resolvedPhone || normalized.phone,
+      instance: normalized.instance,
+    });
+  }
   await autoRegisterWhatsappCustomer({
     tenantId: traceTenantId,
     phone: normalized.resolvedPhone || normalized.phone,
     whatsappName: normalized.senderName,
+    avatarUrl: normalized.customerAvatarUrl,
+    avatarSource: "whatsapp",
   }).then((result) => {
-    if (result?.created || result?.updated) {
+    if (result?.created || result?.updated || result?.avatarUpdated) {
       console.info("[whatsapp:customer-auto-registered]", {
         tenantId: traceTenantId,
         customerId: result.customerId || null,
         created: result.created === true,
         updated: result.updated === true,
+        avatarUpdated: result.avatarUpdated === true,
         phoneSuffix: normalized.phone.slice(-4),
       });
     }
@@ -4796,12 +4882,6 @@ export const handleIncomingWebhook = async (payload = {}) => {
       message: error?.message || String(error),
     });
   });
-  if (!normalized.customerAvatarUrl) {
-    normalized.customerAvatarUrl = await fetchWhatsappCustomerProfilePicture({
-      phone: normalized.resolvedPhone || normalized.phone,
-      instance: normalized.instance,
-    });
-  }
   if (!normalized.text) {
     if (mediaDescriptor.type) {
       const sessionId = normalized.conversationIdentity

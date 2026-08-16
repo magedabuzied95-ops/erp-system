@@ -61,6 +61,9 @@ const normalizeCustomerRow = (row = {}) => ({
   whatsapp: row.whatsapp ?? "",
   email: row.email ?? "",
   address: row.address ?? "",
+  avatar_url: row.avatar_url ?? "",
+  avatar_source: row.avatar_source ?? "",
+  avatar_updated_at: row.avatar_updated_at ?? null,
   balance: Number(row.balance ?? row.wallet_balance ?? row.credit_balance ?? 0),
   notes: row.notes ?? "",
   source: row.source ?? row.customer_source ?? row.lead_source ?? row.registration_source ?? "",
@@ -152,6 +155,9 @@ const getCustomerColumns = async () => {
           whatsappColumn: columns.includes("whatsapp") ? "whatsapp" : columns.includes("whatsapp_number") ? "whatsapp_number" : null,
           emailColumn: columns.includes("email") ? "email" : columns.includes("customer_email") ? "customer_email" : null,
           addressColumn: columns.includes("address") ? "address" : columns.includes("customer_address") ? "customer_address" : null,
+          avatarUrlColumn: columns.includes("avatar_url") ? "avatar_url" : null,
+          avatarSourceColumn: columns.includes("avatar_source") ? "avatar_source" : null,
+          avatarUpdatedAtColumn: columns.includes("avatar_updated_at") ? "avatar_updated_at" : null,
           balanceColumn: columns.includes("balance") ? "balance" : null,
           notesColumn: columns.includes("notes") ? "notes" : null,
           sourceColumn: columns.includes("source") ? "source" : null,
@@ -219,6 +225,9 @@ const buildSelectSql = (columns) => {
       ${columns.whatsappColumn ? `${columns.whatsappColumn} AS whatsapp` : "NULL::text AS whatsapp"},
       ${columns.emailColumn ? `${columns.emailColumn} AS email` : "NULL::text AS email"},
       ${columns.addressColumn ? `${columns.addressColumn} AS address` : "NULL::text AS address"},
+      ${columns.avatarUrlColumn ? `${columns.avatarUrlColumn} AS avatar_url` : "NULL::text AS avatar_url"},
+      ${columns.avatarSourceColumn ? `${columns.avatarSourceColumn} AS avatar_source` : "NULL::text AS avatar_source"},
+      ${columns.avatarUpdatedAtColumn ? `${columns.avatarUpdatedAtColumn} AS avatar_updated_at` : "NULL::timestamp AS avatar_updated_at"},
       ${balanceExpr} AS balance,
       ${notesExpr} AS notes,
       ${balanceExpr} AS wallet_balance,
@@ -324,6 +333,15 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.addressColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`);
+  }
+  if (!columns.avatarUrlColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
+  }
+  if (!columns.avatarSourceColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_source VARCHAR(40)`);
+  }
+  if (!columns.avatarUpdatedAtColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_updated_at TIMESTAMP NULL`);
   }
   if (!columns.createdAtColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);

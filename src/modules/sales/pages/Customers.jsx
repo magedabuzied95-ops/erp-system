@@ -22,6 +22,42 @@ const todayInputValue = () => new Date().toISOString().slice(0, 10);
 const inputClass =
   "h-12 w-full rounded-[var(--radius-card)] border border-border bg-surface px-4 text-sm font-semibold text-text outline-none transition placeholder:text-text-muted focus:border-emerald-400/50 focus:bg-surface";
 
+const avatarShellClass =
+  "flex h-12 w-12 shrink-0 items-center justify-center justify-self-end overflow-hidden rounded-[var(--radius-card)] border border-emerald-300/20 bg-emerald-400/15 text-emerald-200 shadow-lg shadow-emerald-950/20";
+
+/**
+ * WhatsApp profile picture URLs expire, so a broken image is expected wear, not
+ * an error — falling back to the icon keeps the row looking deliberate.
+ */
+const CustomerAvatar = ({ customer }) => {
+  const [failed, setFailed] = useState(false);
+  const url = String(customer?.avatar_url || "").trim();
+  useEffect(() => {
+    setFailed(false);
+  }, [url]);
+
+  if (!url || failed) {
+    return (
+      <div className={avatarShellClass}>
+        <UserRound className="h-6 w-6" />
+      </div>
+    );
+  }
+
+  return (
+    <div className={avatarShellClass}>
+      <img
+        src={url}
+        alt={customer?.name || ""}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        className="h-full w-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+};
+
 const normalizeCustomersPayload = (response) => {
   const rootPayload = response && typeof response === "object" ? response : {};
   const payload = rootPayload?.pagination || Array.isArray(rootPayload?.customers)
@@ -1090,9 +1126,7 @@ function Customers() {
                     >
                       <td className="px-6 py-5 align-middle text-center">
                         <div className="grid w-full grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center justify-self-end rounded-[var(--radius-card)] border border-emerald-300/20 bg-emerald-400/15 text-emerald-200 shadow-lg shadow-emerald-950/20">
-                            <UserRound className="h-6 w-6" />
-                          </div>
+                          <CustomerAvatar customer={customer} />
                           <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
                             <h3 className="m1-section-title w-full text-text">{customer.name || t("customers.records.unnamed")}</h3>
                             <p className="w-full text-xs font-medium leading-tight text-text-muted">{t("customers.records.id")} {customer.id}</p>
