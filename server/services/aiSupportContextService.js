@@ -32,6 +32,7 @@ import { normalizeSaleModeSettings, resolveSaleModePrice } from "./saleModeServi
 import { normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { latinizeArabicProductText } from "./aiEntityLexicon.js";
 import { buildConversationMemoryV2, mergeConversationMemoryV2, resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import {
@@ -1356,26 +1357,16 @@ const normalizeSearchTerms = (message, intent) => {
   ])).slice(0, 32);
 };
 
+// Arabic product words are rewritten through the shared lexicon.
+//
+// This was a chain of ~20 .replace() calls whose Arabic patterns were every one
+// wrapped in \b. JavaScript's word boundary is defined over ASCII word characters, so
+// it can never match between two Arabic letters \u2014 the boundary it needs does not
+// exist there. The whole Arabic half of this chain was dead code, which is how "\u0646\u0627\u064a\u0643"
+// kept reaching a Latin-only catalog unchanged and matching no product at all. The
+// ASCII rules below are kept because \b does work for them. See aiEntityLexicon.js.
 const normalizeProductMatchText = (value = "") =>
-  normalizeArabicMessage(value)
-    .replace(/\b\u0646\u0627\u064a\u0643\b/g, "nike")
-    .replace(/\b\u0641\u0648\u0631\b/g, "4")
-    .replace(/\b\u0627\u0631\u0628\u0639\u0647\b/g, "4")
-    .replace(/\b\u0631\u0627\u0628\u0639\u0647\b/g, "4")
-    .replace(/\b\u0627\u062f\u064a\u062f\u0627\u0633\b/g, "adidas")
-    .replace(/\b\u062c\u0648\u0631\u062f\u0646\b/g, "jordan")
-    .replace(/\b\u0634\u0648\u0643\u0633(?:\u0627\u062a)?\b/g, "shox")
-    .replace(/\b\u0645\u064a\u0631\u0648\u0631\b/g, "mirror")
-    .replace(/\b\u0645\u064a\u0631\u0648\b/g, "mirror")
-    .replace(/\b\u0627\u064a\u0631\s*\u0641\u0648\u0631\u0633\b/g, "air force")
-    .replace(/\b\u062f\u0627\u0646\u0643\b/g, "dunk")
-    .replace(/\b\u064a\u064a\u0632\u064a\b/g, "yeezy")
-    .replace(/\b\u0643\u0627\u0645\u0628\u0633\b/g, "campus")
-    .replace(/\b\u0633\u0627\u0645\u0628\u0627\b/g, "samba")
-    .replace(/\bنايك\b/g, "nike")
-    .replace(/\bفور\b/g, "4")
-    .replace(/\bاربعه\b/g, "4")
-    .replace(/\bرابعه\b/g, "4")
+  latinizeArabicProductText(normalizeArabicMessage(value))
     .replace(/\bjordan\s*iv\b/g, "jordan 4")
     .replace(/\bair\s+jordan\s*iv\b/g, "air jordan 4")
     .replace(/\baj\s*4\b/g, "aj4")

@@ -7,6 +7,7 @@ import {
   extractCategory,
   extractColor,
   extractModel,
+  latinizeArabicProductText,
   resolveBrand,
 } from "../../server/services/aiEntityLexicon.js";
 
@@ -56,6 +57,30 @@ test("models, categories and colours resolve to canonical values", () => {
   assert.equal(extractCategory("حاجة كاجوال"), "casual");
   assert.equal(extractColor("كروكس اسود"), "أسود");
   assert.equal(extractColor("in black please"), "أسود");
+});
+
+test("Arabic brand words are rewritten to the Latin token SQL can match", () => {
+  // Every one of these was claimed by a \b-wrapped .replace() in
+  // aiSupportContextService that could never fire. This is the regression guard.
+  assert.equal(latinizeArabicProductText("عايز نايك اربعه"), "عايز nike 4");
+  assert.equal(latinizeArabicProductText("جوردن فور"), "jordan 4");
+  assert.equal(latinizeArabicProductText("عايز اديداس"), "عايز adidas");
+  assert.equal(latinizeArabicProductText("شوكس"), "shox");
+  assert.equal(latinizeArabicProductText("اير فورس"), "air force");
+  // Brands the old chain never covered at all.
+  assert.equal(latinizeArabicProductText("عندكم بوما"), "عندكم puma");
+  assert.equal(latinizeArabicProductText("كروكس"), "crocs");
+  assert.equal(latinizeArabicProductText("نيو بالانس"), "new balance");
+});
+
+test("a brand fused to an Arabic prefix is left alone", () => {
+  // "بالنايك" is not the token "نايك"; rewriting inside a word would corrupt the query.
+  assert.equal(latinizeArabicProductText("بالنايك"), "بالنايك");
+});
+
+test("latinizing is a no-op on text with no known product word", () => {
+  assert.equal(latinizeArabicProductText("عايز حاجة حلوة"), "عايز حاجة حلوة");
+  assert.equal(latinizeArabicProductText(""), "");
 });
 
 test("catalog names are unique and Latin — the retriever searches these", () => {

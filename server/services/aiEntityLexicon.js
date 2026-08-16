@@ -116,6 +116,47 @@ export const BRAND_BY_MODEL = Object.freeze({
   ultraboost: "Adidas",
 });
 
+/**
+ * Arabic spellings rewritten to the Latin token the catalog actually stores, for the
+ * SQL search paths that match product names with LIKE.
+ *
+ * Longest first: "نيو بالانس" must be consumed before a bare "بالانس", and "اير فورس"
+ * before "فورس".
+ */
+const ARABIC_SEARCH_REWRITES = Object.freeze([
+  ["نيو بالانس", "new balance"], ["نيوبالانس", "new balance"],
+  ["اير فورس", "air force"], ["اير جوردن", "air jordan"],
+  ["دكتور مارتن", "dr martens"], ["اندر ارمر", "under armour"], ["نورث فيس", "north face"],
+  ["نايك", "nike"], ["اديداس", "adidas"], ["أديداس", "adidas"], ["جوردن", "jordan"], ["جوردان", "jordan"],
+  ["بوما", "puma"], ["فانز", "vans"], ["كروكس", "crocs"], ["كونفرس", "converse"],
+  ["ريبوك", "reebok"], ["فيلا", "fila"], ["سكيتشرز", "skechers"], ["تيمبرلاند", "timberland"],
+  ["لاكوست", "lacoste"], ["اسيكس", "asics"], ["بيركنستوك", "birkenstock"], ["هوكا", "hoka"],
+  ["سالومون", "salomon"], ["كولومبيا", "columbia"],
+  ["شوكسات", "shox"], ["شوكس", "shox"], ["ميرور", "mirror"], ["ميرو", "mirror"],
+  ["دانك", "dunk"], ["ييزي", "yeezy"], ["كامبس", "campus"], ["سامبا", "samba"],
+  ["الترابوست", "ultraboost"],
+  ["اربعه", "4"], ["رابعه", "4"], ["فور", "4"],
+]);
+
+/**
+ * Rewrites Arabic product words to their Latin catalog spelling.
+ *
+ * Uses Unicode-aware lookarounds rather than `\b`. JavaScript's word boundary is
+ * defined over ASCII `\w`, so `/\bنايك\b/` can never match — the boundary it needs
+ * does not exist between two non-word characters. Every Arabic-to-Latin rewrite
+ * written that way is dead code that silently does nothing, which is exactly how
+ * "نايك" kept reaching a Latin-only catalog unchanged.
+ */
+export const latinizeArabicProductText = (value = "") => {
+  let output = text(value);
+  if (!output) return "";
+  for (const [arabic, latin] of ARABIC_SEARCH_REWRITES) {
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${arabic}(?![\\p{L}\\p{N}])`, "gu");
+    output = output.replace(pattern, latin);
+  }
+  return output;
+};
+
 export const extractBrand = (value = "") => matchLexicon(value, BRAND_LEXICON);
 
 /** Brand named outright, else inferred from a model the customer named. */
