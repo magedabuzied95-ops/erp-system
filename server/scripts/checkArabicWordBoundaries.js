@@ -23,11 +23,19 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ARABIC_RANGE = "\\u0600-\\u06FF";
-// A literal backslash-b in the source text, adjacent to an Arabic character or to a
-// \u06xx escape (this repo writes Arabic both ways).
+const ARABIC_ATOM = `(?:\\\\u06[0-9a-fA-F]{2}|[${ARABIC_RANGE}])`;
+// Group syntax may sit between the boundary and the Arabic without changing the fact
+// that the boundary is being asked to match Arabic: /\b(ده|دي)\b/ is just as dead as
+// /\bده\b/, and that exact pattern shipped and killed follow-up detection while an
+// earlier version of this check called the tree clean.
+//
+// Alternation is deliberately NOT glue. In /(\bjordan\b|جوردن)/ the boundaries belong
+// to the Latin alternative and the Arabic one carries none — correct code. Treating |
+// as glue flagged 122 sites, almost all of them that shape.
+const OPEN_GLUE = "[\\s(\\[?:^]*";
+const CLOSE_GLUE = "[\\s)\\]$]*";
 const SUSPECT = new RegExp(
-  `\\\\b(?:\\\\u06[0-9a-fA-F]{2}|[${ARABIC_RANGE}])` +
-    `|(?:\\\\u06[0-9a-fA-F]{2}|[${ARABIC_RANGE}])\\\\b`
+  `\\\\b${OPEN_GLUE}${ARABIC_ATOM}` + `|${ARABIC_ATOM}${CLOSE_GLUE}\\\\b`
 );
 
 const SKIP_DIRS = new Set([
