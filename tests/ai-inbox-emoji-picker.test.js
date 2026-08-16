@@ -14,7 +14,8 @@ test("shared emoji picker renders Apple artwork and follows the active theme", (
   assert.match(picker, /emojiStyle=\{EmojiStyle\.APPLE\}/);
   assert.match(picker, /theme\?\.mode === "dark" \? Theme\.DARK : Theme\.LIGHT/);
   assert.match(picker, /createPortal/);
-  assert.match(picker, /searchPlaceHolder="Search emoji"/);
+  // Localized: the picker must still pass a search placeholder through.
+  assert.match(picker, /searchPlaceHolder=\{t\("aiSupport\.inbox\.emoji\.search"\)\}/);
 });
 
 test("desktop composer opens the picker and inserts at the textarea caret", () => {

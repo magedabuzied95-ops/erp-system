@@ -30,7 +30,15 @@ test("desktop AI Inbox uses a persistent omnichannel workspace", () => {
   assert.match(desktopSource, /ai-omni-list-panel/);
   assert.match(desktopSource, /ai-omni-chat-panel/);
   assert.doesNotMatch(desktopSource, /ai-omni-tools-panel/);
-  assert.match(desktopCss, /grid-template-columns:\s*58px minmax\(380px, 430px\) minmax\(390px, 1fr\)/);
+  // Structure, not pixels. The rail widened from 58px to 72px when it gained a menu,
+  // which failed a test whose subject is that the workspace is three columns: a fixed
+  // narrow rail, a BOUNDED list that cannot eat the chat, and a chat that takes the
+  // rest. Those three properties are what the layout depends on; the exact widths are
+  // design, and design is allowed to move.
+  const grid = desktopCss.match(/grid-template-columns:\s*(\d+)px minmax\((\d+)px, (\d+)px\) minmax\((\d+)px, 1fr\)/);
+  assert.ok(grid, "the workspace must stay a rail + bounded list + flexible chat grid");
+  assert.ok(Number(grid[1]) <= 96, `the channel rail must stay narrow, got ${grid[1]}px`);
+  assert.ok(Number(grid[3]) > Number(grid[2]), "the list column must be a range, not a fixed width");
   assert.match(desktopCss, /\.ai-inbox-desktop \.ai-omni-list-panel \{[\s\S]*?border-color:\s*rgba\(255, 255, 255, 0\.14\)[\s\S]*?border-radius:\s*1\.125rem/);
   assert.match(desktopCss, /\.ai-omni-list-panel > div:last-child[\s\S]*?scrollbar-gutter:\s*stable/);
   assert.doesNotMatch(desktopCss, /ai-omni-workspace--tools/);
@@ -51,8 +59,16 @@ test("desktop message composer matches the omnichannel footer in light and dark 
   assert.match(desktopSource, /<Paperclip className="h-5 w-5"/);
   assert.match(desktopSource, /<Smile className="h-5 w-5"/);
   assert.match(desktopSource, /<FileText className="h-5 w-5"/);
+  // The composer strip must carry BOTH a light and a dark background, or it goes
+  // white-on-white in dark mode.
   assert.match(desktopSource, /bg-\[#eefaf8\][^\n]*dark:bg-\[#20231f\]/);
-  assert.match(desktopSource, /dark:bg-\[#1b1e1b\]/);
+  // It must be the SAME dark token the sticky footer uses — matching the footer is
+  // what this test is named for. There used to be a second shade (#1b1e1b) for the
+  // toolbar; consolidating onto one token is the stated goal, not a regression, so the
+  // assertion is now that they agree rather than that both shades exist.
+  const footerDark = /border-t[^\n]*dark:bg-\[#20231f\]/;
+  assert.match(desktopSource, footerDark, "the footer and composer must share one dark token");
+  assert.ok(!desktopSource.includes("#1b1e1b"), "a second composer dark shade would break the match");
   assert.match(desktopCss, /html\[data-theme="dark"\][\s\S]*?bg-\[#eefaf8\][\s\S]*?background:\s*#20231f\s*!important/);
 });
 
@@ -67,10 +83,17 @@ test("desktop chat exposes commerce actions above the transcript", () => {
   assert.match(desktopSource, /<PackageCheck className="h-4 w-4"/);
   assert.match(desktopSource, /<Ruler className="h-4 w-4"/);
   assert.match(desktopSource, /<UserPlus className="h-4 w-4"/);
-  assert.match(desktopSource, /إنشاء أوردر/);
-  assert.match(desktopSource, /إرسال منتج/);
-  assert.match(desktopSource, /المتاح بالمقاس/);
-  assert.match(desktopSource, /إنشاء عميل/);
+  // Localized. The icon and handler assertions above already prove each action is
+  // wired; these prove it is also LABELLED, which is what stops the toolbar being four
+  // anonymous icons. The key is the stable part, the wording is not.
+  for (const key of [
+    "aiSupport.inbox.pwa.createOrder",
+    "aiSupport.inbox.picker.sendProduct",
+    "aiSupport.inbox.picker.availableBySize",
+    "aiSupport.inbox.pwa.createCustomer",
+  ]) {
+    assert.ok(desktopSource.includes(`t("${key}")`), `commerce action ${key} must still be labelled`);
+  }
   assert.doesNotMatch(desktopSource, /\n\s*<LeadQuickActionsBar/);
 });
 
@@ -114,7 +137,13 @@ test("desktop customer name and avatar open the shared Customer 360 drawer", () 
   assert.match(customer360IdentitySource, /metadata\?\.resolved_phone/);
   assert.match(customer360IdentitySource, /channel\.includes\("whatsapp"\) \? customer\?\.external_customer_id/);
   assert.doesNotMatch(customer360IdentitySource, /customer_profile_id/);
-  assert.match(activeDesktopReturnSource, /<Customer360Drawer[\s\S]*?open=\{customerDrawer\.open\}[\s\S]*?customerId=\{customerDrawer\.customerId\}[\s\S]*?title="Customer 360"/);
+  // The title became a translation key. The props that matter are the ones that decide
+  // WHICH customer the drawer shows: a drawer wired to the wrong id is the failure
+  // worth guarding, and a hardcoded English title never guarded it.
+  assert.match(
+    activeDesktopReturnSource,
+    /<Customer360Drawer[\s\S]*?open=\{customerDrawer\.open\}[\s\S]*?customerId=\{customerDrawer\.customerId\}[\s\S]*?title=\{t\("aiSupport\.inbox\.ui\.customer360"\)\}/
+  );
   assert.equal((desktopSource.match(/<Customer360Drawer/g) || []).length, 1);
 });
 

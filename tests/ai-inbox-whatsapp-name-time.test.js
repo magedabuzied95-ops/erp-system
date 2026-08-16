@@ -70,7 +70,13 @@ test("loading older messages does not put the send button into a loading state",
 test("PWA keeps older-message loading separate from reply sending", () => {
   const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
   assert.match(source, /loadingOlder=\{olderLoading\}/);
-  assert.match(source, /disabled=\{!clean\(composerText\) \|\| sending\}/);
+  // The send button's disabled state may grow clauses — it later gained one for slash
+  // commands — but the property this test is named for is that `olderLoading` is NOT
+  // one of them: paging back through history must never freeze the composer.
+  const disabledClause = source.match(/disabled=\{!clean\(composerText\)[^}]*\}/);
+  assert.ok(disabledClause, "the composer send button must still have a disabled guard");
+  assert.ok(disabledClause[0].includes("sending"), "send must be disabled while a send is in flight");
+  assert.ok(!disabledClause[0].includes("olderLoading"), "loading older messages must not disable send");
   assert.match(source, /message_count: payload\.total \?\? conversation\.message_count/);
   assert.match(source, /markReadSignatureRef\.current = ""/);
 });

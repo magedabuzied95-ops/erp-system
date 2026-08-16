@@ -46,7 +46,10 @@ test("the route confirms in the same request and returns the invoice link", () =
 });
 
 test("the composer posts a cart and offers both draft and save", () => {
-  assert.match(inbox, /items: lines\.map\(\(line\) => \(\{ variant_id: line\.variant_id/);
+  // Whitespace-tolerant: the mapping was reformatted across several lines when it
+  // gained a comment, which broke a single-line regex while the payload was unchanged.
+  assert.match(inbox, /items: lines\.map\(\(line\) => \(\{\s*variant_id: line\.variant_id/);
+  assert.match(inbox, /product_id: line\.product_id/, "the server needs the product to resolve a missing variant");
   assert.match(inbox, /onSubmit\?\.\(submitPayload\(false\)\)/);
   assert.match(inbox, /onSubmit\?\.\(submitPayload\(true\)\)/);
   assert.match(inbox, /AI_INBOX_PAYMENT_METHODS/);

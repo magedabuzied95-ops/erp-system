@@ -20,7 +20,8 @@ test("AI Inbox product sender uses the shared POS smart filter panel", () => {
 
 test("the visible PWA Send Product sheet opens the shared POS filter panel", () => {
   assert.match(pwaSource, /function ProductSheet\(/);
-  assert.match(pwaSource, /<h3[^>]*>Send Product<\/h3>/);
+  // Localized: the sheet must still be titled, in whatever language.
+  assert.match(pwaSource, /<h3[^>]*>\{t\("aiSupport\.inbox\.picker\.sendProduct"\)\}<\/h3>/);
   assert.match(pwaSource, /onClick=\{openPosFilters\}/);
   assert.match(pwaSource, /<SmartPosFilters/);
   assert.match(pwaSource, /onApply=\{applyDraftPosFilters\}/);

@@ -18,8 +18,15 @@ const metaSource = fs.readFileSync(
 test("PWA product sender allows a color-only product card and keeps size optional", () => {
   assert.match(pwaSource, /card_reply_mode: clean\(selectedColor\) && !clean\(selectedSize\) \? "color_only"/);
   assert.match(pwaSource, /needsColorSelection \|\| !needsSizeSelection/);
-  assert.match(pwaSource, />Optional<\/div>/);
-  assert.match(pwaSource, /Available sizes: \$\{availableSizesForColor\.join\(", "\)\}/);
+  // Localized: the size field must still be marked optional, or a colour-only card
+  // looks like it is missing a required choice.
+  assert.match(pwaSource, /\{t\("aiSupport\.inbox\.pwa\.optional"\)\}/);
+  // The sizes used to be flattened into an English sentence ("Available sizes: ...").
+  // They are now structured fields on the payload, which is what a card renderer and a
+  // channel adapter can each use without parsing prose.
+  assert.match(pwaSource, /available_sizes: asArray\(availableSizes\)/);
+  assert.match(pwaSource, /size_options: asArray\(availableSizes\)/);
+  assert.match(pwaSource, /buildProductCardPayload\(selectedProduct, variant, selectedColor, selectedSize, availableSizesForColor\)/);
 });
 
 test("color-only cards carry all in-stock sizes without inventing a selected variant", () => {

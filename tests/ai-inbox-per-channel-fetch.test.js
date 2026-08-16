@@ -97,19 +97,19 @@ test("a global limit fails at 1000 WhatsApp — proving the fix is what saves it
 
 // ---- request shape -------------------------------------------------------
 
-test('"All" fans out to every message channel and no comment channel', () => {
-  // The list was hardcoded to four and broke when Telegram was added — a feature, not
-  // a regression, but the failure read like one. The invariant is that "all" means
-  // exactly the message channels, whatever that set currently is, and that comment
-  // channels never leak into the message inbox.
-  assert.deepEqual(channelsForFilter("all"), AI_INBOX_MESSAGE_CHANNELS);
-  assert.deepEqual(channelsForFilter(""), AI_INBOX_MESSAGE_CHANNELS);
+// The expected set is written out deliberately rather than compared against
+// AI_INBOX_MESSAGE_CHANNELS. Comparing the fan-out to the same constant it is built
+// from is a tautology: dropping a channel changes both sides and the test still
+// passes, which is how a channel could silently stop being fetched. Changing this list
+// should require a human to agree that the change is intended — that is the point.
+const EXPECTED_MESSAGE_CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "web_chat"];
+
+test('"All" fans out to exactly the message channels, no comment channels', () => {
+  assert.deepEqual(channelsForFilter("all"), EXPECTED_MESSAGE_CHANNELS);
+  assert.deepEqual(channelsForFilter(""), EXPECTED_MESSAGE_CHANNELS);
+  // The constant and the fan-out must agree, so neither can drift alone.
+  assert.deepEqual([...AI_INBOX_MESSAGE_CHANNELS], EXPECTED_MESSAGE_CHANNELS);
   for (const ch of channelsForFilter("all")) assert.ok(!ch.includes("comment"), `${ch} is not a message channel`);
-  // The four that predate Telegram must still be there: this test also guards against
-  // a channel silently disappearing from the fan-out.
-  for (const ch of ["whatsapp", "facebook_messenger", "instagram", "web_chat"]) {
-    assert.ok(channelsForFilter("all").includes(ch), `${ch} must still be fetched`);
-  }
 });
 
 test("a selected tab issues exactly ONE request for that channel", () => {

@@ -84,10 +84,24 @@ test("AI draft persists Bosta-ready shipping fields", () => {
 test("PWA product picker exposes POS filters and theme-aware dark styling", () => {
   assert.match(productPicker, /SmartPosFilters/);
   for (const filter of ["gender", "productType", "grade", "brand", "manufacturer"]) assert.match(productPicker, new RegExp(filter));
-  assert.match(productPicker, /toggleMultiFilter\(setGender/);
-  assert.match(productPicker, /toggleMultiFilter\(setBrand/);
-  assert.match(productPicker, /toggleMultiFilter\(setManufacturer/);
-  assert.match(productPicker, /name: value, count/);
+  // Gender, brand and manufacturer must stay MULTI-select (single-select would quietly
+  // narrow a search the user meant to widen). The three per-setter helpers were
+  // replaced by one generic handler over toggleMultiFilterValue — the same behaviour
+  // with one implementation instead of three.
+  assert.match(productPicker, /toggleMultiFilterValue\(current\?\.\[field\] \|\| \[\], value\)/);
+  for (const [prop, field] of [["onGenderChange", "gender"], ["onBrandChange", "brands"], ["onManufacturerChange", "manufacturers"]]) {
+    assert.match(
+      productPicker,
+      new RegExp(`${prop}=\\{\\(value\\) => updateDraftMultiFilter\\("${field}", value\\)\\}`),
+      `${field} must stay a multi-select filter`
+    );
+  }
+  // Each filter option carries a display name and a match count — the count is what
+  // stops the user picking a filter that returns nothing. It is now derived from the
+  // localized option labels rather than the raw value, so the assertion is on the
+  // shape rather than on how the name is produced.
+  assert.match(productPicker, /name: option\.label_ar \|\| option\.label_en \|\| option\.label \|\| option\.value, count:/);
+  assert.match(productPicker, /\{ id: brandKey, name, count: 0 \}/);
   assert.doesNotMatch(productPicker, /categoryOptions=\{posCategoryOptions\}/);
   assert.doesNotMatch(productPicker, /colorOptions=\{posColorOptions\}/);
   assert.doesNotMatch(productPicker, /stockOptions=\{/);
