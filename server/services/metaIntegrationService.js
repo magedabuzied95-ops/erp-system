@@ -22486,16 +22486,16 @@ export const sendInstagramInboxReaction = async ({
   return { result, emoji: reacting ? "❤️" : "", message_id: safeMessageId };
 };
 
-const MESSENGER_REACTION_NAMES = new Map([
-  ["👍", "like"],
-  ["👎", "dislike"],
-  ["❤️", "love"],
-  ["❤", "love"],
-  ["😂", "smile"],
-  ["😮", "wow"],
-  ["😢", "sad"],
-  ["😡", "angry"],
-]);
+// Messenger wants the emoji itself in `payload.reaction`, not the named enum
+// (`like`/`love`/`wow`/…). The names only exist on the RECEIVE side, in the
+// message_reactions webhook; sending one back makes Graph answer
+// `(#100) The provided reaction is invalid or does not exist` and nothing ever
+// reaches the customer's thread. Instagram is the opposite — it takes `love`
+// and nothing else — which is how the two contracts got crossed.
+const normalizeMessengerReactionEmoji = (value = "") => {
+  const emoji = text(value);
+  return emoji === "❤" ? "❤️" : emoji;
+};
 
 export const sendMessengerInboxReaction = async ({
   tenantId,
@@ -22525,8 +22525,8 @@ export const sendMessengerInboxReaction = async ({
     config,
     facebookPageId,
   });
-  const reacting = Boolean(text(emoji));
-  const reaction = MESSENGER_REACTION_NAMES.get(text(emoji)) || "love";
+  const reaction = normalizeMessengerReactionEmoji(emoji);
+  const reacting = Boolean(reaction);
   const graphVersion = process.env.META_REACTION_GRAPH_VERSION || "v25.0";
   const pageId = text(facebookPageId || config.facebook_page_id || config.page_id || "me");
   const form = new URLSearchParams();
@@ -22549,7 +22549,7 @@ export const sendMessengerInboxReaction = async ({
       meta: result?.error || result,
     });
   }
-  return { result, emoji: reacting ? text(emoji) : "", message_id: safeMessageId };
+  return { result, emoji: reaction, message_id: safeMessageId };
 };
 
 export const sendMetaInboxOutboundMessage = async ({

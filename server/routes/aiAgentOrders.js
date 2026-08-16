@@ -5214,11 +5214,14 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
           })
       : await sendWhatsappReaction({ remoteJid, targetMessageId, targetFromMe, emoji: normalizedEmoji });
     const providerMessageId = envText(delivery?.result?.key?.id || delivery?.result?.messageId || delivery?.result?.message_id || `staff-reaction:${targetMessageId}:${Date.now()}`);
+    // Store what the provider actually applied, not what the picker asked for:
+    // a bare ❤ is sent as ❤️, and the bubble has to agree with the thread.
+    const deliveredEmoji = envText(delivery?.emoji) || normalizedEmoji;
     const stored = await upsertAiSupportMessageReaction({
       tenantId,
       sessionId,
       channel: isInstagramReaction ? "instagram" : isMessengerReaction ? "facebook_messenger" : "whatsapp",
-      emoji: normalizedEmoji,
+      emoji: deliveredEmoji,
       targetMessageId,
       fromMe: true,
       providerMessageId,
@@ -5233,7 +5236,7 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
       reason: normalizedEmoji ? "staff_reaction_sent" : "staff_reaction_removed",
       at: new Date().toISOString(),
     });
-    return res.json({ success: true, emoji: normalizedEmoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !normalizedEmoji });
+    return res.json({ success: true, emoji: deliveredEmoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !deliveredEmoji });
   } catch (error) {
     return sendError(res, error, "Failed to send message reaction");
   }

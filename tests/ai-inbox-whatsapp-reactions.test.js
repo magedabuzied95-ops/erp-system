@@ -97,10 +97,15 @@ test("outbound Instagram reactions use Meta's sender action and persist a love r
   assert.match(transcript, /export const INSTAGRAM_MESSAGE_REACTIONS = \["❤️"\]/);
 });
 
-test("Messenger reactions are visible in both inboxes and use Meta reaction names", () => {
+test("Messenger reactions send the emoji itself, never the webhook's named enum", () => {
   assert.match(metaService, /export const sendMessengerInboxReaction/);
-  assert.match(metaService, /\["👍", "like"\]/);
-  assert.match(metaService, /\["❤️", "love"\]/);
+  assert.match(metaService, /const reaction = normalizeMessengerReactionEmoji\(emoji\)/);
+  // `like`/`love`/`wow` are the RECEIVE side of message_reactions. Sending one
+  // back earns `(#100) The provided reaction is invalid or does not exist` and
+  // the customer's thread never shows the reaction.
+  assert.doesNotMatch(metaService, /MESSENGER_REACTION_NAMES/);
+  assert.doesNotMatch(metaService, /\["👍", "like"\]/);
+  assert.match(routes, /const deliveredEmoji = envText\(delivery\?\.emoji\) \|\| normalizedEmoji/);
   assert.match(metaService, /META_REACTION_GRAPH_VERSION \|\| "v25\.0"/);
   assert.match(metaService, /form\.set\("payload", json\(\{/);
   assert.match(metaService, /application\/x-www-form-urlencoded/);
