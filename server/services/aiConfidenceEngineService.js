@@ -56,11 +56,11 @@ const getIntentProfile = (intent = "") => {
 const detectIntentClarity = ({ harness = {}, draft = {} } = {}, resolvedIntent = "") => {
   const message = lower(harness?.latest_customer_message || draft?.customer_question || draft?.text || "");
   const clearSignals = [
-    "price", "ط³ط¹ط±", "ظ…ظ‚ط§ط³", "size", "available", "ظ…طھظˆظپط±", "stock", "ظ…ط®ط²ظˆظ†", "delivery", "ط´ط­ظ†", "return", "ط§ط³طھط±ط¬ط§ط¹",
-    "exchange", "ط§ط³طھط¨ط¯ط§ظ„", "order", "ط·ظ„ط¨", "tracking", "طھطھط¨ط¹", "color", "ظ„ظˆظ†", "model", "ظ…ظˆط¯ظٹظ„", "cod", "payment",
+    "price", "سعر", "مقاس", "size", "available", "متوفر", "stock", "مخزون", "delivery", "شحن", "return", "استرجاع",
+    "exchange", "استبدال", "order", "طلب", "tracking", "تتبع", "color", "لون", "model", "موديل", "cod", "payment",
   ];
   const genericSignals = [
-    "help", "ظ…ط³ط§ط¹ط¯ط©", "please", "ط¹ط§ظٹط²", "ط¹ط§ظˆط²ظ‡", "ط¹ط§ظˆط²ط©", "ظ…ظ…ظƒظ†", "what", "which", "ظپظٹظ†", "ط§ط²ط§ظٹ", "ظƒظٹظپ", "?",
+    "help", "مساعدة", "please", "عايز", "عاوزه", "عاوزة", "ممكن", "what", "which", "فين", "ازاي", "كيف", "?",
   ];
   const hasClearSignal = clearSignals.some((phrase) => message.includes(phrase));
   const genericCount = genericSignals.filter((phrase) => message.includes(phrase)).length;

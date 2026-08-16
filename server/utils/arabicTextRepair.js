@@ -1,3 +1,4 @@
+// mojibake-fixture: allow — this file stores corrupted Arabic on purpose.
 import iconv from "iconv-lite";
 
 const CORRUPTED_ARABIC_MARKERS = [

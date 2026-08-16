@@ -41,7 +41,9 @@
     "test:storefront-seo": "node --test tests/storefront-seo/*.test.js",
     "test:manager-portal": "node --test tests/manager-portal/*.test.js",
     "migrate:merchant-policies": "node server/scripts/migrateMerchantPolicySettings.js",
-    "start": "npm --prefix \"./server\" run start"
+    "start": "npm --prefix \"./server\" run start",
+    "check:encoding": "node scripts/fix-arabic-mojibake.cjs --check server scripts tests",
+    "fix:encoding": "node scripts/fix-arabic-mojibake.cjs"
   },
   "dependencies": {
     "@xyflow/react": "^12.11.2",

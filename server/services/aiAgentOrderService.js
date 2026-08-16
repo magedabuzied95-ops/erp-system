@@ -191,22 +191,22 @@ const normalizePhone = (value = "") => {
 };
 
 const extractQuantity = (message = "") => {
-  const match = text(message).match(/(?:ط¹ط¯ط¯|quantity|qty|x)\s*(\d{1,2})|\b(\d{1,2})\s*(?:ظ‚ط·ط¹|ظ‚ط·ط¹ط©|pairs?|ط¬ط²ظ…ط©|ط¬ط²ظ…)\b/i);
+  const match = text(message).match(/(?:عدد|quantity|qty|x)\s*(\d{1,2})|\b(\d{1,2})\s*(?:قطع|قطعة|pairs?|جزمة|جزم)\b/i);
   return Math.max(1, integer(match?.[1] || match?.[2], 1));
 };
 
 const extractSize = (message = "") => {
-  const match = text(message).match(/\b(?:ظ…ظ‚ط§ط³|size|sz)?\s*(3[0-9]|4[0-9]|5[0-2]|xs|s|m|l|xl|xxl)\b/i);
+  const match = text(message).match(/\b(?:مقاس|size|sz)?\s*(3[0-9]|4[0-9]|5[0-2]|xs|s|m|l|xl|xxl)\b/i);
   return text(match?.[1] || "");
 };
 
 const COLOR_ALIASES = [
-  ["black", "black"], ["ط§ط³ظˆط¯", "black"], ["ط£ط³ظˆط¯", "black"], ["ط¨ظ„ط§ظƒ", "black"],
-  ["white", "white"], ["ط§ط¨ظٹط¶", "white"], ["ط£ط¨ظٹط¶", "white"], ["ظˆط§ظٹطھ", "white"],
-  ["red", "red"], ["ط§ط­ظ…ط±", "red"], ["ط£ط­ظ…ط±", "red"],
-  ["blue", "blue"], ["ط§ط²ط±ظ‚", "blue"], ["ط£ط²ط±ظ‚", "blue"],
-  ["grey", "grey"], ["gray", "grey"], ["ط±ظ…ط§ط¯ظٹ", "grey"], ["ط±طµط§طµظٹ", "grey"],
-  ["brown", "brown"], ["ط¨ظ†ظٹ", "brown"], ["beige", "beige"], ["ط¨ظٹط¬", "beige"],
+  ["black", "black"], ["اسود", "black"], ["أسود", "black"], ["بلاك", "black"],
+  ["white", "white"], ["ابيض", "white"], ["أبيض", "white"], ["وايت", "white"],
+  ["red", "red"], ["احمر", "red"], ["أحمر", "red"],
+  ["blue", "blue"], ["ازرق", "blue"], ["أزرق", "blue"],
+  ["grey", "grey"], ["gray", "grey"], ["رمادي", "grey"], ["رصاصي", "grey"],
+  ["brown", "brown"], ["بني", "brown"], ["beige", "beige"], ["بيج", "beige"],
 ];
 
 const extractColor = (message = "") => {
@@ -225,30 +225,30 @@ const extractNamedField = (message = "", patterns = []) => {
 
 const extractCustomerName = (message = "") =>
   extractNamedField(message, [
-    /(?:ط§ط³ظ…ظٹ|ط§ظ„ط§ط³ظ…|name is|my name is)\s*[:ï¼ڑ-]?\s*([^\nطŒ,]{2,80})/i,
+    /(?:اسمي|الاسم|name is|my name is)\s*[:：-]?\s*([^\n،,]{2,80})/i,
   ]);
 
 const extractAddress = (message = "") =>
   extractNamedField(message, [
-    /(?:ط§ظ„ط¹ظ†ظˆط§ظ†|ط¹ظ†ظˆط§ظ†ظٹ|address)\s*[:ï¼ڑ-]?\s*([^\n]{6,180})/i,
+    /(?:العنوان|عنواني|address)\s*[:：-]?\s*([^\n]{6,180})/i,
   ]);
 
 const extractArea = (message = "") => {
   const value = extractNamedField(message, [
-    /(?:ط§ظ„ظ…ظ†ط·ظ‚ط©|ظ…ظ†ط·ظ‚ط©|area)\s*[:ï¼ڑ-]?\s*([^\nطŒ,]{2,80})/i,
+    /(?:المنطقة|منطقة|area)\s*[:：-]?\s*([^\n،,]{2,80})/i,
   ]);
   return value;
 };
 
 const extractGovernorate = (message = "") => {
   const value = extractNamedField(message, [
-    /(?:ط§ظ„ظ…ط­ط§ظپط¸ط©|ظ…ط­ط§ظپط¸ط©|governorate)\s*[:ï¼ڑ-]?\s*([^\nطŒ,]{2,80})/i,
+    /(?:المحافظة|محافظة|governorate)\s*[:：-]?\s*([^\n،,]{2,80})/i,
   ]);
   return value;
 };
 
-const CONFIRM_TERMS = ["ط§ظƒط¯", "ط£ظƒط¯", "طھط£ظƒظٹط¯", "طھظ…ط§ظ…", "ظ…ظˆط§ظپظ‚", "confirm", "yes"];
-const HANDOFF_TERMS = ["ط؛ظ„ط·", "ظ…ط´ظƒظ„ط©", "ط²ط¹ظ„ط§ظ†", "ط´ظƒظˆظ‰", "complaint"];
+const CONFIRM_TERMS = ["اكد", "أكد", "تأكيد", "تمام", "موافق", "confirm", "yes"];
+const HANDOFF_TERMS = ["غلط", "مشكلة", "زعلان", "شكوى", "complaint"];
 
 const SALES_STAGES = Object.freeze({
   browsing: "browsing",
@@ -269,10 +269,10 @@ const logSalesFlow = (event, payload = {}) => {
 
 const normalizeArabic = (value = "") =>
   lower(value)
-    .replace(/[ط¥ط£ط¢ط§]/g, "ط§")
-    .replace(/ظ‰/g, "ظٹ")
-    .replace(/ط©/g, "ظ‡")
-    .replace(/[ظ‘ظژظ‹ظڈظŒظگظچظ’ظ€]/g, "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -282,20 +282,20 @@ const hasAnyTerm = (message = "", terms = []) => {
 };
 
 const BUYING_INTENT_TERMS = [
-  "طھظ…ط§ظ… ظ‡ط§ط®ط¯ظ‡",
-  "طھظ…ط§ظ… ظ‡ط§ط®ط¯ظ‡ط§",
-  "ظ‡ط§ط®ط¯ظ‡",
-  "ظ‡ط§ط®ط¯ظ‡ط§",
-  "ط§ط¹ظ…ظ„ ط§ظˆط±ط¯ط±",
-  "ط§ط¹ظ…ظ„ ط£ظˆط±ط¯ط±",
-  "ط§ط­ط¬ط²ظ‡ظˆظ„ظٹ",
-  "ط§ط­ط¬ط²ظ‡ط§ظ„ظٹ",
-  "ط§ط¨ط¹طھظ‡ظˆظ„ظٹ",
-  "ط§ط¨ط¹طھظˆظ‡ظˆظ„ظٹ",
-  "ط§ط¨ط¹طھظ‡ط§ظ„ظٹ",
-  "ظ‡ط·ظ„ط¨ظ‡",
-  "ظ‡ط·ظ„ط¨ظ‡ط§",
-  "ظ‡ط·ظ„ط¨",
+  "تمام هاخده",
+  "تمام هاخدها",
+  "هاخده",
+  "هاخدها",
+  "اعمل اوردر",
+  "اعمل أوردر",
+  "احجزهولي",
+  "احجزهالي",
+  "ابعتهولي",
+  "ابعتوهولي",
+  "ابعتهالي",
+  "هطلبه",
+  "هطلبها",
+  "هطلب",
 ];
 
 const hasClearBuyingIntent = (message = "") =>
@@ -305,16 +305,16 @@ const hasClearBuyingIntent = (message = "") =>
 const detectSalesObjection = (message = "") => {
   const normalized = normalizeArabic(message);
   const checks = [
-    ["expensive", ["ط§ظ„ط³ط¹ط± ط؛ط§ظ„ظٹ", "ط؛ط§ظ„ظٹ", "ط؛ط§ظ„ظٹظ‡", "ط؛ط§ظ„ظٹ ط§ظˆظٹ", "ط؛ط§ظ„ظٹظ‡ ط§ظˆظٹ", "too expensive"]],
-    ["discount", ["ظپظٹظ‡ ط®طµظ…", "ظپظٹ ط®طµظ…", "ط®طµظ…", "discount"]],
-    ["material", ["ط®ط§ظ…طھظ‡ ط§ظٹظ‡", "ط§ظ„ط®ط§ظ…ط©", "ط®ط§ظ…ظ‡", "material"]],
-    ["authenticity", ["ط§طµظ„ظٹ ظˆظ„ط§ ظƒظˆط¨ظٹ", "ط§طµظ„ظٹ", "ظƒظˆط¨ظٹ", "ظ‡ط§ظٹ ظƒظˆط¨ظٹ", "original", "copy"]],
-    ["delivery_fee", ["ط§ظ„طھظˆطµظٹظ„ ظƒط§ظ…", "ط´ط­ظ† ظƒط§ظ…", "طھظƒظ„ظپط© ط§ظ„طھظˆطµظٹظ„", "delivery fee", "shipping"]],
-    ["delivery_eta", ["ظ‡ظٹظˆطµظ„ ط§ظ…طھظ‰", "ظٹظˆطµظ„ ط§ظ…طھظ‰", "ظˆظ‚طھ ط§ظ„طھظˆطµظٹظ„", "delivery time", "when arrive"]],
-    ["exchange", ["ظٹظ†ظپط¹ ط§ط³طھط¨ط¯ط§ظ„", "ط§ط³طھط¨ط¯ط§ظ„", "طھط¨ط¯ظٹظ„", "exchange"]],
-    ["cheaper", ["ظپظٹظ‡ ط§ط±ط®طµ", "ط§ط±ط®طµ", "ط­ط§ط¬ظ‡ ط§ط±ط®طµ", "cheaper"]],
-    ["last_price", ["ط§ط®ط± ط³ط¹ط±", "ط¢ط®ط± ط³ط¹ط±", "ظ†ظ‡ط§ط¦ظٹ", "last price"]],
-    ["cod", ["ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "ظƒط§ط´ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "cod", "cash on delivery"]],
+    ["expensive", ["السعر غالي", "غالي", "غاليه", "غالي اوي", "غاليه اوي", "too expensive"]],
+    ["discount", ["فيه خصم", "في خصم", "خصم", "discount"]],
+    ["material", ["خامته ايه", "الخامة", "خامه", "material"]],
+    ["authenticity", ["اصلي ولا كوبي", "اصلي", "كوبي", "هاي كوبي", "original", "copy"]],
+    ["delivery_fee", ["التوصيل كام", "شحن كام", "تكلفة التوصيل", "delivery fee", "shipping"]],
+    ["delivery_eta", ["هيوصل امتى", "يوصل امتى", "وقت التوصيل", "delivery time", "when arrive"]],
+    ["exchange", ["ينفع استبدال", "استبدال", "تبديل", "exchange"]],
+    ["cheaper", ["فيه ارخص", "ارخص", "حاجه ارخص", "cheaper"]],
+    ["last_price", ["اخر سعر", "آخر سعر", "نهائي", "last price"]],
+    ["cod", ["الدفع عند الاستلام", "دفع عند الاستلام", "كاش عند الاستلام", "cod", "cash on delivery"]],
   ];
   return checks.find(([, terms]) => terms.some((term) => normalized.includes(normalizeArabic(term))))?.[0] || "";
 };
@@ -326,7 +326,7 @@ export const detectAiOrderIntent = (message = "") => {
   const hasConfirm = CONFIRM_TERMS.some((term) => normalized.includes(lower(term)));
   const handoffReason = HANDOFF_TERMS.find((term) => normalized.includes(lower(term))) || "";
   return {
-    isOrderIntent: hasOrder || (hasConfirm && (normalized.includes("ط§ظˆط±ط¯ط±") || normalized.includes("ط£ظˆط±ط¯ط±"))),
+    isOrderIntent: hasOrder || (hasConfirm && (normalized.includes("اوردر") || normalized.includes("أوردر"))),
     isConfirmIntent: hasConfirm,
     handoffReason,
   };
@@ -600,13 +600,13 @@ const nextCollectionStage = (missing = []) => {
 };
 
 const askForMissing = (missing = []) => {
-  if (missing.includes("customer_name")) return "طھط´ط±ظپظ†ط§ â‌¤ï¸ڈ ظ…ظ…ظƒظ† ط£ط¹ط±ظپ ط§ط³ظ…ظƒطں";
-  if (missing.includes("customer_phone")) return "ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ط¨ط³ ط¹ط´ط§ظ† ظ†ط£ظƒط¯ ط§ظ„ط·ظ„ط¨.";
-  if (missing.includes("area")) return "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ط¹ط´ط§ظ† ظ†ط£ظƒط¯ ط§ظ„طھظˆطµظٹظ„.";
-  if (missing.includes("address")) return "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„.";
-  if (missing.includes("variant")) return "طھط­ط¨ ط£ظ†ظ‡ظٹ ظ…ظ‚ط§ط³ ظˆظ„ظˆظ†طں";
-  if (missing.includes("quantity")) return "طھط­ط¨ ظƒط§ظ… ظ‚ط·ط¹ط©طں";
-  return "ظ…ظ…ظƒظ† طھط¨ط¹طھ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طµظˆط±طھظ‡ ط¹ط´ط§ظ† ط£ط¬ظ‡ط² ط§ظ„ط£ظˆط±ط¯ط±طں";
+  if (missing.includes("customer_name")) return "تشرفنا ❤️ ممكن أعرف اسمك؟";
+  if (missing.includes("customer_phone")) return "ابعتلي رقم الموبايل بس عشان نأكد الطلب.";
+  if (missing.includes("area")) return "ابعتلي المحافظة والمنطقة عشان نأكد التوصيل.";
+  if (missing.includes("address")) return "ابعتلي العنوان بالتفصيل.";
+  if (missing.includes("variant")) return "تحب أنهي مقاس ولون؟";
+  if (missing.includes("quantity")) return "تحب كام قطعة؟";
+  return "ممكن تبعت اسم المنتج أو صورته عشان أجهز الأوردر؟";
 };
 
 const productPrice = (product = {}, variant = null) => {
@@ -616,7 +616,7 @@ const productPrice = (product = {}, variant = null) => {
     product_id: resolved.product_id || product?.id || null,
     variant_id: resolved.variant_id || variant?.id || null,
     raw_price_used_in_text: raw || "",
-    text_template: "${product?.name || 'ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡'} ط³ط¹ط±ظ‡ ${formatMoneyAr(productPrice(product, variant))}",
+    text_template: "${product?.name || 'الموديل ده'} سعره ${formatMoneyAr(productPrice(product, variant))}",
     function_name: "productPrice",
     file_name: "server/services/aiAgentOrderService.js",
   });
@@ -633,7 +633,7 @@ const productPrice = (product = {}, variant = null) => {
 
 const formatMoneyAr = (value) => {
   const amount = numeric(value, 0);
-  return amount > 0 ? `${amount} ط¬ظ†ظٹظ‡` : "ط§ظ„ط³ط¹ط± ط¨ظٹطھط£ظƒط¯ ط­ط³ط¨ ط§ظ„ط§ط®طھظٹط§ط±";
+  return amount > 0 ? `${amount} جنيه` : "السعر بيتأكد حسب الاختيار";
 };
 
 const variantOptions = (product = {}) => {
@@ -647,16 +647,16 @@ const variantOptions = (product = {}) => {
 
 const buildProductSalesAnswer = ({ product = {}, variant = null } = {}) => {
   const options = variantOptions(product);
-  const availability = numeric(variant?.stock ?? product?.total_stock, 0) > 0 ? "ظ…طھط§ط­ ط­ط§ظ„ظٹط§" : "ظ…ط´ ظ…طھط§ط­ ط­ط§ظ„ظٹط§";
+  const availability = numeric(variant?.stock ?? product?.total_stock, 0) > 0 ? "متاح حاليا" : "مش متاح حاليا";
   const optionLines = [
-    options.colors.length ? `ط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…طھط§ط­ط©: ${options.colors.join("طŒ ")}.` : "",
-    options.sizes.length ? `ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط©: ${options.sizes.join("طŒ ")}.` : "",
+    options.colors.length ? `الألوان المتاحة: ${options.colors.join("، ")}.` : "",
+    options.sizes.length ? `المقاسات المتاحة: ${options.sizes.join("، ")}.` : "",
   ].filter(Boolean);
   return [
-    `${product?.name || "ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡"} ط³ط¹ط±ظ‡ ${formatMoneyAr(productPrice(product, variant))}طŒ ظˆ${availability}.`,
-    "ط§ط®طھظٹط§ط± ط¹ظ…ظ„ظٹ ظˆط´ظٹظƒطŒ ظ…ظ†ط§ط³ط¨ ظ„ظ„ط§ط³طھط®ط¯ط§ظ… ط§ظ„ظٹظˆظ…ظٹ ظˆط¨ظٹظƒظ…ظ„ ط§ظ„ظ„ط¨ط³ ط¨ط³ظ‡ظˆظ„ط©.",
+    `${product?.name || "الموديل ده"} سعره ${formatMoneyAr(productPrice(product, variant))}، و${availability}.`,
+    "اختيار عملي وشيك، مناسب للاستخدام اليومي وبيكمل اللبس بسهولة.",
     ...optionLines,
-    "طھط­ط¨ ط£ظ‚ظˆظ„ظƒ طھظپط§طµظٹظ„ ط£ظƒطھط± ظˆظ„ط§ ط£ظˆط±ظٹظƒ ط¨ط¯ط§ط¦ظ„طں",
+    "تحب أقولك تفاصيل أكتر ولا أوريك بدائل؟",
   ].join("\n");
 };
 
@@ -665,20 +665,20 @@ const buildObjectionAnswer = ({ objection = "", product = {}, variant = null, se
   const canPromiseDiscount = settings.allow_discount_promises === true || settings.discount_permission === true;
   const maxDiscount = numeric(settings.max_discount_percent, 0);
   const answers = {
-    expensive: `ظپط§ظ‡ظ… ط­ط¶ط±طھظƒ. ط³ط¹ط±ظ‡ ${price} ظ„ط£ظ†ظ‡ ط®ط§ظ…طھظ‡ ظˆطھظ‚ظپظٹظ„ظ‡ ط£ط¹ظ„ظ‰ ظ…ظ† ط§ظ„ط¨ط¯ط§ط¦ظ„ ط§ظ„ط¹ط§ط¯ظٹط©طŒ ظˆظƒظ…ط§ظ† ظ…طھط§ط­ ظ…ظ†ظ‡ ط§ط®طھظٹط§ط±ط§طھ ظ…ط­ط¯ظˆط¯ط©. ظ„ظˆ ط­ط§ط¨ط¨ ط£ط±ط´ط­ظ„ظƒ ط­ط§ط¬ط© ط£ط±ط®طµ ط£ظ‚ط¯ط± ط£ط¹ظ…ظ„ ظƒط¯ظ‡.`,
+    expensive: `فاهم حضرتك. سعره ${price} لأنه خامته وتقفيله أعلى من البدائل العادية، وكمان متاح منه اختيارات محدودة. لو حابب أرشحلك حاجة أرخص أقدر أعمل كده.`,
     discount: canPromiseDiscount && maxDiscount > 0
-      ? `ط­ط§ظ„ظٹط§ ط§ظ„ط³ط¹ط± ط§ظ„ط¸ط§ظ‡ط± ط¹ظ†ط¯ظٹ ظ‡ظˆ ${price}. ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط®طµظ… ظ„ط­ط¯ ${maxDiscount}% ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
-      : `ط­ط§ظ„ظٹط§ ط§ظ„ط³ط¹ط± ط§ظ„ط¸ط§ظ‡ط± ط¹ظ†ط¯ظٹ ظ‡ظˆ ${price}. ظ…ظ‚ط¯ط±ط´ ط£ظˆط¹ط¯ ط¨ط®طµظ… ظٹط¯ظˆظٹطŒ ط¨ط³ ط§ظ„ظپط±ظٹظ‚ ظٹظ‚ط¯ط± ظٹط±ط§ط¬ط¹ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ط´ط؛ط§ظ„ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`,
-    material: "ط®ط§ظ…طھظ‡ ط­ط³ط¨ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ظ†طھط¬ ظ…ظ† ط§ظ„ظ…ط®ط²ظˆظ†طŒ ظˆط§ظ„طھظ‚ظپظٹظ„ ظ…ط®طµطµ ظ„ظ„ط§ط³طھط®ط¯ط§ظ… ط§ظ„ظٹظˆظ…ظٹ. ظ„ظˆ ظ…ط­طھط§ط¬ ظˆطµظپ ط£ط¯ظ‚ ظ„ظ„ط®ط§ظ…ط© ظ‡ط­ظˆظ‘ظ„ ط³ط¤ط§ظ„ظƒ ظ„ظ„ظپط±ظٹظ‚ ظٹط£ظƒط¯ظ‡ط§ ظ…ظ† ط§ظ„ظ‚ط·ط¹ط© ظ†ظپط³ظ‡ط§.",
-    authenticity: "ط§ظ„ظ…ظ†طھط¬ ط¨ظٹطھط¨ط§ط¹ ظ…ظ† ظ…ط®ط²ظˆظ† ط§ظ„ظ…طھط¬ط± ط¨ط§ظ„ط­ط§ظ„ط© ظˆط§ظ„ظˆطµظپ ط§ظ„ظ…ط³ط¬ظ„ظٹظ† ط¹ظ†ط¯ظ†ط§. ظ„ظˆ ظ…ط­طھط§ط¬ طھط£ظƒظٹط¯ ط£طµظ„ظٹ/ظƒظˆط¨ظٹ ط¹ظ„ظ‰ ظ…ظˆط¯ظٹظ„ ظ…ط¹ظٹظ†طŒ ط§ظ„ظپط±ظٹظ‚ ظٹظ‚ط¯ط± ظٹط±ط§ط¬ط¹ طھظپط§طµظٹظ„ظ‡ ظ‚ط¨ظ„ ط§ظ„ط´ط­ظ†.",
-    delivery_fee: text(settings.delivery_policy_text) || "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط­ط¯ط¯ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©. ط§ط¨ط¹طھظ„ظٹ ظ…ظ†ط·ظ‚طھظƒ ظˆط£ظ†ط§ ط£ط£ظƒط¯ظ„ظƒ ط§ظ„طھظƒظ„ظپط© ظ‚ط¨ظ„ طھط³ط¬ظٹظ„ ط§ظ„ط£ظˆط±ط¯ط±.",
-    delivery_eta: text(settings.delivery_policy_text) || "ظ…ظٹط¹ط§ط¯ ط§ظ„ظˆطµظˆظ„ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط؛ط§ظ„ط¨ط§ ط¨ظٹطھط£ظƒط¯ ظ…ط¹ط§ظƒ ط¨ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط¨ظٹط§ظ†ط§طھ ظˆظ‚ط¨ظ„ ط§ظ„ط´ط­ظ†.",
-    exchange: text(settings.exchange_return_policy_text) || "ظٹظ†ظپط¹ ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظˆط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬. ط§ظ„ظپط±ظٹظ‚ ط¨ظٹط£ظƒط¯ظ„ظƒ ط§ظ„ط´ط±ظˆط· ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط´ط­ظ†.",
-    cheaper: "ط£ظ‚ط¯ط± ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ظ…ظ† ظ†ظپط³ ط§ظ„ط³طھط§ظٹظ„. طھط­ط¨ ظ†ظپط³ ط§ظ„ظ„ظˆظ† ظˆظ„ط§ ط§ظ„ط£ظ‡ظ… ط§ظ„ط³ط¹ط±طں",
+      ? `حاليا السعر الظاهر عندي هو ${price}. أقدر أراجعلك خصم لحد ${maxDiscount}% حسب سياسة المتجر قبل تأكيد الأوردر.`
+      : `حاليا السعر الظاهر عندي هو ${price}. مقدرش أوعد بخصم يدوي، بس الفريق يقدر يراجع لو فيه عرض شغال قبل تأكيد الأوردر.`,
+    material: "خامته حسب بيانات المنتج من المخزون، والتقفيل مخصص للاستخدام اليومي. لو محتاج وصف أدق للخامة هحوّل سؤالك للفريق يأكدها من القطعة نفسها.",
+    authenticity: "المنتج بيتباع من مخزون المتجر بالحالة والوصف المسجلين عندنا. لو محتاج تأكيد أصلي/كوبي على موديل معين، الفريق يقدر يراجع تفاصيله قبل الشحن.",
+    delivery_fee: text(settings.delivery_policy_text) || "التوصيل بيتحدد حسب المحافظة والمنطقة. ابعتلي منطقتك وأنا أأكدلك التكلفة قبل تسجيل الأوردر.",
+    delivery_eta: text(settings.delivery_policy_text) || "ميعاد الوصول حسب المحافظة والمنطقة، وغالبا بيتأكد معاك بعد تسجيل البيانات وقبل الشحن.",
+    exchange: text(settings.exchange_return_policy_text) || "ينفع الاستبدال حسب سياسة المتجر وحالة المنتج. الفريق بيأكدلك الشروط قبل تأكيد الشحن.",
+    cheaper: "أقدر أرشحلك بدائل أرخص من نفس الستايل. تحب نفس اللون ولا الأهم السعر؟",
     last_price: canPromiseDiscount && maxDiscount > 0
-      ? `ط¢ط®ط± ط³ط¹ط± ط¸ط§ظ‡ط± ط¹ظ†ط¯ظٹ ط­ط§ظ„ظٹط§ ${price}. ظˆظ…ظ…ظƒظ† ظ†ط±ط§ط¬ط¹ ط®طµظ… ظ„ط­ط¯ ${maxDiscount}% ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯.`
-      : `ط¢ط®ط± ط³ط¹ط± ط¸ط§ظ‡ط± ط¹ظ†ط¯ظٹ ط­ط§ظ„ظٹط§ ${price}. ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ط´ط؛ط§ظ„طŒ ط§ظ„ظپط±ظٹظ‚ ط¨ظٹط£ظƒط¯ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`,
-    cod: text(settings.cod_availability_text) || "ط£ظٹظˆظ‡طŒ ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط­ ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ط´ط­ظ† ظˆط§ظ„ظ…ظ†ط·ظ‚ط©. ظ‡ظ†ط£ظƒط¯ظ‡ط§ ظ…ط¹ط§ظƒ ظ‚ط¨ظ„ ط®ط±ظˆط¬ ط§ظ„ط£ظˆط±ط¯ط±.",
+      ? `آخر سعر ظاهر عندي حاليا ${price}. وممكن نراجع خصم لحد ${maxDiscount}% حسب سياسة المتجر قبل التأكيد.`
+      : `آخر سعر ظاهر عندي حاليا ${price}. لو فيه عرض شغال، الفريق بيأكد قبل تأكيد الأوردر.`,
+    cod: text(settings.cod_availability_text) || "أيوه، الدفع عند الاستلام متاح حسب سياسة الشحن والمنطقة. هنأكدها معاك قبل خروج الأوردر.",
   };
   return answers[objection] || buildProductSalesAnswer({ product, variant });
 };
@@ -705,7 +705,7 @@ const inferredCustomerName = ({ channel = "", message = "", explicitName = "", l
 const inferredAddress = ({ message = "", explicitAddress = "", lastAiAnswer = "" } = {}) => {
   if (explicitAddress) return explicitAddress;
   const candidate = text(message);
-  if (candidate.length >= 6 && hasAnyTerm(lastAiAnswer, ["ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„", "ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©"])) return candidate.slice(0, 180);
+  if (candidate.length >= 6 && hasAnyTerm(lastAiAnswer, ["العنوان بالتفصيل", "المحافظة والمنطقة"])) return candidate.slice(0, 180);
   return "";
 };
 
@@ -722,14 +722,14 @@ const buildOrderSummary = ({ order, product, variant, quantity, deliveryFee = 0 
   const unitPrice = numeric(variant?.price || product?.product_price, 0);
   const total = unitPrice * quantity + numeric(deliveryFee, 0);
   return [
-    `ط¬ظ‡ط²طھ ظ…ط³ظˆط¯ط© ط§ظ„ط£ظˆط±ط¯ط±:`,
-    `ط§ظ„ظ…ظ†طھط¬: ${product?.name || "ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ…ط®طھط§ط±"}`,
-    `ط§ظ„ظ…ظ‚ط§ط³/ط§ظ„ظ„ظˆظ†: ${[variant?.size, variant?.color || variant?.name].filter(Boolean).join(" - ") || "ط­ط³ط¨ ط§ظ„ط§ط®طھظٹط§ط±"}`,
-    `ط§ظ„ط³ط¹ط±: ${unitPrice} ط¬ظ†ظٹظ‡`,
-    deliveryFee ? `ط§ظ„طھظˆطµظٹظ„: ${deliveryFee} ط¬ظ†ظٹظ‡` : "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط£ظƒط¯ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط©",
-    `ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„طھظ‚ط±ظٹط¨ظٹ: ${total} ط¬ظ†ظٹظ‡`,
-    `ط±ظ‚ظ… ط§ظ„ظ…ط³ظˆط¯ط©: ${displayPublicOrderNumber(order) || order?.id}`,
-    "طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±طں",
+    `جهزت مسودة الأوردر:`,
+    `المنتج: ${product?.name || "المنتج المختار"}`,
+    `المقاس/اللون: ${[variant?.size, variant?.color || variant?.name].filter(Boolean).join(" - ") || "حسب الاختيار"}`,
+    `السعر: ${unitPrice} جنيه`,
+    deliveryFee ? `التوصيل: ${deliveryFee} جنيه` : "التوصيل بيتأكد حسب المنطقة",
+    `الإجمالي التقريبي: ${total} جنيه`,
+    `رقم المسودة: ${displayPublicOrderNumber(order) || order?.id}`,
+    "تأكيد الأوردر؟",
   ].join("\n");
 };
 
@@ -1667,13 +1667,13 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
       ...payload,
     }, stage);
   const isCollectingReply = hasAnyTerm(conversation.lastAiAnswer, [
-    "ظ…ظ…ظƒظ† ط£ط¹ط±ظپ ط§ط³ظ… ط­ط¶ط±طھظƒ",
-    "ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„",
-    "ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©",
-    "ط§ظ„ط¹ظ†ظˆط§ظ† ط¨ط§ظ„طھظپطµظٹظ„",
-    "ط£ظ†ظ‡ظٹ ظ…ظ‚ط§ط³ ظˆظ„ظˆظ†",
-    "ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط£ظˆ ط§ظ„ط£ظ„ظˆط§ظ†",
-    "ظƒط§ظ… ظ‚ط·ط¹ط©",
+    "ممكن أعرف اسم حضرتك",
+    "رقم الموبايل",
+    "المحافظة والمنطقة",
+    "العنوان بالتفصيل",
+    "أنهي مقاس ولون",
+    "المقاسات أو الألوان",
+    "كام قطعة",
   ]);
   if (!intent.isOrderIntent && !intent.isConfirmIntent && !objection && !isCollectingReply) return null;
   const transcript = conversation.transcript;
@@ -1686,7 +1686,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (intent.handoffReason) {
     logSalesFlow("handoff", { tenantId, conversationId, reason: intent.handoffReason });
     return withOrderSalesStage({
-      answer: "طھظ…ط§ظ…طŒ ظ‡ط­ظˆظ‘ظ„ ط·ظ„ط¨ظƒ ظ„ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ ط§ظ„طھظپط§طµظٹظ„ ظ…ط¹ط§ظƒ ط¹ط´ط§ظ† ظ…ط­طھط§ط¬ طھط¯ط®ظ„ ط¨ط´ط±ظٹ.",
+      answer: "تمام، هحوّل طلبك لحد من الفريق يراجع التفاصيل معاك عشان محتاج تدخل بشري.",
       confidence: 0.35,
       needs_human_support: true,
       sources_used: [],
@@ -1702,7 +1702,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
       if (settings.require_human_approval_before_confirm === true) {
         logSalesFlow("confirm_requires_human", { tenantId, conversationId, order_id: existingDraft.id });
         return withOrderSalesStage({
-          answer: "طھظ…ط§ظ…طŒ ظ‡ط­ظˆظ‘ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط± ظ„ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ظ‡ ظˆظٹط£ظƒط¯ ظ…ط¹ط§ظƒ ط§ظ„طھظپط§طµظٹظ„ ظ‚ط¨ظ„ ط§ظ„ط´ط­ظ†.",
+          answer: "تمام، هحوّل تأكيد الأوردر لحد من الفريق يراجعه ويأكد معاك التفاصيل قبل الشحن.",
           confidence: 0.82,
           needs_human_support: true,
           sources_used: [],
@@ -1715,7 +1715,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
       const confirmed = await confirmAiOrder({ tenant_id: tenantId, conversation_id: conversationId });
       logSalesFlow("confirmed", { tenantId, conversationId, order_id: confirmed.order?.id });
       return withOrderSalesStage({
-        answer: `طھظ… طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط± ط±ظ‚ظ… ${displayPublicOrderNumber(confirmed.order) || confirmed.order.id}. ط§ظ„ظپط±ظٹظ‚ ظ‡ظٹطھط§ط¨ط¹ ظ…ط¹ط§ظƒ ظ‚ط±ظٹط¨ ظ„طھط£ظƒظٹط¯ طھظپط§طµظٹظ„ ط§ظ„ط´ط­ظ†.`,
+        answer: `تم تأكيد الأوردر رقم ${displayPublicOrderNumber(confirmed.order) || confirmed.order.id}. الفريق هيتابع معاك قريب لتأكيد تفاصيل الشحن.`,
         confidence: 0.92,
         needs_human_support: false,
         sources_used: [],
@@ -1763,7 +1763,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (objection && (!product || confidence < CONFIDENCE_THRESHOLD)) {
     logSalesFlow("objection_needs_product", { tenantId, conversationId, objection });
     return withOrderSalesStage({
-      answer: "ط£ظƒظٹط¯طŒ ط¨ط³ ط§ط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظپطھط­ظ„ظٹ ط§ظ„ظ…ظˆط¯ظٹظ„ ط§ظ„ظ…ظ‚طµظˆط¯ ط¹ط´ط§ظ† ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط³ط¹ط±ظ‡ ظˆطھظپط§طµظٹظ„ظ‡ ط¨ط¯ظ‚ط©.",
+      answer: "أكيد، بس ابعتلي اسم المنتج أو افتحلي الموديل المقصود عشان أرد عليك بسعره وتفاصيله بدقة.",
       confidence: 0.45,
       needs_human_support: false,
       sources_used: [],
@@ -1776,7 +1776,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (!product || confidence < CONFIDENCE_THRESHOLD) {
     logSalesFlow("ready_to_order_low_confidence", { tenantId, conversationId, confidence });
     return withOrderSalesStage({
-      answer: "ظ…ظ…ظƒظ† طھط¨ط¹طھ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طµظˆط±ط©/ظ„ظٹظ†ظƒ ط£ظˆط¶ط­طں ط¹ط§ظٹط² ط£طھط£ظƒط¯ ظ…ظ† ط§ظ„ظ…ظˆط¯ظٹظ„ ظ‚ط¨ظ„ ظ…ط§ ط£ط¬ظ‡ط² ط§ظ„ط£ظˆط±ط¯ط±.",
+      answer: "ممكن تبعت اسم المنتج أو صورة/لينك أوضح؟ عايز أتأكد من الموديل قبل ما أجهز الأوردر.",
       confidence,
       needs_human_support: true,
       sources_used: [],
@@ -1803,7 +1803,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (!variant || numeric(variant.stock, 0) < state.quantity) {
     logSalesFlow("ready_to_order_needs_variant", { tenantId, conversationId, product_id: product.id });
     return withOrderSalesStage({
-      answer: "ط§ظ„ظ…ظ‚ط§ط³/ط§ظ„ظ„ظˆظ† ط¯ظ‡ ظ…ط´ ظˆط§ط¶ط­ ط£ظˆ ط؛ظٹط± ظ…طھط§ط­ ط­ط§ظ„ظٹط§. ط£ظ‚ط¯ط± ط£ط±ط´ط­ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط£ظˆ ط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…طھط§ط­ط© ظ…ظ† ظ†ظپط³ ط§ظ„ظ…ظˆط¯ظٹظ„.",
+      answer: "المقاس/اللون ده مش واضح أو غير متاح حاليا. أقدر أرشحلك المقاسات أو الألوان المتاحة من نفس الموديل.",
       confidence,
       needs_human_support: false,
       sources_used: [`product_${product.id}`],
@@ -1830,7 +1830,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (settings.allow_auto_draft_creation === false) {
     logSalesFlow("draft_requires_human", { tenantId, conversationId, product_id: product.id, variant_id: variant.id });
     return withOrderSalesStage({
-      answer: "طھظ…ط§ظ…طŒ ط§ظ„ط¨ظٹط§ظ†ط§طھ ظƒط¯ظ‡ ط´ط¨ظ‡ ظƒط§ظ…ظ„ط©. ظ‡ط­ظˆظ‘ظ„ظ‡ط§ ظ„ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ ط§ظ„ظ…ط®ط²ظˆظ† ظˆط§ظ„ط³ط¹ط± ظˆظٹط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط± ظ…ط¹ط§ظƒ.",
+      answer: "تمام، البيانات كده شبه كاملة. هحوّلها للفريق يراجع المخزون والسعر ويأكد الأوردر معاك.",
       confidence,
       needs_human_support: true,
       sources_used: [`product_${product.id}`],

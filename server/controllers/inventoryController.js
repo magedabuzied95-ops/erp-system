@@ -22,12 +22,12 @@ const normalizePositiveStock = (value) => {
 
 const normalizeSizeLabel = (value) => {
   const text = normalizeDisplayText(value);
-  return text || "ظ…ظ‚ط§ط³ ظˆط§ط­ط¯";
+  return text || "مقاس واحد";
 };
 
 const normalizeColorLabel = (value) => {
   const text = normalizeDisplayText(value);
-  return text || "ط¨ط¯ظˆظ† ظ„ظˆظ†";
+  return text || "بدون لون";
 };
 
 const normalizeIdValue = (value) => {
@@ -55,7 +55,7 @@ const buildPurchaseAlertImage = ({ product = {}, variants = [], preferVariant = 
 
 const buildPurchaseAlertCartonAction = (count) => {
   const nextCount = Math.max(1, Number(count || 1));
-  return nextCount === 1 ? "ط·ظ„ط¨ ظƒط±طھظˆظ†ط© ظˆط§ط­ط¯ط©" : `ط·ظ„ط¨ ${nextCount} ظƒط±ط§طھظٹظ†`;
+  return nextCount === 1 ? "طلب كرتونة واحدة" : `طلب ${nextCount} كراتين`;
 };
 
 const repairPurchaseAlertDisplayValue = (value) => {
@@ -80,12 +80,12 @@ const repairPurchaseAlertDisplayFields = (alert = {}) => repairPurchaseAlertDisp
 
 const PURCHASE_ALERT_COPY = {
   missing_sizes: {
-    title: "ظ…ظ‚ط§ط³ط§طھ ظ†ط§ظ‚طµط©",
-    reason: "ط¨ط¹ط¶ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط؛ظٹط± ظ…ظƒطھظ…ظ„ط©",
+    title: "مقاسات ناقصة",
+    reason: "بعض المقاسات غير مكتملة",
   },
   carton_threshold: {
-    title: "ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
-    reason: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط®ط²ظˆظ† ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
+    title: "وصل لحد الكرتونة",
+    reason: "إجمالي المخزون وصل لحد الكرتونة",
   },
 };
 
@@ -677,8 +677,8 @@ const getProductLowStockSnapshot = async ({ productId, tenantId }) => {
 
 const lowStockMessage = (productName, totalStock) =>
   Number(totalStock) === 1
-    ? `ظ…طھط¨ظ‚ظٹ ظ‚ط·ط¹ط© ظˆط§ط­ط¯ط© ظپظ‚ط· ظ…ظ† ${productName}`
-    : `ظ…طھط¨ظ‚ظٹ ظ‚ط·ط¹طھظٹظ† ظپظ‚ط· ظ…ظ† ${productName}`;
+    ? `متبقي قطعة واحدة فقط من ${productName}`
+    : `متبقي قطعتين فقط من ${productName}`;
 
 export const updateStock = async (req, res) => {
   const client = await db.connect();
@@ -742,7 +742,7 @@ export const updateStock = async (req, res) => {
         tenant_id: tenantId,
         branch_id: req.body.branchId || req.body.branch_id || null,
         priority: totalStock === 1 ? "critical" : "high",
-        title: "ط¢ط®ط± ظ‚ط·ط¹ ظ…طھط§ط­ط©",
+        title: "آخر قطع متاحة",
         message: lowStockMessage(lowStockSnapshot.product_name || `Product ${result.productId}`, totalStock),
         action_url: `/inventory?productId=${encodeURIComponent(String(result.productId || ""))}`,
         entity_type: "product",
@@ -752,7 +752,7 @@ export const updateStock = async (req, res) => {
           variant_id: variantId,
           stock: totalStock,
           image_url: lowStockSnapshot.image_url || "",
-          badge: "ط¹ط§ط¬ظ„",
+          badge: "عاجل",
           source: "manual_adjustment",
         },
       }).catch((error) => console.warn("[notifications] low stock skipped", error?.message || error));
@@ -908,7 +908,7 @@ const getLowStockAlertsLegacy = async (req, res) => {
         total_stock,
         image_url,
         CASE WHEN total_stock = 1 THEN 'critical' ELSE 'high' END AS alert_level,
-        'ط¹ط§ط¬ظ„' AS badge_text
+        'عاجل' AS badge_text
       FROM product_stock
       WHERE total_stock BETWEEN 1 AND $1
       ORDER BY total_stock ASC, product_name ASC
@@ -1286,7 +1286,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
           total_stock,
           image_url,
           CASE WHEN total_stock <= 0 OR active_sizes_count = 0 THEN 'critical' ELSE 'high' END AS alert_level,
-          'ط¹ط§ط¬ظ„' AS badge_text,
+          'عاجل' AS badge_text,
           low_stock_tracking_mode,
           product_low_stock_threshold,
           minimum_distinct_sizes_required,

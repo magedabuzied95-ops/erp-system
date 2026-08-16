@@ -1,3 +1,4 @@
+// mojibake-fixture: allow — this file stores corrupted Arabic on purpose.
 import test from "node:test";
 import assert from "node:assert/strict";
 

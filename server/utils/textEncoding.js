@@ -1,3 +1,4 @@
+// mojibake-fixture: allow — this file stores corrupted Arabic on purpose.
 import iconv from "iconv-lite";
 
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;

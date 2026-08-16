@@ -229,7 +229,7 @@ export const evaluateProductDecisionGate = ({
     if (fallbackAlternative) {
       accepted = [fallbackAlternative];
       decision = "medium";
-      introText = "ط¯ظٹ ط£ظ‚ط±ط¨ ط§ط®طھظٹط§ط± ظ…طھط§ط­ ظ…ظ† ظ†ظپط³ ط§ظ„ظ„ظٹ ط¹ظ†ط¯ظ†ط§.";
+      introText = "دي أقرب اختيار متاح من نفس اللي عندنا.";
     } else {
       accepted = [];
     }

@@ -1,3 +1,4 @@
+// mojibake-fixture: allow — corrupted Arabic here is the test input.
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 
 const cases = [

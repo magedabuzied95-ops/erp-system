@@ -1163,9 +1163,9 @@ export const reopenInventoryCountSession = async (clientOrPool, data = {}) => {
   await notifyInventoryCountCreator({
     session: reopenedSession,
     type: "inventory_count_reopened",
-    title: "طھظ… ط¥ط¹ط§ط¯ط© ط¤ظپطھط­ ط§ظ„ط¬ط±ط¯",
-    message: "طھظ… ط¥ط¹ط§ط¯ط© ط§ظ„ط¬ط±ط¯ ظ„ظ„طھط¹ط¯ظٹظ„ ظ…ط±ط© ط£ط®ط±ظ‰.",
-    actionLabel: "ط§ظپطھط­ ط§ظ„ط¬ط±ط¯",
+    title: "تم إعادة ؤفتح الجرد",
+    message: "تم إعادة الجرد للتعديل مرة أخرى.",
+    actionLabel: "افتح الجرد",
   });
   return { session: reopenedSession, reopened: true };
   });

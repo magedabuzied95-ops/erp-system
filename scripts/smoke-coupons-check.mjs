@@ -818,7 +818,7 @@ const main = async () => {
       cdp,
       () => {
         const bodyText = String(document.body?.innerText || "");
-        return bodyText.includes("Coupon campaigns") || bodyText.includes("ط¥ط¯ط§ط±ط© ط­ظ…ظ„ط§طھ ط§ظ„ظƒظˆط¨ظˆظ†ط§طھ") || bodyText.includes("New campaign") || bodyText.includes("ط­ظ…ظ„ط© ظƒظˆط¨ظˆظ†ط§طھ");
+        return bodyText.includes("Coupon campaigns") || bodyText.includes("إدارة حملات الكوبونات") || bodyText.includes("New campaign") || bodyText.includes("حملة كوبونات");
       },
       [],
       60_000
@@ -829,7 +829,7 @@ const main = async () => {
       cdp,
       () => Array.from(document.querySelectorAll("button")).some((button) => {
         const normalized = String(button.textContent || "").replace(/\s+/g, " ").trim();
-        return normalized.includes("New campaign") || normalized.includes("ط­ظ…ظ„ط© ط¬ط¯ظٹط¯ط©") || normalized.includes("ط¥ظ†ط´ط§ط، ط­ظ…ظ„ط©");
+        return normalized.includes("New campaign") || normalized.includes("حملة جديدة") || normalized.includes("إنشاء حملة");
       }),
       [],
       60_000
@@ -841,7 +841,7 @@ const main = async () => {
         .slice(0, 30)
     );
     log(`visible buttons: ${buttonLabels.join(" | ")}`);
-    await clickButtonByAnyText(cdp, ["New campaign", "ط­ظ…ظ„ط© ط¬ط¯ظٹط¯ط©", "ط¥ظ†ط´ط§ط، ط­ظ…ظ„ط©"]);
+    await clickButtonByAnyText(cdp, ["New campaign", "حملة جديدة", "إنشاء حملة"]);
     await waitForPageCondition(cdp, () => Boolean(document.querySelector('.fixed.inset-0.z-50')), [], 20_000);
     await fillByIndex(cdp, '.fixed.inset-0.z-50', [
       "Smoke TEST10",
@@ -875,11 +875,11 @@ const main = async () => {
     await reachCheckoutPayment(cdp, checkoutPhone);
 
     await applyCoupon(cdp, "BADCODE");
-    await waitForPageCondition(cdp, () => String(document.body?.innerText || "").includes("ظƒظˆط¯ ط§ظ„ظƒظˆط¨ظˆظ† ط؛ظٹط± طµط§ظ„ط­"), [], 20_000);
+    await waitForPageCondition(cdp, () => String(document.body?.innerText || "").includes("كود الكوبون غير صالح"), [], 20_000);
     log("invalid coupon message verified in Arabic");
 
     await applyCoupon(cdp, "TEST10");
-    await waitForPageCondition(cdp, () => String(document.body?.innerText || "").includes("طھظ… طھط·ط¨ظٹظ‚ ط§ظ„ظƒظˆط¨ظˆظ†: TEST10"), [], 20_000);
+    await waitForPageCondition(cdp, () => String(document.body?.innerText || "").includes("تم تطبيق الكوبون: TEST10"), [], 20_000);
     log("TEST10 applied and discount shown in checkout");
 
     await uploadProofAndSubmit(cdp);
