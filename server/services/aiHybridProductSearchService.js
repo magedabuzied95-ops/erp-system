@@ -35,6 +35,7 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { normalizeArabicForIntent } from "../utils/arabicTextNormalizer.js";
 import { arabicSearchText } from "../utils/arabicSearch.js";
 import { BRAND_CATALOG_NAMES } from "./aiEntityLexicon.js";
+import { searchProductsSemantic } from "./aiSemanticSearchService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -391,6 +392,23 @@ export const searchProductsHybrid = async ({
       }
     })
   );
+
+  // Semantic retrieval joins the fusion as one more ranked list rather than replacing
+  // anything. It answers the queries the lexical retrievers structurally cannot — "حاجة
+  // تناسب فرح" names no brand, model or category, so every LIKE-based retriever returns
+  // nothing — while the lexical lists stay authoritative for the exact names customers
+  // do use. Weighted just above a raw token and below a resolved entity: similarity is
+  // a good way to FIND a product and a poor way to be certain about one.
+  //
+  // Inert unless pgvector is installed AND the flag is on; it returns [] otherwise, and
+  // an empty list contributes nothing to the fusion.
+  const semanticResults = await searchProductsSemantic({ tenantId, query: message, limit: PER_RETRIEVER_LIMIT }).catch(
+    (error) => {
+      console.warn("[ai-hybrid-search] semantic retriever failed", { message: error?.message });
+      return [];
+    }
+  );
+  if (semanticResults.length) rankedLists.push({ name: "semantic", weight: 0.9, results: semanticResults });
 
   const fused = fuseByReciprocalRank(rankedLists);
   const constrained = applyEntityConstraints(fused, understanding);

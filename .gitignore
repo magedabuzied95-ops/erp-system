@@ -115,3 +115,4 @@ server/services/*
 !server/services/aiVoiceTranscriptionService.js
 !server/services/aiEntityLexicon.js
 !server/services/aiReplySafetyPipeline.js
+!server/services/aiSemanticSearchService.js
