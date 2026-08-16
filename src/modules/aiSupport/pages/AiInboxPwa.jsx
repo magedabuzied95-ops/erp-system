@@ -46,6 +46,7 @@ import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
+import AvatarZoom from "../components/AvatarZoom.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import ProductCardMessage from "../components/ProductCardMessage";
@@ -2283,15 +2284,17 @@ function ConversationListItem({ conversation, active, onSelect }) {
       }`}
     >
       {avatar ? (
-        <div className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl ${unread && !active ? "ring-2 ring-emerald-200" : "ring-1 ring-slate-200"}`}>
-          <img
-            src={avatar}
-            alt={title}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-          {isCommentThread ? <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" /> : null}
-        </div>
+        <AvatarZoom url={avatar} name={title}>
+          <div className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl ${unread && !active ? "ring-2 ring-emerald-200" : "ring-1 ring-slate-200"}`}>
+            <img
+              src={avatar}
+              alt={title}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+            {isCommentThread ? <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" /> : null}
+          </div>
+        </AvatarZoom>
       ) : (
         <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/12 text-white" : unread ? "bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200" : "bg-slate-200 text-slate-600"}`}>
           <UserRound className="h-5 w-5" />
@@ -6554,25 +6557,30 @@ export default function AiInboxPwa() {
                   <ChevronLeft className="h-5 w-5" />
                 </button>
                 {selectedAvatar ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openCustomerDrawer(selectedConversation || {}, {
-                        customerId: clean(selectedConversation?.customer_profile_id || selectedConversation?.customerProfileId || selectedConversation?.external_customer_id || selectedConversation?.customer_profile?.id || selectedConversation?.id || ""),
-                        source: "pwa_header",
-                        platform: clean(selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source || ""),
-                      })
-                    }
-                    className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-cyan-300/40"
-                    aria-label={t("aiSupport.inbox.pwa.openCustomerDetails")}
+                  <AvatarZoom
+                    url={selectedAvatar}
+                    name={isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
                   >
-                    <img
-                      src={selectedAvatar}
-                      alt={isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
-                      className="h-10 w-10 shrink-0 rounded-full object-cover"
-                      loading="lazy"
-                    />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openCustomerDrawer(selectedConversation || {}, {
+                          customerId: clean(selectedConversation?.customer_profile_id || selectedConversation?.customerProfileId || selectedConversation?.external_customer_id || selectedConversation?.customer_profile?.id || selectedConversation?.id || ""),
+                          source: "pwa_header",
+                          platform: clean(selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source || ""),
+                        })
+                      }
+                      className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-cyan-300/40"
+                      aria-label={t("aiSupport.inbox.pwa.openCustomerDetails")}
+                    >
+                      <img
+                        src={selectedAvatar}
+                        alt={isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
+                        className="h-10 w-10 shrink-0 rounded-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  </AvatarZoom>
                 ) : (
                   <button
                     type="button"

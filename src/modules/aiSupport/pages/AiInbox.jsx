@@ -85,6 +85,7 @@ import {
 } from "../lib/productSelection.js";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
+import AvatarZoom from "../components/AvatarZoom.jsx";
 import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -1932,26 +1933,28 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenCustomer360?.(item, {
-                  customerId: customer360Identifier(item),
-                  source: "conversation_list",
-                  platform: channel,
-                });
-              }}
-              className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
-              aria-label={`Open customer details for ${customerName || "customer"}`}
-            >
-              <div className="relative h-11 w-11 overflow-hidden rounded-2xl">
-                <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                {isCommentThread ? (
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
-                ) : null}
-              </div>
-            </button>
+            <AvatarZoom url={avatarUrl} name={customerName}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenCustomer360?.(item, {
+                    customerId: customer360Identifier(item),
+                    source: "conversation_list",
+                    platform: channel,
+                  });
+                }}
+                className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+                aria-label={`Open customer details for ${customerName || "customer"}`}
+              >
+                <div className="relative h-11 w-11 overflow-hidden rounded-2xl">
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  {isCommentThread ? (
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
+                  ) : null}
+                </div>
+              </button>
+            </AvatarZoom>
           ) : (
             <button
               type="button"
@@ -2317,21 +2320,23 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenCustomer360?.(item, {
-                  customerId: customer360Identifier(item),
-                  source: "inbox_conversation",
-                  platform: channel,
-                });
-              }}
-              className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
-              aria-label={`Open customer details for ${customerName || "customer"}`}
-            >
-              <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover" loading="lazy" />
-            </button>
+            <AvatarZoom url={avatarUrl} name={customerName}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenCustomer360?.(item, {
+                    customerId: customer360Identifier(item),
+                    source: "inbox_conversation",
+                    platform: channel,
+                  });
+                }}
+                className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+                aria-label={`Open customer details for ${customerName || "customer"}`}
+              >
+                <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover" loading="lazy" />
+              </button>
+            </AvatarZoom>
           ) : (
             <button
               type="button"
@@ -2589,21 +2594,23 @@ function InboxChatHeader({
             </button>
           ) : null}
           {avatarUrl ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenCustomer360?.(conversation, {
-                  customerId: customer360Identifier(conversation),
-                  source: "inbox_header",
-                  platform: channel,
-                });
-              }}
-              className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/40"
-              aria-label={`Open customer details for ${name || "customer"}`}
-            >
-              <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" loading="lazy" />
-            </button>
+            <AvatarZoom url={avatarUrl} name={name}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenCustomer360?.(conversation, {
+                    customerId: customer360Identifier(conversation),
+                    source: "inbox_header",
+                    platform: channel,
+                  });
+                }}
+                className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+                aria-label={`Open customer details for ${name || "customer"}`}
+              >
+                <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" loading="lazy" />
+              </button>
+            </AvatarZoom>
           ) : (
             <button
               type="button"
@@ -4431,7 +4438,7 @@ function CustomerContextCard({ conversation = {} }) {
   return (
     <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
       <div className="mb-3 flex items-center gap-3">
-        {avatarUrl ? <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
+        {avatarUrl ? <AvatarZoom url={avatarUrl} name={identityName}><img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /></AvatarZoom> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.customerContext")}</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
@@ -4817,7 +4824,9 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
       <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5">
           <div className="flex flex-row-reverse items-start gap-2.5">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+              <AvatarZoom url={avatarUrl} name={identityName}>
+                <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+              </AvatarZoom>
             ) : (
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">
               <User className="h-5 w-5" />
