@@ -62,6 +62,18 @@ const foldArabic = (value = "") =>
     .replace(/^ال/, "");
 const asArray = (value) => (Array.isArray(value) ? value : []);
 
+/** Renders a metric value for the failure list, including object-valued ones. */
+const describe = (value) => {
+  if (value === null || value === undefined) return "none";
+  if (Array.isArray(value)) return `[${value.join(",")}]`;
+  if (typeof value === "object") {
+    return `{${Object.entries(value)
+      .map(([field, item]) => `${field}:${item ?? "null"}`)
+      .join(" ")}}`;
+  }
+  return String(value);
+};
+
 /**
  * Offline catalog. Small on purpose: the point is to score whether retrieval reaches
  * the RIGHT product among plausible distractors, not to mirror production data.
@@ -137,6 +149,18 @@ const evaluateCase = async (testCase, { tenantId, searchProducts }) => {
     results.objection = { expected: expected.objection, actual: understanding.objection };
     results.objection.pass = understanding.objection === expected.objection;
   }
+  if (expected.refers_to_previous) {
+    // Multi-turn reference. Only the subfields a case names are compared, so a case can
+    // pin is_followup without committing to a target.
+    const wanted = expected.refers_to_previous;
+    const got = understanding.refers_to_previous || {};
+    const mismatches = Object.entries(wanted).filter(([field, value]) => got[field] !== value);
+    results.reference = {
+      expected: wanted,
+      actual: { is_followup: got.is_followup, target: got.target },
+      pass: mismatches.length === 0,
+    };
+  }
   if (expected.requires_human !== undefined) {
     results.escalation = { expected: expected.requires_human, actual: understanding.requires_human };
     results.escalation.pass = understanding.requires_human === expected.requires_human;
@@ -183,6 +207,7 @@ const summarize = (results) => {
     intent: metric("intent"),
     legacy_intent: metric("legacy_intent"),
     objection: metric("objection"),
+    reference: metric("reference"),
     escalation: metric("escalation"),
     retrieval: metric("retrieval"),
     entity_field_accuracy: entityTotals.total
@@ -194,7 +219,7 @@ const summarize = (results) => {
 
 const compareToBaseline = (summary, baseline) => {
   const regressions = [];
-  for (const key of ["intent", "legacy_intent", "objection", "escalation", "retrieval"]) {
+  for (const key of ["intent", "legacy_intent", "objection", "reference", "escalation", "retrieval"]) {
     const now = summary[key]?.accuracy;
     const before = baseline[key]?.accuracy;
     if (typeof now === "number" && typeof before === "number" && now < before) {
@@ -260,6 +285,7 @@ const main = async () => {
       row("primary intent", summary.intent),
       row("legacy intent", summary.legacy_intent),
       row("objection", summary.objection),
+      row("reference", summary.reference),
       row("escalation", summary.escalation),
       row("retrieval hit", summary.retrieval),
     ]
@@ -273,17 +299,20 @@ const main = async () => {
     }
 
     const failures = results.filter((result) =>
-      ["intent", "legacy_intent", "objection", "escalation", "retrieval", "entities"].some((key) => result[key] && !result[key].pass)
+      ["intent", "legacy_intent", "objection", "reference", "escalation", "retrieval", "entities"].some((key) => result[key] && !result[key].pass)
     );
     if (failures.length) {
       console.log(`\n  ${failures.length} case(s) with at least one miss:`);
       for (const failure of failures.slice(0, 15)) {
-        const misses = ["intent", "legacy_intent", "objection", "escalation", "retrieval", "entities"]
+        const misses = ["intent", "legacy_intent", "objection", "reference", "escalation", "retrieval", "entities"]
           .filter((key) => failure[key] && !failure[key].pass)
           .map((key) =>
             key === "entities"
               ? `entities ${failure.entities.correct}/${failure.entities.total}`
-              : `${key} ${failure[key].expected ?? "?"}≠${failure[key].actual ?? failure[key].returned ?? "none"}`
+              // Object-valued metrics (reference) must render their fields, not
+              // "[object Object]≠[object Object]" — a failure nobody can act on is
+              // barely better than no failure at all.
+              : `${key} ${describe(failure[key].expected)}≠${describe(failure[key].actual ?? failure[key].returned)}`
           );
         console.log(`    [${failure.id}] ${failure.message.slice(0, 48)} — ${misses.join(", ")}`);
       }

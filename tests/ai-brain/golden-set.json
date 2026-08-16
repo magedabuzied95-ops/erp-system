@@ -371,5 +371,60 @@
       "objection": "none",
       "requires_human": false
     }
+  },
+  {
+    "id": "G40",
+    "message": "ده كام؟",
+    "note": "The commonest follow-up in the language. is_followup was wrapped in \b, so every Arabic pronoun was dead and only English \"it\"/\"this one\" registered.",
+    "expected": {
+      "primary_intent": "price_question",
+      "refers_to_previous": {
+        "is_followup": true,
+        "target": "price"
+      }
+    }
+  },
+  {
+    "id": "G41",
+    "message": "عندك منه مقاس 43؟",
+    "note": "Attached pronoun (منه) — a follow-up with no standalone pronoun in it at all.",
+    "expected": {
+      "refers_to_previous": {
+        "is_followup": true
+      }
+    }
+  },
+  {
+    "id": "G42",
+    "message": "نفسه بس اسود",
+    "note": "Same shoe, different colour. Target must read as colour even though the customer never wrote the word لون.",
+    "expected": {
+      "refers_to_previous": {
+        "is_followup": true,
+        "target": "color"
+      }
+    }
+  },
+  {
+    "id": "G43",
+    "message": "الاوردر ده وصل فين",
+    "expected": {
+      "primary_intent": "order_status",
+      "refers_to_previous": {
+        "is_followup": true,
+        "target": "order"
+      }
+    }
+  },
+  {
+    "id": "G44",
+    "message": "عايز حاجة كاجوال",
+    "note": "Guards against the pronoun rules over-firing: a fresh request is not a follow-up.",
+    "expected": {
+      "refers_to_previous": {
+        "is_followup": false,
+        "target": null
+      }
+    }
   }
 ]

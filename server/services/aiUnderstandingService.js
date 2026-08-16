@@ -381,6 +381,39 @@ const OBJECTION_CUES = Object.freeze([
   ["trust", /مش واثق|نصب|محتال|scam/i],
 ]);
 
+/**
+ * Pronouns that point at something already in the conversation.
+ *
+ * Unicode boundaries, not \b. This was written as /\b(ده|دي|...)\b/ — wrapping the
+ * group does not save it, because \b is still asked to match against an Arabic letter
+ * at each end. Every Arabic alternative was dead while "it" and "this one" worked, so
+ * follow-up detection existed only for customers who wrote in English.
+ */
+const FOLLOWUP_PRONOUNS =
+  /(?<![\p{L}\p{N}])(?:ده|دي|دى|دول|الموديل ده|نفسه|نفسها|هو ده|it|this one)(?![\p{L}\p{N}])/iu;
+
+/**
+ * The other half of Arabic reference: the pronoun attached to the word rather than
+ * standing alone. "عندك منه مقاس 43؟" and "ابعتلي صورته" are follow-ups with no
+ * standalone pronoun anywhere in them.
+ *
+ * Listed explicitly instead of matching a trailing ـه/ـها, because that suffix is
+ * indistinguishable from ordinary word endings and would mark most messages as
+ * follow-ups.
+ */
+const FOLLOWUP_SUFFIXED =
+  /(?<![\p{L}\p{N}])(?:منه|منها|بتاعه|بتاعها|صورته|صورتها|صوره؟ليه|لونه|لونها|سعره|سعرها|مقاسه|مقاسها|عنده|عندها)(?![\p{L}\p{N}])/iu;
+
+/** What a pronoun refers to, read from what is being asked about it. */
+const FOLLOWUP_TARGET_BY_INTENT = Object.freeze({
+  price_question: "price",
+  size_question: "size",
+  color_question: "color",
+  order_status: "order",
+  shipping_question: "order",
+  image_request: "product",
+});
+
 const FUNNEL_BY_INTENT = Object.freeze({
   buying_intent: "ready_to_buy",
   objection: "objecting",
@@ -431,6 +464,8 @@ export const buildDeterministicUnderstanding = (message = "") => {
   // trip the detector, must not be answered as a product question.
   if (escalation.shouldEscalate && primaryIntent !== "human_handoff") primaryIntent = "complaint";
 
+  const isFollowup = FOLLOWUP_PRONOUNS.test(haystack) || FOLLOWUP_SUFFIXED.test(haystack);
+
   const objection =
     OBJECTION_CUES.find(([, pattern]) => pattern.test(haystack))?.[0]
     || (primaryIntent === "objection" ? "price_high" : "none");
@@ -471,8 +506,18 @@ export const buildDeterministicUnderstanding = (message = "") => {
     formality: /حضرتك|لو سمحت|من فضلك|تفضل/i.test(haystack) ? "formal" : "casual",
     objection,
     refers_to_previous: {
-      is_followup: /\b(ده|دي|دى|دول|الموديل ده|نفسه|نفسها|هو ده|it|this one)\b/i.test(haystack),
-      target: null,
+      // Unicode boundaries, not \b. Wrapping the group in \b left every Arabic
+      // alternative dead while the English ones worked, so "ده كام؟" — the single most
+      // common follow-up in the language this store speaks — never registered as one.
+      is_followup: isFollowup,
+      // What the pronoun points at, read from what is being asked about it. "ده كام؟"
+      // asks the price OF the previous product, so the target is the price. Was
+      // hardcoded null, which made the field unusable even once is_followup worked.
+      // A named colour on a follow-up is a colour question even when the customer
+      // never wrote the word "لون" — "نفسه بس اسود" asks for the same shoe in black.
+      target: isFollowup
+        ? FOLLOWUP_TARGET_BY_INTENT[primaryIntent] || (entities.color ? "color" : "product")
+        : null,
     },
     requires_human: requiresHuman,
     confidence: {
