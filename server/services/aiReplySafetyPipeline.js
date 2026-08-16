@@ -53,6 +53,43 @@ export const NEUTRAL_CONFIDENCE = Object.freeze({
 });
 
 /**
+ * The tenant's own voice, plus what we know about this customer.
+ *
+ * Built here when a caller supplies no instructions, because otherwise the agent loop
+ * writes in a default voice — and a shop's assistant sounding like a generic bot is
+ * exactly what the persona layer exists to prevent. The AI Inbox already built these;
+ * the channel path did not, so Messenger and WhatsApp would have spoken in a different
+ * voice from the inbox for the same tenant.
+ *
+ * Failure-isolated: a missing persona row or an unreachable customer profile returns
+ * the default persona rather than blocking the reply.
+ */
+const buildDefaultInstructions = async ({ tenantId, understanding, customerPhone }) => {
+  try {
+    const [{ buildInstructions, loadPersona }, customer360] = await Promise.all([
+      import("./aiPersonaService.js"),
+      import("./aiCustomer360Service.js").catch(() => null),
+    ]);
+
+    const persona = await loadPersona({ tenantId }).catch(() => undefined);
+    let profile = null;
+    if (customer360 && text(customerPhone)) {
+      profile = await customer360.loadCustomer360({ tenantId, phone: text(customerPhone) }).catch(() => null);
+    }
+
+    return buildInstructions({
+      ...(persona ? { persona } : {}),
+      understanding: understanding || null,
+      customerCard: profile ? customer360.summarizeCustomer360(profile) : "",
+      salesHint: profile ? customer360.customer360SalesHint(profile) : "",
+    });
+  } catch (error) {
+    console.warn("[ai-reply-safety] persona instructions skipped", { tenantId, message: error?.message });
+    return "";
+  }
+};
+
+/**
  * Stage 1 — the model may rewrite the PROSE, and only the prose.
  *
  * Cards, actions and attachments stay as the deterministic composer built them. A
@@ -61,12 +98,17 @@ export const NEUTRAL_CONFIDENCE = Object.freeze({
  * tool that was never called is a confident hallucination, and the confident half is
  * the dangerous half.
  */
-const runAgentLoopStage = async ({ tenantId, message, sessionId, history, customerPhone, instructions, searchProducts, draft, trace }) => {
+const runAgentLoopStage = async ({ tenantId, message, sessionId, history, customerPhone, instructions, understanding, searchProducts, draft, trace }) => {
   if (typeof searchProducts !== "function") return draft;
 
   try {
     const { isAgentLoopEnabled, runAgentLoop, verifyFactProvenance } = await import("./aiAgentLoopService.js");
     if (!isAgentLoopEnabled()) return draft;
+
+    // A caller that already built instructions keeps them; anyone else gets the
+    // tenant's persona rather than a default voice.
+    const voice = text(instructions) || (await buildDefaultInstructions({ tenantId, understanding, customerPhone }));
+    trace.persona = text(instructions) ? "caller" : "pipeline";
 
     const startedAt = Date.now();
     const result = await runAgentLoop({
@@ -75,7 +117,7 @@ const runAgentLoopStage = async ({ tenantId, message, sessionId, history, custom
       message,
       history: asArray(history),
       customerPhone: text(customerPhone),
-      instructions: text(instructions),
+      instructions: voice,
       searchProducts,
     });
     trace.agent_loop_ms = Date.now() - startedAt;
@@ -218,6 +260,7 @@ export const applyReplySafetyPipeline = async ({
   contextMessages = [],
   customerPhone = "",
   instructions = "",
+  understanding = null,
   styleProfile = null,
   harness = null,
   searchProducts = null,
@@ -235,7 +278,7 @@ export const applyReplySafetyPipeline = async ({
 
   if (enabled.agentLoop && tenantId) {
     current = await runAgentLoopStage({
-      tenantId, message, sessionId, history, customerPhone, instructions, searchProducts, draft: current, trace,
+      tenantId, message, sessionId, history, customerPhone, instructions, understanding, searchProducts, draft: current, trace,
     });
   }
 

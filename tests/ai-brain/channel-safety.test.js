@@ -121,6 +121,37 @@ test("the agent loop stage is skipped without a product search", async () => {
   });
 });
 
+test("the pipeline supplies the tenant persona when the caller does not", async () => {
+  // The channel path passes no instructions, so without this the agent loop would
+  // write in a default voice and Messenger would sound like a different shop from the
+  // inbox for the same tenant.
+  await withEnv({ AI_AGENT_LOOP_ENABLED: "true" }, async () => {
+    const result = await applyReplySafetyPipeline({
+      tenantId: 999999,
+      message: "عندكم كروكس؟",
+      draft: DRAFT,
+      stages: { grounding: false, scoring: false },
+      searchProducts: async () => [],
+    });
+    assert.equal(result.trace.persona, "pipeline", "the pipeline must build the voice itself");
+  });
+});
+
+test("a caller's own instructions are not overridden", async () => {
+  // The AI Inbox already builds persona + customer card and must keep ownership.
+  await withEnv({ AI_AGENT_LOOP_ENABLED: "true" }, async () => {
+    const result = await applyReplySafetyPipeline({
+      tenantId: 999999,
+      message: "عندكم كروكس؟",
+      draft: DRAFT,
+      instructions: "انت مساعد متجر M1",
+      stages: { grounding: false, scoring: false },
+      searchProducts: async () => [],
+    });
+    assert.equal(result.trace.persona, "caller");
+  });
+});
+
 test("neutral results are frozen so a caller cannot corrupt the next request", () => {
   // These are module-level singletons handed to every caller.
   assert.throws(() => {

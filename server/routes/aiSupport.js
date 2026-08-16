@@ -1453,7 +1453,14 @@ const logSupportExchange = async ({ req, tenantId, metadata, message, context, r
  * Kept as a thin adapter rather than calling the pipeline inline, because the request
  * shape is a route concern and the sequence is not.
  */
-const applyChannelReplySafety = async ({ tenantId, message, sessionId = "", composed = {}, intent = "" }) => {
+const applyChannelReplySafety = async ({
+  tenantId,
+  message,
+  sessionId = "",
+  composed = {},
+  intent = "",
+  customerPhone = "",
+}) => {
   if (!tenantId) return composed;
   if (!isChannelSafetyPipelineEnabled()) return composed;
 
@@ -1463,6 +1470,10 @@ const applyChannelReplySafety = async ({ tenantId, message, sessionId = "", comp
     message,
     sessionId,
     intent,
+    // No instructions passed on purpose: the pipeline loads the tenant's persona, so
+    // this channel speaks in the same voice as the inbox instead of a default one.
+    // The phone is what lets it also read who it is talking to.
+    customerPhone,
     draft: composed,
     searchProducts: ({ query, limit }) => searchAiSalesProducts({ tenantId, query, limit }),
   });
@@ -1522,6 +1533,9 @@ const sendAiSupportChannelResponse = async (req, res, response = {}, status = 20
         message,
         sessionId: channelSessionId,
         intent: toText(response?.detected_intent || ""),
+        customerPhone: toText(
+          req.aiChannelMessage?.external_customer_id || req.body?.metadata?.customer_phone || ""
+        ),
         composed: composedDraft,
       });
       const unified = buildUnifiedAiReplyPayload({
