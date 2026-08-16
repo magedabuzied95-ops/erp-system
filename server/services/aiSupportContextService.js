@@ -5272,7 +5272,19 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "greeting_only", tenantId });
     return {
       intent,
-      trustedContext: trustedContextWithCorrections([]),
+      // Built inline rather than through `trustedContextWithCorrections`, which is a
+      // const declared ~40 lines below this point. Calling it from here threw
+      // "Cannot access before initialization" — a temporal dead zone error on every
+      // greeting reaching this path. It also could not have worked: the helper closes
+      // over employee corrections that are only loaded after this early return, and a
+      // greeting deliberately returns before that query runs.
+      trustedContext: {
+        tenant_id: tenantId,
+        context_version: "phase_2_real_storefront_product_context",
+        sources: [],
+        employee_corrections: [],
+        employee_correction_sources: [],
+      },
       suggested_products: [],
       suggested_actions: [],
       unknown_product_terms: [],
