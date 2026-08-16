@@ -148,7 +148,10 @@ Sensitive actions are already gated behind the reply-mode policy + RBAC (`permit
 
 ## 13. Dead / unused (confidently identified)
 
-`src/components/ai/AISuggestedReplies.jsx` and `src/storefront/components/StorefrontAiSupportWidget.jsx` — no JSX importers. **Left in place** (not deleted).
+`src/components/ai/AISuggestedReplies.jsx` and `src/storefront/components/StorefrontAiSupportWidget.jsx` — no JSX importers.
+
+- `StorefrontAiSupportWidget.jsx` — **DELETED 2026-08-16** (960 lines). Confirmed zero importers across the repo before removal; the frontend build is unchanged. Note that its backend endpoint `POST /api/ai-support/chat` is **NOT** dead and must stay: Messenger, Instagram and WhatsApp all reach it through `aiUnifiedDecisionService` → `generateUnifiedAiReply`.
+- `AISuggestedReplies.jsx` — still in place, still orphaned.
 
 ## 14. Security / RBAC considerations
 
