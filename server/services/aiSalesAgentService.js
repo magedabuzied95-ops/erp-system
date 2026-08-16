@@ -15,6 +15,7 @@ import {
 import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
 import { summarizeUnderstanding, understandCustomerMessage } from "./aiUnderstandingService.js";
+import { resolveCustomerMessageText } from "./aiVoiceTranscriptionService.js";
 import { searchProductsHybrid } from "./aiHybridProductSearchService.js";
 import { isAgentLoopEnabled, runAgentLoop, verifyFactProvenance } from "./aiAgentLoopService.js";
 import { loadCustomer360, customer360SalesHint, summarizeCustomer360 } from "./aiCustomer360Service.js";
@@ -5521,10 +5522,25 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   if (["human_takeover", "closed"].includes(conversation.conversation_status)) {
     throw Object.assign(new Error("AI is paused for this conversation"), { status: 409 });
   }
-  const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
+  const typedMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
   // Phase 11: capture the inbound source message id so the draft can be checked for staleness before send.
   const latestCustomerRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message));
   const resolvedSourceMessageId = sourceMessageId || latestCustomerRow?.id || null;
+
+  // A customer who sends a voice note instead of typing used to reach every stage below
+  // with an empty message: understanding, retrieval and grounding all ran against "".
+  // Transcribing gives them the same pipeline a typed message gets. Dormant unless
+  // AI_VOICE_TRANSCRIPTION_ENABLED, and a failed transcription simply leaves the empty
+  // message it found — i.e. today's behaviour.
+  const voiceRow = typedMessage
+    ? null
+    : [...asArray(conversation.messages)].reverse().find((message) => asArray(message?.attachments).length);
+  const resolvedInbound = await resolveCustomerMessageText({
+    messageText: typedMessage,
+    attachments: asArray(voiceRow?.attachments),
+  });
+  const lastMessage = resolvedInbound.text || typedMessage;
+  const voiceTranscription = resolvedInbound.source === "voice_transcript" ? resolvedInbound.transcription : null;
   let replyHarness = null;
   // Read the customer before doing anything else. `understanding.legacy_intent` is the
   // same five-value enum `resolveIntent` produced, so every existing branch below is
@@ -6023,6 +6039,12 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       // intent accuracy against a golden label and an employee can see WHY the draft
       // says what it says.
       understanding,
+      // Present only when the customer spoke instead of typing. An employee reviewing
+      // the draft has to know the reply answers machine-heard words, because a
+      // misheard size is invisible once it becomes fluent Arabic.
+      voice_transcription: voiceTranscription
+        ? { text: voiceTranscription.text, model: voiceTranscription.model, language: voiceTranscription.language }
+        : null,
       // Which ERP tools the draft actually consulted, and whether every claim in it
       // traced back to one. This is what makes a wrong number debuggable.
       agent_loop: agentLoop
