@@ -1,0 +1,5 @@
+deviceType=XVR1B16-I
+processor=ARM
+hardwareVersion=1.00
+serialNumber=MOCKSERIAL0000000
+updateSerial=XVR1B16-I

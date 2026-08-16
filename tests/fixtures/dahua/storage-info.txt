@@ -1,0 +1,4 @@
+list.info[0].Name=sda
+list.info[0].State=Running
+list.info[0].Detail[0].TotalBytes=1000204886016
+list.info[0].Detail[0].UsedBytes=742339907584

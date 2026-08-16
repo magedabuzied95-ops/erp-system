@@ -7,6 +7,12 @@
 import { SURVEILLANCE_ERROR_CODES, SurveillanceError, errorStatus, toErrorResponse } from "../services/surveillance/surveillanceErrors.js";
 import { requireSurveillanceTenantId } from "../services/surveillance/surveillanceTenantScope.js";
 import { surveillanceLogError } from "../services/surveillance/surveillanceRedaction.js";
+import {
+  FAIL_CLOSED,
+  SURVEILLANCE_RATE_LIMITS,
+  consumeRateLimit,
+} from "../services/surveillance/surveillanceRateLimitPolicy.js";
+import { __resetRateCounters } from "../services/cacheService.js";
 
 const respond = (res, error) => res.status(errorStatus(error)).json(toErrorResponse(error));
 
@@ -78,97 +84,81 @@ export const isSurveillanceOwner = (user) => user?.is_super_admin === true;
  * ------------------------------------------------------------------ */
 
 /**
- * Token buckets, in memory.
+ * Distributed, per-action limits.
  *
- * Matches the pattern already used in aiSupport.js and storefront.js. The
- * honest limitation: with more than one backend process the effective limit is
- * per process. That is acceptable here because these limits protect a DVR from
- * command flooding rather than protecting us from a distributed attacker, and
- * the production deployment runs a single backend container. If that changes,
- * the store swaps for the existing Redis-backed cacheService without touching
- * call sites.
- */
-const buckets = new Map();
-
-const BUCKET_SWEEP_MS = 60_000;
-let lastSweep = 0;
-
-const sweep = (now) => {
-  if (now - lastSweep < BUCKET_SWEEP_MS) return;
-  lastSweep = now;
-  for (const [key, bucket] of buckets.entries()) {
-    if (bucket.resetAt <= now) buckets.delete(key);
-  }
-};
-
-/**
- * Per-action limits.
+ * Phase 1 used a per-process Map. That is a correct limit for one process and a
+ * silent under-count by the replica factor for more, which for "one recorder
+ * restart per ten minutes" is the difference between a control and the
+ * appearance of one.
  *
- * PTZ is high because a directional pad legitimately emits a burst while a
- * button is held; restart is one per ten minutes per device because the second
- * press is never useful and a recorder rebooting in a loop records nothing.
- */
-export const SURVEILLANCE_RATE_LIMITS = Object.freeze({
-  ptz: { limit: 30, windowMs: 10_000, scope: "device" },
-  snapshot: { limit: 30, windowMs: 60_000, scope: "device" },
-  probe: { limit: 6, windowMs: 60_000, scope: "device" },
-  connectionTest: { limit: 10, windowMs: 60_000, scope: "user" },
-  stream: { limit: 60, windowMs: 60_000, scope: "user" },
-  settingsWrite: { limit: 20, windowMs: 60_000, scope: "device" },
-  storage: { limit: 3, windowMs: 3_600_000, scope: "device" },
-  network: { limit: 3, windowMs: 3_600_000, scope: "device" },
-  restart: { limit: 1, windowMs: 600_000, scope: "device" },
-  deviceCreate: { limit: 20, windowMs: 3_600_000, scope: "user" },
-});
-
-const bucketKey = (action, scope, req) => {
-  const tenantId = req?.surveillanceTenantId ?? req?.user?.tenant_id ?? "none";
-  const userId = req?.user?.id ?? "anon";
-  // Device scope still includes the tenant, so two tenants that somehow share a
-  // device id cannot consume each other's budget.
-  const target = scope === "device" ? req?.params?.id ?? req?.params?.deviceId ?? "none" : userId;
-  return `${action}:${tenantId}:${scope}:${target}`;
-};
-
-/**
- * @param {keyof SURVEILLANCE_RATE_LIMITS} action
+ * The policy — limits, scopes, and what happens when the counter cannot be
+ * trusted — lives in surveillanceRateLimitPolicy.js. This is only the Express
+ * adapter: pull identifiers off the request, consume a unit, translate the
+ * verdict into a response.
+ *
+ * NOTE: this middleware is now async. It still composes normally with Express,
+ * but a route must not assume it completes synchronously.
+ *
+ * @param {string} action  a key of SURVEILLANCE_RATE_LIMITS
  */
 export const surveillanceRateLimit = (action) => {
-  const config = SURVEILLANCE_RATE_LIMITS[action];
-  if (!config) throw new Error(`unknown surveillance rate limit "${action}"`);
+  // Resolved at wiring time so a typo in a route definition breaks the boot
+  // rather than silently disabling the limit on a dangerous command.
+  if (!SURVEILLANCE_RATE_LIMITS[action]) {
+    throw new Error(`unknown surveillance rate limit "${action}"`);
+  }
 
-  return (req, res, next) => {
-    const now = Date.now();
-    sweep(now);
-
-    const key = bucketKey(action, config.scope, req);
-    const bucket = buckets.get(key);
-
-    if (!bucket || bucket.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + config.windowMs });
+  return async (req, res, next) => {
+    let verdict;
+    try {
+      verdict = await consumeRateLimit(action, {
+        tenantId: req?.surveillanceTenantId ?? req?.user?.tenant_id ?? null,
+        userId: req?.user?.id ?? null,
+        deviceId: req?.params?.id ?? req?.params?.deviceId ?? null,
+      });
+    } catch (error) {
+      // The limiter itself threw. For a dangerous action that is a refusal:
+      // "we could not count this" must never resolve to "go ahead".
+      surveillanceLogError("rate_limit_failed", error, { action });
+      if (SURVEILLANCE_RATE_LIMITS[action].failMode === FAIL_CLOSED) {
+        return res.status(503).json({
+          success: false,
+          code: SURVEILLANCE_ERROR_CODES.RATE_LIMITED,
+          details: { action, reason: "counter-unavailable" },
+        });
+      }
       return next();
     }
 
-    if (bucket.count >= config.limit) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-      res.setHeader("Retry-After", String(retryAfter));
-      return res.status(429).json({
+    if (verdict.allowed) return next();
+
+    if (verdict.reason === "counter-unavailable") {
+      // 503, not 429: nothing is wrong with the caller's rate — the control
+      // itself is unavailable. Telling them to slow down would be a lie, and
+      // they would retry forever against a limit that is not being applied.
+      return res.status(503).json({
         success: false,
         code: SURVEILLANCE_ERROR_CODES.RATE_LIMITED,
-        details: { action, retry_after_seconds: retryAfter },
+        details: { action, reason: "counter-unavailable" },
       });
     }
 
-    bucket.count += 1;
-    return next();
+    res.setHeader("Retry-After", String(verdict.retryAfterSeconds));
+    return res.status(429).json({
+      success: false,
+      code: SURVEILLANCE_ERROR_CODES.RATE_LIMITED,
+      details: { action, retry_after_seconds: verdict.retryAfterSeconds },
+    });
   };
 };
 
+export { SURVEILLANCE_RATE_LIMITS };
+
 /** Test-only. */
 export const __resetSurveillanceRateLimits = () => {
-  buckets.clear();
-  lastSweep = 0;
+  __resetRateCounters();
 };
+
 
 /* ------------------------------------------------------------------ *
  * Error boundary

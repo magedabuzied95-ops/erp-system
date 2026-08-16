@@ -163,6 +163,7 @@ const createTables = async (client) => {
       is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
       ptz_supported BOOLEAN NOT NULL DEFAULT FALSE,
       audio_supported BOOLEAN NOT NULL DEFAULT FALSE,
+      stream_profiles JSONB NOT NULL DEFAULT '[]'::jsonb,
       main_codec VARCHAR(24) NOT NULL DEFAULT '',
       sub_codec VARCHAR(24) NOT NULL DEFAULT '',
       status VARCHAR(24) NOT NULL DEFAULT 'unknown',
@@ -176,6 +177,21 @@ const createTables = async (client) => {
   );
   await client.query(
     `CREATE INDEX IF NOT EXISTS idx_surveillance_channels_tenant ON surveillance_channels (tenant_id, device_id)`,
+  );
+
+  // The channels table already exists in every environment that has booted, so
+  // CREATE TABLE IF NOT EXISTS above will not add this column to them.
+  //
+  // ADD COLUMN IF NOT EXISTS is the one ALTER form allowed in this module: it
+  // cannot fail on existing rows, cannot lose data, and cannot rewrite the
+  // table. Anything that could — a type change, a NOT NULL without a default, a
+  // DROP — stays forbidden, because a failure here exits the whole backend.
+  //
+  // main_codec/sub_codec are left in place and unused rather than dropped.
+  // Nothing reads them, dropping a column is the kind of irreversible step this
+  // module refuses on principle, and they cost nothing empty.
+  await client.query(
+    `ALTER TABLE surveillance_channels ADD COLUMN IF NOT EXISTS stream_profiles JSONB NOT NULL DEFAULT '[]'::jsonb`,
   );
 
   // ---- saved layouts --------------------------------------------------

@@ -47,6 +47,16 @@ const run = (middleware, req) => {
   return { res, nextCalled };
 };
 
+/** The rate limiter is async; await it before reading the verdict. */
+const runAsync = async (middleware, req) => {
+  const res = fakeRes();
+  let nextCalled = false;
+  await middleware(req, res, () => {
+    nextCalled = true;
+  });
+  return { res, nextCalled };
+};
+
 /* ------------------------------------------------------------------ *
  * Who gets through
  * ------------------------------------------------------------------ */
@@ -157,23 +167,23 @@ test("the guard module does not import the platform permission middleware", () =
  * Rate limiting on dangerous commands
  * ------------------------------------------------------------------ */
 
-test("a second restart within the window is refused", (t) => {
+test("a second restart within the window is refused", async (t) => {
   t.after(__resetSurveillanceRateLimits);
   __resetSurveillanceRateLimits();
 
   const limiter = surveillanceRateLimit("restart");
   const req = { user: { id: 1, tenant_id: 7 }, surveillanceTenantId: 7, params: { id: "3" } };
 
-  assert.equal(run(limiter, req).nextCalled, true);
+  assert.equal((await runAsync(limiter, req)).nextCalled, true);
 
-  const second = run(limiter, req);
+  const second = await runAsync(limiter, req);
   assert.equal(second.nextCalled, false);
   assert.equal(second.res.statusCode, 429);
   assert.equal(second.res.body.code, "SURVEILLANCE_RATE_LIMITED");
   assert.ok(Number(second.res.headers["Retry-After"]) > 0);
 });
 
-test("rate limit budgets do not leak between devices or tenants", (t) => {
+test("rate limit budgets do not leak between devices or tenants", async (t) => {
   t.after(__resetSurveillanceRateLimits);
   __resetSurveillanceRateLimits();
 
@@ -182,17 +192,17 @@ test("rate limit budgets do not leak between devices or tenants", (t) => {
   const deviceFour = { user: { id: 1, tenant_id: 7 }, surveillanceTenantId: 7, params: { id: "4" } };
   const otherTenant = { user: { id: 2, tenant_id: 99 }, surveillanceTenantId: 99, params: { id: "3" } };
 
-  assert.equal(run(limiter, deviceThree).nextCalled, true);
+  assert.equal((await runAsync(limiter, deviceThree)).nextCalled, true);
   // A different device has its own budget.
-  assert.equal(run(limiter, deviceFour).nextCalled, true);
-  // A different tenant with the same device id must not consume ours, and must
-  // not be blocked by ours.
-  assert.equal(run(limiter, otherTenant).nextCalled, true);
+  assert.equal((await runAsync(limiter, deviceFour)).nextCalled, true);
+  // A different tenant with the same device id must neither consume ours nor be
+  // blocked by ours.
+  assert.equal((await runAsync(limiter, otherTenant)).nextCalled, true);
   // The original is still spent.
-  assert.equal(run(limiter, deviceThree).nextCalled, false);
+  assert.equal((await runAsync(limiter, deviceThree)).nextCalled, false);
 });
 
-test("PTZ allows a burst but stops a flood", (t) => {
+test("PTZ allows a burst but stops a flood", async (t) => {
   t.after(__resetSurveillanceRateLimits);
   __resetSurveillanceRateLimits();
 
@@ -201,9 +211,9 @@ test("PTZ allows a burst but stops a flood", (t) => {
 
   // Holding a direction button legitimately emits a burst.
   for (let index = 0; index < 30; index += 1) {
-    assert.equal(run(limiter, req).nextCalled, true, `command ${index}`);
+    assert.equal((await runAsync(limiter, req)).nextCalled, true, `command ${index}`);
   }
-  assert.equal(run(limiter, req).nextCalled, false);
+  assert.equal((await runAsync(limiter, req)).nextCalled, false);
 });
 
 test("an unknown rate limit name fails at wiring time, not at request time", () => {

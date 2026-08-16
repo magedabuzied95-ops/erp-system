@@ -44,6 +44,7 @@
 
 import dns from "node:dns/promises";
 import net from "node:net";
+import os from "node:os";
 
 import { BlockedDestinationError, SURVEILLANCE_ERROR_CODES, SurveillanceError } from "./surveillanceErrors.js";
 
@@ -212,24 +213,184 @@ const parseList = (value = "") =>
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+/* ------------------------------------------------------------------ *
+ * Infrastructure denial — three layers, none of them a guess
+ * ------------------------------------------------------------------ */
+
+// WHY THE ORIGINAL LIST WAS WRONG
+// -------------------------------
+// It hardcoded 172.17-172.20 because those were the Docker bridges that existed
+// when it was written. A read-only audit of the production host found eight:
+//
+//   bridge                  172.17.0.0/16      evolution_default   172.18.0.0/16
+//   evolution-v236-test-net 172.19.0.0/16      erp_default         172.20.0.0/16
+//   erp-preview-net         172.21.0.0/16      m1-staging-network  172.22.0.0/16
+//   m1-staging-egress       172.23.0.0/16      erp-system_default  172.24.0.0/16
+//
+// Four of them were outside the deny list. Enumerating them is not a fix — the
+// next `docker compose up` allocates 172.25 and the list is stale again. A
+// static list of someone else's dynamic allocations is always one deploy behind.
+//
+// So there are three layers, and only the first is a fixed list:
+
 /**
- * Infrastructure this backend must never dial, on top of HARD_DENY_RANGES.
+ * LAYER 1 — Docker's default address pool.
  *
- * SURVEILLANCE_BLOCKED_CIDRS is where the operator lists the VPS's own public
- * addresses and the Docker bridge networks. Those cannot be derived reliably at
- * runtime, and getting them wrong is the difference between "guarded" and
- * "reachable", so they are configuration rather than a guess.
+ * With no /etc/docker/daemon.json (the production case, verified), Docker
+ * allocates local networks from 172.17.0.0/12 in /16 chunks, i.e. 172.17.0.0/16
+ * through 172.31.0.0/16. Denying 172.16.0.0/12 covers every address Docker can
+ * hand out of that pool, today and after any future `compose up`.
  *
- * The Docker defaults are included because compose service names (`db`,
- * `redis`) resolve into these ranges, and a missing env var must not mean an
- * open door.
+ * This is the one layer a customer can legitimately collide with — a real LAN on
+ * 172.20.x exists in the world — so it is the one layer an operator may exempt.
+ * See infrastructureExemptRanges() for the guard on that.
+ */
+export const DOCKER_DEFAULT_POOL = Object.freeze(["172.16.0.0/12"]);
+
+/**
+ * LAYER 2 — the networks this process is actually attached to.
+ *
+ * Read from the host's own interfaces at runtime, so it adapts by construction:
+ * a Docker network created after boot is covered the moment it appears, and no
+ * list needs maintaining.
+ *
+ * This layer matters beyond Docker. Docker's built-in default pool also includes
+ * 192.168.0.0/16 in /20 chunks, and 192.168.x is the single most common customer
+ * LAN range there is. A static rule cannot deny 192.168.0.0/16 without denying
+ * nearly every DVR on earth — but "deny the specific /20 this host is attached
+ * to, and allow the rest" is both safe and precise. Only a runtime read can do
+ * that.
+ *
+ * Cached briefly: os.networkInterfaces() is a syscall, this runs per request,
+ * and a new bridge appearing within 30s of being created is soon enough.
+ */
+// TOPOLOGY: THE ONE THING A HEURISTIC CANNOT DECIDE
+// -------------------------------------------------
+// "Deny the networks this host sits on" is exactly right for a cloud VPS, whose
+// only neighbours are Docker bridges and other tenants' machines. It is exactly
+// WRONG for a self-hosted deployment or an edge agent, where the host shares a
+// LAN with the recorder and denying its own subnet denies the entire feature.
+//
+// No property of an interface distinguishes the two cases reliably — a bridge is
+// not always named "br-", and Docker's second default pool is 192.168.0.0/16 in
+// /20 chunks, which is indistinguishable by address from an ordinary shop LAN.
+//
+// So it is declared, not guessed, and the default is the strict one:
+//
+//   cloud (default) — deny every network this host is attached to.
+//   lan             — deny only this host's own addresses, plus the container
+//                     pool. Set this only when the backend deliberately shares
+//                     a LAN with the devices it manages.
+//
+// Defaulting to `cloud` means a misconfigured deployment fails closed and
+// visibly (a device is unreachable) rather than open and silently.
+export const hostTopology = () =>
+  String(process.env.SURVEILLANCE_HOST_TOPOLOGY || "cloud").trim().toLowerCase() === "lan"
+    ? "lan"
+    : "cloud";
+
+const INTERFACE_CACHE_MS = 30_000;
+let interfaceCache = { at: 0, ranges: [], topology: "" };
+let interfaceProvider = () => os.networkInterfaces();
+
+export const localInterfaceRanges = ({ now = Date.now() } = {}) => {
+  const topology = hostTopology();
+  if (
+    interfaceCache.ranges.length &&
+    interfaceCache.topology === topology &&
+    now - interfaceCache.at < INTERFACE_CACHE_MS
+  ) {
+    return interfaceCache.ranges;
+  }
+
+  const ranges = [];
+  for (const entries of Object.values(interfaceProvider() || {})) {
+    for (const entry of entries || []) {
+      // `internal` is loopback, already hard-denied. `cidr` is "172.17.0.1/16".
+      if (!entry || entry.internal || !entry.cidr) continue;
+      if (!parseCidr(entry.cidr)) continue;
+
+      if (topology === "lan") {
+        // Only the host itself. `/32` (or `/128`) of the interface address, so a
+        // recorder on the same subnet stays reachable while the backend can
+        // still never dial its own listening ports.
+        const bits = entry.family === "IPv6" || entry.address.includes(":") ? 128 : 32;
+        ranges.push(`${entry.address}/${bits}`);
+      } else {
+        // The whole attached network: 172.17.0.1/16 -> 172.17.0.0/16.
+        ranges.push(entry.cidr);
+      }
+    }
+  }
+
+  interfaceCache = { at: now, ranges, topology };
+  return ranges;
+};
+
+/** Test-only: stub the interface source so guard behaviour is deterministic. */
+export const __setInterfaceProvider = (provider) => {
+  interfaceProvider = typeof provider === "function" ? provider : () => os.networkInterfaces();
+  interfaceCache = { at: 0, ranges: [], topology: "" };
+};
+
+/** Test-only: force the next read to hit the source again. */
+export const __resetInterfaceCache = () => {
+  interfaceCache = { at: 0, ranges: [], topology: "" };
+};
+
+/**
+ * LAYER 3 — operator-declared ranges.
+ *
+ * SURVEILLANCE_BLOCKED_CIDRS is for what cannot be derived: this VPS's own
+ * public addresses (13.140.141.50/32 here), a peer's management network, a
+ * corporate range that must stay off limits.
+ */
+export const configuredDenyRanges = () => parseList(process.env.SURVEILLANCE_BLOCKED_CIDRS);
+
+/**
+ * The exemption, and the rule that keeps it from becoming a hole.
+ *
+ * A customer whose shop LAN really is 172.21.0.0/24 must be reachable, so
+ * SURVEILLANCE_INFRA_EXEMPT_CIDRS carves a hole in LAYER 1. But an exemption
+ * that overlaps LAYER 2 is refused outright: if this host is itself attached to
+ * 172.21.0.0/16, then "exempt 172.21.0.0/24" is not a customer LAN, it is a
+ * request to dial our own Docker network, whatever the operator believed.
+ *
+ * That check is what makes the exemption safe to hand to an operator. The
+ * dangerous configuration is not merely discouraged, it is inert.
+ */
+export const infrastructureExemptRanges = () => {
+  const requested = parseList(process.env.SURVEILLANCE_INFRA_EXEMPT_CIDRS);
+  if (!requested.length) return [];
+
+  const local = localInterfaceRanges()
+    .map((cidr) => parseCidr(cidr))
+    .filter(Boolean);
+
+  return requested.filter((cidr) => {
+    const range = parseCidr(cidr);
+    if (!range) return false;
+    // Reject if the exemption overlaps any network this host sits on. Overlap in
+    // either direction counts: a /24 inside our /16, or a /8 swallowing it.
+    return !local.some((own) => rangesOverlap(range, own));
+  });
+};
+
+/** Do two CIDRs share any address? */
+const rangesOverlap = (a, b) => {
+  if (!a || !b || a.family !== b.family) return false;
+  const shift = a.hostBits < b.hostBits ? b.hostBits : a.hostBits;
+  return (a.network >> shift) === (b.network >> shift);
+};
+
+/**
+ * Everything this backend must never dial, on top of HARD_DENY_RANGES.
+ * Retained as a single accessor so callers and tests have one entry point.
  */
 export const infrastructureDenyRanges = () => [
-  "172.17.0.0/16", // default docker bridge
-  "172.18.0.0/16", // first user-defined compose network
-  "172.19.0.0/16",
-  "172.20.0.0/16",
-  ...parseList(process.env.SURVEILLANCE_BLOCKED_CIDRS),
+  ...DOCKER_DEFAULT_POOL,
+  ...localInterfaceRanges(),
+  ...configuredDenyRanges(),
 ];
 
 export const allowedPorts = () => {
@@ -345,10 +506,23 @@ export const classifyAddress = (ip, { allowedCidrs = [] } = {}) => {
     }
   }
 
-  // 2. Operator infrastructure. Also above the allowlist: a tenant granted
-  //    172.16.0.0/12 for their LAN must still not reach the Docker network.
-  if (matchesAny(infrastructureDenyRanges(), parsed)) {
+  // 2a. Networks this host is attached to, and ranges the operator declared.
+  //     Above the tenant allowlist and NOT exemptable: a tenant granted
+  //     172.16.0.0/12 for their LAN must still not reach our Docker networks,
+  //     and no configuration may re-open the host's own attachments.
+  if (matchesAny(localInterfaceRanges(), parsed)) {
     return { allowed: false, reason: "erp-infrastructure", category: "hard-deny" };
+  }
+  if (matchesAny(configuredDenyRanges(), parsed)) {
+    return { allowed: false, reason: "erp-infrastructure", category: "hard-deny" };
+  }
+
+  // 2b. Docker's default allocation pool. Denied by default so a bridge created
+  //     tomorrow is covered today, but exemptable — a customer LAN genuinely can
+  //     live at 172.20.x. The exemption was already filtered against 2a above,
+  //     so it cannot re-open a network this host sits on.
+  if (matchesAny(DOCKER_DEFAULT_POOL, parsed) && !matchesAny(infrastructureExemptRanges(), parsed)) {
+    return { allowed: false, reason: "container-network-pool", category: "hard-deny" };
   }
 
   const isPrivate = matchesAny(PRIVATE_RANGES, parsed);

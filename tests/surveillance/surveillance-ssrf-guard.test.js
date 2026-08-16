@@ -125,7 +125,9 @@ test("Docker bridge networks are refused even when granted to the tenant", () =>
   // ranges. A tenant whose store LAN is 172.18.x would still not reach them.
   const verdict = classifyAddress("172.17.0.2", { allowedCidrs: ["172.16.0.0/12"] });
   assert.equal(verdict.allowed, false);
-  assert.equal(verdict.reason, "erp-infrastructure");
+  // The verdict names the layer that refused: the container address pool.
+  // Exhaustive pool coverage lives in surveillance-infra-deny.test.js.
+  assert.equal(verdict.reason, "container-network-pool");
 });
 
 test("operator-configured infrastructure ranges outrank the tenant allowlist", (t) => {

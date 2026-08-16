@@ -441,16 +441,34 @@ test("a playback window must be ordered and bounded", () => {
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
+/** The module explains in prose which operations it refuses to perform, and
+ *  those explanations name the very keywords being searched for. */
+const stripLineComments = (source) => source.replace(/^[^\S\n]*\/\/.*$/gm, "");
+
 test("the schema bootstrap contains no backfill that could crash the boot", () => {
   // bootstrapStartup() calls process.exit(1) on any throw, so a data migration
   // here would take the whole backend down, not just this feature.
   const source = read("../../server/services/surveillance/surveillanceSchema.js");
-  const body = source.slice(source.indexOf("const createTables"));
+  const body = stripLineComments(source.slice(source.indexOf("const createTables")));
 
   assert.doesNotMatch(body, /\bUPDATE\s+\w+\s+SET\b/i);
   assert.doesNotMatch(body, /\bDELETE\s+FROM\b/i);
-  assert.doesNotMatch(body, /\bALTER\s+TABLE\b/i);
   assert.doesNotMatch(body, /\bDROP\b/i);
+  assert.doesNotMatch(body, /\bTRUNCATE\b/i);
+
+  // ALTER is narrowed, not forbidden. ADD COLUMN IF NOT EXISTS cannot fail on
+  // existing rows, cannot lose data, and cannot rewrite the table — and it is
+  // the only way to reach an environment whose tables already exist, since
+  // CREATE TABLE IF NOT EXISTS is a no-op there. Every other form (type
+  // changes, NOT NULL without a default, column drops) stays forbidden.
+  for (const statement of body.match(/ALTER\s+TABLE[^`]*/gi) || []) {
+    assert.match(
+      statement,
+      /^ALTER\s+TABLE\s+\w+\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b/i,
+      `only ADD COLUMN IF NOT EXISTS is allowed here: ${statement}`,
+    );
+  }
+
   // The one INSERT is permission definitions, and it is conflict-proof.
   const inserts = body.match(/INSERT INTO (\w+)/g) || [];
   assert.deepEqual(inserts, ["INSERT INTO permissions"]);
