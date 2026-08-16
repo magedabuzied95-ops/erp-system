@@ -82,6 +82,15 @@ export const MODULES = [
   { key: "settings", label: "Settings" },
   { key: "users", label: "Users" },
   { key: "roles", label: "Roles" },
+  // Surveillance Center. Listed so the permissions are grantable from the Roles
+  // screen; no sidebar entry yet because Phase 1 ships no pages. Nothing is
+  // granted to any role by the deploy — see surveillanceSchema.js.
+  { key: "surveillance", label: "Surveillance" },
+  { key: "surveillance.device", label: "Surveillance Devices" },
+  { key: "surveillance.recording", label: "Surveillance Recording" },
+  { key: "surveillance.storage", label: "Surveillance Storage" },
+  { key: "surveillance.network", label: "Surveillance Network" },
+  { key: "surveillance.admin", label: "Surveillance Admin" },
 ];
 
 export const MODULE_ACTIONS = Object.freeze({
@@ -114,6 +123,16 @@ export const MODULE_ACTIONS = Object.freeze({
   settings: ["view", "edit", "approve"],
   users: ["view", "create", "edit", "delete"],
   roles: ["view", "create", "edit", "delete", "export"],
+  // Mirrors SURVEILLANCE_PERMISSIONS in
+  // server/services/surveillance/surveillanceSchema.js. Watching a camera and
+  // reconfiguring a recorder are split so a shop employee can be granted the
+  // first without ever getting near the second.
+  surveillance: ["view", "live", "playback", "snapshot", "ptz"],
+  "surveillance.device": ["view", "settings", "restart"],
+  "surveillance.recording": ["settings"],
+  "surveillance.storage": ["view", "manage"],
+  "surveillance.network": ["view", "manage"],
+  "surveillance.admin": ["manage"],
 });
 
 export const ACTIONS = [...new Set(Object.values(MODULE_ACTIONS).flat())];

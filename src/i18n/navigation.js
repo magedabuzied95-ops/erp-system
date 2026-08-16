@@ -65,6 +65,15 @@ const ITEM_LABEL_KEYS = {
   Company: "sidebar.company",
   Roles: "sidebar.roles",
   Permissions: "sidebar.permissions",
+  // Surveillance Center. These are permission-matrix module labels today (the
+  // Roles screen renders them); they become sidebar labels in a later phase and
+  // the keys are the same either way.
+  Surveillance: "sidebar.surveillance",
+  "Surveillance Devices": "sidebar.surveillanceDevices",
+  "Surveillance Recording": "sidebar.surveillanceRecording",
+  "Surveillance Storage": "sidebar.surveillanceStorage",
+  "Surveillance Network": "sidebar.surveillanceNetwork",
+  "Surveillance Admin": "sidebar.surveillanceAdmin",
   Users: "sidebar.users",
   Tenants: "sidebar.tenants",
   Currency: "sidebar.currency",

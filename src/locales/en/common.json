@@ -870,7 +870,13 @@
     "employeeAdvances": "Employee Advances",
     "attendance": "Attendance",
     "staffTasks": "Staff Tasks",
-    "aiStudio": "AI Studio"
+    "aiStudio": "AI Studio",
+    "surveillance": "Surveillance",
+    "surveillanceDevices": "Surveillance Devices",
+    "surveillanceRecording": "Surveillance Recording",
+    "surveillanceStorage": "Surveillance Storage",
+    "surveillanceNetwork": "Surveillance Network",
+    "surveillanceAdmin": "Surveillance Admin"
   },
   "language": {
     "label": "Language",

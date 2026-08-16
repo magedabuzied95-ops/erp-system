@@ -870,7 +870,13 @@
     "employeeAdvances": "سلف الموظفين",
     "attendance": "الحضور",
     "staffTasks": "مهام الموظفين",
-    "aiStudio": "استوديو الذكاء الاصطناعي"
+    "aiStudio": "استوديو الذكاء الاصطناعي",
+    "surveillance": "كاميرات المراقبة",
+    "surveillanceDevices": "أجهزة التسجيل",
+    "surveillanceRecording": "إعدادات التسجيل",
+    "surveillanceStorage": "تخزين المراقبة",
+    "surveillanceNetwork": "شبكة أجهزة المراقبة",
+    "surveillanceAdmin": "إدارة المراقبة"
   },
   "language": {
     "label": "اللغة",

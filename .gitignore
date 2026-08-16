@@ -63,6 +63,11 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+# Surveillance Center. Same shape as the analytics package above: the directory
+# itself must be un-ignored before anything inside it can be matched, and the
+# nested provider/transport/media/repository folders need the `**` to survive.
+!server/services/surveillance/
+!server/services/surveillance/**
 .codex-deploy*.zip
 .codex-monitoring*.log
 backups/
@@ -103,6 +108,11 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+# Surveillance Center. Same shape as the analytics package above: the directory
+# itself must be un-ignored before anything inside it can be matched, and the
+# nested provider/transport/media/repository folders need the `**` to survive.
+!server/services/surveillance/
+!server/services/surveillance/**
 # AI brain rebuild. These are the new understanding/reasoning layer; without an
 # explicit un-ignore they are silently dropped from every commit and never deploy.
 !server/services/aiUnderstandingService.js
@@ -116,3 +126,4 @@ server/services/*
 !server/services/aiEntityLexicon.js
 !server/services/aiReplySafetyPipeline.js
 !server/services/aiSemanticSearchService.js
+!server/services/aiAgreementScoreService.js

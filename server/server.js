@@ -643,6 +643,10 @@ const { ensureRestockIntentSchema } = await import("./services/restockIntentServ
 const { ensureRestockNotificationSchema } = await import("./services/restockNotificationService.js");
 const { ensureMessageDeliverySchema } = await import("./services/messageDeliveryReconciliationService.js");
 const { ensureInboundIntakeSchema } = await import("./services/aiInboundIntakeService.js");
+// Surveillance Center — Phase 1 is schema and abstractions only. No route is
+// mounted, no provider or transport is registered, and nothing here can reach a
+// device. See docs/surveillance-center-architecture.md.
+const { ensureSurveillanceSchema } = await import("./services/surveillance/surveillanceSchema.js");
 const { default: socialCommentsRoutes, socialCommentsDebugRoutes } = await import("./routes/socialComments.js");
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
@@ -2356,6 +2360,11 @@ const bootstrapStartup = async () => {
     console.log("[server] message delivery reconciliation schema ensured");
     await ensureInboundIntakeSchema(db);
     console.log("[server] inbound intake schema ensured");
+    // DDL only. No backfill, no UPDATE, no role grants — a failure here would
+    // process.exit(1) the whole backend, so this stays incapable of colliding
+    // with existing data.
+    await ensureSurveillanceSchema(db);
+    console.log("[server] surveillance schema ensured");
     await ensureProductVariantSchema();
     console.log("[server] product variant schema ensured");
     await ensureProductVariantImagesSchema(db);
