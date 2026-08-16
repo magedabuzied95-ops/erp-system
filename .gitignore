@@ -103,3 +103,13 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+# AI brain rebuild. These are the new understanding/reasoning layer; without an
+# explicit un-ignore they are silently dropped from every commit and never deploy.
+!server/services/aiUnderstandingService.js
+!server/services/aiCustomer360Service.js
+!server/services/aiPersonaService.js
+!server/services/aiToolRegistryService.js
+!server/services/aiAgentLoopService.js
+!server/services/aiHybridProductSearchService.js
+!server/services/aiReplyEngineService.js
+!server/services/aiVoiceTranscriptionService.js

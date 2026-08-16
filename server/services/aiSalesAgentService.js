@@ -14,6 +14,7 @@ import {
 } from "./aiSupportLogService.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
+import { summarizeUnderstanding, understandCustomerMessage } from "./aiUnderstandingService.js";
 import { buildProductContext, ensureProductLinkInReply } from "./aiProductContext.js";
 import { buildCrossSellUpsellSuggestions } from "./crossSellUpsellService.js";
 import { scoreConversationConversion } from "./conversionScoringService.js";
@@ -4333,6 +4334,24 @@ export const loadAiShadowAnalytics = async ({ tenantId, fromDate: rawFromDate = 
 const latestCustomerMessage = (messages = []) =>
   [...asArray(messages)].reverse().find((message) => text(message.customer_message))?.customer_message || "";
 
+/**
+ * Recent turns in the shape the understanding pass reads. It needs BOTH sides — a
+ * pronoun like "ده" only resolves against what the store last showed — so customer
+ * messages and our replies are interleaved in original order.
+ */
+const recentTurnsForUnderstanding = (messages = [], limit = 6) => {
+  const turns = [];
+  for (const message of asArray(messages)) {
+    const customerText = text(message.customer_message);
+    if (customerText) turns.push({ role: "customer", text: customerText });
+    const storeText = text(message.ai_answer || message.staff_message || "");
+    if (storeText) turns.push({ role: "store", text: storeText });
+  }
+  // Drop the trailing customer message: it is passed separately as the message being read.
+  if (turns.at(-1)?.role === "customer") turns.pop();
+  return turns.slice(-limit);
+};
+
 // Phase 11.1 — the customer's current unanswered TURN: the trailing run of consecutive customer messages,
 // bounded by a silence gap (a pause > TURN_GAP_MS starts a new turn) and by an outbound/staff reply. Because
 // assisted drafts are never sent, there are no outbound rows between fragments, so the recency gap is the real
@@ -5466,10 +5485,28 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   const latestCustomerRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message));
   const resolvedSourceMessageId = sourceMessageId || latestCustomerRow?.id || null;
   let replyHarness = null;
-  const intent = resolveIntent(lastMessage);
-  const detectedSize = extractShoeSize(lastMessage);
+  // Read the customer before doing anything else. `understanding.legacy_intent` is the
+  // same five-value enum `resolveIntent` produced, so every existing branch below is
+  // untouched; the richer fields (entities, funnel stage, objection, urgency, pronoun
+  // target) ride alongside for the grounding gate, the composer and the trace. With
+  // AI_UNDERSTANDING_ENABLED off this resolves to the deterministic keyword reading —
+  // byte-for-byte today's behaviour.
+  const understanding = await understandCustomerMessage({
+    tenantId,
+    message: lastMessage,
+    history: recentTurnsForUnderstanding(conversation.messages),
+    activeProduct: currentProductForConversation(conversation, []),
+    channel: conversation.channel || conversation.source || "web_chat",
+  });
+  const intent = understanding.legacy_intent;
+  // A size the reader recovered from context ("نفس المقاس اللي فات") counts, but the
+  // regex extractor still wins when it fires — it cannot hallucinate.
+  const detectedSize = extractShoeSize(lastMessage) || understanding.entities?.size || null;
   const salesIntent = extractSalesIntent(lastMessage);
-  const escalation = detectEscalation(lastMessage);
+  const keywordEscalation = detectEscalation(lastMessage);
+  const escalation = understanding.requires_human && !keywordEscalation.shouldEscalate
+    ? { shouldEscalate: true, reason: "UNDERSTANDING_REQUIRES_HUMAN", keyword: understanding.primary_intent }
+    : keywordEscalation;
   updateConversationMemory(conversationId, {
     lastIntent: intent,
     ...(detectedSize ? { lastSize: detectedSize } : {}),
@@ -5480,6 +5517,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     conversationId,
     platform: conversation.channel || conversation.source || "",
     intent,
+    understanding: summarizeUnderstanding(understanding),
   });
   pushAIEvent({
     type: "CONVERSATION_MEMORY_UPDATED",
@@ -5895,6 +5933,10 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     metadata: {
       source: "ai_suggestion",
       persist_requested: persist === true,
+      // The full read of the customer, stored per draft so the eval harness can score
+      // intent accuracy against a golden label and an employee can see WHY the draft
+      // says what it says.
+      understanding,
       validation,
       confidence_engine: confidenceEngine,
       grounding: groundingResult?.grounding || null,

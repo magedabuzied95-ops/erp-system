@@ -2,9 +2,16 @@ import { resolveCustomerDisplayPrice } from '../utils/customerDisplayPrice.js';
 import OpenAI from 'openai';
 import { agentOpenAiApiKey } from './openaiCredentials.js';
 
-const DEFAULT_MODEL = "gpt-4o-mini";
+// Composition quality is the whole point of this call, so the floor is the full model
+// rather than the mini tier. Raise it per-deployment with AI_SUPPORT_MODEL — the mini
+// tier remains the right default only for the cheap classification tier below.
+const DEFAULT_MODEL = "gpt-4o";
+const DEFAULT_FAST_MODEL = "gpt-4o-mini";
 const DEFAULT_VISION_FALLBACK_MODEL = "gpt-4o";
-const DEFAULT_TIMEOUT_MS = 12_000;
+// 12s was tight enough that a normal slow completion looked like an outage and fell
+// back to canned text. Retries below make a longer ceiling affordable.
+const DEFAULT_TIMEOUT_MS = 25_000;
+const DEFAULT_MAX_RETRIES = 2;
 const MAX_MESSAGE_CHARS = 2_000;
 const MAX_CONTEXT_CHARS = 12_000;
 
@@ -24,6 +31,7 @@ let openaiClient = null;
 let openaiClientApiKey = "";
 let textGenerationBlockedUntil = 0;
 let textGenerationBlockReason = "";
+let textGenerationBackoffStreak = 0;
 
 const envFlagEnabled = (value) => ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 const envFlagDisabled = (value) => ["0", "false", "no", "off"].includes(String(value || "").trim().toLowerCase());
@@ -53,7 +61,35 @@ const positiveNumber = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
-const textGenerationBackoffMs = () => positiveNumber(process.env.AI_SUPPORT_QUOTA_BACKOFF_MS, 10 * 60 * 1000);
+/**
+ * A single 429 used to blackhole ALL text generation for a flat 10 minutes, so one
+ * burst of traffic took the assistant offline long after the limit had cleared.
+ * Back off exponentially from a short base instead, and reset the moment a call
+ * succeeds, so a transient spike costs seconds rather than the rest of the shift.
+ */
+const textGenerationBackoffBaseMs = () => positiveNumber(process.env.AI_SUPPORT_QUOTA_BACKOFF_MS, 30 * 1000);
+const textGenerationBackoffCeilingMs = () => positiveNumber(process.env.AI_SUPPORT_QUOTA_BACKOFF_MAX_MS, 5 * 60 * 1000);
+
+const nextTextGenerationBackoffMs = () => {
+  const base = textGenerationBackoffBaseMs();
+  const scaled = base * 2 ** Math.min(textGenerationBackoffStreak, 5);
+  return Math.min(scaled, textGenerationBackoffCeilingMs());
+};
+
+const noteTextGenerationSuccess = () => {
+  textGenerationBackoffStreak = 0;
+  textGenerationBlockedUntil = 0;
+  textGenerationBlockReason = "";
+};
+
+const noteTextGenerationRateLimit = () => {
+  const waitMs = nextTextGenerationBackoffMs();
+  textGenerationBackoffStreak += 1;
+  textGenerationBlockedUntil = Date.now() + waitMs;
+  textGenerationBlockReason = "openai_quota_or_rate_limit";
+  return waitMs;
+};
+
 const textGenerationTemporarilyBlocked = () => Date.now() < textGenerationBlockedUntil;
 
 const safeJsonParse = (value) => {
@@ -69,8 +105,7 @@ const syncAgentCredentialState = () => {
   if (apiKey !== openaiClientApiKey) {
     openaiClient = null;
     openaiClientApiKey = apiKey;
-    textGenerationBlockedUntil = 0;
-    textGenerationBlockReason = "";
+    noteTextGenerationSuccess();
   }
   return apiKey;
 };
@@ -78,6 +113,30 @@ const syncAgentCredentialState = () => {
 const openAiConfigured = () => Boolean(syncAgentCredentialState());
 
 const textGenerationEnabled = () => envFlagEnabled(process.env.AI_SUPPORT_ENABLED) && openAiConfigured();
+
+/**
+ * Model tiering. Understanding/classification runs on every inbound message and only
+ * has to fill a small schema, so it uses the cheap tier; composition is what the
+ * customer actually reads, so it uses the strong one. Everything downstream resolves
+ * its model through here rather than reading env vars directly, so there is one place
+ * to raise the whole stack.
+ */
+export const resolveSupportModel = () => toText(process.env.AI_SUPPORT_MODEL) || DEFAULT_MODEL;
+export const resolveFastModel = () =>
+  toText(process.env.AI_FAST_MODEL) || toText(process.env.AI_UNDERSTANDING_MODEL) || DEFAULT_FAST_MODEL;
+export const resolveSupportTimeoutMs = () => positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
+export const resolveSupportMaxRetries = () => {
+  const parsed = Number(process.env.AI_SUPPORT_MAX_RETRIES);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 5) : DEFAULT_MAX_RETRIES;
+};
+
+/** Shared, credential-synced client so new AI services do not each open their own. */
+export const getSharedOpenAiClient = () => {
+  syncAgentCredentialState();
+  return openAiConfigured() ? getClient() : null;
+};
+
+export const isTextGenerationAvailable = () => textGenerationEnabled() && !textGenerationTemporarilyBlocked();
 
 const visionEnabled = () => openAiConfigured() && !envFlagDisabled(process.env.AI_SUPPORT_VISION_ENABLED);
 
@@ -174,8 +233,8 @@ const getClient = () => {
   if (!openaiClient) {
     openaiClient = new OpenAI({
       apiKey,
-      maxRetries: 0,
-      timeout: positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+      maxRetries: resolveSupportMaxRetries(),
+      timeout: resolveSupportTimeoutMs(),
     });
   }
   return openaiClient;
@@ -632,7 +691,9 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
           },
         },
         {
-          timeout: positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+          timeout: resolveSupportTimeoutMs(),
+          // Left at 0 deliberately: this path already retries by falling through to
+          // the next model in `models`, so SDK-level retries would multiply that.
           maxRetries: 0,
         }
       );
@@ -715,7 +776,7 @@ export const generateSupportAnswer = async ({
   try {
     const response = await getClient().responses.create(
       {
-        model: process.env.AI_SUPPORT_MODEL || DEFAULT_MODEL,
+        model: resolveSupportModel(),
         instructions: [
           "You are a smart Egyptian Arabic store salesperson for an ecommerce ERP storefront.",
           "Use only the trusted context supplied in the user message.",
@@ -794,11 +855,15 @@ export const generateSupportAnswer = async ({
         },
       },
       {
-        timeout: positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-        maxRetries: 0,
+        timeout: resolveSupportTimeoutMs(),
+        // maxRetries was 0, so a single transient 500/timeout dropped the customer
+        // straight onto canned fallback text. The SDK's own retry is cheaper than
+        // losing the reply.
+        maxRetries: resolveSupportMaxRetries(),
       }
     );
 
+    noteTextGenerationSuccess();
     const parsed = safeJsonParse(response.output_text);
     return normalizeAiPayload(parsed, knownSourceIds, {
       message: customerMessage,
@@ -806,14 +871,16 @@ export const generateSupportAnswer = async ({
       suggested_actions: suggestedActions,
     });
   } catch (error) {
+    let backoffMs = 0;
     if (Number(error?.status || error?.response?.status || 0) === 429) {
-      textGenerationBlockedUntil = Date.now() + textGenerationBackoffMs();
-      textGenerationBlockReason = "openai_quota_or_rate_limit";
+      backoffMs = noteTextGenerationRateLimit();
     }
     console.warn("[ai-support] OpenAI request failed", {
       name: error?.name,
       status: error?.status,
       message: error?.message,
+      model: resolveSupportModel(),
+      ...(backoffMs ? { backoff_ms: backoffMs, backoff_streak: textGenerationBackoffStreak } : {}),
     });
     return fallbackWithExtras;
   }
