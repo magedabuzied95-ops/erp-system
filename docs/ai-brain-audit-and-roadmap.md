@@ -12,7 +12,7 @@ _تدقيق كامل على طبقة الـ AI في الـ ERP (backend + الخ
 |---|---|---|
 | 0.1 إصلاح النصوص العربية التالفة | ✅ | 148+ موضع، حارس CI يمنع رجوعها |
 | 0.2 ترقية البوابة (retries/timeouts/tiers) | ✅ | `openaiSupportService.js` |
-| 2 طبقة الفهم | ✅ | `aiUnderstandingService.js` — `AI_UNDERSTANDING_ENABLED` |
+| 2 طبقة الفهم | ✅ | `aiUnderstandingService.js` — `AI_UNDERSTANDING_ENABLED` · يفهم العربي والفرانكو والإنجليزي |
 | 3 البحث الهجين | ✅ | `aiHybridProductSearchService.js` |
 | 4 الوكيل بالأدوات | ✅ | `aiToolRegistryService.js` + `aiAgentLoopService.js` |
 | 5 عميل مفهوم (360) | ✅ | `aiCustomer360Service.js` |
