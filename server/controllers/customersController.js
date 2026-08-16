@@ -1371,6 +1371,10 @@ const reconcileCustomerInvoicePayments = async (clientOrPool, { tenantId, custom
     `
     UPDATE orders o
     SET paid_amount = allocation.initial_paid_amount + allocation.paid_amount,
+        remaining_amount = GREATEST(
+          COALESCE(o.total_amount, o.total, 0) - (allocation.initial_paid_amount + allocation.paid_amount),
+          0
+        ),
         payment_status = CASE
           WHEN allocation.initial_paid_amount + allocation.paid_amount >= COALESCE(o.total_amount, o.total, 0) - 0.009 THEN 'paid'
           WHEN allocation.initial_paid_amount + allocation.paid_amount > 0.009 THEN 'partially_paid'

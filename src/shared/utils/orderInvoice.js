@@ -190,7 +190,10 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
   const newItemsTotal = toNumber(order.new_order_total ?? order.newOrderTotal ?? order.totals?.new_items_total, 0) || grandTotal;
   const amountPaidNow = toNumber(order.amount_due_now ?? order.amountDueNow ?? order.totals?.amount_paid_now ?? order.paid_amount, 0);
   const paidAmount = toNumber(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? order.totals?.paid_amount ?? order.totals?.paid, 0);
-  const remainingAmount = Math.max(0, toNumber(
+  // A fully collected invoice has nothing outstanding — never trust a stale
+  // denormalized remaining_amount over the paid/total the invoice itself carries.
+  const settledInFull = grandTotal > 0 && paidAmount >= grandTotal - 0.009;
+  const remainingAmount = settledInFull ? 0 : Math.max(0, toNumber(
     order.remaining_amount ?? order.remainingAmount ?? order.due_amount ?? order.totals?.remaining_amount ?? order.totals?.remaining,
     Math.max(0, grandTotal - paidAmount)
   ));

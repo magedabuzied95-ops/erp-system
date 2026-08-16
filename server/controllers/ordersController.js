@@ -5586,6 +5586,7 @@ export const confirmShippingPayment = async (req, res) => {
           transfer_proof_status = 'approved',
           status = 'confirmed',
           paid_amount = $5,
+          remaining_amount = GREATEST(COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - $5::numeric, 0),
           shipping_payment_verified_at = NOW(),
           shipping_payment_verified_by = $2,
           updated_at = NOW()
@@ -6147,6 +6148,7 @@ export const editOrder = async (req, res) => {
           total_price = $5,
           paid_amount = $6,
           change_amount = GREATEST($6::numeric - $5::numeric, 0),
+          remaining_amount = GREATEST($5::numeric - $6::numeric, 0),
           payment_method = COALESCE($7::text, payment_method),
           payment_status = COALESCE($8::text, payment_status),
           status = COALESCE($9::text, status),

@@ -487,6 +487,10 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
       UPDATE orders
       SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
           card_amount = COALESCE(card_amount, 0) + $2::numeric,
+          remaining_amount = GREATEST(
+            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
+            0
+          ),
           payment_status = CASE
             WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
             WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
@@ -608,6 +612,10 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
       UPDATE orders
       SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
           card_amount = COALESCE(card_amount, 0) + $2::numeric,
+          remaining_amount = GREATEST(
+            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
+            0
+          ),
           payment_status = CASE
             WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
             WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'

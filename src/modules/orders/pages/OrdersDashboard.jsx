@@ -220,6 +220,9 @@ const remainingCodAmount = (order = {}) => {
   return 0;
 };
 const dueAmountOf = (order = {}) => {
+  // A fully collected invoice is never due, even if a denormalized remaining_amount
+  // column was left behind by an older write path.
+  if (totalValue(order) > 0 && getPaidAmount(order) >= totalValue(order) - 0.009) return 0;
   const explicit = [
     order.remaining_amount,
     order.remainingAmount,
