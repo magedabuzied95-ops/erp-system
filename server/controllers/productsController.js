@@ -2939,13 +2939,17 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
   const currentVariantRow = currentRows[0] || {};
   const requestedVariantSku = nextVariant.sku || buildVariantSku({ prefix: skuPrefix, color: nextVariant.color, size: nextVariant.size });
   if (saveContext) {
-    nextVariant.sku = claimUniqueSkuFromContext(saveContext, {
-      sku: requestedVariantSku,
-      reservedSkus,
-      productId,
-      variantId: nextVariant.id,
-      previousSku: currentVariantRow.sku || "",
-    });
+    nextVariant.sku = claimUniqueSkuFromContext(
+      saveContext,
+      {
+        sku: requestedVariantSku,
+        reservedSkus,
+        productId,
+        variantId: nextVariant.id,
+        previousSku: currentVariantRow.sku || "",
+      },
+      normalizeSku
+    );
     assertVariantSkuBarcodeAvailableFromContext(saveContext, { productId, variant: nextVariant });
     claimBarcodeFromContext(saveContext, {
       barcode: nextVariant.barcode,
