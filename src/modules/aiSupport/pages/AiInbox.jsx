@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -38,6 +38,7 @@ import {
   Paperclip,
   Pencil,
   PlayCircle,
+  Plug,
   Plus,
   Star,
   RefreshCw,
@@ -99,6 +100,11 @@ import "./AiInboxOrderComposer.m1.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
+
+// Loaded on demand: the integrations center pulls in the whole Meta/marketing
+// API surface, which the inbox itself never touches.
+const IntegrationsCenter = lazy(() => import("../components/integrations/IntegrationsCenter.jsx"));
+const INTEGRATION_TAB_KEYS = new Set(["overview", "meta", "whatsapp", "tiktok"]);
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
@@ -2065,6 +2071,7 @@ function InboxChannelSidebar({
   onSelectSocialPlatform,
   onOpenQuickReplies,
   onOpenCommentsSettings,
+  onOpenIntegrations,
   configActive = false,
 }) {
   const { t } = useTranslation();
@@ -2158,7 +2165,7 @@ function InboxChannelSidebar({
           </button>
         ))}
       </div>
-      {onOpenQuickReplies || onOpenCommentsSettings ? (
+      {onOpenQuickReplies || onOpenCommentsSettings || onOpenIntegrations ? (
         <div className="mt-2 border-t border-[#d7c9a6] pt-2 dark:border-white/10">
           <button
             type="button"
@@ -2188,6 +2195,7 @@ function InboxChannelSidebar({
                 {[
                   { key: "quick_replies", label: t("aiSupport.quickReplies.title"), icon: Zap, onSelect: onOpenQuickReplies },
                   { key: "comments", label: t("aiSupport.commentsSettings.title"), icon: MessageSquareText, onSelect: onOpenCommentsSettings },
+                  { key: "integrations", label: t("aiSupport.integrations.title"), icon: Plug, onSelect: onOpenIntegrations },
                 ].filter((item) => item.onSelect).map((item) => (
                   <button
                     key={item.key}
@@ -5305,6 +5313,15 @@ export default function AiInbox({ reviewerMode = false }) {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
   const [commentsSettingsOpen, setCommentsSettingsOpen] = useState(false);
+  // `?integrations=<tab>` is how OAuth callbacks (TikTok today) get the user
+  // back to the connection they just approved instead of a bare inbox.
+  const integrationsDeepLinkTab = clean(searchParams.get("integrations")).toLowerCase();
+  const [integrationsOpen, setIntegrationsOpen] = useState(() => INTEGRATION_TAB_KEYS.has(integrationsDeepLinkTab));
+  const [integrationsTab, setIntegrationsTab] = useState(() => (INTEGRATION_TAB_KEYS.has(integrationsDeepLinkTab) ? integrationsDeepLinkTab : "overview"));
+  const openIntegrations = useCallback((tab = "overview") => {
+    setIntegrationsTab(INTEGRATION_TAB_KEYS.has(tab) ? tab : "overview");
+    setIntegrationsOpen(true);
+  }, []);
   const [socialDrawerRequest, setSocialDrawerRequest] = useState({ kind: "", nonce: 0 });
   const [replyText, setReplyText] = useState("");
   useEffect(() => {
@@ -8978,6 +8995,19 @@ export default function AiInbox({ reviewerMode = false }) {
     />
   );
 
+  const renderIntegrationsCenter = () => (
+    integrationsOpen ? (
+      <Suspense fallback={null}>
+        <IntegrationsCenter
+          open
+          initialTab={integrationsTab}
+          headers={headers}
+          onClose={() => setIntegrationsOpen(false)}
+        />
+      </Suspense>
+    ) : null
+  );
+
   const renderSocialCommentsWorkspaceFrame = () => (
     <SocialCommentsWorkspace
         drawerRequest={socialDrawerRequest}
@@ -9105,6 +9135,7 @@ export default function AiInbox({ reviewerMode = false }) {
             onReorder={quickRepliesStore.reorderReplies}
           />
           {renderCommentsSettingsModal()}
+          {renderIntegrationsCenter()}
           <InboxChannelSidebar
             channels={[]}
             allUnread={channelSummaries.all.unread}
@@ -9125,7 +9156,8 @@ export default function AiInbox({ reviewerMode = false }) {
             onSelectSocialComments={() => setInboxSection("social_comments")}
             onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
             onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
-            configActive={quickRepliesConfigOpen || commentsSettingsOpen}
+            onOpenIntegrations={() => openIntegrations()}
+            configActive={quickRepliesConfigOpen || commentsSettingsOpen || integrationsOpen}
           />
           <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
@@ -9223,6 +9255,7 @@ export default function AiInbox({ reviewerMode = false }) {
           onReorder={quickRepliesStore.reorderReplies}
         />
         {renderCommentsSettingsModal()}
+        {renderIntegrationsCenter()}
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
@@ -9319,7 +9352,8 @@ export default function AiInbox({ reviewerMode = false }) {
               socialCommentsActive={false}
               onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
               onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
-              configActive={quickRepliesConfigOpen || commentsSettingsOpen}
+              onOpenIntegrations={() => openIntegrations()}
+              configActive={quickRepliesConfigOpen || commentsSettingsOpen || integrationsOpen}
               onSelectSocialComments={() => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));

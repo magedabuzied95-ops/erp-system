@@ -174,7 +174,7 @@ export default function TikTokPublishPanel({
         </p>
         {readiness.needsSettings ? (
           <a
-            href="/admin/ai-channels"
+            href="/admin/ai-inbox?integrations=tiktok"
             className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-amber-300/30 px-3 py-2 text-xs text-amber-100 hover:bg-amber-400/10"
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />

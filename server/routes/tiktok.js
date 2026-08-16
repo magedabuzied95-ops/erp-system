@@ -14,6 +14,7 @@ import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId } from "../utils/requestScope.js";
 import {
   TIKTOK_CHANNEL_SETTINGS_PATH,
+  TIKTOK_CHANNEL_SETTINGS_QUERY,
   describeTikTokConfig,
   tiktokAppOrigin,
   tiktokEnabled,
@@ -104,10 +105,11 @@ router.get("/oauth/callback", async (req, res) => {
   // The ERP app origin, never the storefront — see tiktokAppOrigin().
   const appOrigin = tiktokAppOrigin() || "/";
   const backTo = (params) => {
-    // Must match the SPA route registered in src/App.jsx ("admin/ai-channels"),
-    // otherwise the user lands on a 404 after approving on TikTok.
+    // Must match the SPA route registered in src/App.jsx ("admin/ai-inbox"),
+    // otherwise the user lands on a 404 after approving on TikTok. The extra
+    // query opens the integrations center straight on the TikTok tab.
     const url = new URL(TIKTOK_CHANNEL_SETTINGS_PATH, appOrigin);
-    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+    Object.entries({ ...TIKTOK_CHANNEL_SETTINGS_QUERY, ...params }).forEach(([key, value]) => url.searchParams.set(key, String(value)));
     return url.toString();
   };
 

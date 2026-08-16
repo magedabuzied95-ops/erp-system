@@ -76,7 +76,12 @@ export const tiktokAppOrigin = () => {
 };
 
 // The SPA route the TikTok card lives on, registered in src/App.jsx.
-export const TIKTOK_CHANNEL_SETTINGS_PATH = "/admin/ai-channels";
+//
+// The card moved out of the old /admin/ai-channels page and into the AI Inbox
+// integrations center; `?integrations=tiktok` is what opens that center on the
+// TikTok tab, so the merchant lands on the connection they just approved.
+export const TIKTOK_CHANNEL_SETTINGS_PATH = "/admin/ai-inbox";
+export const TIKTOK_CHANNEL_SETTINGS_QUERY = { integrations: "tiktok" };
 
 export const tiktokRequestedScopes = () => {
   const configured = text(process.env.TIKTOK_SCOPES);

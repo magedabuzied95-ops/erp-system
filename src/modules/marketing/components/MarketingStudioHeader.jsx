@@ -13,7 +13,9 @@ const tabs = [
   { to: "/marketing/social-calendar", get label() { return tt("marketing.studioHeader.tabs.calendar"); }, icon: CalendarDays },
   { to: "/marketing/analytics", get label() { return tt("marketing.studioHeader.tabs.analytics"); }, icon: BarChart3 },
   { to: "/marketing/templates", get label() { return tt("marketing.studioHeader.tabs.templates"); }, icon: LayoutTemplate },
-  { to: "/marketing/settings", label: "Meta", icon: Settings2 },
+  // Meta CONNECTION lives in the AI Inbox integrations center now; this tab is
+  // the automation rules that run on top of it.
+  { to: "/marketing/settings", get label() { return tt("marketing.studioHeader.tabs.automation"); }, icon: Settings2 },
 ];
 
 const tabClassName = ({ isActive }) =>

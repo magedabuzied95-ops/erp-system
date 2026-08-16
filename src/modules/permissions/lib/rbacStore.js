@@ -474,7 +474,6 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Payments", to: "/settings/payments", permission: "settings.view", icon: CircleDollarSign },
       { label: "AI Inbox", to: "/admin/ai-inbox", permission: "settings.view", icon: Bot, adminOnly: true },
       { label: "AI Follow Ups", to: "/admin/ai-followups", permission: "settings.view", icon: CalendarClock, adminOnly: true },
-      { label: "AI Channels", to: "/admin/ai-channels", permission: "settings.view", icon: Share2, adminOnly: true },
       { label: "AI Agent Analytics", to: "/admin/ai-agent-analytics", permission: "settings.view", icon: LineChart, adminOnly: true },
       { label: "AI Agent Settings", to: "/admin/ai-agent-settings", permission: "settings.view", icon: Settings2, adminOnly: true },
       { label: "AI Support Console", to: "/admin/ai-support-console", permission: "settings.view", icon: Bot, adminOnly: true, devOnly: true },

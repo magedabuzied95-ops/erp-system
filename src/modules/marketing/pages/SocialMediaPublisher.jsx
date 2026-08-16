@@ -1680,7 +1680,7 @@ export default function SocialMediaPublisher() {
 
   const openAdvancedMetaSettings = () => {
     setMetaConnectOpen(false);
-    window.location.assign("/marketing/settings#marketing-settings-facebook");
+    window.location.assign("/admin/ai-inbox?integrations=meta");
   };
 
   const handlePublishFromHistory = async (post) => {

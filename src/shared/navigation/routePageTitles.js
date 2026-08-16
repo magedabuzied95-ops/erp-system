@@ -14,7 +14,6 @@ const EXACT_ROUTE_TITLES = Object.freeze({
   "/ai-studio/restock-recovery": "AI Restock Recovery",
   "/admin/ai-inbox": "AI Inbox",
   "/admin/ai-followups": "AI Follow-ups",
-  "/admin/ai-channels": "AI Channels",
   "/admin/ai-agent-settings": "AI Agent Settings",
   "/admin/ai-agent-analytics": "AI Agent Analytics",
   "/admin/ai-support-console": "AI Support Console",

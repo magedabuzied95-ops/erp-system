@@ -48,7 +48,6 @@ const MIGRATED = [
   "src/modules/loyalty/pages/CustomerLoyaltyProfile.jsx",
   "src/modules/aiStudio/pages/AiStudioRestockRecovery.jsx",
   "src/modules/aiStudio/pages/AiStudioWorkflows.jsx",
-  "src/modules/aiSupport/pages/AiChannels.jsx",
   "src/modules/marketing/pages/Campaigns.jsx",
   "src/modules/marketing/pages/MarketingAttribution.jsx",
   "src/modules/marketing/pages/MarketingDashboard.jsx",

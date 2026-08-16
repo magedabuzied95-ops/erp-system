@@ -1547,5 +1547,228 @@
       "select": "Select",
       "deselect": "Deselect"
     }
+  },
+  "integrations": {
+    "title": "Integrations",
+    "subtitle": "Every social and messaging connection the inbox runs on, in one place.",
+    "common": {
+      "refresh": "Refresh",
+      "close": "Close",
+      "save": "Save",
+      "saveAndVerify": "Verify and save",
+      "disable": "Disable",
+      "copy": "Copy",
+      "never": "Never",
+      "unknown": "Unknown",
+      "missing": "Missing",
+      "notRun": "Not run",
+      "yes": "Yes",
+      "no": "No",
+      "on": "On",
+      "off": "Off",
+      "advancedMode": "Advanced mode",
+      "guidedMode": "Guided mode"
+    },
+    "state": {
+      "connected": "Connected",
+      "partial": "Needs attention",
+      "off": "Not connected",
+      "error": "Error"
+    },
+    "nav": {
+      "overview": "Overview",
+      "meta": "Facebook & Instagram",
+      "whatsapp": "WhatsApp",
+      "tiktok": "TikTok"
+    },
+    "overview": {
+      "title": "Connection overview",
+      "subtitle": "Where each platform stands right now.",
+      "metaHint": "Messenger, Instagram DMs, and Meta publishing",
+      "whatsappHint": "WhatsApp Cloud API and the Evolution gateway",
+      "tiktokHint": "Publishing today; messaging awaits TikTok approval",
+      "note": "Conversation settings — AI mode, tone, auto-reply — stay in the inbox itself. This screen only manages the connections."
+    },
+    "meta": {
+      "noPage": "No Facebook Page selected",
+      "noInstagram": "No Instagram business account selected",
+      "missingPermissions": "Missing permissions",
+      "appReviewNote": "Meta app review is still pending for: {{permissions}}. Messaging and publishing stay limited until those are granted.",
+      "connection": {
+        "title": "Meta connection",
+        "subtitle": "Sign in with Facebook, pick the Page, and verify the webhook."
+      },
+      "field": {
+        "page": "Facebook Page",
+        "instagram": "Instagram account",
+        "tokenStatus": "Token status",
+        "tokenExpires": "Token expires"
+      },
+      "steps": {
+        "title": "Setup checklist",
+        "login": "Facebook login",
+        "page": "Page selected",
+        "instagram": "Instagram account linked",
+        "permissions": "Permissions saved",
+        "webhook": "Webhook verified",
+        "complete": "Setup complete"
+      },
+      "action": {
+        "connectMeta": "Connect Meta",
+        "reconnectMeta": "Reconnect Meta",
+        "verifyWebhook": "Verify webhook",
+        "completeSetup": "Complete setup",
+        "testLive": "Test live",
+        "refreshTokens": "Refresh tokens",
+        "testAutoRefresh": "Test auto-refresh"
+      },
+      "pages": {
+        "title": "Choose a Facebook Page",
+        "subtitle": "The Page you pick becomes the inbox source for Messenger and Instagram.",
+        "pageId": "Page ID",
+        "instagram": "Instagram",
+        "noLinkedInstagram": "No linked business account"
+      },
+      "capabilities": {
+        "title": "Capabilities",
+        "subtitle": "What this connection can actually do right now."
+      },
+      "capability": {
+        "messenger": "Facebook Messenger",
+        "instagramDm": "Instagram DMs",
+        "facebookPublishing": "Facebook Page posts",
+        "instagramPublishing": "Instagram feed posts"
+      },
+      "check": {
+        "webhook": "Webhook healthy",
+        "token": "Token valid",
+        "receive": "Receives messages",
+        "send": "Sends replies",
+        "storyMentions": "Story mentions",
+        "feedPublish": "Feed publishing",
+        "mediaUpload": "Media upload",
+        "scheduled": "Scheduled publishing",
+        "noFailures": "No failed publishes"
+      },
+      "instagram": {
+        "title": "Instagram credentials",
+        "subtitle": "Stored encrypted on the server and never shown again after saving.",
+        "tokenTitle": "Instagram Business Login token",
+        "tokenHint": "Used for Instagram messaging only. It does not replace the Facebook Page token.",
+        "tokenPlaceholder": "Paste the Instagram access token",
+        "secretTitle": "Instagram App Secret",
+        "secretHint": "Used only to verify the Instagram webhook signature.",
+        "secretPlaceholder": "Paste the Instagram App Secret",
+        "stored": "Stored",
+        "notStored": "Not stored",
+        "webhookSubscribed": "Webhook subscribed",
+        "webhookPending": "Webhook needs verification"
+      },
+      "advanced": {
+        "title": "Manual identifiers",
+        "subtitle": "Only needed when the guided flow cannot reach the account.",
+        "provider": "Provider",
+        "pageId": "Facebook Page ID",
+        "instagramId": "Instagram business account ID",
+        "shortLivedToken": "Short-lived token",
+        "autoRefresh": "Auto-refresh",
+        "lastValidated": "Last validated",
+        "lastAutoRefresh": "Last auto-refresh",
+        "nextRefreshCheck": "Next refresh check"
+      },
+      "diagnostics": {
+        "title": "Diagnostics",
+        "subtitle": "Environment, webhook and token detail for troubleshooting.",
+        "environment": "Runtime environment",
+        "redirectUri": "OAuth redirect URL",
+        "webhookUrl": "Webhook callback URL",
+        "webhookVerified": "Webhook verified",
+        "subscribedApps": "Subscribed apps",
+        "subscription": "Subscription status",
+        "subscribedFields": "Subscribed fields",
+        "selfTestReachable": "Self-test reachable",
+        "challengeOk": "Challenge OK",
+        "lastEvent": "Last webhook event",
+        "lastIncoming": "Last incoming message",
+        "lastPublish": "Last successful publish",
+        "failedDeliveries": "Failed deliveries",
+        "throughput24h": "Events (24h)",
+        "tokenAge": "Token age",
+        "days": "{{count}} days",
+        "requiredPermissions": "Required permissions"
+      },
+      "toast": {
+        "connected": "Meta connected",
+        "connectFailed": "Meta connection failed",
+        "oauthFailed": "Unable to finish Meta sign-in",
+        "noAuthUrl": "Meta did not return a sign-in URL",
+        "timeout": "Meta sign-in timed out",
+        "selectPage": "Choose the Facebook Page to connect",
+        "pageConnected": "Facebook Page connected",
+        "pageFailed": "Unable to save the selected Page",
+        "webhookVerified": "Webhook verified",
+        "webhookFailed": "Webhook verification failed",
+        "setupComplete": "Meta setup complete",
+        "setupPartial": "Connected partially — verify the webhook to finish setup",
+        "setupFailed": "Unable to complete Meta setup",
+        "saved": "Settings saved",
+        "saveFailed": "Unable to save settings",
+        "reconnected": "Tokens refreshed",
+        "reconnectFailed": "Unable to refresh tokens",
+        "autoRefreshDone": "Auto-refresh test completed",
+        "autoRefreshSkipped": "Auto-refresh was not needed",
+        "autoRefreshFailed": "Auto-refresh test failed",
+        "igTokenSaved": "Instagram token saved",
+        "igTokenFailed": "Unable to save the Instagram token",
+        "igTokenRemoved": "Instagram token disabled",
+        "igTokenRemoveFailed": "Unable to disable the Instagram token",
+        "igSecretSaved": "Instagram App Secret saved",
+        "igSecretFailed": "Unable to save the Instagram App Secret",
+        "igSecretRemoved": "Instagram App Secret disabled",
+        "igSecretRemoveFailed": "Unable to disable the Instagram App Secret",
+        "testMessageSent": "Test message sent",
+        "testMessageFailed": "Message test failed",
+        "messagePermissionsOk": "Messaging permissions verified",
+        "publishPermissionsOk": "Publishing permissions verified",
+        "testPublishFailed": "Publishing test failed"
+      }
+    },
+    "whatsapp": {
+      "testDefaultMessage": "Test message from the ERP WhatsApp gateway.",
+      "testSent": "Test message sent",
+      "testFailed": "Unable to send the test message",
+      "cloud": {
+        "title": "WhatsApp Cloud API",
+        "subtitle": "The Meta-hosted number that feeds WhatsApp conversations into the inbox.",
+        "envEnabled": "Channel enabled",
+        "accessToken": "Access token configured",
+        "phoneNumberId": "Phone number ID configured",
+        "webhookReceived": "Webhook events received",
+        "lastWebhook": "Last webhook",
+        "aiReplies": "AI replies",
+        "envNote": "Cloud API credentials are set from the server environment, not from this screen."
+      },
+      "gateway": {
+        "title": "WhatsApp gateway (Evolution API)",
+        "subtitle": "Separate transport used for order confirmations and manual test sends.",
+        "provider": "Provider",
+        "connectionState": "Connection state",
+        "notConfigured": "Not configured",
+        "apiUrl": "API URL",
+        "apiUrlMissing": "EVOLUTION_API_URL is not configured",
+        "apiKey": "API key",
+        "apiKeyMissing": "EVOLUTION_API_KEY is missing",
+        "configured": "Configured",
+        "instance": "Instance name",
+        "instanceMissing": "EVOLUTION_INSTANCE_NAME is not configured",
+        "testTitle": "Send a manual test message",
+        "testPhone": "Egyptian phone number",
+        "testMessage": "Message",
+        "sendTest": "Send test"
+      }
+    },
+    "tiktok": {
+      "scopeNote": "TikTok is a publishing channel here. It is not an inbox source: comments and direct messages need a separate TikTok Business API grant that has not been issued yet."
+    }
   }
 }

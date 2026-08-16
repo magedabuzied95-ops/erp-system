@@ -79,7 +79,7 @@ const SETTINGS_CENTER_ACTIVE_ROUTES = new Set([
   "/settings/shipping",
   "/settings/payments",
 ]);
-const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/leads", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
+const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/leads", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
 const sidebarSubgroupForItem = (groupTitle, item) => {
   const to = String(item.to || "");
@@ -219,7 +219,7 @@ const groupForSidebarItem = (sectionTitle, item) => {
   if (to === "/purchases" || to === "/suppliers") return "Purchasing";
   if (to === "/employees" || to.startsWith("/employees/")) return "Employees";
   if (to === "/accounting" || to === "/expenses" || to === "/reports" || to === "/reports/overview" || to === "/reports/sales" || to === "/reports/inventory") return "Finance";
-  if (to === "/marketing/ai-center" || to === "/admin/ai-inbox" || to === "/admin/ai-followups" || to === "/admin/ai-channels" || to === "/admin/ai-agent-analytics" || to === "/admin/ai-support-knowledge-base" || to === "/admin/ai-agent-settings") return "AI & Marketing";
+  if (to === "/marketing/ai-center" || to === "/admin/ai-inbox" || to === "/admin/ai-followups" || to === "/admin/ai-agent-analytics" || to === "/admin/ai-support-knowledge-base" || to === "/admin/ai-agent-settings") return "AI & Marketing";
   if (to === "/branches" || to === "/settings/users" || to === "/admin/tenants" || to === "/settings/permissions" || to === "/settings/company" || to === "/settings/storefront" || to === "/settings/shipping" || to === "/settings/payments" || to === "/settings") return "System Settings";
 
   if (sectionTitle === "Main") return "Main";
@@ -281,7 +281,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
     Purchasing: ["/purchases", "/suppliers"],
     Employees: ["/employees", "/employees/attendance", "/reports"],
     Finance: ["/accounting", "/expenses", "/reports/overview", "/reports/sales", "/reports/inventory", "/reports"],
-    "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
+    "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
     "System Settings": ["/settings", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments", "/branches", "/settings/users", "/admin/tenants", "/settings/permissions"],
   };
   groups.forEach((group) => {

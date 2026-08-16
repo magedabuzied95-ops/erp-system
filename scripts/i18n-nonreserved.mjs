@@ -213,7 +213,6 @@ export const GENERATED_CONTENT = new Map([
   ["src/modules/marketing/components/PostEditorModal.jsx", "Audio-track name for a generated reel."],
   ["src/modules/marketing/services/marketingApi.js", "Default body of the Facebook publish TEST call - outbound post content."],
   ["src/modules/aiSupport/pages/AiSettings.jsx", "Playground sample message sent to the AI, not chrome."],
-  ["src/modules/aiSupport/pages/AiChannels.jsx", "WhatsApp gateway test message, not chrome."],
 ]);
 
 /**

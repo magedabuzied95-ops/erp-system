@@ -1008,6 +1008,11 @@
       "publishing": "النشر",
       "publishingTitle": "قدرات النشر في ميتا",
       "webhook": "الويب هوك"
+    },
+    "integrationsMoved": {
+      "title": "تم نقل ربط ميتا",
+      "body": "أصبحت اتصالات فيسبوك وإنستجرام وواتساب وتيك توك تُدار من مركز التكاملات داخل AI Inbox.",
+      "action": "فتح التكاملات"
     }
   },
   "studio": {
@@ -1023,7 +1028,8 @@
       "publisher": "الناشر",
       "calendar": "التقويم",
       "analytics": "التحليلات",
-      "templates": "القوالب"
+      "templates": "القوالب",
+      "automation": "الأتمتة"
     }
   },
   "publisher": {

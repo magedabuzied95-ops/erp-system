@@ -1547,5 +1547,228 @@
       "select": "تحديد",
       "deselect": "إلغاء التحديد"
     }
+  },
+  "integrations": {
+    "title": "التكاملات",
+    "subtitle": "كل تكاملات السوشيال ميديا والمراسلة التي يعتمد عليها الصندوق في مكان واحد.",
+    "common": {
+      "refresh": "تحديث",
+      "close": "إغلاق",
+      "save": "حفظ",
+      "saveAndVerify": "تحقق واحفظ",
+      "disable": "تعطيل",
+      "copy": "نسخ",
+      "never": "لم يحدث",
+      "unknown": "غير معروف",
+      "missing": "غير موجود",
+      "notRun": "لم يُنفَّذ",
+      "yes": "نعم",
+      "no": "لا",
+      "on": "مُفعّل",
+      "off": "متوقف",
+      "advancedMode": "الوضع المتقدم",
+      "guidedMode": "الوضع الموجّه"
+    },
+    "state": {
+      "connected": "متصل",
+      "partial": "يحتاج مراجعة",
+      "off": "غير متصل",
+      "error": "خطأ"
+    },
+    "nav": {
+      "overview": "نظرة عامة",
+      "meta": "فيسبوك وإنستجرام",
+      "whatsapp": "واتساب",
+      "tiktok": "تيك توك"
+    },
+    "overview": {
+      "title": "حالة الاتصالات",
+      "subtitle": "وضع كل منصة الآن.",
+      "metaHint": "ماسنجر ورسائل إنستجرام والنشر على ميتا",
+      "whatsappHint": "واتساب Cloud API وبوابة Evolution",
+      "tiktokHint": "النشر متاح، والرسائل تنتظر موافقة تيك توك",
+      "note": "إعدادات المحادثات — وضع الذكاء الاصطناعي والنبرة والرد التلقائي — تبقى داخل الصندوق نفسه. هذه الشاشة لإدارة الاتصالات فقط."
+    },
+    "meta": {
+      "noPage": "لم يتم اختيار صفحة فيسبوك",
+      "noInstagram": "لم يتم اختيار حساب إنستجرام للأعمال",
+      "missingPermissions": "صلاحيات مفقودة",
+      "appReviewNote": "مراجعة تطبيق ميتا ما زالت معلّقة لـ: {{permissions}}. تبقى الرسائل والنشر محدودة حتى الموافقة عليها.",
+      "connection": {
+        "title": "ربط ميتا",
+        "subtitle": "سجّل الدخول بفيسبوك، اختر الصفحة، ثم تحقق من Webhook."
+      },
+      "field": {
+        "page": "صفحة فيسبوك",
+        "instagram": "حساب إنستجرام",
+        "tokenStatus": "حالة الرمز",
+        "tokenExpires": "انتهاء الرمز"
+      },
+      "steps": {
+        "title": "قائمة الإعداد",
+        "login": "تسجيل الدخول بفيسبوك",
+        "page": "اختيار الصفحة",
+        "instagram": "ربط حساب إنستجرام",
+        "permissions": "حفظ الصلاحيات",
+        "webhook": "التحقق من Webhook",
+        "complete": "اكتمال الإعداد"
+      },
+      "action": {
+        "connectMeta": "ربط ميتا",
+        "reconnectMeta": "إعادة ربط ميتا",
+        "verifyWebhook": "التحقق من Webhook",
+        "completeSetup": "إنهاء الإعداد",
+        "testLive": "اختبار مباشر",
+        "refreshTokens": "تحديث الرموز",
+        "testAutoRefresh": "اختبار التحديث التلقائي"
+      },
+      "pages": {
+        "title": "اختر صفحة فيسبوك",
+        "subtitle": "الصفحة التي تختارها تصبح مصدر ماسنجر وإنستجرام في الصندوق.",
+        "pageId": "معرّف الصفحة",
+        "instagram": "إنستجرام",
+        "noLinkedInstagram": "لا يوجد حساب أعمال مرتبط"
+      },
+      "capabilities": {
+        "title": "القدرات",
+        "subtitle": "ما يستطيع هذا الاتصال فعله فعليًا الآن."
+      },
+      "capability": {
+        "messenger": "ماسنجر فيسبوك",
+        "instagramDm": "رسائل إنستجرام",
+        "facebookPublishing": "منشورات صفحة فيسبوك",
+        "instagramPublishing": "منشورات إنستجرام"
+      },
+      "check": {
+        "webhook": "Webhook سليم",
+        "token": "الرمز صالح",
+        "receive": "استقبال الرسائل",
+        "send": "إرسال الردود",
+        "storyMentions": "إشارات الستوري",
+        "feedPublish": "النشر في الصفحة",
+        "mediaUpload": "رفع الوسائط",
+        "scheduled": "النشر المجدول",
+        "noFailures": "لا توجد عمليات نشر فاشلة"
+      },
+      "instagram": {
+        "title": "بيانات اعتماد إنستجرام",
+        "subtitle": "تُحفظ مشفّرة على الخادم ولا تظهر مرة أخرى بعد الحفظ.",
+        "tokenTitle": "رمز Instagram Business Login",
+        "tokenHint": "يُستخدم لرسائل إنستجرام فقط، ولا يستبدل رمز صفحة فيسبوك.",
+        "tokenPlaceholder": "الصق رمز وصول إنستجرام",
+        "secretTitle": "Instagram App Secret",
+        "secretHint": "يُستخدم للتحقق من توقيع Webhook الخاص بإنستجرام فقط.",
+        "secretPlaceholder": "الصق Instagram App Secret",
+        "stored": "محفوظ",
+        "notStored": "غير محفوظ",
+        "webhookSubscribed": "Webhook مشترك",
+        "webhookPending": "Webhook يحتاج تحقق"
+      },
+      "advanced": {
+        "title": "المعرّفات اليدوية",
+        "subtitle": "تحتاجها فقط عندما يتعذّر على الإعداد الموجّه الوصول للحساب.",
+        "provider": "المزوّد",
+        "pageId": "معرّف صفحة فيسبوك",
+        "instagramId": "معرّف حساب إنستجرام للأعمال",
+        "shortLivedToken": "رمز قصير الأجل",
+        "autoRefresh": "التحديث التلقائي",
+        "lastValidated": "آخر تحقق",
+        "lastAutoRefresh": "آخر تحديث تلقائي",
+        "nextRefreshCheck": "الفحص التالي"
+      },
+      "diagnostics": {
+        "title": "التشخيص",
+        "subtitle": "تفاصيل البيئة وWebhook والرموز لحل المشكلات.",
+        "environment": "بيئة التشغيل",
+        "redirectUri": "رابط إعادة التوجيه OAuth",
+        "webhookUrl": "رابط Webhook",
+        "webhookVerified": "تم التحقق من Webhook",
+        "subscribedApps": "التطبيقات المشتركة",
+        "subscription": "حالة الاشتراك",
+        "subscribedFields": "الحقول المشتركة",
+        "selfTestReachable": "الاختبار الذاتي متاح",
+        "challengeOk": "نجاح التحدي",
+        "lastEvent": "آخر حدث Webhook",
+        "lastIncoming": "آخر رسالة واردة",
+        "lastPublish": "آخر نشر ناجح",
+        "failedDeliveries": "عمليات تسليم فاشلة",
+        "throughput24h": "الأحداث (24 ساعة)",
+        "tokenAge": "عمر الرمز",
+        "days": "{{count}} يوم",
+        "requiredPermissions": "الصلاحيات المطلوبة"
+      },
+      "toast": {
+        "connected": "تم ربط ميتا",
+        "connectFailed": "فشل ربط ميتا",
+        "oauthFailed": "تعذر إكمال تسجيل الدخول بميتا",
+        "noAuthUrl": "لم تُرجع ميتا رابط تسجيل دخول",
+        "timeout": "انتهت مهلة تسجيل الدخول بميتا",
+        "selectPage": "اختر صفحة فيسبوك للربط",
+        "pageConnected": "تم ربط صفحة فيسبوك",
+        "pageFailed": "تعذر حفظ الصفحة المختارة",
+        "webhookVerified": "تم التحقق من Webhook",
+        "webhookFailed": "فشل التحقق من Webhook",
+        "setupComplete": "اكتمل إعداد ميتا",
+        "setupPartial": "الاتصال جزئي — تحقق من Webhook لإكمال الإعداد",
+        "setupFailed": "تعذر إكمال إعداد ميتا",
+        "saved": "تم حفظ الإعدادات",
+        "saveFailed": "تعذر حفظ الإعدادات",
+        "reconnected": "تم تحديث الرموز",
+        "reconnectFailed": "تعذر تحديث الرموز",
+        "autoRefreshDone": "اكتمل اختبار التحديث التلقائي",
+        "autoRefreshSkipped": "لم يكن التحديث التلقائي مطلوبًا",
+        "autoRefreshFailed": "فشل اختبار التحديث التلقائي",
+        "igTokenSaved": "تم حفظ رمز إنستجرام",
+        "igTokenFailed": "تعذر حفظ رمز إنستجرام",
+        "igTokenRemoved": "تم تعطيل رمز إنستجرام",
+        "igTokenRemoveFailed": "تعذر تعطيل رمز إنستجرام",
+        "igSecretSaved": "تم حفظ Instagram App Secret",
+        "igSecretFailed": "تعذر حفظ Instagram App Secret",
+        "igSecretRemoved": "تم تعطيل Instagram App Secret",
+        "igSecretRemoveFailed": "تعذر تعطيل Instagram App Secret",
+        "testMessageSent": "تم إرسال رسالة الاختبار",
+        "testMessageFailed": "فشل اختبار الرسالة",
+        "messagePermissionsOk": "تم التحقق من صلاحيات الرسائل",
+        "publishPermissionsOk": "تم التحقق من صلاحيات النشر",
+        "testPublishFailed": "فشل اختبار النشر"
+      }
+    },
+    "whatsapp": {
+      "testDefaultMessage": "اختبار من بوابة واتساب ERP.",
+      "testSent": "تم إرسال رسالة الاختبار",
+      "testFailed": "تعذر إرسال رسالة الاختبار",
+      "cloud": {
+        "title": "واتساب Cloud API",
+        "subtitle": "الرقم المستضاف على ميتا الذي يغذّي محادثات واتساب في الصندوق.",
+        "envEnabled": "القناة مفعّلة",
+        "accessToken": "رمز الوصول مهيأ",
+        "phoneNumberId": "معرّف رقم الهاتف مهيأ",
+        "webhookReceived": "تم استقبال أحداث Webhook",
+        "lastWebhook": "آخر Webhook",
+        "aiReplies": "ردود الذكاء الاصطناعي",
+        "envNote": "بيانات Cloud API تُضبط من بيئة الخادم وليس من هذه الشاشة."
+      },
+      "gateway": {
+        "title": "بوابة واتساب (Evolution API)",
+        "subtitle": "قناة منفصلة تُستخدم لتأكيدات الطلبات ورسائل الاختبار اليدوية.",
+        "provider": "المزوّد",
+        "connectionState": "حالة الاتصال",
+        "notConfigured": "غير مهيأة",
+        "apiUrl": "رابط الـ API",
+        "apiUrlMissing": "EVOLUTION_API_URL غير مهيأ",
+        "apiKey": "مفتاح الـ API",
+        "apiKeyMissing": "EVOLUTION_API_KEY غير موجود",
+        "configured": "مهيأ",
+        "instance": "اسم النسخة",
+        "instanceMissing": "EVOLUTION_INSTANCE_NAME غير مهيأ",
+        "testTitle": "إرسال رسالة اختبار يدوية",
+        "testPhone": "رقم هاتف مصري",
+        "testMessage": "الرسالة",
+        "sendTest": "إرسال اختبار"
+      }
+    },
+    "tiktok": {
+      "scopeNote": "تيك توك هنا قناة نشر فقط. ليست مصدرًا للصندوق: التعليقات والرسائل المباشرة تحتاج موافقة منفصلة على TikTok Business API لم تصدر بعد."
+    }
   }
 }

@@ -1008,6 +1008,11 @@
       "publishing": "Publishing",
       "publishingTitle": "Meta publishing capabilities",
       "webhook": "Webhook"
+    },
+    "integrationsMoved": {
+      "title": "Meta connection moved",
+      "body": "Facebook, Instagram, WhatsApp and TikTok connections are now managed in the AI Inbox integrations center.",
+      "action": "Open integrations"
     }
   },
   "studio": {
@@ -1023,7 +1028,8 @@
       "publisher": "Publisher",
       "calendar": "Calendar",
       "analytics": "Analytics",
-      "templates": "Templates"
+      "templates": "Templates",
+      "automation": "Automation"
     }
   },
   "publisher": {

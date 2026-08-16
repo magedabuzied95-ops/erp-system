@@ -21,6 +21,7 @@ const CORS = `${STOREFRONT},https://www.m1store-egy.com,${ERP}`;
 
 const {
   TIKTOK_CHANNEL_SETTINGS_PATH,
+  TIKTOK_CHANNEL_SETTINGS_QUERY,
   tiktokAppOrigin,
 } = await import("../../server/services/tiktokConfigService.js");
 
@@ -47,7 +48,7 @@ const withEnv = (patch, fn) => {
 // destination rather than a restatement of it.
 const redirectFor = (params) => {
   const url = new URL(TIKTOK_CHANNEL_SETTINGS_PATH, tiktokAppOrigin() || "/");
-  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+  Object.entries({ ...TIKTOK_CHANNEL_SETTINGS_QUERY, ...params }).forEach(([key, value]) => url.searchParams.set(key, String(value)));
   return url.toString();
 };
 
@@ -63,7 +64,7 @@ const PRODUCTION_ENV = {
 
 test("success redirects to the ERP domain, not the storefront", () => {
   withEnv(PRODUCTION_ENV, () => {
-    assert.equal(redirectFor({ tiktok: "connected" }), `${ERP}/admin/ai-channels?tiktok=connected`);
+    assert.equal(redirectFor({ tiktok: "connected" }), `${ERP}/admin/ai-inbox?integrations=tiktok&tiktok=connected`);
   });
 });
 
@@ -71,11 +72,11 @@ test("denial and error redirect to the ERP domain with their status preserved", 
   withEnv(PRODUCTION_ENV, () => {
     assert.equal(
       redirectFor({ tiktok: "denied", reason: "access_denied" }),
-      `${ERP}/admin/ai-channels?tiktok=denied&reason=access_denied`
+      `${ERP}/admin/ai-inbox?integrations=tiktok&tiktok=denied&reason=access_denied`
     );
     assert.equal(
       redirectFor({ tiktok: "error", reason: "TIKTOK_STATE_INVALID" }),
-      `${ERP}/admin/ai-channels?tiktok=error&reason=TIKTOK_STATE_INVALID`
+      `${ERP}/admin/ai-inbox?integrations=tiktok&tiktok=error&reason=TIKTOK_STATE_INVALID`
     );
   });
 });
@@ -85,7 +86,7 @@ test("the storefront can never become the OAuth destination", () => {
     for (const params of [{ tiktok: "connected" }, { tiktok: "denied" }, { tiktok: "error" }]) {
       const target = new URL(redirectFor(params));
       assert.equal(target.origin, ERP, "OAuth must return to the ERP app");
-      assert.notEqual(target.origin, STOREFRONT, "the storefront has no /admin/ai-channels route");
+      assert.notEqual(target.origin, STOREFRONT, "the storefront has no /admin/ai-inbox route");
     }
   });
 });
@@ -130,12 +131,25 @@ test("the callback route resolves its origin through tiktokAppOrigin, not raw en
   assert.ok(!/PUBLIC_APP_URL|FRONTEND_URL|PUBLIC_FRONTEND_URL/.test(callback),
     "the callback must not read a storefront URL variable directly");
   assert.match(callback, /TIKTOK_CHANNEL_SETTINGS_PATH/);
-  assert.ok(!/["']\/admin\/ai-channels["']/.test(callback),
+  assert.ok(!/["']\/admin\/ai-(channels|inbox)["']/.test(callback),
     "the SPA path should come from the shared constant, not a duplicated literal");
 });
 
 test("the settings path matches the route registered in the SPA", () => {
   const appSource = readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
-  assert.equal(TIKTOK_CHANNEL_SETTINGS_PATH, "/admin/ai-channels");
-  assert.match(appSource, /path="admin\/ai-channels"/);
+  assert.equal(TIKTOK_CHANNEL_SETTINGS_PATH, "/admin/ai-inbox");
+  assert.match(appSource, /path="admin\/ai-inbox"/);
+});
+
+// The card moved into the AI Inbox integrations center, which only opens when
+// the deep link asks for it. Without the query the merchant lands on a plain
+// inbox after approving on TikTok and has no idea whether it worked.
+test("the callback opens the integrations center on the TikTok tab", () => {
+  withEnv(PRODUCTION_ENV, () => {
+    const target = new URL(redirectFor({ tiktok: "connected" }));
+    assert.equal(target.pathname, "/admin/ai-inbox");
+    assert.equal(target.searchParams.get("integrations"), "tiktok");
+  });
+  const appSource = readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
+  assert.match(appSource, /INTEGRATION_TAB_KEYS|integrations=/, "the SPA must still honour the deep link");
 });

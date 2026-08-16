@@ -241,7 +241,6 @@ const AiStudioTools = lazy(() => import("./modules/aiStudio/pages/AiStudioTools"
 const AiStudioWorkflowEditor = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflowEditor"));
 const AiStudioRestockRecovery = lazy(() => import("./modules/aiStudio/pages/AiStudioRestockRecovery"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
-const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
 const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
 const AiSettings = lazy(() => import("./modules/aiSupport/pages/AiSettings"));
 const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAnalytics"));
@@ -801,14 +800,9 @@ function App() {
           }
         />
 
-        <Route
-          path="admin/ai-channels"
-          element={
-            <ProtectedRoute adminOnly>
-              <AiChannels />
-            </ProtectedRoute>
-          }
-        />
+        {/* Channel connections now live in the AI Inbox integrations center.
+            The redirect keeps saved links and the TikTok OAuth callback working. */}
+        <Route path="admin/ai-channels" element={<Navigate to="/admin/ai-inbox?integrations=overview" replace />} />
 
         <Route
           path="admin/ai-agent-settings"
