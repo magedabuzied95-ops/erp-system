@@ -72,7 +72,7 @@ import {
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
-import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
+import { emitRealtime, subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
@@ -1642,6 +1642,13 @@ const normalizeTranscriptMessage = (message = {}) => {
 // this window a tab regaining visibility keeps showing current data instead of
 // refetching. Manual refresh and socket reconnect are NOT gated by it.
 const VISIBILITY_FRESH_MS = 20000;
+
+// Meta review accounts fall back to polling whenever their scoped realtime room
+// is not joined. The reviewer list is a single bounded, fully indexed query over
+// one tenant asset (and there is exactly one such account), so it can afford a
+// far tighter cadence than the tenant-wide inbox — a Meta reviewer waiting 24s
+// for a DM they just sent themselves reads as a broken integration.
+const REVIEWER_POLL_MS = 8000;
 
 const mergeMessagesByIdentity = (messages = []) => {
   const merged = [];
@@ -5278,7 +5285,15 @@ export default function AiInbox({ reviewerMode = false }) {
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const pageVisible = usePageVisible();
   const realtimeStatus = useRealtimeStatus();
-  const socketHealthy = realtimeStatus.connected && !realtimeStatus.connecting;
+  const socketConnected = realtimeStatus.connected && !realtimeStatus.connecting;
+  // A meta-review socket is NOT in the tenant room and receives none of the
+  // ai_inbox:* events this page listens to — it only gets meta_reviewer:* inside
+  // its own scoped room, and only after it has joined that room. So "the socket is
+  // up" is not the same thing as "this page is receiving live messages" here:
+  // treating it as such disabled the polling fallback below and left the reviewer
+  // inbox with no automatic update path at all.
+  const [reviewerRealtimeReady, setReviewerRealtimeReady] = useState(false);
+  const socketHealthy = socketConnected && (!reviewerMode || reviewerRealtimeReady);
   const [filter, setFilter] = useState("all");
   const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
   const [commentPlatformFilter, setCommentPlatformFilter] = useState("all");
@@ -5869,14 +5884,14 @@ export default function AiInbox({ reviewerMode = false }) {
     if (!pageVisible || socketHealthy) return undefined;
     pollIntervalRef.current = window.setInterval(() => {
       requestRefresh("polling", { silent: true });
-    }, 24000);
+    }, reviewerMode ? REVIEWER_POLL_MS : 24000);
     return () => {
       if (pollIntervalRef.current) {
         window.clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
     };
-  }, [pageVisible, requestRefresh, socketHealthy]);
+  }, [pageVisible, requestRefresh, reviewerMode, socketHealthy]);
 
   useEffect(() => {
     const previous = refreshStateRef.current;
@@ -7484,6 +7499,115 @@ export default function AiInbox({ reviewerMode = false }) {
     if (primedNeedsRevalidation) hydratedThreadsRef.current.add(key);
     void loadOlderMessages({ forceHydrate: primedNeedsRevalidation });
   }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);
+
+  // ── Meta review account: the live message path ──────────────────────────────
+  // A reviewer socket is deliberately kept out of every tenant room, so it never
+  // receives the ai_inbox:* events the main realtime effect subscribes to. Its
+  // traffic is published as meta_reviewer:message / meta_reviewer:refresh into a
+  // scoped room the client must explicitly ask to join. This page did neither,
+  // and because the socket still *connected*, the polling fallback was switched
+  // off too — leaving the reviewer inbox with no automatic update path at all.
+  // The join is re-issued on every (re)connect and on every channel change: it
+  // lives on the socket, not on the session, so a reconnect silently loses it.
+  useEffect(() => {
+    if (!reviewerMode || !socketConnected) {
+      setReviewerRealtimeReady(false);
+      return undefined;
+    }
+    let active = true;
+    const filterValue = clean(channelFilter).toLowerCase();
+    // Anything that is not one of the two concrete tabs means "all channels in
+    // review scope" — the server resolves that to every enabled reviewer room.
+    const requestedChannel = filterValue.includes("instagram")
+      ? "instagram"
+      : filterValue.includes("messenger")
+        ? "messenger"
+        : "all";
+    let attempts = 0;
+    let retryTimer = 0;
+    const join = () => {
+      attempts += 1;
+      emitRealtime("meta_reviewer:select_channel", { channel: requestedChannel }, (ack) => {
+        if (!active) return;
+        window.clearTimeout(retryTimer);
+        // A refused ack is not fatal — it only means polling keeps owning refresh
+        // instead of being disabled by a socket that is up but mute.
+        setReviewerRealtimeReady(Boolean(ack?.success));
+      });
+      // The server only registers this listener after an async auth lookup, so a
+      // join emitted the instant the socket connects can be dropped with no ack
+      // at all. Retry a few times before settling for the polling fallback.
+      if (attempts < 4) retryTimer = window.setTimeout(join, 2500);
+    };
+    join();
+    return () => {
+      active = false;
+      window.clearTimeout(retryTimer);
+      setReviewerRealtimeReady(false);
+    };
+  }, [channelFilter, reviewerMode, socketConnected]);
+
+  useEffect(() => {
+    if (!reviewerMode) return undefined;
+    const onReviewerMessage = (payload = {}) => {
+      const conversationRef = clean(payload.conversation_id);
+      if (!conversationRef) return;
+      const conversationKeyValue = `${metaReviewerChannel(payload.channel)}:${conversationRef}`;
+      const incoming = payload.message ? normalizeMetaReviewerMessage(payload.message) : null;
+      const isOpenThread = conversationKeyValue === clean(selectedSessionIdRef.current);
+      if (incoming?.sender_type === "customer") setToast({ tone: "cyan", text: "ردّ العميل" });
+      if (incoming) {
+        if (isOpenThread) isAppendingNewMessageRef.current = true;
+        patchConversation(conversationKeyValue, (conversation) => {
+          const mergedMessages = mergeMessagesByIdentity([...asArray(conversation.messages), incoming]);
+          const currentUnread = Number(conversation.unread_count || 0);
+          const nextUnread = incoming.sender_type === "customer" ? Math.max(1, currentUnread + 1) : 0;
+          return {
+            ...conversation,
+            messages: mergedMessages,
+            message_count: Math.max(Number(conversation.message_count || 0), mergedMessages.length),
+            latest_message_preview: clean(incoming.message_text) || conversation.latest_message_preview,
+            last_activity_at: incoming.created_at || new Date().toISOString(),
+            updated_at: incoming.created_at || new Date().toISOString(),
+            unread_count: nextUnread,
+            pending_count: nextUnread,
+            unread: nextUnread > 0,
+          };
+        });
+      }
+      if (!isOpenThread) {
+        setUnseenSessions((current) => [...new Set([conversationKeyValue, ...current])].slice(0, 20));
+      }
+      // The first message of a brand-new conversation has nothing to patch, so
+      // the list still has to be refetched. Bounded query, deduped by the queue.
+      requestRefresh("socket", { silent: true, force: true });
+    };
+    const onReviewerRefresh = () => requestRefresh("socket", { silent: true, force: true });
+    const offMessage = subscribeRealtime("meta_reviewer:message", onReviewerMessage);
+    const offRefresh = subscribeRealtime("meta_reviewer:refresh", onReviewerRefresh);
+    return () => {
+      offMessage();
+      offRefresh();
+    };
+  }, [patchConversation, requestRefresh, reviewerMode]);
+
+  // Polling fallback for the OPEN thread. A list refresh cannot cover it: reviewer
+  // summaries carry no messages, and the hydration effect above deliberately skips
+  // any thread that already shows more than one message. Without this, a reviewer
+  // with no live room watched an open conversation stay frozen while the list
+  // preview beside it moved.
+  const reviewerHydrateThreadRef = useRef(null);
+  useEffect(() => {
+    reviewerHydrateThreadRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
+
+  useEffect(() => {
+    if (!reviewerMode || !pageVisible || socketHealthy) return undefined;
+    const timer = window.setInterval(() => {
+      void reviewerHydrateThreadRef.current?.({ forceHydrate: true });
+    }, REVIEWER_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [pageVisible, reviewerMode, socketHealthy]);
 
   const currentAssignName = assignNameDraft.sessionId === selectedConversation?.session_id
     ? assignNameDraft.value

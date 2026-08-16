@@ -27,6 +27,7 @@ import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
 import {
+  META_REVIEWER_TABS,
   isMetaReviewerRole,
   getMetaReviewerChannelScope,
   loadMetaReviewerScope,
@@ -430,19 +431,30 @@ io.on("connection", async (socket) => {
         // ack callback, which previously caused "acknowledge is not a function".
         const ack = typeof acknowledge === "function" ? acknowledge : () => {};
         const channel = normalizeMetaReviewerChannel(payload?.channel);
-        const channelScope = getMetaReviewerChannelScope(reviewScope, channel);
+        // The reviewer inbox lists Messenger AND Instagram in one pane on its
+        // default tab. Joining a single room there left the other channel with no
+        // realtime path at all, so a DM on it only surfaced on a manual reload.
+        // Anything that is not one of the two concrete tabs means "every channel
+        // inside the review scope".
+        const requestedChannels = META_REVIEWER_TABS.has(channel) ? [channel] : ["messenger", "instagram"];
         for (const candidate of ["messenger", "instagram"]) {
           const room = metaReviewerRealtimeRoom(reviewScope, candidate);
           if (room) await socket.leave(room);
         }
-        if (!channelScope?.enabled) {
-          ack({ success: false, channel, enabled: false });
+        const joinedChannels = [];
+        for (const candidate of requestedChannels) {
+          if (!getMetaReviewerChannelScope(reviewScope, candidate)?.enabled) continue;
+          const room = metaReviewerRealtimeRoom(reviewScope, candidate);
+          if (!room) continue;
+          await socket.join(room);
+          joinedChannels.push(candidate);
+        }
+        if (!joinedChannels.length) {
+          ack({ success: false, channel, enabled: false, channels: [] });
           return;
         }
-        const room = metaReviewerRealtimeRoom(reviewScope, channel);
-        await socket.join(room);
         socket.data.metaReviewerChannel = channel;
-        ack({ success: true, channel, enabled: true });
+        ack({ success: true, channel, enabled: true, channels: joinedChannels });
       });
       socket.emit("notifications:ready", { connected: true, at: new Date().toISOString() });
       return;
