@@ -23,6 +23,9 @@ import { normalizeArabicIntentPayload, normalizeArabicForIntent } from "../utils
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { resolveIntent } from "./aiIntentResolver.js";
+// One lexicon shared with retrieval and the store chat — see aiEntityLexicon.js for
+// why three private copies of the brand list was the bug, not the duplication.
+import { BRAND_LEXICON, CATEGORY_LEXICON, COLOR_LEXICON } from "./aiEntityLexicon.js";
 import {
   getSharedOpenAiClient,
   isTextGenerationAvailable,
@@ -304,12 +307,6 @@ const EGYPT_CITIES = Object.freeze([
   ["دمياط", "دمياط"], ["الاقصر", "الأقصر"], ["اسوان", "أسوان"], ["الغردقه", "الغردقة"], ["الغردقة", "الغردقة"],
 ]);
 
-const COLOR_WORDS = Object.freeze([
-  ["اسود", "أسود"], ["أسود", "أسود"], ["ابيض", "أبيض"], ["أبيض", "أبيض"], ["احمر", "أحمر"], ["أحمر", "أحمر"],
-  ["ازرق", "أزرق"], ["أزرق", "أزرق"], ["اخضر", "أخضر"], ["أخضر", "أخضر"], ["اصفر", "أصفر"],
-  ["بني", "بني"], ["رمادي", "رمادي"], ["بيج", "بيج"], ["وردي", "وردي"], ["بمبي", "وردي"], ["نبيتي", "نبيتي"],
-]);
-
 const OCCASION_WORDS = Object.freeze([
   ["هديه", "هدية"], ["هدية", "هدية"], ["فرح", "فرح"], ["جواز", "زفاف"], ["عيد", "عيد"],
   ["شغل", "شغل"], ["مدرسه", "مدرسة"], ["مدرسة", "مدرسة"], ["جامعه", "جامعة"], ["رياضه", "رياضة"], ["جري", "رياضة"],
@@ -350,25 +347,6 @@ const namesAProduct = (normalized = "") =>
       const stripped = token.replace(/^ال(?=.{3,})/, "");
       return !NON_PRODUCT_WORDS.has(token) && !NON_PRODUCT_WORDS.has(stripped);
     });
-
-/**
- * Brands worth recognising without a model. Deliberately the Latin catalog spelling on
- * the right: an entity the retriever cannot search is not worth extracting.
- */
-const BRAND_LEXICON = Object.freeze([
-  ["نايك", "Nike"], ["nike", "Nike"], ["اديداس", "Adidas"], ["أديداس", "Adidas"], ["adidas", "Adidas"],
-  ["بوما", "Puma"], ["puma", "Puma"], ["فانز", "Vans"], ["vans", "Vans"],
-  ["كروكس", "Crocs"], ["crocs", "Crocs"], ["نيو بالانس", "New Balance"], ["new balance", "New Balance"],
-  ["كونفرس", "Converse"], ["converse", "Converse"], ["ريبوك", "Reebok"], ["reebok", "Reebok"],
-  ["جوردن", "Jordan"], ["jordan", "Jordan"], ["فيلا", "Fila"], ["سكيتشرز", "Skechers"],
-  ["تيمبرلاند", "Timberland"], ["لاكوست", "Lacoste"], ["اسيكس", "Asics"],
-]);
-
-const CATEGORY_LEXICON = Object.freeze([
-  ["للجري", "running"], ["جري", "running"], ["رياضه", "sports"], ["رياضة", "sports"],
-  ["كاجوال", "casual"], ["رسمي", "formal"], ["شبشب", "slippers"], ["صندل", "sandals"],
-  ["بوت", "boots"], ["كوتشي", "sneakers"], ["سنيكرز", "sneakers"], ["حذاء", "shoes"], ["جزمه", "shoes"], ["جزمة", "shoes"],
-]);
 
 const firstLexiconHit = (haystack, lexicon) => {
   for (const [needle, canonical] of lexicon) {
@@ -452,7 +430,7 @@ export const buildDeterministicUnderstanding = (message = "") => {
   const entities = {
     ...emptyEntities(),
     size: size || null,
-    color: firstLexiconHit(haystack, COLOR_WORDS),
+    color: firstLexiconHit(haystack, COLOR_LEXICON),
     city: firstLexiconHit(haystack, EGYPT_CITIES),
     brand: firstLexiconHit(haystack, BRAND_LEXICON),
     category: firstLexiconHit(haystack, CATEGORY_LEXICON),

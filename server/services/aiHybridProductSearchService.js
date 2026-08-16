@@ -34,6 +34,7 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { normalizeArabicForIntent } from "../utils/arabicTextNormalizer.js";
 import { arabicSearchText } from "../utils/arabicSearch.js";
+import { BRAND_CATALOG_NAMES } from "./aiEntityLexicon.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -174,20 +175,13 @@ const latinSkeleton = (value = "") => {
  * sent to SQL verbatim, matched nothing in a Latin catalog, and left
  * `applyEntityConstraints` with an empty list to filter — retrieval returned zero.
  *
- * Seeded statically because a lexicon that only learns from the catalog cannot help on
- * the first request. `listBrands` overlays the tenant's real brands on top, which is
- * what covers brands nobody thought to list here.
+ * Seeded from the shared lexicon because a list that only learns from the catalog
+ * cannot help on the first request. `catalogBrands` overlays the tenant's real brands
+ * on top, which is what covers brands nobody thought to list there.
  */
-const BRAND_LEXICON_SEED = [
-  "Nike", "Adidas", "Puma", "Vans", "Crocs", "New Balance", "Converse", "Reebok",
-  "Fila", "Skechers", "Timberland", "Jordan", "Under Armour", "Asics", "Lacoste",
-  "Levis", "Zara", "Bershka", "Pull and Bear", "Tommy Hilfiger", "Calvin Klein",
-  "The North Face", "Columbia", "Salomon", "Hoka", "Birkenstock", "Dr Martens",
-];
-
 const brandSkeletonIndex = (extraBrands = []) => {
   const index = new Map();
-  for (const brand of [...BRAND_LEXICON_SEED, ...asArray(extraBrands)]) {
+  for (const brand of [...BRAND_CATALOG_NAMES, ...asArray(extraBrands)]) {
     const name = text(brand);
     if (name.length < 2) continue;
     // Multi-word brands are searchable whole and per word: "بالانس" alone should still

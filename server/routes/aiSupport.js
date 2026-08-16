@@ -65,6 +65,7 @@ import { generateSupportAnswer, understandProductImageForSearch } from "../servi
 import { reindexAllProductImages } from "../services/aiVisualProductImageIndexService.js";
 import { buildStorefrontProductUrl } from "../services/storefrontProductUrlService.js";
 import { expandSearchAliasTerms, normalizeAliasText } from "../services/productAliasEngine.js";
+import { resolveBrand } from "../services/aiEntityLexicon.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -619,13 +620,10 @@ const cleanVisualProductQuery = ({ message = "", detectedIntent = "" } = {}) => 
     return { original_message: original, detected_intent: intent, brand: "", model: "", clean_query: "", source: "", used_for_search: false };
   }
   const normalized = normalizeSelectionText(original);
-  const brand = /(\u062c\u0648\u0631\u062f\u0646|jordan|aj4|j4)/i.test(original)
-    ? "Jordan"
-    : /(\u0646\u0627\u064a\u0643|nike|\u0634\u0648\u0643\u0633|shox)/i.test(original)
-      ? "Nike"
-      : /(\u0627\u062f\u064a\u062f\u0627\u0633|adidas)/i.test(original)
-        ? "Adidas"
-        : "";
+  // One shared brand lexicon instead of a third private copy. The if-chain here knew
+  // exactly three brands, so a customer asking the store chat for Puma or Crocs was
+  // read as having named no brand at all. See aiEntityLexicon.js.
+  const brand = resolveBrand(original);
   const model = /(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized)
     ? "jordan4"
     : /(\u0634\u0648\u0643\u0633|shox)/i.test(normalized)

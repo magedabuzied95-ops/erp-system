@@ -113,3 +113,4 @@ server/services/*
 !server/services/aiHybridProductSearchService.js
 !server/services/aiReplyEngineService.js
 !server/services/aiVoiceTranscriptionService.js
+!server/services/aiEntityLexicon.js
