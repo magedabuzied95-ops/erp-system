@@ -15,7 +15,9 @@
     "addressPlaceholder": "Address",
     "submitAdd": "Add Customer",
     "submitUpdate": "Update Customer",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "duplicatePhone": "This phone already belongs to an existing customer, so no new customer was created.",
+    "saveFailed": "Could not save the customer."
   },
   "table": {
     "title": "Customer Records",

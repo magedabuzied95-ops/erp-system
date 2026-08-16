@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Search, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -528,6 +528,8 @@ function Customers() {
   const [editingId, setEditingId] = useState(null);
   const [customerFormOpen, setCustomerFormOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [customerSaving, setCustomerSaving] = useState(false);
+  const submitInFlightRef = useRef(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -763,19 +765,32 @@ function Customers() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    // A ref, not the state flag: two clicks in the same tick both read the old
+    // state value and both would submit.
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    setCustomerSaving(true);
+
     try {
       const customerData = { name, phone, email, address, allow_personal_transactions: allowPersonalTransactions };
 
       if (editingId) {
         await api.put(`/customers/${editingId}`, customerData);
       } else {
-        await api.post("/customers", customerData);
+        const response = await api.post("/customers", customerData);
+        if (response?.duplicate) {
+          window.alert(tt("customers.form.duplicatePhone"));
+        }
       }
 
       resetForm();
       fetchCustomers({ page: currentPage });
     } catch (error) {
       console.error("[customers] failed to save customer:", error);
+      window.alert(error?.message || tt("customers.form.saveFailed"));
+    } finally {
+      submitInFlightRef.current = false;
+      setCustomerSaving(false);
     }
   };
 
@@ -1028,9 +1043,14 @@ function Customers() {
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="submit"
-              className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-950/30 transition hover:bg-[var(--primary-hover)]"
+              disabled={customerSaving}
+              className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] bg-primary px-5 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-950/30 transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {editingId ? t("customers.form.submitUpdate") : t("customers.form.submitAdd")}
+              {customerSaving
+                ? t("customers.common.saving")
+                : editingId
+                  ? t("customers.form.submitUpdate")
+                  : t("customers.form.submitAdd")}
             </button>
             {editingId ? (
               <button

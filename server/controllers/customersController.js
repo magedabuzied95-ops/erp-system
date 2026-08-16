@@ -2285,15 +2285,6 @@ export const createCustomer = async (req, res) => {
       WHERE ${existingClauses.join(" AND ")}
       LIMIT 1
     `;
-    const existing = await pool.query(existingSql, existingParams);
-
-    if (existing.rows.length > 0) {
-      return res.status(200).json({
-        success: true,
-        message: "Customer already exists",
-        data: normalizeCustomerRow(existing.rows[0]),
-      });
-    }
 
     const insertColumns = [];
     const insertValues = [];
@@ -2374,18 +2365,53 @@ export const createCustomer = async (req, res) => {
       VALUES (${placeholders.join(", ")})
       RETURNING id
     `;
-    const customer = await pool.query(insertSql, insertValues);
 
     const createSelectSql = `
       ${selectSql}
       WHERE id = $1
     `;
-    const created = await pool.query(createSelectSql, [customer.rows[0].id]);
+
+    // The existence check and the insert have to happen under one lock: a double
+    // submit fires two identical requests, and without this both read "no such
+    // customer" before either has written, so both insert.
+    const lockKey = `customers:create:${tenantId ?? "global"}:${normalizedPhoneDigits}`;
+    const client = await pool.connect();
+    let createdRow = null;
+
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [lockKey]);
+
+      const existing = await client.query(existingSql, existingParams);
+      if (existing.rows.length > 0) {
+        await client.query("COMMIT");
+        return res.status(200).json({
+          success: true,
+          duplicate: true,
+          message: "Customer already exists",
+          data: normalizeCustomerRow(existing.rows[0]),
+        });
+      }
+
+      const customer = await client.query(insertSql, insertValues);
+      const created = await client.query(createSelectSql, [customer.rows[0].id]);
+      await client.query("COMMIT");
+      createdRow = created.rows[0];
+    } catch (transactionError) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("[customers] create rollback failed", rollbackError);
+      }
+      throw transactionError;
+    } finally {
+      client.release();
+    }
 
     return res.status(200).json({
       success: true,
       message: "Customer created successfully",
-      data: normalizeCustomerRow(created.rows[0]),
+      data: normalizeCustomerRow(createdRow),
     });
   } catch (error) {
     console.error("[customers] create caught error", error);
@@ -2421,6 +2447,7 @@ export const createCustomer = async (req, res) => {
         if (duplicate.rows.length > 0) {
           return res.status(200).json({
             success: true,
+            duplicate: true,
             message: "Customer already exists",
             data: normalizeCustomerRow(duplicate.rows[0]),
           });
@@ -2463,6 +2490,40 @@ export const updateCustomer = async (req, res) => {
 
     if (!cleanPhone) {
       return res.status(400).json({ success: false, message: "Customer phone is required" });
+    }
+
+    // Editing a phone onto a number another customer already owns is the same
+    // duplicate the create path refuses — reject it here too.
+    const normalizedPhoneDigits = cleanPhone.replace(/\D/g, "");
+    if (columns.phoneColumn && normalizedPhoneDigits) {
+      const conflictParams = [id, normalizedPhoneDigits];
+      const conflictClauses = [
+        `id <> $1::bigint`,
+        `regexp_replace(COALESCE(${columns.phoneColumn}, ''), '\\D', '', 'g') = $2`,
+      ];
+
+      if (columns.tenantIdColumn) {
+        conflictParams.push(tenantId);
+        conflictClauses.push(`($${conflictParams.length}::bigint IS NULL OR tenant_id = $${conflictParams.length}::bigint)`);
+      }
+
+      const conflict = await pool.query(
+        `
+        ${selectSql}
+        WHERE ${conflictClauses.join(" AND ")}
+        LIMIT 1
+        `,
+        conflictParams
+      );
+
+      if (conflict.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          duplicate: true,
+          message: "Another customer already uses this phone number",
+          data: normalizeCustomerRow(conflict.rows[0]),
+        });
+      }
     }
 
     const setClauses = [`${columns.nameColumn} = $1`, `${columns.phoneColumn} = $2`];

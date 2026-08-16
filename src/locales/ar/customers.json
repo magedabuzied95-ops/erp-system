@@ -15,7 +15,9 @@
     "addressPlaceholder": "العنوان",
     "submitAdd": "إضافة عميل",
     "submitUpdate": "تحديث العميل",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "duplicatePhone": "هذا الرقم مسجَّل بالفعل لعميل موجود، ولم يتم إنشاء عميل جديد.",
+    "saveFailed": "تعذر حفظ بيانات العميل."
   },
   "table": {
     "title": "سجلات العملاء",
