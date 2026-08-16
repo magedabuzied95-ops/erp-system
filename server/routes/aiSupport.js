@@ -1443,6 +1443,47 @@ const logSupportExchange = async ({ req, tenantId, metadata, message, context, r
 };
 
 /**
+ * Fills a channel message's text from its voice note, in place.
+ *
+ * Mutates rather than returns because the normalized message is already threaded
+ * through the whole handler — flow payload, intent normalization, logging, the
+ * conversation record. Returning a copy would mean every one of those had to be
+ * updated to read the new object, and the one that was missed would silently keep
+ * answering an empty message.
+ *
+ * Failure-isolated and flag-gated: when transcription is off, unavailable, or the
+ * audio is unreadable, the message stays exactly as it arrived and the existing
+ * "message is required" path handles it as before.
+ */
+const transcribeChannelVoiceNote = async (normalizedMessage) => {
+  if (!normalizedMessage || typeof normalizedMessage !== "object") return;
+  if (toText(normalizedMessage.message_text || normalizedMessage.original_message)) return;
+
+  const attachments = Array.isArray(normalizedMessage.attachments) ? normalizedMessage.attachments : [];
+  if (!attachments.length) return;
+
+  try {
+    const { isVoiceTranscriptionEnabled, resolveCustomerMessageText } = await import(
+      "../services/aiVoiceTranscriptionService.js"
+    );
+    if (!isVoiceTranscriptionEnabled()) return;
+
+    const resolved = await resolveCustomerMessageText({ messageText: "", attachments });
+    if (resolved.source !== "voice_transcript" || !toText(resolved.text)) return;
+
+    normalizedMessage.message_text = resolved.text;
+    normalizedMessage.original_message = resolved.text;
+    normalizedMessage.voice_transcript = true;
+    console.log("[ai-support] channel voice note transcribed", {
+      channel: normalizedMessage.channel,
+      characters: resolved.text.length,
+    });
+  } catch (error) {
+    console.warn("[ai-support] channel voice transcription skipped", { message: error?.message });
+  }
+};
+
+/**
  * Runs the shared post-composition safety sequence over a channel reply.
  *
  * The stages themselves live in aiReplySafetyPipeline, which the AI Inbox uses too.
@@ -2167,6 +2208,16 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       body: req.body,
       headers: req.headers,
     });
+    // A voice note is a message. Without this the channel path saw an empty text with
+    // an audio attachment and rejected the turn as "Customer message is required" —
+    // so a WhatsApp customer who recorded instead of typing got nothing back, while
+    // the same voice note reaching the AI Inbox was transcribed and answered.
+    //
+    // Placed before normalization on purpose: the transcript has to go through the
+    // same Arabic intent pipeline as typed text, or it would be understood less well
+    // than the words it came from.
+    await transcribeChannelVoiceNote(normalizedMessage);
+
     const flowPayload = buildAiFlowPayloadFromNormalizedMessage({
       normalizedMessage,
       body: req.body,
@@ -3097,6 +3148,6 @@ setInterval(cleanupExpiredRateLimitBuckets, RATE_LIMIT_WINDOW_MS).unref?.();
 // Exported for tests: these two decide whether a model-written sentence reaches a
 // customer, and whether an unproven claim is dropped. That is not behaviour to leave
 // reachable only through a live HTTP route with a database behind it.
-export const __testing = { applyChannelReplySafety };
+export const __testing = { applyChannelReplySafety, transcribeChannelVoiceNote };
 
 export default router;
