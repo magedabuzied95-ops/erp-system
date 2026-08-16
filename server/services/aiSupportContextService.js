@@ -34,6 +34,7 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { latinizeArabicProductText } from "./aiEntityLexicon.js";
 import { understandCustomerMessage } from "./aiUnderstandingService.js";
+import { searchProductsHybrid } from "./aiHybridProductSearchService.js";
 import { buildConversationMemoryV2, mergeConversationMemoryV2, resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import {
@@ -5278,6 +5279,65 @@ export const buildAiSupportImageRankingDebug = async ({ tenantId, query = "jorda
 };
 
 const envFlagEnabled = (value) => ["1", "true", "yes", "on"].includes(toText(value).toLowerCase());
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
+/**
+ * Second retrieval attempt, and ONLY when the first one came back empty.
+ *
+ * Deliberately a fallback rather than a replacement. The channel search is a tuned
+ * scorer — model-match confidence, colour and size matching, conversation-state
+ * filtering — and hybrid fusion would reorder results it ranked carefully. Layering it
+ * on top of a search that already found something trades a known-good ordering for an
+ * unmeasured one.
+ *
+ * Cost is the other half of the argument. Hybrid runs one query per retriever, and the
+ * channel scorer is expensive enough that ten of them per message is not affordable.
+ * On this path the primary search has already returned nothing, so the alternative to
+ * spending a bounded amount more is telling the customer we have no such product —
+ * which is the failure this exists to prevent. `maxQueries` keeps the strongest few.
+ *
+ * Never throws: a failed rescue must leave the empty result exactly as it was.
+ */
+const rescueEmptySearchWithHybrid = async ({
+  products,
+  tenantId,
+  message,
+  intent,
+  req,
+  memory,
+  understanding,
+  runSearch,
+}) => {
+  if (asArray(products).length) return products;
+  if (!tenantId) return products;
+  if (!envFlagEnabled(process.env.AI_HYBRID_SEARCH_RESCUE_ENABLED)) return products;
+
+  try {
+    const rescued = await searchProductsHybrid({
+      tenantId,
+      message,
+      understanding,
+      limit: 8,
+      maxQueries: 4,
+      // `limit` from the retriever is intentionally not forwarded: the channel scorer
+      // has no limit parameter, and passing one it ignores would read as a bound that
+      // is being applied. The fusion step does the limiting.
+      runQuery: ({ query }) => runSearch({ tenantId, message: query, intent, req, memory, understanding }),
+    });
+    if (!asArray(rescued).length) return products;
+
+    console.log("[ai-support] hybrid rescue", {
+      tenant_id: tenantId,
+      message,
+      recovered: rescued.length,
+      brand: understanding?.entities?.brand || "",
+    });
+    return rescued;
+  } catch (error) {
+    console.warn("[ai-support] hybrid rescue skipped", { tenantId, message: error?.message });
+    return products;
+  }
+};
 
 /**
  * Promotes an intent to human_support when the understanding pass sees a person is
@@ -5616,6 +5676,16 @@ const buildAiSupportTrustedContextInner = async ({ tenantId, message, req = null
       ? message
       : [message, currentRequestedModelIntent?.displayName || "", memorySearchHint(effectiveMemory)].filter(Boolean).join(" ");
     products = await searchProducts({ tenantId, message: searchMessage, intent, req, memory: effectiveMemory, understanding });
+    products = await rescueEmptySearchWithHybrid({
+      products,
+      tenantId,
+      message: searchMessage,
+      intent,
+      req,
+      memory: effectiveMemory,
+      understanding,
+      runSearch: searchProducts,
+    });
     products = filterProductsByConversationState({
       products,
       state: recommendationState,

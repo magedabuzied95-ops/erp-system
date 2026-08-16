@@ -338,6 +338,26 @@ export const buildRetrievalQueries = ({ message = "", understanding = null, cata
 };
 
 /**
+ * Keeps the strongest `max` retrievers.
+ *
+ * Needed because callers whose `runQuery` is expensive cannot afford ten of them. The
+ * queries are built in construction order, not weight order, so slicing the array
+ * directly would drop the entity and brand retrievers — the two that carry the most
+ * signal — and keep the single-token ones, which are the weakest. Sorting first means
+ * a bound costs recall gracefully instead of catastrophically.
+ *
+ * The sort is stable on ties, so equally-weighted retrievers keep their original order.
+ */
+const strongestQueries = (queries, max) => {
+  if (!Number.isFinite(max) || max <= 0 || queries.length <= max) return queries;
+  return [...queries]
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => b.entry.weight - a.entry.weight || a.index - b.index)
+    .slice(0, max)
+    .map((item) => item.entry);
+};
+
+/**
  * Runs the retrievers and returns one fused, entity-constrained list.
  *
  * @param {Function} runQuery async ({ tenantId, query, limit }) => product[] — injected
@@ -351,10 +371,11 @@ export const searchProductsHybrid = async ({
   limit = 8,
   runQuery,
   catalogBrands = [],
+  maxQueries = Infinity,
 } = {}) => {
   if (typeof runQuery !== "function") throw new TypeError("runQuery is required");
 
-  const queries = buildRetrievalQueries({ message, understanding, catalogBrands });
+  const queries = strongestQueries(buildRetrievalQueries({ message, understanding, catalogBrands }), maxQueries);
   if (!queries.length) return [];
 
   // One retriever failing must not fail the search — that is the whole point of
