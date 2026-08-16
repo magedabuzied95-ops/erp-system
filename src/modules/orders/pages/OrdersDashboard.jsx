@@ -356,6 +356,7 @@ const paymentStatusLabels = (language) => ({
   paid: localizedCopy(language, "\u0645\u062f\u0641\u0648\u0639", "Paid"),
   partially_paid: localizedCopy(language, "\u062c\u0632\u0626\u064a", "\u062c\u0632\u0626\u064a"),
   deferred: localizedCopy(language, "\u0622\u062c\u0644", "\u0622\u062c\u0644"),
+  refunded: localizedCopy(language, "\u0645\u0631\u062a\u062c\u0639", "Refunded"),
 });
 const paymentMethodLabels = (language) => ({
   cash: localizedCopy(language, "\u0643\u0627\u0634", "Cash"),
@@ -395,11 +396,14 @@ const normalizePaymentStatusKey = (order = {}) => {
   const method = lower(order.payment_method || order.paymentMethod);
   const paid = getPaidAmount(order);
   const total = totalValue(order);
+  // A refunded invoice is settled history, not money still owed to the shop. Reading
+  // it as "آجل" told the owner a returned sale was an outstanding credit sale.
+  if (["refunded", "refund", "fully_refunded", "returned"].includes(raw)) return "refunded";
   if (["paid", "completed", "complete", "settled", "success", "succeeded"].includes(raw)) return "paid";
   if (isShippingPartialDisplayStatus(raw)) return "partially_paid";
   if (["partially_paid", "partially paid", "partial"].includes(raw) || (total > 0 && paid > 0 && paid < total)) return "partially_paid";
   if (
-    ["pending", "unpaid", "awaiting_verification", "deferred", "credit", "on_credit", "postpaid", "refunded", "refund", "fully_refunded", "rejected", "cod"].includes(raw) ||
+    ["pending", "unpaid", "awaiting_verification", "deferred", "credit", "on_credit", "postpaid", "rejected", "cod"].includes(raw) ||
     ["deferred", "credit", "cod", "cash_on_delivery", "cash on delivery"].includes(method)
   ) return "deferred";
   return paid > 0 ? "paid" : "deferred";
@@ -487,6 +491,8 @@ const matchesPaymentFilter = (order = {}, paymentFilter = "all") => {
     return statusKey === "paid" && due <= 0;
   }
   if (paymentFilter === "due") {
+    // A refunded invoice is closed, not outstanding -- it owes the shop nothing.
+    if (statusKey === "refunded") return false;
     return due > 0 || statusKey !== "paid";
   }
   return true;

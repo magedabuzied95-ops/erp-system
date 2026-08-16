@@ -2655,8 +2655,8 @@ const runPostOrderSideEffects = async ({
         saleAmount: computedTotal,
         cogsAmount: cogsTotal,
         paidAmount: receivedAmount,
-        paymentMethod: normalizedSalePaymentMethod || payment_method,
-        payments: paymentBreakdown,
+        paymentMethod: order?.payment_method || payment_method,
+        payments: order?.payment_breakdown,
         createdBy: req.user?.id || null,
         branchId: resolvedBranchId,
         notes: notes || "",
@@ -4989,6 +4989,31 @@ const deleteOrderRelatedRows = async (client, orderId) => {
     { columns: ["order_id"], sql: "order_id = $1" },
     { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order')" },
   ], [orderId]));
+  // cash_drawer_shifts.expected_cash is maintained incrementally as events land, so
+  // removing an order's events without walking the same amount back out leaves the
+  // shift claiming cash that was never in the drawer -- it reads as a shortage at
+  // close. Take the drawer back down first, then delete.
+  await client.query(
+    `
+    UPDATE cash_drawer_shifts s
+    SET expected_cash = s.expected_cash - d.delta,
+        difference = COALESCE(s.actual_cash, s.expected_cash - d.delta) - (s.expected_cash - d.delta),
+        cash_difference = COALESCE(s.actual_cash, s.expected_cash - d.delta) - (s.expected_cash - d.delta)
+    FROM (
+      SELECT shift_id,
+             SUM(CASE
+               WHEN event_type IN ('sale_cash', 'cash_in', 'opening') THEN amount
+               WHEN event_type IN ('refund_cash', 'expense_cash', 'cash_out') THEN -amount
+               ELSE 0
+             END) AS delta
+      FROM cash_drawer_shift_events
+      WHERE source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')
+      GROUP BY shift_id
+    ) d
+    WHERE s.id = d.shift_id
+    `,
+    [orderId]
+  );
   addCount("cash_drawer_shift_events", await deleteFromTableByPredicates(client, "cash_drawer_shift_events", [
     { columns: ["order_id"], sql: "order_id = $1" },
     { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
@@ -7715,6 +7740,9 @@ export const createReturn = async (req, res) => {
     );
     returnRow = (await client.query(`SELECT * FROM returns WHERE id = $1`, [returnRow.id])).rows[0] || returnRow;
 
+    // Cost of the restocked goods, so the return reverses COGS the way the sale posted it.
+    let returnCogsTotal = 0;
+
     for (const item of items) {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
       const quantity = Number(item.quantity || 0);
@@ -7778,6 +7806,7 @@ export const createReturn = async (req, res) => {
 
       if (shouldRestock) {
         const stockLine = await resolveOrderLineStock(client, { tenantId, item: originalItem });
+        returnCogsTotal += Number(stockLine.costPrice || 0) * Number(quantity || 0);
         await applyStockDelta(client, {
           tenantId,
           order: orderRow,
@@ -7814,7 +7843,13 @@ export const createReturn = async (req, res) => {
       referenceId: returnRow.id,
       description: `Return #${returnRow.return_number || returnNumberBase}`,
       amount: effectiveRefundAmount,
-      direction: shouldRestock ? "in" : "out",
+      // A customer refund always leaves an account; restock only decides whether the
+      // cost comes back into Inventory. "in" is the supplier-return shape and would
+      // book the refund as inventory at sale price with nothing credited.
+      direction: "out",
+      refundMethod,
+      cogsAmount: returnCogsTotal,
+      restock: shouldRestock,
       createdBy: req.user?.id || null,
       branchId: orderRow?.branch_id || null,
       notes: reason || "",
