@@ -188,7 +188,9 @@
       "namePlaceholder": "Enter customer name",
       "phone": "Phone number",
       "phonePlaceholder": "Enter phone number",
-      "selectSource": "Select source"
+      "selectSource": "Select source",
+      "sourceOptional": "Optional",
+      "saveHint": "Press Enter to save"
     },
     "sources": {
       "story": "Story",

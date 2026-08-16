@@ -5468,23 +5468,21 @@ function POSPro() {
       return true;
     }
 
-    if (!quickCustomer.source_key) {
-      toast.error(t("pos.toasts.customerSourceRequired", "Select where the new customer came from."));
-      return false;
-    }
-
-    const customerSource = resolveMarketingAttributionFromSelection(quickCustomer.source_key);
+    // The source is attribution, not identity: a cashier with a queue at the
+    // counter should not be blocked from saving the customer over it.
+    const sourceKey = quickCustomer.source_key || "";
+    const customerSource = sourceKey ? resolveMarketingAttributionFromSelection(sourceKey) : {};
     try {
       const result = await api.post("/customers", {
         name,
         phone: normalizedPhone,
-        source: quickCustomer.source_key,
-        customer_source: quickCustomer.source_key,
-        lead_source: quickCustomer.source_key,
-        registration_source: quickCustomer.source_key,
-        marketing_source: customerSource.marketing_source || quickCustomer.source_key,
+        source: sourceKey,
+        customer_source: sourceKey,
+        lead_source: sourceKey,
+        registration_source: sourceKey,
+        marketing_source: customerSource.marketing_source || sourceKey,
         marketing_platform: customerSource.marketing_platform || "",
-        attribution_type: customerSource.attribution_type || quickCustomer.source_key,
+        attribution_type: customerSource.attribution_type || sourceKey,
         allow_personal_transactions: Boolean(quickCustomer.allow_personal_transactions),
       });
 
@@ -7427,6 +7425,14 @@ function POSPro() {
     }
   }, [customerCreateSaving, handleCreateCustomer]);
 
+  // The fields sit in a dialog, not a form, so Enter had nowhere to go and the
+  // cashier had to reach for the mouse after typing the name.
+  const handleQuickCustomerKeyDown = useCallback((event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    void handleCreateCustomerFromToolbar();
+  }, [handleCreateCustomerFromToolbar]);
+
   const openCustomerCreateModal = useCallback((initialValues = {}) => {
     const searchText = String(customerSearch || "").trim();
     const explicitPhone = String(initialValues?.phone || initialValues?.mobile || "").trim();
@@ -7970,6 +7976,8 @@ function POSPro() {
                     <input
                       value={quickCustomer.name}
                       onChange={(e) => setQuickCustomer((prev) => ({ ...prev, name: e.target.value }))}
+                      onKeyDown={handleQuickCustomerKeyDown}
+                      autoFocus
                       className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
                       placeholder={t("pos.posPro.quickCustomer.namePlaceholder")}
                     />
@@ -7980,6 +7988,7 @@ function POSPro() {
                     <input
                       value={quickCustomer.phone}
                       onChange={(e) => setQuickCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                      onKeyDown={handleQuickCustomerKeyDown}
                       className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
                       placeholder={t("pos.posPro.quickCustomer.phonePlaceholder")}
                     />
@@ -7993,7 +8002,12 @@ function POSPro() {
 
                   {quickCustomerNeedsSource ? (
                     <label className="block">
-                      <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.cart.customerCameFrom")}</div>
+                      <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">
+                        <span>{t("pos.cart.customerCameFrom")}</span>
+                        <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-zinc-400">
+                          {t("pos.posPro.quickCustomer.sourceOptional")}
+                        </span>
+                      </div>
                       <select
                         value={quickCustomer.source_key}
                         onChange={(e) => setQuickCustomer((prev) => ({ ...prev, source_key: e.target.value }))}
@@ -8023,6 +8037,9 @@ function POSPro() {
                   ) : null}
 
                   <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
+                    <span className="text-[11px] font-semibold text-zinc-500 sm:me-auto">
+                      {t("pos.posPro.quickCustomer.saveHint")}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setCustomerCreateOpen(false)}

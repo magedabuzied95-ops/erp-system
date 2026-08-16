@@ -188,7 +188,9 @@
       "namePlaceholder": "أدخل اسم العميل",
       "phone": "رقم الموبايل",
       "phonePlaceholder": "أدخل رقم الموبايل",
-      "selectSource": "اختر المصدر"
+      "selectSource": "اختر المصدر",
+      "sourceOptional": "اختياري",
+      "saveHint": "اضغط Enter للحفظ"
     },
     "sources": {
       "story": "ستوري",
