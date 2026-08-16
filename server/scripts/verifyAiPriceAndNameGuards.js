@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { orchestrateAiResponse } from "../services/aiResponseOrchestratorService.js";
 import { extractAiConversationMemory } from "../services/aiConversationMemoryService.js";
 import { buildAiPriceGuard, guardAiNameCapture } from "../utils/aiProductReplyGuards.js";
+import { claimsAvailability } from "../services/aiEntityLexicon.js";
 
 const makeProduct = (overrides = {}) => ({
   product_id: 12,
@@ -61,7 +62,9 @@ const missingPriceReply = orchestrateAiResponse({
 });
 
 assert.ok(!/السعر:\s*-\s*جنيه/.test(missingPriceReply.replyText));
-assert.ok(!/\bمتاح\b/.test(missingPriceReply.replyText));
+// Was /\bمتاح\b/, which can never match Arabic — so this assertion passed no matter
+// what the reply said. The guard it is supposed to enforce was never actually tested.
+assert.ok(!claimsAvailability(missingPriceReply.replyText));
 assert.ok(/السعر محتاج يتأكد|ابعتلي اسمك ورقمك/.test(missingPriceReply.replyText));
 
 const undefinedPriceReply = orchestrateAiResponse({
@@ -85,7 +88,7 @@ const undefinedPriceReply = orchestrateAiResponse({
 });
 
 assert.ok(!/-\s*جنيه/.test(undefinedPriceReply.replyText));
-assert.ok(!/\bمتاح\b/.test(undefinedPriceReply.replyText));
+assert.ok(!claimsAvailability(undefinedPriceReply.replyText));
 
 const validPriceReply = orchestrateAiResponse({
   intent: "PRODUCT_SEARCH",

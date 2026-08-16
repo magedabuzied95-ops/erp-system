@@ -4,6 +4,7 @@ import db, { withReadOnlyDbSession } from "../database/db.js";
 
 import { generateAiBrainV2Decision } from "../services/aiBrainV2Service.js";
 import { composeAiSalesReply } from "../services/aiSalesReplyComposerService.js";
+import { claimsAvailability } from "../services/aiEntityLexicon.js";
 import { searchAiSalesProducts } from "../services/aiSalesAgentService.js";
 import { normalizeProductCards } from "../services/aiProductCards.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
@@ -437,11 +438,14 @@ const extractMentionedPrices = (reply = "") =>
     .map((match) => Number(String(match[1]).replace(/,/g, "")))
     .filter((value) => Number.isFinite(value) && value > 0);
 
+// The trailing \b here could never match — it sits after an Arabic letter, and \b is
+// defined over ASCII word characters — so both halves were always false and this
+// detector never fired. Dropping it restores the intended reading: the reply names the
+// currency without a number in front of it.
 const hasBareCurrencyWord = (reply = "") =>
-  /(^|[^\d])جنيه\b/i.test(String(reply)) && !/\d\s*جنيه\b/i.test(String(reply));
+  /(^|[^\d])جنيه/i.test(String(reply)) && !/\d\s*جنيه/i.test(String(reply));
 
-const hasAvailabilityClaim = (reply = "") =>
-  /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(String(reply));
+const hasAvailabilityClaim = (reply = "") => claimsAvailability(String(reply));
 
 const buildRegressionAnalysis = ({
   message = "",
@@ -582,7 +586,7 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
     failures.push("safety-intent-eligible");
   }
 
-  if (availabilitySignal && !(analysis?.reply_mentions_availability || /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(replyText))) failures.push("availability");
+  if (availabilitySignal && !(analysis?.reply_mentions_availability || claimsAvailability(replyText))) failures.push("availability");
   if (sizeSignal && requestedSize && !new RegExp(`\\b${String(requestedSize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("size");
   if (colorSignal && currentColors.length < 2) failures.push("colors");
   if ((currentStock === 0 || /(?:out of stock|unavailable|غير متاح|مٴ متاح|غير متوفر|نفد)/i.test(replyText)) && !analysis?.reply_mentions_unavailable) failures.push("stock-unavailable");

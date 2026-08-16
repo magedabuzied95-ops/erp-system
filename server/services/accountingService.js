@@ -3182,6 +3182,54 @@ export const postPurchaseEntry = async (clientOrPool, data = {}) => {
   });
 };
 
+// Which asset account actually received the money. A sale collected on a card or
+// a wallet does not increase Cash, and a deferred sale increases nothing at all --
+// it increases what the customer owes us.
+export const SALE_SETTLEMENT_ACCOUNT_CODES = {
+  cash: "1000",
+  card: "1010",
+  bank: "1010",
+  bank_transfer: "1010",
+  transfer: "1010",
+  visa: "1010",
+  paymob: "1010",
+  instapay: "1011",
+  vodafone_cash: "1020",
+  wallet: "1020",
+  customer_wallet: "1020",
+};
+export const ACCOUNTS_RECEIVABLE_CODE = "1100";
+
+const saleSettlementAccountCode = (paymentMethod = "") => {
+  const normalized = String(paymentMethod || "").trim().toLowerCase();
+  return SALE_SETTLEMENT_ACCOUNT_CODES[normalized] || null;
+};
+
+// Collapse a payment breakdown into {accountCode -> amount}, ignoring the rows that
+// are not real money in (credit_sale / exchange_credit / return_credit): those are
+// the deferred part and land in Accounts Receivable below.
+const summarizeSaleSettlements = (payments = [], fallbackMethod = "", fallbackAmount = 0) => {
+  const rows = Array.isArray(payments) ? payments : [];
+  const totals = new Map();
+  let collected = 0;
+  for (const payment of rows) {
+    const amount = roundMoney(payment?.amount ?? payment?.value ?? 0);
+    if (amount <= 0) continue;
+    const code = saleSettlementAccountCode(payment?.method ?? payment?.payment_method);
+    if (!code) continue;
+    totals.set(code, roundMoney((totals.get(code) || 0) + amount));
+    collected = roundMoney(collected + amount);
+  }
+  if (totals.size === 0 && fallbackAmount > 0) {
+    const code = saleSettlementAccountCode(fallbackMethod);
+    if (code) {
+      totals.set(code, fallbackAmount);
+      collected = fallbackAmount;
+    }
+  }
+  return { totals, collected };
+};
+
 export const postSaleEntry = async (clientOrPool, data = {}) => {
   const tenantId = getTenantScope(data.tenantId ?? data.tenant_id);
   const dbClient = queryable(clientOrPool);
@@ -3189,10 +3237,38 @@ export const postSaleEntry = async (clientOrPool, data = {}) => {
   const cogsAmount = roundMoney(data.cogsAmount || data.cogs || 0);
   if (saleAmount === 0 && cogsAmount === 0) return null;
 
-  const cash = await resolveAccount(dbClient, tenantId, "1000");
+  const branchId = data.branchId ?? data.branch_id ?? null;
   const revenue = await resolveAccount(dbClient, tenantId, "4000");
   const cogs = await resolveAccount(dbClient, tenantId, "5000");
   const inventory = await resolveAccount(dbClient, tenantId, "1200");
+
+  const paidAmount = Math.min(
+    saleAmount,
+    Math.max(0, roundMoney(data.paidAmount ?? data.paid_amount ?? saleAmount))
+  );
+  const { totals, collected } = summarizeSaleSettlements(
+    data.payments || data.paymentBreakdown || data.payment_breakdown,
+    data.paymentMethod || data.payment_method,
+    paidAmount
+  );
+  // Anything the breakdown could not place still has to balance the entry; keep it
+  // on Cash so the books never go one-sided, and treat the rest as receivable.
+  const unplaced = Math.max(0, roundMoney(paidAmount - collected));
+  if (unplaced > 0) {
+    totals.set("1000", roundMoney((totals.get("1000") || 0) + unplaced));
+  }
+  const receivable = Math.max(0, roundMoney(saleAmount - Math.max(paidAmount, collected)));
+
+  const settlementLines = [];
+  for (const [code, amount] of totals) {
+    if (amount <= 0) continue;
+    const account = await resolveAccount(dbClient, tenantId, code);
+    settlementLines.push(accountLine(account, amount, "debit", data.notes, branchId));
+  }
+  if (receivable > 0) {
+    const arAccount = await resolveAccount(dbClient, tenantId, ACCOUNTS_RECEIVABLE_CODE);
+    settlementLines.push(accountLine(arAccount, receivable, "debit", data.notes, branchId));
+  }
 
   return createJournalEntry(dbClient, {
     tenantId,
@@ -3201,15 +3277,15 @@ export const postSaleEntry = async (clientOrPool, data = {}) => {
     referenceType: data.referenceType || data.reference_type || "order",
     referenceId: data.referenceId || data.reference_id || null,
     createdBy: data.createdBy ?? data.created_by ?? null,
-    branchId: data.branchId ?? data.branch_id ?? null,
+    branchId,
     notes: data.notes || "",
     lines: [
-      accountLine(cash, saleAmount, "debit", data.notes, data.branchId || data.branch_id || null),
-      accountLine(revenue, saleAmount, "credit", data.notes, data.branchId || data.branch_id || null),
+      ...settlementLines,
+      accountLine(revenue, saleAmount, "credit", data.notes, branchId),
       ...(cogsAmount > 0
         ? [
-            accountLine(cogs, cogsAmount, "debit", data.notes, data.branchId || data.branch_id || null),
-            accountLine(inventory, cogsAmount, "credit", data.notes, data.branchId || data.branch_id || null),
+            accountLine(cogs, cogsAmount, "debit", data.notes, branchId),
+            accountLine(inventory, cogsAmount, "credit", data.notes, branchId),
           ]
         : []),
     ],
@@ -3225,8 +3301,39 @@ export const postReturnEntry = async (clientOrPool, data = {}) => {
   const inventory = await resolveAccount(dbClient, tenantId, "1200");
   const returnsInward = await resolveAccount(dbClient, tenantId, "4010");
   const returnsOutward = await resolveAccount(dbClient, tenantId, "4020");
-  const cash = await resolveAccount(dbClient, tenantId, "1000");
   const isIn = String(data.direction || data.returnType || "").toLowerCase() === "in";
+  const branchId = data.branchId ?? data.branch_id ?? null;
+
+  if (isIn) {
+    return createJournalEntry(dbClient, {
+      tenantId,
+      entryNumber: data.entryNumber || data.entry_number,
+      description: data.description || "Return posting",
+      referenceType: data.referenceType || data.reference_type || "return",
+      referenceId: data.referenceId || data.reference_id || null,
+      createdBy: data.createdBy ?? data.created_by ?? null,
+      branchId,
+      notes: data.notes || "",
+      lines: [
+        accountLine(inventory, amount, "debit", data.notes, branchId),
+        accountLine(returnsInward, amount, "credit", data.notes, branchId),
+      ],
+    });
+  }
+
+  // A customer return refunds out of whichever account paid it, and -- when the goods
+  // are restocked -- has to walk the cost back out of COGS into Inventory too.
+  // Without that half the books keep the cost of goods the shop still owns.
+  const refundAccount = await resolveAccount(
+    dbClient,
+    tenantId,
+    saleSettlementAccountCode(data.refundMethod || data.refund_method) || "1000"
+  );
+  const cogsAmount = roundMoney(data.cogsAmount || data.cogs || 0);
+  const restocked = data.restock === undefined && data.restocked === undefined
+    ? cogsAmount > 0
+    : Boolean(data.restock ?? data.restocked);
+  const cogs = await resolveAccount(dbClient, tenantId, "5000");
 
   return createJournalEntry(dbClient, {
     tenantId,
@@ -3235,17 +3342,18 @@ export const postReturnEntry = async (clientOrPool, data = {}) => {
     referenceType: data.referenceType || data.reference_type || "return",
     referenceId: data.referenceId || data.reference_id || null,
     createdBy: data.createdBy ?? data.created_by ?? null,
-    branchId: data.branchId ?? data.branch_id ?? null,
+    branchId,
     notes: data.notes || "",
-    lines: isIn
-      ? [
-          accountLine(inventory, amount, "debit", data.notes, data.branchId || data.branch_id || null),
-          accountLine(returnsInward, amount, "credit", data.notes, data.branchId || data.branch_id || null),
-        ]
-      : [
-          accountLine(returnsOutward, amount, "debit", data.notes, data.branchId || data.branch_id || null),
-          accountLine(cash, amount, "credit", data.notes, data.branchId || data.branch_id || null),
-        ],
+    lines: [
+      accountLine(returnsOutward, amount, "debit", data.notes, branchId),
+      accountLine(refundAccount, amount, "credit", data.notes, branchId),
+      ...(restocked && cogsAmount > 0
+        ? [
+            accountLine(inventory, cogsAmount, "debit", data.notes, branchId),
+            accountLine(cogs, cogsAmount, "credit", data.notes, branchId),
+          ]
+        : []),
+    ],
   });
 };
 

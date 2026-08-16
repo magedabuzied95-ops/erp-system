@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { guardAiNameCapture } from "../utils/aiProductReplyGuards.js";
+import { latinizeArabicProductText } from "./aiEntityLexicon.js";
 
 let schemaReadyPromise = null;
 
@@ -18,7 +19,7 @@ const unique = (items = [], limit = MEMORY_LIST_LIMIT) =>
   [...new Set((Array.isArray(items) ? items : []).map((item) => toText(item)).filter(Boolean))].slice(0, limit);
 
 const normalizeComparable = (value = "") =>
-  toText(value)
+  latinizeArabicProductText(toText(value))
     .toLowerCase()
     .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
     .replace(/[\u0623\u0625\u0622]/g, "\u0627")
@@ -34,10 +35,9 @@ const normalizeComparable = (value = "") =>
     .replace(/[\u0667\u06f7]/g, "7")
     .replace(/[\u0668\u06f8]/g, "8")
     .replace(/[\u0669\u06f9]/g, "9")
-    .replace(/\bنايك\b/g, "nike")
-    .replace(/\bفور\b/g, "4")
-    .replace(/\bاربعه\b/g, "4")
-    .replace(/\bرابعه\b/g, "4")
+    // Was four \b-wrapped Arabic rewrites. \b is an ASCII-word-character boundary, so
+    // none of them could ever match and the remembered product never became a Latin
+    // token the catalog could be searched with. See aiEntityLexicon.js.
     .replace(/\bjordan\s*iv\b/g, "jordan 4")
     .replace(/\bair\s+jordan\s*iv\b/g, "air jordan 4")
     .replace(/[أإآ]/g, "ا")

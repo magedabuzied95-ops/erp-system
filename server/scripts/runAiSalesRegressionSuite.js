@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { claimsAvailability } from "../services/aiEntityLexicon.js";
 
 const baseUrl = String(process.env.RENDER_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const regressionKey = String(process.env.AI_REGRESSION_TEST_KEY || "").trim();
@@ -37,11 +38,12 @@ const extractMentionedPrices = (reply = "") =>
     .map((match) => Number(String(match[1]).replace(/,/g, "")))
     .filter((value) => Number.isFinite(value) && value > 0);
 
+// See aiRegressionHarness: the trailing \b after an Arabic letter can never match, so
+// both of these silently returned false for every Arabic reply.
 const hasBareCurrencyWord = (reply = "") =>
-  /(^|[^\d])جنيه\b/i.test(String(reply)) && !/\d\s*جنيه\b/i.test(String(reply));
+  /(^|[^\d])جنيه/i.test(String(reply)) && !/\d\s*جنيه/i.test(String(reply));
 
-const isProbablyAvailable = (reply = "") =>
-  /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(String(reply));
+const isProbablyAvailable = (reply = "") => claimsAvailability(String(reply));
 
 const isProbablyUnavailable = (reply = "") =>
   /(?:غير\s*متاح|غير\s*موجود|نفد|out of stock|unavailable|مش\s*متاح|مش\s*موجود|غير\s*متوفر)/i.test(String(reply));

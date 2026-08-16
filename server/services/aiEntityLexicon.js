@@ -157,6 +157,23 @@ export const latinizeArabicProductText = (value = "") => {
   return output;
 };
 
+/**
+ * Does a reply claim the product is in stock?
+ *
+ * Used by the reply guards and the regression harness, which previously each tested
+ * `/\bمتاح\b/`. That pattern can never match, so every one of those checks silently
+ * returned false: the harness recorded "reply does not mention availability" for
+ * replies that plainly did, and the guard assertions passed unconditionally.
+ *
+ * A trailing boundary is deliberately NOT required. Arabic inflects the word — متاح,
+ * متاحة, متوفرة — and this is a "does the reply claim availability" test, so the stem
+ * is the signal. The leading boundary stays, so the word must start a token.
+ */
+export const AVAILABILITY_CLAIM_PATTERN =
+  /(?<![\p{L}\p{N}])(?:متاح|متوفر|موجود|in stock|available)/iu;
+
+export const claimsAvailability = (value = "") => AVAILABILITY_CLAIM_PATTERN.test(text(value));
+
 export const extractBrand = (value = "") => matchLexicon(value, BRAND_LEXICON);
 
 /** Brand named outright, else inferred from a model the customer named. */

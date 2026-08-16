@@ -2654,6 +2654,9 @@ const runPostOrderSideEffects = async ({
         description: `POS sale #${orderId}`,
         saleAmount: computedTotal,
         cogsAmount: cogsTotal,
+        paidAmount: receivedAmount,
+        paymentMethod: normalizedSalePaymentMethod || payment_method,
+        payments: paymentBreakdown,
         createdBy: req.user?.id || null,
         branchId: resolvedBranchId,
         notes: notes || "",
@@ -7163,6 +7166,9 @@ export const returnOrder = async (req, res) => {
       [returnRow.id]
     )).rows[0] || returnRow;
     let refundTotal = 0;
+    // Cost of the goods coming back on the shelf, so the return can walk COGS back
+    // out of the books the same way the sale put it in.
+    let returnCogsTotal = 0;
 
     for (const { original, quantity, refund } of validatedItems) {
       refundTotal += refund;
@@ -7179,6 +7185,7 @@ export const returnOrder = async (req, res) => {
 
       if (shouldRestock) {
         const stockLine = await resolveOrderLineStock(client, { tenantId, item: original });
+        returnCogsTotal += Number(stockLine.costPrice || 0) * Number(quantity || 0);
         await applyStockDelta(client, {
           tenantId,
           order: loaded.order,
@@ -7288,6 +7295,9 @@ export const returnOrder = async (req, res) => {
         tenantId,
         amount: refundTotal || Number(req.body.refund_amount || 0),
         direction: "out",
+        refundMethod,
+        cogsAmount: returnCogsTotal,
+        restock: shouldRestock,
         referenceType: mode === "exchange" ? "exchange_return" : "return",
         referenceId: returnRow.id,
         description: mode === "exchange" ? "POS exchange return" : "POS sales return",
