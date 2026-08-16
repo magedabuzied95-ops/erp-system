@@ -129,6 +129,14 @@ const evaluateCase = async (testCase, { tenantId, searchProducts }) => {
     const entityScore = scoreEntities(expected.entities, understanding.entities);
     results.entities = { ...entityScore, pass: entityScore.correct === entityScore.total };
   }
+  if (expected.objection !== undefined) {
+    // Scored separately from intent: a message can carry an objection while its primary
+    // intent is something else, and the two are produced by different rule lists that
+    // have drifted apart before. A case declaring an expected objection that nothing
+    // asserts is a test that cannot fail.
+    results.objection = { expected: expected.objection, actual: understanding.objection };
+    results.objection.pass = understanding.objection === expected.objection;
+  }
   if (expected.requires_human !== undefined) {
     results.escalation = { expected: expected.requires_human, actual: understanding.requires_human };
     results.escalation.pass = understanding.requires_human === expected.requires_human;
@@ -174,6 +182,7 @@ const summarize = (results) => {
     cases: results.length,
     intent: metric("intent"),
     legacy_intent: metric("legacy_intent"),
+    objection: metric("objection"),
     escalation: metric("escalation"),
     retrieval: metric("retrieval"),
     entity_field_accuracy: entityTotals.total
@@ -185,7 +194,7 @@ const summarize = (results) => {
 
 const compareToBaseline = (summary, baseline) => {
   const regressions = [];
-  for (const key of ["intent", "legacy_intent", "escalation", "retrieval"]) {
+  for (const key of ["intent", "legacy_intent", "objection", "escalation", "retrieval"]) {
     const now = summary[key]?.accuracy;
     const before = baseline[key]?.accuracy;
     if (typeof now === "number" && typeof before === "number" && now < before) {
@@ -219,9 +228,20 @@ const main = async () => {
     searchProducts = ({ query, limit }) => searchAiSalesProducts({ tenantId, query, limit });
   }
 
+  // The services under evaluation log to stdout. In --json mode that lands in the
+  // middle of the document and makes the output unparseable — redirecting it to a
+  // baseline file produced a corrupt file rather than an obvious error. Diagnostics
+  // are kept, just moved to stderr, so stdout carries only the JSON.
+  const restoreLog = console.log;
+  if (hasFlag("--json")) console.log = (...args) => console.error(...args);
+
   const results = [];
-  for (const testCase of cases) {
-    results.push(await evaluateCase(testCase, { tenantId, searchProducts }));
+  try {
+    for (const testCase of cases) {
+      results.push(await evaluateCase(testCase, { tenantId, searchProducts }));
+    }
+  } finally {
+    console.log = restoreLog;
   }
   const summary = summarize(results);
   // Whether the understanding pass actually ran matters for reading the numbers: a
@@ -239,6 +259,7 @@ const main = async () => {
     [
       row("primary intent", summary.intent),
       row("legacy intent", summary.legacy_intent),
+      row("objection", summary.objection),
       row("escalation", summary.escalation),
       row("retrieval hit", summary.retrieval),
     ]
@@ -252,12 +273,12 @@ const main = async () => {
     }
 
     const failures = results.filter((result) =>
-      ["intent", "legacy_intent", "escalation", "retrieval", "entities"].some((key) => result[key] && !result[key].pass)
+      ["intent", "legacy_intent", "objection", "escalation", "retrieval", "entities"].some((key) => result[key] && !result[key].pass)
     );
     if (failures.length) {
       console.log(`\n  ${failures.length} case(s) with at least one miss:`);
       for (const failure of failures.slice(0, 15)) {
-        const misses = ["intent", "legacy_intent", "escalation", "retrieval", "entities"]
+        const misses = ["intent", "legacy_intent", "objection", "escalation", "retrieval", "entities"]
           .filter((key) => failure[key] && !failure[key].pass)
           .map((key) =>
             key === "entities"
