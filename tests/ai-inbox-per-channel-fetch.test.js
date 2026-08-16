@@ -97,10 +97,19 @@ test("a global limit fails at 1000 WhatsApp — proving the fix is what saves it
 
 // ---- request shape -------------------------------------------------------
 
-test('"All" fans out to exactly the four message channels, no comment channels', () => {
-  assert.deepEqual(channelsForFilter("all"), ["whatsapp", "facebook_messenger", "instagram", "web_chat"]);
+test('"All" fans out to every message channel and no comment channel', () => {
+  // The list was hardcoded to four and broke when Telegram was added — a feature, not
+  // a regression, but the failure read like one. The invariant is that "all" means
+  // exactly the message channels, whatever that set currently is, and that comment
+  // channels never leak into the message inbox.
+  assert.deepEqual(channelsForFilter("all"), AI_INBOX_MESSAGE_CHANNELS);
   assert.deepEqual(channelsForFilter(""), AI_INBOX_MESSAGE_CHANNELS);
-  for (const ch of channelsForFilter("all")) assert.ok(!ch.includes("comment"));
+  for (const ch of channelsForFilter("all")) assert.ok(!ch.includes("comment"), `${ch} is not a message channel`);
+  // The four that predate Telegram must still be there: this test also guards against
+  // a channel silently disappearing from the fan-out.
+  for (const ch of ["whatsapp", "facebook_messenger", "instagram", "web_chat"]) {
+    assert.ok(channelsForFilter("all").includes(ch), `${ch} must still be fetched`);
+  }
 });
 
 test("a selected tab issues exactly ONE request for that channel", () => {
@@ -190,7 +199,11 @@ test("cache entries are per-channel, never one merged 'all' blob", () => {
 
 test("warm open merges the per-channel caches before any network round", () => {
   const load = erp.slice(erp.indexOf("const loadAll = useCallback"), erp.indexOf("Promise.allSettled"));
-  assert.match(load, /const cachedPages = await Promise\.all\(/);
+  // Pinned literally, this broke when the warm start grew a reviewer-mode branch. The
+  // property under test is that the per-channel caches are read and merged BEFORE the
+  // network round, which is what makes a warm open instant.
+  assert.match(load, /const cachedPages =/, "cached pages must be read before the network round");
+  assert.match(load, /Promise\.all\(warmChannels\.map\(/, "channels must be primed in parallel");
   assert.match(load, /mergeConversationPages\(cachedPages, conversationKey\)/);
 });
 

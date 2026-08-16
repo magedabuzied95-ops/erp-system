@@ -53,3 +53,29 @@ export const getPhoneSearchVariants = (value = "") => {
 
 export const phoneSqlDigits = (column) =>
   `regexp_replace(translate(COALESCE(${column}, ''), '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', '01234567890123456789'), '\\D', '', 'g')`;
+
+/**
+ * One key per human, whatever they typed. `+201068005338`, `00201068005338`,
+ * `01068005338` and `1068005338` are the same phone, so identity checks that
+ * compare raw digits miss the duplicate and let the same customer be saved
+ * again. The country code is only stripped off an Egyptian mobile shape, so a
+ * foreign number that happens to start with 20 keeps its digits.
+ */
+export const canonicalPhoneKey = (value = "") => {
+  let digits = normalizePhone(value).replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (/^201\d{9}$/.test(digits)) return digits.slice(2);
+  if (/^01\d{9}$/.test(digits)) return digits.slice(1);
+  return digits;
+};
+
+/** The SQL twin of canonicalPhoneKey — the two must stay in step. */
+export const canonicalPhoneSql = (column) => {
+  const digits = `regexp_replace(${phoneSqlDigits(column)}, '^00', '')`;
+  return `CASE
+    WHEN ${digits} ~ '^201[0-9]{9}$' THEN substr(${digits}, 3)
+    WHEN ${digits} ~ '^01[0-9]{9}$' THEN substr(${digits}, 2)
+    ELSE ${digits}
+  END`;
+};

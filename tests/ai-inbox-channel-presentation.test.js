@@ -74,8 +74,11 @@ test("dirty Messenger CRM matches do not override Customer 360", () => {
 });
 
 test("AI Inbox PWA renders direct-message channels with their brand icons", () => {
-  assert.match(pwaSource, /key === "whatsapp"\) return \{ label: "WhatsApp", icon: FaWhatsapp/);
-  assert.match(pwaSource, /key === "instagram" \? "Instagram DM"/);
+  // Labels became translation keys when the inbox was localized. Asserting the English
+  // string tested the language, not the channel wiring — and would fail again the next
+  // time a word is reworded. The icon binding is the part that must not drift.
+  assert.match(pwaSource, /key === "whatsapp"\) return \{ labelKey: "[^"]+", icon: FaWhatsapp/);
+  assert.match(pwaSource, /key === "instagram" \? "aiSupport\.inbox\.pwa\.instagramDm"/, "a DM must be labelled as a DM, not as the feed");
   assert.match(pwaSource, /icon: FaInstagram/);
   assert.match(pwaSource, /icon: FaFacebookMessenger/);
 });
@@ -89,11 +92,24 @@ test("AI Inbox PWA conversation list remains directly clickable and page-scrolla
 test("AI Inbox PWA keeps social comments exclusively in Social Comments", () => {
   const commentExclusions = pwaSource.match(/if \(isSocialCommentThread\(conversation\)\) return false;/g) || [];
   assert.ok(commentExclusions.length >= 2, "comments must be excluded from both the list and direct selection");
-  assert.doesNotMatch(pwaSource, /\{ key: "comments", label: "Comments" \}/);
-  assert.doesNotMatch(pwaSource, /\{ key: "messages", label: "Messages" \}/);
-  assert.match(pwaSource, /\{ key: "all", label: "All" \},\s*\{ key: "needs_reply", label: "Needs Reply" \}/);
+  // Keyed on the tab `key`, not its label: the label is now a translation key, and the
+  // exclusion being tested is about which tabs EXIST, which the key expresses and the
+  // wording does not.
+  assert.doesNotMatch(pwaSource, /\{ key: "comments",/, "a comments tab must not exist in the message inbox");
+  assert.doesNotMatch(pwaSource, /\{ key: "messages",/);
+  // The platform filter list must offer "all" and must not offer a comment platform.
+  // The old assertion also pinned a `needs_reply` TAB, which no longer exists — the
+  // needs-reply filter survives as a value, so pinning it here was testing a piece of
+  // chrome, not the comment/message separation this test is about.
+  assert.match(pwaSource, /MESSAGE_PLATFORM_FILTERS = \[[\s\S]*?\{ key: "all", labelKey: "[^"]+" \}/);
+  const filterList = pwaSource.slice(
+    pwaSource.indexOf("MESSAGE_PLATFORM_FILTERS = ["),
+    pwaSource.indexOf("];", pwaSource.indexOf("MESSAGE_PLATFORM_FILTERS = ["))
+  );
+  assert.ok(!/comment/i.test(filterList), "no comment platform may appear in the message filters");
   assert.match(pwaSource, /\{tab === "conversations" \? \([\s\S]*?MESSAGE_PLATFORM_FILTERS\.map/);
-  assert.match(pwaSource, /placeholder="Search messages"/);
+  // Localized: the search box must exist and be labelled, in whatever language.
+  assert.match(pwaSource, /placeholder=\{t\("aiSupport\.inbox\.pwa\.searchMessages"\)\}/);
 });
 
 test("AI Inbox PWA does not block conversations on secondary requests", () => {
@@ -115,7 +131,13 @@ test("AI Inbox PWA first visible load always clears the initial spinner", () => 
 test("AI Inbox PWA uses the shared M1 light and dark theme", () => {
   assert.match(pwaSource, /const \{ theme, setTheme \} = useTheme\(\)/);
   assert.match(pwaSource, /setTheme\(isDarkTheme \? "light" : "dark"\)/);
-  assert.match(pwaSource, /aria-label=\{isDarkTheme \? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"\}/);
+  // The toggle must still announce which mode it switches TO, and the two labels must
+  // differ — a single label for both states is the accessibility bug this guards.
+  // Localized, so the assertion is on the conditional wiring, not the Arabic wording.
+  assert.match(
+    pwaSource,
+    /aria-label=\{isDarkTheme \? t\("aiSupport\.inbox\.pwa\.lightMode"\) : t\("aiSupport\.inbox\.pwa\.darkMode"\)\}/
+  );
   assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-inbox-pwa/);
 });
 
@@ -136,17 +158,43 @@ test("AI Inbox PWA social comments use a defined reply template", () => {
 test("AI Inbox PWA product picker keeps product details open and exposes POS filters", () => {
   assert.doesNotMatch(pwaSource, /if \(!open\) return;\s*setView\("list"\);\s*const firstId/);
   assert.match(pwaSource, /PRODUCT_FILTER_DEFAULTS/);
-  assert.match(pwaSource, /\["men", "رجالي"\]/);
-  assert.match(pwaSource, /label="البراند"/);
-  assert.match(pwaSource, /label="القسم الرئيسي"/);
-  assert.match(pwaSource, /label="نوع المنتج"/);
-  assert.match(pwaSource, /label="المصنّع"/);
-  assert.match(pwaSource, /label="المخزون"/);
+  // The VALUE side of each pair is what the server filters on and must stay a stable
+  // identifier; only the human label became a translation key. Asserting the Arabic
+  // label tested the wording and would fail on any rewording.
+  assert.match(pwaSource, /\["men", t\("[^"]+"\)\]/, "gender filter must keep the stable 'men' value");
+  // The individual filter labels moved into the shared SmartPosFilters panel, so the
+  // PWA's side of the contract is now the wiring it passes down. That is the real
+  // invariant anyway: inline labels could be present and still not filter anything.
+  assert.match(pwaSource, /<SmartPosFilters/, "the shared POS filter panel must be mounted");
+  for (const prop of [
+    "smartFilterOptions",
+    "onGenderChange",
+    "onProductTypeChange",
+    "onGradeChange",
+    "onBrandChange",
+    "onManufacturerChange",
+  ]) {
+    assert.match(pwaSource, new RegExp(`${prop}=\\{`), `the ${prop} POS filter must still be wired`);
+  }
 });
 
 test("AI Inbox PWA product picker follows light and dark mode even through its mobile portal", () => {
-  assert.match(pwaSource, /ai-pwa-product-sheet ai-pwa-product-sheet--mobile/);
-  assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-pwa-product-sheet--mobile/);
+  // The mobile sheet renders through createPortal into document.body, so it has no
+  // app-shell ancestor. Theming it therefore depends on two things, and this test
+  // pinned neither: the portaled element must carry the BASE class the dark rules
+  // target, and those rules must hang off html[data-theme], which is the only ancestor
+  // a portaled node still has. A `--mobile`-specific rule was incidental; it was
+  // removed as redundant once the base class covered it, and the theme still works.
+  assert.match(pwaSource, /ai-pwa-product-sheet ai-pwa-product-sheet--mobile/, "the portaled sheet must carry the base class");
+
+  const darkSheetRules = (pwaStyles.match(/html\[data-theme="dark"\] \.ai-pwa-product-sheet/g) || []).length;
+  assert.ok(darkSheetRules >= 5, `the sheet needs dark rules to follow the theme, found ${darkSheetRules}`);
   assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-pwa-product-sheet input/);
   assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-pwa-product-sheet select/);
+
+  // A rule scoped to an app-shell ancestor would silently miss the portal.
+  assert.ok(
+    !/\.m1-shell-content[^{]*\.ai-pwa-product-sheet/.test(pwaStyles),
+    "sheet theming must not depend on a shell ancestor the portal escapes"
+  );
 });

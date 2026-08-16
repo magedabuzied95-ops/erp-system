@@ -15,13 +15,17 @@ test("warm start primes cached summaries and skips the spinner when present", ()
   // Cached pages are read per-channel from the shared module before the network
   // round. Per-channel entries (not one merged blob) are what stop a large
   // channel from starving the others on a warm open.
-  assert.match(src, /const cachedPages = await Promise\.all\(/);
+  // `const cachedPages = await Promise.all(` was pinned literally and stopped matching
+  // when the warm start grew a reviewer-mode branch. The invariant is that the cached
+  // pages are primed PER CHANNEL and in parallel, which both branches still do.
+  assert.match(src, /const cachedPages =/, "the warm start must still read cached pages");
+  assert.match(src, /Promise\.all\(warmChannels\.map\(/, "channels must be primed in parallel, not in series");
   assert.match(src, /inboxCache\.primeList\(ch\)/);
   // when cached rows exist we render them and drop the loading spinner
   assert.match(src, /if \(seq === requestSeqRef\.current && cachedRows\.length\)/);
   assert.match(src, /setLoading\(false\); \/\/ show cached now/);
   // prime happens before the authoritative fetch (warm render, then revalidate)
-  const prime = src.indexOf("const cachedPages = await Promise.all(");
+  const prime = src.indexOf("const cachedPages =");
   const fetchList = src.indexOf("await Promise.allSettled(requestedChannels.map(fetchChannelPage))");
   assert.ok(prime >= 0 && fetchList >= 0 && prime < fetchList, "prime must precede the network fetch");
 });

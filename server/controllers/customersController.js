@@ -1,7 +1,7 @@
 import pool from "../database/db.js";
 import XLSX from "xlsx";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
-import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
+import { canonicalPhoneKey, canonicalPhoneSql, getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { calculateTier, ensureLoyaltySchema, getCustomerLoyaltySummary } from "../services/loyaltyService.js";
 import { createJournalEntry, recordFinancialAccountActivity } from "../services/accountingService.js";
@@ -2271,7 +2271,10 @@ export const createCustomer = async (req, res) => {
       });
     }
 
-    const normalizedPhoneDigits = cleanPhone.replace(/\D/g, "");
+    // Compared on the canonical key, not raw digits: +20106…, 0020106… and
+    // 0106… are one customer, and matching digit-for-digit lets the second
+    // spelling through as a new row.
+    const normalizedPhoneDigits = canonicalPhoneKey(cleanPhone);
     const existingClauses = [];
     const existingParams = [];
     if (columns.tenantIdColumn) {
@@ -2279,7 +2282,7 @@ export const createCustomer = async (req, res) => {
       existingClauses.push(`tenant_id = $${existingParams.length}`);
     }
     existingParams.push(normalizedPhoneDigits);
-    existingClauses.push(`regexp_replace(COALESCE(${columns.phoneColumn}, ''), '\\D', '', 'g') = $${existingParams.length}`);
+    existingClauses.push(`${canonicalPhoneSql(columns.phoneColumn)} = $${existingParams.length}`);
     const existingSql = `
       ${selectSql}
       WHERE ${existingClauses.join(" AND ")}
@@ -2420,7 +2423,7 @@ export const createCustomer = async (req, res) => {
       const columns = await getCustomerColumns();
       const selectSql = buildSelectSql(columns);
       const cleanPhone = normalizePhoneValue(req.body?.phone);
-      const normalizedPhoneDigits = cleanPhone.replace(/\D/g, "");
+      const normalizedPhoneDigits = canonicalPhoneKey(cleanPhone);
 
       if (selectSql && columns.phoneColumn && normalizedPhoneDigits) {
         const duplicateClauses = [];
@@ -2433,7 +2436,7 @@ export const createCustomer = async (req, res) => {
         }
 
         duplicateParams.push(normalizedPhoneDigits);
-        duplicateClauses.push(`regexp_replace(COALESCE(${columns.phoneColumn}, ''), '\\D', '', 'g') = $${duplicateParams.length}`);
+        duplicateClauses.push(`${canonicalPhoneSql(columns.phoneColumn)} = $${duplicateParams.length}`);
 
         const duplicate = await pool.query(
           `
@@ -2494,12 +2497,12 @@ export const updateCustomer = async (req, res) => {
 
     // Editing a phone onto a number another customer already owns is the same
     // duplicate the create path refuses — reject it here too.
-    const normalizedPhoneDigits = cleanPhone.replace(/\D/g, "");
+    const normalizedPhoneDigits = canonicalPhoneKey(cleanPhone);
     if (columns.phoneColumn && normalizedPhoneDigits) {
       const conflictParams = [id, normalizedPhoneDigits];
       const conflictClauses = [
         `id <> $1::bigint`,
-        `regexp_replace(COALESCE(${columns.phoneColumn}, ''), '\\D', '', 'g') = $2`,
+        `${canonicalPhoneSql(columns.phoneColumn)} = $2`,
       ];
 
       if (columns.tenantIdColumn) {

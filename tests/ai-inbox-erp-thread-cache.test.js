@@ -98,20 +98,29 @@ test("the dead message_limit param is no longer sent on the summary-only list en
 
 // ---- send safety ---------------------------------------------------------
 
+// The guard is asserted as an INVARIANT, not as an exact line. It was originally
+// pinned as `return;` and the send path later grew a richer result (`return { ok:
+// false }`), which broke the test while the protection it describes was completely
+// intact. A regex that fails when the behaviour improves is not guarding anything.
 test("a rapid double-click sends exactly one text reply", () => {
-  assert.match(src, /if \(sendingReplyRef\.current\) return;\s*\n\s*sendingReplyRef\.current = true;/);
-  assert.match(src, /sendingReplyRef\.current = false;\s*\n\s*setReplySending\(false\);/);
-  // the guard must sit BEFORE the optimistic bubble, so a blocked click leaves no stray bubble
+  assert.match(src, /if \(sendingReplyRef\.current\) return\b/, "the send path must bail when one is in flight");
+  assert.match(src, /sendingReplyRef\.current = true;/, "the guard must be claimed");
+  assert.match(src, /sendingReplyRef\.current = false;/, "and released, or the composer locks forever");
+
   const send = src.slice(src.indexOf("const sendManualReply = async"), src.indexOf("setReplySending(true);"));
   assert.ok(
     send.indexOf("sendingReplyRef.current = true;") < send.indexOf("const optimistic = {"),
-    "guard must precede the optimistic bubble"
+    "guard must precede the optimistic bubble, so a blocked click leaves no stray bubble"
   );
+  // Release must be unconditional: an early return or a throw between claim and
+  // release would leave the composer permanently disabled.
+  assert.match(src, /finally \{\s*\n\s*sendingReplyRef\.current = false;/, "release must sit in finally");
 });
 
 test("a rapid double-click sends exactly one product-card message", () => {
-  assert.match(src, /if \(sendingProductCardsRef\.current\) return;\s*\n\s*sendingProductCardsRef\.current = true;/);
-  assert.match(src, /sendingProductCardsRef\.current = false;\s*\n\s*setProductCardSending\(false\);/);
+  assert.match(src, /if \(sendingProductCardsRef\.current\) return\b/);
+  assert.match(src, /sendingProductCardsRef\.current = true;/);
+  assert.match(src, /finally \{\s*\n\s*sendingProductCardsRef\.current = false;/, "release must sit in finally");
 });
 
 test("text send still shows a pending bubble immediately and reconciles", () => {

@@ -130,7 +130,13 @@ test("pages are cached separately", () => {
 test("the picker sends its POS filters to the server", () => {
   assert.match(picker, /const serverFilters = useMemo\(\(\) => \(\{/);
   assert.match(picker, /searchCustomerProducts\(\{ search: term, filters: serverFilters, page: 1/);
-  assert.match(picker, /\}, \[open, sizeMode, sizeCatalogFallback, search, serverFilters\]\);/);
+  // Membership rather than the literal array: a localized picker legitimately gained a
+  // `t` dependency, and pinning the exact list failed a test about which changes
+  // retrigger the fetch. See ai-inbox-picker-perf for the same reasoning.
+  const deps = picker.match(/\}, \[open, sizeMode, sizeCatalogFallback[^\]]*\]\);/);
+  assert.ok(deps, "the catalog effect's dependency array must still be recognisable");
+  assert.ok(deps[0].includes("serverFilters"), "filters must retrigger the server query");
+  assert.ok(deps[0].includes("search"), "search must retrigger the server query");
 });
 
 test("changing a filter restarts at page 1 and newest wins", () => {

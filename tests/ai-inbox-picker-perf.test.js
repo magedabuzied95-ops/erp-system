@@ -85,7 +85,16 @@ test("search is server-side, debounced, abortable and stale-guarded", () => {
 });
 
 test("the effect re-runs on search AND on filter changes so both query the server", () => {
-  assert.match(picker, /\}, \[open, sizeMode, sizeCatalogFallback, search, serverFilters\]\);/);
+  // Membership, not an exact array. Pinning the literal list meant that adding a
+  // legitimate dependency — `t`, once the picker was localized — failed a test whose
+  // subject is which CHANGES retrigger the fetch. The named deps are the ones that
+  // must never be dropped: losing `search` or `serverFilters` silently returns stale
+  // results for a query the customer already changed.
+  const deps = picker.match(/\}, \[open, sizeMode, sizeCatalogFallback[^\]]*\]\);/);
+  assert.ok(deps, "the catalog effect's dependency array must still be recognisable");
+  for (const dep of ["open", "sizeMode", "sizeCatalogFallback", "search", "serverFilters"]) {
+    assert.ok(deps[0].includes(dep), `dependency array must still include ${dep}`);
+  }
 });
 
 test("an aborted request never surfaces as an error to the user", () => {
@@ -151,9 +160,21 @@ test("nothing sensitive is cached", () => {
 // ---- blast radius --------------------------------------------------------
 
 test("the modal shell renders independently of product loading", () => {
-  // The spinner is scoped to the results container only.
-  const spinner = picker.slice(picker.indexOf("جاري تحميل كتالوج المنتجات") - 700, picker.indexOf("جاري تحميل كتالوج المنتجات"));
-  assert.match(spinner, /overflow-y-auto/, "spinner must live inside the results scroller");
+  // The loading text used to be an Arabic literal and is now a translation key, so the
+  // old anchor was absent and `indexOf` returned -1 — slicing from -700 silently
+  // scanned the wrong end of the file and the assertion became meaningless rather than
+  // failing honestly. Anchor on the key, and prove the anchor exists first.
+  const anchor = 't("aiSupport.inbox.picker.loading")';
+  const at = picker.indexOf(anchor);
+  assert.ok(at > 0, "the loading indicator must still exist to be scoped");
+
+  // The spinner belongs inside the results scroller: hoisted into the shell it would
+  // blank the whole modal — filters, search and all — on every catalog fetch.
+  const enclosing = picker.slice(0, at);
+  assert.ok(
+    enclosing.lastIndexOf("overflow-y-auto") > enclosing.lastIndexOf("role=\"dialog\""),
+    "spinner must live inside the results scroller, not the modal shell"
+  );
 });
 
 test("AI Inbox routing/identity/cache were not touched by this change", () => {
@@ -167,9 +188,13 @@ test("AI Inbox routing/identity/cache were not touched by this change", () => {
   }
 });
 
-test("the send path and its double-click guard are unchanged", () => {
-  assert.match(inbox, /if \(sendingProductCardsRef\.current\) return;\s*\n\s*sendingProductCardsRef\.current = true;/);
-  assert.match(inbox, /sendingProductCardsRef\.current = false;\s*\n\s*setProductCardSending\(false\);/);
+// Asserted as an invariant rather than an exact line: the send path later returned a
+// richer result than a bare `return;`, which broke this while the guard it protects
+// was untouched. See ai-inbox-erp-thread-cache for the same reasoning.
+test("the send path still guards against a double click", () => {
+  assert.match(inbox, /if \(sendingProductCardsRef\.current\) return\b/);
+  assert.match(inbox, /sendingProductCardsRef\.current = true;/);
+  assert.match(inbox, /finally \{\s*\n\s*sendingProductCardsRef\.current = false;/, "release must sit in finally");
 });
 
 test("the size-first flow still works and still avoids the catalog", () => {
