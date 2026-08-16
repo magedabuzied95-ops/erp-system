@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Filter,
+  ImageOff,
   MoreHorizontal,
   Package2,
   Pencil,
@@ -1117,17 +1118,51 @@ function PriceLine({
   );
 }
 
+function ColorPreviewImage({ src, alt }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (failed) {
+    return (
+      <div
+        title={`الصورة غير موجودة على السيرفر: ${src}`}
+        className="flex h-16 w-full flex-col items-center justify-center gap-1 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
+      >
+        <ImageOff size={16} />
+        <span className="text-[9px] font-black leading-none">صورة مفقودة</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setFailed(true)}
+      className="h-16 w-full rounded-[var(--radius-card)] border border-border bg-surface object-contain"
+    />
+  );
+}
+
 const ProductThumbnail = memo(function ProductThumbnail({ row }) {
   const src = getProductThumbnail(row);
   const [colorPreviews, setColorPreviews] = useState(() => getProductColorPreviews(row));
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewPosition, setPreviewPosition] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const imageRef = useRef(null);
   const hoverActiveRef = useRef(false);
 
   useEffect(() => {
     setColorPreviews(getProductColorPreviews(row));
   }, [row]);
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [src]);
 
   const positionColorPreview = (previewCount = colorPreviews.length) => {
     if (!imageRef.current || typeof window === "undefined") return;
@@ -1188,6 +1223,22 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
     );
   }
 
+  // A stored URL is not the same as a stored file: 139 catalog images point at
+  // files the 2026-08-11 Cloudinary migration never wrote. Without this the row
+  // fell back to the browser's broken-image glyph plus the alt text, which read
+  // like a rendering quirk instead of missing data.
+  if (loadFailed) {
+    return (
+      <div
+        title={`الصورة غير موجودة على السيرفر: ${src}`}
+        className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
+      >
+        <ImageOff size={18} />
+        <span className="text-[8px] font-black leading-none">مفقودة</span>
+      </div>
+    );
+  }
+
   return (
     <>
       <img
@@ -1195,6 +1246,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         src={src}
         alt={row?.name || "Product"}
         loading="lazy"
+        onError={() => setLoadFailed(true)}
         onMouseEnter={showColorPreviews}
         onMouseLeave={hideColorPreviews}
         className="h-14 w-14 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
@@ -1215,10 +1267,9 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
           >
             {colorPreviews.map((preview) => (
               <div key={`${preview.color}-${preview.imageUrl}`} className="min-w-0">
-                <img
+                <ColorPreviewImage
                   src={preview.imageUrl}
                   alt={`${row?.name || "Product"} - ${preview.color}`}
-                  className="h-16 w-full rounded-[var(--radius-card)] border border-border bg-surface object-contain"
                 />
                 <p className="mt-1 truncate text-center text-[10px] font-bold text-text-muted" title={preview.color}>{preview.color}</p>
                 <p className={`mt-0.5 text-center text-[10px] font-black ${preview.stock <= 0 ? "text-red-300" : preview.stock <= 2 ? "text-amber-300" : "text-emerald-300"}`}>

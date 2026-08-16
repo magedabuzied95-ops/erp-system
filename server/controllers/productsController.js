@@ -3254,6 +3254,16 @@ export const getProductsAdminList = async (req, res) => {
     const hasProductVariantImages = await tableExists(db, "product_variant_images");
     const hasProductColorGroups = await tableExists(db, "product_color_groups");
     const hasProductAudiences = await tableExists(db, "product_audiences");
+    // A colour only counts as "has an image" if the stored value is something a
+    // browser can actually fetch. `blob:` URLs are per-tab handles that leak in
+    // when a picker saves before the upload resolves, and `data:` payloads were
+    // migrated out years ago — both render as a broken image everywhere, so
+    // counting them made the "الصور مكتملة" badge claim colours it could not show.
+    const servableImageUrlSql = (column) => `(
+      TRIM(COALESCE(${column}, '')) <> ''
+      AND LOWER(TRIM(COALESCE(${column}, ''))) NOT LIKE 'blob:%'
+      AND LOWER(TRIM(COALESCE(${column}, ''))) NOT LIKE 'data:%'
+    )`;
     // Colors that carry their OWN thermal label image, counted from product_variants only
     // and excluding any variant whose thermal image is just the product-level one. This
     // matches exactly what the list UI derives client-side (getThermalImageLevelDetails /
@@ -3467,7 +3477,7 @@ export const getProductsAdminList = async (req, res) => {
               COALESCE(NULLIF(LOWER(TRIM(pvi.color_group_key)), ''), LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))), 'default') AS color_key,
               TRUE AS has_image
             FROM product_variant_images pvi
-            WHERE TRIM(COALESCE(pvi.image_url, '')) <> ''
+            WHERE ${servableImageUrlSql("pvi.image_url")}
             UNION
             ` : ""}
             SELECT DISTINCT
@@ -3477,10 +3487,10 @@ export const getProductsAdminList = async (req, res) => {
             FROM product_variants pv
             WHERE pv.deleted_at IS NULL
               AND (
-                TRIM(COALESCE(pv.image_url, '')) <> ''
-                OR TRIM(COALESCE(pv.image, '')) <> ''
-                OR TRIM(COALESCE(pv.photo_url, '')) <> ''
-                OR TRIM(COALESCE(pv.thumbnail_url, '')) <> ''
+                ${servableImageUrlSql("pv.image_url")}
+                OR ${servableImageUrlSql("pv.image")}
+                OR ${servableImageUrlSql("pv.photo_url")}
+                OR ${servableImageUrlSql("pv.thumbnail_url")}
               )
             ${hasProductVariantImages ? "" : ""}
           ),
