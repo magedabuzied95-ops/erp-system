@@ -5882,64 +5882,22 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     }
   }
 
+  // Scoring is shared with the channel path via aiReplySafetyPipeline. It used to be
+  // ~55 lines inlined here, which is why the channel path never got it: a sequence
+  // that lives inside one pipeline cannot be reused by another without copying it,
+  // and the copy is what drifts.
   const validationStartedAt = Date.now();
-  let validation = {
-    is_valid: true,
-    confidence: 1,
-    violations: [],
-    warnings: [],
-    suggested_action: "keep_draft",
-  };
-  let confidenceEngine = {
-    confidence_score: 50,
-    confidence_level: "medium",
-    decision: "review",
-    reasons: [],
-    risk_flags: {},
-  };
-  try {
-    const { validateAiReply } = await import("./aiReplyValidatorService.js");
-    validation = await validateAiReply({
-      replyText: reply.answer || "",
-      harness: replyHarness,
-    });
-  } catch (error) {
-    validation = {
-      is_valid: true,
-      confidence: 0.5,
-      violations: [],
-      warnings: [`validateAiReply failed: ${error?.message || String(error)}`],
-      suggested_action: "keep_draft",
-    };
-  }
-  stageTimings.validation_ms = Date.now() - validationStartedAt;
-  const confidenceStartedAt = Date.now();
-  try {
-    const { buildAiConfidenceEngine } = await import("./aiConfidenceEngineService.js");
-    confidenceEngine = await buildAiConfidenceEngine({
-      harness: replyHarness,
-      tool_context: replyHarness?.tool_context || null,
-      validation,
-      draft: {
-        text: reply.answer || "",
-        detected_intent: intent,
-        customer_question: lastMessage,
-        validation,
-      },
-      correction_context: replyHarness?.correction_context || null,
-    });
-  } catch (error) {
-    confidenceEngine = {
-      confidence_score: 50,
-      confidence_level: "medium",
-      decision: "review",
-      reasons: [`buildAiConfidenceEngine failed: ${error?.message || String(error)}`],
-      risk_flags: {
-        engine_error: true,
-      },
-    };
-  }
-  stageTimings.confidence_ms = Date.now() - confidenceStartedAt;
+  const { scoreComposedReply } = await import("./aiReplySafetyPipeline.js");
+  const scored = await scoreComposedReply({
+    message: lastMessage,
+    harness: replyHarness,
+    draft: reply,
+    intent,
+  });
+  const validation = scored.validation;
+  const confidenceEngine = scored.confidence;
+  stageTimings.validation_ms = scored.trace.validation_ms ?? (Date.now() - validationStartedAt);
+  stageTimings.confidence_ms = scored.trace.confidence_ms ?? 0;
   reply.validation = validation;
   reply.confidence_engine = confidenceEngine;
   // Phase 10.6 grounding gate: when the customer named a specific product/category, correct the draft so

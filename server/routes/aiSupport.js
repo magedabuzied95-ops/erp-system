@@ -66,6 +66,7 @@ import { reindexAllProductImages } from "../services/aiVisualProductImageIndexSe
 import { buildStorefrontProductUrl } from "../services/storefrontProductUrlService.js";
 import { expandSearchAliasTerms, normalizeAliasText } from "../services/productAliasEngine.js";
 import { resolveBrand } from "../services/aiEntityLexicon.js";
+import { applyReplySafetyPipeline, isChannelSafetyPipelineEnabled } from "../services/aiReplySafetyPipeline.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -1442,119 +1443,42 @@ const logSupportExchange = async ({ req, tenantId, metadata, message, context, r
 };
 
 /**
- * Runs the inbox grounding gate over a channel reply.
+ * Runs the shared post-composition safety sequence over a channel reply.
  *
- * The gate is the strongest safety property this system has: it corrects an
- * already-composed draft so we never present an incompatible product and never claim
- * availability without exact-variant stock evidence. Until now only the AI Inbox had
- * it. The channel path — Messenger, Instagram, WhatsApp — had none.
+ * The stages themselves live in aiReplySafetyPipeline, which the AI Inbox uses too.
+ * They were written twice here first, and two copies of a safety sequence is how the
+ * channel path ended up without one at all: every stage added to the inbox had to be
+ * remembered for this file, and one of them always lost.
  *
- * That was survivable while the channel reply was a deterministic template built from
- * real product rows: it could not invent a fact because it never wrote a sentence.
- * It stops being survivable the moment any model-written prose reaches this path, so
- * the gate belongs here FIRST, before the agent loop, not after it.
- *
- * The gate reads only `answer`, `suggested_products` and `product_cards`, so a channel
- * reply satisfies its contract as-is — no adapter shape is invented here.
- *
- * Behind AI_CHANNEL_GROUNDING_ENABLED, and failure-isolated: any error leaves the
- * composed draft exactly as it was, because a live customer is waiting on it.
+ * Kept as a thin adapter rather than calling the pipeline inline, because the request
+ * shape is a route concern and the sequence is not.
  */
-const applyChannelGroundingGate = async ({ tenantId, message, sessionId = "", composed = {} }) => {
+const applyChannelReplySafety = async ({ tenantId, message, sessionId = "", composed = {}, intent = "" }) => {
   if (!tenantId) return composed;
-  if (!aiFlagEnabled(process.env.AI_CHANNEL_GROUNDING_ENABLED)) return composed;
+  if (!isChannelSafetyPipelineEnabled()) return composed;
 
-  try {
-    const { applyInboxGroundingGate } = await import("../services/aiInboxGroundingGate.js");
-    const result = await applyInboxGroundingGate({
-      tenantId,
-      message,
-      sessionId,
-      reply: {
-        answer: toText(composed?.answer || composed?.text),
-        suggested_products: Array.isArray(composed?.suggested_products) ? composed.suggested_products : [],
-        product_cards: Array.isArray(composed?.product_cards) ? composed.product_cards : [],
-      },
-    });
-    if (!result?.changed) return composed;
+  const { searchAiSalesProducts } = await import("../services/aiSalesAgentService.js");
+  const result = await applyReplySafetyPipeline({
+    tenantId,
+    message,
+    sessionId,
+    intent,
+    draft: composed,
+    searchProducts: ({ query, limit }) => searchAiSalesProducts({ tenantId, query, limit }),
+  });
 
-    console.log("[ai-support] channel grounding corrected the draft", {
-      tenant_id: tenantId,
-      action: result.action || "",
-      requested_intent: result.requestedIntent || "",
-      cleared_cards: Array.isArray(composed?.product_cards) ? composed.product_cards.length : 0,
-    });
+  console.log("[ai-support] channel reply safety", {
+    tenant_id: tenantId,
+    trace: result.trace,
+    validation_ok: result.validation?.is_valid !== false,
+    confidence: result.confidence?.confidence_score,
+  });
 
-    // The gate owns the claim, so its answer replaces the prose and its product list
-    // replaces the cards. Keeping cards it dropped would re-assert exactly the
-    // availability it just refused to state.
-    return {
-      ...composed,
-      answer: result.answer,
-      text: result.answer,
-      suggested_products: Array.isArray(result.suggested_products) ? result.suggested_products : [],
-      product_cards: [],
-      image_cards: [],
-      visual_attachments: [],
-      grounding: result.grounding || null,
-      grounded_by_gate: true,
-    };
-  } catch (error) {
-    console.warn("[ai-support] channel grounding skipped", { tenantId, message: error?.message });
-    return composed;
-  }
-};
-
-/**
- * Replaces the composed PROSE with an agent-loop answer, when the loop can prove where
- * every fact came from.
- *
- * Same contract the inbox uses: the loop rewrites wording only. Product cards, actions
- * and attachments stay exactly as the deterministic composer built them, and the
- * grounding gate still runs afterwards and still wins. Any failure — flag off, no
- * credentials, deadline, unverified provenance — silently keeps the composer's answer,
- * so the worst case is today's behaviour.
- *
- * Provenance is not advisory. A claim attributed to a tool that was never called is a
- * confident hallucination, and the whole draft is dropped rather than shipping the
- * parts of it that happen to be true.
- *
- * This is ordered AFTER the gate exists on this path on purpose. Model prose on a path
- * with no grounding gate would remove the only thing keeping these replies honest.
- */
-const applyChannelAgentLoop = async ({ tenantId, message, sessionId = "", composed = {} }) => {
-  if (!tenantId) return composed;
-
-  try {
-    const { isAgentLoopEnabled, runAgentLoop, verifyFactProvenance } = await import(
-      "../services/aiAgentLoopService.js"
-    );
-    if (!isAgentLoopEnabled()) return composed;
-
-    const { searchAiSalesProducts } = await import("../services/aiSalesAgentService.js");
-    const result = await runAgentLoop({
-      tenantId,
-      conversationId: sessionId,
-      message,
-      searchProducts: ({ query, limit }) => searchAiSalesProducts({ tenantId, query, limit }),
-    });
-    if (!result?.ok) return composed;
-
-    const provenance = verifyFactProvenance(result);
-    if (!provenance.verified) {
-      console.warn("[ai-support] channel agent draft rejected on provenance", {
-        tenant_id: tenantId,
-        unsupported: provenance.unsupported_claims.map((claim) => claim.tool),
-      });
-      return composed;
-    }
-
-    console.log("[ai-support] channel agent loop wrote the prose", { tenant_id: tenantId });
-    return { ...composed, answer: result.answer, text: result.answer, generation_source: "agent_loop" };
-  } catch (error) {
-    console.warn("[ai-support] channel agent loop skipped", { tenantId, message: error?.message });
-    return composed;
-  }
+  return {
+    ...result.draft,
+    validation: result.validation,
+    confidence_engine: result.confidence,
+  };
 };
 
 const channelReplyPayload = (req, response = {}) =>
@@ -1587,23 +1511,18 @@ const sendAiSupportChannelResponse = async (req, res, response = {}, status = 20
         intent: response?.detected_intent ? { type: response.detected_intent } : {},
         source: channel || "ai_support",
       });
-      // Order matters and is the whole safety argument: the agent loop may rewrite the
-      // prose, and the grounding gate judges whatever prose ended up there. Running the
-      // gate first would leave model-written claims unchecked.
       const channelTenantId = req.aiSupportTenantId || resolveTenantId(req);
       const channelSessionId =
         req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "";
-      const agentDraft = await applyChannelAgentLoop({
+      // Stage ORDER now lives in the shared pipeline, where it is stated once and
+      // argued once, instead of being an accident of the order two call sites happened
+      // to be written in.
+      const composed = await applyChannelReplySafety({
         tenantId: channelTenantId,
         message,
         sessionId: channelSessionId,
+        intent: toText(response?.detected_intent || ""),
         composed: composedDraft,
-      });
-      const composed = await applyChannelGroundingGate({
-        tenantId: channelTenantId,
-        message,
-        sessionId: channelSessionId,
-        composed: agentDraft,
       });
       const unified = buildUnifiedAiReplyPayload({
         tenantId: req.aiSupportTenantId || resolveTenantId(req),
@@ -3164,6 +3083,6 @@ setInterval(cleanupExpiredRateLimitBuckets, RATE_LIMIT_WINDOW_MS).unref?.();
 // Exported for tests: these two decide whether a model-written sentence reaches a
 // customer, and whether an unproven claim is dropped. That is not behaviour to leave
 // reachable only through a live HTTP route with a database behind it.
-export const __testing = { applyChannelGroundingGate, applyChannelAgentLoop };
+export const __testing = { applyChannelReplySafety };
 
 export default router;
