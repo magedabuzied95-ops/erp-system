@@ -1735,7 +1735,65 @@ export const appendManualAiSupportReply = async ({
     }).catch(() => {});
   }
 
+  // Agreement measurement. Recorded HERE because this is the one place every send
+  // branch — WhatsApp, Telegram, Messenger, Instagram, stored-only, internal note —
+  // persists the employee's message. Doing it at the route would mean repeating it at
+  // every branch and every return, and the branch that got missed would silently
+  // remove its cases from the sample that autonomy is later judged on.
+  //
+  // A staff-authored message only: an AI auto-send has no human decision to compare
+  // against and would score as perfect agreement with itself.
+  if (safeTenantId && safeSessionId && staffUserId) {
+    await recordSentReplyAgreement({
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      channel: repairText(channel || "web_chat"),
+      sentText: safeMessage,
+      messageId: toText(result?.id || externalMessageId || providerMessageId || ""),
+    }).catch(() => {});
+  }
+
   return result || null;
+};
+
+/**
+ * Loads the draft this reply replaced and scores it against what was actually sent.
+ *
+ * Separated from the send itself so the send path reads as a send. Never throws: the
+ * caller is delivering a message to a customer and a measurement must not be able to
+ * interfere with that.
+ */
+const recordSentReplyAgreement = async ({ tenantId, sessionId, channel, sentText, messageId }) => {
+  try {
+    const session = await db.query(
+      `SELECT last_ai_reply_draft FROM ai_support_sessions
+        WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
+      [tenantId, sessionId]
+    );
+    const draft = session.rows[0]?.last_ai_reply_draft;
+    if (!draft || typeof draft !== "object") return;
+
+    const draftText = toText(draft.text || draft.answer || draft.message || "");
+    if (!draftText) return;
+
+    const { recordAgreement } = await import("./aiAgreementScoreService.js");
+    await recordAgreement({
+      tenantId,
+      conversationId: sessionId,
+      messageId,
+      channel,
+      draftText,
+      sentText,
+      confidenceScore: Number(draft?.confidence_engine?.confidence_score ?? draft?.confidence ?? null),
+      autoSendEligible:
+        typeof draft?.metadata?.auto_reply_shadow?.eligible === "boolean"
+          ? draft.metadata.auto_reply_shadow.eligible
+          : null,
+      generationSource: toText(draft?.generation_source || ""),
+    });
+  } catch (error) {
+    console.warn("[ai-agreement] scoring skipped", { tenantId, message: error?.message });
+  }
 };
 
 export const appendAiGeneratedSupportReply = async ({
