@@ -22,7 +22,7 @@ export const normalizeInvoicePaymentBreakdown = (value) => {
   parsePaymentBreakdown(value).forEach((payment) => {
     const method = normalizePaymentMethod(payment?.method || payment?.payment_method);
     const amount = toNumber(payment?.amount ?? payment?.paid_amount ?? payment?.value, 0);
-    if (!method || amount <= 0 || ["credit_sale", "exchange_credit", "return_credit"].includes(method)) return;
+    if (!method || amount <= 0 || ["credit_sale", "exchange_credit", "return_credit", "employee_advance"].includes(method)) return;
     totalsByMethod.set(method, toNumber(totalsByMethod.get(method), 0) + amount);
   });
   return Array.from(totalsByMethod, ([method, amount]) => ({ method, amount }));

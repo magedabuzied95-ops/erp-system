@@ -633,7 +633,7 @@ const resolveCollectedPaymentMode = (order = {}, fallback = "") => {
   )
     .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
     .map((payment) => normalizePaymentMethodKey(payment?.method || payment?.payment_method))
-    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))));
+    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit", "employee_advance"].includes(method))));
   return methods.length > 1 ? "split" : methods[0] || fallback;
 };
 

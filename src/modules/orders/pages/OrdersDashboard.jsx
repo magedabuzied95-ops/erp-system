@@ -367,6 +367,7 @@ const paymentMethodLabels = (language) => ({
   paymob: "Paymob",
   split: localizedCopy(language, "\u0645\u062a\u0639\u062f\u062f", "Split"),
   credit_sale: localizedCopy(language, "\u0622\u062c\u0644", "Credit sale"),
+  employee_advance: localizedCopy(language, "\u0633\u0644\u0641\u0629 \u0645\u0648\u0638\u0641", "Employee advance"),
 });
 const refundMethodLabel = (value = "") => {
   const raw = lower(value);
@@ -385,6 +386,7 @@ const paymentMethodIcon = {
   split: SplitSquareHorizontal,
   deferred: Clock3,
   credit_sale: Clock3,
+  employee_advance: Wallet,
 };
 const paymentMethodParts = (order = {}) => [
   { key: "cash", value: numberValue(order.cash_amount, order.cashAmount) },

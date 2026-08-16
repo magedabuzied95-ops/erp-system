@@ -5,10 +5,18 @@ import { canonicalPhoneKey, canonicalPhoneSql, getPhoneSearchVariants, normalize
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { calculateTier, ensureLoyaltySchema, getCustomerLoyaltySummary } from "../services/loyaltyService.js";
 import { createJournalEntry, recordFinancialAccountActivity } from "../services/accountingService.js";
+import { ensureEmployeeAdvanceSalesSchema, findEmployeeByPhone } from "../services/employeeAdvanceSalesService.js";
 
 let customerColumnsPromise = null;
 
 const normalizePhoneValue = normalizePhone;
+
+// "" / null / 0 all mean "not an employee". Anything else has to be a real id.
+const normalizeLinkedEmployeeId = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const id = Number(value);
+  return Number.isFinite(id) && id > 0 ? id : null;
+};
 
 const quoteIdentifier = (value) => `"${String(value).replaceAll('"', '""')}"`;
 
@@ -83,6 +91,11 @@ const normalizeCustomerRow = (row = {}) => ({
       ? row.purchase_preferences
       : {},
   allow_personal_transactions: Boolean(row.allow_personal_transactions ?? row.allowPersonalTransactions ?? false),
+  // When set, this customer IS an employee: their deferred invoices settle into
+  // that employee's salary advances instead of staying as customer debt.
+  linked_employee_id: row.linked_employee_id ?? null,
+  linked_employee_name: row.linked_employee_name ?? "",
+  linked_employee_code: row.linked_employee_code ?? "",
   total_orders: Number(row.total_orders ?? row.orders_count ?? row.invoices_count ?? 0),
   orders_count: Number(row.orders_count ?? row.total_orders ?? row.invoices_count ?? 0),
   invoices_count: Number(row.invoices_count ?? row.orders_count ?? row.total_orders ?? 0),
@@ -169,6 +182,7 @@ const getCustomerColumns = async () => {
           marketingPlatformColumn: columns.includes("marketing_platform") ? "marketing_platform" : null,
           attributionTypeColumn: columns.includes("attribution_type") ? "attribution_type" : null,
           allowPersonalTransactionsColumn: columns.includes("allow_personal_transactions") ? "allow_personal_transactions" : null,
+          linkedEmployeeIdColumn: columns.includes("linked_employee_id") ? "linked_employee_id" : null,
           walletBalanceColumn: columns.includes("wallet_balance") ? "wallet_balance" : null,
           loyaltyPointsColumn: columns.includes("loyalty_points") ? "loyalty_points" : null,
           purchasePreferencesColumn: columns.includes("purchase_preferences") ? "purchase_preferences" : null,
@@ -245,6 +259,7 @@ const buildSelectSql = (columns) => {
       ${marketingPlatformExpr} AS marketing_platform,
       ${attributionTypeExpr} AS attribution_type,
       ${columns.allowPersonalTransactionsColumn ? `${columns.allowPersonalTransactionsColumn}` : "FALSE"} AS allow_personal_transactions,
+      ${columns.linkedEmployeeIdColumn ? `${columns.linkedEmployeeIdColumn}` : "NULL::bigint"} AS linked_employee_id,
       created_at,
       ${updatedAtExpr} AS updated_at
     FROM customers
@@ -368,6 +383,11 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.allowPersonalTransactionsColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS allow_personal_transactions BOOLEAN NOT NULL DEFAULT FALSE`);
+  }
+
+  if (!columns.linkedEmployeeIdColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS linked_employee_id BIGINT NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS linked_employee_linked_at TIMESTAMP NULL`);
   }
   if (!columns.purchasePreferencesColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS purchase_preferences JSONB NOT NULL DEFAULT '{}'::jsonb`);
@@ -2239,6 +2259,8 @@ export const createCustomer = async (req, res) => {
       attribution_type,
       allow_personal_transactions,
       allowPersonalTransactions,
+      linked_employee_id,
+      linkedEmployeeId,
     } = req.body || {};
 
     const cleanName = String(name || "").trim();
@@ -2251,6 +2273,7 @@ export const createCustomer = async (req, res) => {
     const cleanMarketingPlatform = String(marketing_platform || "").trim();
     const cleanAttributionType = String(attribution_type || cleanSource || "").trim();
     const allowPersonalTransactionsValue = Boolean(allow_personal_transactions ?? allowPersonalTransactions);
+    const linkedEmployeeIdValue = normalizeLinkedEmployeeId(linked_employee_id ?? linkedEmployeeId);
 
     if (!cleanName) {
       return res.status(400).json({ success: false, message: "Customer name is required" });
@@ -2361,6 +2384,12 @@ export const createCustomer = async (req, res) => {
       insertColumns.push(columns.allowPersonalTransactionsColumn);
       insertValues.push(allowPersonalTransactionsValue);
       placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.linkedEmployeeIdColumn && linkedEmployeeIdValue) {
+      insertColumns.push(columns.linkedEmployeeIdColumn, "linked_employee_linked_at");
+      insertValues.push(linkedEmployeeIdValue);
+      placeholders.push(`$${insertValues.length}`, "CURRENT_TIMESTAMP");
     }
 
     const insertSql = `
@@ -2480,7 +2509,8 @@ export const updateCustomer = async (req, res) => {
     await ensureCustomerSchema();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const { id } = req.params;
-    const { name, phone, email, address, allow_personal_transactions, allowPersonalTransactions } = req.body || {};
+    const body = req.body || {};
+    const { name, phone, email, address, allow_personal_transactions, allowPersonalTransactions } = body;
     const columns = await getCustomerColumns();
     const selectSql = buildSelectSql(columns);
     const cleanName = String(name || "").trim();
@@ -2545,6 +2575,17 @@ export const updateCustomer = async (req, res) => {
     if (columns.allowPersonalTransactionsColumn) {
       params.push(allowPersonalTransactionsValue);
       setClauses.push(`${columns.allowPersonalTransactionsColumn} = $${params.length}`);
+    }
+
+    // Only touched when the caller actually sends the field. Other update callers
+    // (POS quick-edit, storefront profile) omit it, and an omission must not
+    // silently unlink an employee and turn their future سلف back into customer debt.
+    const linkedEmployeeSent = "linked_employee_id" in body || "linkedEmployeeId" in body;
+    if (columns.linkedEmployeeIdColumn && linkedEmployeeSent) {
+      const linkedEmployeeIdValue = normalizeLinkedEmployeeId(body.linked_employee_id ?? body.linkedEmployeeId);
+      params.push(linkedEmployeeIdValue);
+      setClauses.push(`${columns.linkedEmployeeIdColumn} = $${params.length}::bigint`);
+      setClauses.push(`linked_employee_linked_at = CASE WHEN $${params.length}::bigint IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END`);
     }
 
     if (columns.updatedAtColumn) {
@@ -2738,6 +2779,53 @@ export const getCustomerProfile = async (req, res) => {
       message: "Failed to load customer profile",
       error: error.message,
     });
+  }
+};
+
+// Employees a customer can be linked to, plus — when a phone is supplied — the
+// one whose number matches it. The match is a SUGGESTION the user confirms; it
+// never links anything on its own, because a wrong link turns an ordinary
+// customer's deferred invoice into a stranger's salary deduction.
+export const getCustomerEmployeeOptions = async (req, res) => {
+  try {
+    await ensureEmployeeAdvanceSalesSchema();
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const search = String(req.query.search || "").trim().toLowerCase();
+
+    const params = [tenantId];
+    let searchClause = "";
+    if (search) {
+      params.push(`%${search}%`);
+      searchClause = `AND (LOWER(COALESCE(full_name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(employee_code, '')) LIKE $${params.length}
+        OR COALESCE(phone, '') LIKE $${params.length})`;
+    }
+
+    const employees = await pool.query(
+      `
+      SELECT id, employee_code, full_name, phone, job_title, COALESCE(status, '') AS status
+      FROM employees
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND LOWER(COALESCE(status, 'active')) IN ('active', 'working', 'on_duty')
+        ${searchClause}
+      ORDER BY full_name ASC
+      LIMIT 300
+      `,
+      params
+    );
+
+    const suggested = req.query.phone
+      ? await findEmployeeByPhone(pool, { tenantId, phone: req.query.phone })
+      : null;
+
+    return res.json({
+      success: true,
+      employees: employees.rows,
+      suggested_employee: suggested,
+    });
+  } catch (error) {
+    console.error("[customers] employee options failed", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to load employees" });
   }
 };
 

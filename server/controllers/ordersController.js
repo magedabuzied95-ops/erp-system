@@ -36,6 +36,11 @@ import { buildBulkOrderItemInsertQuery, buildOrderItemInsertQuery, enrichOrderIt
 import { canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
 import { deriveStoredPaymentMethod, getCollectedPaymentAllocations } from "../../shared/paymentMethods.js";
+import {
+  ensureEmployeeAdvanceSalesSchema,
+  settleOrderAsEmployeeAdvance,
+  resyncSettledOrderEmployeeAdvance,
+} from "../services/employeeAdvanceSalesService.js";
 import { getShippingProvider, normalizeShippingProviderKey } from "../services/shippingProviders/index.js";
 
 const POS_CHECKOUT_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_CHECKOUT_DEBUG || "").trim().toLowerCase());
@@ -251,7 +256,7 @@ const sumCollectedPaymentBreakdown = (order = {}) => {
   return parsePaymentBreakdownRows(order.payment_breakdown || order.payments).reduce((sum, payment) => {
     if (!payment || typeof payment !== "object" || payment.edit_additional_payment) return sum;
     const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
-    if (method === "exchange_credit" || method === "return_credit") return sum;
+    if (method === "exchange_credit" || method === "return_credit" || method === "employee_advance") return sum;
     const amount = Number(payment.amount ?? payment.paid_amount ?? payment.value ?? 0);
     return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
   }, 0);
@@ -976,6 +981,7 @@ export const ensurePosCheckoutSchema = async (tenantId = null) => {
       await ensureSalesCommissionSchema(db);
       await ensureWalletSchema(db);
       await ensureWhatsappShippingSchema(db);
+      await ensureEmployeeAdvanceSalesSchema();
     })().catch((error) => {
       posCheckoutSchemaReadyPromise = null;
       throw error;
@@ -1675,7 +1681,7 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     (Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [])
       .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
       .map((payment) => normalizeMoneyPaymentMethod(payment?.method || payment?.payment_method))
-      .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))
+      .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit", "employee_advance"].includes(method))
   ));
   const collectedPaymentMethod = collectedPaymentMethods.length > 1
     ? "split"
@@ -1846,7 +1852,7 @@ const buildPublicInvoicePdfBuffer = async (invoice) => {
     parsePaymentBreakdownRows(invoice.payment_breakdown).reduce((totalsByMethod, payment) => {
       const method = normalizeMoneyPaymentMethod(payment?.method || payment?.payment_method);
       const amount = normalizeInvoiceMoney(payment?.amount ?? payment?.paid_amount ?? payment?.value);
-      if (method && amount > 0 && !["credit_sale", "exchange_credit", "return_credit"].includes(method)) {
+      if (method && amount > 0 && !["credit_sale", "exchange_credit", "return_credit", "employee_advance"].includes(method)) {
         totalsByMethod.set(method, normalizeInvoiceMoney((totalsByMethod.get(method) || 0) + amount));
       }
       return totalsByMethod;
@@ -3724,6 +3730,25 @@ export const createOrder = async (req, res) => {
     order.public_token = order.public_token || publicToken;
     order = await timedCheckout(checkoutTiming, "invoice_generation_ms", () => assignSequentialInvoiceNumber(client, order));
     order = attachPublicOrderNumber(order, order.channel || order.source || channel || "pos");
+
+    // A deferred invoice for a customer who IS an employee is not customer debt —
+    // it is an advance on that employee's salary. Settle it here, inside the sale
+    // transaction, so the invoice can never commit as "paid" without its سلفة.
+    // A fully paid invoice never reaches this branch (remaining_amount is 0).
+    let employeeAdvanceSettlement = null;
+    if (isCreditSaleTransaction && Number(order.remaining_amount || 0) > 0.009 && (resolvedCustomerId || order.customer_id)) {
+      employeeAdvanceSettlement = await timedCheckout(checkoutTiming, "employee_advance_ms", () => settleOrderAsEmployeeAdvance(client, {
+        tenantId,
+        order: { ...order, customer_id: resolvedCustomerId || order.customer_id },
+        outstandingAmount: Number(order.remaining_amount || 0),
+        actorId: req.user?.id || null,
+        reason: "order-create",
+      }));
+      if (employeeAdvanceSettlement?.order) {
+        Object.assign(order, employeeAdvanceSettlement.order);
+      }
+    }
+
     const { publicInvoiceUrl, publicInvoiceShortUrl } = await timedCheckout(checkoutTiming, "whatsapp_share_link_ms", async () => {
       const invoiceShareIdentifier = publicInvoiceIdentifier(order);
       const url = buildPublicInvoiceUrl(req, invoiceShareIdentifier);
@@ -3874,7 +3899,7 @@ export const createOrder = async (req, res) => {
     const saleAccountEvents = paymentBreakdown
       .map((payment) => {
         const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
-        if (["customer_wallet", "exchange_credit", "return_credit", "personal", "credit_sale"].includes(method)) return null;
+        if (["customer_wallet", "exchange_credit", "return_credit", "personal", "credit_sale", "employee_advance"].includes(method)) return null;
         const amount = Number(payment.amount || 0);
         if (!Number.isFinite(amount) || amount <= 0) return null;
         const explicitAccountId = payment.account_id || payment.financial_account_id || null;
@@ -5842,6 +5867,8 @@ export const editOrder = async (req, res) => {
       });
     };
     await ensurePosShiftOrderColumns(client, tenantId);
+    // Memoized per process and run on the pool, never inside the edit txn.
+    await ensureEmployeeAdvanceSalesSchema();
     await client.query("BEGIN");
 
     logEditFlowStep("order_load:before");
@@ -6056,14 +6083,28 @@ export const editOrder = async (req, res) => {
     const serviceValue = Number(req.body.service_fee ?? loaded.order.service_fee ?? 0);
     const taxValue = Number(req.body.tax_amount ?? 0);
     const totalValue = Math.max(0, subtotalValue - discountValue + serviceValue + taxValue);
+    // An invoice settled against an employee's advances carries no cash balance:
+    // whatever the new price is, the employee owes it through payroll, not at the
+    // till. Treat the whole new total as already settled so the edit never asks
+    // the cashier for money or hands out a refund — the سلفة absorbs the change,
+    // re-synced right after this UPDATE. The one exception is real cash that WAS
+    // collected on the invoice and now exceeds the new total: that is a genuine
+    // refund, so the normal settlement path handles it.
+    const editRealCollectedAmount = getCollectedPaymentAllocations(loaded.order.payment_breakdown)
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const isEmployeeAdvanceSettledOrder = Boolean(loaded.order.settled_via_employee_advance)
+      && totalValue + 0.009 >= editRealCollectedAmount;
+
     const loadedOriginalPaidAmount = resolveCollectedOrderAmount(loaded.order);
     const requestedOriginalPaidAmount = Number(req.body.original_paid_amount);
-    const originalPaidAmount = Math.max(
-      0,
-      Number.isFinite(requestedOriginalPaidAmount) && requestedOriginalPaidAmount > 0
-        ? requestedOriginalPaidAmount
-        : loadedOriginalPaidAmount
-    );
+    const originalPaidAmount = isEmployeeAdvanceSettledOrder
+      ? totalValue
+      : Math.max(
+          0,
+          Number.isFinite(requestedOriginalPaidAmount) && requestedOriginalPaidAmount > 0
+            ? requestedOriginalPaidAmount
+            : loadedOriginalPaidAmount
+        );
     const expectedAmountDueNow = Math.max(0, totalValue - originalPaidAmount);
     const expectedRefundOrCreditDue = Math.max(0, originalPaidAmount - totalValue);
     const requestedAmountDueNow = Number(req.body.amount_due_now);
@@ -6080,7 +6121,9 @@ export const editOrder = async (req, res) => {
         ? requestedRefundOrCreditDue
         : expectedRefundOrCreditDue
     );
-    const additionalPaidAmount = Math.max(0, Number(req.body.paid_amount ?? amountDueNow) || 0);
+    const additionalPaidAmount = isEmployeeAdvanceSettledOrder
+      ? 0
+      : Math.max(0, Number(req.body.paid_amount ?? amountDueNow) || 0);
     if (additionalPaidAmount - amountDueNow > 0.009) {
       await client.query("ROLLBACK");
       return res.status(400).json({
@@ -6310,6 +6353,29 @@ export const editOrder = async (req, res) => {
         JSON.stringify(resolvedEditExcludedCategoryIds),
       ]
     );
+    // "وفى حالة تعديل السعر يتم تعديل سلف الموظف فوراً" — the advance follows the
+    // new price in the same transaction as the edit. Payroll is the floor: an
+    // amount already deducted from a salary is never walked back (the service
+    // clamps and logs it).
+    if (isEmployeeAdvanceSettledOrder) {
+      const advanceResync = await resyncSettledOrderEmployeeAdvance(client, {
+        tenantId,
+        order: orderResult.rows[0],
+        newTotalAmount: totalValue,
+        collectedAmount: editRealCollectedAmount,
+        actorId: req.user?.id || null,
+        reason: "order-edit",
+      });
+      if (advanceResync) {
+        const refreshed = await client.query(
+          `SELECT paid_amount, remaining_amount, payment_status, settled_via_employee_advance, employee_advance_id, employee_advance_employee_id
+           FROM orders WHERE id = $1`,
+          [orderResult.rows[0].id]
+        );
+        Object.assign(orderResult.rows[0], refreshed.rows[0] || {});
+      }
+    }
+
     await markCustomerTrustedForCompletedOrder(client, orderResult.rows[0]);
     await processOrderLoyalty(client, {
       tenantId,

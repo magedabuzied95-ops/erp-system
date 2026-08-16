@@ -223,6 +223,7 @@ const getLocalizedPaymentLabel = (mode, paymentSummary = {}, personalSettlementT
     customer_wallet: receiptPrintLabel("customerWallet", "Customer wallet"),
     split: "SPLIT",
     credit_sale: "آجل",
+    employee_advance: "سلفة موظف",
     transfer: receiptPrintLabel("transfer", "Transfer"),
     bank_transfer: receiptPrintLabel("transfer", "Transfer"),
     personal: personalLabels[personalKey] || "عملية شخصية",
@@ -275,6 +276,7 @@ const getPaymentLabel = (mode, paymentSummary = {}) => {
     vodafone_cash: "V.CASH",
     split: "SPLIT",
     credit_sale: "آجل",
+    employee_advance: "سلفة موظف",
   };
   if (productionLabels[raw]) return productionLabels[raw];
   const labels = {

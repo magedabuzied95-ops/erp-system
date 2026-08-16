@@ -127,3 +127,4 @@ server/services/*
 !server/services/aiReplySafetyPipeline.js
 !server/services/aiSemanticSearchService.js
 !server/services/aiAgreementScoreService.js
+!server/services/employeeAdvanceSalesService.js
