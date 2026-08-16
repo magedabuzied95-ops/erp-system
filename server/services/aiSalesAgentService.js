@@ -15,6 +15,7 @@ import {
 import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
 import { summarizeUnderstanding, understandCustomerMessage } from "./aiUnderstandingService.js";
+import { searchProductsHybrid } from "./aiHybridProductSearchService.js";
 import { buildProductContext, ensureProductLinkInReply } from "./aiProductContext.js";
 import { buildCrossSellUpsellSuggestions } from "./crossSellUpsellService.js";
 import { scoreConversationConversion } from "./conversionScoringService.js";
@@ -4857,7 +4858,7 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
   }
 };
 
-export const loadAiInboxRecommendations = async ({ tenantId, conversationId, limit = 8, inbox = null, conversation = null } = {}) => {
+export const loadAiInboxRecommendations = async ({ tenantId, conversationId, limit = 8, inbox = null, conversation = null, understanding = null } = {}) => {
   const resolvedInbox = inbox || await loadAiInbox({ tenantId, filter: "all", limit: 100 });
   const resolvedConversation = conversation || asArray(resolvedInbox.conversations).find((item) => item.session_id === conversationId);
   if (!resolvedConversation) {
@@ -4880,7 +4881,22 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
   const searchQuery = remembered.length
     ? text(remembered[0]?.name || remembered[0]?.title || remembered[0]?.product_name || lastMessage)
     : lastMessage;
-  const searched = await searchAiSalesProducts({ tenantId, query: lastMessage, limit });
+  // Hybrid retrieval when the caller supplied a read of the customer: several cheap
+  // retrievers that fail differently, fused by reciprocal rank, then constrained to
+  // the model/category/brand/budget the customer actually named. Without an
+  // understanding it degrades to the single whole-phrase scorer — the old behaviour.
+  const searched = understanding
+    ? await searchProductsHybrid({
+        tenantId,
+        message: lastMessage,
+        understanding,
+        limit,
+        runQuery: ({ query, limit: queryLimit }) => searchAiSalesProducts({ tenantId, query, limit: queryLimit }),
+      }).catch(async (error) => {
+        console.warn("[ai-inbox] hybrid search failed, falling back to phrase search", { message: error?.message });
+        return searchAiSalesProducts({ tenantId, query: lastMessage, limit });
+      })
+    : await searchAiSalesProducts({ tenantId, query: lastMessage, limit });
   const rememberedSearch = remembered.length && searchQuery !== lastMessage
     ? await searchAiSalesProducts({ tenantId, query: searchQuery, limit }).catch(() => [])
     : [];
@@ -5535,6 +5551,9 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     limit: 8,
     inbox,
     conversation,
+    // Retrieval searches what the customer MEANT (model, category, brand, budget),
+    // not the raw sentence — a whole-message LIKE matches no product row.
+    understanding,
   });
   pipelineQueryCounts.db_reads_count += 1;
   pipelineQueryCounts.product_queries_count += 1;
