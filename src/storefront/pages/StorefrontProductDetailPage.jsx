@@ -34,7 +34,7 @@ import { applyProductSeo, clearProductSeo } from "../../shared/lib/socialMeta";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
-import { BellRing, Check, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
+import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
 import { shouldShowRestockCta, restockVariantKey, restockSuccessText, RESTOCK_CTA_LABEL, RESTOCK_AVAILABLE_NOW_TEXT, RESTOCK_LOGIN_TEXT, RESTOCK_ERROR_TEXT } from "../lib/restockIntentUi";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
@@ -400,6 +400,43 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       }));
   const sizes = sizeOptions.map((option) => option.originalSize);
   const colors = colorGroups;
+  // The swatch row scrolls sideways with its scrollbar hidden (.sf-scroll), so a product
+  // with many colour groups looked like it only had the handful that fit. These arrows and
+  // edge fades are the affordance that says the rest of the row exists.
+  const colorStripRef = useRef(null);
+  const [colorScroll, setColorScroll] = useState({ overflowing: false, atStart: true, atEnd: true });
+  useEffect(() => {
+    const strip = colorStripRef.current;
+    if (!strip) return undefined;
+    const measure = () => {
+      const max = strip.scrollWidth - strip.clientWidth;
+      // Every current browser reports RTL scrollLeft as 0 → -max, so the magnitude is the
+      // distance travelled in either direction.
+      const position = Math.abs(strip.scrollLeft);
+      setColorScroll({ overflowing: max > 4, atStart: position <= 4, atEnd: position >= max - 4 });
+    };
+    measure();
+    strip.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    observer?.observe(strip);
+    return () => {
+      strip.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+    // i18n.language is a dependency because switching to Arabic flips the strip to RTL
+    // without resizing or scrolling it, which would otherwise leave the arrows reversed.
+  }, [colors.length, i18n.language]);
+  // scrollBy is relative and physical, so it lands correctly whichever convention the
+  // browser uses for RTL scrollLeft; only the sign has to follow the writing direction.
+  const scrollColors = (direction) => {
+    const strip = colorStripRef.current;
+    if (!strip) return;
+    const rtl = typeof window !== "undefined" && window.getComputedStyle(strip).direction === "rtl";
+    const step = Math.max(strip.clientWidth * 0.8, 160);
+    strip.scrollBy({ left: step * direction * (rtl ? -1 : 1), behavior: "smooth" });
+  };
   const hideSizeSelector = isBagProduct(product);
   const sizeGuideHref = useMemo(
     () => buildSizeGuidePath(product ? resolveSizeGuideTypeForProduct(product) : "men"),
@@ -667,11 +704,17 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.color", "Color")}</div>
-                  <h2 className="text-base font-black">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-black">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
+                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] font-black text-white/60">
+                      {sfText("storefront.products.colorCount", "{{total}} colors", { total: colors.length })}
+                    </span>
+                  </div>
                 </div>
                 {selected.colorName ? <span className="text-xs font-black text-white/55">{selected.colorName}</span> : null}
               </div>
-              <div className="sf-scroll flex gap-2 overflow-x-auto pb-1">
+              <div className="relative">
+                <div ref={colorStripRef} className="sf-scroll flex gap-2 overflow-x-auto pb-1">
                 {colors.map((group) => {
                   const active = String(group.key) === String(selectedColorKey);
                   const hasStock = group.variants.some((item) => variantHasStock(item));
@@ -690,6 +733,35 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                     </button>
                   );
                 })}
+                </div>
+                {colorScroll.overflowing ? (
+                  <>
+                    <span aria-hidden="true" className={`pointer-events-none absolute inset-y-0 start-0 w-10 bg-gradient-to-r from-[#0b0b0b] rtl:bg-gradient-to-l to-transparent transition-opacity ${colorScroll.atStart ? "opacity-0" : "opacity-100"}`} />
+                    <span aria-hidden="true" className={`pointer-events-none absolute inset-y-0 end-0 w-10 bg-gradient-to-l from-[#0b0b0b] rtl:bg-gradient-to-r to-transparent transition-opacity ${colorScroll.atEnd ? "opacity-0" : "opacity-100"}`} />
+                    {/* Rendered conditionally rather than faded out: the dark product-card
+                        override forces `opacity: 1 !important` on anything carrying text-white. */}
+                    {!colorScroll.atStart ? (
+                      <button
+                        type="button"
+                        onClick={() => scrollColors(-1)}
+                        aria-label={sfText("storefront.products.previousColors", "Previous colors")}
+                        className="absolute start-1 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur transition hover:border-[#d4af37]/55 sm:flex"
+                      >
+                        <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
+                      </button>
+                    ) : null}
+                    {!colorScroll.atEnd ? (
+                      <button
+                        type="button"
+                        onClick={() => scrollColors(1)}
+                        aria-label={sfText("storefront.products.moreColors", "More colors")}
+                        className="absolute end-1 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur transition hover:border-[#d4af37]/55 sm:flex"
+                      >
+                        <ChevronRight className="h-4 w-4 rtl:rotate-180" />
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
             </div>
           ) : null}
