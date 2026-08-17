@@ -814,7 +814,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           }}
         />
       </Suspense>
-      <div className="mt-6 grid gap-5 md:mt-8">
+      {/* A grid item defaults to min-width:auto, so a carousel track inside one still
+          contributes its full intrinsic width even though the track is clipped - the
+          rails then stretched this column past the page's padding on one side and the
+          row sat off centre. The width of every child here comes from the column. */}
+      <div className="mt-6 grid gap-5 [&>*]:min-w-0 md:mt-8">
         {false && <div className="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
           <div className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0b0b0b_0%,#111111_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-5">
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>

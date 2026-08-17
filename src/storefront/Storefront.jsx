@@ -6850,8 +6850,10 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   };
   const activeDot = ((slide % items.length) + items.length) % items.length;
   if (!loading && !items.length) return null;
+  // min-w-0: the clipped track still reports its full intrinsic width, so wherever this
+  // rail lands in a grid or flex parent it must not be allowed to stretch it.
   return (
-    <section className="sf-product-recommendation-rail border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
+    <section className="sf-product-recommendation-rail min-w-0 border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-xl font-black text-stone-950 dark:text-white md:text-2xl">{title}</h2>
