@@ -98,6 +98,15 @@ test("the similar rail narrows by family, audience and grade together", () => {
   assert.equal(build("", "", "", "").href, "/products");
 });
 
+test("rail tile photos sit on the sibling site's grey plate, not white", () => {
+  const tile = storefrontSource.slice(
+    storefrontSource.indexOf("function RecommendationProductTile"),
+    storefrontSource.indexOf("const RECOMMENDATION_RAIL_MIN_ITEMS")
+  );
+  assert.match(tile, /sf-product-card-media group\/card-image relative aspect-square overflow-hidden bg-\[#e5e5e5\]/);
+  assert.doesNotMatch(tile, /aspect-square overflow-hidden bg-white/);
+});
+
 test("rail tiles carry the same slide-up quick add as the grid card", () => {
   const tile = storefrontSource.slice(
     storefrontSource.indexOf("function RecommendationProductTile"),
@@ -167,7 +176,7 @@ test("recommendations use a compact five-across storefront strip instead of prod
   // Five across is now the widest breakpoint of the sliding track, not a static grid.
   assert.match(storefrontSource, /sf-product-recommendation-viewport/);
   assert.match(storefrontSource, /flex: `0 0 \$\{slideBasis\}`/);
-  assert.match(storefrontSource, /aspect-square overflow-hidden bg-white/);
+  assert.match(storefrontSource, /aspect-square overflow-hidden bg-\[#e5e5e5\]/);
   assert.doesNotMatch(storefrontSource, /<ProductCard product=\{product\} railType="similar" rank=\{index \+ 1\}/);
 });
 

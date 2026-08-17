@@ -6719,7 +6719,11 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
   return (
     <div className="sf-product-recommendation-tile group group/tile relative min-w-0 text-center">
       <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
-        <div className="sf-product-card-media group/card-image relative aspect-square overflow-hidden bg-white">
+        {/* The sibling site sits its photos on a #e5e5e5 plate, not white. Its
+            product shots are opaque white like ours, so the grey only ever reads
+            as the frame around the photo — and the hover zoom eating into that
+            frame is the movement the plate exists to show. */}
+        <div className="sf-product-card-media group/card-image relative aspect-square overflow-hidden bg-[#e5e5e5]">
           <img
             src={imageFor(image)}
             onError={fallbackProductImage}
