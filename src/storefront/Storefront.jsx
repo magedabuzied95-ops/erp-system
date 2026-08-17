@@ -6741,7 +6741,11 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
     }, 4000);
     return () => window.clearInterval(moveTimer);
   }, [loading, pageCount, itemsSignature]);
-  const visibleItems = items.slice(page * pageSize, page * pageSize + pageSize);
+  // A rotating window instead of a plain slice: the last page used to hold only
+  // the remainder, so a full row collapsed to two cards mid-rotation.
+  const visibleItems = items.length > pageSize
+    ? Array.from({ length: pageSize }, (_, index) => items[(page * pageSize + index) % items.length])
+    : items;
   const moveToPage = (nextPage) => {
     const safePage = pageCount > 1 ? (nextPage + pageCount) % pageCount : 0;
     setPage(safePage);

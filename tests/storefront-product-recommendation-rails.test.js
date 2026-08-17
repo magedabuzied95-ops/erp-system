@@ -24,6 +24,16 @@ test("the similar rail matches the product family, never the mirror grade", () =
   assert.doesNotMatch(storefrontSource, /grade: grade \|\| "__no_grade__"/);
 });
 
+test("rotating a rail never leaves a partial row of leftovers", () => {
+  assert.match(storefrontSource, /const visibleItems = items\.length > pageSize/);
+  assert.doesNotMatch(storefrontSource, /items\.slice\(page \* pageSize/);
+  const rail = storefrontSource.slice(storefrontSource.indexOf("function StorefrontRecommendationRail"));
+  const window = (page, pageSize, length) => Array.from({ length: pageSize }, (_, index) => (page * pageSize + index) % length);
+  assert.equal(new Set(window(1, 5, 7)).size, 5, "a rotated page stays full and free of repeats");
+  assert.equal(window(1, 5, 7).length, 5);
+  assert.match(rail, /Math\.ceil\(items\.length \/ pageSize\)/);
+});
+
 test("a thin brand rail unfolds colour cards instead of rendering a half-empty row", () => {
   assert.match(storefrontSource, /const RECOMMENDATION_RAIL_MIN_ITEMS = 5;/);
   assert.match(storefrontSource, /const source = onePerModel\.length >= minItems \? onePerModel : cards;/);
@@ -33,7 +43,7 @@ test("a thin brand rail unfolds colour cards instead of rendering a half-empty r
 test("recommendation rails provide paging controls and exclude the open product", () => {
   assert.match(storefrontSource, /parentId === String\(currentId\)/);
   assert.match(storefrontSource, /Math\.ceil\(items\.length \/ pageSize\)/);
-  assert.match(storefrontSource, /items\.slice\(page \* pageSize, page \* pageSize \+ pageSize\)/);
+  assert.match(storefrontSource, /items\[\(page \* pageSize \+ index\) % items\.length\]/);
   assert.match(storefrontSource, /window\.setInterval/);
   assert.match(storefrontSource, /\(currentPage \+ 1\) % pageCount/);
   assert.match(storefrontSource, /sf-product-recommendation-page/);
