@@ -4246,9 +4246,12 @@ function useStorefrontProductGridColumns() {
   return width >= 768 ? 4 : 2;
 }
 
-const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
+// `revealAll` belongs to a paginated listing: the page already carries exactly the
+// count the customer chose, so revealing it in batches makes a full page look short
+// until they scroll. Endless rails keep the batched reveal.
+const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, revealAll = false }) {
   const columnCount = useStorefrontProductGridColumns();
-  const initialBatchSize = columnCount >= 4 ? 16 : 12;
+  const initialBatchSize = revealAll ? Math.max(products.length, 1) : columnCount >= 4 ? 16 : 12;
   const appendBatchSize = columnCount >= 4 ? 8 : 4;
   const [visibleCount, setVisibleCount] = useState(initialBatchSize);
   const [isAppending, setIsAppending] = useState(false);

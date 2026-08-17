@@ -236,6 +236,8 @@
     "limitedOffers": "عروض لفترة محدودة",
     "shopEasily": "تسوق بسهولة",
     "productCount": "{{count}} منتج",
+    "showingRange": "عرض {{from}}-{{to}} من {{count}} نتيجة",
+    "perPage": "عدد المنتجات في الصفحة",
     "emptyTitle": "لا توجد منتجات",
     "emptyText": "جرب بحث أو قسم مختلف",
     "sizeWithValue": "مقاس {{size}}",
