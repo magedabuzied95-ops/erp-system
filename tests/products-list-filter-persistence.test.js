@@ -33,6 +33,18 @@ test("product filters survive a fresh page state", () => {
   assert.deepEqual(restored.classifications, { gender: "men", productType: "bags", grade: "mirror-original" });
 });
 
+test("manufacturer survives a fresh page state and defaults to all", () => {
+  const storage = memoryStorage();
+  writeProductsListFilters({ manufacturer: "Cairo Factory" }, storage);
+  assert.equal(readProductsListFilters(storage).manufacturer, "Cairo Factory");
+
+  // A payload written before the manufacturer filter existed must still read
+  // back as "all" rather than undefined, or the request would send `undefined`.
+  const legacy = memoryStorage();
+  legacy.setItem(PRODUCTS_LIST_FILTERS_STORAGE_KEY, JSON.stringify({ brand: "Nike" }));
+  assert.equal(readProductsListFilters(legacy).manufacturer, "all");
+});
+
 test("clear removes persisted product filters", () => {
   const storage = memoryStorage();
   writeProductsListFilters({ status: "active" }, storage);

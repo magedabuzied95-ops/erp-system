@@ -1886,7 +1886,11 @@ const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => 
 
   const manufacturerValues = normalizeAdminListFilterValues(filters.manufacturer);
   if (manufacturerValues.length) {
-    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(m.name), ''), NULLIF(TRIM(p.manufacturer), ''), '')`, manufacturerValues, values));
+    // products has no legacy `manufacturer` text column (unlike brand/category),
+    // so the name can only come from the joined manufacturers row. Referencing
+    // p.manufacturer here threw "column p.manufacturer does not exist" the moment
+    // the filter was actually passed, which is why it stayed unused until now.
+    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(m.name), ''), '')`, manufacturerValues, values));
     applied.manufacturer = manufacturerValues.length === 1 ? manufacturerValues[0] : manufacturerValues;
   }
 
@@ -3677,6 +3681,7 @@ export const getProductsAdminList = async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
       LEFT JOIN (
         SELECT product_id, COALESCE(SUM(stock), 0)::int AS total_variant_stock
         FROM product_variants
@@ -3705,10 +3710,12 @@ export const getProductsAdminList = async (req, res) => {
       `
       SELECT
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(b.name, p.brand, '')), '') ORDER BY NULLIF(TRIM(COALESCE(b.name, p.brand, '')), '')), NULL) AS brands,
-        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(c.name, p.category, '')), '') ORDER BY NULLIF(TRIM(COALESCE(c.name, p.category, '')), '')), NULL) AS categories
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(c.name, p.category, '')), '') ORDER BY NULLIF(TRIM(COALESCE(c.name, p.category, '')), '')), NULL) AS categories,
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(m.name, '')), '') ORDER BY NULLIF(TRIM(COALESCE(m.name, '')), '')), NULL) AS manufacturers
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
       ${scopeClause.whereSql}
       `,
       scopeClause.values
@@ -3744,6 +3751,7 @@ export const getProductsAdminList = async (req, res) => {
     const total = Number(result.rows?.[0]?.total_count || 0);
     const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];
     const availableCategories = Array.isArray(filterOptionsResult.rows?.[0]?.categories) ? filterOptionsResult.rows[0].categories.filter(Boolean) : [];
+    const availableManufacturers = Array.isArray(filterOptionsResult.rows?.[0]?.manufacturers) ? filterOptionsResult.rows[0].manufacturers.filter(Boolean) : [];
 
     console.log("PRODUCT_ADMIN_LIST_TIMING", {
       durationMs: Date.now() - startedAt,
@@ -3768,6 +3776,7 @@ export const getProductsAdminList = async (req, res) => {
       filters: {
         brands: availableBrands,
         categories: availableCategories,
+        manufacturers: availableManufacturers,
       },
     });
   } catch (error) {
