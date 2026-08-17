@@ -2324,6 +2324,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
               WHERE staff_msg.tenant_id = s.tenant_id
                 AND staff_msg.session_id = s.session_id
                 AND staff_msg.sender_type = 'staff'
+                -- Human replies only: an AI auto-reply (manual_message = false,
+                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
+                -- A thread the AI answered stays unread until a human opens it
+                -- (read_at) or replies manually.
+                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
             ), TIMESTAMP 'epoch')
           )
       ) AS unread_count,
@@ -2762,6 +2767,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
               WHERE staff_msg.tenant_id = s.tenant_id
                 AND staff_msg.session_id = s.session_id
                 AND staff_msg.sender_type = 'staff'
+                -- Human replies only: an AI auto-reply (manual_message = false,
+                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
+                -- A thread the AI answered stays unread until a human opens it
+                -- (read_at) or replies manually.
+                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
             ), TIMESTAMP 'epoch')
           )
       ) AS unread_count,
