@@ -7356,6 +7356,10 @@ function POSPro() {
     setSelectedGender([]);
     setSelectedProductType("all");
     setSelectedGrade("all");
+    // The search term narrows the grid exactly like the chips do, so leaving it
+    // behind made "clear" look broken: every chip reset yet the same one or two
+    // products stayed on screen.
+    setSearch("");
   }, []);
 
   const handleGenderFilterChange = useCallback((value) => {
