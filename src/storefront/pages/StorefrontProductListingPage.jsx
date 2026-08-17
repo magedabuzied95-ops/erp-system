@@ -1409,7 +1409,7 @@ function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
             ? normalizeStorefrontAudienceValue(activeValue) === normalizeStorefrontAudienceValue(item.value)
             : normalizeStorefrontProductTypeValue(activeValue) === normalizeStorefrontProductTypeValue(item.value);
         const Icon = catalogQuickCategoryIcon(item.icon);
-        const label = item.field === "type" ? getProductTypeLabel(item.value, lang) : item.label;
+        const label = item.field === "type" ? getProductTypeLabel(item.value, lang) : classificationLabel(item, lang);
         return (
           <Link
             key={item.key}
@@ -1449,7 +1449,7 @@ function CatalogAppliedFilterChips({
   const { t } = useTranslation();
   const chips = [];
   if (q) chips.push({ key: "q", label: q, field: "q" });
-  if (gender) chips.push({ key: "gender", label: gender === "men" ? "رجالي" : gender === "women" ? "حريمي" : "أطفال", field: "gender" });
+  if (gender) chips.push({ key: "gender", label: classificationLabel({ value: gender }, lang), field: "gender" });
   if (category) chips.push({ key: "category", label: category, field: "category" });
   if (productType) chips.push({ key: "type", label: getProductTypeLabel(productType, lang), field: "type" });
   if (grade) chips.push({ key: "grade", label: grade, field: "grade" });
