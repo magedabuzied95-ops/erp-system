@@ -12,6 +12,11 @@ import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
+// The storefront shows Crocs in EU sizing, and the story has to say the same
+// thing the customer sees on the product page. Importing the storefront's own
+// conversion table rather than restating it here is deliberate: a second copy
+// would drift the moment a size is added.
+import { compareCrocsEuSizes, isCrocsProduct, resolveCrocsEuSize } from "../../src/shared/lib/crocsSizes.js";
 import { getSetting } from "./settingsService.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { resolveSaleModePrice } from "./saleModeService.js";
@@ -1521,6 +1526,18 @@ const isLastPieceVariant = (variant = {}) => {
   return variant?.is_active !== false && stock > 0 && stock <= 2;
 };
 
+/**
+ * Sizes as the storefront prints them: Crocs variants keep their factory marking
+ * as identity but are shown in EU, so `J1` reads `32/33` and `M8/W10` reads
+ * `41/42`. Mirrors `isCrocsProduct(product) ? resolveCrocsEuSize(size) : size`
+ * in Storefront.jsx.
+ */
+const storefrontSizeLabels = (sizes = [], product = {}) => {
+  if (!isCrocsProduct(product)) return uniqueTextValues(sizes).sort(naturalSizeSort);
+  const euSizes = uniqueTextValues((Array.isArray(sizes) ? sizes : []).map((size) => resolveCrocsEuSize(size)));
+  return euSizes.sort(compareCrocsEuSizes);
+};
+
 const availableSizesForVariantGroup = (product = {}, variant = null) => {
   const selectedColor = cleanText(variant?.color || "");
   const selectedArticleCode = cleanText(variant?.article_code || variant?.articleCode || "");
@@ -1534,7 +1551,7 @@ const availableSizesForVariantGroup = (product = {}, variant = null) => {
       return !rowColor || rowColor.toLowerCase() === selectedColor.toLowerCase();
     })
     .map((row) => row?.size);
-  return uniqueTextValues(sizes).sort(naturalSizeSort);
+  return storefrontSizeLabels(sizes, product);
 };
 
 const withAvailableSizes = (design = {}, sizes = []) => {
@@ -1566,7 +1583,7 @@ const fetchAvailableSizesForQueueItem = async (tenantId, item = {}) => {
         AND id = NULLIF($3::text, '')::bigint
       LIMIT 1
     )
-    SELECT DISTINCT pv.size
+    SELECT DISTINCT pv.size, p.product_type
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN selected_variant sv ON TRUE
@@ -1605,7 +1622,8 @@ const fetchAvailableSizesForQueueItem = async (tenantId, item = {}) => {
     `,
     [productId, tenantId, variantId, color]
   );
-  return uniqueTextValues(result.rows.map((row) => row.size)).sort(naturalSizeSort);
+  const productType = cleanText(result.rows[0]?.product_type || "");
+  return storefrontSizeLabels(result.rows.map((row) => row.size), { product_type: productType });
 };
 
 const fetchProductLinkForQueueItem = async (tenantId, item = {}) => {
