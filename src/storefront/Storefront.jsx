@@ -3435,7 +3435,11 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
 }
 
 function HomeWhySection({ lang = "ar", themeTokens = {} }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
+  // Subscribe to i18n directly so a live language toggle re-renders this subtree. When rendered
+  // from the memoized storefront-page shell the `lang` prop can go stale (the memo does not
+  // recompute on language change); useTranslation guarantees reactivity. Prop is the fallback.
+  const { i18n: sfI18n } = useTranslation();
+  const isRtl = normalizeLanguage(sfI18n.language || sfI18n.resolvedLanguage || lang) === "ar";
   const items = [
     {
       icon: Truck,
@@ -3480,7 +3484,11 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
 }
 
 function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
+  // Subscribe to i18n directly so a live language toggle re-renders the footer. When rendered from
+  // the memoized storefront-page shell the `lang` prop can go stale (the memo does not recompute
+  // on language change); useTranslation guarantees reactivity. Prop is the fallback.
+  const { i18n: sfI18n } = useTranslation();
+  const isRtl = normalizeLanguage(sfI18n.language || sfI18n.resolvedLanguage || lang) === "ar";
   const importantLinks = [
     { label: isRtl ? "الرئيسية" : "Home", to: "/" },
     { label: isRtl ? "حسابي" : "My account", to: "/account" },
