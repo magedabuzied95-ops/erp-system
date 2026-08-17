@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CalendarClock,
@@ -823,7 +823,15 @@ const EmptyMedia = ({ t }) => (
   </div>
 );
 
-export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = false }) {
+// The creative is laid out once at this size and scaled to whatever box it is
+// dropped into. Every offset and font size inside it is a fixed pixel value, so
+// rendering it directly into a smaller frame clipped the copy instead of
+// shrinking it: at thumbnail size the price and CTA fell outside the frame
+// entirely and the sizes strip truncated mid-word.
+const STORY_FRAME_WIDTH = 360;
+const STORY_FRAME_HEIGHT = 640;
+
+export function StoryCreativeFrame({ slide, total = 1, index = 0 }) {
   const baseTitle = cleanStoryText(slide.product_name || slide.title, "Featured product");
   const colorName = cleanStoryText(slide.color_name || slide.color);
   const title = colorName && !baseTitle.toLowerCase().includes(colorName.toLowerCase()) ? `${baseTitle} - ${colorName}` : baseTitle;
@@ -837,13 +845,43 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   const theme = storyCreativeTheme(slide);
   const badge = theme.badge;
   const sizeDisplay = storySizeDisplay(slide);
-  const productTitleClass = compact ? "text-[1.12rem]" : "text-[1.38rem]";
-  const priceClass = compact ? "text-[1.78rem]" : "text-[2.12rem]";
+  const productTitleClass = "text-[1.38rem]";
+  const priceClass = "text-[2.12rem]";
   const ctaUrl = storyCtaUrl(slide);
   const copyDirection = /[\u0600-\u06ff]/.test(`${title} ${sizeDisplay || ""}`) ? "rtl" : "ltr";
+  const frameRef = useRef(null);
+  const [frameScale, setFrameScale] = useState(1);
+
+  // Measured rather than expressed in CSS: scale() takes a plain number, and
+  // dividing a container-query length by the design width yields a length, so
+  // `scale(calc(100cqw / 360))` is simply invalid and silently does nothing.
+  useEffect(() => {
+    const node = frameRef.current;
+    if (!node) return undefined;
+    const applyScale = () => {
+      const width = node.getBoundingClientRect().width;
+      if (width > 0) setFrameScale(width / STORY_FRAME_WIDTH);
+    };
+    applyScale();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(applyScale);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="story-creative-frame relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-[#f6f2ea] text-slate-950 shadow-2xl shadow-black/35">
+    <div
+      ref={frameRef}
+      className="story-creative-frame relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-[#f6f2ea] text-slate-950 shadow-2xl shadow-black/35"
+    >
+      <div
+        className="absolute left-0 top-0 origin-top-left"
+        style={{
+          width: STORY_FRAME_WIDTH,
+          height: STORY_FRAME_HEIGHT,
+          transform: `scale(${frameScale})`,
+        }}
+      >
       <div className={`story-creative-bg absolute inset-0 ${theme.background}`} />
       <div className="absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black/82 via-black/44 to-transparent" />
       <div className="absolute left-4 right-4 top-3 z-20 flex gap-1.5">
@@ -904,11 +942,12 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
           </a>
         </div>
       </div>
+      </div>
     </div>
   );
 }
 
-export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "", compact = false }) {
+export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "" }) {
   const { t } = useTranslation();
   const slidesTitle = title || t("marketing.postEditor.story.slidesTitle");
   const [activeStorySlideIndex, setActiveStorySlideIndex] = useState(0);
@@ -938,7 +977,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(230px,360px)_minmax(140px,1fr)] xl:items-start">
       <div className="mx-auto w-full max-w-[360px]">
-        <StoryCreativeFrame slide={activeStorySlide} total={safeSlides.length} index={selectedIndex} compact={compact} />
+        <StoryCreativeFrame slide={activeStorySlide} total={safeSlides.length} index={selectedIndex} />
       </div>
       {showThumbnails ? (
         <div className="min-w-0">
@@ -954,7 +993,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
                 onKeyDown={(event) => handleSlideKeyDown(event, index)}
                 className={`group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition ${ index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25" }`}
               >
-                <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} compact />
+                <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} />
                 <div className="mt-2 truncate px-1 pb-1 text-[11px] font-black text-slate-200">{t("marketing.postEditor.story.slide", { number: index + 1 })}</div>
               </button>
             ))}
