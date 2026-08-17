@@ -6246,7 +6246,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             the add-to-cart row takes its place. Touch has no hover, so it keeps the
             price permanently visible next to the round quick-add button. */}
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
-          <div className="sf-card-action-wrap min-w-0 flex-1 overflow-hidden md:h-[35px]">
+          {/* clip, not hidden: an overflow-hidden window is programmatically
+              scrollable, so tabbing to the clipped CTA scrolled it 35px out of
+              place for good instead of letting the slide reveal it. */}
+          <div className="sf-card-action-wrap min-w-0 flex-1 overflow-clip md:h-[35px]">
             <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/product:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:h-[35px] md:flex-nowrap md:items-center">
                 <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
