@@ -72,6 +72,50 @@ html[data-theme="dark"] .m1-pos-type-chip:hover:not(.is-active) {
   color: inherit;
 }
 
+/* ==========================================================================
+   FACTORY / BRAND POPOVER
+   --------------------------------------------------------------------------
+   Canonical tokens, not the literal zinc-950 / white-alpha this popover used
+   to carry: it renders through a portal on document.body, outside any shell
+   that would have normalised those, so in Light it was a black card floating
+   over a beige page.
+   ====================================================================== */
+
+.m1-quick-select-popover {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-overlay);
+}
+
+.m1-quick-select-search {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.m1-quick-select-search::placeholder { color: var(--muted); }
+.m1-quick-select-search:focus { border-color: var(--primary); }
+
+.m1-quick-select-empty { color: var(--muted); }
+
+.m1-quick-select-chip {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.m1-quick-select-chip:hover:not(.is-active) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.m1-quick-select-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-contrast);
+}
+
 /* ---- Preferred: pin lightness and chroma, take only the hue. ---- */
 
 @supports (color: oklch(from red l c h)) {

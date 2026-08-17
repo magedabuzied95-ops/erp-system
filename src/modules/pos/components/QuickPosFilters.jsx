@@ -64,7 +64,9 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
   const updatePosition = () => {
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const width = Math.max(256, Math.min(320, window.innerWidth - 16));
+    // Wider than the old list needed: the options wrap as chips now, and a
+    // narrow column would put most of them on a line of their own again.
+    const width = Math.max(320, Math.min(460, window.innerWidth - 16));
     const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
     setPosition({
       top: Math.min(rect.bottom + 8, window.innerHeight - 16),
@@ -102,7 +104,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
   const popover = open && typeof document !== "undefined" ? createPortal(
     <div
       ref={popoverRef}
-      className="rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black/50 ring-1 ring-emerald-300/10"
+      className="m1-quick-select-popover rounded-2xl border p-2"
       style={{
         position: "fixed",
         top: `${position.top}px`,
@@ -116,7 +118,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={tt("pos.filters.search")}
-          className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-xl border border-white/10 bg-black/60 px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/40"
+          className="m1-quick-select-search h-[var(--control-height-md)] min-w-0 flex-1 rounded-xl border px-3 text-xs font-bold outline-none"
         />
         {selectedSet.size ? (
           <button
@@ -129,7 +131,13 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
           </button>
         ) : null}
       </div>
-      <div className="mt-2 max-h-64 overflow-y-auto">
+      {/*
+       * Options wrap as chips rather than stacking one per row: a factory or
+       * brand name is a couple of words, so a full-width row per option pushed
+       * a 30-item list into a long scroll for no reason. Same shape as the
+       * chips in the filters panel, so both surfaces read alike.
+       */}
+      <div className="m1-quick-select-options mt-2 flex max-h-64 flex-wrap content-start gap-1.5 overflow-y-auto p-0.5">
         {filteredOptions.length ? filteredOptions.map((option) => {
           const active = selectedSet.has(String(option.id));
           return (
@@ -137,16 +145,14 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
               key={option.id}
               type="button"
               onClick={() => onToggle(option.id)}
-              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-start text-xs font-bold transition ${ active ? "bg-emerald-400/15 text-emerald-100" : "text-zinc-200 hover:bg-white/[0.06]" }`}
+              className={`m1-quick-select-chip inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition ${active ? "is-active" : ""}`}
             >
               <span className="truncate">{option.name}</span>
-              <span className={`inline-flex h-4 w-4 items-center justify-center rounded border ${active ? "border-emerald-300 bg-emerald-300 text-black" : "border-white/20"}`}>
-                {active ? <Check className="h-3 w-3" /> : null}
-              </span>
+              {active ? <Check className="h-3 w-3 shrink-0" /> : null}
             </button>
           );
         }) : (
-          <div className="px-3 py-5 text-center text-xs font-bold text-zinc-500">{tt("common.noResults")}</div>
+          <div className="m1-quick-select-empty w-full px-3 py-5 text-center text-xs font-bold">{tt("common.noResults")}</div>
         )}
       </div>
     </div>,
