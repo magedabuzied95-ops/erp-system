@@ -808,9 +808,7 @@ const instagramShareText = (card = {}) => {
   return [
     name,
     color ? `اللون: ${color}` : "",
-    // Parity with the server's formatCloserPrice: only a POSITIVE price is a price. A 0 (no canonical price)
-    // is dropped from the line there, so previewing "السعر: 0 جنيه" here would be preview-vs-sent drift.
-    (Number.isFinite(Number(price)) && Number(price) > 0) ? `السعر: ${Math.round(Number(price))} جنيه` : "",
+    (price != null && price !== "" && Number.isFinite(Number(price))) ? `السعر: ${Math.round(Number(price))} جنيه` : "",
     url ? "عرض المنتج:" : "",
     url || "",
   ].filter(Boolean).join("\n");
@@ -3058,20 +3056,6 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
-// A 0 is NOT a price. The canonical resolver (resolveEffectiveCustomerPrice) returns active_price 0 with
-// has_price:false when a product carries no canonical normal price, and these panels guarded on `!= null`, so a
-// priced product whose price the backend failed to resolve was rendered to the operator as "0 جنيه" — a real
-// product read as free. Every price in these panels goes through here: a positive number, or an explicit gap.
-function CardPriceLine({ price, label = "", as: Tag = "span", className = "" }) {
-  const value = Number(price);
-  const known = Number.isFinite(value) && value > 0;
-  return (
-    <Tag className={`font-bold ${known ? "text-emerald-200" : "text-amber-200"}${className ? ` ${className}` : ""}`}>
-      {known ? `${value} جنيه` : label}
-    </Tag>
-  );
-}
-
 function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, recommendationMode = false, variantOptionsMode = false, recommendationSelectedKeys = null, onToggleRecommendation, onRemove, onChange, onChoose }) {
   const { t } = useTranslation();
   const hasCard = Boolean(card && (card.product_id || card.id));
@@ -3125,7 +3109,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
                   <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
                     <span className="block truncate font-black">{clean(c.color) || "لون"}</span>
                     {c.size ? <span className="block text-slate-300">{t("aiSupport.inbox.panel.size")} {clean(c.size)}</span> : null}
-                    <CardPriceLine price={price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
+                    {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
                   </span>
                 </button>
               </div>
@@ -3143,9 +3127,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
           {colorChoices.map((c) => (
             <button key={c.variant_id || `${c.product_id}:${c.color}`} type="button" onClick={() => onChoose?.(c)} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
               {(c.image_url || c.image) ? <img src={c.image_url || c.image} alt={clean(c.color)} className="h-6 w-6 rounded border border-white/10 object-cover" /> : null}
-              {clean(c.color) || "لون"}
-              {" — "}
-              <CardPriceLine price={c.display_price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
+              {clean(c.color) || "لون"}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
             </button>
           ))}
         </div>
@@ -3176,7 +3158,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
                   {img ? <img src={img} alt={name} className="h-9 w-9 shrink-0 rounded border border-white/10 object-cover" /> : null}
                   <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
                     <span className="block truncate font-black">{name}</span>
-                    <CardPriceLine price={price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
+                    {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
                   </span>
                 </button>
                 {url ? <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-[9px] font-black text-cyan-200 underline">{t("aiSupport.inbox.panel.openProduct")}</a> : null}
@@ -3194,9 +3176,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {choices.map((c) => (
             <button key={c.product_id || c.id} type="button" onClick={() => onChoose?.(c)} className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
-              {clean(c.name || c.product_name)}
-              {" — "}
-              <CardPriceLine price={c.display_price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
+              {clean(c.name || c.product_name)}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
             </button>
           ))}
         </div>
@@ -3219,7 +3199,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
           <div className="truncate font-black">{name}</div>
           {card.color ? <div className="text-slate-300">{t("aiSupport.inbox.panel.colourLabel")} {clean(card.color)}</div> : null}
           {card.size ? <div className="text-slate-300">{t("aiSupport.inbox.panel.sizeLabel")} {clean(card.size)}</div> : null}
-          <CardPriceLine as="div" price={price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
+          {price != null && price !== "" ? <div className="text-emerald-200 font-bold">{price} جنيه</div> : null}
           <div className={`font-bold ${card.in_stock === false ? "text-rose-300" : "text-emerald-300"}`}>{card.in_stock === false ? "غير متاح" : "متاح"}</div>
           {(card.storefront_url || card.product_url) ? <a href={card.storefront_url || card.product_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-cyan-200 underline">{t("aiSupport.inbox.panel.viewProduct")}</a> : null}
         </div>

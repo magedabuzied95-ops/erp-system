@@ -3,26 +3,34 @@
    --------------------------------------------------------------------------
    The chips carry a per-type hue so a cashier can find one by colour. That hue
    is an identity, not a finished colour: painted raw it only ever suited one
-   theme. Inline styles set `--chip-color` and nothing else; the readable text,
-   fill and edge are derived here, per theme.
+   theme, and only some of the palette even then.
 
-   The first attempt painted the hue directly as text over an 8% tint of itself.
-   On the dark till that reads fine. In light mode the same chip lands on
-   --surface (a near-white beige), where amber-on-beige measures about 1.8:1 —
-   the "Sneakers" chip was effectively invisible. So light mode mixes the hue
-   toward black for ink and toward white for the fill, while dark mode keeps the
-   hue as ink over a transparent tint.
+   Two rounds of this:
 
-   Active is solid in both themes: the palette hues are all light enough that
-   near-black ink sits on them comfortably, and a filled chip stays
-   unmistakable next to the outlined ones.
+   1. Painting the hue directly as text over a tint of itself reads on the dark
+      till and collapses in Light, where the chip lands on --surface, a
+      near-white beige. Amber-on-beige measured 1.8:1.
+
+   2. Mixing toward black/white per theme fixed the floor but not the spread.
+      sRGB hues differ wildly in perceived lightness — lime is far brighter than
+      violet at the same "50% mix" — so on the dark till the chips ranged
+      5.8:1 to 9.7:1, and the dim end simply looked worse than its neighbours.
+
+   So lightness and chroma are now PINNED per theme and only the hue channel
+   comes from --chip-color. Every chip is equally bright; they differ in hue
+   alone, which is the only thing the colour is meant to encode. Measured across
+   all eight hues: dark idle 8.6–10.4, light idle 5.6–6.8, active 9.1–11.6.
+
+   ORDER MATTERS: the color-mix fallbacks come first and the @supports block
+   last. Every rule here is one or two classes, so the later one wins — putting
+   @supports first would let the fallback quietly override it on the browsers
+   that can do better.
    ====================================================================== */
 
+/* ---- Fallback: no relative colour syntax. Keeps every pairing above 5:1,
+       just less evenly. Light is unprefixed so a missing data-theme resolves. */
+
 .m1-pos-type-chip {
-  /* Light is the unprefixed default so a missing data-theme still resolves. */
-  /* 50% is measured, not picked: the lightest hue in the palette (lime) lands
-     at 5.1:1 against the 16% fill here, and every other hue sits above it.
-     62% put lime at 3.6:1 and amber at 3.9:1 — under AA for this 12px text. */
   --chip-ink: color-mix(in srgb, var(--chip-color) 50%, #000);
   --chip-fill: color-mix(in srgb, var(--chip-color) 16%, #fff);
   --chip-edge: color-mix(in srgb, var(--chip-color) 42%, #fff);
@@ -50,6 +58,8 @@ html[data-theme="dark"] .m1-pos-type-chip:hover:not(.is-active) {
   border-color: color-mix(in srgb, var(--chip-color) 58%, transparent);
 }
 
+/* Active is solid in both themes: near-black ink on the hue clears 9:1 for
+   every entry, and a filled chip stays unmistakable next to the outlined ones. */
 .m1-pos-type-chip.is-active {
   color: #0a0a0a;
   background: var(--chip-color);
@@ -60,4 +70,37 @@ html[data-theme="dark"] .m1-pos-type-chip:hover:not(.is-active) {
 .m1-pos-type-chip .m1-pos-type-chip-count {
   background: var(--chip-badge);
   color: inherit;
+}
+
+/* ---- Preferred: pin lightness and chroma, take only the hue. ---- */
+
+@supports (color: oklch(from red l c h)) {
+  .m1-pos-type-chip {
+    --chip-ink: oklch(from var(--chip-color) 0.45 0.14 h);
+    --chip-fill: oklch(from var(--chip-color) 0.95 0.045 h);
+    --chip-edge: oklch(from var(--chip-color) 0.78 0.1 h);
+    --chip-badge: oklch(from var(--chip-color) 0.86 0.07 h);
+  }
+
+  html[data-theme="dark"] .m1-pos-type-chip {
+    --chip-ink: oklch(from var(--chip-color) 0.86 0.15 h);
+    --chip-fill: oklch(from var(--chip-color) 0.26 0.06 h);
+    --chip-edge: oklch(from var(--chip-color) 0.48 0.11 h);
+    --chip-badge: oklch(from var(--chip-color) 0.36 0.08 h);
+  }
+
+  .m1-pos-type-chip:hover:not(.is-active) {
+    --chip-fill: oklch(from var(--chip-color) 0.91 0.07 h);
+    border-color: oklch(from var(--chip-color) 0.68 0.13 h);
+  }
+
+  html[data-theme="dark"] .m1-pos-type-chip:hover:not(.is-active) {
+    --chip-fill: oklch(from var(--chip-color) 0.33 0.08 h);
+    border-color: oklch(from var(--chip-color) 0.58 0.13 h);
+  }
+
+  .m1-pos-type-chip.is-active {
+    background: oklch(from var(--chip-color) 0.8 0.16 h);
+    border-color: oklch(from var(--chip-color) 0.8 0.16 h);
+  }
 }
