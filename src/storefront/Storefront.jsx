@@ -6986,12 +6986,22 @@ function RelatedProductsContent({ currentProduct, ...props }) {
   const productType = recommendationText(currentProduct?.product_type || currentProduct?.productType || currentProduct?.type);
   const category = recommendationText(currentProduct?.category || currentProduct?.category_name || currentProduct?.categoryName);
   const brand = recommendationText(currentProduct?.brand?.name || currentProduct?.brand_name || currentProduct?.brand);
-  const similarFilter = productType ? { product_type: productType } : { category: category || "__no_category__" };
-  const similarHref = productType
-    ? `/products?product_type=${encodeURIComponent(productType)}`
-    : category
-      ? `/products?category=${encodeURIComponent(category)}`
-      : "/products";
+  // Family alone still mixed a men's shoe with kids' and women's. The audience
+  // narrows it to who the open product is actually for. A product with no
+  // audience keeps the wider match rather than filtering itself down to nothing.
+  const audience = recommendationText(
+    currentProduct?.gender ||
+    (Array.isArray(currentProduct?.audiences) ? currentProduct.audiences[0] : "") ||
+    (Array.isArray(currentProduct?.product_audiences) ? currentProduct.product_audiences[0] : "")
+  );
+  const similarFilter = {
+    ...(productType ? { product_type: productType } : { category: category || "__no_category__" }),
+    ...(audience ? { gender: audience } : {}),
+  };
+  const similarQuery = new URLSearchParams(
+    Object.entries(similarFilter).filter(([, value]) => value && !String(value).startsWith("__"))
+  ).toString();
+  const similarHref = similarQuery ? `/products?${similarQuery}` : "/products";
   const similarResult = useProducts({ ...similarFilter, limit: 15, in_stock: 1, grouping: "product" });
   const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
   return (

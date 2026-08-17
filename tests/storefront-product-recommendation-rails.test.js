@@ -17,10 +17,9 @@ test("product details render similar, brand and recently viewed recommendation r
 });
 
 test("the similar rail matches the product family, never the mirror grade", () => {
-  assert.match(storefrontSource, /const similarFilter = productType \? \{ product_type: productType \} : \{ category: category \|\| "__no_category__" \}/);
+  assert.match(storefrontSource, /\.\.\.\(productType \? \{ product_type: productType \} : \{ category: category \|\| "__no_category__" \}\)/);
   assert.match(storefrontSource, /\.\.\.similarFilter, limit: 15, in_stock: 1, grouping: "product"/);
   assert.match(storefrontSource, /products=\{similarResult\.products\} loading=\{similarResult\.loading\}/);
-  assert.match(storefrontSource, /\/products\?product_type=\$\{encodeURIComponent\(productType\)\}/);
   assert.doesNotMatch(storefrontSource, /grade: grade \|\| "__no_grade__"/);
 });
 
@@ -59,6 +58,32 @@ test("rail breakpoints and looping match the reference carousel", () => {
   // Cloning the head is what lets the track run past the end and snap back unseen.
   assert.match(storefrontSource, /const trackItems = canSlide \? \[\.\.\.items, \.\.\.items\.slice\(0, perView\)\] : items;/);
   assert.match(storefrontSource, /jumpLap\(slide - items\.length\), RAIL_SLIDE_MS/);
+});
+
+test("the similar rail narrows to the open product's audience", () => {
+  assert.match(storefrontSource, /\.\.\.\(audience \? \{ gender: audience \} : \{\}\)/);
+  assert.match(storefrontSource, /currentProduct\?\.gender \|\|/);
+  assert.match(storefrontSource, /Array\.isArray\(currentProduct\?\.audiences\) \? currentProduct\.audiences\[0\] : ""/);
+
+  // The filter the component builds, mirrored here so the cases stay pinned.
+  const build = (productType, category, audience) => {
+    const filter = {
+      ...(productType ? { product_type: productType } : { category: category || "__no_category__" }),
+      ...(audience ? { gender: audience } : {}),
+    };
+    const query = new URLSearchParams(
+      Object.entries(filter).filter(([, value]) => value && !String(value).startsWith("__"))
+    ).toString();
+    return { filter, href: query ? `/products?${query}` : "/products" };
+  };
+
+  assert.deepEqual(build("sneakers", "", "men").filter, { product_type: "sneakers", gender: "men" });
+  assert.equal(build("sneakers", "", "men").href, "/products?product_type=sneakers&gender=men");
+  // No audience on the product must widen the match, never empty it.
+  assert.deepEqual(build("sneakers", "", "").filter, { product_type: "sneakers" });
+  assert.deepEqual(build("", "Bags", "kids").filter, { category: "Bags", gender: "kids" });
+  // A product with no family and no audience still yields a usable link.
+  assert.equal(build("", "", "").href, "/products");
 });
 
 test("rail tiles carry the same slide-up quick add as the grid card", () => {
