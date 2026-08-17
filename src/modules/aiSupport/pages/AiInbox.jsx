@@ -2768,6 +2768,7 @@ const Transcript = memo(function Transcript({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  onEditMessage,
   reactionOptions,
   olderMessagesAvailable = false,
 }) {
@@ -2843,6 +2844,7 @@ const Transcript = memo(function Transcript({
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
+              onEditMessage={onEditMessage}
               reactionOptions={reactionOptions}
               channelLabel={row.channelLabel}
             />
@@ -8837,6 +8839,45 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   }, [headers, selectedConversation, selectedConversationRouteId, tenantId]);
 
+  // Edits a message that already reached the customer. WhatsApp accepts the edit
+  // only inside its own 15-minute window, so the server is the authority — the
+  // local thread is rewritten only after it confirms.
+  const editMessage = useCallback(async ({ message = {}, text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    const conversationIdentifier = clean(selectedConversation.conversation_key || selectedConversation.session_id);
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/edit"), {
+        tenant_id: tenantId,
+        text,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+      }, { headers, perfComponent: "AiInbox.messageEdit" });
+      const editedAt = clean(payload?.edited_at) || new Date().toISOString();
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => {
+          const sameMessage = (message.id && item.id === message.id)
+            || clean(item.provider_message_id) === clean(targetMessageId)
+            || clean(item.external_message_id) === clean(targetMessageId);
+          if (!sameMessage) return item;
+          return {
+            ...item,
+            message_text: text,
+            staff_message: item.staff_message ? text : item.staff_message,
+            ai_answer: item.ai_answer ? text : item.ai_answer,
+            edited_at: editedAt,
+            original_message_text: item.original_message_text || clean(payload?.previous_text),
+          };
+        }),
+      }));
+      setToast({ tone: "emerald", text: "تم تعديل الرسالة عند العميل" });
+      return payload;
+    } catch (editError) {
+      setToast({ tone: "rose", text: editError?.message || "تعذر تعديل الرسالة" });
+      throw editError;
+    }
+  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+
   // Order composer submit. `confirm: false` writes a draft; `confirm: true` sells it
   // like the POS does (stock out now) and then sends the invoice link to the
   // customer on this conversation's own channel.
@@ -9902,6 +9943,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         onReplyComment={sendLeadCommentReplyQuick}
                         onPrivateMessage={sendLeadPrivateMessage}
                         onReact={(isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) || isMetaChannel(selectedConversation?.channel || selectedConversation?.source)) ? reactToMessage : null}
+                        onEditMessage={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? editMessage : null}
                         reactionOptions={clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram") ? INSTAGRAM_MESSAGE_REACTIONS : clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("messenger") ? MESSENGER_MESSAGE_REACTIONS : undefined}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />

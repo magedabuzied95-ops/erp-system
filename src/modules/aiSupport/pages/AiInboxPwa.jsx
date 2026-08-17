@@ -2469,6 +2469,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  onEditMessage,
   reactionOptions,
 }) {
   const { t } = useTranslation();
@@ -2552,6 +2553,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
+              onEditMessage={onEditMessage}
               reactionOptions={reactionOptions}
             />
           </Fragment>
@@ -4981,6 +4983,27 @@ export default function AiInboxPwa() {
     }
   }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
 
+  // Edits a message the customer already received. WhatsApp only, and only
+  // inside its 15-minute window — the server is the authority, so the thread is
+  // refreshed from it rather than patched optimistically.
+  const editMessage = useCallback(async ({ text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/edit"), {
+        tenant_id: tenantId,
+        text,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+      }, { headers, perfComponent: "AiInboxPwa.messageEdit" });
+      toast.success("تم تعديل الرسالة عند العميل");
+      requestRefresh("message-edit", { silent: true, force: true });
+      return payload;
+    } catch (editError) {
+      toast.error(editError?.message || "تعذر تعديل الرسالة");
+      throw editError;
+    }
+  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
     const message = cleanMessageText(explicitText || composerText);
@@ -6840,6 +6863,7 @@ export default function AiInboxPwa() {
                   onReplyComment={sendLeadCommentReply}
                   onPrivateMessage={sendLeadPrivateMessage}
                   onReact={["whatsapp", "instagram", "messenger"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
+                  onEditMessage={normalizeConversationChannel(selectedConversation || {}) === "whatsapp" ? editMessage : null}
                   reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : normalizeConversationChannel(selectedConversation || {}) === "messenger" ? MESSENGER_MESSAGE_REACTIONS : undefined}
                 />
               </>

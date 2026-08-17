@@ -1551,7 +1551,14 @@
       "star": "Star",
       "unstar": "Unstar",
       "select": "Select",
-      "deselect": "Deselect"
+      "deselect": "Deselect",
+      "edit": "Edit",
+      "edited": "Edited",
+      "editTitle": "Edit the message on the customer side",
+      "editHint": "WhatsApp only allows edits within 15 minutes of sending",
+      "editSave": "Save edit",
+      "editSaving": "Saving...",
+      "editCancel": "Cancel"
     }
   },
   "integrations": {

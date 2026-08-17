@@ -943,6 +943,8 @@ export const normalizeInboxMessage = (row = {}) => {
     delivery_error: row.delivery_error || "",
     error_code: row.error_code || "",
     message_type: row.message_type || "",
+    edited_at: row.edited_at || null,
+    original_message_text: row.original_message_text || "",
     confidence: Number(row.confidence || 0),
     needs_human_support: row.needs_human_support === true,
     detected_intent: row.detected_intent || "",

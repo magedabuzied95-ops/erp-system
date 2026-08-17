@@ -1,6 +1,6 @@
 ﻿import { memo, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
+import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +17,16 @@ const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
 const MESSAGE_FOCUS_EVENT = "m1:ai-inbox-message-focus";
+// WhatsApp refuses an edit older than 15 minutes, so the action disappears
+// rather than offering a button that can only fail. Mirrors
+// WHATSAPP_EDIT_WINDOW_MS on the server.
+const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+const EDITABLE_MESSAGE_TYPES = new Set(["", "text", "private_message"]);
+const isOutboundMessage = (message = {}) =>
+  message.from_me === true ||
+  message.fromMe === true ||
+  clean(message.direction).toLowerCase() === "outbound" ||
+  ["staff", "agent", "human", "ai", "assistant", "bot", "system"].includes(clean(message.sender_type).toLowerCase());
 const staffSenderLabel = (message = {}) => {
   const source = clean(`${message.source_path || ""} ${message.insert_source || ""} ${message.message_type || ""}`).toLowerCase();
   if (source.includes("automation") || source.includes("system")) return "النظام";
@@ -255,7 +265,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   );
 }
 
-function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
+function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, onEditMessage, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
   const { t } = useTranslation();
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -268,6 +278,10 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const [reactionSending, setReactionSending] = useState(false);
   const [localReaction, setLocalReaction] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [locallyEdited, setLocallyEdited] = useState(false);
   const [pinned, setPinned] = useState(() => readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
@@ -279,6 +293,19 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const effectiveOwnReaction = localReaction === null ? ownReactionEmoji : localReaction;
   const reactionTargetMessageId = clean(message.provider_message_id || message.external_message_id || message.whatsapp_message_id || message.message_id);
   const canReact = Boolean(onReact && reactionTargetMessageId);
+  const sentAtMs = message.created_at ? new Date(message.created_at).getTime() : 0;
+  const withinEditWindow = Boolean(sentAtMs) && Date.now() - sentAtMs <= MESSAGE_EDIT_WINDOW_MS;
+  const canEdit = Boolean(
+    onEditMessage
+      && reactionTargetMessageId
+      && text
+      && isOutboundMessage(message)
+      && withinEditWindow
+      && EDITABLE_MESSAGE_TYPES.has(clean(message.message_type).toLowerCase())
+      && !asArray(message.visual_attachments).length
+      && !asArray(message.product_cards || message.productCards).length
+  );
+  const wasEdited = Boolean(message.edited_at) || locallyEdited;
   const displayedReactions = [
     ...reactions.filter((reaction) => reaction !== ownReaction),
     ...(effectiveOwnReaction ? [{ id: `local-reaction:${key}`, message_text: effectiveOwnReaction, from_me: true, direction: "outbound", sender_type: "staff" }] : []),
@@ -292,6 +319,9 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     setReactionPickerOpen(false);
     setReactionPickerExpanded(false);
     setLocalReaction(null);
+    setEditing(false);
+    setEditDraft("");
+    setLocallyEdited(false);
   }, [key]);
 
   useEffect(() => {
@@ -322,6 +352,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   }, [key]);
 
   const openActionsFromMessage = (event) => {
+    if (editing) return;
     if (!event.target.closest("[data-ai-message-bubble='true']")) return;
     if (event.target.closest("a, button, input, textarea, select, audio, video, [role='button']")) return;
     if (typeof window !== "undefined" && window.getSelection?.()?.toString()) return;
@@ -388,8 +419,40 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     }
   };
 
+  const startEditing = () => {
+    setEditDraft(text);
+    setEditing(true);
+    setMenuOpen(false);
+  };
+
+  const submitEdit = async () => {
+    const nextText = clean(editDraft);
+    if (!canEdit || editSaving || !nextText || nextText === text) {
+      setEditing(false);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await onEditMessage({
+        row,
+        message,
+        text: nextText,
+        targetMessageId: reactionTargetMessageId,
+        remoteJid: clean(message.remote_jid || message.resolved_reply_jid || message.channel_metadata?.remote_jid || ""),
+      });
+      setLocallyEdited(true);
+      setEditing(false);
+    } catch {
+      // The toast is raised by the caller; the editor stays open with the draft
+      // so the text the operator typed is never lost on a failed edit.
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const menuItems = [
     { label: t("aiSupport.inbox.message.reply"), icon: ReplyIcon, action: replyToMessage, disabled: !text },
+    ...(canEdit ? [{ label: t("aiSupport.inbox.message.edit"), icon: Pencil, action: startEditing }] : []),
     { label: t(copied ? "aiSupport.inbox.message.copied" : "aiSupport.inbox.message.copy"), icon: Copy, action: copyMessage, disabled: !text },
     { label: t(pinned ? "aiSupport.inbox.message.unpin" : "aiSupport.inbox.message.pin"), icon: pinned ? PinOff : Pin, action: togglePinned },
     { label: t(starred ? "aiSupport.inbox.message.unstar" : "aiSupport.inbox.message.star"), icon: Star, action: toggleStarred, active: starred },
@@ -405,13 +468,42 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
       data-message-key={key}
       data-message-selected={selected ? "true" : "false"}
     >
-      {(pinned || starred) ? (
+      {(pinned || starred || wasEdited) ? (
         <div className={`mb-1 flex items-center gap-1.5 px-2 text-[10px] font-black text-amber-400 ${align === "right" ? "justify-end" : "justify-start"}`}>
           {pinned ? <span className="inline-flex items-center gap-1"><Pin className="h-3 w-3" /> {t("aiSupport.inbox.message.pinned")}</span> : null}
           {starred ? <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 fill-current" /> {t("aiSupport.inbox.message.starred")}</span> : null}
+          {wasEdited ? <span className="inline-flex items-center gap-1"><Pencil className="h-3 w-3" /> {t("aiSupport.inbox.message.edited")}</span> : null}
         </div>
       ) : null}
       {children}
+      {editing ? (
+        <div data-ai-message-editor="true" className={`mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
+          <div dir="rtl" className={`w-full max-w-[420px] rounded-2xl border p-2 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-amber-300/40 bg-[#20231f] text-white"}`}>
+            <div className="mb-1 text-[10px] font-black text-amber-400">{t("aiSupport.inbox.message.editTitle")}</div>
+            <textarea
+              autoFocus
+              dir="auto"
+              rows={3}
+              value={editDraft}
+              maxLength={4096}
+              disabled={editSaving}
+              onChange={(event) => setEditDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") { event.preventDefault(); setEditing(false); return; }
+                if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitEdit(); }
+              }}
+              className={`w-full resize-y rounded-xl border px-3 py-2 text-sm font-semibold outline-none ${variant === "pwa" ? "border-slate-200 bg-slate-50 text-slate-900" : "border-white/10 bg-black/25 text-white"}`}
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold text-slate-400">{t("aiSupport.inbox.message.editHint")}</span>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={editSaving} onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-xs font-black text-slate-400 transition hover:bg-white/10 disabled:opacity-50">{t("aiSupport.inbox.message.editCancel")}</button>
+                <button type="button" disabled={editSaving || !clean(editDraft) || clean(editDraft) === text} onClick={() => void submitEdit()} className="rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-black text-black transition hover:bg-amber-300 disabled:opacity-40">{t(editSaving ? "aiSupport.inbox.message.editSaving" : "aiSupport.inbox.message.editSave")}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {canReact ? (
         <div className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <button
@@ -558,6 +650,7 @@ function TranscriptMessage({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  onEditMessage,
   reactionOptions = QUICK_MESSAGE_REACTIONS,
   channelLabel = "",
 }) {
@@ -613,7 +706,7 @@ function TranscriptMessage({
   if (variant === "pwa") {
     if (safeRow.kind === "product_card") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="w-[82%] max-w-sm space-y-1.5">
               <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
@@ -626,7 +719,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "customer") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
           <div className="flex justify-end">
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
@@ -649,7 +742,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "ai") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
@@ -666,7 +759,7 @@ function TranscriptMessage({
 
     if (safeRow.kind === "staff") {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
             <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
@@ -685,7 +778,7 @@ function TranscriptMessage({
 
     if (isCommentMessage) {
       return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
+        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
@@ -728,7 +821,7 @@ function TranscriptMessage({
   }
 
   return (
-    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} reactionOptions={reactionOptions}>
+    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
       <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
@@ -848,5 +941,5 @@ function TranscriptMessage({
   );
 }
 
-export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel);
+export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.onEditMessage === next.onEditMessage && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel);
 

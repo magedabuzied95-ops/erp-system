@@ -128,7 +128,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -5326,6 +5326,145 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
     return res.json({ success: true, emoji: deliveredEmoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !deliveredEmoji });
   } catch (error) {
     return sendError(res, error, "Failed to send message reaction");
+  }
+});
+
+// Editing a message that already reached the customer. WhatsApp is the only
+// channel of ours that has an edit primitive at all — Instagram and Messenger
+// expose no edit endpoint, so those conversations are refused up front instead
+// of silently rewriting only our copy of the thread.
+const EDITABLE_MESSAGE_TYPES = new Set(["", "text", "private_message"]);
+
+router.post("/conversations/:conversationId/message/edit", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedConversationId = envText(req.params.conversationId);
+    const requestedTargetId = envText(req.body?.target_message_id || req.body?.message_id || req.body?.targetMessageId);
+    const nextText = String(req.body?.text ?? req.body?.message ?? "").trim();
+    if (!requestedTargetId) {
+      throw Object.assign(new Error("Message id is required for an edit"), { status: 400, code: "MESSAGE_EDIT_MESSAGE_ID_REQUIRED" });
+    }
+    if (!nextText) {
+      throw Object.assign(new Error("New message text is required"), { status: 400, code: "MESSAGE_EDIT_TEXT_REQUIRED" });
+    }
+    if (nextText.length > 4096) {
+      throw Object.assign(new Error("Message text is too long to edit"), { status: 400, code: "MESSAGE_EDIT_TEXT_TOO_LONG" });
+    }
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: requestedConversationId });
+    if (!conversation) {
+      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    }
+    const channel = envText(conversation.channel || conversation.source).toLowerCase();
+    if (!channel.includes("whatsapp")) {
+      throw Object.assign(new Error("Editing a sent message is only supported on WhatsApp"), { status: 409, code: "MESSAGE_EDIT_CHANNEL_UNSUPPORTED" });
+    }
+    const sessionId = envText(conversation.session_id || requestedConversationId);
+    const targetResult = await db.query(
+      `
+      SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone,
+             sender_type, message_type, message_text, staff_message, ai_answer, customer_message,
+             original_message_text, visual_attachments, product_cards, created_at
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND (
+          provider_message_id = $3::text
+          OR external_message_id = $3::text
+          OR id::text = $3::text
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [tenantId, sessionId, requestedTargetId]
+    );
+    const target = targetResult.rows[0] || null;
+    if (!target) {
+      throw Object.assign(new Error("Message not found in this conversation"), { status: 404, code: "MESSAGE_EDIT_TARGET_NOT_FOUND" });
+    }
+    const senderType = envText(target.sender_type).toLowerCase();
+    if (!["staff", "agent", "human", "ai", "assistant", "bot", "system"].includes(senderType)) {
+      throw Object.assign(new Error("Only messages we sent can be edited"), { status: 409, code: "MESSAGE_EDIT_INBOUND_NOT_EDITABLE" });
+    }
+    const messageType = envText(target.message_type).toLowerCase();
+    const hasAttachments = Array.isArray(target.visual_attachments) ? target.visual_attachments.length > 0 : false;
+    const hasProductCards = Array.isArray(target.product_cards) ? target.product_cards.length > 0 : false;
+    if (!EDITABLE_MESSAGE_TYPES.has(messageType) || hasAttachments || hasProductCards) {
+      throw Object.assign(new Error("Only a plain text message can be edited"), { status: 409, code: "MESSAGE_EDIT_TYPE_NOT_EDITABLE" });
+    }
+    const sentAt = target.created_at ? new Date(target.created_at).getTime() : 0;
+    if (!sentAt || Date.now() - sentAt > WHATSAPP_EDIT_WINDOW_MS) {
+      throw Object.assign(
+        new Error("WhatsApp only allows editing a message within 15 minutes of sending it"),
+        { status: 409, code: "MESSAGE_EDIT_WINDOW_EXPIRED" }
+      );
+    }
+    const targetMessageId = envText(target.provider_message_id || target.external_message_id);
+    if (!targetMessageId) {
+      throw Object.assign(new Error("This message has no WhatsApp id, so it cannot be edited"), { status: 409, code: "MESSAGE_EDIT_PROVIDER_ID_MISSING" });
+    }
+    const rawRemoteJid = envText(
+      target.remote_jid ||
+      target.resolved_reply_jid ||
+      req.body?.remote_jid ||
+      conversation.remote_jid ||
+      conversation.channel_metadata?.remote_jid ||
+      conversation.channel_metadata?.resolved_reply_jid ||
+      conversation.external_customer_id ||
+      conversation.customer_phone ||
+      conversation.customer_profile?.phone
+    ).replace(/^whatsapp:/i, "");
+    // A LID chat is addressed @lid, never @s.whatsapp.net — same trap the
+    // reaction path hit.
+    const remoteDigits = rawRemoteJid.replace(/\D/g, "");
+    const remoteJid = normalizeWhatsappRemoteJid(rawRemoteJid)
+      || (rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "");
+    const previousText = envText(target.message_text || target.staff_message || target.ai_answer || target.customer_message);
+    await editWhatsappTextMessage({ remoteJid, targetMessageId, messageText: nextText });
+    // Only rewrite our copy of the thread after WhatsApp accepted the edit, so
+    // the inbox can never show text the customer never received.
+    await db.query(
+      `
+      UPDATE ai_support_messages
+      SET message_text = $3::text,
+          staff_message = CASE WHEN staff_message <> '' THEN $3::text ELSE staff_message END,
+          ai_answer = CASE WHEN ai_answer <> '' THEN $3::text ELSE ai_answer END,
+          last_message = CASE WHEN last_message <> '' THEN $3::text ELSE last_message END,
+          original_message_text = CASE WHEN original_message_text = '' THEN $4::text ELSE original_message_text END,
+          edited_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint
+        AND id = $2::bigint
+      `,
+      [tenantId, target.id, nextText, previousText]
+    );
+    await db.query(
+      `
+      UPDATE ai_support_sessions
+      SET last_message = $3::text,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND last_message = $4::text
+      `,
+      [tenantId, sessionId, nextText, previousText]
+    ).catch(() => null);
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: sessionId,
+      channel: "whatsapp",
+      reason: "staff_message_edited",
+      at: new Date().toISOString(),
+    });
+    return res.json({
+      success: true,
+      message_id: target.id,
+      target_message_id: targetMessageId,
+      text: nextText,
+      previous_text: previousText,
+      edited_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to edit the sent message");
   }
 });
 

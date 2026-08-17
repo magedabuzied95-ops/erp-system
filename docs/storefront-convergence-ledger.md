@@ -21,7 +21,7 @@ Programme start: 2026-08-17
 |---|---|---|
 | `/` | Home | **PASS** (see findings) |
 | `/products` | Product listing (PLP) | **FIXED_VERIFIED** (4 defects: gender chips, pagination+aria, currency dup, card brand aria) |
-| `/product/:slug` | Product detail (PDP) | responsive/localization **PASS**; theme **NEEDS_FIX** (CP-7 light-mode contrast) |
+| `/product/:slug` | Product detail (PDP) | PENDING |
 | `/men` `/women` `/kids` `/bags` `/crocs` `/slippers` `/men/large-sizes` | SEO category collections | PENDING |
 | `/offers` | Offers collection | PENDING |
 | `/sale` | Sale collection | PENDING |
@@ -46,33 +46,6 @@ Status legend: PASS / FIXED_VERIFIED / FLUID_PASS / FIXED_FLUID_VERIFIED / INTEN
 
 ## Frozen reference routes (regression set)
 home `/`, PLP `/products`, PDP `/product/:slug`, cart `/cart`, checkout `/checkout`
-
-## PERMANENT GATE — Product-URL backward compatibility (`/shop/product/*`)
-Added 2026-08-17 per user directive. **Applies before releasing ANY Storefront checkpoint that touches product links, PDP routing, canonical product paths, catalogue URLs, navigation links, sitemap/feed URLs or SEO routing.** (Pure presentation/localization/responsive checkpoints that do NOT alter any URL/href/routing/canonical/feed are exempt — e.g. CP-1…CP-6.)
-
-Context: a prior workstream changed Storefront product URL generation/routing (see `docs/wip-storefront-meta-canonical-urls.md`, handed off in `c7996d3`).
-
-**Before changing anything URL-related, inspect CURRENT main and map the full ownership chain:** current canonical PDP URL format; historical `/shop/product/:...` format(s); React/router handling; Vercel/server rewrite handling; SEO canonical behaviour; Meta catalogue/feed URL generation; sitemap generation; public product-link generation.
-
-**Compatibility contract:** every historically-valid `/shop/product/*` URL must EITHER (1) continue resolving to the correct product, OR (2) perform a deliberate permanent (301) redirect to the current canonical product URL. It must NOT fall through to a generic SPA shell that renders Not-Found, and must NOT return a false HTTP 200 while the product route is functionally missing.
-
-**Production tests (representative real products):** canonical URL; corresponding `/shop/product/*` historical URL; cold navigation; in-app browser navigation; HTTP status/redirect chain; final rendered product identity; canonical tag; Product JSON-LD URL; OG URL; sitemap/feed destination.
-
-**Meta Catalog = hard regression surface.** Existing catalogue items may still carry historical `/shop/product/*` destinations — do NOT invalidate them; preserve current feed identifiers and product identity (no ID regeneration for URL modernization). If canonical URLs changed, prefer backward-compatible routing/redirects over two competing canonicals.
-
-**Required regression tests (min):** historical URL → correct product/canonical; canonical URL → correct product; invalid historical URL → genuine not-found; canonical metadata stays the current canonical; Meta/feed destination remains reachable.
-
-**Preserve `072e070` (product-image enlargement)** as an ancestor across every reconciliation; never overwrite/revert it while resolving routing.
-
-Failure of `/shop/product/*` compatibility is a **release blocker**, not optional SEO cleanup.
-
-**Ownership-chain inspection (done 2026-08-17, current main `c7996d3`):**
-- Current canonical PDP format: `/product/:slug` (`ROOT_PATHS.product`, paths.js). Historical: `/shop/product/:identifier`.
-- Router: `App.jsx` maps `/shop/product/:identifier` → `StorefrontLegacyRedirect` (client redirect to `/product/*`).
-- Vercel rewrites (vercel.json): BOTH `/product/:identifier` and `/shop/product/:identifier` → `api.m1store-egy.com/api/storefront/seo/product/:identifier` (same server SEO shell).
-- **The 4-change "short canonical URL + feed pricing" feature is STRANDED (NOT on main; `docs/wip-storefront-meta-canonical-urls.md` / `stash@{0}`). This convergence programme is NOT applying it.** Its risky pieces are `storefrontProductUrlService.js` (`/shop/product`→`/product`) and the PDP canonical redirect — only relevant if that separate workstream lands.
-- **Production baseline PROVEN (compat contract already met):** canonical `/product/…-759` → 200/0-redirect; historical `/shop/product/…-759` → **200/0-redirect, correct product** (`<title>Adidas Sneakers`), with `rel=canonical`, `og:url`, and Product JSON-LD all pointing to the canonical `/product/` form. Historical URLs do NOT 404 and do NOT return a false-200 empty shell.
-- **Programme obligation:** preserve this. No convergence checkpoint may change product-link/routing/canonical/feed generation without re-proving this contract + the regression tests above. CP-1…CP-6 are all URL-neutral.
 
 ## Hard freezes
 - Business behaviour: pricing, variants, sizes, colours, stock, cart maths, discounts, shipping, COD, Instapay/Vodafone, checkout, OTP, orders, wishlist, tracking, API/DB/inventory.
@@ -119,17 +92,6 @@ Failure of `/shop/product/*` compatibility is a **release blocker**, not optiona
 - **Shared-owner protocol**: re-verify Home + PLP references post-deploy.
 - **Gates**: eslint 0 errors, build exit 0.
 
-### `/product/:slug` PDP — audit (Production `c7996d3`/`c51a014`, 2026-08-17)
-- **Responsive: PASS** — page horizontal overflow = **0px** at 1920 / 1440 / 1024 / 768 / 430 / 390. Gallery main image `object-fit: contain` (642×498), 4 thumbnails, Add-to-Cart CTA full-width & in-view on mobile.
-- **Localization: PASS** — EN fresh load: 0 Arabic chrome in PDP body. Live toggle EN→AR: 0 English chrome stranded (`dir=rtl`). Footer/trust badges reactive via **CP-6**. Product title/brand/description = data (preserved).
-- **CP-6 footer reactivity: VERIFIED** on this PDP (live toggle both directions, no reload).
-- **Theme: NEEDS_FIX → DEFECT #7 (light-mode contrast).** The PDP is an intentional self-contained **dark surface** (`data-surface-theme="dark"` at StorefrontProductDetailPage.jsx:604; documented at index.css:6510-6516 — kept dark so WebView restores without `.storefront-dark` don't break it). The contrast override (index.css:6517-6585) forces white for `h1/h2` and `.text-white`, BUT in **light global theme** several elements leak light-theme colors onto the dark surface and go invisible (verified via computed contrast, accounting for `-webkit-text-fill-color`):
-  - price (`700 ج.م`), discount (`-29%`), stock badge (`باقي 2 فقط`) → dark text `rgb(15,23,42)` on `rgb(19,18,17)` → ratio **~1.05**
-  - size chips (`28/29/30`) → white-ish text on a white chip bg → ratio **~1.0**
-  - ~12 low-contrast nodes total. Default DARK theme is unaffected (this is light-theme-only).
-  - **Owner**: `src/index.css` `.storefront-shell .sf-product-details-page[data-surface-theme="dark"]` block (scoped to PDP; safe blast radius). Fix = extend the forced-color coverage to price/discount/stock/size-chip elements. **Note:** contrast fix wants visual confirmation; pane is currently hidden → will verify via computed-contrast ratios now and pixel/screenshot later when compositing is available.
-- Status: PDP responsive + localization **PASS**; **CP-7 pending** (theme contrast). PDP zero-gate not yet met until CP-7 closes.
-
 ## Checkpoints / releases
 - **CP-1** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP gender chip localization. Commit `3f01866`. Deployed asset `app-BZ5mCSDl-3f01866eb8b5.js`. Verified live: EN quick-chips `Men/Women/Kids/Bags/Crocs/Slippers`, applied chip `Men`, zero AR gender leak. Rollback ref `rollback/storefront-cp0-12dede7` @ `12dede7`.
 - **CP-2** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP pagination + nav aria localization. Commit `4833195`, asset `app-BjEyXvzv-4833195daff7.js`. Verified live: EN pagination `Next`.
@@ -137,7 +99,6 @@ Failure of `/shop/product/*` compatibility is a **release blocker**, not optiona
 - **CP-4** ✅ DEPLOYED + PRODUCTION-VERIFIED: shared ProductCard brand-link aria localization. Commit `c39aab2`, asset `app-d385fl2Z-c39aab2b3ca4.js`. Verified live: brand arias `Shop Classic/SKECHERS/Adidas/crocs`, zero Arabic leak. **Shared-owner regression**: Home overflow 0 + 0 aria leak; PLP overflow 0 + gender chips `Men/Women/Kids` intact.
 - **CP-5** ✅ DEPLOYED + PRODUCTION-VERIFIED: shared `classificationLabel` grade/collection taxonomy display i18n (PD-1). Commit `199c7a1`, asset `app-Bxzbo8S2-199c7a178f76.js`. Verified live — EN: `Winter Collection / Imported from Vietnam / Mirror Original / Local`, zero AR grade leak; AR: `كولكشن الشتوي/مستورد فيتنامي/ميرور اوريجينال/محلي` preserved, zero EN leak. **Regression**: brands (`Crocs/Adidas/SKECHERS/Classic`) NOT over-localized, gender `Men/Women/Kids` intact, PLP overflow 0. **Shared-owner regression**: Home overflow 0, 17 cards, 0 broken facet labels. Reuses canonical `label_en`/`label_ar`; no new mapping; raw values/queries/URLs untouched.
 - Concurrency note: a parallel session pushed `33d848e` (ERP `ProductsList.jsx` only) into this worktree mid-CP-5; disjoint from storefront files, no clobber. CP-5 = `199c7a1` on top.
-- **CP-6** ✅ DEPLOYED + PRODUCTION-VERIFIED: shared footer/trust-badge **language-reactivity** fix. Commit `c51a014`, asset `app-B-1bc6WQ-c51a01476fd8.js`. Verified live **without reload** on Home + PDP: EN→AR flips footer + trust badges Arabic + `dir=rtl` instantly; AR→EN flips back instantly. PLP renders no footer (unaffected; overflow 0). Rollback ref `rollback/storefront-cp6-c7996d3` @ `c7996d3`. Released from isolated worktree `storefront/convergence-resume`; rebased onto current main (preserving `072e070`). Owner: `HomeWhySection` + `HomeSimpleFooter` (Storefront.jsx). Both derived `isRtl` from a `lang` **prop** passed by the memoized `storefrontPage` shell (deps omit language) and did not self-subscribe, so a live language toggle left the footer/trust-badges/featured-section in the initially-rendered language until reload (§25). Fix: each self-subscribes via `useTranslation()` → `isRtl = normalizeLanguage(sfI18n.language || sfI18n.resolvedLanguage || lang)`; `lang` prop kept as fallback. No second localization system introduced. **Isolation:** re-applied in a dedicated clean worktree `storefront/convergence-resume` from current `origin/main` `d3dcaec` (primary checkout left untouched — it holds an unrelated concurrent autostash-pop conflict). **Local proof (no reload):** EN→AR footer+badges flip Arabic + `dir=rtl` instantly; AR→EN flip English + `dir=ltr` instantly. **Gates:** eslint 0 errors; build exit 0; storefront-seo 33/33; i18n failure-identity IDENTICAL to pristine `d3dcaec` (55/49/6 — 6 pre-existing debt failures, 0 introduced); the guard "memoized components that translate also subscribe to language changes" PASSES.
 
 ## Open product decisions
 - **PD-1 (grade/collection taxonomy EN labels)** — ✅ APPROVED & IMPLEMENTED (CP-5). The grade/collection values DO have a canonical source: `/product-classifications` returns `label_ar`+`label_en` per option (grade: `mirror_original`→"Mirror Original", `imported_from_vietnam`→"Imported from Vietnam", `local`→"Local"; product_type: `winter_collection`→"Winter Collection"). The storefront already loads these via `useProductClassifications` → `classificationGroupsToFieldOptions` (canonical `src/modules/products/lib/productClassifications.js`). No new mapping created. Root cause was resolver priority: shared `classificationLabel` (Storefront.jsx:2536) returned generic `option.label` (= `label_ar||label_en||value`, i.e. Arabic) BEFORE the locale-specific `label_en`. Fix inserts `localizedField` (label_en/label_ar by lang) ahead of `option.label`; options without a localized field (brand/colour/free-text) fall through to raw value unchanged (unknown merchant data preserved). Display-only — raw values, query params, URLs, comparisons untouched. **Note:** canonical merchant `label_en` for the Vietnamese grade is "Imported from Vietnam" (not the "Vietnamese Imported" from the request); used the canonical single-source value per the reuse directive.
