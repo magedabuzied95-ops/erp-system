@@ -122,10 +122,25 @@
     width: 100%;
     max-width: 100%;
     min-height: 100%;
-    overflow-x: hidden;
     overflow-anchor: none;
-    scrollbar-gutter: stable;
     background: var(--bg);
+  }
+
+  /* Only the element that actually scrolls may reserve a scrollbar gutter. The
+     gutter was declared on all three, and `overflow-x: hidden` made each one a
+     scroll container that honoured it, so the page reserved three gutters and
+     ended up ~45px narrower than the window - dead space stacked on one edge with
+     every centred container shifted off centre. */
+  html {
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  /* `clip` keeps the same guard against horizontal overflow but does not create a
+     scroll container, so these two reserve nothing. */
+  body,
+  #root {
+    overflow-x: clip;
   }
 
   html:has(body.storefront-dark .sf-luxury-header),
@@ -153,9 +168,9 @@
     margin: 0;
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    /* The gutter and the scroll container both belong to `html` alone - see above. */
+    overflow-x: clip;
     overflow-anchor: none;
-    scrollbar-gutter: stable;
     color: var(--text);
     background: var(--bg);
     font-family: var(--app-font, "Inter", "Segoe UI", sans-serif);
