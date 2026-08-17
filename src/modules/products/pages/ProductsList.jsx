@@ -411,6 +411,55 @@ const ProductAudienceBadges = ({ row = {}, language = "ar" }) => {
   });
 };
 
+// The factory lives on the colour rows, so a product can legitimately carry more
+// than one. admin-list sends the distinct names already resolved and sorted.
+const getProductManufacturerNames = (row = {}) => {
+  const values = Array.isArray(row.manufacturer_names)
+    ? row.manufacturer_names
+    : Array.isArray(row.manufacturerNames)
+      ? row.manufacturerNames
+      : Array.isArray(row.variant_manufacturer_names)
+        ? row.variant_manufacturer_names
+        : [row.manufacturer_name];
+  const seen = new Map();
+  values.forEach((value) => {
+    const name = String(value || "").trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    if (!seen.has(key)) seen.set(key, name);
+  });
+  return [...seen.values()];
+};
+
+const ProductManufacturerBadges = ({ row = {}, language = "ar", limit = 3 }) => {
+  const manufacturers = getProductManufacturerNames(row);
+  if (!manufacturers.length) return null;
+  const isArabic = String(language || "").toLowerCase().startsWith("ar");
+  const visible = manufacturers.slice(0, limit);
+  const remainingCount = Math.max(0, manufacturers.length - visible.length);
+
+  return (
+    <div
+      className="flex min-w-0 flex-wrap items-center justify-center gap-1"
+      title={`${isArabic ? "المصنع" : "Manufacturer"}: ${manufacturers.join(" • ")}`}
+    >
+      {visible.map((name) => (
+        <span
+          key={name}
+          className="inline-flex max-w-[8rem] items-center rounded-full border border-sky-300/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-black leading-4 text-sky-200"
+        >
+          <span className="truncate">{name}</span>
+        </span>
+      ))}
+      {remainingCount ? (
+        <span className="inline-flex items-center rounded-full border border-border bg-surface-soft px-1.5 py-0.5 text-[10px] font-black leading-4 text-text-muted">
+          +{remainingCount}
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
 const getColorImageStatusDetails = (row = {}) => {
   const status = String(row.colorImageStatus || row.color_image_status || "none").trim().toLowerCase();
   const totalColors = Number(row.totalColors ?? row.total_colors ?? 0) || 0;
@@ -3503,6 +3552,9 @@ function ProductsList() {
                           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
                             <ProductAudienceBadges row={row} language={i18n.language} />
                           </div>
+                          <div className="mt-1.5">
+                            <ProductManufacturerBadges row={row} language={i18n.language} />
+                          </div>
                         </td>
                         <td className="m1-table__cell--center px-4 py-4 align-middle">
                           <p className="font-semibold text-text">{totalStock}</p>
@@ -4076,6 +4128,9 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
             <div className="mt-0.5 truncate text-[11px] font-semibold text-primary">{category}</div>
           ) : null}
           <div className="mt-0.5 truncate text-[11px] font-semibold text-text-muted">{row.brand || t("products.selected.brand")}</div>
+          <div className="mt-1.5 flex justify-start">
+            <ProductManufacturerBadges row={row} language={language} />
+          </div>
         </div>
       </div>
 

@@ -3592,6 +3592,26 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(p.barcode, '') AS barcode,
         COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(p.category), ''), '') AS category,
         COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), ''), '') AS brand,
+        COALESCE(NULLIF(TRIM(m.name), ''), '') AS manufacturer_name,
+        COALESCE((
+          SELECT jsonb_agg(manufacturer_source.manufacturer_name ORDER BY manufacturer_source.manufacturer_name)
+          FROM (
+            SELECT DISTINCT TRIM(vm.name) AS manufacturer_name
+            FROM product_variants pv_manu
+            CROSS JOIN LATERAL unnest(
+              CASE
+                WHEN COALESCE(cardinality(pv_manu.manufacturer_ids), 0) > 0 THEN pv_manu.manufacturer_ids
+                WHEN pv_manu.manufacturer_id IS NOT NULL THEN ARRAY[pv_manu.manufacturer_id]::bigint[]
+                ELSE ARRAY[]::bigint[]
+              END
+            ) AS variant_manufacturer(manufacturer_id)
+            JOIN manufacturers vm ON vm.id = variant_manufacturer.manufacturer_id
+            WHERE pv_manu.product_id = p.id
+              AND pv_manu.is_active IS DISTINCT FROM FALSE
+              AND pv_manu.deleted_at IS NULL
+              AND TRIM(COALESCE(vm.name, '')) <> ''
+          ) manufacturer_source
+        ), '[]'::jsonb) AS variant_manufacturer_names,
         COALESCE(
           NULLIF(TRIM(p.image_url), ''),
           NULLIF(TRIM(p.thumbnail_url), ''),
@@ -3776,6 +3796,14 @@ export const getProductsAdminList = async (req, res) => {
 
     const rows = (result.rows || []).map((row) => {
       const currentSellingPrice = resolveAdminListCurrentSellingPrice(row);
+      // The colour rows carry the real factory; the product-level manufacturer is
+      // only a fallback for products whose variants were never assigned one.
+      const variantManufacturerNames = (Array.isArray(row.variant_manufacturer_names) ? row.variant_manufacturer_names : [])
+        .map((name) => String(name || "").trim())
+        .filter(Boolean);
+      const manufacturerNames = variantManufacturerNames.length
+        ? variantManufacturerNames
+        : [String(row.manufacturer_name || "").trim()].filter(Boolean);
       return {
       ...row,
       selling_price: currentSellingPrice,
@@ -3799,6 +3827,9 @@ export const getProductsAdminList = async (req, res) => {
       productThermalImageStatus: row.product_thermal_image_status || "pending",
       thermalColorCount: Number(row.thermal_color_count || 0),
       thermalColorNames: Array.isArray(row.thermal_color_names) ? row.thermal_color_names : [],
+      variant_manufacturer_names: variantManufacturerNames,
+      manufacturer_names: manufacturerNames,
+      manufacturerNames,
     };
     });
     const total = Number(result.rows?.[0]?.total_count || 0);
