@@ -2577,6 +2577,32 @@
     -webkit-backdrop-filter: blur(14px) saturate(1.02);
   }
 
+  /*
+   * The light-mode header is deliberately dark (the gradient right above), so the
+   * utility row sitting on it needs LIGHT text. It used to inherit the light stone
+   * greys instead — #57534e on a near-black bar, ~2.5:1, effectively invisible. An
+   * earlier attempt to fix this by painting the row white lives unlayered further down
+   * the file, where it can never beat this layer, so the row stayed dark while keeping
+   * the dark text. Own both here: same layer paints the surface and its text.
+   */
+  .storefront-shell:not(.storefront-dark) .sf-utility-row {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.72) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-utility-row :is(a, button) {
+    color: rgba(255, 255, 255, 0.8) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-utility-row :is(a, button) svg {
+    color: inherit !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-utility-row :is(a, button):hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-header-announcement {
     background:
       linear-gradient(105deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.97) 42%, rgba(224, 231, 255, 0.96)) !important;
@@ -2781,9 +2807,10 @@
     box-shadow: 0 16px 38px rgba(109, 40, 217, 0.12) !important;
   }
 
+  /* The cart count wears the site black, not the legacy violet. */
   .storefront-shell:not(.storefront-dark) .sf-action-badge {
     border-color: #ffffff !important;
-    background: #6d28d9 !important;
+    background: #121212 !important;
     color: #ffffff !important;
   }
 
@@ -4860,22 +4887,12 @@ html[data-theme] .bg-zinc-950\/70 {
   color: #b4860b !important;
 }
 
-.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-utility-row {
-  border-color: rgba(28, 25, 23, 0.08) !important;
-  background: #ffffff !important;
-  background-image: none !important;
-  color: #57534e !important;
-  box-shadow: none !important;
-}
-
-.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-utility-row :is(a, button) {
-  color: #57534e !important;
-}
-
-.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-utility-row :is(a, button):hover {
-  background: #f5f5f4 !important;
-  color: #1c1917 !important;
-}
+/*
+ * The white utility row that used to live here was unreachable: these declarations are
+ * unlayered, and for !important the layered light-theme block wins, so the row kept the
+ * dark header gradient while taking these dark greys — dark on dark. The row is owned by
+ * the layered block now (search "utility row sitting on it needs LIGHT text").
+ */
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-main-v2 {
   color: #1c1917 !important;
@@ -4929,7 +4946,7 @@ html[data-theme] .bg-zinc-950\/70 {
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-action-badge {
   border-color: #ffffff !important;
-  background: #1c1917 !important;
+  background: #121212 !important;
   color: #ffffff !important;
 }
 
