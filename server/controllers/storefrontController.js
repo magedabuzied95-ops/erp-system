@@ -5164,6 +5164,8 @@ export const accountByPhone = async (req, res) => {
       `,
       [tenantId, phoneVariants, customerId]
     );
+    const accountPricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const accountSaleModeEnabled = saleModeEnabled(accountPricingSettings);
     const wishlist = await db.query(
       `
       SELECT
@@ -5199,7 +5201,7 @@ export const accountByPhone = async (req, res) => {
       ORDER BY cw.created_at DESC
       LIMIT 50
       `,
-      [tenantId, phone, saleModeEnabled(await loadStorefrontPricingSettings(tenantId))]
+      [tenantId, phone, accountSaleModeEnabled]
     );
     const recent = await db.query(
       `
@@ -5236,8 +5238,21 @@ export const accountByPhone = async (req, res) => {
       ORDER BY rv.product_id, rv.viewed_at DESC
       LIMIT 20
       `,
-      [tenantId, phone, saleModeEnabled(await loadStorefrontPricingSettings(tenantId))]
+      [tenantId, phone, accountSaleModeEnabled]
     );
+    // The SELECTs above read the raw price columns, but for a large part of the catalogue the
+    // only normal price lives on the purchase invoice (see resolveCurrentSellingPrice), so those
+    // rows come back at 0. Re-hydrate them through the same catalog projection the storefront
+    // grid uses, which also restores the variants/colours/sizes the cards render.
+    const accountProductIds = [...new Set([...wishlist.rows, ...recent.rows].map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0))];
+    const accountCatalog = new Map(
+      (await queryProductsByIds(tenantId, accountProductIds, accountPricingSettings)).map((product) => [String(product.id), product])
+    );
+    const hydrateAccountProduct = (row = {}) => {
+      const product = accountCatalog.get(String(row.id));
+      if (!product) return row;
+      return { ...row, ...product, created_at: row.created_at ?? product.created_at, viewed_at: row.viewed_at ?? product.viewed_at };
+    };
     const loyalty = customerId ? await getCustomerLoyaltySummary(db, customerId, tenantId) : null;
     const addresses = [
       ...new Set(
@@ -5254,8 +5269,10 @@ export const accountByPhone = async (req, res) => {
       loyalty,
       addresses,
       wishlist: wishlist.rows.map((row) => ({ product_id: row.id })),
-      wishlist_products: wishlist.rows,
-      recent_products: recent.rows.sort((a, b) => new Date(b.viewed_at || 0) - new Date(a.viewed_at || 0)),
+      wishlist_products: wishlist.rows.map(hydrateAccountProduct),
+      recent_products: recent.rows
+        .sort((a, b) => new Date(b.viewed_at || 0) - new Date(a.viewed_at || 0))
+        .map(hydrateAccountProduct),
     });
   } catch (error) {
     console.error("[storefront-account] failed", {
