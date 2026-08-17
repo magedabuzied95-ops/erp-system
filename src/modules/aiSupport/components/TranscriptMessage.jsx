@@ -427,7 +427,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
       ) : null}
       {reactionPickerOpen ? (
         <div data-ai-message-reaction-picker="true" className={`relative z-50 mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
-          <div className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-xl ${variant === "pwa" ? "border-slate-200 bg-white" : "border-white/10 bg-[#f8fafc]"}`}>
+          <div className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-xl ${variant === "pwa" ? "border-slate-200 bg-white" : "border-white/10 bg-[#232833]"}`}>
             {reactionOptions.map((emoji) => (
               <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-9 w-9 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}><AppleEmoji emoji={emoji} size={25} /></button>
             ))}
