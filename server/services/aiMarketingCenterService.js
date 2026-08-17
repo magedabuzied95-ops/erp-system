@@ -436,13 +436,19 @@ const isPublicStoryAssetUrl = (value = "") => isDirectImageCdnUrl(value) || isBa
 
 const absoluteStoryAssetUrl = (value = "") => {
   const text = cleanImageUrl(value);
-  if (!text || isForbiddenFrontendAssetUrl(text)) return "";
-  if (isDirectImageCdnUrl(text) || isBackendStoryAssetUrl(text)) return text;
-  if (/^\/uploads\/stories\//i.test(text) || /^uploads\/stories\//i.test(text)) {
+  if (!text) return "";
+  // A freshly rendered slide is a server-relative /uploads/stories path. Resolve
+  // it against the public backend host BEFORE the forbidden-prefix guard, which
+  // rejects every relative URL outright because `new URL(text)` throws without a
+  // base. That guard made this branch unreachable, so once Cloudinary stopped
+  // returning absolute URLs every story render produced zero usable assets.
+  if (/^\/?uploads\/stories\//i.test(text)) {
     const backendBase = publicBackendBaseUrl();
     if (!backendBase) return "";
     return `${backendBase}/${text.replace(/^\/+/, "")}`;
   }
+  if (isForbiddenFrontendAssetUrl(text)) return "";
+  if (isDirectImageCdnUrl(text) || isBackendStoryAssetUrl(text)) return text;
   return "";
 };
 
