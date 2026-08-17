@@ -24,14 +24,14 @@ test("storefront home ends with the full legacy-inspired responsive footer", asy
   assert.match(lowerHome, /FaCcVisa/);
   assert.match(lowerHome, /FaCcPaypal/);
   assert.match(lowerHome, /meeza-logo\.svg/);
+  // The app-launch block (store badges + "coming soon" card) was removed on request.
+  // The app is not published, so the footer must not advertise it again.
+  assert.doesNotMatch(lowerHome, /storefront-footer-app-launch/);
+  assert.doesNotMatch(lowerHome, /FaGooglePlay|FaAppStoreIos/);
+  assert.doesNotMatch(lowerHome, /Google Play|App Store|انتظروا إطلاق التطبيق/);
   assert.match(lowerHome, /m-one-logo-dark-fixed\.png/);
   assert.match(lowerHome, /m-one-logo-white-fixed\.png/);
   assert.match(lowerHome, /sf-header-logo-moving-m/);
-  assert.match(lowerHome, /data-testid="storefront-footer-app-launch"/);
-  assert.match(lowerHome, /FaGooglePlay/);
-  assert.match(lowerHome, /FaAppStoreIos/);
-  assert.match(lowerHome, /Google Play/);
-  assert.match(lowerHome, /App Store/);
   assert.match(lowerHome, /buildWhatsAppHref/);
   assert.match(lowerHome, /support@m1store-egy\.com/);
   assert.match(lowerHome, /جميع الحقوق محفوظة/);
