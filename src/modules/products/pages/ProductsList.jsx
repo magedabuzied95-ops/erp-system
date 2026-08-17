@@ -3346,11 +3346,11 @@ function ProductsList() {
                     />
                   </th>
                   <th className="px-4 py-2 text-right">{t("products.table.product")}</th>
-                  <th className="px-4 py-2 text-center">{t("products.table.typeCategoryBrand")}</th>
-                  <th className="px-4 py-2 text-center">{t("products.table.stock")}</th>
-                  <th className="px-4 py-2 text-center">{t("products.table.costSale", "التكلفة / البيع")}</th>
-                  <th className="px-4 py-2 text-center">{t("products.table.status")}</th>
-                  <th className="px-4 py-2 text-center">{t("products.table.actions")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.typeCategoryBrand")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.stock")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.status")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3440,7 +3440,7 @@ function ProductsList() {
                             </div>
                           </button>
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
+                        <td className="m1-table__cell--center px-4 py-4 align-middle">
                           <p className="truncate font-semibold text-text">
                             {productType || category || t("products.selected.category")}
                           </p>
@@ -3452,7 +3452,7 @@ function ProductsList() {
                             <ProductAudienceBadges row={row} language={i18n.language} />
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
+                        <td className="m1-table__cell--center px-4 py-4 align-middle">
                           <p className="font-semibold text-text">{totalStock}</p>
                           <p className="text-sm text-text-muted">{t("products.stock.lowAlert")} {lowStockAlert}</p>
                         </td>
