@@ -137,6 +137,9 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
 }
 
 function QuickPosFilters({
+  productTypeOptions,
+  selectedProductType,
+  onSelectProductType,
   genderOptions,
   selectedGenders,
   onToggleGender,
@@ -167,6 +170,28 @@ function QuickPosFilters({
     <div className="mt-2 mb-1 rounded-2xl border border-white/10 bg-white/[0.025] px-2 py-2">
       <div className="overflow-x-auto">
       <div className="flex min-w-max items-center gap-2">
+        {/*
+         * Product type is a single-value filter, unlike the multi-select chips
+         * beside it, so clicking the active chip returns to "all" rather than
+         * leaving a selection with no way off it — the row has no "All" chip,
+         * matching how the gender chips already clear themselves.
+         */}
+        {(Array.isArray(productTypeOptions) ? productTypeOptions : []).map((option) => {
+          const id = String(option?.id ?? "");
+          if (!id) return null;
+          const active = String(selectedProductType ?? "all") === id;
+          return (
+            <button
+              key={`type-${id}`}
+              type="button"
+              onClick={() => onSelectProductType(active ? "all" : id)}
+              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ active ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+            >
+              {option.name}
+              {Number.isFinite(Number(option.count)) ? <span className="rounded-full bg-black/15 px-1.5 py-0.5 text-[10px]">{option.count}</span> : null}
+            </button>
+          );
+        })}
         {genders.map((gender) => {
           const active = selectedGenderSet.has(gender.id);
           const count = genderCounts.get(gender.id);

@@ -7374,6 +7374,12 @@ function POSPro() {
     setSelectedManufacturerId((current) => toggleMultiFilterValue(current, value));
   }, []);
 
+  // Product type is single-value, so this replaces rather than toggles a list;
+  // the quick chips pass "all" back when the active one is clicked again.
+  const handleProductTypeFilterChange = useCallback((value) => {
+    setSelectedProductType(value || "all");
+  }, []);
+
   const handleToggleFilters = useCallback(() => {
     setFiltersOpen((open) => {
       if (!open) {
@@ -8222,6 +8228,9 @@ function POSPro() {
                 </button>
             </div>
             <QuickPosFilters
+              productTypeOptions={smartFilterOptions.productType}
+              selectedProductType={selectedProductType}
+              onSelectProductType={handleProductTypeFilterChange}
               genderOptions={smartFilterOptions.gender}
               selectedGenders={normalizeMultiFilterValue(selectedGender)}
               onToggleGender={handleGenderFilterChange}
