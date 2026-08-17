@@ -1345,11 +1345,11 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
         <div className="grid grid-cols-2 gap-2 text-right text-[11px] font-black text-stone-600 dark:text-stone-300">
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
             <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.minPrice", "أقل سعر")}</span>
-            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)} جنيه</span>
+            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)}</span>
           </div>
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
             <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.maxPrice", "أعلى سعر")}</span>
-            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)} جنيه</span>
+            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)}</span>
           </div>
         </div>
         <p className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
@@ -1458,7 +1458,7 @@ function CatalogAppliedFilterChips({
   (Array.isArray(selectedSizes) ? selectedSizes : []).forEach((size) => {
     if (size) chips.push({ key: `size:${size}`, label: size, field: "size", value: size });
   });
-  if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} جنيه`, field: "price" });
+  if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} ${lang === "en" ? "EGP" : "جنيه"}`, field: "price" });
   if (normalizeCatalogSortValue(selectedSort) !== "newest") chips.push({ key: "sort", label: sortLabelForValue(selectedSort, t), field: "sort" });
   if (!chips.length) return null;
   return (

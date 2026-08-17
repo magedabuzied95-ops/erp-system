@@ -78,6 +78,14 @@ home `/`, PLP `/products`, PDP `/product/:slug`, cart `/cart`, checkout `/checko
 - **Scope note**: after fix, source grep for hardcoded-Arabic attributes and visible JSX text nodes in this file = **0 matches**. Empirical EN Production scan to confirm no other chrome leaks.
 - **Gates**: eslint 0 errors, `npm run build` exit 0.
 
+### `/products` PLP — DEFECT #3 (currency chrome) → FIXED, verifying
+- **Symptom**: EN price filter showed `EGP 0 جنيه` — `money()` already emits localized currency (`EGP 0` / `0 ج.م`), so the hardcoded ` جنيه` suffix duplicated it (and was wrong-language in EN). Present in both languages (`0 ج.م جنيه` in AR).
+- **Root cause**: `StorefrontProductListingPage.jsx` price-bounds spans (1348/1352) appended ` جنيه` after `money()`; applied price chip (1461) used raw numbers + hardcoded ` جنيه`.
+- **Fix**: 1348/1352 drop the redundant suffix (let `money()` localize); 1461 localize the currency word `lang === "en" ? "EGP" : "جنيه"` (kept raw numbers because the range can be `∞`, which `money()` can't format).
+- **Classification of remaining EN-mode Arabic on PLP** (allowed residual §23, business DATA — no app English source): `محلي`/`مستورد فيتنامي` (grade), `ميرور اوريجينال` (grade/brand), `كولكشن الشتوي` (collection). → **Product decision flagged**: whether the grade taxonomy should have EN display labels is a design call; not invented here.
+- **Gates**: eslint 0 errors, build exit 0.
+
 ## Checkpoints / releases
 - **CP-1** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP gender chip localization. Commit `3f01866`. Deployed asset `app-BZ5mCSDl-3f01866eb8b5.js`. Verified live: EN quick-chips `Men/Women/Kids/Bags/Crocs/Slippers`, applied chip `Men`, zero AR gender leak. Rollback ref `rollback/storefront-cp0-12dede7` @ `12dede7`.
-- **CP-2** (pending push): PLP pagination + nav aria localization.
+- **CP-2** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP pagination + nav aria localization. Commit `4833195`, asset `app-BjEyXvzv-4833195daff7.js`. Verified live: EN pagination `Next`.
+- **CP-3** (pending push): PLP price-filter currency de-duplication + localization.
