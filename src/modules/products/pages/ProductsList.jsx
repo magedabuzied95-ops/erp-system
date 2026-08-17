@@ -2162,6 +2162,19 @@ function ProductsList() {
     setSelectedIds((prev) => prev.filter((id) => rows.some((row) => row.id === id)));
   }, [rows]);
 
+  // The server narrows the factory list to the other active filters, so a
+  // previously picked factory can drop out of it. Release the selection instead
+  // of leaving a filter applied whose chip is no longer on screen — that reads
+  // as "no products" with nothing to click to undo it. Skip while the list is
+  // empty: that is the pre-first-response state, not a real "no longer valid".
+  useEffect(() => {
+    if (!manufacturerOptions.length) return;
+    if (manufacturerFilter === "all") return;
+    if (manufacturerOptions.includes(manufacturerFilter)) return;
+    setManufacturerFilter("all");
+    setPage(1);
+  }, [manufacturerOptions, manufacturerFilter]);
+
   const classificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
     [classificationGroups]

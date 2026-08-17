@@ -3312,6 +3312,48 @@ export const getProductsAdminList = async (req, res) => {
         grade: req.query.grade,
       },
     });
+    // The manufacturer chip list is a facet, not a fixed list: it must offer the
+    // factories that still have products under the OTHER active filters, so
+    // narrowing by gender/type/grade drops the factories that no longer match.
+    // Its own selection is deliberately excluded — otherwise picking a factory
+    // would collapse the list to that one chip and there would be no way to
+    // switch to another without clearing first.
+    //
+    // The color-image filter is left out: its clause needs the `cis` join, a CTE
+    // over every variant, and pulling that into the facet query would roughly
+    // double the cost of every products-list request for a maintenance filter
+    // that is rarely combined with the factory chips.
+    const manufacturerFacetValues = [...scopeClause.values];
+    const manufacturerFacetSearchClause = buildProductSearchClause({
+      values: manufacturerFacetValues,
+      search: req.query.search ?? req.query.q ?? "",
+    });
+    const manufacturerFacetFiltersClause = await buildProductsAdminListFiltersClause({
+      values: manufacturerFacetValues,
+      filters: {
+        status: req.query.status,
+        brand: req.query.brand,
+        category: req.query.category,
+        storefront_visibility: req.query.storefront_visibility ?? req.query.storefrontVisibility,
+        sale: req.query.sale,
+        offers: req.query.offers,
+        is_offer_story: req.query.is_offer_story,
+        catalog_tab: req.query.catalog_tab ?? req.query.catalogTab,
+        gender: req.query.gender,
+        product_type: req.query.product_type ?? req.query.productType,
+        grade: req.query.grade,
+      },
+    });
+    const manufacturerFacetWhereSql = [
+      scopeClause.whereSql,
+      manufacturerFacetSearchClause
+        ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${manufacturerFacetSearchClause}`
+        : "",
+      manufacturerFacetFiltersClause.sql
+        ? `${scopeClause.whereSql || manufacturerFacetSearchClause ? "AND" : "WHERE"} ${manufacturerFacetFiltersClause.sql}`
+        : "",
+    ].filter(Boolean).join("\n");
+
     const colorImageFilter = String(req.query.color_image_status ?? req.query.colorImageStatus ?? "all").trim().toLowerCase();
     const normalizedColorImageFilter = colorImageFilter === "missing" ? "incomplete" : colorImageFilter;
     const colorImageFilterClause = ["complete", "incomplete", "none"].includes(normalizedColorImageFilter)
@@ -3710,15 +3752,26 @@ export const getProductsAdminList = async (req, res) => {
       `
       SELECT
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(b.name, p.brand, '')), '') ORDER BY NULLIF(TRIM(COALESCE(b.name, p.brand, '')), '')), NULL) AS brands,
-        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(c.name, p.category, '')), '') ORDER BY NULLIF(TRIM(COALESCE(c.name, p.category, '')), '')), NULL) AS categories,
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(c.name, p.category, '')), '') ORDER BY NULLIF(TRIM(COALESCE(c.name, p.category, '')), '')), NULL) AS categories
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN brands b ON b.id = p.brand_id
+      ${scopeClause.whereSql}
+      `,
+      scopeClause.values
+    );
+
+    const manufacturerOptionsResult = await db.query(
+      `
+      SELECT
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(m.name, '')), '') ORDER BY NULLIF(TRIM(COALESCE(m.name, '')), '')), NULL) AS manufacturers
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN brands b ON b.id = p.brand_id
       LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
-      ${scopeClause.whereSql}
+      ${manufacturerFacetWhereSql}
       `,
-      scopeClause.values
+      manufacturerFacetValues
     );
 
     const rows = (result.rows || []).map((row) => {
@@ -3751,7 +3804,7 @@ export const getProductsAdminList = async (req, res) => {
     const total = Number(result.rows?.[0]?.total_count || 0);
     const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];
     const availableCategories = Array.isArray(filterOptionsResult.rows?.[0]?.categories) ? filterOptionsResult.rows[0].categories.filter(Boolean) : [];
-    const availableManufacturers = Array.isArray(filterOptionsResult.rows?.[0]?.manufacturers) ? filterOptionsResult.rows[0].manufacturers.filter(Boolean) : [];
+    const availableManufacturers = Array.isArray(manufacturerOptionsResult.rows?.[0]?.manufacturers) ? manufacturerOptionsResult.rows[0].manufacturers.filter(Boolean) : [];
 
     console.log("PRODUCT_ADMIN_LIST_TIMING", {
       durationMs: Date.now() - startedAt,
