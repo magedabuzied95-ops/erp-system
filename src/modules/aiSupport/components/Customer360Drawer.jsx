@@ -191,6 +191,11 @@ export default function Customer360Drawer({
   initialTab = "summary",
   aiAnalysis = null,
   portalTarget = null,
+  // The catalogue picker lives in the inbox page, so the drawer asks for it and
+  // receives the chosen card back rather than owning a second copy of it.
+  onRequestRestockPick = null,
+  onClearRestockPick = null,
+  restockPick = null,
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -203,7 +208,7 @@ export default function Customer360Drawer({
   const [restockIntents, setRestockIntents] = useState([]);
   const [restockLoading, setRestockLoading] = useState(false);
   const [restockMsg, setRestockMsg] = useState("");
-  const [restockCreate, setRestockCreate] = useState({ open: false, productId: "", variantId: "", busy: false });
+  const [restockCreate, setRestockCreate] = useState({ open: false, picked: null, busy: false });
 
   const restockPhone = clean(profileData.phone || customer?.phone || context?.phone || "");
   const loadRestockIntents = async () => {
@@ -225,18 +230,31 @@ export default function Customer360Drawer({
   };
   // Explicit, human-confirmed create. Variant is REQUIRED (no fake exact intent). Never autonomous.
   const submitRestockCreate = async () => {
-    const productId = Number(restockCreate.productId), variantId = Number(restockCreate.variantId);
-    if (!productId || !variantId) { setRestockMsg("Enter both product and variant (from the conversation product card)."); return; }
+    const productId = Number(restockCreate.picked?.product_id), variantId = Number(restockCreate.picked?.variant_id);
+    // The variant is what makes the request actionable — it names the size to
+    // watch. The picker can hand back a product with no colour/size chosen, so
+    // this stays a hard gate rather than falling back to a product-level row.
+    if (!productId || !variantId) { setRestockMsg(t("aiSupport.inbox.customer360.restockNeedsVariant")); return; }
     if (!restockPhone) { setRestockMsg("This customer has no phone on record."); return; }
     setRestockCreate((s) => ({ ...s, busy: true })); setRestockMsg("");
     try {
       const res = await api.post(`/ai-studio/restock-intents`, { productId, variantId, phone: restockPhone, source: "ai_inbox" }, { suppressErrorStatuses: [400, 403, 404, 409, 500] });
       if (res?.available_now) setRestockMsg("المقاس متوفر بالفعل — no request created.");
       else setRestockMsg(res?.reused ? "Request already existed (reused)." : "Restock request created.");
-      setRestockCreate({ open: false, productId: "", variantId: "", busy: false });
+      setRestockCreate({ open: false, picked: null, busy: false });
+      onClearRestockPick?.();
       await loadRestockIntents();
     } catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to create request"); setRestockCreate((s) => ({ ...s, busy: false })); }
   };
+
+  // A pick arriving from the inbox picker also re-opens the create form: the
+  // picker covers the drawer, so collapsing it on the way back would drop the
+  // product the user just chose.
+  useEffect(() => {
+    if (!restockPick) return;
+    setRestockCreate((current) => ({ ...current, open: true, picked: restockPick }));
+    setRestockMsg("");
+  }, [restockPick]);
 
   useEffect(() => {
     if (!open) return;
@@ -632,13 +650,35 @@ export default function Customer360Drawer({
                 {restockCreate.open ? (
                   <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
                     <div className="text-xs text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockHint")}</div>
-                    <div className="flex gap-2">
-                      <input value={restockCreate.productId} onChange={(e) => setRestockCreate((s) => ({ ...s, productId: e.target.value.replace(/\D/g, "") }))} placeholder={t("aiSupport.inbox.customer360.productId")} className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
-                      <input value={restockCreate.variantId} onChange={(e) => setRestockCreate((s) => ({ ...s, variantId: e.target.value.replace(/\D/g, "") }))} placeholder={t("aiSupport.inbox.customer360.variantId")} className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-sm text-[var(--text)]" inputMode="numeric" />
-                    </div>
+                    {/*
+                     * The two numeric ID fields this replaces asked staff to copy a
+                     * product id AND a variant id off a card mid-conversation. The
+                     * variant is mandatory here — a request without one cannot say
+                     * which size to watch — and it is the id nobody has to hand.
+                     * The catalogue picker returns both, with the colour and size
+                     * chosen visually.
+                     */}
+                    {restockCreate.picked ? (
+                      <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-soft)]">
+                          {restockCreate.picked.image_url ? <img src={restockCreate.picked.image_url} alt="" className="h-full w-full object-contain" /> : null}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-black text-[var(--text)]">{clean(restockCreate.picked.product_name) || `#${restockCreate.picked.product_id}`}</div>
+                          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
+                            {[clean(restockCreate.picked.color), clean(restockCreate.picked.size) ? `مقاس ${clean(restockCreate.picked.size)}` : ""].filter(Boolean).join(" · ") || t("aiSupport.inbox.customer360.restockPickVariant")}
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => onRequestRestockPick?.()} className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 py-1.5 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.restockChange")}</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => onRequestRestockPick?.()} className="w-full rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-4 text-xs font-black text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
+                        {t("aiSupport.inbox.customer360.restockChooseFromCatalog")}
+                      </button>
+                    )}
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setRestockCreate({ open: false, productId: "", variantId: "", busy: false })} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">{t("aiSupport.inbox.customer360.cancel")}</button>
-                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{t("aiSupport.inbox.customer360.confirmCreate")}</button>
+                      <button type="button" onClick={() => { setRestockCreate({ open: false, picked: null, busy: false }); onClearRestockPick?.(); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">{t("aiSupport.inbox.customer360.cancel")}</button>
+                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy || !restockCreate.picked?.variant_id} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{t("aiSupport.inbox.customer360.confirmCreate")}</button>
                     </div>
                   </div>
                 ) : null}
