@@ -1217,8 +1217,8 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
 
   if (!src) {
     return (
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
-        <Package2 size={20} />
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
+        <Package2 size={26} />
       </div>
     );
   }
@@ -1231,9 +1231,9 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
     return (
       <div
         title={`الصورة غير موجودة على السيرفر: ${src}`}
-        className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
+        className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
       >
-        <ImageOff size={18} />
+        <ImageOff size={22} />
         <span className="text-[8px] font-black leading-none">مفقودة</span>
       </div>
     );
@@ -1249,7 +1249,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         onError={() => setLoadFailed(true)}
         onMouseEnter={showColorPreviews}
         onMouseLeave={hideColorPreviews}
-        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
+        className="h-20 w-20 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
       />
       {previewPosition && typeof document !== "undefined" ? createPortal(
         <div
