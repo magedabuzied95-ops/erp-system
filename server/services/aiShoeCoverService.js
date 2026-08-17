@@ -5,6 +5,7 @@ import path from "node:path";
 import { Buffer } from "node:buffer";
 
 import db from "../database/db.js";
+import { cloudinaryUploadsEnabled } from "../utils/cloudinaryUploads.js";
 import { getAISettings } from "./aiSettingsService.js";
 
 const AI_SHOE_COVER_PROMPT = [
@@ -216,7 +217,7 @@ const saveGeneratedAsset = async ({ buffer, tenantId = null, productId = null, t
 
   try {
     const config = cloudinaryConfig();
-    if (config.cloudName && config.apiKey && config.apiSecret && typeof fetch === "function" && typeof FormData !== "undefined") {
+    if (cloudinaryUploadsEnabled() && config.cloudName && config.apiKey && config.apiSecret && typeof fetch === "function" && typeof FormData !== "undefined") {
       const timestamp = Math.floor(Date.now() / 1000);
       const paramsToSign = { folder: config.folder, timestamp };
       const signatureBase = Object.keys(paramsToSign)

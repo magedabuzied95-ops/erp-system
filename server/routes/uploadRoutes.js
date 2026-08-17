@@ -5,6 +5,7 @@ import { readFile, rename, unlink } from "node:fs/promises";
 
 import upload from "../config/multer.js";
 import { ensureLocalProductImageVariants, isLocalProductImageUrl } from "../services/productImageVariantService.js";
+import { cloudinaryUploadsEnabled } from "../utils/cloudinaryUploads.js";
 import { detectImageFormat, getImageFormatDetails } from "../utils/imageUploadValidation.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -21,6 +22,9 @@ const cloudinaryConfig = () => ({
 const sha1 = (value = "") => createHash("sha1").update(value).digest("hex");
 
 const uploadToCloudinary = async (file) => {
+  if (!cloudinaryUploadsEnabled()) {
+    return null;
+  }
   const config = cloudinaryConfig();
   if (!config.cloudName || !config.apiKey || !config.apiSecret || typeof fetch !== "function" || typeof FormData === "undefined") {
     return null;
@@ -106,7 +110,15 @@ router.post(
       req.file.mimetype = detectedDetails.mimetype;
       req.file.originalname = `${path.basename(req.file.originalname || "product-image", path.extname(req.file.originalname || ""))}${detectedDetails.extension}`;
 
-      const cloudinaryResult = await uploadToCloudinary(req.file);
+      // A remote upload failure must never lose an image the server already
+      // holds on disk: keep the local file and serve it from /uploads instead.
+      const cloudinaryResult = await uploadToCloudinary(req.file).catch((uploadError) => {
+        console.warn("[product-image-upload] cloudinary upload failed; keeping the local file", {
+          file: req.file?.filename || "",
+          message: uploadError?.message || String(uploadError),
+        });
+        return null;
+      });
       if (cloudinaryResult?.secure_url) {
         await unlink(req.file.path).catch(() => {});
       }

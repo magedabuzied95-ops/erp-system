@@ -7,6 +7,7 @@ import { Buffer } from "node:buffer";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { classifyStoryAudience } from "./storyAudienceClassifier.js";
+import { cloudinaryUploadsEnabled } from "../utils/cloudinaryUploads.js";
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
@@ -76,6 +77,9 @@ const storyCloudinaryConfig = () => ({
 const sha1 = (value = "") => crypto.createHash("sha1").update(value).digest("hex");
 
 const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
+  if (!cloudinaryUploadsEnabled()) {
+    return null;
+  }
   const config = storyCloudinaryConfig();
   const hasCloudName = Boolean(trimString(config.cloudName));
   const hasApiKey = Boolean(trimString(config.apiKey));
@@ -772,7 +776,16 @@ const writeStoryFile = async ({ filename, composites, background }) => {
     backgroundBuffer = null;
     disposeCompositeBuffers(composites);
     logStoryMemory("after-story-render", { filename });
-    const cloudinaryUrl = await uploadStoryImageToCloudinary({ filePath: outputPath, filename });
+    // The slide is already on disk at this point, so a failed remote upload
+    // must not fail the render: the local /uploads/stories URL is absolutised
+    // against the public backend host by absoluteStoryAssetUrl before publish.
+    const cloudinaryUrl = await uploadStoryImageToCloudinary({ filePath: outputPath, filename }).catch((uploadError) => {
+      console.warn("[story-cloudinary-upload-skipped]", {
+        filename,
+        message: uploadError?.message || String(uploadError),
+      });
+      return null;
+    });
     logStoryMemory("after-story-upload", { filename, cloudinary: Boolean(cloudinaryUrl) });
     return cloudinaryUrl || `/uploads/stories/${filename}`;
   } finally {
