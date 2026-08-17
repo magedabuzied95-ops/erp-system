@@ -351,6 +351,29 @@ const createStoryTextComposite = async ({ text, left, top, width, height, size, 
 const BADGE_TEXT_INSET = 40;
 const BADGE_TEXT_BOX_WIDTH = 440;
 const BADGE_TEXT_BOX_HEIGHT = 42;
+/**
+ * The sizes strip as it is actually drawn. Kept in one place because the pill,
+ * the text composite and the width measurement must agree character for
+ * character — they had drifted into separate copies, one of which carried a
+ * mojibake bullet and so never normalised spacing around an existing separator.
+ */
+const storySizesDisplayText = (sizes = "") => {
+  const cleanSizes = trimString(sizes)
+    .replace(/^AVAILABLE SIZES:\s*/i, "")
+    .replace(/\s*,\s*/g, " • ")
+    .replace(/\s*•\s*/g, " • ");
+  return cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
+};
+
+// The sizes text composite sits at x=108 inside a pill that starts at x=72.
+const SIZES_TEXT_INSET = 36;
+const SIZES_TEXT_BOX_WIDTH = 820;
+const SIZES_TEXT_BOX_HEIGHT = 44;
+const SIZES_TEXT_SIZE = 18;
+// The crossed-out original price starts at x=72; its strike line starts at x=68.
+const ORIGINAL_PRICE_TEXT_BOX_WIDTH = 360;
+const ORIGINAL_PRICE_TEXT_BOX_HEIGHT = 48;
+const ORIGINAL_PRICE_TEXT_SIZE = 26;
 
 /**
  * Width in pixels that this text actually renders at, for sizing the pill behind
@@ -378,9 +401,11 @@ const measureStoryTextWidth = async ({ text, size, width, height, weight = "bold
   }
 };
 
-const createStoryPriceStrikeComposite = async ({ text, left = 68, top = 1416 } = {}) => {
+const createStoryPriceStrikeComposite = async ({ text, left = 68, top = 1416, measuredTextWidth = 0 } = {}) => {
   if (!trimString(text)) return null;
-  const width = Math.min(360, Math.max(180, trimString(text).length * 18));
+  const width = measuredTextWidth > 0
+    ? Math.round(measuredTextWidth) + 8
+    : Math.min(360, Math.max(180, trimString(text).length * 18));
   const input = await sharp(Buffer.from(`
     <svg width="${width}" height="16" viewBox="0 0 ${width} 16" xmlns="http://www.w3.org/2000/svg">
       <line x1="4" y1="8" x2="${width - 4}" y2="8" stroke="#ef4444" stroke-width="7" stroke-linecap="round"/>
@@ -617,22 +642,27 @@ export const storyAssetImageSources = (story = {}, design = {}) => {
   ]);
 };
 
-export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice = "", sizes, cta, theme = DESIGNED_STORY_THEMES.current, renderText = true, measuredBadgeWidth = 0 }) => {
-  const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*•\s*/g, " \u2022 ");
-  const sizesText = cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
+export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice = "", sizes, cta, theme = DESIGNED_STORY_THEMES.current, renderText = true, measuredBadgeWidth = 0, measuredSizesWidth = 0, measuredOriginalPriceWidth = 0 }) => {
+  const sizesText = storySizesDisplayText(sizes);
   const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
   const sizesLines = storyAssetTextLines(sizesText, { maxChars: 48, maxLines: 1 });
   const priceLines = storyAssetTextLines(price, { maxChars: 20, maxLines: 1 });
   const originalPriceLines = storyAssetTextLines(originalPrice, { maxChars: 20, maxLines: 1 });
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
-  const sizesWidth = Math.min(900, Math.max(360, sizesText.length * 20 + 110));
+  const sizesWidth = measuredSizesWidth > 0
+    ? Math.min(936, Math.max(360, Math.round(measuredSizesWidth) + SIZES_TEXT_INSET * 2))
+    : Math.min(900, Math.max(360, sizesText.length * 20 + 110));
   // A character-count estimate under-measures every badge in DESIGNED_STORY_THEMES,
   // so the pill ended mid-word. Prefer the width the text composite actually
   // rendered at, and keep the estimate only as a fallback.
   const badgeWidth = measuredBadgeWidth > 0
     ? Math.min(936, Math.max(300, Math.round(measuredBadgeWidth) + BADGE_TEXT_INSET * 2))
     : Math.min(520, Math.max(300, (badge || "NEW COLLECTION").length * 24 + 72));
-  const originalPriceWidth = Math.min(360, Math.max(180, originalPrice.length * 18));
+  // The strike starts 4px left of the text, so it needs the text width plus that
+  // lead-in to reach the end of the last glyph.
+  const originalPriceWidth = measuredOriginalPriceWidth > 0
+    ? Math.round(measuredOriginalPriceWidth) + 8
+    : Math.min(360, Math.max(180, originalPrice.length * 18));
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -704,9 +734,8 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
 </svg>`;
 };
 
-export const createDesignedStoryTextComposites = async ({ badge, title, price, originalPrice = "", sizes, cta, theme = DESIGNED_STORY_THEMES.current }) => {
-  const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
-  const sizesText = cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
+export const createDesignedStoryTextComposites = async ({ badge, title, price, originalPrice = "", sizes, cta, theme = DESIGNED_STORY_THEMES.current, measuredOriginalPriceWidth = 0 }) => {
+  const sizesText = storySizesDisplayText(sizes);
   const badgeText = englishStoryText(badge, "NEW COLLECTION");
   const titleText = storyAssetTextLines(englishStoryText(title, theme.fallbackTitle || "Sneakers"), { maxChars: 24, maxLines: 2 }).join("\n");
   const priceText = englishStoryPrice(price);
@@ -715,10 +744,10 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, o
   const composites = await Promise.all([
     createStoryTextComposite({ text: theme.label, left: 784, top: 100, width: 192, height: 32, size: 14, color: "#ffffff", align: "center", weight: "semibold" }),
     createStoryTextComposite({ text: badgeText, left: 112, top: 1118, width: BADGE_TEXT_BOX_WIDTH, height: BADGE_TEXT_BOX_HEIGHT, size: 20, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: sizesText, left: 108, top: 1204, width: 820, height: 44, size: 18, color: "#475569", weight: "bold" }),
+    createStoryTextComposite({ text: sizesText, left: 108, top: 1204, width: SIZES_TEXT_BOX_WIDTH, height: SIZES_TEXT_BOX_HEIGHT, size: SIZES_TEXT_SIZE, color: "#475569", weight: "bold" }),
     createStoryTextComposite({ text: titleText, left: 72, top: 1276, width: 936, height: 180, size: 58, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: originalPriceText, left: 72, top: 1480, width: 360, height: 48, size: 26, color: "#cbd5e1", weight: "bold" }),
-    createStoryPriceStrikeComposite({ text: originalPriceText, top: 1504 }),
+    createStoryTextComposite({ text: originalPriceText, left: 72, top: 1480, width: ORIGINAL_PRICE_TEXT_BOX_WIDTH, height: ORIGINAL_PRICE_TEXT_BOX_HEIGHT, size: ORIGINAL_PRICE_TEXT_SIZE, color: "#cbd5e1", weight: "bold" }),
+    createStoryPriceStrikeComposite({ text: originalPriceText, top: 1504, measuredTextWidth: measuredOriginalPriceWidth }),
     createStoryTextComposite({ text: priceText, left: 72, top: originalPriceText ? 1530 : 1498, width: 560, height: originalPriceText ? 86 : 104, size: originalPriceText ? 58 : 70, color: "#ffffff", weight: "bold" }),
     createStoryTextComposite({ text: ctaText, left: 666, top: 1566, width: 322, height: 58, size: 25, color: "#ffffff", align: "center", weight: "bold" }),
     createStoryTextComposite({ text: "Available now", left: 72, top: 1640, width: 420, height: 52, size: 25, color: "#fb7185", weight: "bold" }),
@@ -941,13 +970,32 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         useSafeLimit: false,
         borderRadius: 48,
       });
-      let textComposites = await createDesignedStoryTextComposites(storyText);
-      const measuredBadgeWidth = await measureStoryTextWidth({
-        text: englishStoryText(storyText.badge, "NEW COLLECTION"),
-        size: 20,
-        width: BADGE_TEXT_BOX_WIDTH,
-        height: BADGE_TEXT_BOX_HEIGHT,
-      });
+      // Measure first: the pill, the sizes strip and the price strike are all
+      // drawn to fit text that sharp renders at a size we cannot predict from a
+      // character count.
+      const [measuredBadgeWidth, measuredSizesWidth, measuredOriginalPriceWidth] = await Promise.all([
+        measureStoryTextWidth({
+          text: englishStoryText(storyText.badge, "NEW COLLECTION"),
+          size: 20,
+          width: BADGE_TEXT_BOX_WIDTH,
+          height: BADGE_TEXT_BOX_HEIGHT,
+        }),
+        measureStoryTextWidth({
+          text: storySizesDisplayText(storyText.sizes),
+          size: SIZES_TEXT_SIZE,
+          width: SIZES_TEXT_BOX_WIDTH,
+          height: SIZES_TEXT_BOX_HEIGHT,
+        }),
+        storyText.originalPrice
+          ? measureStoryTextWidth({
+            text: englishStoryPrice(storyText.originalPrice),
+            size: ORIGINAL_PRICE_TEXT_SIZE,
+            width: ORIGINAL_PRICE_TEXT_BOX_WIDTH,
+            height: ORIGINAL_PRICE_TEXT_BOX_HEIGHT,
+          })
+          : 0,
+      ]);
+      let textComposites = await createDesignedStoryTextComposites({ ...storyText, measuredOriginalPriceWidth });
       logStoryMemory("slide-before-write-upload", {
         queueId: story.id || postId || null,
         slideIndex: index + 1,
@@ -955,7 +1003,13 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       });
       const outputUrl = await writeStoryFile({
         filename: storyFilename({ tenantId, postId, suffix: `ai-center-story-${index + 1}` }),
-        background: designedStoryBackgroundSvg({ ...storyText, renderText: false, measuredBadgeWidth }),
+        background: designedStoryBackgroundSvg({
+          ...storyText,
+          renderText: false,
+          measuredBadgeWidth,
+          measuredSizesWidth,
+          measuredOriginalPriceWidth,
+        }),
         composites: [imageComposite, ...textComposites],
       });
       imageComposite = null;
