@@ -5969,8 +5969,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const [quickAddVariantId, setQuickAddVariantId] = useState("");
   const [quickAddQty, setQuickAddQty] = useState(1);
   const [secondaryImageReady, setSecondaryImageReady] = useState(false);
-  const [secondaryFlashActive, setSecondaryFlashActive] = useState(false);
-  const secondaryFlashTimerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
     setHoverProductDetails(null);
@@ -5987,11 +5985,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [firstAvailableVariant, product.id, providedSelectedColor, providedSelectedVariant]);
   useEffect(() => {
     setSecondaryImageReady(false);
-    setSecondaryFlashActive(false);
-    if (secondaryFlashTimerRef.current) {
-      window.clearTimeout(secondaryFlashTimerRef.current);
-      secondaryFlashTimerRef.current = null;
-    }
     if (!hasReadySecondaryImage || typeof window === "undefined") return undefined;
     let cancelled = false;
     const preloadImage = new Image();
@@ -6014,31 +6007,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       cancelled = true;
     };
   }, [hasReadySecondaryImage, secondaryImageUrl]);
-
-  useEffect(() => () => {
-    if (secondaryFlashTimerRef.current && typeof window !== "undefined") {
-      window.clearTimeout(secondaryFlashTimerRef.current);
-      secondaryFlashTimerRef.current = null;
-    }
-  }, []);
-
-  const triggerSecondaryFlash = useCallback(() => {
-    if (!hasReadySecondaryImage || !secondaryImageReady || typeof window === "undefined") return;
-    setSecondaryFlashActive(true);
-    if (secondaryFlashTimerRef.current) window.clearTimeout(secondaryFlashTimerRef.current);
-    secondaryFlashTimerRef.current = window.setTimeout(() => {
-      setSecondaryFlashActive(false);
-      secondaryFlashTimerRef.current = null;
-    }, 140);
-  }, [hasReadySecondaryImage, secondaryImageReady]);
-
-  const clearSecondaryFlash = useCallback(() => {
-    if (secondaryFlashTimerRef.current && typeof window !== "undefined") {
-      window.clearTimeout(secondaryFlashTimerRef.current);
-      secondaryFlashTimerRef.current = null;
-    }
-    setSecondaryFlashActive(false);
-  }, []);
 
   useEffect(() => {
     if (!selectedVariantId || !activeSizes.length) return;
@@ -6195,24 +6163,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       <div className={`relative overflow-hidden rounded-[1.05rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.2rem] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
-            <div
-              className="sf-product-card-media group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
-              onMouseEnter={triggerSecondaryFlash}
-              onMouseLeave={clearSecondaryFlash}
-            >
-              {hasReadySecondaryImage && secondaryImageReady ? (
-                <div
-                  className="pointer-events-none absolute inset-0 z-[2] bg-stone-100/20 opacity-0 transition-opacity duration-150 ease-out md:group-hover/product:opacity-0"
-                  style={{ opacity: secondaryFlashActive ? 0.18 : 0 }}
-                />
-              ) : null}
+            <div className="sf-product-card-media group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]">
               <img
                 ref={primaryImageRef}
                 src={imageFor(displayImage)}
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
                 onError={fallbackProductImage}
-                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-active/product:scale-[1.12] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
+                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.19] md:group-active/product:scale-[1.19] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
                 fetchPriority={priorityImage ? "high" : undefined}
@@ -6227,7 +6185,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   alt={product.name}
                   aria-hidden="true"
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-hover/card-image:opacity-100 md:group-active/product:opacity-95"
+                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.13] md:group-hover/card-image:opacity-100 md:group-active/product:opacity-95"
                   style={{ backfaceVisibility: "hidden" }}
                   loading="lazy"
                   decoding="async"
@@ -6284,10 +6242,31 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         >
           {product.name}
         </Link>
+        {/* Desktop hover swap: the price row slides up out of a fixed 35px window and
+            the add-to-cart row takes its place. Touch has no hover, so it keeps the
+            price permanently visible next to the round quick-add button. */}
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-            {comparePrice ? <span className="sf-product-card-compare-price text-[10px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
+          <div className="sf-card-action-wrap min-w-0 flex-1 overflow-hidden md:h-[35px]">
+            <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/product:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:h-[35px] md:flex-nowrap md:items-center">
+                <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
+                {comparePrice ? <span className="sf-product-card-compare-price text-[10px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
+              </div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openVariantSheet();
+                }}
+                disabled={!canQuickAdd}
+                className="sf-card-slide-cta hidden h-[35px] w-full shrink-0 items-center gap-1.5 whitespace-nowrap bg-transparent p-0 text-[13px] font-black leading-none text-stone-900 transition-colors duration-200 hover:text-[#d4af37] disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:text-stone-400 dark:text-stone-100 dark:hover:text-[#f3d77a] dark:disabled:text-stone-500 md:inline-flex"
+                aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+                title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+              >
+                <ShoppingCart className="h-[18px] w-[18px] shrink-0 text-[#d4af37] dark:text-[#f3d77a]" />
+                {canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+              </button>
+            </div>
           </div>
           <button
             type="button"
@@ -6296,7 +6275,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               openVariantSheet();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none md:hidden"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
             title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
