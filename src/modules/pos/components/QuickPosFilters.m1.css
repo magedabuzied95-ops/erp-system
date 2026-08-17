@@ -1,0 +1,63 @@
+/* ==========================================================================
+   POS QUICK FILTERS — PRODUCT TYPE CHIPS
+   --------------------------------------------------------------------------
+   The chips carry a per-type hue so a cashier can find one by colour. That hue
+   is an identity, not a finished colour: painted raw it only ever suited one
+   theme. Inline styles set `--chip-color` and nothing else; the readable text,
+   fill and edge are derived here, per theme.
+
+   The first attempt painted the hue directly as text over an 8% tint of itself.
+   On the dark till that reads fine. In light mode the same chip lands on
+   --surface (a near-white beige), where amber-on-beige measures about 1.8:1 —
+   the "Sneakers" chip was effectively invisible. So light mode mixes the hue
+   toward black for ink and toward white for the fill, while dark mode keeps the
+   hue as ink over a transparent tint.
+
+   Active is solid in both themes: the palette hues are all light enough that
+   near-black ink sits on them comfortably, and a filled chip stays
+   unmistakable next to the outlined ones.
+   ====================================================================== */
+
+.m1-pos-type-chip {
+  /* Light is the unprefixed default so a missing data-theme still resolves. */
+  /* 50% is measured, not picked: the lightest hue in the palette (lime) lands
+     at 5.1:1 against the 16% fill here, and every other hue sits above it.
+     62% put lime at 3.6:1 and amber at 3.9:1 — under AA for this 12px text. */
+  --chip-ink: color-mix(in srgb, var(--chip-color) 50%, #000);
+  --chip-fill: color-mix(in srgb, var(--chip-color) 16%, #fff);
+  --chip-edge: color-mix(in srgb, var(--chip-color) 42%, #fff);
+  --chip-badge: color-mix(in srgb, var(--chip-ink) 14%, transparent);
+
+  color: var(--chip-ink);
+  background: var(--chip-fill);
+  border-color: var(--chip-edge);
+}
+
+html[data-theme="dark"] .m1-pos-type-chip {
+  --chip-ink: var(--chip-color);
+  --chip-fill: color-mix(in srgb, var(--chip-color) 12%, transparent);
+  --chip-edge: color-mix(in srgb, var(--chip-color) 38%, transparent);
+  --chip-badge: rgba(0, 0, 0, 0.32);
+}
+
+.m1-pos-type-chip:hover:not(.is-active) {
+  --chip-fill: color-mix(in srgb, var(--chip-color) 26%, #fff);
+  border-color: color-mix(in srgb, var(--chip-color) 62%, #fff);
+}
+
+html[data-theme="dark"] .m1-pos-type-chip:hover:not(.is-active) {
+  --chip-fill: color-mix(in srgb, var(--chip-color) 22%, transparent);
+  border-color: color-mix(in srgb, var(--chip-color) 58%, transparent);
+}
+
+.m1-pos-type-chip.is-active {
+  color: #0a0a0a;
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  --chip-badge: rgba(0, 0, 0, 0.16);
+}
+
+.m1-pos-type-chip .m1-pos-type-chip-count {
+  background: var(--chip-badge);
+  color: inherit;
+}

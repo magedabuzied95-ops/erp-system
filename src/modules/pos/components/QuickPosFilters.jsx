@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
 
+import "./QuickPosFilters.m1.css";
+
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
 
@@ -157,10 +159,10 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
         ref={buttonRef}
         type="button"
         onClick={() => onOpenChange(open ? "" : id)}
-        className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ open || selectedSet.size ? "border-emerald-300/40 bg-emerald-400/12 text-emerald-100" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+        className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border px-4 text-sm font-black transition ${ open || selectedSet.size ? "border-emerald-300/40 bg-emerald-400/12 text-emerald-100" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
       >
         <span>{label}{selectedSet.size ? ` (${selectedSet.size})` : ""}</span>
-        <ChevronDown className={`h-3.5 w-3.5 transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
       </button>
       {popover}
     </div>
@@ -229,16 +231,12 @@ function QuickPosFilters({
               key={`type-${id}`}
               type="button"
               onClick={() => onSelectProductType(active ? "all" : id)}
-              style={
-                active
-                  ? { backgroundColor: color, borderColor: color, color: "#0a0a0a" }
-                  : { borderColor: `${color}59`, backgroundColor: `${color}14`, color }
-              }
-              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition hover:brightness-125"
+              style={{ "--chip-color": color }}
+              className={`m1-pos-type-chip inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border px-4 text-sm font-black transition ${active ? "is-active" : ""}`}
             >
               {option.name}
               {Number.isFinite(Number(option.count)) ? (
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-black/15" : "bg-black/30"}`}>{option.count}</span>
+                <span className="m1-pos-type-chip-count rounded-full px-2 py-0.5 text-[11px]">{option.count}</span>
               ) : null}
             </button>
           );
@@ -251,10 +249,10 @@ function QuickPosFilters({
               key={gender.id}
               type="button"
               onClick={() => onToggleGender(gender.id)}
-              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ active ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+              className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border px-4 text-sm font-black transition ${ active ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
             >
               {gender.label}
-              {Number.isFinite(Number(count)) ? <span className="rounded-full bg-black/15 px-1.5 py-0.5 text-[10px]">{count}</span> : null}
+              {Number.isFinite(Number(count)) ? <span className="rounded-full bg-black/15 px-2 py-0.5 text-[11px]">{count}</span> : null}
             </button>
           );
         })}
