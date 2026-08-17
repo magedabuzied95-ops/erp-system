@@ -12,6 +12,8 @@ import {
   useLocation,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { whenLocalesReady } from "./i18n/i18n";
+import { isStorefrontBootPath } from "./i18n/loadLocaleScope";
 
 /* ======================================================
    LAYOUT
@@ -338,6 +340,15 @@ function App() {
     window.addEventListener("erp:auth-user-updated", refreshAuthorization);
     return () => window.removeEventListener("erp:auth-user-updated", refreshAuthorization);
   }, []);
+
+  // Boot on a public storefront route loads only the storefront dictionaries so
+  // a shopper does not download the ERP's in order to see a product. The rest
+  // arrives on idle; navigating to a non-storefront route pulls it forward so
+  // the destination never paints against missing keys.
+  useEffect(() => {
+    if (isStorefrontBootPath(location.pathname)) return;
+    void whenLocalesReady();
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!enableErpAppRoutes || isEmployeeAppRoute || !getToken()) return undefined;

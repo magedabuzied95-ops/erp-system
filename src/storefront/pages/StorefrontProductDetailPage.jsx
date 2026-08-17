@@ -54,6 +54,25 @@ const variantColorIdentity = (variant = {}) => {
   ).trim().toLowerCase();
 };
 
+/** Time after which a boot prefetch is treated as stale rather than fresh data. */
+const BOOT_PREFETCH_MAX_AGE_MS = 60_000;
+
+/**
+ * Claims the response the boot script in index.html requested for this route.
+ *
+ * Consumed exactly once: a later navigation to a different product must issue
+ * its own request rather than be served the landing product's payload.
+ */
+const takeBootPrefetchedProduct = (routeValue) => {
+  if (typeof window === "undefined") return null;
+  const boot = window.__M1_BOOT_PRODUCT;
+  if (!boot || typeof boot.promise?.then !== "function") return null;
+  window.__M1_BOOT_PRODUCT = null;
+  if (String(boot.key || "") !== String(routeValue || "")) return null;
+  if (Date.now() - Number(boot.at || 0) > BOOT_PREFETCH_MAX_AGE_MS) return null;
+  return boot.promise;
+};
+
 const isBagProduct = (product = {}) => {
   const safeProduct = product && typeof product === "object" ? product : {};
   const values = [
@@ -219,16 +238,26 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     }
     const loadProduct = async () => {
       const prefetched = storefrontApi.peekProductDetails(routeValue);
+      const booted = takeBootPrefetchedProduct(routeValue);
       const loadDirect = () => api.get(`/storefront/products/${encodeURIComponent(routeValue)}`, {
         signal: controller.signal,
         debugLabel: "storefront-product-direct",
       }).then((data) => storefrontApi.cacheProductDetails(routeValue, data));
+      // The boot prefetch (see index.html) issued this exact request before any
+      // JS chunk had downloaded, so on a cold product link its response is
+      // already here. It stays FIRST but never alone: every existing attempt
+      // remains behind it, so a failed prefetch costs nothing but a fallthrough.
+      const bootAttempt = booted
+        ? [{ label: "boot-prefetch", loader: () => booted.then((data) => storefrontApi.cacheProductDetails(routeValue, data)) }]
+        : [];
       const attempts = prefetched
         ? [
+            ...bootAttempt,
             { label: "prefetched", loader: () => Promise.resolve(prefetched) },
             { label: "direct", loader: loadDirect },
           ]
         : [
+            ...bootAttempt,
             { label: "direct", loader: loadDirect },
             { label: "resolve", loader: () => storefrontApi.getProductDetails(routeValue, { signal: controller.signal }) },
           ];

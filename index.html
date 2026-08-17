@@ -70,6 +70,63 @@
       body{margin:0}
     </style>
     <script>
+      // ===================================================================
+      // BOOT PREFETCH: PRODUCT DETAILS
+      // -------------------------------------------------------------------
+      // The product request used to be issued by StorefrontProductDetailPage,
+      // which cannot run until the entry chunk, App, the Storefront bundle and
+      // the page chunk have all downloaded and executed. On a real connection
+      // that put the request ~3.9s into the navigation even though the API
+      // answers in ~400ms, and the product images -- the LCP element -- could
+      // not start until after it returned.
+      //
+      // Issuing it here costs nothing on the critical path (the document is
+      // already parsed) and the response is sitting in memory by the time React
+      // mounts, so the gallery starts loading the moment the page renders.
+      //
+      // Deliberately conservative: production storefront host only, anonymous
+      // visitors only. A signed-in ERP user sends an x-tenant-id header that
+      // this script does not reproduce, and the endpoint varies on it -- so for
+      // those the page falls back to its normal request path.
+      // ===================================================================
+      (function () {
+        try {
+          var host = String(window.location.hostname || "").toLowerCase();
+          if (host !== "m1store-egy.com" && host !== "www.m1store-egy.com") return;
+
+          var match = String(window.location.pathname || "").match(/^\/(?:shop\/)?product\/([^/?#]+)\/?$/i);
+          if (!match) return;
+          var identifier = decodeURIComponent(match[1] || "");
+          if (!identifier) return;
+
+          // Mirrors the header logic in src/shared/api/api.js: a tenant id only
+          // exists for a signed-in user, and an anonymous shopper sends none.
+          var hasTenantScope = false;
+          try {
+            hasTenantScope = Boolean(localStorage.getItem("user") || localStorage.getItem("tenant"));
+          } catch (storageError) {
+            hasTenantScope = true; // cannot prove it is anonymous, so do not guess
+          }
+          if (hasTenantScope) return;
+
+          var url = "https://api.m1store-egy.com/api/storefront/products/" + encodeURIComponent(identifier);
+          window.__M1_BOOT_PRODUCT = {
+            key: identifier,
+            at: Date.now(),
+            promise: fetch(url, { credentials: "omit", headers: { Accept: "application/json" } }).then(function (response) {
+              if (!response.ok) throw new Error("boot_prefetch_status_" + response.status);
+              return response.json();
+            }),
+          };
+          // An unconsumed rejection here must not surface as an unhandled error;
+          // the page's own request path is the fallback and reports properly.
+          window.__M1_BOOT_PRODUCT.promise.catch(function () {});
+        } catch (error) {
+          // The prefetch is an optimisation. Never let it block boot.
+        }
+      })();
+    </script>
+    <script>
       (function () {
         try {
           var path = window.location.pathname || "/";

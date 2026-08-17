@@ -74,6 +74,29 @@ export const RESOURCE_BRANCHES = [
 ];
 
 /**
+ * Locale files that must be present before the FIRST paint.
+ *
+ * Shipping every bundle for every locale put ~1 MB of JSON on the entry chunk's
+ * critical path, which a storefront shopper paid for in full before the product
+ * request could even be issued. The public storefront only ever addresses
+ * `storefront.*` and `common.*`; the rest of this list is a small safety margin
+ * for chrome that can mount on a public route. Everything not listed here is
+ * fetched in the background right after boot (see loadLocaleScope), so ERP
+ * screens reached by in-app navigation still find their keys.
+ *
+ * Keep this list SMALL. Adding a heavy bundle here re-taxes every shopper.
+ */
+export const CORE_LOCALE_FILES = ["common", "storefront", "settings", "auth", "shipping", "print"];
+
+/** Every locale file the manifest can read, derived so the two cannot drift. */
+export const ALL_LOCALE_FILES = Array.from(
+  new Set(RESOURCE_BRANCHES.flatMap((entry) => (Array.isArray(entry.file) ? entry.file : [entry.file])))
+);
+
+/** The bundles loaded after first paint: everything the core set does not cover. */
+export const DEFERRED_LOCALE_FILES = ALL_LOCALE_FILES.filter((file) => !CORE_LOCALE_FILES.includes(file));
+
+/**
  * Branches whose content is intentionally locale-specific and therefore exempt
  * from the ar/en parity guard. Every entry needs a documented reason.
  *
