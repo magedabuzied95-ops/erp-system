@@ -3580,6 +3580,17 @@
     background: #94a3b8 !important;
   }
 
+  /*
+   * The chip label lives in its own <span>, and the blanket light rule above
+   * (`.sf-product-option-card :is(… span …)`) paints every span #0f172a — a rule on
+   * the child always beats the colour inherited from the chip, so the selected size
+   * read dark-on-black. Let the label follow whatever its chip is painted.
+   */
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice :is(span, small) {
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-product-quantity-card {
     background: rgba(255, 255, 255, 0.98) !important;
     border-color: rgba(148, 163, 184, 0.28) !important;
