@@ -98,6 +98,50 @@ test("the similar rail narrows by family, audience and grade together", () => {
   assert.equal(build("", "", "", "").href, "/products");
 });
 
+test("a missing photo falls back to the product's own shot before the logo", () => {
+  // The walker, mirrored from the component so its cases stay pinned.
+  const walk = (node) => {
+    if (node.dataset.fallbackApplied === "true") return;
+    const originalSrc = String(node.dataset.originalSrc || "").trim();
+    if (originalSrc && node.dataset.originalTried !== "true" && node.src !== originalSrc) {
+      node.dataset.originalTried = "true";
+      node.src = originalSrc;
+      return;
+    }
+    const tried = String(node.dataset.triedSrc || "").split("|").filter(Boolean);
+    const next = String(node.dataset.fallbackSrc || "").split("|").map((u) => u.trim())
+      .find((url) => url && url !== node.src && !tried.includes(url));
+    if (next) {
+      node.dataset.triedSrc = [...tried, next].join("|");
+      node.src = next;
+      return;
+    }
+    node.dataset.fallbackApplied = "true";
+    node.src = "/favicon.svg";
+  };
+  const settle = (src, dataset, alive) => {
+    const node = { src, dataset: { ...dataset } };
+    for (let i = 0; i < 12 && !alive.includes(node.src); i += 1) walk(node);
+    return node.src;
+  };
+
+  // The real case: Adidas Running - Black, whose colour photo 404s while the
+  // product's other shot of the same shoe is alive.
+  assert.equal(settle("/dead.jpg", { fallbackSrc: "/good.jpg" }, ["/good.jpg"]), "/good.jpg");
+  assert.equal(settle("/dead.jpg", { fallbackSrc: "/d2.jpg|/d3.jpg" }, ["/favicon.svg"]), "/favicon.svg");
+  assert.equal(settle("/dead.jpg", {}, ["/favicon.svg"]), "/favicon.svg");
+  // The responsive url gives way to the original before any alternate.
+  assert.equal(settle("/resized.jpg", { originalSrc: "/orig.jpg", fallbackSrc: "/good.jpg" }, ["/orig.jpg"]), "/orig.jpg");
+  // A repeated candidate must not loop.
+  assert.equal(settle("/dead.jpg", { fallbackSrc: "/a.jpg|/a.jpg" }, ["/favicon.svg"]), "/favicon.svg");
+
+  assert.match(storefrontSource, /const productCardFallbackImages = /);
+  // Borrowing another colour's photo would misdescribe the card.
+  assert.match(storefrontSource, /const wideCandidates = colorCount > 1\s*\?\s*\[\]/);
+  assert.match(storefrontSource, /data-fallback-src=\{tileFallbackImages\.map\(\(url\) => imageFor\(url\)\)\.join\("\|"\)\}/);
+  assert.match(storefrontSource, /data-fallback-src=\{cardFallbackImages\.map\(\(url\) => imageFor\(url\)\)\.join\("\|"\)\}/);
+});
+
 test("rail tile photos sit on the sibling site's grey plate, not white", () => {
   const tile = storefrontSource.slice(
     storefrontSource.indexOf("function RecommendationProductTile"),

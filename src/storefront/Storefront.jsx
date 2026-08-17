@@ -819,23 +819,39 @@ const resolveStorefrontPrice = (product = {}, variant = {}) => {
     discountPercent: pricing.discountPercent || 0,
   };
 };
+// A dead photo used to drop straight to the site logo even when the product had
+// another usable shot of the same shoe -- one missing file on the server turned a
+// real product into a placeholder. Walk the alternates first, and only give up
+// once they are exhausted. data-fallback-src carries them, pipe separated.
 const fallbackProductImage = (event) => {
-  if (event.currentTarget.dataset.fallbackApplied === "true") return;
-  const originalSrc = String(event.currentTarget.dataset.originalSrc || "").trim();
-  event.currentTarget.dataset.fallbackApplied = "true";
+  const node = event.currentTarget;
+  if (!node || node.dataset.fallbackApplied === "true") return;
   if (isAiSupportDebugEnabled()) {
     console.warn("[storefront-ai] suggested product image failed", {
-      src: event.currentTarget.currentSrc || event.currentTarget.src,
-      alt: event.currentTarget.alt,
+      src: node.currentSrc || node.src,
+      alt: node.alt,
     });
   }
-  event.currentTarget.removeAttribute("srcset");
-  event.currentTarget.removeAttribute("sizes");
-  if (originalSrc && event.currentTarget.src !== originalSrc) {
-    event.currentTarget.src = originalSrc;
+  node.removeAttribute("srcset");
+  node.removeAttribute("sizes");
+  const originalSrc = String(node.dataset.originalSrc || "").trim();
+  if (originalSrc && node.dataset.originalTried !== "true" && node.src !== originalSrc) {
+    node.dataset.originalTried = "true";
+    node.src = originalSrc;
     return;
   }
-  event.currentTarget.src = "/favicon.svg";
+  const tried = String(node.dataset.triedSrc || "").split("|").filter(Boolean);
+  const next = String(node.dataset.fallbackSrc || "")
+    .split("|")
+    .map((url) => url.trim())
+    .find((url) => url && url !== node.src && !tried.includes(url));
+  if (next) {
+    node.dataset.triedSrc = [...tried, next].join("|");
+    node.src = next;
+    return;
+  }
+  node.dataset.fallbackApplied = "true";
+  node.src = "/favicon.svg";
 };
 const safeStorefrontRecord = (value) => (value && typeof value === "object" ? value : {});
 const variantHasStock = (variant = {}) => Number(safeStorefrontRecord(variant).stock || 0) > 0;
@@ -961,6 +977,27 @@ const productCardSecondaryImageFor = (product = {}, variant = null, activeColorG
     if (next && next !== primary) return next;
   }
   return "";
+};
+// Photos this card may fall back to when its own file is missing. Colour-scoped
+// shots first; the product-wide gallery only joins when the product has a single
+// colour, because another colour's photo on this card would misdescribe it.
+const productCardFallbackImages = (product = {}, variant = null, activeColorGroup = null, primaryImage = "") => {
+  const primary = resolveCardImageUrl(primaryImage);
+  const colorCount = new Set(
+    (Array.isArray(product?.variants) ? product.variants : []).map((item) => variantColorKey(item)).filter(Boolean)
+  ).size;
+  const wideCandidates = colorCount > 1
+    ? []
+    : [
+        ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+        ...(Array.isArray(product?.images) ? product.images : []),
+        product?.image_url,
+        product?.product_image_url,
+      ];
+  return productCardResolvedImageCollection([
+    ...productCardColorScopedImages(activeColorGroup, variant),
+    ...wideCandidates,
+  ]).filter((url) => url && url !== primary);
 };
 const normalizeModelToken = (value = "") =>
   cleanDisplayText(value)
@@ -5943,6 +5980,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     () => productCardPrimaryImageFor(product, availableVariant, activeColorGroup),
     [activeColorGroup, availableVariant, product]
   );
+  const cardFallbackImages = useMemo(
+    () => productCardFallbackImages(product, availableVariant, activeColorGroup, displayImage),
+    [activeColorGroup, availableVariant, displayImage, product]
+  );
   const hoverDetailVariants = useMemo(
     () => (Array.isArray(hoverProductDetails?.variants) ? hoverProductDetails.variants : []),
     [hoverProductDetails]
@@ -6170,6 +6211,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
                 onError={fallbackProductImage}
+                data-fallback-src={cardFallbackImages.map((url) => imageFor(url)).join("|")}
                 className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.19] md:group-active/product:scale-[1.19] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
@@ -6688,6 +6730,10 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
     };
   }, [hasSecondaryImage, secondaryImageUrl]);
   const showSecondaryImage = hasSecondaryImage && secondaryImageReady;
+  const tileFallbackImages = useMemo(
+    () => productCardFallbackImages(product || {}, variant, null, image),
+    [image, product, variant]
+  );
   // The same quick-add the grid card runs, on the same helpers, so a rail tile and
   // a listing card resolve colour and size identically.
   const tileVariants = useMemo(() => (Array.isArray(product?.variants) ? product.variants : []), [product]);
@@ -6727,6 +6773,7 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
           <img
             src={imageFor(image)}
             onError={fallbackProductImage}
+            data-fallback-src={tileFallbackImages.map((url) => imageFor(url)).join("|")}
             alt={product?.name || ""}
             className={`sf-card-primary-image absolute inset-0 z-[1] h-full w-full transform-gpu object-contain p-2 opacity-100 ${showSecondaryImage ? "md:group-hover/card-image:opacity-0" : ""}`}
             loading="lazy"
