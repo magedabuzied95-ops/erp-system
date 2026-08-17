@@ -6700,9 +6700,42 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
 // One full desktop row. Below it a rail looks broken, so it unfolds colour cards.
 const RECOMMENDATION_RAIL_MIN_ITEMS = 5;
 
+// Matched to the Swiper config the storefront's sibling site runs on its product
+// carousels: advance a single card, glide for 1500ms, rest, repeat — never swap a
+// whole page at once.
+const RAIL_GAP_PX = 10;
+const RAIL_AUTOPLAY_MS = 2500;
+const RAIL_SLIDE_MS = 1500;
+const RAIL_BREAKPOINTS = [
+  { minWidth: 1024, perView: 5 },
+  { minWidth: 768, perView: 3 },
+  { minWidth: 640, perView: 2 },
+  { minWidth: 0, perView: 1 },
+];
+
+const railPerViewForWidth = (width = 0) =>
+  (RAIL_BREAKPOINTS.find((breakpoint) => width >= breakpoint.minWidth) || RAIL_BREAKPOINTS[RAIL_BREAKPOINTS.length - 1]).perView;
+
+function useRailPerView() {
+  const [perView, setPerView] = useState(() =>
+    typeof window === "undefined" ? RAIL_BREAKPOINTS[0].perView : railPerViewForWidth(window.innerWidth)
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const update = () => setPerView(railPerViewForWidth(window.innerWidth));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return perView;
+}
+
 function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, ...cardProps }) {
-  const [page, setPage] = useState(0);
-  const isMobile = useIsMobileViewport();
+  const [slide, setSlide] = useState(0);
+  const [animating, setAnimating] = useState(true);
+  const perView = useRailPerView();
+  const viewportRef = useRef(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
   const touchStartXRef = useRef(null);
   const items = useMemo(() => {
     const cards = sortStorefrontColorCardsByModel(products).filter((product) => {
@@ -6729,27 +6762,65 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
     }).slice(0, 15);
   }, [currentId, minItems, products]);
   const itemsSignature = items.map((item, index) => productCardKey(item, index)).join("|");
-  const pageSize = isMobile ? 1 : 5;
-  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const canSlide = items.length > perView;
+  // The head of the list is repeated once so the track can run past the end and
+  // be snapped back to the start while the clones are on screen — the seam is
+  // never visible, which is what makes the loop read as endless.
+  const trackItems = canSlide ? [...items, ...items.slice(0, perView)] : items;
+  const slideWidth = viewportWidth > 0 ? (viewportWidth - (perView - 1) * RAIL_GAP_PX) / perView : 0;
+  const stepPx = slideWidth + RAIL_GAP_PX;
+  // In RTL the track sits flush right, so it advances the other way.
+  const direction = typeof document !== "undefined" && document.documentElement.dir === "rtl" ? 1 : -1;
+
   useEffect(() => {
-    setPage(0);
-  }, [currentId, isMobile, itemsSignature]);
+    const node = viewportRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
+    observer.observe(node);
+    setViewportWidth(node.getBoundingClientRect().width);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
-    if (loading || pageCount < 2 || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const moveTimer = window.setInterval(() => {
-      setPage((currentPage) => (currentPage + 1) % pageCount);
-    }, 4000);
+    setSlide(0);
+    setAnimating(true);
+  }, [currentId, itemsSignature, perView]);
+
+  useEffect(() => {
+    if (loading || !canSlide || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const moveTimer = window.setInterval(() => setSlide((current) => current + 1), RAIL_AUTOPLAY_MS);
     return () => window.clearInterval(moveTimer);
-  }, [loading, pageCount, itemsSignature]);
-  // A rotating window instead of a plain slice: the last page used to hold only
-  // the remainder, so a full row collapsed to two cards mid-rotation.
-  const visibleItems = items.length > pageSize
-    ? Array.from({ length: pageSize }, (_, index) => items[(page * pageSize + index) % items.length])
-    : items;
-  const moveToPage = (nextPage) => {
-    const safePage = pageCount > 1 ? (nextPage + pageCount) % pageCount : 0;
-    setPage(safePage);
+  }, [canSlide, loading, itemsSignature]);
+
+  // Repositioning by a whole lap must land before the browser paints, otherwise
+  // the jump is visible. Two frames: one to apply the untransitioned offset, one
+  // to arm the transition again.
+  const jumpLap = useCallback((nextSlide) => {
+    setAnimating(false);
+    setSlide(nextSlide);
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setAnimating(true)));
+  }, []);
+
+  useEffect(() => {
+    if (!canSlide || slide < items.length || typeof window === "undefined") return undefined;
+    // Let the glide into the clones finish, then snap back to the real cards.
+    const snapTimer = window.setTimeout(() => jumpLap(slide - items.length), RAIL_SLIDE_MS);
+    return () => window.clearTimeout(snapTimer);
+  }, [canSlide, items.length, jumpLap, slide]);
+
+  const moveBy = (step) => {
+    if (!canSlide) return;
+    if (slide + step >= 0) {
+      setSlide(slide + step);
+      return;
+    }
+    // Only the head is cloned, so stepping back off the start means teleporting a
+    // lap forward first and gliding from there.
+    jumpLap(slide + items.length);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setSlide((current) => current + step)));
   };
+  const activeDot = ((slide % items.length) + items.length) % items.length;
   if (!loading && !items.length) return null;
   return (
     <section className="sf-product-recommendation-rail border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
@@ -6759,31 +6830,46 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
           {subtitle ? <p className="mt-1 truncate text-xs font-bold text-stone-500 dark:text-white/55 md:text-sm">{subtitle}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => moveToPage(page - 1)} disabled={pageCount < 2} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => moveToPage(page + 1)} disabled={pageCount < 2} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveBy(-1)} disabled={!canSlide} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveBy(1)} disabled={!canSlide} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
           <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
         </div>
       </div>
       <div
-        key={`${isMobile ? "mobile" : "desktop"}-${page}`}
-        className="sf-product-recommendation-page grid touch-pan-y grid-cols-1 gap-x-3 gap-y-6 pb-3 md:grid-cols-3 md:gap-x-5 lg:grid-cols-5"
+        ref={viewportRef}
+        className="sf-product-recommendation-viewport overflow-hidden pb-3"
         onTouchStart={(event) => {
           touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
         }}
         onTouchEnd={(event) => {
-          if (!isMobile || touchStartXRef.current == null) return;
+          if (touchStartXRef.current == null) return;
           const touchEndX = event.changedTouches?.[0]?.clientX ?? touchStartXRef.current;
           const distance = touchEndX - touchStartXRef.current;
           touchStartXRef.current = null;
           if (Math.abs(distance) < 45) return;
-          moveToPage(distance < 0 ? page + 1 : page - 1);
+          moveBy(distance * direction > 0 ? 1 : -1);
         }}
       >
-        {loading ? Array.from({ length: pageSize }).map((_, index) => <div key={index} className="aspect-[0.72] min-w-0 animate-pulse bg-stone-100 dark:bg-white/5" />) : visibleItems.map((product, index) => (
-          <RecommendationProductTile key={productCardKey(product, index)} product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
-        ))}
+        <div
+          className="sf-product-recommendation-page flex touch-pan-y"
+          style={{
+            gap: `${RAIL_GAP_PX}px`,
+            transform: `translate3d(${direction * slide * stepPx}px, 0, 0)`,
+            transition: animating ? `transform ${RAIL_SLIDE_MS}ms ease` : "none",
+          }}
+        >
+          {loading
+            ? Array.from({ length: perView }).map((_, index) => (
+                <div key={index} style={{ flex: `0 0 ${slideWidth}px` }} className="aspect-[0.72] animate-pulse bg-stone-100 dark:bg-white/5" />
+              ))
+            : trackItems.map((product, index) => (
+                <div key={`${productCardKey(product, index)}-${index}`} style={{ flex: `0 0 ${slideWidth}px` }} className="min-w-0">
+                  <RecommendationProductTile product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
+                </div>
+              ))}
+        </div>
       </div>
-      {pageCount > 1 ? <div className="mt-3 flex justify-center gap-1.5">{Array.from({ length: pageCount }).map((_, index) => <button key={index} type="button" onClick={() => moveToPage(index)} aria-label={`صفحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${page === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
+      {canSlide ? <div className="mt-3 flex flex-wrap justify-center gap-1.5">{items.map((product, index) => <button key={productCardKey(product, index)} type="button" onClick={() => moveBy(index - activeDot)} aria-label={`شريحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${activeDot === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
     </section>
   );
 }

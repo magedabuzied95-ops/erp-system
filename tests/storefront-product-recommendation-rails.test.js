@@ -24,14 +24,34 @@ test("the similar rail matches the product family, never the mirror grade", () =
   assert.doesNotMatch(storefrontSource, /grade: grade \|\| "__no_grade__"/);
 });
 
-test("rotating a rail never leaves a partial row of leftovers", () => {
-  assert.match(storefrontSource, /const visibleItems = items\.length > pageSize/);
+test("rails glide one card at a time on the sibling site's swiper timings", () => {
+  assert.match(storefrontSource, /const RAIL_GAP_PX = 10;/);
+  assert.match(storefrontSource, /const RAIL_AUTOPLAY_MS = 2500;/);
+  assert.match(storefrontSource, /const RAIL_SLIDE_MS = 1500;/);
+  assert.match(storefrontSource, /setSlide\(\(current\) => current \+ 1\), RAIL_AUTOPLAY_MS/);
+  assert.match(storefrontSource, /transition: animating \? `transform \$\{RAIL_SLIDE_MS\}ms ease` : "none"/);
+  // A page-at-a-time slice is what made a rotated row collapse to its remainder.
   assert.doesNotMatch(storefrontSource, /items\.slice\(page \* pageSize/);
-  const rail = storefrontSource.slice(storefrontSource.indexOf("function StorefrontRecommendationRail"));
-  const window = (page, pageSize, length) => Array.from({ length: pageSize }, (_, index) => (page * pageSize + index) % length);
-  assert.equal(new Set(window(1, 5, 7)).size, 5, "a rotated page stays full and free of repeats");
-  assert.equal(window(1, 5, 7).length, 5);
-  assert.match(rail, /Math\.ceil\(items\.length \/ pageSize\)/);
+});
+
+test("rail breakpoints and looping match the reference carousel", () => {
+  assert.match(storefrontSource, /\{ minWidth: 1024, perView: 5 \}/);
+  assert.match(storefrontSource, /\{ minWidth: 768, perView: 3 \}/);
+  assert.match(storefrontSource, /\{ minWidth: 640, perView: 2 \}/);
+  assert.match(storefrontSource, /\{ minWidth: 0, perView: 1 \}/);
+  // Mirrors railPerViewForWidth: first breakpoint at or below the viewport wins.
+  const breakpoints = [...storefrontSource.matchAll(/\{ minWidth: (\d+), perView: (\d+) \}/g)].map(([, minWidth, perView]) => ({
+    minWidth: Number(minWidth),
+    perView: Number(perView),
+  }));
+  const perViewFor = (width) => breakpoints.find((breakpoint) => width >= breakpoint.minWidth).perView;
+  assert.equal(perViewFor(1440), 5);
+  assert.equal(perViewFor(800), 3);
+  assert.equal(perViewFor(700), 2);
+  assert.equal(perViewFor(380), 1);
+  // Cloning the head is what lets the track run past the end and snap back unseen.
+  assert.match(storefrontSource, /const trackItems = canSlide \? \[\.\.\.items, \.\.\.items\.slice\(0, perView\)\] : items;/);
+  assert.match(storefrontSource, /jumpLap\(slide - items\.length\), RAIL_SLIDE_MS/);
 });
 
 test("a thin brand rail unfolds colour cards instead of rendering a half-empty row", () => {
@@ -40,14 +60,15 @@ test("a thin brand rail unfolds colour cards instead of rendering a half-empty r
   assert.equal((storefrontSource.match(/minItems=\{RECOMMENDATION_RAIL_MIN_ITEMS\}/g) || []).length, 2);
 });
 
-test("recommendation rails provide paging controls and exclude the open product", () => {
+test("recommendation rails provide slide controls and exclude the open product", () => {
   assert.match(storefrontSource, /parentId === String\(currentId\)/);
-  assert.match(storefrontSource, /Math\.ceil\(items\.length \/ pageSize\)/);
-  assert.match(storefrontSource, /items\[\(page \* pageSize \+ index\) % items\.length\]/);
+  assert.match(storefrontSource, /onClick=\{\(\) => moveBy\(-1\)\}/);
+  assert.match(storefrontSource, /onClick=\{\(\) => moveBy\(1\)\}/);
   assert.match(storefrontSource, /window\.setInterval/);
-  assert.match(storefrontSource, /\(currentPage \+ 1\) % pageCount/);
   assert.match(storefrontSource, /sf-product-recommendation-page/);
-  assert.match(storefrontSource, /aria-label=\{`صفحة \$\{index \+ 1\}`\}/);
+  assert.match(storefrontSource, /aria-label=\{`شريحة \$\{index \+ 1\}`\}/);
+  // A swipe has to follow the reading direction, which flips under RTL.
+  assert.match(storefrontSource, /moveBy\(distance \* direction > 0 \? 1 : -1\)/);
 });
 
 test("customer recent products include brand and crossed-price fields", () => {
@@ -70,9 +91,11 @@ test("product page prioritizes cached or direct product data and defers recommen
   assert.match(storefrontSource, /ready \? <RelatedProductsContent/);
 });
 
-test("recommendations use a compact five-column storefront strip instead of product cards", () => {
+test("recommendations use a compact five-across storefront strip instead of product cards", () => {
   assert.match(storefrontSource, /function RecommendationProductTile/);
-  assert.match(storefrontSource, /lg:grid-cols-5/);
+  // Five across is now the widest breakpoint of the sliding track, not a static grid.
+  assert.match(storefrontSource, /sf-product-recommendation-viewport/);
+  assert.match(storefrontSource, /flex: `0 0 \$\{slideWidth\}px`/);
   assert.match(storefrontSource, /aspect-square overflow-hidden bg-white/);
   assert.doesNotMatch(storefrontSource, /<ProductCard product=\{product\} railType="similar" rank=\{index \+ 1\}/);
 });
