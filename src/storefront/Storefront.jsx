@@ -6697,19 +6697,37 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
   );
 }
 
-function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, ...cardProps }) {
+// One full desktop row. Below it a rail looks broken, so it unfolds colour cards.
+const RECOMMENDATION_RAIL_MIN_ITEMS = 5;
+
+function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, ...cardProps }) {
   const [page, setPage] = useState(0);
   const isMobile = useIsMobileViewport();
   const touchStartXRef = useRef(null);
   const items = useMemo(() => {
-    const seen = new Set();
-    return sortStorefrontColorCardsByModel(products).filter((product) => {
+    const cards = sortStorefrontColorCardsByModel(products).filter((product) => {
       const parentId = String(product.parent_product_id || product.id || "");
-      if (!parentId || parentId === String(currentId) || seen.has(parentId)) return false;
+      if (!parentId || parentId === String(currentId)) return false;
+      return true;
+    });
+    const seen = new Set();
+    const onePerModel = cards.filter((product) => {
+      const parentId = String(product.parent_product_id || product.id || "");
+      if (seen.has(parentId)) return false;
       seen.add(parentId);
       return true;
+    });
+    // A brand that only carries one or two models would otherwise render a
+    // half-empty row, so the rail falls back to that model's colour cards.
+    const source = onePerModel.length >= minItems ? onePerModel : cards;
+    const seenCards = new Set();
+    return source.filter((product, index) => {
+      const cardKey = productCardKey(product, index);
+      if (seenCards.has(cardKey)) return false;
+      seenCards.add(cardKey);
+      return true;
     }).slice(0, 15);
-  }, [currentId, products]);
+  }, [currentId, minItems, products]);
   const itemsSignature = items.map((item, index) => productCardKey(item, index)).join("|");
   const pageSize = isMobile ? 1 : 5;
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
@@ -6768,14 +6786,24 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
 
 function RelatedProductsContent({ currentProduct, ...props }) {
   const currentId = currentProduct?.id;
-  const grade = recommendationText(currentProduct?.grade || currentProduct?.quality || currentProduct?.quality_grade || currentProduct?.product_grade);
+  // Relevance follows the product family — a bag sits next to bags and a sneaker
+  // next to sneakers. The grade only says how good a copy is, so it used to mix
+  // shoes into a bag page.
+  const productType = recommendationText(currentProduct?.product_type || currentProduct?.productType || currentProduct?.type);
+  const category = recommendationText(currentProduct?.category || currentProduct?.category_name || currentProduct?.categoryName);
   const brand = recommendationText(currentProduct?.brand?.name || currentProduct?.brand_name || currentProduct?.brand);
-  const gradeResult = useProducts({ grade: grade || "__no_grade__", limit: 15, in_stock: 1, grouping: "product" });
+  const similarFilter = productType ? { product_type: productType } : { category: category || "__no_category__" };
+  const similarHref = productType
+    ? `/products?product_type=${encodeURIComponent(productType)}`
+    : category
+      ? `/products?category=${encodeURIComponent(category)}`
+      : "/products";
+  const similarResult = useProducts({ ...similarFilter, limit: 15, in_stock: 1, grouping: "product" });
   const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
   return (
     <div className="sf-related-products mt-5">
-      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle="منتجات مشابهة مختارة لك" href={grade ? `/products?grade=${encodeURIComponent(grade)}` : "/products"} products={gradeResult.products} loading={gradeResult.loading} currentId={currentId} {...props} />
-      <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} {...props} />
+      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle="منتجات مشابهة مختارة لك" href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
+      <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
     </div>
   );
 }

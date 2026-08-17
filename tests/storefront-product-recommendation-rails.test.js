@@ -6,15 +6,28 @@ const storefrontSource = readFileSync(new URL("../src/storefront/Storefront.jsx"
 const detailSource = readFileSync(new URL("../src/storefront/pages/StorefrontProductDetailPage.jsx", import.meta.url), "utf8");
 const lightStyles = readFileSync(new URL("../src/storefront/storefront-light.css", import.meta.url), "utf8");
 
-test("product details render grade, brand and recently viewed recommendation rails", () => {
+test("product details render similar, brand and recently viewed recommendation rails", () => {
   assert.match(detailSource, /<RelatedProducts currentProduct=\{product\}/);
   assert.match(detailSource, /<RecentProductsSection currentId=\{product\.id\}/);
   assert.match(storefrontSource, /title="منتجات ذات صلة"/);
-  assert.match(storefrontSource, /grade: grade \|\| "__no_grade__", limit: 15/);
   assert.match(storefrontSource, /brand: brand \|\| "__no_brand__", limit: 15/);
   assert.match(storefrontSource, /title=\{brand \? `المزيد من منتجات \$\{brand\}`/);
   assert.match(storefrontSource, /slice\(0, 15\)/);
   assert.match(storefrontSource, /sfText\("storefront\.account\.recentlyViewed"\)/);
+});
+
+test("the similar rail matches the product family, never the mirror grade", () => {
+  assert.match(storefrontSource, /const similarFilter = productType \? \{ product_type: productType \} : \{ category: category \|\| "__no_category__" \}/);
+  assert.match(storefrontSource, /\.\.\.similarFilter, limit: 15, in_stock: 1, grouping: "product"/);
+  assert.match(storefrontSource, /products=\{similarResult\.products\} loading=\{similarResult\.loading\}/);
+  assert.match(storefrontSource, /\/products\?product_type=\$\{encodeURIComponent\(productType\)\}/);
+  assert.doesNotMatch(storefrontSource, /grade: grade \|\| "__no_grade__"/);
+});
+
+test("a thin brand rail unfolds colour cards instead of rendering a half-empty row", () => {
+  assert.match(storefrontSource, /const RECOMMENDATION_RAIL_MIN_ITEMS = 5;/);
+  assert.match(storefrontSource, /const source = onePerModel\.length >= minItems \? onePerModel : cards;/);
+  assert.equal((storefrontSource.match(/minItems=\{RECOMMENDATION_RAIL_MIN_ITEMS\}/g) || []).length, 2);
 });
 
 test("recommendation rails provide paging controls and exclude the open product", () => {
