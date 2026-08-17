@@ -823,6 +823,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_ai_reply_draft JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
@@ -990,6 +991,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`UPDATE ai_support_messages SET message_text = customer_message WHERE COALESCE(message_text, '') = ''`);
 
       await clientOrPool.query(`
@@ -1363,7 +1365,8 @@ export const markAiSupportConversationRead = async ({
   const sessionResult = await db.query(
     `
     UPDATE ai_support_sessions
-    SET read_at = $3::timestamp
+    SET read_at = $3::timestamp,
+        manually_unread = FALSE
     WHERE tenant_id = $1::bigint
       AND session_id = ANY($2::text[])
     RETURNING *
@@ -1383,7 +1386,8 @@ export const markAiSupportConversationRead = async ({
     ? await db.query(
         `
         UPDATE ai_channel_conversations
-        SET read_at = $4::timestamp
+        SET read_at = $4::timestamp,
+            manually_unread = FALSE
         WHERE tenant_id = $1::bigint
           AND external_conversation_id = ANY($2::text[])
           AND channel = $3::text
@@ -1402,7 +1406,8 @@ export const markAiSupportConversationRead = async ({
     : await db.query(
         `
         UPDATE ai_channel_conversations
-        SET read_at = $3::timestamp
+        SET read_at = $3::timestamp,
+            manually_unread = FALSE
         WHERE tenant_id = $1::bigint
           AND external_conversation_id = ANY($2::text[])
         RETURNING *
@@ -1426,6 +1431,165 @@ export const markAiSupportConversationRead = async ({
     ...(sessionResult.rows[0] || {}),
     ...(channelResult.rows[0] || {}),
     read_updated: Boolean(sessionResult.rows[0] || channelResult.rows[0]),
+  };
+};
+
+// Manual "mark as unread" (WhatsApp-style follow-up flag). The unread count is
+// computed from message timestamps vs read_at, which cannot express "unread" for a
+// thread whose last message is a staff/AI reply — so we persist an explicit
+// manually_unread flag and clear read_at, and the list query surfaces both.
+export const markAiSupportConversationUnread = async ({
+  tenantId,
+  sessionId,
+  channel = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeChannel = normalizeConversationChannel(channel);
+  if (!safeTenantId || !safeSessionId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
+  }
+  await ensureAiSupportLogSchema();
+  const conversationReference = parseConversationReference({ sessionId: safeSessionId, channel: safeChannel });
+  const sessionCandidates = [...new Set([conversationReference.sessionId, ...(Array.isArray(conversationReference.lookupSessionIds) ? conversationReference.lookupSessionIds : []), safeSessionId].filter(Boolean))];
+  const resolvedSessionId = conversationReference.sessionId || safeSessionId;
+  const resolvedChannel = conversationReference.channel || safeChannel;
+
+  const sessionResult = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET read_at = NULL,
+        manually_unread = TRUE
+    WHERE tenant_id = $1::bigint
+      AND session_id = ANY($2::text[])
+    RETURNING *
+    `,
+    [safeTenantId, sessionCandidates]
+  ).catch((error) => {
+    logSqlError("markAiSupportConversationUnread.session", error, {
+      tenantId: safeTenantId,
+      sessionId: resolvedSessionId,
+      candidates: sessionCandidates,
+      channel: resolvedChannel,
+    });
+    return { rows: [] };
+  });
+
+  const channelResult = resolvedChannel
+    ? await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET read_at = NULL,
+            manually_unread = TRUE
+        WHERE tenant_id = $1::bigint
+          AND external_conversation_id = ANY($2::text[])
+          AND channel = $3::text
+        RETURNING *
+        `,
+        [safeTenantId, sessionCandidates, resolvedChannel]
+      ).catch((error) => {
+        logSqlError("markAiSupportConversationUnread.channel", error, {
+          tenantId: safeTenantId,
+          sessionId: resolvedSessionId,
+          candidates: sessionCandidates,
+          channel: resolvedChannel,
+        });
+        return { rows: [] };
+      })
+    : await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET read_at = NULL,
+            manually_unread = TRUE
+        WHERE tenant_id = $1::bigint
+          AND external_conversation_id = ANY($2::text[])
+        RETURNING *
+        `,
+        [safeTenantId, sessionCandidates]
+      ).catch((error) => {
+        logSqlError("markAiSupportConversationUnread.channel-all", error, {
+          tenantId: safeTenantId,
+          sessionId: resolvedSessionId,
+          candidates: sessionCandidates,
+          channel: resolvedChannel,
+        });
+        return { rows: [] };
+      });
+
+  return {
+    session_id: resolvedSessionId,
+    channel: resolvedChannel || "",
+    conversation_key: conversationReference.conversationKey,
+    ...(sessionResult.rows[0] || {}),
+    ...(channelResult.rows[0] || {}),
+    manually_unread: true,
+    unread_updated: Boolean(sessionResult.rows[0] || channelResult.rows[0]),
+  };
+};
+
+// Mark every conversation in the tenant (optionally scoped to one channel) as read.
+export const markAllAiSupportConversationsRead = async ({
+  tenantId,
+  channel = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeChannel = normalizeConversationChannel(channel);
+  if (!safeTenantId) {
+    throw Object.assign(new Error("tenant_id is required"), { status: 400 });
+  }
+  await ensureAiSupportLogSchema();
+  const readAt = new Date().toISOString();
+
+  const sessionResult = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET read_at = $2::timestamp,
+        manually_unread = FALSE
+    WHERE tenant_id = $1::bigint
+      AND (read_at IS NULL OR manually_unread = TRUE OR read_at < $2::timestamp)
+    RETURNING session_id
+    `,
+    [safeTenantId, readAt]
+  ).catch((error) => {
+    logSqlError("markAllAiSupportConversationsRead.session", error, { tenantId: safeTenantId, channel: safeChannel });
+    return { rows: [], rowCount: 0 };
+  });
+
+  const channelResult = safeChannel
+    ? await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET read_at = $2::timestamp,
+            manually_unread = FALSE
+        WHERE tenant_id = $1::bigint
+          AND channel = $3::text
+        RETURNING id
+        `,
+        [safeTenantId, readAt, safeChannel]
+      ).catch((error) => {
+        logSqlError("markAllAiSupportConversationsRead.channel", error, { tenantId: safeTenantId, channel: safeChannel });
+        return { rows: [], rowCount: 0 };
+      })
+    : await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET read_at = $2::timestamp,
+            manually_unread = FALSE
+        WHERE tenant_id = $1::bigint
+        RETURNING id
+        `,
+        [safeTenantId, readAt]
+      ).catch((error) => {
+        logSqlError("markAllAiSupportConversationsRead.channel-all", error, { tenantId: safeTenantId, channel: safeChannel });
+        return { rows: [], rowCount: 0 };
+      });
+
+  return {
+    read_at: readAt,
+    channel: safeChannel || "",
+    sessions_updated: sessionResult.rowCount || 0,
+    channels_updated: channelResult.rowCount || 0,
+    read_updated: (sessionResult.rowCount || 0) + (channelResult.rowCount || 0) > 0,
   };
 };
 

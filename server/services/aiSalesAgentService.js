@@ -527,6 +527,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS staff_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS sender_type VARCHAR(40) NOT NULL DEFAULT 'customer'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS manual_message BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -735,6 +736,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
     await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_tenant_lead_status ON ai_channel_conversations (tenant_id, lead_status, updated_at DESC)`);
     await clientOrPool.query(`
       CREATE TABLE IF NOT EXISTS ai_channel_event_logs (
@@ -2306,6 +2308,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       c.metadata AS channel_metadata,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
+      COALESCE(c.manually_unread, s.manually_unread, FALSE) AS manually_unread,
       (
         SELECT COUNT(*)::int
         FROM ai_support_messages unread_msg
@@ -2470,7 +2473,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           }))
         : null;
       const summaryMessages = summaryMessage ? [summaryMessage] : [];
-      const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const manuallyUnread = conversation.manually_unread === true;
+      const computedUnreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread ? 1 : 0);
       const leadStatus = normalizedSummaryLeadStatus(conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
       const leadType = leadTypeFrom({
         memoryScore: 0,
@@ -2640,6 +2645,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         last_ai_reply_draft_updated_at: conversation.last_ai_reply_draft_updated_at || null,
         unread_count: unreadCount,
         unread: unreadCount > 0,
+        manually_unread: manuallyUnread,
         waiting: false,
         lead_status: leadStatus,
         lead_type: leadType,
@@ -2740,6 +2746,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       acm.updated_at AS conversation_memory_updated_at,
       COALESCE(m.created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
+      COALESCE(c.manually_unread, s.manually_unread, FALSE) AS manually_unread,
       (
         SELECT COUNT(*)::int
         FROM ai_support_messages unread_msg
@@ -3379,7 +3386,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         "new"
       );
       const lastMessagePreview = conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "";
-      const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const manuallyUnread = conversation.manually_unread === true;
+      const computedUnreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread ? 1 : 0);
       const conversationSessionId = canonicalInboxConversationSessionId(conversation);
       const channel = canonicalInboxChannel(conversation.channel || conversation.source || "web_chat") || "web_chat";
       return {
@@ -3422,6 +3431,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         last_activity_at: conversation.last_message_at || conversation.updated_at,
         unread_count: unreadCount,
         unread: unreadCount > 0,
+        manually_unread: manuallyUnread,
         waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
         lead_status: leadStatus,
         lead_type: leadType,

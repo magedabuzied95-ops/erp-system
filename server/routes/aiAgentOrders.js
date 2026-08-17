@@ -118,6 +118,8 @@ import {
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
   markAiSupportConversationRead,
+  markAiSupportConversationUnread,
+  markAllAiSupportConversationsRead,
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
   upsertAiSupportMessageReaction,
@@ -3767,6 +3769,89 @@ const handleMarkConversationRead = async (req, res) => {
 
 router.post("/conversations/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
 router.post("/inbox/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
+
+const handleMarkConversationUnread = async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const rawConversationId = envText(req.params.conversationId);
+    const conversationId = decodeRouteId(rawConversationId);
+    const channel = req.body?.channel || req.query?.channel || "";
+    if (!conversationId) {
+      return res.status(200).json({
+        success: true,
+        queued: false,
+        conversation: null,
+        message: "conversation id missing",
+      });
+    }
+
+    const conversation = await markAiSupportConversationUnread({
+      tenantId,
+      sessionId: conversationId,
+      channel,
+    });
+    if (conversation?.unread_updated !== true) {
+      throw Object.assign(new Error("Conversation was not found or could not be marked as unread"), { status: 404 });
+    }
+    console.log("[ai-inbox][mark-unread] success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel,
+    });
+
+    return res.status(200).json({
+      success: true,
+      queued: false,
+      conversation,
+    });
+  } catch (error) {
+    console.warn("[ai-inbox][mark-unread] failure", {
+      tenant_id: toTenantId(req),
+      raw_conversation_id: envText(req.params.conversationId),
+      decoded_conversation_id: decodeRouteId(req.params.conversationId),
+      channel: req.body?.channel || req.query?.channel || "",
+      code: error?.code || "",
+      message: error?.message || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      conversation: null,
+      message: error?.message || "Failed to mark conversation as unread",
+    });
+  }
+};
+
+router.post("/conversations/:conversationId/unread", protect, permit("settings", "edit"), handleMarkConversationUnread);
+router.post("/inbox/:conversationId/unread", protect, permit("settings", "edit"), handleMarkConversationUnread);
+
+const handleMarkAllConversationsRead = async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const channel = req.body?.channel || req.query?.channel || "";
+    const result = await markAllAiSupportConversationsRead({ tenantId, channel });
+    console.log("[ai-inbox][mark-all-read] success", {
+      tenant_id: tenantId,
+      channel,
+      sessions_updated: result?.sessions_updated || 0,
+      channels_updated: result?.channels_updated || 0,
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.warn("[ai-inbox][mark-all-read] failure", {
+      tenant_id: toTenantId(req),
+      channel: req.body?.channel || req.query?.channel || "",
+      code: error?.code || "",
+      message: error?.message || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to mark all conversations as read",
+    });
+  }
+};
+
+router.post("/conversations/read-all", protect, permit("settings", "edit"), handleMarkAllConversationsRead);
+router.post("/inbox/read-all", protect, permit("settings", "edit"), handleMarkAllConversationsRead);
 
 router.get("/conversations/:conversationId/sales-closer", protect, permit("settings", "view"), async (req, res) => {
   const tenantId = toTenantId(req);

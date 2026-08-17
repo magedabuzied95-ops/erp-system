@@ -11,6 +11,7 @@ import {
   Bot,
   BadgePercent,
   CheckCheck,
+  Mail,
   ChevronLeft,
   ChevronDown,
   ChevronUp,
@@ -1886,7 +1887,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2034,6 +2035,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
+              {onToggleRead ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleRead(item);
+                  }}
+                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 ${unreadCount ? "text-emerald-400 hover:text-emerald-300" : "text-slate-500 hover:text-cyan-300"}`}
+                  aria-label={unreadCount ? "تحديد كمقروء" : "تحديد كغير مقروء"}
+                  title={unreadCount ? "تحديد كمقروء" : "تحديد كغير مقروء"}
+                >
+                  {unreadCount ? <CheckCheck className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={(event) => {
@@ -2282,7 +2297,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2402,6 +2417,20 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
+              {onToggleRead ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleRead(item);
+                  }}
+                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 ${unreadCount ? "text-emerald-400 hover:text-emerald-300" : "text-slate-500 hover:text-cyan-300"}`}
+                  aria-label={unreadCount ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
+                  title={unreadCount ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
+                >
+                  {unreadCount ? <CheckCheck className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={(event) => {
@@ -5309,6 +5338,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
   const [favoriteFilter, setFavoriteFilter] = useState("all");
+  const [readFilter, setReadFilter] = useState("all"); // all | unread | read
   const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
   const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
@@ -6035,6 +6065,11 @@ export default function AiInbox({ reviewerMode = false }) {
       const isFavorite = conversation?.is_favorite === true || clean(conversation?.is_favorite).toLowerCase() === "true";
       return isFavorite;
     };
+    const matchesReadFilter = (conversation = {}) => {
+      if (readFilter === "all") return true;
+      const isUnread = Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
+      return readFilter === "unread" ? isUnread : !isUnread;
+    };
     const sortValue = (conversation = {}) => {
       const score = conversationLeadScore(conversation);
       const updatedAt = new Date(conversation.last_message_at || conversation.last_activity_at || conversation.updated_at || conversation.created_at || 0).getTime();
@@ -6070,7 +6105,7 @@ export default function AiInbox({ reviewerMode = false }) {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesChannelFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesChannelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -6078,7 +6113,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter]);
+  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -6781,6 +6816,99 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: err?.message || "فشل تحديث حالة المفضلة." });
     }
   }, [api, headers, patchConversation, setToast, tenantId]);
+  // Manual read/unread toggle from the conversation card. Marking read reuses the
+  // same /read endpoint the auto-mark-on-open effect uses; marking unread persists a
+  // manually_unread flag on the server so it survives refetch.
+  const toggleConversationRead = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    const conversationIdentifier = clean(item?.conversation_key || sessionId);
+    if (!sessionId || !conversationIdentifier) return;
+    const previousUnreadCount = Number(item?.unread_count || item?.unread || 0);
+    const previousManuallyUnread = item?.manually_unread === true;
+    const currentlyUnread = previousUnreadCount > 0 || previousManuallyUnread;
+    const channel = clean(item?.channel || item?.source || "");
+    if (currentlyUnread) {
+      // Marking read: keep the auto-mark-on-open effect from fighting us by pinning
+      // its signature to this conversation's current state.
+      markReadSignatureRef.current = `${sessionId}:${item?.last_activity_at || item?.updated_at || ""}`;
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+        manually_unread: false,
+        read_at: new Date().toISOString(),
+      }));
+      try {
+        await api.post(
+          aiInboxConversationEndpoint(sessionId, "/read"),
+          { tenant_id: tenantId, conversation_id: sessionId, channel },
+          { headers, perfComponent: "AiInbox.markReadManual" }
+        );
+      } catch (err) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          unread_count: previousUnreadCount,
+          unread: previousUnreadCount > 0 || previousManuallyUnread,
+          manually_unread: previousManuallyUnread,
+        }));
+        setToast({ tone: "rose", text: err?.message || "فشل تحديد المحادثة كمقروءة." });
+      }
+      return;
+    }
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      unread_count: 1,
+      unread: true,
+      manually_unread: true,
+      read_at: null,
+    }));
+    try {
+      await api.post(
+        aiInboxConversationEndpoint(sessionId, "/unread"),
+        { tenant_id: tenantId, conversation_id: sessionId, channel },
+        { headers, perfComponent: "AiInbox.markUnread" }
+      );
+    } catch (err) {
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        unread_count: previousUnreadCount,
+        unread: previousUnreadCount > 0 || previousManuallyUnread,
+        manually_unread: previousManuallyUnread,
+      }));
+      setToast({ tone: "rose", text: err?.message || "فشل تحديد المحادثة كغير مقروءة." });
+    }
+  }, [api, headers, patchConversation, setToast, tenantId]);
+  const markAllConversationsRead = useCallback(async () => {
+    const readAt = new Date().toISOString();
+    const previousConversations = asArray(inbox?.conversations);
+    const hadUnread = previousConversations.some((conversation) => Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true);
+    if (!hadUnread) return;
+    setInbox((current) => ({
+      ...current,
+      conversations: asArray(current.conversations).map((conversation) => ({
+        ...conversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+        manually_unread: false,
+        read_at: readAt,
+      })),
+    }));
+    try {
+      await api.post(
+        "/ai-inbox/conversations/read-all",
+        { tenant_id: tenantId },
+        { headers, perfComponent: "AiInbox.markAllRead" }
+      );
+      setToast({ tone: "emerald", text: "تم تحديد كل المحادثات كمقروءة." });
+    } catch (err) {
+      setInbox((current) => ({ ...current, conversations: previousConversations }));
+      setToast({ tone: "rose", text: err?.message || "فشل تحديد الكل كمقروء." });
+    }
+  }, [api, headers, inbox, setInbox, setToast, tenantId]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
@@ -9522,6 +9650,31 @@ export default function AiInbox({ reviewerMode = false }) {
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
 	                      </button>
 	                  </div>
+	                  <div className="flex items-center gap-2">
+	                    <div className="flex min-w-0 flex-1 items-center gap-1 rounded-xl border border-white/10 bg-slate-950/70 p-1">
+	                      {[["all", t("aiSupport.inbox.ui.readFilterAll")], ["unread", t("aiSupport.inbox.ui.readFilterUnread")], ["read", t("aiSupport.inbox.ui.readFilterRead")]].map(([key, label]) => (
+	                        <button
+	                          key={key}
+	                          type="button"
+	                          onClick={() => setReadFilter(key)}
+	                          aria-pressed={readFilter === key}
+	                          className={`min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-[11px] font-black transition ${readFilter === key ? "bg-cyan-400/15 text-cyan-100" : "text-slate-400 hover:text-white"}`}
+	                        >
+	                          {label}{key === "unread" && Number(channelSummaries.all.unread || 0) > 0 ? ` (${channelSummaries.all.unread})` : ""}
+	                        </button>
+	                      ))}
+	                    </div>
+	                    <button
+	                      type="button"
+	                      onClick={markAllConversationsRead}
+	                      disabled={!Number(channelSummaries.all.unread || 0)}
+	                      title={t("aiSupport.inbox.ui.markAllRead")}
+	                      aria-label={t("aiSupport.inbox.ui.markAllRead")}
+	                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${Number(channelSummaries.all.unread || 0) ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/20" : "border-white/10 bg-slate-950/70 text-slate-600"}`}
+	                    >
+	                      <CheckCheck className="h-4 w-4" />
+	                    </button>
+	                  </div>
 	                </div>
 	              ) : null}
 	            </div>
@@ -9541,6 +9694,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}
 	                            onToggleFavorite={toggleConversationFavorite}
+	                            onToggleRead={toggleConversationRead}
 	                          />
 	                        );
 	                      })}
@@ -10363,6 +10517,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                              onSelect={handleSelectConversation}
 	                              onOpenCustomer360={openCustomerDrawer}
 	                              onToggleFavorite={toggleConversationFavorite}
+	                              onToggleRead={toggleConversationRead}
 	                            />
                         );
                       })}
