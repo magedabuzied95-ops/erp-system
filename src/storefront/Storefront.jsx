@@ -6661,12 +6661,57 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
   const image = productCardPrimaryImageFor(product, variant);
   const brand = recommendationText(product?.brand?.name || product?.brand_name || product?.brand);
   const inWishlist = wishlist.some((item) => String(item?.id) === String(product?.id));
+  // Same two-photo swap as the grid card, on the same shared classes so both
+  // surfaces stay on one timing. Only swap once the second photo has decoded --
+  // fading to a half-loaded image reads as a flicker.
+  const secondaryImage = useMemo(
+    () => productCardSecondaryImageFor(product || {}, variant, null, image),
+    [image, product, variant]
+  );
+  const secondaryImageUrl = useMemo(() => resolveCardImageUrl(secondaryImage), [secondaryImage]);
+  const primaryImageUrl = useMemo(() => resolveCardImageUrl(image), [image]);
+  const hasSecondaryImage = Boolean(secondaryImageUrl && secondaryImageUrl !== primaryImageUrl);
+  const [secondaryImageReady, setSecondaryImageReady] = useState(false);
+  useEffect(() => {
+    setSecondaryImageReady(false);
+    if (!hasSecondaryImage || typeof window === "undefined") return undefined;
+    let cancelled = false;
+    const preloadImage = new Image();
+    preloadImage.decoding = "async";
+    preloadImage.onload = () => {
+      if (!cancelled) setSecondaryImageReady(true);
+    };
+    preloadImage.src = imageFor(secondaryImageUrl);
+    if (preloadImage.complete && preloadImage.naturalWidth > 0) setSecondaryImageReady(true);
+    return () => {
+      cancelled = true;
+    };
+  }, [hasSecondaryImage, secondaryImageUrl]);
+  const showSecondaryImage = hasSecondaryImage && secondaryImageReady;
   return (
     <div className="sf-product-recommendation-tile group relative min-w-0 text-center">
       <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
-        <div className="relative aspect-square overflow-hidden bg-white">
-          <img src={imageFor(image)} onError={fallbackProductImage} alt={product?.name || ""} className="h-full w-full object-contain p-2 transition duration-300 group-hover:scale-[1.025]" loading="lazy" decoding="async" />
-          {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
+        <div className="sf-product-card-media group/card-image relative aspect-square overflow-hidden bg-white">
+          <img
+            src={imageFor(image)}
+            onError={fallbackProductImage}
+            alt={product?.name || ""}
+            className={`sf-card-primary-image absolute inset-0 z-[1] h-full w-full transform-gpu object-contain p-2 opacity-100 ${showSecondaryImage ? "md:group-hover/card-image:opacity-0" : ""}`}
+            loading="lazy"
+            decoding="async"
+          />
+          {showSecondaryImage ? (
+            <img
+              src={imageFor(secondaryImageUrl)}
+              onError={fallbackProductImage}
+              alt=""
+              aria-hidden="true"
+              className="sf-card-secondary-image absolute inset-0 z-[2] h-full w-full transform-gpu object-contain p-2 opacity-0 md:group-hover/card-image:opacity-100"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
+          {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 z-[3] rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
         </div>
         <div className="px-1 pt-2">
           {brand ? <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{brand}</div> : null}
