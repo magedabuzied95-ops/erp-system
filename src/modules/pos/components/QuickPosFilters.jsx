@@ -11,6 +11,37 @@ const tt = (key, options) => i18n.t(key, options);
 
 const normalizeText = (value = "") => String(value || "").trim().toLowerCase();
 
+/*
+ * Product classifications carry no colour of their own, so each type gets one
+ * from a fixed palette keyed by a hash of its id. Deterministic on purpose: a
+ * cashier learns "Sneakers is the blue one" only if it is blue on every till,
+ * every session, and stays blue when a new type is added beside it — which
+ * rules out colouring by array index.
+ *
+ * Values are literal rather than derived from a hue, so contrast against the
+ * dark POS surface is predictable: near-black text on the solid fill when
+ * active, the hue itself on a dark tint when not.
+ */
+const TYPE_PALETTE = [
+  "#38bdf8", // sky
+  "#a78bfa", // violet
+  "#fbbf24", // amber
+  "#fb7185", // rose
+  "#2dd4bf", // teal
+  "#a3e635", // lime
+  "#fb923c", // orange
+  "#e879f9", // fuchsia
+];
+
+const typeColor = (id = "") => {
+  const key = String(id || "");
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+  }
+  return TYPE_PALETTE[hash % TYPE_PALETTE.length];
+};
+
 function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChange, onToggle, onClear }) {
   const buttonRef = useRef(null);
   const popoverRef = useRef(null);
@@ -165,6 +196,19 @@ function QuickPosFilters({
     { id: "women", label: tt("pos.audience.women") },
     { id: "kids", label: tt("pos.audience.kids") },
   ];
+  // A type with nothing behind it is dead weight in a row that scrolls, so it
+  // goes. The active one stays even at zero, otherwise selecting a type whose
+  // count later drops to zero would remove the only chip that can clear it.
+  // A missing count means "unknown", not "empty" — those are kept.
+  const visibleProductTypes = useMemo(() => {
+    const activeId = String(selectedProductType ?? "all");
+    return (Array.isArray(productTypeOptions) ? productTypeOptions : []).filter((option) => {
+      const id = String(option?.id ?? "");
+      if (!id) return false;
+      const count = Number(option.count);
+      return !Number.isFinite(count) || count > 0 || id === activeId;
+    });
+  }, [productTypeOptions, selectedProductType]);
 
   return (
     <div className="mt-2 mb-1 rounded-2xl border border-white/10 bg-white/[0.025] px-2 py-2">
@@ -176,19 +220,26 @@ function QuickPosFilters({
          * leaving a selection with no way off it — the row has no "All" chip,
          * matching how the gender chips already clear themselves.
          */}
-        {(Array.isArray(productTypeOptions) ? productTypeOptions : []).map((option) => {
-          const id = String(option?.id ?? "");
-          if (!id) return null;
+        {visibleProductTypes.map((option) => {
+          const id = String(option.id);
           const active = String(selectedProductType ?? "all") === id;
+          const color = option.color || typeColor(id);
           return (
             <button
               key={`type-${id}`}
               type="button"
               onClick={() => onSelectProductType(active ? "all" : id)}
-              className={`inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${ active ? "border-emerald-300/50 bg-emerald-400 text-emerald-950 shadow-[0_0_14px_rgba(16,185,129,0.12)]" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+              style={
+                active
+                  ? { backgroundColor: color, borderColor: color, color: "#0a0a0a" }
+                  : { borderColor: `${color}59`, backgroundColor: `${color}14`, color }
+              }
+              className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-xl border px-3 text-xs font-black transition hover:brightness-125"
             >
               {option.name}
-              {Number.isFinite(Number(option.count)) ? <span className="rounded-full bg-black/15 px-1.5 py-0.5 text-[10px]">{option.count}</span> : null}
+              {Number.isFinite(Number(option.count)) ? (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-black/15" : "bg-black/30"}`}>{option.count}</span>
+              ) : null}
             </button>
           );
         })}
