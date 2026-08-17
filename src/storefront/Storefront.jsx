@@ -2540,9 +2540,19 @@ const classificationLabel = (option = {}, lang = "ar") =>
     const productTypeKey = resolveProductTypeKey(rawValue);
     const productTypeEntry = PRODUCT_TYPE_LABELS[productTypeKey];
     const productTypeLabel = productTypeEntry ? getProductTypeLabel(rawValue, lang) : "";
+    // Prefer the canonical locale-specific display label (from the product-classification
+    // taxonomy: label_en / label_ar) over the generic `label`, which the taxonomy sets to
+    // label_ar||label_en||value and therefore renders Arabic in English mode. Options without
+    // a localized field (brand/colour/free-text facets) fall through to the raw label unchanged,
+    // so unknown merchant-authored values keep their original stored value. Display-only —
+    // raw `value`, filter query values, URLs and comparisons are untouched.
+    const localizedField = lang === "en"
+      ? (option?.label_en || option?.name_en || option?.title_en)
+      : (option?.label_ar || option?.name_ar || option?.title_ar);
     return cleanDisplayText(
       productTypeLabel ||
         storefrontLocalizedLabels[lang]?.[rawKey] ||
+      localizedField ||
       option?.label ||
       option?.name ||
       option?.title ||
@@ -2552,7 +2562,6 @@ const classificationLabel = (option = {}, lang = "ar") =>
       option?.value ||
       option?.id ||
       option?.key ||
-      (lang === "ar" ? option?.label_ar || option?.name_ar || option?.title_ar : option?.label_en || option?.name_en || option?.title_en) ||
       "",
     ) || "";
   })();

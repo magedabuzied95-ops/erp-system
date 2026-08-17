@@ -20,7 +20,7 @@ Programme start: 2026-08-17
 | Route | Purpose | Status |
 |---|---|---|
 | `/` | Home | **PASS** (see findings) |
-| `/products` | Product listing (PLP) | **FIXED_VERIFIED** (gender chip i18n) |
+| `/products` | Product listing (PLP) | **FIXED_VERIFIED** (4 defects: gender chips, pagination+aria, currency dup, card brand aria) |
 | `/product/:slug` | Product detail (PDP) | PENDING |
 | `/men` `/women` `/kids` `/bags` `/crocs` `/slippers` `/men/large-sizes` | SEO category collections | PENDING |
 | `/offers` | Offers collection | PENDING |
@@ -96,4 +96,13 @@ home `/`, PLP `/products`, PDP `/product/:slug`, cart `/cart`, checkout `/checko
 - **CP-1** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP gender chip localization. Commit `3f01866`. Deployed asset `app-BZ5mCSDl-3f01866eb8b5.js`. Verified live: EN quick-chips `Men/Women/Kids/Bags/Crocs/Slippers`, applied chip `Men`, zero AR gender leak. Rollback ref `rollback/storefront-cp0-12dede7` @ `12dede7`.
 - **CP-2** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP pagination + nav aria localization. Commit `4833195`, asset `app-BjEyXvzv-4833195daff7.js`. Verified live: EN pagination `Next`.
 - **CP-3** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP price-filter currency. Commit `304e5d2`, asset `app-BhKDyObO-304e5d2931b6.js`. Verified live: EN price chip `100 - 500 EGP`, bounds `EGP 300`, zero `جنيه` leaks.
-- **CP-4** (pending push): shared ProductCard brand-link aria localization.
+- **CP-4** ✅ DEPLOYED + PRODUCTION-VERIFIED: shared ProductCard brand-link aria localization. Commit `c39aab2`, asset `app-d385fl2Z-c39aab2b3ca4.js`. Verified live: brand arias `Shop Classic/SKECHERS/Adidas/crocs`, zero Arabic leak. **Shared-owner regression**: Home overflow 0 + 0 aria leak; PLP overflow 0 + gender chips `Men/Women/Kids` intact.
+- **CP-5** (pending push): shared `classificationLabel` grade/collection taxonomy display i18n (PD-1). Reuses canonical `label_en`/`label_ar`; no new mapping.
+
+## Open product decisions
+- **PD-1 (grade/collection taxonomy EN labels)** — ✅ APPROVED & IMPLEMENTED (CP-5). The grade/collection values DO have a canonical source: `/product-classifications` returns `label_ar`+`label_en` per option (grade: `mirror_original`→"Mirror Original", `imported_from_vietnam`→"Imported from Vietnam", `local`→"Local"; product_type: `winter_collection`→"Winter Collection"). The storefront already loads these via `useProductClassifications` → `classificationGroupsToFieldOptions` (canonical `src/modules/products/lib/productClassifications.js`). No new mapping created. Root cause was resolver priority: shared `classificationLabel` (Storefront.jsx:2536) returned generic `option.label` (= `label_ar||label_en||value`, i.e. Arabic) BEFORE the locale-specific `label_en`. Fix inserts `localizedField` (label_en/label_ar by lang) ahead of `option.label`; options without a localized field (brand/colour/free-text) fall through to raw value unchanged (unknown merchant data preserved). Display-only — raw values, query params, URLs, comparisons untouched. **Note:** canonical merchant `label_en` for the Vietnamese grade is "Imported from Vietnam" (not the "Vietnamese Imported" from the request); used the canonical single-source value per the reuse directive.
+
+### SHARED `classificationLabel` — DEFECT #5 / PD-1 (taxonomy display i18n) → FIXED, verifying
+- **Owner**: `Storefront.jsx:2536` (the shared Storefront classification display resolver). **Consumers** (all benefit consistently): Storefront.jsx 4389/4417/4456/4587/4686/4720 + PLP 1011/1015/1017/1554 — home/PLP/search filter facets, applied-filter chips, selected-facet labels.
+- **Blast-radius safety**: only canonical classification options carry `label_en`/`label_ar` (gender/type/grade/bag_type). Brand/colour/category free-text options (built by the page's own `buildFacetOptions`) lack those → unchanged. Gender still resolves via `storefrontLocalizedLabels` first; product types via `PRODUCT_TYPE_LABELS` first — both ahead of the new field, so no change there.
+- **Gates**: eslint 0 errors, `test:storefront-seo` 33/33, build exit 0.
