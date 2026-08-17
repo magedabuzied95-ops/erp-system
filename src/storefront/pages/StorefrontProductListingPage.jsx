@@ -532,7 +532,15 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       quality: quality || "",
       // Crocs filters use customer-facing EU labels while inventory keeps the
       // original factory marking, so filter those variants client-side.
-      size: selectedSizes.length === 1 && !isCrocsListing ? selectedSizes[0] : "",
+      // Everything else goes to the backend: a facet applied after the backend
+      // has already cut the page removes cards from that page instead of from
+      // the result set, which is what left pages short of a full row.
+      size: isCrocsListing ? "" : selectedSizes,
+      color: color || "",
+      bag_type: bagType || "",
+      min_price: minPrice || "",
+      max_price: maxPrice || "",
+      last_sizes: lastSizes ? 1 : "",
       inStock: truthyFlag(inStock) ? 1 : "",
       large_sizes: seoCategory?.largeSizes ? 1 : "",
       offer_story: saleView ? 1 : "",
@@ -540,7 +548,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       limit: SEO_PAGE_SIZE,
       offset: (page - 1) * SEO_PAGE_SIZE,
     }),
-    [backendSearchTerm, brand, category, gender, grade, inStock, isCrocsListing, page, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
+    [backendSearchTerm, bagType, brand, category, color, gender, grade, inStock, isCrocsListing, lastSizes, maxPrice, minPrice, page, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);
@@ -653,11 +661,17 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       productType: "",
       grade: "",
       quality: "",
-      sizes: selectedSizes.length === 1 ? [] : catalogFilters.sizes,
+      color: "",
+      minPrice: "",
+      maxPrice: "",
+      lastSizes: false,
+      // Crocs is the one facet the backend cannot resolve: the chips are EU
+      // labels while inventory keeps the factory marking.
+      sizes: isCrocsListing ? catalogFilters.sizes : [],
       saleView: false,
       inStock: false,
     }),
-    [catalogFilters, selectedSizes.length]
+    [catalogFilters, isCrocsListing]
   );
   const hasActiveCatalogFilters = Boolean(
     debouncedFilterState.gender ||
@@ -676,11 +690,12 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   );
   const filteredProducts = useMemo(
     () => {
-      const base = hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
-      const typed = bagType ? base.filter((product) => normalizeFilterKey(product.bag_type || product.bagType) === bagType) : base;
-      return typed;
+      // Bag type is a product column the list projection never carried, so the
+      // old client-side pass matched nothing and emptied the page. The backend
+      // filters it now.
+      return hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
     },
-    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
+    [catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
   );
   const pagedFilteredProducts = filteredProducts;
   const orderedFilteredProducts = useMemo(

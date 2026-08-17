@@ -62,5 +62,10 @@ test("category-card product type reaches the storefront products API", async () 
   );
 
   assert.match(listingSource, /product_type: productType \|\| ""/);
-  assert.match(listingSource, /\[backendSearchTerm, brand, category, gender, grade, inStock, isCrocsListing, page, productType, quality, saleView, selectedSizes, sort, seoCategory\?\.largeSizes\]/);
+  // The request must re-run for every facet it forwards, not just the category ones.
+  const depsStart = listingSource.indexOf("const backendFilterState = useMemo(");
+  const deps = listingSource.slice(listingSource.indexOf("[backendSearchTerm", depsStart), listingSource.indexOf("const productsApiParams", depsStart));
+  for (const dependency of ["backendSearchTerm", "bagType", "brand", "category", "color", "gender", "grade", "inStock", "isCrocsListing", "lastSizes", "maxPrice", "minPrice", "page", "productType", "quality", "saleView", "selectedSizes", "sort", "seoCategory?.largeSizes"]) {
+    assert.ok(deps.includes(dependency), `missing request dependency: ${dependency}`);
+  }
 });
