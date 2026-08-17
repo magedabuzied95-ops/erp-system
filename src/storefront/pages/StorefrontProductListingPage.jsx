@@ -1161,8 +1161,8 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 saleModeEnabled={saleModeEnabled}
               />
               {totalPages > 1 ? (
-                <nav aria-label="صفحات المنتجات" className="mt-6 flex flex-wrap items-center justify-center gap-2 pb-24 sm:pb-4">
-                  {page > 1 ? <Link rel="prev" to={pageUrl(page - 1)} className="grid h-11 place-items-center rounded-full border border-stone-200 bg-white px-4 text-sm font-black text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white">السابق</Link> : null}
+                <nav aria-label={lang === "en" ? "Product pages" : "صفحات المنتجات"} className="mt-6 flex flex-wrap items-center justify-center gap-2 pb-24 sm:pb-4">
+                  {page > 1 ? <Link rel="prev" to={pageUrl(page - 1)} className="grid h-11 place-items-center rounded-full border border-stone-200 bg-white px-4 text-sm font-black text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white">{lang === "en" ? "Previous" : "السابق"}</Link> : null}
                   {visiblePaginationPages.map((pageNumber, index) => {
                     const previousPageNumber = visiblePaginationPages[index - 1];
                     return (
@@ -1172,11 +1172,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                       </span>
                     );
                   })}
-                  {page < totalPages ? <Link rel="next" to={pageUrl(page + 1)} className="grid h-11 place-items-center rounded-full border border-[#d4af37]/50 bg-[#d4af37]/10 px-4 text-sm font-black text-[#8a6a00] dark:text-[#f4d675]">التالي</Link> : null}
+                  {page < totalPages ? <Link rel="next" to={pageUrl(page + 1)} className="grid h-11 place-items-center rounded-full border border-[#d4af37]/50 bg-[#d4af37]/10 px-4 text-sm font-black text-[#8a6a00] dark:text-[#f4d675]">{lang === "en" ? "Next" : "التالي"}</Link> : null}
                 </nav>
               ) : null}
               {seoCategory ? (
-                <nav aria-label="أقسام مرتبطة" className="mt-7 flex flex-wrap justify-center gap-2">
+                <nav aria-label={lang === "en" ? "Related sections" : "أقسام مرتبطة"} className="mt-7 flex flex-wrap justify-center gap-2">
                   {seoCategory.related.map((path) => {
                     const related = seoCategoryByPath(path);
                     return related ? <Link key={path} to={path} className="rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;

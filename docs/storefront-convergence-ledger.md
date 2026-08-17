@@ -71,5 +71,13 @@ home `/`, PLP `/products`, PDP `/product/:slug`, cart `/cart`, checkout `/checko
 - **Gates**: eslint clean (only pre-existing dead-code warnings), `npm run build` exit 0, `test:storefront-seo` 33/33 pass.
 - Secondary observations (not defects yet, logged for later): `CatalogQuickChips` Link hardcodes `dir="rtl"` (1418) and `CatalogSortControl` select uses `text-right` (1390) — physical direction under LTR; low impact, may be intentional for Arabic sizes. Revisit in RTL/LTR pass (§21).
 
+### `/products` PLP — DEFECT #2 (localization) → FIXED, verifying on Production
+- **Symptom**: in English mode the PLP pagination rendered Arabic `التالي` (Next) / `السابق` (Previous); the pagination `<nav aria-label>` and the related-sections `<nav aria-label>` were hardcoded Arabic too (`صفحات المنتجات`, `أقسام مرتبطة`) — surfaced by the post-CP-1 Production scan.
+- **Root cause**: `StorefrontProductListingPage.jsx` lines 1164/1165/1175/1178 hardcoded Arabic with no language conditional.
+- **Fix**: inline `lang === "en" ? EN : AR` on all four (visible labels + both aria-labels). `lang`/`t` in scope (line 475-476). Chose inline over `t(key, arabicFallback)` because a missing key would return the Arabic fallback in BOTH languages and silently not fix EN.
+- **Scope note**: after fix, source grep for hardcoded-Arabic attributes and visible JSX text nodes in this file = **0 matches**. Empirical EN Production scan to confirm no other chrome leaks.
+- **Gates**: eslint 0 errors, `npm run build` exit 0.
+
 ## Checkpoints / releases
-- **CP-1** (pending push): PLP gender chip localization. Rollback ref `rollback/storefront-cp0-12dede7` at pre-change Production SHA `12dede7`.
+- **CP-1** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP gender chip localization. Commit `3f01866`. Deployed asset `app-BZ5mCSDl-3f01866eb8b5.js`. Verified live: EN quick-chips `Men/Women/Kids/Bags/Crocs/Slippers`, applied chip `Men`, zero AR gender leak. Rollback ref `rollback/storefront-cp0-12dede7` @ `12dede7`.
+- **CP-2** (pending push): PLP pagination + nav aria localization.
