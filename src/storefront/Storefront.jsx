@@ -6734,8 +6734,6 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   const [slide, setSlide] = useState(0);
   const [animating, setAnimating] = useState(true);
   const perView = useRailPerView();
-  const viewportRef = useRef(null);
-  const [viewportWidth, setViewportWidth] = useState(0);
   const touchStartXRef = useRef(null);
   const items = useMemo(() => {
     const cards = sortStorefrontColorCardsByModel(products).filter((product) => {
@@ -6767,19 +6765,15 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   // be snapped back to the start while the clones are on screen — the seam is
   // never visible, which is what makes the loop read as endless.
   const trackItems = canSlide ? [...items, ...items.slice(0, perView)] : items;
-  const slideWidth = viewportWidth > 0 ? (viewportWidth - (perView - 1) * RAIL_GAP_PX) / perView : 0;
-  const stepPx = slideWidth + RAIL_GAP_PX;
+  // Sizing stays in CSS. Measuring the viewport in JS meant a missed measurement
+  // (a hidden tab, a resize the observer slept through, a mount before layout)
+  // rendered every card at a stale width — or at zero, which reads as an empty
+  // rail. Percentages here resolve against the shifter, which is exactly one
+  // viewport wide, so a slide step is (100% + gap) / perView.
+  const slideBasis = `calc((100% - ${(perView - 1) * RAIL_GAP_PX}px) / ${perView})`;
+  const slideOffset = `calc((100% + ${RAIL_GAP_PX}px) * ${slide} / ${perView})`;
   // In RTL the track sits flush right, so it advances the other way.
   const direction = typeof document !== "undefined" && document.documentElement.dir === "rtl" ? 1 : -1;
-
-  useEffect(() => {
-    const node = viewportRef.current;
-    if (!node || typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
-    observer.observe(node);
-    setViewportWidth(node.getBoundingClientRect().width);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     setSlide(0);
@@ -6836,7 +6830,6 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
         </div>
       </div>
       <div
-        ref={viewportRef}
         className="sf-product-recommendation-viewport overflow-hidden pb-3"
         onTouchStart={(event) => {
           touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
@@ -6851,22 +6844,23 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
         }}
       >
         <div
-          className="sf-product-recommendation-page flex touch-pan-y"
+          className="sf-product-recommendation-shifter"
           style={{
-            gap: `${RAIL_GAP_PX}px`,
-            transform: `translate3d(${direction * slide * stepPx}px, 0, 0)`,
+            transform: `translate3d(${direction < 0 ? `-${slideOffset}` : slideOffset}, 0, 0)`,
             transition: animating ? `transform ${RAIL_SLIDE_MS}ms ease` : "none",
           }}
         >
-          {loading
-            ? Array.from({ length: perView }).map((_, index) => (
-                <div key={index} style={{ flex: `0 0 ${slideWidth}px` }} className="aspect-[0.72] animate-pulse bg-stone-100 dark:bg-white/5" />
-              ))
-            : trackItems.map((product, index) => (
-                <div key={`${productCardKey(product, index)}-${index}`} style={{ flex: `0 0 ${slideWidth}px` }} className="min-w-0">
-                  <RecommendationProductTile product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
-                </div>
-              ))}
+          <div className="sf-product-recommendation-page flex touch-pan-y" style={{ gap: `${RAIL_GAP_PX}px` }}>
+            {loading
+              ? Array.from({ length: perView }).map((_, index) => (
+                  <div key={index} style={{ flex: `0 0 ${slideBasis}` }} className="aspect-[0.72] animate-pulse bg-stone-100 dark:bg-white/5" />
+                ))
+              : trackItems.map((product, index) => (
+                  <div key={`${productCardKey(product, index)}-${index}`} style={{ flex: `0 0 ${slideBasis}` }} className="min-w-0">
+                    <RecommendationProductTile product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
+                  </div>
+                ))}
+          </div>
         </div>
       </div>
       {canSlide ? <div className="mt-3 flex flex-wrap justify-center gap-1.5">{items.map((product, index) => <button key={productCardKey(product, index)} type="button" onClick={() => moveBy(index - activeDot)} aria-label={`شريحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${activeDot === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}

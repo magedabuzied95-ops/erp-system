@@ -30,6 +30,10 @@ test("rails glide one card at a time on the sibling site's swiper timings", () =
   assert.match(storefrontSource, /const RAIL_SLIDE_MS = 1500;/);
   assert.match(storefrontSource, /setSlide\(\(current\) => current \+ 1\), RAIL_AUTOPLAY_MS/);
   assert.match(storefrontSource, /transition: animating \? `transform \$\{RAIL_SLIDE_MS\}ms ease` : "none"/);
+  // Card width must survive a missed measurement, so it is pure CSS.
+  assert.match(storefrontSource, /const slideBasis = `calc\(\(100% - \$\{\(perView - 1\) \* RAIL_GAP_PX\}px\) \/ \$\{perView\}\)`;/);
+  assert.match(storefrontSource, /const slideOffset = `calc\(\(100% \+ \$\{RAIL_GAP_PX\}px\) \* \$\{slide\} \/ \$\{perView\}\)`;/);
+  assert.doesNotMatch(storefrontSource, /new ResizeObserver\(\(\[entry\]\) => setViewportWidth/);
   // A page-at-a-time slice is what made a rotated row collapse to its remainder.
   assert.doesNotMatch(storefrontSource, /items\.slice\(page \* pageSize/);
 });
@@ -95,7 +99,7 @@ test("recommendations use a compact five-across storefront strip instead of prod
   assert.match(storefrontSource, /function RecommendationProductTile/);
   // Five across is now the widest breakpoint of the sliding track, not a static grid.
   assert.match(storefrontSource, /sf-product-recommendation-viewport/);
-  assert.match(storefrontSource, /flex: `0 0 \$\{slideWidth\}px`/);
+  assert.match(storefrontSource, /flex: `0 0 \$\{slideBasis\}`/);
   assert.match(storefrontSource, /aspect-square overflow-hidden bg-white/);
   assert.doesNotMatch(storefrontSource, /<ProductCard product=\{product\} railType="similar" rank=\{index \+ 1\}/);
 });
