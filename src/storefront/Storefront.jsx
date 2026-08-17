@@ -5878,7 +5878,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
 }
 
 const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, priorityImage = false, imagePreset = "grid" }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const product = useMemo(() => groupedProduct || rawProduct || {}, [groupedProduct, rawProduct]);
   const cardRef = useRef(null);
@@ -6267,7 +6267,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           <Link
             to={brandFilterUrl || "/products"}
             onClick={(event) => event.stopPropagation()}
-            aria-label={`عرض منتجات ${brandLabel}`}
+            aria-label={`${normalizeLanguage(i18n.language) === "ar" ? "عرض منتجات" : "Shop"} ${brandLabel}`}
             dir="ltr"
             className="line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#d4af37] hover:underline focus-visible:text-[#d4af37] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#f3d77a] md:min-h-[1.05rem]"
           >

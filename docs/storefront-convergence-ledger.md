@@ -85,7 +85,15 @@ home `/`, PLP `/products`, PDP `/product/:slug`, cart `/cart`, checkout `/checko
 - **Classification of remaining EN-mode Arabic on PLP** (allowed residual §23, business DATA — no app English source): `محلي`/`مستورد فيتنامي` (grade), `ميرور اوريجينال` (grade/brand), `كولكشن الشتوي` (collection). → **Product decision flagged**: whether the grade taxonomy should have EN display labels is a design call; not invented here.
 - **Gates**: eslint 0 errors, build exit 0.
 
+### SHARED `ProductCard` — DEFECT #4 (accessibility localization) → FIXED, verifying
+- **Symptom**: brand link on every product card had `aria-label="عرض منتجات {brand}"` — Arabic in English mode (screen readers hear Arabic chrome). Visible brand text is fine (data, `dir="ltr"`).
+- **Root cause**: `Storefront.jsx:6270` hardcoded the Arabic "Show {brand} products" wrapper. `ProductCard` (line 5880) only destructured `t`, no language.
+- **Ownership/blast radius**: `ProductCard` is SHARED — renders on Home, PLP, PDP related rails, and search results. The correction (localize the aria wrapper) is unambiguously required across ALL consumers → proceeded without pause per directive. Added `i18n` to the existing `useTranslation()`; label now `normalizeLanguage(i18n.language)==="ar" ? "عرض منتجات" : "Shop"`.
+- **Shared-owner protocol**: re-verify Home + PLP references post-deploy.
+- **Gates**: eslint 0 errors, build exit 0.
+
 ## Checkpoints / releases
 - **CP-1** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP gender chip localization. Commit `3f01866`. Deployed asset `app-BZ5mCSDl-3f01866eb8b5.js`. Verified live: EN quick-chips `Men/Women/Kids/Bags/Crocs/Slippers`, applied chip `Men`, zero AR gender leak. Rollback ref `rollback/storefront-cp0-12dede7` @ `12dede7`.
 - **CP-2** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP pagination + nav aria localization. Commit `4833195`, asset `app-BjEyXvzv-4833195daff7.js`. Verified live: EN pagination `Next`.
-- **CP-3** (pending push): PLP price-filter currency de-duplication + localization.
+- **CP-3** ✅ DEPLOYED + PRODUCTION-VERIFIED: PLP price-filter currency. Commit `304e5d2`, asset `app-BhKDyObO-304e5d2931b6.js`. Verified live: EN price chip `100 - 500 EGP`, bounds `EGP 300`, zero `جنيه` leaks.
+- **CP-4** (pending push): shared ProductCard brand-link aria localization.
