@@ -103,6 +103,9 @@ const PURGE_TABLES = new Set([
   "ai_marketing_content_queue",
   "ai_sales_journey_events",
   "marketing_story_trigger_suggestions",
+  "barcode_print_queue",
+  "employee_product_display_states",
+  "product_color_groups",
 ]);
 
 const PRODUCT_COLUMNS = new Set(["product_id"]);
