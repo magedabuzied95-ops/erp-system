@@ -4503,9 +4503,10 @@ function ProductEdit() {
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
                         onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                         disabled={!getPrimaryColorImage(group)}
-                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
+                        title={`إنشاء Thermal لهذا اللون عند الحفظ — ${group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}`}
+                        className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
                       >
-                        <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
+                        <span>Thermal عند الحفظ</span>
                         <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
                       </button>
                       <button
