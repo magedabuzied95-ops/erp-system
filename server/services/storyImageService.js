@@ -365,6 +365,11 @@ const storySizesDisplayText = (sizes = "") => {
   return cleanSizes ? `AVAILABLE SIZES: ${cleanSizes}` : "AVAILABLE NOW";
 };
 
+// Pill geometry lives here so the background rect and the text composite that
+// has to sit centred inside it can never drift apart.
+const BADGE_PILL = { x: 72, y: 1104, height: 70 };
+const SIZES_PILL = { x: 72, y: 1188, height: 80 };
+
 // The sizes text composite sits at x=108 inside a pill that starts at x=72.
 const SIZES_TEXT_INSET = 36;
 const SIZES_TEXT_BOX_WIDTH = 820;
@@ -376,13 +381,13 @@ const ORIGINAL_PRICE_TEXT_BOX_HEIGHT = 48;
 const ORIGINAL_PRICE_TEXT_SIZE = 26;
 
 /**
- * Width in pixels that this text actually renders at, for sizing the pill behind
- * it. sharp scales the font to fill the box when width AND height are both set,
- * so the measurement must pass the same box the composite uses or it measures a
- * differently sized rendering.
+ * Size in pixels that this text actually renders at, for sizing the pill behind
+ * it and for centring the text inside that pill. sharp scales the font to fill
+ * the box when width AND height are both set, so the measurement must pass the
+ * same box the composite uses or it measures a differently sized rendering.
  */
-const measureStoryTextWidth = async ({ text, size, width, height, weight = "bold" }) => {
-  if (!trimString(text)) return 0;
+const measureStoryTextBox = async ({ text, size, width, height, weight = "bold" }) => {
+  if (!trimString(text)) return { width: 0, height: 0 };
   try {
     const rendered = await sharp({
       text: {
@@ -395,11 +400,15 @@ const measureStoryTextWidth = async ({ text, size, width, height, weight = "bold
       },
     }).png().toBuffer();
     const metadata = await sharp(rendered).metadata();
-    return Number(metadata.width) || 0;
+    return { width: Number(metadata.width) || 0, height: Number(metadata.height) || 0 };
   } catch {
-    return 0;
+    return { width: 0, height: 0 };
   }
 };
+
+/** Top edge that centres a rendered text block inside its pill. */
+const centredTextTop = ({ pillTop, pillHeight, textHeight, fallbackTop }) =>
+  textHeight > 0 ? Math.round(pillTop + (pillHeight - textHeight) / 2) : fallbackTop;
 
 const createStoryPriceStrikeComposite = async ({ text, left = 68, top = 1416, measuredTextWidth = 0 } = {}) => {
   if (!trimString(text)) return null;
@@ -717,9 +726,9 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
   <ellipse cx="540" cy="996" rx="430" ry="92" fill="#ffffff" fill-opacity="0.10" filter="url(#stageShadow)"/>
 
   <rect x="48" y="1106" width="8" height="530" rx="4" fill="#ef4444" fill-opacity="0.94"/>
-  <rect x="72" y="1104" width="${badgeWidth}" height="62" rx="31" fill="#dc2626" fill-opacity="0.98"/>
+  <rect x="${BADGE_PILL.x}" y="${BADGE_PILL.y}" width="${badgeWidth}" height="${BADGE_PILL.height}" rx="${BADGE_PILL.height / 2}" fill="#dc2626" fill-opacity="0.98"/>
   ${storySvgText({ lines: headingLines, x: 112, y: 1145, size: 25, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
-  <rect x="72" y="1190" width="${sizesWidth}" height="72" rx="36" fill="#ffffff" fill-opacity="0.96" stroke="#ef4444" stroke-opacity="0.24" stroke-width="2"/>
+  <rect x="${SIZES_PILL.x}" y="${SIZES_PILL.y}" width="${sizesWidth}" height="${SIZES_PILL.height}" rx="${SIZES_PILL.height / 2}" fill="#ffffff" fill-opacity="0.96" stroke="#ef4444" stroke-opacity="0.24" stroke-width="2"/>
   ${storySvgText({ lines: sizesLines, x: 108, y: 1237, size: 28, weight: 800, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
   ${storySvgText({ lines: titleLines, x: 72, y: 1350, size: 72, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1.08, opacity: renderText ? 1 : 0 })}
   <line x1="72" y1="1470" x2="1008" y2="1470" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
@@ -734,7 +743,7 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, originalPrice 
 </svg>`;
 };
 
-export const createDesignedStoryTextComposites = async ({ badge, title, price, originalPrice = "", sizes, cta, theme = DESIGNED_STORY_THEMES.current, measuredOriginalPriceWidth = 0 }) => {
+export const createDesignedStoryTextComposites = async ({ badge, title, price, originalPrice = "", sizes, cta, theme = DESIGNED_STORY_THEMES.current, measuredOriginalPriceWidth = 0, measuredBadgeHeight = 0, measuredSizesHeight = 0 }) => {
   const sizesText = storySizesDisplayText(sizes);
   const badgeText = englishStoryText(badge, "NEW COLLECTION");
   const titleText = storyAssetTextLines(englishStoryText(title, theme.fallbackTitle || "Sneakers"), { maxChars: 24, maxLines: 2 }).join("\n");
@@ -743,8 +752,28 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, o
   const ctaText = englishStoryText(cta, "View details");
   const composites = await Promise.all([
     createStoryTextComposite({ text: theme.label, left: 784, top: 100, width: 192, height: 32, size: 14, color: "#ffffff", align: "center", weight: "semibold" }),
-    createStoryTextComposite({ text: badgeText, left: 112, top: 1118, width: BADGE_TEXT_BOX_WIDTH, height: BADGE_TEXT_BOX_HEIGHT, size: 20, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: sizesText, left: 108, top: 1204, width: SIZES_TEXT_BOX_WIDTH, height: SIZES_TEXT_BOX_HEIGHT, size: SIZES_TEXT_SIZE, color: "#475569", weight: "bold" }),
+    createStoryTextComposite({
+      text: badgeText,
+      left: 112,
+      top: centredTextTop({
+        pillTop: BADGE_PILL.y,
+        pillHeight: BADGE_PILL.height,
+        textHeight: measuredBadgeHeight,
+        fallbackTop: 1122,
+      }),
+      width: BADGE_TEXT_BOX_WIDTH, height: BADGE_TEXT_BOX_HEIGHT, size: 20, color: "#ffffff", weight: "bold",
+    }),
+    createStoryTextComposite({
+      text: sizesText,
+      left: 108,
+      top: centredTextTop({
+        pillTop: SIZES_PILL.y,
+        pillHeight: SIZES_PILL.height,
+        textHeight: measuredSizesHeight,
+        fallbackTop: 1206,
+      }),
+      width: SIZES_TEXT_BOX_WIDTH, height: SIZES_TEXT_BOX_HEIGHT, size: SIZES_TEXT_SIZE, color: "#475569", weight: "bold",
+    }),
     createStoryTextComposite({ text: titleText, left: 72, top: 1276, width: 936, height: 180, size: 58, color: "#ffffff", weight: "bold" }),
     createStoryTextComposite({ text: originalPriceText, left: 72, top: 1480, width: ORIGINAL_PRICE_TEXT_BOX_WIDTH, height: ORIGINAL_PRICE_TEXT_BOX_HEIGHT, size: ORIGINAL_PRICE_TEXT_SIZE, color: "#cbd5e1", weight: "bold" }),
     createStoryPriceStrikeComposite({ text: originalPriceText, top: 1504, measuredTextWidth: measuredOriginalPriceWidth }),
@@ -973,29 +1002,37 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       // Measure first: the pill, the sizes strip and the price strike are all
       // drawn to fit text that sharp renders at a size we cannot predict from a
       // character count.
-      const [measuredBadgeWidth, measuredSizesWidth, measuredOriginalPriceWidth] = await Promise.all([
-        measureStoryTextWidth({
+      const [badgeBox, sizesBox, originalPriceBox] = await Promise.all([
+        measureStoryTextBox({
           text: englishStoryText(storyText.badge, "NEW COLLECTION"),
           size: 20,
           width: BADGE_TEXT_BOX_WIDTH,
           height: BADGE_TEXT_BOX_HEIGHT,
         }),
-        measureStoryTextWidth({
+        measureStoryTextBox({
           text: storySizesDisplayText(storyText.sizes),
           size: SIZES_TEXT_SIZE,
           width: SIZES_TEXT_BOX_WIDTH,
           height: SIZES_TEXT_BOX_HEIGHT,
         }),
         storyText.originalPrice
-          ? measureStoryTextWidth({
+          ? measureStoryTextBox({
             text: englishStoryPrice(storyText.originalPrice),
             size: ORIGINAL_PRICE_TEXT_SIZE,
             width: ORIGINAL_PRICE_TEXT_BOX_WIDTH,
             height: ORIGINAL_PRICE_TEXT_BOX_HEIGHT,
           })
-          : 0,
+          : { width: 0, height: 0 },
       ]);
-      let textComposites = await createDesignedStoryTextComposites({ ...storyText, measuredOriginalPriceWidth });
+      const measuredBadgeWidth = badgeBox.width;
+      const measuredSizesWidth = sizesBox.width;
+      const measuredOriginalPriceWidth = originalPriceBox.width;
+      let textComposites = await createDesignedStoryTextComposites({
+        ...storyText,
+        measuredOriginalPriceWidth,
+        measuredBadgeHeight: badgeBox.height,
+        measuredSizesHeight: sizesBox.height,
+      });
       logStoryMemory("slide-before-write-upload", {
         queueId: story.id || postId || null,
         slideIndex: index + 1,
