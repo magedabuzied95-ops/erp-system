@@ -119,8 +119,13 @@ const download = async (url) => {
 };
 
 const run = async () => {
-  if (!cloudName) throw new Error("CLOUDINARY_CLOUD_NAME is not set");
-  console.log(`[config] cloud=${cloudName} folder=${folder} admin_api=${apiKey && apiSecret ? "yes" : "no"} dry_run=${dryRun}`);
+  // Counting is a local question — which referenced files are absent from the
+  // uploads volume — so it must not require Cloudinary credentials. Only the
+  // download pass does. Demanding the cloud name up front made the audit
+  // impossible to run on a box where the account has been removed from .env,
+  // which is exactly the box that needs auditing.
+  if (!dryRun && !cloudName) throw new Error("CLOUDINARY_CLOUD_NAME is not set (recovery needs it; DRY_RUN=1 does not)");
+  console.log(`[config] cloud=${cloudName || "(none)"} folder=${folder} admin_api=${apiKey && apiSecret ? "yes" : "no"} dry_run=${dryRun}`);
 
   const imagePaths = await collectImagePaths();
   console.log(`[scan] ${imagePaths.length} distinct /uploads/ image paths referenced by the catalog`);
