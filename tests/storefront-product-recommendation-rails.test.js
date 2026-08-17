@@ -61,6 +61,33 @@ test("rail breakpoints and looping match the reference carousel", () => {
   assert.match(storefrontSource, /jumpLap\(slide - items\.length\), RAIL_SLIDE_MS/);
 });
 
+test("rail tiles carry the same slide-up quick add as the grid card", () => {
+  const tile = storefrontSource.slice(
+    storefrontSource.indexOf("function RecommendationProductTile"),
+    storefrontSource.indexOf("const RECOMMENDATION_RAIL_MIN_ITEMS")
+  );
+  // The tile is its own hover group, so a rail neighbour cannot slide it.
+  assert.match(tile, /sf-product-recommendation-tile group group\/tile/);
+  assert.match(tile, /md:group-hover\/tile:-translate-y-\[35px\] md:focus-within:-translate-y-\[35px\]/);
+  assert.match(tile, /sf-card-action-wrap min-w-0 overflow-clip md:h-\[35px\]/);
+  assert.match(tile, /sf-card-slide-cta hidden h-\[35px\][\s\S]{0,400}md:inline-flex/);
+  // Touch has no hover, so the price stays put next to a round quick add.
+  assert.match(tile, /sf-quick-add-button[\s\S]{0,900}md:hidden/);
+  // Colour and size resolve through the very helpers the grid card uses.
+  assert.match(tile, /getProductColorGroups\(\{ \.\.\.product, variants: sellableTileVariants\.length \? sellableTileVariants : tileVariants \}\)/);
+  assert.match(tile, /getSizeOptionsForColorGroup\(nextGroup, product\)\.filter\(\(item\) => variantHasStock\(item\.variant\)\)/);
+  assert.match(tile, /<ProductCardVariantSheet/);
+  assert.match(tile, /onAddToCart\?\.\(product, chosenVariant, quantity\)/);
+  // A tile with nothing sellable, or no cart handler, must not offer the button.
+  assert.match(tile, /const canQuickAdd = sellableTileVariants\.length > 0 && typeof onAddToCart === "function"/);
+  assert.match(tile, /disabled=\{!canQuickAdd\}/);
+});
+
+test("the product page hands its rails a cart handler to make quick add reachable", () => {
+  assert.match(detailSource, /<RelatedProducts currentProduct=\{product\}[^>]*onAddToCart=\{onAddToCart\}/);
+  assert.match(storefrontSource, /function RecommendationProductTile\(\{ product, wishlist = \[\], toggleWishlist, saleModeEnabled, onAddToCart \}\)/);
+});
+
 test("a thin brand rail unfolds colour cards instead of rendering a half-empty row", () => {
   assert.match(storefrontSource, /const RECOMMENDATION_RAIL_MIN_ITEMS = 5;/);
   assert.match(storefrontSource, /const source = onePerModel\.length >= minItems \? onePerModel : cards;/);

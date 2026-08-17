@@ -6655,7 +6655,7 @@ const recommendationText = (value) => {
   return String(value || "").trim();
 };
 
-function RecommendationProductTile({ product, wishlist = [], toggleWishlist, saleModeEnabled }) {
+function RecommendationProductTile({ product, wishlist = [], toggleWishlist, saleModeEnabled, onAddToCart }) {
   const variant = firstDisplayVariant(Array.isArray(product?.variants) ? product.variants : []);
   const pricing = getDisplayPricing(product, parseSaleModeEnabled(saleModeEnabled, false), variant || {});
   const image = productCardPrimaryImageFor(product, variant);
@@ -6688,8 +6688,36 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
     };
   }, [hasSecondaryImage, secondaryImageUrl]);
   const showSecondaryImage = hasSecondaryImage && secondaryImageReady;
+  // The same quick-add the grid card runs, on the same helpers, so a rail tile and
+  // a listing card resolve colour and size identically.
+  const tileVariants = useMemo(() => (Array.isArray(product?.variants) ? product.variants : []), [product]);
+  const sellableTileVariants = useMemo(() => tileVariants.filter(variantHasStock), [tileVariants]);
+  const tileColorGroups = useMemo(
+    () => getProductColorGroups({ ...product, variants: sellableTileVariants.length ? sellableTileVariants : tileVariants }),
+    [product, sellableTileVariants, tileVariants]
+  );
+  const canQuickAdd = sellableTileVariants.length > 0 && typeof onAddToCart === "function";
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddColorKey, setQuickAddColorKey] = useState("");
+  const [quickAddVariantId, setQuickAddVariantId] = useState("");
+  const [quickAddQty, setQuickAddQty] = useState(1);
+  const openVariantSheet = useCallback(() => {
+    const nextGroup = tileColorGroups.length === 1 ? tileColorGroups[0] : null;
+    const availableSizes = getSizeOptionsForColorGroup(nextGroup, product).filter((item) => variantHasStock(item.variant));
+    setQuickAddColorKey(nextGroup?.key || "");
+    setQuickAddVariantId(availableSizes.length === 1 ? availableSizes[0]?.variant?.id || "" : "");
+    setQuickAddQty(1);
+    setQuickAddOpen(true);
+  }, [product, tileColorGroups]);
+  const closeVariantSheet = useCallback(() => {
+    setQuickAddOpen(false);
+    setQuickAddColorKey("");
+    setQuickAddVariantId("");
+    setQuickAddQty(1);
+  }, []);
+  const quickAddLabel = canQuickAdd ? sfText("storefront.cart.addToCart") : sfText("storefront.products.unavailable");
   return (
-    <div className="sf-product-recommendation-tile group relative min-w-0 text-center">
+    <div className="sf-product-recommendation-tile group group/tile relative min-w-0 text-center">
       <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
         <div className="sf-product-card-media group/card-image relative aspect-square overflow-hidden bg-white">
           <img
@@ -6716,13 +6744,59 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
         <div className="px-1 pt-2">
           {brand ? <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{brand}</div> : null}
           <h3 className="sf-product-recommendation-name mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
-          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs font-black">
-            <span className="sf-product-recommendation-current-price">{money(pricing.price)}</span>
-            {pricing.comparePrice > pricing.price ? <span className="sf-product-recommendation-compare-price line-through">{money(pricing.comparePrice)}</span> : null}
-          </div>
         </div>
       </Link>
+      {/* Price slides up and the add-to-cart row takes its place, the same swap the
+          grid card runs. The tile is centred and narrower, so the row centres too
+          and touch keeps the price beside a round quick-add instead. */}
+      <div className="mt-1.5 flex min-h-[2.35rem] items-center justify-center gap-2 px-1">
+        <div className="sf-card-action-wrap min-w-0 overflow-clip md:h-[35px]">
+          <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/tile:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
+            <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-xs font-black md:h-[35px] md:flex-nowrap">
+              <span className="sf-product-recommendation-current-price">{money(pricing.price)}</span>
+              {pricing.comparePrice > pricing.price ? <span className="sf-product-recommendation-compare-price line-through">{money(pricing.comparePrice)}</span> : null}
+            </div>
+            <button
+              type="button"
+              onClick={openVariantSheet}
+              disabled={!canQuickAdd}
+              className="sf-card-slide-cta hidden h-[35px] w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap bg-transparent p-0 text-[13px] font-black leading-none text-stone-900 transition-colors duration-200 hover:text-[#d4af37] disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:text-stone-400 dark:text-stone-100 dark:hover:text-[#f3d77a] dark:disabled:text-stone-500 md:inline-flex"
+              aria-label={quickAddLabel}
+              title={quickAddLabel}
+            >
+              <ShoppingCart className="h-[18px] w-[18px] shrink-0 text-[#d4af37] dark:text-[#f3d77a]" />
+              {quickAddLabel}
+            </button>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={openVariantSheet}
+          disabled={!canQuickAdd}
+          className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none md:hidden"
+          aria-label={quickAddLabel}
+          title={quickAddLabel}
+        >
+          <ShoppingCart className="h-[18px] w-[18px]" />
+        </button>
+      </div>
       {typeof toggleWishlist === "function" ? <button type="button" onClick={() => toggleWishlist(product)} aria-label="المفضلة" className={`absolute start-2 top-2 grid h-7 w-7 place-items-center rounded-full border bg-white/95 shadow-sm transition ${inWishlist ? "border-rose-300 text-rose-500" : "border-stone-200 text-stone-700"}`}><Heart className={`h-3.5 w-3.5 ${inWishlist ? "fill-current" : ""}`} /></button> : null}
+      <ProductCardVariantSheet
+        open={quickAddOpen}
+        product={product}
+        colorGroups={tileColorGroups}
+        selectedColorKey={quickAddColorKey}
+        selectedVariantId={quickAddVariantId}
+        quantity={quickAddQty}
+        onColorChange={setQuickAddColorKey}
+        onVariantChange={setQuickAddVariantId}
+        onQuantityChange={setQuickAddQty}
+        onClose={closeVariantSheet}
+        onAdd={async (chosenVariant, quantity) => {
+          await Promise.resolve(onAddToCart?.(product, chosenVariant, quantity));
+          closeVariantSheet();
+        }}
+      />
     </div>
   );
 }
