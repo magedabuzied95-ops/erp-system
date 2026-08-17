@@ -3467,7 +3467,7 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger hidden border-y border-[#2f687f]/20 bg-[#2f687f] text-white dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] md:mt-12 md:block">
+    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger hidden border-y border-white/[0.08] bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] text-white md:mt-12 md:block">
       <div className="mx-auto grid max-w-[1440px] divide-y divide-white/15 px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 md:grid-cols-4 md:px-8 rtl:sm:divide-x-reverse">
           {items.map((item, index) => {
             const Icon = item.icon;
@@ -3536,17 +3536,17 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               </div>
             </div>
             <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
-            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#2f687f] dark:text-white dark:hover:text-[#f3d77a]">
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#121212] dark:text-white dark:hover:text-[#f3d77a]">
               <FaWhatsapp className="h-5 w-5 text-[#25D366]" />
               {isRtl ? "خدمة العملاء" : "Customer service"}
             </a>
-            <a href={`mailto:${supportEmail}`} className="mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#2f687f] dark:text-white/80 dark:hover:text-[#f3d77a]">
-              <Mail className="h-5 w-5 text-[#2f687f] dark:text-[#d4af37]" />
+            <a href={`mailto:${supportEmail}`} className="mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#121212] dark:text-white/80 dark:hover:text-[#f3d77a]">
+              <Mail className="h-5 w-5 text-[#121212] dark:text-[#d4af37]" />
               <span dir="ltr">{supportEmail}</span>
             </a>
             <div className="mt-5 flex flex-wrap gap-2">
               {socialLinks.map(({ label, href, icon: SocialIcon }) => (
-                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#2f687f] hover:text-[#2f687f] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
+                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#121212] hover:text-[#121212] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
                   <SocialIcon className="h-4 w-4" />
                 </a>
               ))}
@@ -3566,7 +3566,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             <h3 className="text-base font-black">{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
             <div className="mt-4 grid gap-3">
               {categoryLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#2f687f] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3575,7 +3575,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             <h3 className="text-base font-black">{isRtl ? "روابط مهمة" : "Important links"}</h3>
             <div className="mt-4 grid gap-3">
               {importantLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#2f687f] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3586,8 +3586,8 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               {isRtl ? "تابع آخر العروض والمنتجات الجديدة مباشرة على بريدك." : "Receive the latest offers and new arrivals in your inbox."}
             </p>
             <form className="mt-4 grid gap-2" onSubmit={(event) => { event.preventDefault(); toast.success(isRtl ? "تم الاشتراك بنجاح" : "Subscribed successfully"); }}>
-              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#2f687f] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
-              <button type="submit" className="h-12 rounded-xl bg-[#2f687f] px-4 text-sm font-black text-white transition hover:bg-[#25566a] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
+              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#121212] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
+              <button type="submit" className="h-12 rounded-xl bg-[#121212] px-4 text-sm font-black text-white transition hover:bg-[#000] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
                 {isRtl ? "اشترك دلوقتي" : "Subscribe now"}
               </button>
             </form>
@@ -3625,7 +3625,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
         </div>
       </div>
 
-      <div className="bg-[#2f687f] px-5 py-5 text-center text-sm font-bold text-white dark:bg-[#050505] dark:text-white/55">
+      <div className="bg-[#050505] px-5 py-5 text-center text-sm font-bold text-white dark:text-white/55">
         {isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}
       </div>
     </footer>
