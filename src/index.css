@@ -3538,6 +3538,48 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
   }
 
+  /*
+   * The product-detail surface also carries a mode-independent dark block later
+   * in this file (`.sf-product-details-page[data-surface-theme="dark"]`, kept for
+   * Meta WebViews that restore the document without the storefront-dark class).
+   * That block is unlayered, so for important declarations this layer wins — and
+   * that is what repaints these cards light. Two things it paints white are NOT
+   * covered by the light rules above, so they render white-on-white in light mode:
+   *   1. `-webkit-text-fill-color`, which overrides `color` in Chrome — the title,
+   *      the option headings and the selected colour name all went invisible.
+   *   2. the size chips, which are painted per state class — an in-stock size that
+   *      is not the selected one disappeared completely.
+   */
+  .storefront-shell:not(.storefront-dark) :is(.sf-product-summary-card, .sf-product-option-card, .sf-product-quantity-card) :is(h1, h2, h3, h4),
+  .storefront-shell:not(.storefront-dark) :is(.sf-product-summary-card, .sf-product-option-card, .sf-product-quantity-card) [class*="text-white"] {
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice.is-available:not(.is-active) {
+    border-color: rgba(148, 163, 184, 0.45) !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice.is-active {
+    border-color: #121212 !important;
+    background: #121212 !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice.is-unavailable {
+    border-color: rgba(148, 163, 184, 0.3) !important;
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice.is-unavailable > span:first-child {
+    background: #94a3b8 !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-product-quantity-card {
     background: rgba(255, 255, 255, 0.98) !important;
     border-color: rgba(148, 163, 184, 0.28) !important;
