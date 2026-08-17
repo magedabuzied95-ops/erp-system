@@ -2615,6 +2615,30 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
   });
 };
 
+// The card hover fades to a second photo, so a card needs exactly two. The lean
+// list projection used to carry only the primary, which disabled the swap on
+// every listing and rail — the client sees no second image and closes the
+// feature itself. Two short strings per row keeps the projection lean.
+const CARD_IMAGE_LIMIT = 2;
+const cardImageValue = (image) => {
+  if (typeof image === "string") return image.trim();
+  if (image && typeof image === "object") {
+    return toText(image.url || image.image_url || image.secure_url || image.src || image.path || "");
+  }
+  return "";
+};
+const firstCardImages = (...collections) => {
+  const picked = [];
+  for (const collection of collections) {
+    for (const image of Array.isArray(collection) ? collection : [collection]) {
+      const value = cardImageValue(image);
+      if (value && !picked.includes(value)) picked.push(value);
+      if (picked.length >= CARD_IMAGE_LIMIT) return picked;
+    }
+  }
+  return picked;
+};
+
 const slimVariantForList = (variant = {}) => ({
   id: variant.id || variant.variant_id || null,
   variant_id: variant.variant_id || variant.id || null,
@@ -2627,6 +2651,16 @@ const slimVariantForList = (variant = {}) => ({
   sku: variant.sku || "",
   barcode: variant.barcode || "",
   image_url: variant.image_url || variant.primary_image_url || variant.variant_image_url || "",
+  // Colour cards scope the swap to their own colour, so the second photo has to
+  // ride the variant rather than the product-wide gallery.
+  images: firstCardImages(
+    variant.images,
+    variant.color_images,
+    variant.gallery_images,
+    variant.additional_images,
+    variant.image_url,
+    variant.primary_image_url
+  ),
   stock: toNumber(variant.stock),
   price: roundMoney(variant.price),
   regular_price: roundMoney(variant.regular_price),
@@ -2667,7 +2701,14 @@ const slimProductForList = (product = {}) => ({
   manufacturer_name: product.manufacturer_name || product.manufacturer || "",
   image_url: product.image_url,
   product_image_url: product.product_image_url || product.image_url || "",
-  gallery_images: [],
+  gallery_images: firstCardImages(
+    product.gallery_images,
+    product.images,
+    product.image_urls,
+    product.product_images,
+    product.image_url,
+    product.product_image_url
+  ),
   created_at: product.created_at,
   price: product.price,
   regular_price: product.regular_price,
