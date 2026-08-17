@@ -884,7 +884,10 @@ const variantColorName = (variant = {}) => {
 };
 const variantColorKey = (variant = {}) => {
   const safeVariant = safeStorefrontRecord(variant);
-  const stable = safeVariant.color_id || safeVariant.color_slug || safeVariant.edition_slug || variantColorName(safeVariant);
+  // color_group_key first: two colours can share a visible name and still be two
+  // different shoes, and this key is what the server cards are grouped by.
+  const stable = safeVariant.color_group_key || safeVariant.colorGroupKey ||
+    safeVariant.color_id || safeVariant.color_slug || safeVariant.edition_slug || variantColorName(safeVariant);
   return String(stable || "Default").trim().toLowerCase();
 };
 const firstVariantImage = (variants = []) => variantImage(variants.find((variant) => variantHasStock(variant) && variantImage(variant))) || variantImage(variants.find((variant) => variantImage(variant)));
@@ -1225,6 +1228,10 @@ const offerStoryReadColorEntries = (source = {}) => {
     );
     const key = offerStoryColorKeyFromValue(
       firstTextValue(
+        // Same durable-key-first rule as variantColorKey, so a story entry and the
+        // variants it owns land in one group instead of splitting in two.
+        value.color_group_key,
+        value.colorGroupKey,
         value.color_key,
         value.colorKey,
         value.key,

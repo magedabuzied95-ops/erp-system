@@ -2590,6 +2590,9 @@ const slimVariantForList = (variant = {}) => ({
   product_id: variant.product_id || null,
   size: variant.size || "",
   color: variant.color || "",
+  // The card's colour identity is the durable key, so the lean list projection has
+  // to carry it or the client falls back to matching colours by name again.
+  color_group_key: variant.color_group_key || variant.colorGroupKey || "",
   sku: variant.sku || "",
   barcode: variant.barcode || "",
   image_url: variant.image_url || variant.primary_image_url || variant.variant_image_url || "",
@@ -2866,7 +2869,13 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
 
 const variantColorNameForCard = (variant = {}) => firstText(variant.color, variant.color_name, variant.colour, variant.name, "Default");
 
+// One product routinely holds several colours sharing a visible name - four
+// different Navy shoes, two different Greys. The durable colour key decides which
+// card a variant belongs to, so each of them gets its own card; the name slug is
+// only for rows saved before colour keys existed.
 const variantColorKeyForCard = (variant = {}) => {
+  const durable = toText(variant.color_group_key || variant.colorGroupKey).toLowerCase();
+  if (durable) return durable;
   const value = variantColorNameForCard(variant);
   return toText(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || `variant-${variant.id || "default"}`;
 };
@@ -2897,7 +2906,7 @@ const productColorDisplayName = (name = "", color = "") => {
   return `${base} - ${colorText}`;
 };
 
-const expandProductsToColorCards = (products = []) => {
+export const expandProductsToColorCards = (products = []) => {
   const cards = [];
   for (const product of Array.isArray(products) ? products : []) {
     const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -2923,10 +2932,15 @@ const expandProductsToColorCards = (products = []) => {
       const selectedVariant = preferredVariantForColorCard(group.variants, product);
       if (!selectedVariant) continue;
       const productColorImages = Array.isArray(product.color_images) ? product.color_images : Array.isArray(product.colors) ? product.colors : [];
-      const matchedColorRecord = productColorImages.find((color) => {
-        const colorKey = variantColorKeyForCard({ color: color?.color || color?.color_name || "" });
-        return colorKey === group.key;
-      }) || null;
+      const colorRecordKey = (color = {}) => toText(color?.color_group_key || color?.colorGroupKey).toLowerCase();
+      const matchedColorRecord =
+        productColorImages.find((color) => colorRecordKey(color) && colorRecordKey(color) === group.key) ||
+        // A keyless legacy record can only be found by name, and only if no keyed
+        // record already owns this group - otherwise a same-named colour's photos
+        // would leak onto this card.
+        productColorImages.find((color) => !colorRecordKey(color) &&
+          variantColorKeyForCard({ color: color?.color || color?.color_name || "" }) === group.key) ||
+        null;
       const groupImages = dedupeImages([
         ...(Array.isArray(matchedColorRecord?.images) ? matchedColorRecord.images : []),
         ...(Array.isArray(selectedVariant?.images) ? selectedVariant.images : []),
