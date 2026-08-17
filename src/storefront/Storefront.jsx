@@ -6994,9 +6994,17 @@ function RelatedProductsContent({ currentProduct, ...props }) {
     (Array.isArray(currentProduct?.audiences) ? currentProduct.audiences[0] : "") ||
     (Array.isArray(currentProduct?.product_audiences) ? currentProduct.product_audiences[0] : "")
   );
+  // Grade is the third axis: a shopper looking at a Vietnamese import wants other
+  // Vietnamese imports, not the mirror of the same shoe. It only ever narrows here
+  // — on its own it used to be the whole filter, which is how a bag page ended up
+  // recommending sneakers.
+  const grade = recommendationText(
+    currentProduct?.grade || currentProduct?.quality || currentProduct?.quality_grade || currentProduct?.product_grade
+  );
   const similarFilter = {
     ...(productType ? { product_type: productType } : { category: category || "__no_category__" }),
     ...(audience ? { gender: audience } : {}),
+    ...(grade ? { grade } : {}),
   };
   const similarQuery = new URLSearchParams(
     Object.entries(similarFilter).filter(([, value]) => value && !String(value).startsWith("__"))
