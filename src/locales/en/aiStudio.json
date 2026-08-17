@@ -205,12 +205,15 @@
       "off": "Off",
       "previewOnly": "Preview only",
       "approvalSend": "Approval + Send",
+      "autoSend": "Auto send",
       "titleApprovalSend": "Approving a draft sends a real message",
+      "titleAutoSend": "Messages the customer the moment the size is back, with no review",
       "titlePreviewOnly": "Drafts + approval only; sending disabled",
       "titleOff": "No drafts, no sends"
     },
     "confirm": {
       "enableApprovalSend": "Enable APPROVAL_SEND? Approving a draft will send a real message to the customer through the connected channel. Drafting and approval still require a human; nothing is autonomous.",
+      "enableAutoSend": "Enable AUTO SEND? From now on, the moment a size is back in stock a WhatsApp message goes to the customer immediately, with nobody reading it first. The guards remain: exact size only, and one message per customer per product per 14 days. You can switch back to Approval + Send at any time.",
       "reject": "Reject this draft? No message will be sent.",
       "approveSend": "Approve & Send this message to the customer now? This contacts the customer through the connected channel.",
       "cancelIntent": "Cancel this restock request? A future restock will not recover it."
@@ -221,7 +224,9 @@
       "noSendUntil": "No message is sent until a human clicks Approve & Send",
       "andOnlyWhen": "and only when messaging mode is",
       "sendingDisabled": "Sending is currently disabled ({{mode}}).",
-      "approvalSendOn": "Approval + Send is ON — approving a draft contacts the customer."
+      "approvalSendOn": "Approval + Send is ON — approving a draft contacts the customer.",
+      "autoSendOn": "Auto send is ON.",
+      "autoSendDetail": "Messages go to customers the moment the size is back, with no human review. The drafts here are a record and an audit trail. The guards remain: exact size only, and one message per customer per product per 14 days."
     },
     "notifCounts": {
       "pendingApproval": "Pending approval",

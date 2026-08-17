@@ -212,9 +212,9 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
   // Phase 8: when customer messaging is enabled (preview_only or approval_send), an EXACT-variant
   // explicit intent additionally gets a DRAFT notification (bounded, no send). Lazy-imported to
   // avoid a static import cycle; legacy/product-only candidates never get a send path.
-  let messagingMode = "off", createDraft = null;
-  try { const m = await import("./restockNotificationService.js"); messagingMode = await m.getMessagingMode(tenantId); createDraft = m.createDraftNotification; } catch { messagingMode = "off"; }
-  let notificationsDrafted = 0;
+  let messagingMode = "off", createDraft = null, autoSend = null;
+  try { const m = await import("./restockNotificationService.js"); messagingMode = await m.getMessagingMode(tenantId); createDraft = m.createDraftNotification; autoSend = m.sendApprovedRestockNotification; } catch { messagingMode = "off"; }
+  let notificationsDrafted = 0, notificationsAutoSent = 0, notificationsAutoFailed = 0;
 
   let created = 0, skippedDuplicate = 0, skippedNoStock = 0, failed = 0;
   const results = [];
@@ -248,7 +248,26 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
       if (cand.source === "restock_intent" && cand.intentId) { try { await markIntentRecoveryCreated(tenantId, cand.intentId, eventKey); } catch { /* non-fatal */ } }
       // Phase 8: draft a customer message for an EXACT-variant explicit intent (no send; human-approved later).
       if (messagingMode !== "off" && createDraft && cand.source === "restock_intent" && cand.matchQuality === "EXACT_VARIANT" && cand.intentId) {
-        try { const d = await createDraft({ tenantId, intentId: cand.intentId, restockEventId: eventKey, recoveryId: reserved.id }); if (d?.created) notificationsDrafted += 1; } catch { /* drafting never breaks recovery */ }
+        try {
+          const d = await createDraft({ tenantId, intentId: cand.intentId, restockEventId: eventKey, recoveryId: reserved.id });
+          if (d?.created) notificationsDrafted += 1;
+          // auto_send: dispatch the draft we just made, with no human in the loop.
+          // Only a freshly CREATED draft is sent — a duplicate means this intent
+          // already has a notification for this event, and re-sending it is
+          // exactly the double-message the event dedup exists to prevent.
+          if (messagingMode === "auto_send" && autoSend && d?.created && d?.notification?.id) {
+            try {
+              const sent = await autoSend({ tenantId, notificationId: d.notification.id, approvedBy: null, auto: true });
+              if (sent?.sent) notificationsAutoSent += 1;
+              else if (sent?.failed) notificationsAutoFailed += 1;
+            } catch (sendError) {
+              // A failed send leaves the notification row for the approval queue
+              // to retry by hand; it must not abort the rest of the recovery run.
+              notificationsAutoFailed += 1;
+              console.error("[restock-recovery] auto send failed", { intentId: cand.intentId, message: String(sendError?.message || sendError).slice(0, 200) });
+            }
+          }
+        } catch { /* drafting never breaks recovery */ }
       }
       created += 1; results.push({ requestId: cand.requestId, source: cand.source, matchQuality: cand.matchQuality, status: "followup_created", taskId });
     } catch (e) {
@@ -256,7 +275,7 @@ export const runRestockRecovery = async ({ tenantId, productId, variantId = null
       failed += 1; results.push({ requestId: cand.requestId, source: cand.source, status: "failed" });
     }
   }
-  return { ok: true, matched: matchedCount, returned: returnedCount, hasMore, created, skippedDuplicate, skippedNoStock, failed, notificationsDrafted, messagingMode, results };
+  return { ok: true, matched: matchedCount, returned: returnedCount, hasMore, created, skippedDuplicate, skippedNoStock, failed, notificationsDrafted, notificationsAutoSent, notificationsAutoFailed, messagingMode, results };
 };
 
 // Insert a recovery row; returns the row on success, null on (event,request) conflict.
