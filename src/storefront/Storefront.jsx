@@ -6767,7 +6767,11 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
 
   useEffect(() => {
     if (loading || !canSlide || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const moveTimer = window.setInterval(() => setSlide((current) => current + 1), RAIL_AUTOPLAY_MS);
+    // Swiper counts its autoplay delay from the moment a glide ENDS, so a card rests
+    // for the delay and only then moves again. Restarting the clock every
+    // RAIL_AUTOPLAY_MS instead left the row gliding 1500ms out of every 2500ms - and a
+    // gliding row shows a sliced card at each edge, so the rail read as permanently cut.
+    const moveTimer = window.setInterval(() => setSlide((current) => current + 1), RAIL_AUTOPLAY_MS + RAIL_SLIDE_MS);
     return () => window.clearInterval(moveTimer);
   }, [canSlide, loading, itemsSignature]);
 

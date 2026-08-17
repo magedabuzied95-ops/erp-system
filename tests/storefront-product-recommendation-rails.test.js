@@ -28,7 +28,10 @@ test("rails glide one card at a time on the sibling site's swiper timings", () =
   assert.match(storefrontSource, /const RAIL_GAP_PX = 10;/);
   assert.match(storefrontSource, /const RAIL_AUTOPLAY_MS = 2500;/);
   assert.match(storefrontSource, /const RAIL_SLIDE_MS = 1500;/);
-  assert.match(storefrontSource, /setSlide\(\(current\) => current \+ 1\), RAIL_AUTOPLAY_MS/);
+  // The delay is the REST between glides, exactly as Swiper counts it: a step lands
+  // once per rest + glide. Timing the interval at RAIL_AUTOPLAY_MS alone left the row
+  // in motion 60% of the time, and a moving row shows a sliced card at each edge.
+  assert.match(storefrontSource, /setSlide\(\(current\) => current \+ 1\), RAIL_AUTOPLAY_MS \+ RAIL_SLIDE_MS\)/);
   assert.match(storefrontSource, /transition: animating \? `transform \$\{RAIL_SLIDE_MS\}ms ease` : "none"/);
   // Card width must survive a missed measurement, so it is pure CSS.
   assert.match(storefrontSource, /const slideBasis = `calc\(\(100% - \$\{\(perView - 1\) \* RAIL_GAP_PX\}px\) \/ \$\{perView\}\)`;/);
