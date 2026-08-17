@@ -86,12 +86,28 @@ const productImageSources = (product = {}) => {
 
 const normalized = (value = "") => String(value ?? "").trim().toLowerCase();
 
-const matchingColorEntries = (product = {}, group = {}) => {
+const entryGroupKey = (entry = {}) => normalized(entry?.color_group_key ?? entry?.colorGroupKey ?? "");
+
+const entryColorNames = (entry = {}) => [entry?.color, entry?.color_name, entry?.colorName, entry?.name].map(normalized).filter(Boolean);
+
+// A colour entry belongs to exactly one colour group. Matching it by the visible
+// name merges two independently saved colours that happen to share a label — two
+// different shoes both called "Grey" would show each other's photos. So the
+// durable colour key wins, and the name is only a fallback for legacy entries
+// that carry no key and whose name is unique on this product.
+const matchingColorEntries = (product = {}, group = {}, { groupKeys = new Set(), nameIsAmbiguous = false } = {}) => {
   const entries = [...list(product?.color_images), ...list(product?.colors)].filter((entry) => entry && typeof entry === "object");
-  const keys = new Set([normalized(group?.key), normalized(group?.colorName)].filter(Boolean));
-  return entries.filter((entry) => [entry.color_group_key, entry.colorGroupKey, entry.color, entry.color_name, entry.colorName, entry.name]
-    .map(normalized)
-    .some((key) => key && keys.has(key)));
+  const groupKey = normalized(group?.key);
+  const keyed = groupKey ? entries.filter((entry) => entryGroupKey(entry) === groupKey) : [];
+  if (keyed.length) return keyed;
+  if (nameIsAmbiguous) return [];
+  const legacyKeys = new Set([groupKey, normalized(group?.colorName)].filter(Boolean));
+  return entries.filter((entry) => {
+    const key = entryGroupKey(entry);
+    // An entry keyed to another group is that group's, never this one's.
+    if (key && groupKeys.has(key)) return false;
+    return entryColorNames(entry).some((name) => legacyKeys.has(name));
+  });
 };
 
 export const buildProductColorGroups = ({ product = {}, variants = [], colorKey, colorName, variantHasStock }) => {
@@ -105,11 +121,22 @@ export const buildProductColorGroups = ({ product = {}, variants = [], colorKey,
     groups.get(key).variants.push(variant);
   });
 
+  const groupKeys = new Set([...groups.keys()].map(normalized).filter(Boolean));
+  const nameCounts = [...groups.values()].reduce((counts, group) => {
+    const name = normalized(group.colorName);
+    if (name) counts.set(name, (counts.get(name) || 0) + 1);
+    return counts;
+  }, new Map());
+
   return [...groups.values()]
     .filter((group) => group.variants.some((variant) => variantHasStock(variant)))
     .map((group) => {
       const primaryVariant = group.variants.find((variant) => variantHasStock(variant)) || group.variants[0];
-      const sources = [...matchingColorEntries(product, group).flatMap(colorEntrySources), ...group.variants.flatMap(variantImageSources)];
+      const nameIsAmbiguous = (nameCounts.get(normalized(group.colorName)) || 0) > 1;
+      const sources = [
+        ...matchingColorEntries(product, group, { groupKeys, nameIsAmbiguous }).flatMap(colorEntrySources),
+        ...group.variants.flatMap(variantImageSources),
+      ];
       const primarySources = sources.filter((source) => typeof source === "object" && source?.is_primary);
       const images = dedupeImages(
         [...primarySources, ...sources],
@@ -126,7 +153,11 @@ export const buildProductColorGroups = ({ product = {}, variants = [], colorKey,
 export const resolveColorGroup = (colorGroups = [], requestedColor = "") => {
   const groups = Array.isArray(colorGroups) ? colorGroups.filter(Boolean) : [];
   const requested = normalized(requestedColor);
-  return groups.find((group) => normalized(group?.key) === requested || normalized(group?.colorName) === requested) || groups[0] || null;
+  // An exact colour-key hit outranks a name hit anywhere in the list, otherwise an
+  // earlier group sharing the requested name would steal the keyed group's slot.
+  return groups.find((group) => normalized(group?.key) === requested) ||
+    groups.find((group) => normalized(group?.colorName) === requested) ||
+    groups[0] || null;
 };
 
 export const buildSelectedColorGallery = ({ product = {}, colorGroup = null }) => {

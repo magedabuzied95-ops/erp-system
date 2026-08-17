@@ -114,6 +114,70 @@ test("two model groups with the same visible color name stay separate", () => {
   assert.deepEqual(groups.map((group) => group.variants[0].selling_price), [1200, 1450]);
 });
 
+test("Crocs 733 production payload keeps its two Grey colours photographically separate", () => {
+  const greyA = "https://cdn/1786474207403-f2d6a8ef.jpg";
+  const greyB = "https://cdn/1786887175290-photo_5769295557607231345_y.jpg";
+  const keyA = "f22d94ad-d223-4432-9af3-a7571f12551b";
+  const keyB = "0bc71c9e-0c0a-4579-9bf6-b01c5d6789ae";
+  const payload = {
+    id: "733",
+    image_url: "product-cover.jpg",
+    color_images: [
+      { color: "Grey", color_name: "Grey", color_group_key: keyA, images: [{ id: "1", color_group_key: keyA, color_name: "Grey", image_url: greyA, is_primary: true }] },
+      { color: "Grey", color_name: "Grey", color_group_key: keyB, images: [{ id: "2", color_group_key: keyB, color_name: "Grey", image_url: greyB, is_primary: true }] },
+    ],
+    variants: [
+      { id: 9001, color: "Grey", color_group_key: keyA, size: "41/42", stock: 1 },
+      { id: 9002, color: "Grey", color_group_key: keyB, size: "43/44", stock: 1 },
+    ],
+  };
+  const groups = buildProductColorGroups({
+    product: payload,
+    variants: payload.variants,
+    colorKey: (variant) => variant.color_group_key || variant.color,
+    colorName,
+    variantHasStock: inStock,
+  });
+
+  assert.deepEqual(groups.map((group) => group.key), [keyA, keyB]);
+  assert.deepEqual(buildSelectedColorGallery({ product: payload, colorGroup: groups[0] }).map((item) => item.image), [greyA]);
+  assert.deepEqual(buildSelectedColorGallery({ product: payload, colorGroup: groups[1] }).map((item) => item.image), [greyB]);
+  assert.equal(colorSwatchImage(groups[0]), greyA);
+  assert.equal(colorSwatchImage(groups[1]), greyB);
+});
+
+test("a same-named colour whose images live only on the variant never borrows its twin's entry", () => {
+  const payload = {
+    id: "734",
+    color_images: [
+      { color: "Grey", color_name: "Grey", color_group_key: "keyed-grey", images: [{ id: "1", image_url: "keyed-grey.jpg", is_primary: true }] },
+    ],
+    variants: [
+      { id: 1, color: "Grey", color_group_key: "keyed-grey", size: "41", stock: 1 },
+      { id: 2, color: "Grey", color_group_key: "other-grey", size: "41", stock: 1, images: [{ id: "9", image_url: "other-grey.jpg" }] },
+    ],
+  };
+  const groups = buildProductColorGroups({
+    product: payload,
+    variants: payload.variants,
+    colorKey: (variant) => variant.color_group_key || variant.color,
+    colorName,
+    variantHasStock: inStock,
+  });
+
+  assert.deepEqual(buildSelectedColorGallery({ product: payload, colorGroup: groups[0] }).map((item) => item.image), ["keyed-grey.jpg"]);
+  assert.deepEqual(buildSelectedColorGallery({ product: payload, colorGroup: groups[1] }).map((item) => item.image), ["other-grey.jpg"]);
+});
+
+test("an exact colour-key request wins over an earlier group sharing the requested name", () => {
+  const groups = [
+    { key: "group-a", colorName: "Grey", images: [], variants: [] },
+    { key: "grey", colorName: "Grey", images: [], variants: [] },
+  ];
+  assert.equal(resolveColorGroup(groups, "grey").key, "grey");
+  assert.equal(resolveColorGroup(groups, "group-a").key, "group-a");
+});
+
 test("New Balance 530 production payload keeps White & Navy cover plus its stored extra image", () => {
   const cover = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1784140987/erp/products/ssgvyssfwsfbz9wdcomb.jpg";
   const extra = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1784735201/erp/products/f4fqafxwunrlhxwimbdg.png";
