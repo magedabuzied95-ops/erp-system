@@ -27,6 +27,7 @@ test("storefront home ends with the full legacy-inspired responsive footer", asy
   assert.match(lowerHome, /m-one-logo-dark-fixed\.png/);
   assert.match(lowerHome, /m-one-logo-white-fixed\.png/);
   assert.match(lowerHome, /sf-header-logo-moving-m/);
+  assert.match(lowerHome, /data-testid="storefront-footer-app-launch"/);
   assert.match(lowerHome, /FaGooglePlay/);
   assert.match(lowerHome, /FaAppStoreIos/);
   assert.match(lowerHome, /Google Play/);

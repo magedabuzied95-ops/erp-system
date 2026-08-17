@@ -3519,6 +3519,12 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: "Visa", icon: FaCcVisa, className: "text-[#1434cb]" },
     { label: "PayPal", icon: FaCcPaypal, className: "text-[#0070ba]" },
   ];
+  // The app is not published yet, so these are marks, not store links: no "Get it on"
+  // call to action and no href — the platform tells you which device it will land on.
+  const appStoreMarks = [
+    { label: "Google Play", platform: "Android", icon: FaGooglePlay, iconClassName: "text-[#34a853]" },
+    { label: "App Store", platform: "iPhone & iPad", icon: FaAppStoreIos, iconClassName: "text-stone-900 dark:text-white" },
+  ];
 
   return (
     <footer data-testid="storefront-modern-footer" dir={isRtl ? "rtl" : "ltr"} className="border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
@@ -3605,22 +3611,38 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-8 w-14 object-contain" width="56" height="32" loading="lazy" decoding="async" />
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-black">{isRtl ? "انتظروا إطلاق التطبيق" : "App coming soon"}</span>
-            <span className="inline-flex min-h-14 items-center gap-3 rounded-xl bg-stone-950 px-4 py-2 text-white shadow-sm dark:border dark:border-white/15">
-              <FaGooglePlay className="h-7 w-7 text-[#34a853]" />
-              <span className="text-start">
-                <small className="block text-[8px] font-bold uppercase tracking-wide text-white/65">Get it on</small>
-                <strong className="block text-sm font-black leading-4">Google Play</strong>
+          <div
+            data-testid="storefront-footer-app-launch"
+            className="flex w-full flex-col gap-4 rounded-2xl border border-stone-200 bg-white/70 p-4 shadow-[0_10px_28px_rgba(31,29,25,0.06)] dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none sm:flex-row sm:items-center sm:gap-5 md:w-auto md:max-w-[37rem]"
+          >
+            <div className="min-w-0 sm:w-52 sm:shrink-0">
+              <span className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-stone-700 dark:border-[#d4af37]/35 dark:bg-[#d4af37]/10 dark:text-[#f3d77a]">
+                <span className="relative grid h-1.5 w-1.5 place-items-center">
+                  <span className="absolute h-1.5 w-1.5 animate-ping rounded-full bg-stone-400 dark:bg-[#d4af37]" />
+                  <span className="relative h-1.5 w-1.5 rounded-full bg-[#121212] dark:bg-[#d4af37]" />
+                </span>
+                {isRtl ? "قريبًا" : "Coming soon"}
               </span>
-            </span>
-            <span className="inline-flex min-h-14 items-center gap-3 rounded-xl bg-stone-950 px-4 py-2 text-white shadow-sm dark:border dark:border-white/15">
-              <FaAppStoreIos className="h-8 w-8" />
-              <span className="text-start">
-                <small className="block text-[8px] font-bold uppercase tracking-wide text-white/65">Download on the</small>
-                <strong className="block text-sm font-black leading-4">App Store</strong>
-              </span>
-            </span>
+              <h3 className="mt-2.5 text-sm font-black leading-5">{isRtl ? "تطبيق M1 Store" : "The M1 Store app"}</h3>
+              <p className="mt-1 text-xs font-semibold leading-5 text-stone-500 dark:text-white/50">
+                {isRtl ? "تسوّق أسرع وتابع طلباتك من موبايلك." : "Shop faster and track your orders from your phone."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:ms-auto sm:shrink-0 sm:flex-nowrap">
+              {appStoreMarks.map(({ label, platform, icon: StoreIcon, iconClassName }) => (
+                <span
+                  key={label}
+                  aria-label={isRtl ? `${label}: قريبًا` : `${label}: coming soon`}
+                  className="inline-flex min-h-12 cursor-default select-none items-center gap-2.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-stone-900 shadow-sm dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:shadow-none"
+                >
+                  <StoreIcon className={`h-6 w-6 shrink-0 ${iconClassName}`} />
+                  <span dir="ltr" className="text-start">
+                    <strong className="block text-[13px] font-black leading-4">{label}</strong>
+                    <small className="block text-[9px] font-bold uppercase tracking-[0.1em] text-stone-500 dark:text-white/45">{platform}</small>
+                  </span>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </div>
