@@ -101,7 +101,9 @@ function CustomerAddressPageInner() {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [manualMode, setManualMode] = useState(false);
+  // The seller-side composer uses the same three Bosta lists; the customer sees
+  // the identical hierarchy by default, with the type-ahead as the alternative.
+  const [manualMode, setManualMode] = useState(true);
   const [manual, setManual] = useState({ cities: [], zones: [], districts: [], cityId: "", zoneId: "", districtId: "" });
 
   const [streetAddress, setStreetAddress] = useState("");
@@ -381,7 +383,9 @@ function CustomerAddressPageInner() {
                     <MapPin className="h-4 w-4 text-[#d4af37]" />
                     منطقتك
                   </div>
-                  <p className="mb-3 text-xs leading-5 text-white/48">اكتب اسم مدينتك أو منطقتك واختار من القائمة.</p>
+                  <p className="mb-3 text-xs leading-5 text-white/48">
+                    {manualMode ? "اختار المدينة والمنطقة والحي من القوائم." : "اكتب اسم مدينتك أو منطقتك واختار من القائمة."}
+                  </p>
 
                   {location ? (
                     <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d4af37]/35 bg-[rgba(212,175,55,0.10)] px-4 py-3.5">
@@ -434,7 +438,7 @@ function CustomerAddressPageInner() {
                         ))}
                       </select>
                       <button type="button" onClick={() => setManualMode(false)} className="text-xs font-black text-[#d4af37]">
-                        الرجوع للبحث السريع
+                        البحث السريع بالكتابة
                       </button>
                     </div>
                   ) : (
