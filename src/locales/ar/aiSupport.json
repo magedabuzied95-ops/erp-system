@@ -697,6 +697,8 @@
       "addressLinkHint": "أو سيب العميل يكتب عنوانه بنفسه",
       "addressLinkSend": "إرسال رابط العنوان",
       "addressLinkResend": "إعادة الإرسال",
+      "addressLinkCopy": "نسخ الرابط",
+      "addressLinkCopied": "تم نسخ الرابط — العميل واصله الرابط بالفعل",
       "addressLinkPending": "الرابط اتبعت — في انتظار العميل...",
       "addressLinkSubmitted": "العميل أرسل عنوانه",
       "addressLinkUse": "استخدام العنوان",

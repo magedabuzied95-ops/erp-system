@@ -48,6 +48,7 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
   const [locations, setLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
   const [addressRequest, setAddressRequest] = useState(null);
   const [addressLinkBusy, setAddressLinkBusy] = useState(false);
+  const [addressLinkCopied, setAddressLinkCopied] = useState(false);
   const appliedAddressRequestRef = useRef("");
   const formReadyRef = useRef(false);
   const skipNextDraftSaveRef = useRef(false);
@@ -169,7 +170,16 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
       );
       const request = payload?.request || null;
       setAddressRequest(request);
-      if (request?.url && typeof onSendMessage === "function") {
+      if (!request?.url) return;
+      // A reused pending link means the customer ALREADY has this exact message — re-sending it only spams
+      // them. Copy the link instead; the server independently refuses duplicate /addr/ sends in the cooldown.
+      if (request.reused) {
+        try { await navigator.clipboard?.writeText(request.url); } catch { /* clipboard is best-effort */ }
+        setAddressLinkCopied(true);
+        window.setTimeout(() => setAddressLinkCopied(false), 3000);
+        return;
+      }
+      if (typeof onSendMessage === "function") {
         const firstName = text(form.customer_name).split(" ")[0];
         await onSendMessage(
           `أهلاً ${firstName || "بيك"} 🌟\nعشان نجهز أوردرك بسرعة، اكتب عنوان التوصيل من الرابط ده — دقيقة واحدة بس 👇\n${request.url}`,
@@ -205,11 +215,11 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
               <button type="button" onClick={() => { appliedAddressRequestRef.current = String(addressRequest.id); applyAddressRequest(addressRequest); }} className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800">{t("aiSupport.inbox.order.addressLinkUse")}</button>
             </>) : (<>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                {addressRequest?.status === "pending" ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("aiSupport.inbox.order.addressLinkPending")}</>) : t("aiSupport.inbox.order.addressLinkHint")}
+                {addressLinkCopied ? (<><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />{t("aiSupport.inbox.order.addressLinkCopied")}</>) : addressRequest?.status === "pending" ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("aiSupport.inbox.order.addressLinkPending")}</>) : t("aiSupport.inbox.order.addressLinkHint")}
               </span>
               <button type="button" disabled={addressLinkBusy} onClick={sendAddressLink} className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-black text-white disabled:opacity-50">
                 {addressLinkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkResend") : t("aiSupport.inbox.order.addressLinkSend")}
+                {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkCopy") : t("aiSupport.inbox.order.addressLinkSend")}
               </button>
             </>)}
           </div>

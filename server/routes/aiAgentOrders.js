@@ -5686,6 +5686,38 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       }
     }
 
+    // ADDRESS-LINK RESEND GUARD. The "اكتب عنوانك من الرابط" message carries the conversation's /addr/<code>
+    // link, and the link is reused while pending — so re-sending it is never a new link, only the same message
+    // spammed at the customer (a real conversation received it 10+ times in one minute). If this exact code was
+    // already DELIVERED to this conversation in the last 10 minutes, refuse before the provider is ever called.
+    // Scoped to /addr/ links only; ordinary repeated texts ("تمام") are never touched. Fails open on query error.
+    const addressLinkCode = (messageText.match(/\/addr\/([A-Za-z0-9_-]{8,64})/) || [])[1] || "";
+    if (addressLinkCode && !mockDelivery) {
+      const duplicate = await db.query(
+        `
+        SELECT id FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND session_id = $2
+          AND sender_type = 'staff'
+          AND delivery_status = 'sent'
+          AND created_at > NOW() - INTERVAL '10 minutes'
+          AND (POSITION($3 IN COALESCE(staff_message, '')) > 0 OR POSITION($3 IN COALESCE(message_text, '')) > 0)
+        ORDER BY created_at DESC
+        LIMIT 1
+        `,
+        [tenantId, conversation.session_id || conversationId, `/addr/${addressLinkCode}`]
+      ).catch(() => ({ rows: [] }));
+      if (duplicate.rows[0]) {
+        return res.status(409).json({
+          success: false,
+          sent: false,
+          code: "ADDRESS_LINK_ALREADY_SENT",
+          reason: "duplicate_address_link",
+          message: "رابط العنوان اتبعت للعميل بالفعل — مش هيتبعت تاني دلوقتي.",
+        });
+      }
+    }
+
     let sendResult = null;
     let deliveryStatus = "sent";
     let deliveryError = "";

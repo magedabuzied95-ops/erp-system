@@ -697,6 +697,8 @@
       "addressLinkHint": "Or let the customer type their own address",
       "addressLinkSend": "Send address link",
       "addressLinkResend": "Resend",
+      "addressLinkCopy": "Copy link",
+      "addressLinkCopied": "Link copied — the customer already has it",
       "addressLinkPending": "Link sent — waiting for the customer...",
       "addressLinkSubmitted": "Customer sent their address",
       "addressLinkUse": "Use address",

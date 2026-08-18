@@ -3828,6 +3828,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   // normal chat send path, and polled until the customer submits.
   const [addressRequest, setAddressRequest] = useState(null);
   const [addressLinkBusy, setAddressLinkBusy] = useState(false);
+  const [addressLinkCopied, setAddressLinkCopied] = useState(false);
   const appliedAddressRequestRef = useRef("");
 
   useEffect(() => {
@@ -3965,7 +3966,17 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       );
       const request = payload?.request || null;
       setAddressRequest(request);
-      if (request?.url && typeof onSendMessage === "function") {
+      if (!request?.url) return;
+      // A reused pending link means the customer ALREADY has this exact message — re-sending it only spams
+      // them (a real conversation got it 10+ times). Copy the link instead; the server independently refuses
+      // duplicate /addr/ sends, so even a pasted resend within the cooldown never reaches the customer twice.
+      if (request.reused) {
+        try { await navigator.clipboard?.writeText(request.url); } catch { /* clipboard is best-effort */ }
+        setAddressLinkCopied(true);
+        window.setTimeout(() => setAddressLinkCopied(false), 3000);
+        return;
+      }
+      if (typeof onSendMessage === "function") {
         const firstName = clean(customerName).split(" ")[0];
         await onSendMessage(
           `أهلاً ${firstName || "بيك"} 🌟\nعشان نجهز أوردرك بسرعة، اكتب عنوان التوصيل من الرابط ده — دقيقة واحدة بس 👇\n${request.url}`,
@@ -4158,7 +4169,12 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
               ) : (
                 <>
                   <span className="ai-order__label inline-flex items-center gap-1.5">
-                    {addressRequest?.status === "pending" ? (
+                    {addressLinkCopied ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {t("aiSupport.inbox.order.addressLinkCopied")}
+                      </>
+                    ) : addressRequest?.status === "pending" ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         {t("aiSupport.inbox.order.addressLinkPending")}
@@ -4174,7 +4190,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
                     className="ai-order__saved-chip inline-flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50"
                   >
                     {addressLinkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                    {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkResend") : t("aiSupport.inbox.order.addressLinkSend")}
+                    {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkCopy") : t("aiSupport.inbox.order.addressLinkSend")}
                   </button>
                 </>
               )}
