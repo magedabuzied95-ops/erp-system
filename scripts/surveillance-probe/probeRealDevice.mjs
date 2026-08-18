@@ -87,9 +87,19 @@ const credentials = loadCredentials();
  * Redaction specific to this probe
  * ------------------------------------------------------------------ */
 
-/** Keys whose values never leave this process, whatever they contain. */
-const FORBIDDEN_KEYS = /^(serialnumber|sn|serial|password|pwd|userid|username|name|authorization|nonce|cnonce|response|cookie|verificationcode|code|qrcode|token|secret|mac|physicaladdress)$/i;
-
+/**
+ * Keys whose values never leave this process, whatever they contain.
+ *
+ * `uuid` and `key` were added after the first authenticated run: the P2P
+ * config returns a device UUID that is serial-equivalent, and an earlier
+ * version of this list did not catch it. A redaction list is only ever as good
+ * as the last response that surprised it.
+ *
+ * `name` is NOT blanket-redacted: channel titles are the point of the channel
+ * read, and a camera called Entrance is not a secret. Account names are
+ * handled separately, by never recording the account payload at all.
+ */
+const FORBIDDEN_KEYS = /^(serialnumber|sn|serial|uuid|deviceid|did|key|password|pwd|passwd|authorization|nonce|cnonce|response|cookie|verificationcode|qrcode|token|secret|mac|physicaladdress|macaddress|username)$/i;
 const scrub = (value, depth = 0) => {
   if (depth > 8 || value === null || value === undefined) return value;
   if (Array.isArray(value)) return value.map((entry) => scrub(entry, depth + 1));
@@ -333,7 +343,13 @@ const main = async () => {
         entry.device_error = isDahuaError(res.status, res.body);
         const flat = parseDahuaResponse(res.body);
         const config = parseDahuaConfig(res.body);
-        entry.data = scrub(Object.keys(config).length ? config : flat);
+        const parsedBody = Object.keys(config).length ? config : flat;
+        // Account names are not recorded at any point. The count is all we need
+        // to plan a dedicated erp_surveillance user later.
+        entry.data =
+          op.id === "userList"
+            ? { account_count: Array.isArray(parsedBody?.users) ? parsedBody.users.length : null }
+            : scrub(parsedBody);
         if (flat.serialNumber) entry.serial_fingerprint = fingerprint(flat.serialNumber);
       }
       report.operations[op.id] = entry;
