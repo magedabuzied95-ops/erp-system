@@ -1,0 +1,16 @@
+table.ChannelTitle[0].Name=Channel1
+table.ChannelTitle[1].Name=Channel2
+table.ChannelTitle[2].Name=Channel3
+table.ChannelTitle[3].Name=Channel4
+table.ChannelTitle[4].Name=Channel5
+table.ChannelTitle[5].Name=Channel6
+table.ChannelTitle[6].Name=Channel7
+table.ChannelTitle[7].Name=Channel8
+table.ChannelTitle[8].Name=Channel9
+table.ChannelTitle[9].Name=Channel10
+table.ChannelTitle[10].Name=Channel11
+table.ChannelTitle[11].Name=Channel12
+table.ChannelTitle[12].Name=Channel13
+table.ChannelTitle[13].Name=Channel14
+table.ChannelTitle[14].Name=Channel15
+table.ChannelTitle[15].Name=Channel16

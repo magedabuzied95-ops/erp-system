@@ -54,6 +54,25 @@ const SECRET_KEY_PATTERNS = [
   /^nonce$/i,
   /^ticket$/i,
   /^stepuptoken$/i,
+
+  // ADDED AFTER A REAL DEVICE LEAKED ONE OF THESE.
+  //
+  // The P2P config on a DH-XVR1B16-I returns a device UUID that is
+  // serial-equivalent, and this list did not cover it. The value reached a
+  // terminal during the first authenticated probe. Suffix matching rather than
+  // exact matching, because the real keys were `T2UServer[0].UUID` and
+  // `serialNumber`, not `uuid` and `serial`.
+  //
+  // Over-redaction in a log is the safe direction: a withheld value costs a
+  // debugging round trip, a leaked device identifier does not come back.
+  /serial(number|no)?$/i,
+  /^sn$/i,
+  /uuid$/i,
+  /deviceid$/i,
+  /hardwareid$/i,
+  /^did$/i,
+  /key$/i,
+  /username$/i,
 ];
 
 const normalizeKey = (key = "") => String(key).replace(/[\s_\-.]/g, "");

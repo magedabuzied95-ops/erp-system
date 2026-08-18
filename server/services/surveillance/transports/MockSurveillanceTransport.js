@@ -48,10 +48,28 @@ const CHANNEL_NAMES = [
   "Safe", "Rear Exit", "Street View", "Window Display", "Stairwell", "Roof Access",
 ];
 
+/**
+ * Slot 49: the detached template the real device reports.
+ *
+ * The real DH-XVR1B16-I returns FIFTY encode slots for sixteen channels, and
+ * the last one holds an H.264 704x576 MainFormat with no ExtraFormat. Including
+ * it here means the mock exercises the same channel-counting trap the real
+ * device set, instead of a tidier version of reality.
+ */
+const MOCK_TEMPLATE_SLOT = [
+  "table.Encode[49].MainFormat[0].Video.Compression=H.264",
+  "table.Encode[49].MainFormat[0].Video.Width=704",
+  "table.Encode[49].MainFormat[0].Video.Height=576",
+  "table.Encode[49].MainFormat[0].Video.FPS=25",
+  "table.Encode[49].MainFormat[0].Video.BitRate=1024",
+];
+
 const encodeBlock = (channelZeroBased) => {
   const channel = channelZeroBased + 1;
-  const mainCodec = H265_CHANNELS.has(channel) ? "H.265" : "H.264";
-  const subCodec = H265_CHANNELS.has(channel) ? "H.265" : "H.264";
+  // The real device is H.265 on EVERY channel and both streams. The mock said
+  // H.264, which is why the transcoding requirement was missed until the probe.
+  const mainCodec = "H.265";
+  const subCodec = "H.265";
   const enabled = !OFFLINE_CHANNELS.has(channel);
   return [
     // 1080N is 960x1080 — half the horizontal resolution of 1080p, stretched on
@@ -60,10 +78,10 @@ const encodeBlock = (channelZeroBased) => {
     `table.Encode[${channelZeroBased}].MainFormat[0].Video.Compression=${mainCodec}`,
     `table.Encode[${channelZeroBased}].MainFormat[0].Video.Width=960`,
     `table.Encode[${channelZeroBased}].MainFormat[0].Video.Height=1080`,
-    `table.Encode[${channelZeroBased}].MainFormat[0].Video.FPS=15`,
-    `table.Encode[${channelZeroBased}].MainFormat[0].Video.BitRate=1536`,
+    `table.Encode[${channelZeroBased}].MainFormat[0].Video.FPS=${channel === 1 ? 25 : 15}`,
+    `table.Encode[${channelZeroBased}].MainFormat[0].Video.BitRate=512`,
     `table.Encode[${channelZeroBased}].MainFormat[0].Video.BitRateControl=VBR`,
-    `table.Encode[${channelZeroBased}].MainFormat[0].Video.enable=${enabled}`,
+    `table.Encode[${channelZeroBased}].MainFormat[0].VideoEnable=${enabled}`,
     `table.Encode[${channelZeroBased}].MainFormat[0].Audio.enable=false`,
     // CIF at 7 fps. This is the datasheet limit, and it is why grid layouts
     // look the way they do on this model.
@@ -71,9 +89,9 @@ const encodeBlock = (channelZeroBased) => {
     `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.Width=352`,
     `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.Height=288`,
     `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.FPS=7`,
-    `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.BitRate=192`,
+    `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.BitRate=80`,
     `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.BitRateControl=CBR`,
-    `table.Encode[${channelZeroBased}].ExtraFormat[0].Video.enable=${enabled}`,
+    `table.Encode[${channelZeroBased}].ExtraFormat[0].VideoEnable=${enabled}`,
   ].join("\r\n");
 };
 

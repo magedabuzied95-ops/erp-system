@@ -2,6 +2,7 @@
 // and the Phase 1 dormancy claim.
 
 import test from "node:test";
+import { __setInterfaceProvider } from "../../server/services/surveillance/surveillanceNetworkGuard.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -44,6 +45,17 @@ import {
   validatePlaybackRequest,
   validateProbedCapabilities,
 } from "../../server/services/surveillance/surveillanceValidation.js";
+
+// The guard denies every network THIS host is attached to. On the shop laptop
+// that includes 192.168.1.0/24, the very range these tests use as a stand-in
+// store LAN. Stubbing the interface source keeps the assertions about the
+// guard rather than about whichever network the developer is sitting on.
+test.beforeEach(() => {
+  __setInterfaceProvider(() => ({
+    eth0: [{ address: "203.0.113.10", family: "IPv4", internal: false, cidr: "203.0.113.10/24" }],
+  }));
+});
+test.after(() => __setInterfaceProvider(null));
 
 const caught = (fn) => {
   try {
@@ -497,11 +509,49 @@ test("the deploy grants surveillance access to nobody, including admins", () => 
   assert.doesNotMatch(middleware.slice(coreStart, coreEnd), /surveillance/i);
 });
 
-test("no surveillance route is mounted in this build", () => {
+test("the API is mounted and exposes no generic device proxy", () => {
   const server = read("../../server/server.js");
-  assert.doesNotMatch(server, /app\.use\("\/api\/surveillance/);
-  assert.match(server, /await ensureSurveillanceSchema\(db\)/);
+  // Mounted as of 2B-1. The invariant is not whether the API exists but that
+  // no route forwards an arbitrary path or body to a device (next test).
+  assert.ok(server.includes("/api/surveillance"));
+  assert.ok(server.includes("await ensureSurveillanceSchema(db)"));
 });
+
+test("no route forwards an arbitrary path or body to a device", () => {
+  // The rejected alternative was one route taking { path, body } and forwarding
+  // it. It would have taken an afternoon and handed every authenticated user an
+  // authenticated shell into a device on a customer LAN. This is the test that
+  // keeps it rejected when somebody needs it "temporarily, for debugging".
+  //
+  // Comments are stripped first: the routes file explains at length that it has
+  // no proxy, so the word appears in prose.
+  const routes = stripLineComments(read("../../server/routes/surveillance.js")).replace(
+    /\/\*[\s\S]*?\*\//g,
+    "",
+  );
+
+  assert.ok(!/proxy/i.test(routes), "no generic vendor proxy");
+
+  // No handler may take the device path, URL or CGI target from the caller.
+  for (const source of ["req.body", "req.query", "req.params"]) {
+    for (const field of [".path", ".url", ".cgi", ".endpoint"]) {
+      assert.ok(!routes.includes(source + field), source + field + " is caller-chosen");
+    }
+  }
+
+  // req.params.action IS read, by the confirmation-token route. That is fine
+  // only because it is immediately narrowed to a closed set and never reaches a
+  // device, so the rule is not "never read it" but "never read it unconstrained".
+  // A test that banned it outright would have been deleted the first time it
+  // fired on safe code.
+  const actionReads = routes.split("req.params.action").length - 1;
+  const constrained = routes.split("requiredEnum(req.params.action").length - 1;
+  assert.equal(constrained, actionReads, "every req.params.action must pass requiredEnum");
+
+  // Every device call goes through a named service function instead.
+  assert.ok(routes.includes("service."), "handlers call named service operations");
+});
+
 
 test("the frontend permission matrix mirrors the backend permission list", () => {
   const schema = read("../../server/services/surveillance/surveillanceSchema.js");

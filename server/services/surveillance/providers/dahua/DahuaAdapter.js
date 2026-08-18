@@ -40,13 +40,16 @@ import {
   buildProbePath,
   interpretProbeResult,
 } from "./dahuaProbeContract.js";
-import { dahuaRtspPath, dahuaStreamProfiles } from "./dahuaStreamProfiles.js";
+import { dahuaRtspPath, dahuaSnapshotProfile, dahuaStreamProfiles } from "./dahuaStreamProfiles.js";
 import {
   parseChannels,
   parseDeviceInfo,
   parseEncoderConfig,
   parseMotionConfig,
   parseNetworkInfo,
+  parsePhysicalChannelCount,
+  parseRtspConfig,
+  parseP2pStatus,
   parseRecordingConfig,
   parseRecordings,
   parseStorageInfo,
@@ -63,6 +66,12 @@ const CGI = {
   ntp: "/cgi-bin/configManager.cgi?action=getConfig&name=NTP",
   storage: "/cgi-bin/storageDevice.cgi?action=getDeviceAllInfo",
   currentTime: "/cgi-bin/global.cgi?action=getCurrentTime",
+  // Authoritative physical channel count. The encode array is NOT a channel
+  // list: the real device reports 50 slots for 16 channels.
+  videoInCollect: "/cgi-bin/devVideoInput.cgi?action=getCollect",
+  // Bounds the addressable extra streams. 1 on the reference device, which
+  // is what proves MainFormat[0..2] are record triggers and not streams.
+  maxExtraStream: "/cgi-bin/magicBox.cgi?action=getProductDefinition&name=MaxExtraStream",
   reboot: "/cgi-bin/magicBox.cgi?action=reboot",
   snapshot: (channel) => `/cgi-bin/snapshot.cgi?channel=${channel}`,
   ptzStart: (channel, code, arg1, arg2, arg3) =>
@@ -251,26 +260,36 @@ export class DahuaAdapter extends SurveillanceProvider {
   /* ---- channels ------------------------------------------------------- */
 
   async getChannels() {
-    const [encode, titles] = await Promise.all([
+    // Four reads, and two of them exist purely because the real device
+    // contradicted the documentation: the encode array is not a channel list,
+    // and its format sub-arrays are not streams.
+    const [encode, titles, collect, maxExtra] = await Promise.all([
       this.#cgi(CGI.encode),
       this.#cgi(CGI.channelTitle).catch(() => ({ ok: false, parsed: {} })),
+      this.#cgi(CGI.videoInCollect, { parse: "flat" }).catch(() => ({ ok: false, parsed: {} })),
+      this.#cgi(CGI.maxExtraStream).catch(() => ({ ok: false, parsed: {} })),
     ]);
 
-    const channels = parseChannels(this.#requireOk(encode, "cameraConfiguration"), titles.parsed);
+    const encodeConfig = this.#requireOk(encode, "cameraConfiguration");
+    const physicalChannelCount = parsePhysicalChannelCount(collect.parsed);
+    const maxExtraStream =
+      Number(maxExtra.parsed?.MaxExtraStream ?? maxExtra.parsed?.table?.MaxExtraStream) || 1;
+
+    const channels = parseChannels(encodeConfig, titles.parsed, { physicalChannelCount });
 
     return channels.map((channel) => ({
       ...channel,
-      // Profiles are read off the device, never assumed. On this model the
-      // second profile happens to be CIF; on a newer one it will not be.
-      streamProfiles: dahuaStreamProfiles(encode.parsed, channel.index - 1),
-      // No RS-485 on the reference model and the probe is expected to fail, so
-      // the channel-level flag follows the device-level capability rather than
+      // Profiles are read off the device, never assumed. On this model both are
+      // H.265, which is why the media layer has to transcode.
+      streamProfiles: dahuaStreamProfiles(encodeConfig, channel.index - 1, { maxExtraStream }),
+      snapshotProfile: dahuaSnapshotProfile(encodeConfig, channel.index - 1),
+      // The reference model has no RS-485 and the PTZ probe returns HTTP 400,
+      // so the channel flag follows the device-level capability rather than
       // claiming per-channel knowledge we do not have.
       ptz: false,
-      audio: Boolean(encode.parsed?.Encode?.[channel.index - 1]?.MainFormat?.[0]?.Audio?.enable),
+      audio: Boolean(encodeConfig?.Encode?.[channel.index - 1]?.MainFormat?.[0]?.AudioEnable),
     }));
   }
-
   async getChannelStatus(channelIndex) {
     // Dahua exposes no reliable per-channel liveness read on entry recorders.
     // Rather than invent one, the encoder's enable flag is reported for what it

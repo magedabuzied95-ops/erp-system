@@ -1,0 +1,15 @@
+v=0
+o=- 2253083027 2253083027 IN IP4 0.0.0.0
+s=Media Server
+c=IN IP4 0.0.0.0
+t=0 0
+a=control:*
+a=packetization-supported:DH
+a=rtppayload-supported:DH
+a=range:npt=now-
+m=video 0 RTP/AVP 98
+a=control:trackID=0
+a=framerate:7.000000
+a=rtpmap:98 H265/90000
+a=fmtp:98 profile-id=1;sprop-sps=SYNTHETIC;sprop-pps=SYNTHETIC;sprop-vps=SYNTHETIC
+a=recvonly

@@ -1,0 +1,7 @@
+table.T2UServer[0].Enable=true
+table.T2UServer[0].Address=www.easy4ipcloud.com
+table.T2UServer[0].Type=dhp2p
+table.T2UServer[0].Port=8800
+table.T2UServer[0].UUID=SYNTHETIC-UUID
+table.T2UServer[0].Key=******
+table.T2UServer[0].Username=synthetic

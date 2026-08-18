@@ -1,0 +1,10 @@
+table.Network.Hostname=HCVR
+table.Network.eth0.IPAddress=192.168.1.108
+table.Network.eth0.SubnetMask=255.255.255.0
+table.Network.eth0.DefaultGateway=192.168.1.1
+table.Network.eth0.DhcpEnable=false
+table.Network.eth0.DnsAutoGet=false
+table.Network.eth0.MTU=1500
+table.Network.eth0.PhysicalAddress=00:00:00:00:00:00
+table.Network.DnsServers[0]=8.8.8.8
+table.Network.DnsServers[1]=8.8.4.4

@@ -1,1 +1,1 @@
-type=XVR1B16-I
+type=DH-XVR1B16-I

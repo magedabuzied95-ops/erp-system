@@ -1,0 +1,6 @@
+table.NTP.Enable=false
+table.NTP.Address=time.windows.com
+table.NTP.Port=123
+table.NTP.TimeZone=2
+table.NTP.TimeZoneDesc=Cairo
+table.NTP.UpdatePeriod=60

@@ -1,10 +1,9 @@
-// Dahua contract tests (Phase 2B-0).
+// Dahua parsing and probe-contract tests.
 //
-// Everything here runs against MOCK fixtures. No device is contacted, and the
-// fixtures are constructed from published documentation rather than captured
-// from hardware — see tests/fixtures/dahua/README.md. What these prove is that
-// the parsing, profile extraction and probe interpretation are correct GIVEN a
-// response of that shape. Whether the device produces that shape is Phase 2B-4.
+// The fixtures are SANITIZED CAPTURES from a real DH-XVR1B16-I, not
+// constructions from documentation. This file owns response PARSING and the
+// PROBE CONTRACT; the device-shape assertions (channel counting, profiles,
+// storage, DNS, schedule, motion scale) live in surveillance-real-device.test.js.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -24,14 +23,6 @@ import {
   buildProbePath,
   interpretProbeResult,
 } from "../../server/services/surveillance/providers/dahua/dahuaProbeContract.js";
-import {
-  dahuaRtspPath,
-  dahuaStreamProfiles,
-} from "../../server/services/surveillance/providers/dahua/dahuaStreamProfiles.js";
-import {
-  STREAM_PURPOSES,
-  selectStreamProfile,
-} from "../../server/services/surveillance/surveillanceStreamProfiles.js";
 import { CAPABILITY_KEYS, CAPABILITY_STATES } from "../../server/services/surveillance/surveillanceCapabilities.js";
 
 const fixture = (name) => readFileSync(new URL(`../fixtures/dahua/${name}`, import.meta.url), "utf8");
@@ -42,22 +33,22 @@ const fixture = (name) => readFileSync(new URL(`../fixtures/dahua/${name}`, impo
 
 test("a flat Dahua response becomes a nested object", () => {
   const parsed = parseDahuaResponse(fixture("system-info.txt"));
-  assert.equal(parsed.deviceType, "XVR1B16-I");
-  assert.equal(parsed.processor, "ARM");
+  assert.equal(parsed.deviceType, "DH-XVR1B16-I");
+  assert.equal(parsed.processor, "ST7108");
 });
 
 test("indexed keys become arrays at the right depth", () => {
-  const config = parseDahuaConfig(fixture("encode-config.txt"));
+  const config = parseDahuaConfig(fixture("encode-config-real.txt"));
   assert.ok(Array.isArray(config.Encode));
-  assert.equal(config.Encode.length, 2);
+  assert.equal(config.Encode.length, 50);
   assert.equal(config.Encode[0].MainFormat[0].Video.Width, 960);
   assert.equal(config.Encode[0].ExtraFormat[0].Video.FPS, 7);
 });
 
 test("the single wrapping table or list key is unwrapped", () => {
-  assert.ok(parseDahuaResponse(fixture("encode-config.txt")).table);
-  assert.ok(!parseDahuaConfig(fixture("encode-config.txt")).table);
-  assert.ok(Array.isArray(parseDahuaConfig(fixture("storage-info.txt")).info));
+  assert.ok(parseDahuaResponse(fixture("encode-config-real.txt")).table);
+  assert.ok(!parseDahuaConfig(fixture("encode-config-real.txt")).table);
+  assert.ok(Array.isArray(parseDahuaConfig(fixture("storage-real.txt")).info));
 });
 
 test("values are coerced only where it is unambiguous", () => {
@@ -93,123 +84,6 @@ test("device errors are recognised from the body as well as the status", () => {
   assert.equal(isDahuaError(200, fixture("unsupported-error.txt")), true);
   assert.equal(isDahuaError(400, "anything"), true);
   assert.equal(isDahuaError(200, fixture("system-info.txt")), false);
-});
-
-/* ------------------------------------------------------------------ *
- * Stream profiles — discovered, never assumed
- * ------------------------------------------------------------------ */
-
-test("profiles come from the device's own encode config", () => {
-  const config = parseDahuaConfig(fixture("encode-config.txt"));
-  const profiles = dahuaStreamProfiles(config, 0);
-
-  assert.equal(profiles.length, 2);
-  const [main, extra] = profiles;
-  assert.equal(main.key, "0");
-  assert.equal(main.width, 960);
-  assert.equal(main.height, 1080); // 1080N, not 1080p
-  assert.equal(main.codec, "h264");
-  assert.equal(main.browser_native, true);
-
-  assert.equal(extra.key, "1");
-  assert.equal(extra.width, 352); // CIF, read off the device rather than assumed
-  assert.equal(extra.fps, 7);
-});
-
-test("a device offering three profiles is handled without a code change", () => {
-  // The whole point of item 7: a newer recorder with a 720p second stream and a
-  // D1 third stream must work as-is.
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config-modern.txt")), 0);
-  assert.equal(profiles.length, 3);
-  assert.deepEqual(profiles.map((p) => p.key), ["0", "1", "2"]);
-  assert.deepEqual(profiles.map((p) => p.width), [1920, 1280, 704]);
-});
-
-test("smart-encoding codec names normalise to their base codec", () => {
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config.txt")), 1);
-  const main = profiles.find((p) => p.key === "0");
-  // "H.265+" is reported; it is h265 with a smart flag, and browsers cannot
-  // play it natively either way.
-  assert.equal(main.codec, "h265");
-  assert.equal(main.codec_smart, true);
-  assert.equal(main.browser_native, false);
-});
-
-test("the RTSP path uses 1-based channels and the profile key as subtype", () => {
-  // Config indexes channels from 0, RTSP from 1. Getting this backwards returns
-  // the wrong camera, which is only noticed when someone reviews the footage.
-  assert.equal(dahuaRtspPath(1, "0"), "/cam/realmonitor?channel=1&subtype=0");
-  assert.equal(dahuaRtspPath(16, "1"), "/cam/realmonitor?channel=16&subtype=1");
-});
-
-/* ------------------------------------------------------------------ *
- * Selection policy — no "grid = sub" anywhere
- * ------------------------------------------------------------------ */
-
-test("a 16-up grid on the reference device lands on the small profile by budget", () => {
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config.txt")), 0);
-  const { profile } = selectStreamProfile({
-    profiles,
-    purpose: STREAM_PURPOSES.GRID,
-    tileCount: 16,
-    budgetKbps: 4000, // the ~3.4 Mbps upload budget measured in Phase 2A
-  });
-  // The right answer for this device — reached as an outcome of the budget, not
-  // because anything hardcoded "sub".
-  assert.equal(profile.key, "1");
-});
-
-test("the same policy picks a better profile on a device that has one", () => {
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config-modern.txt")), 0);
-  const { profile } = selectStreamProfile({
-    profiles,
-    purpose: STREAM_PURPOSES.GRID,
-    tileCount: 4,
-    budgetKbps: 6000,
-  });
-  // 1280x720 at 1024 kbps fits four tiles in 6 Mbps; a hardcoded "sub" rule
-  // would have picked it only by luck, and a hardcoded "second stream" rule
-  // would have picked the 704x576 profile on a three-profile device.
-  assert.equal(profile.width, 1280);
-});
-
-test("fullscreen takes the best playable profile", () => {
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config.txt")), 0);
-  const { profile } = selectStreamProfile({ profiles, purpose: STREAM_PURPOSES.FULLSCREEN, tileCount: 1 });
-  assert.equal(profile.key, "0");
-});
-
-test("an all-H.265 channel is refused rather than shown as a broken tile", () => {
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config.txt")), 1);
-  assert.throws(
-    () => selectStreamProfile({ profiles, purpose: STREAM_PURPOSES.GRID, tileCount: 4 }),
-    (error) => {
-      // The UI needs to be able to say WHY, so the codecs come back in details.
-      assert.equal(error.code, "SURVEILLANCE_CAPABILITY_UNSUPPORTED");
-      assert.deepEqual(error.details.codecs, ["h265"]);
-      return true;
-    },
-  );
-  // ...and it becomes available the moment transcoding is permitted.
-  const { profile } = selectStreamProfile({
-    profiles,
-    purpose: STREAM_PURPOSES.FULLSCREEN,
-    tileCount: 1,
-    allowTranscode: true,
-  });
-  assert.equal(profile.codec, "h265");
-});
-
-test("an over-budget grid degrades to the cheapest profile rather than going blank", () => {
-  const profiles = dahuaStreamProfiles(parseDahuaConfig(fixture("encode-config-modern.txt")), 0);
-  const { profile, reason } = selectStreamProfile({
-    profiles,
-    purpose: STREAM_PURPOSES.GRID,
-    tileCount: 16,
-    budgetKbps: 1000, // a very poor uplink
-  });
-  assert.equal(reason, "over-budget-cheapest");
-  assert.equal(profile.width, 704);
 });
 
 /* ------------------------------------------------------------------ *
@@ -251,7 +125,7 @@ test("a successful read of a writable surface yields read-only, not supported", 
   // account that cannot write them — which is exactly the account split we
   // intend to use, so this must not be optimistic.
   const encode = DAHUA_PROBES.find((d) => d.capability === "encoderSettings");
-  const parsed = parseDahuaConfig(fixture("encode-config.txt"));
+  const parsed = parseDahuaConfig(fixture("encode-config-real.txt"));
   assert.equal(interpretProbeResult(encode, { ok: true, parsed }), CAPABILITY_STATES.READ_ONLY);
 });
 

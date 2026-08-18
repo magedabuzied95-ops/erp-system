@@ -1,0 +1,4 @@
+table.RTSP.Enable=true
+table.RTSP.Port=554
+table.RTSP.RTP.StartPort=20000
+table.RTSP.RTP.EndPort=40000

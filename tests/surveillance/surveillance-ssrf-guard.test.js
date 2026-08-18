@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  __setInterfaceProvider,
   assertNotRedirect,
   assertPortAllowed,
   cidrContains,
@@ -18,6 +19,17 @@ import {
   resolveDestination,
   validateHostShape,
 } from "../../server/services/surveillance/surveillanceNetworkGuard.js";
+
+// The guard denies every network THIS host is attached to. On the shop laptop
+// that includes 192.168.1.0/24, the very range these tests use as a stand-in
+// store LAN. Stubbing the interface source keeps the assertions about the
+// guard rather than about whichever network the developer is sitting on.
+test.beforeEach(() => {
+  __setInterfaceProvider(() => ({
+    eth0: [{ address: "203.0.113.10", family: "IPv4", internal: false, cidr: "203.0.113.10/24" }],
+  }));
+});
+test.after(() => __setInterfaceProvider(null));
 
 // A realistic tenant grant: the store LAN, and nothing else.
 const STORE_LAN = ["192.168.1.0/24"];
