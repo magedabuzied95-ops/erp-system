@@ -4,6 +4,7 @@ import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import DeliveryTicks, { deliveryStatusLabel, isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -165,9 +166,13 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
         <ShoppingBag className="h-3.5 w-3.5" />
         <span>{t("aiSupport.inbox.productCard.sentProduct")}</span>
         {deliveryStatus ? (
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] tracking-[0.08em] text-slate-200">
-            {deliveryStatus}
-          </span>
+          isTickableDeliveryStatus(deliveryStatus)
+            ? <DeliveryTicks status={deliveryStatus} />
+            : (
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] tracking-[0.08em] text-slate-200">
+                {deliveryStatusLabel(t, deliveryStatus)}
+              </span>
+            )
         ) : null}
         {message.created_at ? <span className="text-slate-500">{absoluteTime(message.created_at, i18n.resolvedLanguage)}</span> : null}
         {items.length > 1 ? <span className="text-slate-500">{t("aiSupport.inbox.productCard.productCount", { count: items.length })}</span> : null}

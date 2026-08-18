@@ -5,6 +5,7 @@ import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pencil, 
 import { useTranslation } from "react-i18next";
 
 import ProductCardMessage from "./ProductCardMessage";
+import DeliveryTicks, { deliveryStatusLabel as sharedDeliveryStatusLabel, isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -72,26 +73,9 @@ const messageAttachments = (message = {}) => [
 ];
 
 const uniqueUrls = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))];
-/*
- * delivery_status is a RAW enum. It is compared against "failed"/"sending"
- * below and travels in payloads, so the value itself must never change --
- * only how it is shown. Keys live in a literal map rather than being built by
- * interpolation, so every one stays statically visible to the missing-key
- * guard, and an unrecognised status falls back to its raw text rather than
- * rendering nothing.
- */
-const DELIVERY_STATUS_KEYS = {
-  sending: "aiSupport.inbox.delivery.sending",
-  sent: "aiSupport.inbox.delivery.sent",
-  delivered: "aiSupport.inbox.delivery.delivered",
-  read: "aiSupport.inbox.delivery.read",
-  failed: "aiSupport.inbox.delivery.failed",
-  pending: "aiSupport.inbox.delivery.pending",
-};
-const deliveryStatusLabel = (t, status) => {
-  const key = DELIVERY_STATUS_KEYS[String(status || "").toLowerCase()];
-  return key ? t(key) : String(status || "");
-};
+// delivery_status enum + label mapping live in DeliveryTicks.jsx (shared with
+// ProductCardMessage and the PWA transcript).
+const deliveryStatusLabel = sharedDeliveryStatusLabel;
 
 const PLACEHOLDER_BODY = /^\[(attachment|image|media|file|sticker)\]$/i;
 
@@ -748,6 +732,7 @@ function TranscriptMessage({
             <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
               <Bot className="h-3.5 w-3.5" />
               AI
+              <DeliveryTicks status={message.delivery_status} />
             </div>
             <LinkifiedText text={bodyText(message.ai_answer)} className="ai-pwa-message-body text-[14px] leading-5.5" />
             <PwaMessageMedia mediaUrls={mediaUrls} audioUrls={audioUrls} videoUrls={videoUrls} documentUrls={documentUrls} />
@@ -762,8 +747,9 @@ function TranscriptMessage({
         <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
           <div className="flex justify-start">
             <div data-ai-message-bubble="true" className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
-            <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
-              {message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}
+            <div className="ai-pwa-message-meta mb-1 flex items-center gap-1.5 text-[10px] font-medium">
+              <span>{message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}</span>
+              {message.message_type === "internal_note" ? null : <DeliveryTicks status={message.delivery_status} />}
             </div>
             <LinkifiedText text={bodyText(message.staff_message)} className="ai-pwa-message-body text-[14px] leading-5.5" />
             <PwaMessageMedia mediaUrls={mediaUrls} audioUrls={audioUrls} videoUrls={videoUrls} documentUrls={documentUrls} />
@@ -856,6 +842,11 @@ function TranscriptMessage({
               <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
               {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">{t("aiSupport.inbox.message.draftReply")}</span> : null}
               <span className="text-slate-500">{createdAt}</span>
+              {message.delivery_status ? (
+                isTickableDeliveryStatus(message.delivery_status)
+                  ? <DeliveryTicks status={message.delivery_status} />
+                  : <span className={message.delivery_status === "failed" ? "text-rose-200" : "text-cyan-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span>
+              ) : null}
               <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
               {message.message_type !== "comment_suggestion" ? (
                 <button
@@ -889,7 +880,11 @@ function TranscriptMessage({
                 </span>
               ) : null}
               <span className="text-slate-500">{createdAt}</span>
-              {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span> : null}
+              {message.delivery_status ? (
+                isTickableDeliveryStatus(message.delivery_status)
+                  ? <DeliveryTicks status={message.delivery_status} />
+                  : <span className={message.delivery_status === "failed" ? "text-rose-200" : "text-emerald-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span>
+              ) : null}
             </div>
             <LinkifiedText text={bodyText(message.staff_message)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageImageGrid urls={mediaUrls} />
