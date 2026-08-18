@@ -127,3 +127,6 @@ server/services/*
 !server/services/aiReplySafetyPipeline.js
 !server/services/aiSemanticSearchService.js
 !server/services/aiAgreementScoreService.js
+
+# Real-device probe credentials. Local only, never committed.
+.surveillance-probe.local
