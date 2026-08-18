@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 import i18n from "../../../i18n/i18n";
 
@@ -698,7 +699,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="text-lg text-slate-400">...</div>
         </div>
         <div className="relative aspect-square bg-slate-950">
-          {image ? <img src={image} alt={title} className="h-full w-full object-cover" /> : <EmptyMedia t={t} />}
+          {image ? <img src={resolveProductImageUrl(image)} alt={title} className="h-full w-full object-cover" /> : <EmptyMedia t={t} />}
           {carousel.length > 1 ? (
             <div className="absolute bottom-3 right-3 rounded-full bg-black/65 px-3 py-1 text-xs font-black text-white backdrop-blur">
               1/{carousel.length}
@@ -709,7 +710,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="flex gap-2 overflow-x-auto border-b border-white/10 p-3">
             {thumbnailUrls.slice(0, 6).map((url, index) => (
               <div key={url} className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10">
-                <img src={url} alt={`وسائط إنستجرام ${index + 1}`} className="h-full w-full object-cover" />
+                <img src={resolveProductImageUrl(url)} alt={`وسائط إنستجرام ${index + 1}`} className="h-full w-full object-cover" />
               </div>
             ))}
           </div>
@@ -746,7 +747,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
     return (
       <div className="mx-auto flex w-full max-w-[360px] justify-center">
         <div className="relative aspect-[9/16] max-h-[650px] w-full overflow-hidden rounded-[34px] border border-white/10 bg-slate-950 shadow-2xl shadow-black/40">
-          {image ? <img src={image} alt={title} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950" />}
+          {image ? <img src={resolveProductImageUrl(image)} alt={title} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950" />}
           <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/15 to-black/75" />
           <div className="absolute left-4 right-4 top-4 flex items-center gap-2">
             <div className="h-1 flex-1 rounded-full bg-white/80" />
@@ -789,7 +790,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
         </div>
       </div>
       <div className="relative min-h-[340px] bg-[var(--surface-soft)]">
-        {image ? <img src={image} alt={title} className="h-full max-h-[520px] min-h-[340px] w-full object-cover" /> : <EmptyMedia t={t} />}
+        {image ? <img src={resolveProductImageUrl(image)} alt={title} className="h-full max-h-[520px] min-h-[340px] w-full object-cover" /> : <EmptyMedia t={t} />}
         {carousel.length > 1 ? (
           <div className="absolute right-4 top-4 rounded-full bg-black/65 px-3 py-1 text-xs font-black text-white backdrop-blur">
             {t("marketing.social.preview.photoCount", { count: carousel.length })}
@@ -800,7 +801,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
         <div className="flex gap-2 overflow-x-auto border-t border-white/10 p-3">
           {thumbnailUrls.slice(0, 7).map((url, index) => (
             <div key={url} className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10">
-              <img src={url} alt={`وسائط فيسبوك ${index + 1}`} className="h-full w-full object-cover" />
+              <img src={resolveProductImageUrl(url)} alt={`وسائط فيسبوك ${index + 1}`} className="h-full w-full object-cover" />
             </div>
           ))}
         </div>
@@ -902,7 +903,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0 }) {
         <div className="absolute bottom-9 h-24 w-80 rounded-[50%] bg-white/12 blur-xl [transform:perspective(360px)_rotateX(68deg)]" />
         {slide.image_url ? (
           <img
-            src={slide.image_url}
+            src={resolveProductImageUrl(slide.image_url)}
             alt={title}
             className="story-creative-product-image relative z-10 max-h-full max-w-[112%] object-contain drop-shadow-[0_34px_28px_rgba(0,0,0,.5)]"
           />
@@ -1359,7 +1360,7 @@ export default function PostEditorModal({
                       onClick={() => selectMainImage(url)}
                       className={`group relative aspect-square overflow-hidden rounded-[var(--radius-control)] border transition ${ form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]" }`}
                     >
-                      <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
+                      <img src={resolveProductImageUrl(url)} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
                     </button>
                   ))}
                 </div>

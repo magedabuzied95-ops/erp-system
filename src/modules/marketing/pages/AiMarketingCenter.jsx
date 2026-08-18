@@ -53,6 +53,7 @@ import {
 } from "../lib/storyAssetSnapshot";
 import i18n from "../../../i18n/i18n";
 import { useTranslation } from "react-i18next";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 /** Module scope: resolve through i18n at CALL time, never eagerly at import. */
 const tt = (key, options) => i18n.t(key, options);
@@ -1288,7 +1289,10 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
 function Thumb({ item }) {
   const { isFeedContent, isStoryContent } = getPreviewContentFlags(item);
   const isPost = isFeedContent && !isStoryContent;
-  const imageUrl = isStoryContent ? queueStoryAssetUrl(item) || item.primary_image_url || uniqueMediaUrls(item)[0] || "" : item.primary_image_url || uniqueMediaUrls(item)[0] || "";
+  // Post thumbnails come back as server-relative /uploads paths, which the browser
+  // would resolve against the ERP origin instead of the API that serves them.
+  const rawImageUrl = isStoryContent ? queueStoryAssetUrl(item) || item.primary_image_url || uniqueMediaUrls(item)[0] || "" : item.primary_image_url || uniqueMediaUrls(item)[0] || "";
+  const imageUrl = resolveProductImageUrl(rawImageUrl);
   return (
     <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-950 ${isPost ? "aspect-square w-16" : "aspect-[9/16] w-16"}`}>
       {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" /> : null}
