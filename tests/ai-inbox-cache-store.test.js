@@ -192,3 +192,68 @@ test("projectConversationRow keeps routing + isolation fields", () => {
   assert.equal(row.external_account_id, "acc9");
   assert.equal(row.unread_count, 3);
 });
+
+// ---- server-page reconciliation (V3) -------------------------------------
+
+const identityKeys = (m = {}) =>
+  [m.message_identity_key, m.client_request_id, m.provider_message_id, m.external_message_id, m.id != null ? String(m.id) : ""]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+
+test("reconcileWithServerPage drops server-deleted messages inside the page window", async () => {
+  const { reconcileWithServerPage } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const cached = [
+    { id: 100, created_at: "2026-08-18T01:00:51Z", staff_message: "dup A" },  // deleted on server
+    { id: 101, created_at: "2026-08-18T01:01:25Z", staff_message: "dup B" },  // deleted on server
+    { id: 102, created_at: "2026-08-18T01:19:00Z", staff_message: "kept" },   // still on server
+  ];
+  const serverPage = [
+    { id: 99, created_at: "2026-08-18T00:50:00Z", customer_message: "hi" },
+    { id: 102, created_at: "2026-08-18T01:19:00Z", staff_message: "kept" },
+  ];
+  const out = reconcileWithServerPage(cached, serverPage, identityKeys);
+  assert.deepEqual(out.map((m) => m.id), [102]);
+});
+
+test("reconcileWithServerPage keeps optimistic bubbles and pre-window history", async () => {
+  const { reconcileWithServerPage } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const cached = [
+    { id: 10, created_at: "2026-08-01T00:00:00Z", staff_message: "old history" }, // older than the page window
+    { id: "sending-171234", created_at: "2026-08-18T02:00:00Z", staff_message: "in flight" }, // optimistic
+    { created_at: "2026-08-18T02:00:01Z", staff_message: "no id yet" },
+  ];
+  const serverPage = [{ id: 200, created_at: "2026-08-18T01:00:00Z", customer_message: "hi" }];
+  const out = reconcileWithServerPage(cached, serverPage, identityKeys);
+  assert.equal(out.length, 3);
+});
+
+test("reconcileWithServerPage never wipes anything on an empty or unusable server page", async () => {
+  const { reconcileWithServerPage } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const cached = [{ id: 1, created_at: "2026-08-18T01:00:00Z" }];
+  assert.deepEqual(reconcileWithServerPage(cached, [], identityKeys), cached);
+  assert.deepEqual(reconcileWithServerPage(cached, [{ id: 2 }], null), cached);
+  assert.deepEqual(reconcileWithServerPage(cached, [{ id: 2, created_at: "" }], identityKeys), cached);
+});
+
+test("replaceThread overwrites the cached record instead of unioning with it", async () => {
+  const { replaceThread } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const adapter = createMemoryAdapter();
+  await writeThread(adapter, NS, "conv:1", [
+    { id: 1, created_at: "2026-08-18T01:00:00Z", staff_message: "ghost" },
+    { id: 2, created_at: "2026-08-18T01:05:00Z", staff_message: "kept" },
+  ], mergeByIdentity);
+  await replaceThread(adapter, NS, "conv:1", [
+    { id: 2, created_at: "2026-08-18T01:05:00Z", staff_message: "kept" },
+  ]);
+  const read = await readThread(adapter, NS, "conv:1");
+  assert.deepEqual(read.messages.map((m) => m.id), [2]);
+});
+
+test("replaceThread refuses to blank a thread with an empty window", async () => {
+  const { replaceThread } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const adapter = createMemoryAdapter();
+  await writeThread(adapter, NS, "conv:2", [{ id: 5, created_at: "2026-08-18T01:00:00Z" }], mergeByIdentity);
+  assert.equal(await replaceThread(adapter, NS, "conv:2", []), false);
+  const read = await readThread(adapter, NS, "conv:2");
+  assert.deepEqual(read.messages.map((m) => m.id), [5]);
+});

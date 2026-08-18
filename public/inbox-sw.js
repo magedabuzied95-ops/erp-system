@@ -1,4 +1,4 @@
-const VERSION = "ai-inbox-v11";
+const VERSION = "ai-inbox-v12";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_URLS = [

@@ -7750,8 +7750,16 @@ export default function AiInbox({ reviewerMode = false }) {
           });
       hydratedThreadsRef.current.add(clean(conversationIdentifier));
       patchConversation(conversationIdentifier, (conversation) => {
-        const existing = asArray(conversation.messages);
+        const rawExisting = asArray(conversation.messages);
         const incoming = reviewerMode ? asArray(payload.messages).map(normalizeMetaReviewerMessage) : asArray(payload.messages);
+        // Inside the window the authoritative full page covers, the server's
+        // word is final: a cache-primed message with a real server id that the
+        // page no longer returns was DELETED on the server (e.g. a cleaned-up
+        // duplicate) and must not survive the merge. Optimistic bubbles and
+        // history older than the page keep living.
+        const existing = shouldHydrateFullPage
+          ? inboxCache.reconcileWithServerPage(rawExisting, incoming, messageIdentityKeys)
+          : rawExisting;
         // Older-page loads prepend (incoming is strictly older). A full-page
         // hydrate may merge over a cache-primed window that reaches FURTHER BACK
         // than this page, and merge keeps first-seen order, so order the result
@@ -7763,6 +7771,9 @@ export default function AiInbox({ reviewerMode = false }) {
               mergeMessagesByIdentity([...incoming, ...existing])
             )
           : mergeMessagesByIdentity([...incoming, ...existing]);
+        // Replace-write (not union) so the dropped messages leave the cached
+        // record too — a union write would resurrect them next session.
+        if (shouldHydrateFullPage) inboxCache.replaceThreadNow(clean(conversationIdentifier), mergedMessages);
         return {
           ...conversation,
           messages: mergedMessages,

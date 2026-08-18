@@ -103,6 +103,28 @@ export const saveList = (conversations, channelFilter) => {
 // merged message window, with a fail-safe fallback. See inboxCacheStore.
 export const orderMessages = (messages, fallback) => store.orderMessages(messages, fallback);
 
+// Pure re-export: drop cached messages the authoritative server page no longer
+// contains (deleted on the server), keeping optimistic bubbles and history older
+// than the page window. See inboxCacheStore.reconcileWithServerPage.
+export const reconcileWithServerPage = (cachedMessages, serverPage, identityKeysFn) => {
+  try {
+    return store.reconcileWithServerPage(cachedMessages, serverPage, identityKeysFn);
+  } catch {
+    safeLog("reconcile");
+    return cachedMessages;
+  }
+};
+
+// Immediate replace-write of a thread's cached window — full-page hydrate only
+// (its window is already cache ∪ server page, reconciled). A union write here
+// would resurrect server-deleted messages on the next session.
+export const replaceThreadNow = (conversationKey, messages) =>
+  guard("replaceThread", async () => {
+    const ns = resolveNamespace();
+    if (!ns || !conversationKey) return false;
+    return store.replaceThread(getAdapter(), ns, conversationKey, messages);
+  }, false);
+
 export const primeThread = (conversationKey) =>
   guard("readThread", async () => {
     const ns = resolveNamespace();
@@ -172,6 +194,8 @@ export default {
   saveList,
   primeThread,
   orderMessages,
+  reconcileWithServerPage,
+  replaceThreadNow,
   saveThread,
   saveThreadNow,
   saveLastThread,

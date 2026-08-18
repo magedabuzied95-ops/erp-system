@@ -4937,8 +4937,20 @@ export default function AiInboxPwa() {
         headers,
         perfComponent: "AiInboxPwa.messages",
       });
+      const conversationCacheKey = clean(selectedConversation.conversation_key || selectedConversation.session_id);
       patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => {
-        const mergedMessages = mergeMessagesByIdentity([...asArray(payload.messages), ...asArray(conversation.messages)]);
+        const incoming = asArray(payload.messages);
+        // Inside the window the authoritative full page covers, the server's
+        // word is final: a cache-primed message with a real server id that the
+        // page no longer returns was DELETED on the server and must not
+        // survive the merge (union-only merges kept deleted duplicates alive).
+        const existing = shouldHydrateFullPage
+          ? inboxCache.reconcileWithServerPage(asArray(conversation.messages), incoming, messageIdentityKeys)
+          : asArray(conversation.messages);
+        const mergedMessages = mergeMessagesByIdentity([...incoming, ...existing]);
+        // Replace-write (not union) so dropped messages leave the cached record
+        // too — a union write would resurrect them next session.
+        if (shouldHydrateFullPage) inboxCache.replaceThreadNow(conversationCacheKey, mergedMessages);
         return {
           ...conversation,
           messages: mergedMessages,
