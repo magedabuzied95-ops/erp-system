@@ -5201,19 +5201,36 @@ router.get("/corrections/search", protect, permit("settings", "view"), async (re
 // Address-request link: a public URL the customer opens to type their own
 // shipping address. Creating one is idempotent per conversation (a live pending
 // link is reused); the composer polls the GET for the submitted address.
+//
+// Both handlers resolve the conversation with ONE indexed ai_support_sessions
+// read. The first rollout went through loadLeadConversationForAction — a full
+// 1000-conversation inbox load on every tap AND every 7s poll — which is what
+// made "إرسال رابط العنوان" feel stuck for the seller.
+const resolveAddressRequestSession = async ({ tenantId, conversationId }) => {
+  const direct = await db.query(
+    `SELECT session_id, channel FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
+    [tenantId, conversationId]
+  );
+  if (direct.rows[0]) return direct.rows[0];
+  // The composers always pass the canonical session_id; this fallback only
+  // serves aliases (external ids), where the slow resolution is acceptable.
+  const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+  return conversation ? { session_id: conversation.session_id, channel: conversation.channel || conversation.source || "" } : null;
+};
+
 router.post("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: envText(req.params.conversationId) });
-    if (!conversation) {
+    const session = await resolveAddressRequestSession({ tenantId, conversationId: envText(req.params.conversationId) });
+    if (!session) {
       throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
     }
     const request = await createAddressRequest({
       tenantId,
-      sessionId: envText(conversation.session_id || req.params.conversationId),
-      channel: envText(conversation.channel || conversation.source),
-      customerName: envText(req.body?.customer_name || conversation.customer_name || conversation.customer_profile?.name),
-      customerPhone: envText(req.body?.customer_phone || conversation.customer_profile?.phone || conversation.customer_phone),
+      sessionId: envText(session.session_id),
+      channel: envText(req.body?.channel || session.channel),
+      customerName: envText(req.body?.customer_name),
+      customerPhone: envText(req.body?.customer_phone),
       createdBy: req.user?.id || null,
     });
     return res.status(201).json({ success: true, request });
@@ -5225,11 +5242,9 @@ router.post("/conversations/:conversationId/address-request", protect, permit("s
 router.get("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: envText(req.params.conversationId) });
-    if (!conversation) {
-      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
-    }
-    const request = await getLatestAddressRequest({ tenantId, sessionId: envText(conversation.session_id || req.params.conversationId) });
+    // Polled every few seconds while the composer is open: a single indexed
+    // read against the requests table, no conversation resolution at all.
+    const request = await getLatestAddressRequest({ tenantId, sessionId: envText(req.params.conversationId) });
     return res.json({ success: true, request });
   } catch (error) {
     return sendError(res, error, "Failed to load address request");

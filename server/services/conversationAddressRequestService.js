@@ -52,6 +52,27 @@ const ensureAddressRequestSchema = () => {
       `);
       await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS conversation_address_requests_code ON conversation_address_requests (code)`);
       await db.query(`CREATE INDEX IF NOT EXISTS conversation_address_requests_session ON conversation_address_requests (tenant_id, session_id, created_at DESC)`);
+      // One pending link per conversation, enforced by the database. Rapid taps
+      // during the slow first rollout raced SELECT-then-INSERT into several
+      // pending codes for one conversation, and every code the customer opened
+      // accepted a submit — hence the duplicated thread notes. Demote the
+      // strays first or the unique index can never build.
+      await db.query(`
+        UPDATE conversation_address_requests
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE status = 'pending'
+          AND id NOT IN (
+            SELECT MAX(id)
+            FROM conversation_address_requests
+            WHERE status = 'pending'
+            GROUP BY COALESCE(tenant_id, 0), session_id
+          )
+      `);
+      await db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS conversation_address_requests_one_pending
+        ON conversation_address_requests (COALESCE(tenant_id, 0), session_id)
+        WHERE status = 'pending'
+      `);
     })().catch((error) => {
       schemaReadyPromise = null;
       throw error;
@@ -114,45 +135,54 @@ export const createAddressRequest = async ({
     throw Object.assign(new Error("Conversation id is required"), { status: 400, code: "ADDRESS_REQUEST_SESSION_REQUIRED" });
   }
   // One live link per conversation: re-sending reuses the pending code (the
-  // customer may already have it) and just extends its life.
-  const existing = await db.query(
-    `
-    SELECT * FROM conversation_address_requests
-    WHERE COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0)
-      AND session_id = $2
-      AND status = 'pending'
-      AND expires_at > NOW()
-    ORDER BY created_at DESC
-    LIMIT 1
-    `,
-    [tenantId || null, safeSessionId]
-  );
+  // customer may already have it) and just extends its life. An expired
+  // pending row is reused too — same URL, new lease — because the partial
+  // unique index below admits only one pending row either way.
   const expiresAt = new Date(Date.now() + ADDRESS_REQUEST_TTL_HOURS * 3600_000);
-  if (existing.rows[0]) {
+  const reusePending = async () => {
     const refreshed = await db.query(
       `
       UPDATE conversation_address_requests
-      SET expires_at = $2,
-          customer_name = COALESCE(NULLIF($3, ''), customer_name),
-          customer_phone = COALESCE(NULLIF($4, ''), customer_phone),
+      SET expires_at = $3,
+          customer_name = COALESCE(NULLIF($4, ''), customer_name),
+          customer_phone = COALESCE(NULLIF($5, ''), customer_phone),
           updated_at = NOW()
-      WHERE id = $1
+      WHERE id = (
+        SELECT id FROM conversation_address_requests
+        WHERE COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0)
+          AND session_id = $2
+          AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1
+      )
       RETURNING *
       `,
-      [existing.rows[0].id, expiresAt, text(customerName), text(customerPhone)]
+      [tenantId || null, safeSessionId, expiresAt, text(customerName), text(customerPhone)]
     );
-    return { ...serializeForStaff(refreshed.rows[0]), reused: true };
+    return refreshed.rows[0] || null;
+  };
+  const reused = await reusePending();
+  if (reused) return { ...serializeForStaff(reused), reused: true };
+  try {
+    const inserted = await db.query(
+      `
+      INSERT INTO conversation_address_requests
+        (tenant_id, session_id, channel, code, status, customer_name, customer_phone, created_by, expires_at)
+      VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
+      RETURNING *
+      `,
+      [tenantId || null, safeSessionId, text(channel), generateAddressRequestCode(), text(customerName), text(customerPhone), createdBy || null, expiresAt]
+    );
+    return { ...serializeForStaff(inserted.rows[0]), reused: false };
+  } catch (error) {
+    // Unique-index collision: a concurrent create won the race. Their pending
+    // row is the conversation's one true link — hand it back.
+    if (String(error?.code) === "23505") {
+      const winner = await reusePending();
+      if (winner) return { ...serializeForStaff(winner), reused: true };
+    }
+    throw error;
   }
-  const inserted = await db.query(
-    `
-    INSERT INTO conversation_address_requests
-      (tenant_id, session_id, channel, code, status, customer_name, customer_phone, created_by, expires_at)
-    VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
-    RETURNING *
-    `,
-    [tenantId || null, safeSessionId, text(channel), generateAddressRequestCode(), text(customerName), text(customerPhone), createdBy || null, expiresAt]
-  );
-  return { ...serializeForStaff(inserted.rows[0]), reused: false };
 };
 
 export const getLatestAddressRequest = async ({ tenantId, sessionId } = {}) => {
@@ -311,6 +341,10 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
       sessionId: row.session_id,
       message: `📍 العميل أرسل عنوانه من رابط العنوان:\n${[address.governorate, address.city_area, address.street_address, `مبنى ${address.building_number}`].filter(Boolean).join(" — ")}`,
       source: "address_request_link",
+      // Keyed to the request row: the transcript layer dedupes on this, so no
+      // retry or race can ever put this note in the thread twice.
+      idempotencyKey: `address-request-note:${row.id}`,
+      clientRequestId: `address-request-note:${row.id}`,
       upsertSession: false,
     });
   } catch (error) {

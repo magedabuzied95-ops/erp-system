@@ -30,8 +30,14 @@ test("the service validates the Bosta hierarchy before trusting anonymous ids", 
   assert.match(service, /JOIN shipping_zones z ON z\.id = d\.zone_id/);
   assert.match(service, /JOIN shipping_cities c ON c\.id = d\.city_id/);
   assert.match(service, /dropoff_available IS TRUE/);
-  // A pending link is reused, not multiplied, and the phone is only ever masked.
-  assert.match(service, /status = 'pending'\s+AND expires_at > NOW\(\)/);
+  // One pending link per conversation is a DATABASE invariant, with the losing
+  // side of a create race recovering the winner's row instead of erroring.
+  assert.match(service, /conversation_address_requests_one_pending/);
+  assert.match(service, /WHERE status = 'pending'\s*`\)/);
+  assert.match(service, /23505/);
+  // The thread note carries a request-keyed idempotency key so no retry or
+  // race can duplicate it, and the phone is only ever masked.
+  assert.match(service, /address-request-note:\$\{row\.id\}/);
   assert.match(service, /customer_phone_masked: maskPhone/);
   // The submit fans out: saved address, thread note, socket refresh.
   assert.match(service, /saveCustomerAddress\(\{ tenantId: row\.tenant_id/);
@@ -44,6 +50,11 @@ test("the inbox exposes authenticated create/status endpoints for the link", () 
   assert.match(inboxRoutes, /router\.get\("\/conversations\/:conversationId\/address-request"/);
   assert.match(inboxRoutes, /createAddressRequest\(\{/);
   assert.match(inboxRoutes, /getLatestAddressRequest\(\{/);
+  // The 7s poll and the create button must never pay for a full inbox load:
+  // the session resolves through one indexed read, with the slow
+  // loadLeadConversationForAction kept only as the alias fallback.
+  assert.match(inboxRoutes, /resolveAddressRequestSession/);
+  assert.match(inboxRoutes, /SELECT session_id, channel FROM ai_support_sessions WHERE tenant_id = \$1 AND session_id = \$2 LIMIT 1/);
 });
 
 test("the public page is routed at /addr/:code and drives the Bosta pickers", () => {
