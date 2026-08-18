@@ -48,10 +48,24 @@ for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replac
 
 const HOST = args.get("host");
 const CHANNEL = Number(args.get("channel") || 1);
+// Used only for the keyframe interval. Main is 25 fps on this recorder, sub is 7.
+const SOURCE_FPS = Number(args.get("fps") || 7);
 // Sub stream. 352x288 at 7fps and 80 kbps on this recorder — the cheapest real
 // source, and the one the grid will eventually use.
 const SUBTYPE = Number(args.get("subtype") ?? 1);
 const DURATION_S = Number(args.get("seconds") || 60);
+// Quality mode. CRF targets a visual quality level and lets the bitrate land
+// wherever it needs to, which is the right tool when the question is "how good
+// can this look" rather than "how small can this get".
+const CRF = args.get("crf") ? Number(args.get("crf")) : null;
+// Display aspect. 960x1080 is Dahua 1080N: encoded at half horizontal
+// resolution and meant to be shown at 1920x1080. Setting the aspect is
+// METADATA ONLY -- it does not resample a single pixel -- so it presents the
+// source faithfully rather than squeezed into a portrait-shaped box.
+const ASPECT = args.get("aspect") || null;
+// Leave the pipeline up after the run so a human can look at the picture.
+const PRESET = args.get("preset") || null;
+const KEEP = String(args.get("keep") || "").toLowerCase() === "true";
 
 if (!HOST || !/^\d{1,3}(\.\d{1,3}){3}$/.test(HOST)) {
   console.error("refusing to run: --host must be a single explicit IPv4 address");
@@ -185,6 +199,16 @@ const writeConfig = () => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Bytes the published path has sent, from the media server itself. */
+const pathBytes = async (name) => {
+  try {
+    const res = await fetch(`http://127.0.0.1:${API_PORT}/v3/paths/get/${name}`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    return { sent: Number(body.bytesSent) || 0, received: Number(body.bytesReceived) || 0 };
+  } catch { return null; }
+};
+
 const measure = async (pid) =>
   new Promise((resolve) => {
     const ps = spawn("powershell.exe", [
@@ -269,11 +293,17 @@ const main = async () => {
     // of a 7 fps camera, burning CPU to invent frames nobody asked for.
     "-fps_mode", "passthrough",
     "-c:v", "libx264",
-    "-preset", "veryfast",
+    // A slower preset spends more CPU searching for a better encode at the
+    // same quality. At CIF this was irrelevant; at 960x1080 it is the
+    // difference between carrying the source faithfully and smearing it.
+    "-preset", PRESET || (CRF !== null ? "medium" : "veryfast"),
     "-tune", "zerolatency",
-    // ~2 s keyframe interval at 7 fps, so WebRTC can start quickly.
-    "-g", "14",
-    "-b:v", "150k", "-maxrate", "200k", "-bufsize", "300k",
+    "-g", String(Math.max(2, Math.round(SOURCE_FPS * 2))),
+    ...(CRF !== null
+      // Quality-targeted. No cap: the encoder spends what the picture needs.
+      ? ["-crf", String(CRF)]
+      : ["-b:v", "150k", "-maxrate", "200k", "-bufsize", "300k"]),
+    ...(ASPECT ? ["-aspect", ASPECT] : []),
     "-pix_fmt", "yuv420p",
     // The encoder reports audio disabled on every channel; nothing to carry.
     "-an",
@@ -321,10 +351,17 @@ const main = async () => {
   console.log();
   console.log(`--- stability: sampling for ${DURATION_S}s ---`);
   const samples = [];
+  const bitrateSamples = [];
+  let lastBytes = null;
   const started = Date.now();
   while ((Date.now() - started) / 1000 < DURATION_S) {
     await sleep(10000);
-    const [f, m] = await Promise.all([measure(ff.pid), measure(mtx.pid)]);
+    const [f, m, bytes] = await Promise.all([measure(ff.pid), measure(mtx.pid), pathBytes("live")]);
+    if (bytes && lastBytes) {
+      const kbps = Math.round(((bytes.received - lastBytes.received) * 8) / 10 / 1000);
+      if (kbps > 0) bitrateSamples.push(kbps);
+    }
+    if (bytes) lastBytes = bytes;
     const elapsed = Math.round((Date.now() - started) / 1000);
     samples.push({ elapsed, ffmpeg: f, mediamtx: m, alive: ff.exitCode === null });
     console.log(
@@ -345,10 +382,24 @@ const main = async () => {
     console.log(`  total RAM: ${(last.ffmpeg.rssMb + last.mediamtx.rssMb).toFixed(1)} MB`);
   }
 
+  if (bitrateSamples.length) {
+    const avg = Math.round(bitrateSamples.reduce((a, b) => a + b, 0) / bitrateSamples.length);
+    console.log(`  output bitrate: ~${avg} kbps (min ${Math.min(...bitrateSamples)}, max ${Math.max(...bitrateSamples)})`);
+  }
+
   const realErrors = ffErrors.filter((l) => /error|failed|invalid|cannot/i.test(l));
   console.log();
   console.log(`  ffmpeg error lines: ${realErrors.length}`);
   realErrors.slice(0, 5).forEach((l) => console.log("    " + l));
+
+  if (KEEP) {
+    console.log();
+    console.log("LEFT RUNNING for visual inspection.");
+    console.log(`  open: http://127.0.0.1:${WHEP_PORT}/live`);
+    console.log("  stop with: Stop-Process -Name ffmpeg,mediamtx -Force");
+    console.log("  then DELETE media-poc/mediamtx.yml -- it holds the credential.");
+    return;
+  }
 
   ff.kill();
   mtx.kill();

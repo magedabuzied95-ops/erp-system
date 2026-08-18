@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Channel 1 — 1080N aspect corrected</title>
+<style>
+  /* ------------------------------------------------------------------
+     THE 1080N PROBLEM
+     ------------------------------------------------------------------
+     Dahua encodes this channel at 960x1080 with 2:1 pixels, intended for
+     display at 1920x1080. It declares NO sample aspect ratio, and WebRTC
+     discards the one our encoder sets, so a browser sees 960x1080 square
+     pixels and draws a tall, narrow picture.
+
+     The correction is display-only. Nothing is resampled, no pixels are
+     invented, and the decoded frames are exactly what the recorder sent --
+     they are simply laid out at the geometry they were always meant for.
+     ------------------------------------------------------------------ */
+  :root { --dar: 16 / 9; }          /* display aspect, from the device profile */
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0d10; color: #cbd5e1;
+               font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+  .stage {                           /* fullscreen goes on THIS, not the video */
+    position: relative; width: 100%; height: 100%;
+    display: grid; place-items: center; background: #000;
+  }
+
+  .frame {                           /* the 16:9 box the picture lives in */
+    position: relative;
+    aspect-ratio: var(--dar);
+    width: min(100%, calc(100vh * 16 / 9));
+    max-height: 100%;
+    background: #000;
+  }
+
+  video {
+    display: block; width: 100%; height: 100%;
+    /* `fill` is the whole trick: stretch 960x1080 into the 16:9 frame.
+       `contain` would preserve the WRONG 0.889 aspect and letterbox it. */
+    object-fit: fill;
+    background: #000;
+  }
+
+  /* FULLSCREEN.
+     The stage is fullscreened rather than the video. Fullscreening the video
+     itself makes the browser letterbox on its intrinsic 0.889 aspect, which
+     reintroduces exactly the tall picture we are fixing. With the stage
+     fullscreen, the frame keeps its 16:9 and centres inside the screen. */
+  .stage:fullscreen { width: 100vw; height: 100vh; }
+  .stage:fullscreen .frame { width: min(100vw, calc(100vh * 16 / 9)); max-height: 100vh; }
+  .stage:-webkit-full-screen { width: 100vw; height: 100vh; }
+
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 12px;
+         display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+         background: rgba(11,13,16,.86); border-top: 1px solid #1e293b; }
+  .stage:fullscreen .bar { position: absolute; }
+  button { font: inherit; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+           border: 1px solid #334155; background: #111827; color: #e2e8f0; }
+  button:hover { border-color: #64748b; }
+  code { color: #93c5fd; }
+  .warn { color: #fca5a5; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="frame">
+    <video id="v" autoplay muted playsinline></video>
+  </div>
+  <div class="bar">
+    <button id="fs">Fullscreen</button>
+    <span>coded <code id="coded">–</code></span>
+    <span>rendered <code id="rendered">–</code></span>
+    <span>aspect <code id="aspect">–</code></span>
+    <span id="status" class="warn">connecting…</span>
+  </div>
+</div>
+
+<script>
+// Minimal WHEP client. MediaMTX speaks WHEP: POST the offer, get the answer.
+const WHEP = "http://127.0.0.1:8889/live/whep";
+const v = document.getElementById("v");
+const el = (id) => document.getElementById(id);
+
+const report = () => {
+  const b = v.getBoundingClientRect();
+  el("coded").textContent = v.videoWidth + "x" + v.videoHeight;
+  el("rendered").textContent = Math.round(b.width) + "x" + Math.round(b.height);
+  const a = b.height ? b.width / b.height : 0;
+  el("aspect").textContent = a.toFixed(3) + (Math.abs(a - 16 / 9) < 0.02 ? "  (16:9 ✓)" : "  (NOT 16:9)");
+};
+
+el("fs").onclick = () => {
+  const stage = document.getElementById("stage");
+  if (document.fullscreenElement) document.exitFullscreen();
+  else stage.requestFullscreen();
+};
+document.addEventListener("fullscreenchange", () => setTimeout(report, 120));
+addEventListener("resize", report);
+
+(async () => {
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  pc.addTransceiver("video", { direction: "recvonly" });
+  pc.addTransceiver("audio", { direction: "recvonly" });
+  pc.ontrack = (e) => { v.srcObject = e.streams[0]; };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await new Promise((r) => {
+    if (pc.iceGatheringState === "complete") return r();
+    pc.onicegatheringstatechange = () => pc.iceGatheringState === "complete" && r();
+    setTimeout(r, 1500);
+  });
+
+  const res = await fetch(WHEP, {
+    method: "POST",
+    headers: { "content-type": "application/sdp" },
+    body: pc.localDescription.sdp,
+  });
+  if (!res.ok) { el("status").textContent = "WHEP failed: " + res.status; return; }
+  await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+
+  v.onloadedmetadata = () => { el("status").textContent = ""; report(); };
+  v.onresize = report;
+  setInterval(report, 2000);
+})();
+</script>
+</body>
+</html>
