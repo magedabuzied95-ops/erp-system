@@ -7085,6 +7085,7 @@ export default function AiInboxPwa() {
           headers={headers}
           onClose={() => setOrderComposerOpen(false)}
           onSubmit={createDraftOrder}
+          onSendMessage={sendManualReply}
         />
         <ProductCardPicker
           open={availableBySizePickerConfig.open}

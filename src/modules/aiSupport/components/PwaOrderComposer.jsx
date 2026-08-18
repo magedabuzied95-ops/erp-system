@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Loader2, MapPin, PackageSearch, ShoppingBag, ShoppingCart, X } from "lucide-react";
+import { CheckCircle2, Link2, Loader2, MapPin, PackageSearch, ShoppingBag, ShoppingCart, X } from "lucide-react";
 import { api } from "../../../shared/api/api";
 import { formatCurrency } from "../../../shared/lib/currency";
 import ProductCardPicker from "./ProductCardPicker";
@@ -26,7 +26,18 @@ const readConversationDraft = (key) => {
   try { return JSON.parse(window.localStorage.getItem(key) || "{}") || {}; } catch { return {}; }
 };
 
-export default function PwaOrderComposer({ open, conversation = {}, busy = false, headers = {}, onClose, onSubmit }) {
+const addressRequestEndpoint = (sessionId = "") => {
+  const raw = text(sessionId);
+  let encoded = "";
+  try {
+    encoded = encodeURIComponent(decodeURIComponent(raw));
+  } catch {
+    encoded = encodeURIComponent(raw);
+  }
+  return `/ai-inbox/conversations/${encoded}/address-request`;
+};
+
+export default function PwaOrderComposer({ open, conversation = {}, busy = false, headers = {}, onClose, onSubmit, onSendMessage }) {
   const { t, i18n } = useTranslation();
   const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const profile = conversation.customer_profile || {};
@@ -35,6 +46,9 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({});
   const [locations, setLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
+  const [addressRequest, setAddressRequest] = useState(null);
+  const [addressLinkBusy, setAddressLinkBusy] = useState(false);
+  const appliedAddressRequestRef = useRef("");
   const formReadyRef = useRef(false);
   const skipNextDraftSaveRef = useRef(false);
   const draftKey = useMemo(() => conversationDraftKey(conversation), [conversation]);
@@ -46,6 +60,7 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
     skipNextDraftSaveRef.current = true;
     const savedDraft = readConversationDraft(draftKey);
     setProduct(null); setQuantity(1);
+    setAddressRequest(null); setAddressLinkBusy(false); appliedAddressRequestRef.current = "";
     setForm({
       customer_name: text(conversation.customer_name || profile.name || profile.display_name),
       customer_phone: text(profile.phone || conversation.customer_phone || conversation.channel_metadata?.resolved_phone),
@@ -94,6 +109,78 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
     return () => { active = false; };
   }, [form.shipping_zone_id, headers, open]);
 
+  // The address the customer typed on the public link page, applied in one
+  // shot. Setting the city id re-triggers the zone/district loads above.
+  const applyAddressRequest = (request = null) => {
+    const address = request?.address || {};
+    if (!text(address.shipping_city_id)) return;
+    setForm((current) => ({
+      ...current,
+      shipping_city_id: text(address.shipping_city_id),
+      shipping_zone_id: text(address.shipping_zone_id),
+      shipping_district_id: text(address.shipping_district_id),
+      street_address: text(address.street_address),
+      building_number: text(address.building_number),
+      floor_number: text(address.floor_number),
+      apartment_number: text(address.apartment_number),
+      landmark: text(address.landmark),
+      ...(text(request?.customer_name) ? { customer_name: text(request.customer_name) } : {}),
+      ...(text(request?.customer_phone) ? { customer_phone: text(request.customer_phone) } : {}),
+    }));
+  };
+
+  // Poll the link while it is pending. Auto-fill only on the pending→submitted
+  // transition seen while the sheet is open; an address that predates this
+  // session stays behind its "use" button so it cannot clobber manual typing.
+  useEffect(() => {
+    const sessionId = text(conversation.session_id);
+    if (!open || !sessionId) return undefined;
+    let active = true;
+    let timer = null;
+    const load = async (isFirst = false) => {
+      try {
+        const payload = await api.get(addressRequestEndpoint(sessionId), { headers, suppressErrorStatuses: [404, 500] });
+        if (!active) return;
+        const request = payload?.request || null;
+        setAddressRequest((previous) => {
+          if (!isFirst && request?.status === "submitted" && previous?.status === "pending" && appliedAddressRequestRef.current !== String(request.id)) {
+            appliedAddressRequestRef.current = String(request.id);
+            applyAddressRequest(request);
+          }
+          return request;
+        });
+        if (request?.status === "pending") timer = window.setTimeout(() => load(false), 7000);
+      } catch { /* polling is best-effort */ }
+    };
+    load(true);
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.session_id, headers, open, addressLinkBusy]);
+
+  const sendAddressLink = async () => {
+    const sessionId = text(conversation.session_id);
+    if (addressLinkBusy || !sessionId) return;
+    setAddressLinkBusy(true);
+    try {
+      const payload = await api.post(
+        addressRequestEndpoint(sessionId),
+        { customer_name: text(form.customer_name), customer_phone: text(form.customer_phone) },
+        { headers, perfComponent: "AiInboxPwa.addressRequest" }
+      );
+      const request = payload?.request || null;
+      setAddressRequest(request);
+      if (request?.url && typeof onSendMessage === "function") {
+        const firstName = text(form.customer_name).split(" ")[0];
+        await onSendMessage(
+          `أهلاً ${firstName || "بيك"} 🌟\nعشان نجهز أوردرك بسرعة، اكتب عنوان التوصيل من الرابط ده — دقيقة واحدة بس 👇\n${request.url}`,
+          { flow: "address_link" }
+        );
+      }
+    } catch { /* the row keeps its previous state; the seller can retry */ } finally {
+      setAddressLinkBusy(false);
+    }
+  };
+
   const city = useMemo(() => locations.cities.find((x) => idOf(x) === form.shipping_city_id), [form.shipping_city_id, locations.cities]);
   const zone = useMemo(() => locations.zones.find((x) => idOf(x) === form.shipping_zone_id), [form.shipping_zone_id, locations.zones]);
   const district = useMemo(() => locations.districts.find((x) => idOf(x) === form.shipping_district_id), [form.shipping_district_id, locations.districts]);
@@ -111,7 +198,22 @@ export default function PwaOrderComposer({ open, conversation = {}, busy = false
         <div className="mt-4 space-y-4">
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900"><ShoppingBag className="h-4 w-4 text-emerald-600" />{t("aiSupport.inbox.pwaOrder.productAndStock")}</div><button type="button" onClick={() => setPickerOpen(true)} className="flex min-h-20 w-full items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-3 text-start">{product ? (imageOf(product) ? <img src={imageOf(product)} alt="" className="h-16 w-16 rounded-xl object-cover" /> : <span className="grid h-16 w-16 place-items-center rounded-xl bg-slate-100"><ShoppingBag /></span>) : <span className="grid h-16 w-16 place-items-center rounded-xl bg-slate-100"><PackageSearch /></span>}<span className="min-w-0 flex-1"><strong className="block truncate text-sm text-slate-900">{product?.product_name || product?.name || t("aiSupport.inbox.pwaOrder.searchChooseProduct")}</strong><span className="mt-1 block text-xs text-slate-500">{product ? [product.color, product.size, formatCurrency(price)].filter(Boolean).join(" • ") : t("aiSupport.inbox.pwaOrder.searchProductHint")}</span></span><span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-800">{product ? t("aiSupport.inbox.pwaOrder.change") : t("aiSupport.inbox.pwaOrder.choose")}</span></button>{product ? <div className="mt-3 grid grid-cols-[1fr_auto] gap-2"><div className="rounded-xl bg-emerald-50 p-3 text-xs font-black text-emerald-800">{t("aiSupport.inbox.pwaOrder.total", { total: formatCurrency(price * qty) })}</div><input aria-label={t("aiSupport.inbox.pwaOrder.quantity")} type="number" min="1" value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} className={`${input} w-20 text-center font-black`} /></div> : null}</section>
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="mb-3 text-sm font-black text-slate-900">{t("aiSupport.inbox.pwaOrder.customerData")}</div><div className="grid grid-cols-2 gap-2"><input value={form.customer_name || ""} onChange={(e) => set("customer_name", e.target.value)} placeholder={t("aiSupport.inbox.pwaOrder.customerName")} className={input} /><input value={form.customer_phone || ""} onChange={(e) => set("customer_phone", e.target.value)} placeholder={t("aiSupport.inbox.pwaOrder.phone")} inputMode="tel" className={input} /></div></section>
-          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="mb-1 flex items-center gap-2 text-sm font-black text-slate-900"><MapPin className="h-4 w-4 text-rose-500" />{t("aiSupport.inbox.pwaOrder.bostaAddress")}</div><p className="mb-3 text-[11px] text-slate-500">{t("aiSupport.inbox.pwaOrder.bostaAddressHint")}</p><div className="grid grid-cols-2 gap-2">
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="mb-1 flex items-center gap-2 text-sm font-black text-slate-900"><MapPin className="h-4 w-4 text-rose-500" />{t("aiSupport.inbox.pwaOrder.bostaAddress")}</div><p className="mb-3 text-[11px] text-slate-500">{t("aiSupport.inbox.pwaOrder.bostaAddressHint")}</p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 bg-white p-2.5">
+            {addressRequest?.status === "submitted" ? (<>
+              <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><CheckCircle2 className="h-4 w-4" />{t("aiSupport.inbox.order.addressLinkSubmitted")}</span>
+              <button type="button" onClick={() => { appliedAddressRequestRef.current = String(addressRequest.id); applyAddressRequest(addressRequest); }} className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800">{t("aiSupport.inbox.order.addressLinkUse")}</button>
+            </>) : (<>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                {addressRequest?.status === "pending" ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("aiSupport.inbox.order.addressLinkPending")}</>) : t("aiSupport.inbox.order.addressLinkHint")}
+              </span>
+              <button type="button" disabled={addressLinkBusy} onClick={sendAddressLink} className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-black text-white disabled:opacity-50">
+                {addressLinkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkResend") : t("aiSupport.inbox.order.addressLinkSend")}
+              </button>
+            </>)}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <select value={form.shipping_city_id || ""} onChange={(e) => setForm((x) => ({ ...x, shipping_city_id: e.target.value, shipping_zone_id: "", shipping_district_id: "" }))} disabled={locations.loading} className={input}><option value="">{locations.loading ? t("aiSupport.inbox.pwaOrder.loadingCities") : t("aiSupport.inbox.pwaOrder.bostaCity")}</option>{locations.cities.map((x) => <option key={idOf(x)} value={idOf(x)}>{labelOf(x, language)}</option>)}</select>
             <select value={form.shipping_zone_id || ""} onChange={(e) => setForm((x) => ({ ...x, shipping_zone_id: e.target.value, shipping_district_id: "" }))} disabled={!form.shipping_city_id} className={input}><option value="">{t("aiSupport.inbox.pwaOrder.zone")}</option>{locations.zones.map((x) => <option key={idOf(x)} value={idOf(x)}>{labelOf(x, language)}</option>)}</select>
             <select value={form.shipping_district_id || ""} onChange={(e) => set("shipping_district_id", e.target.value)} disabled={!form.shipping_zone_id} className={`${input} col-span-2`}><option value="">{t("aiSupport.inbox.pwaOrder.district")}</option>{locations.districts.map((x) => <option key={idOf(x)} value={idOf(x)}>{labelOf(x, language)}</option>)}</select>

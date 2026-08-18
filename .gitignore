@@ -128,3 +128,5 @@ server/services/*
 !server/services/aiSemanticSearchService.js
 !server/services/aiAgreementScoreService.js
 !server/services/employeeAdvanceSalesService.js
+# Customer address-request links (AI inbox → public storefront page).
+!server/services/conversationAddressRequestService.js

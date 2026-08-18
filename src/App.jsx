@@ -221,6 +221,7 @@ const PrivacyPage = lazy(() => import("./storefront/pages/LegalPages").then((mod
 const TermsPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.TermsPage })));
 const DataDeletionPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.DataDeletionPage })));
 const OrderConfirmationActionPage = lazy(() => import("./storefront/pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
+const CustomerAddressPage = lazy(() => import("./storefront/pages/CustomerAddressPage.jsx").then((module) => ({ default: module.CustomerAddressPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
 
@@ -510,6 +511,15 @@ function App() {
         element={
           <Suspense fallback={<RouteSkeleton />}>
             <OrderConfirmationActionPage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/addr/:code"
+        element={
+          <Suspense fallback={<RouteSkeleton />}>
+            <CustomerAddressPage />
           </Suspense>
         }
       />

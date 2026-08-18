@@ -99,6 +99,10 @@ import {
 } from "../services/aiInboxLeadActionsService.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "../services/inboundMediaService.js";
 import {
+  createAddressRequest,
+  getLatestAddressRequest,
+} from "../services/conversationAddressRequestService.js";
+import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
 import { likeComment, probePrivateReplyComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
@@ -5191,6 +5195,44 @@ router.get("/corrections/search", protect, permit("settings", "view"), async (re
     return res.json({ success: true, corrections });
   } catch (error) {
     return sendError(res, error, "Failed to search corrections");
+  }
+});
+
+// Address-request link: a public URL the customer opens to type their own
+// shipping address. Creating one is idempotent per conversation (a live pending
+// link is reused); the composer polls the GET for the submitted address.
+router.post("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: envText(req.params.conversationId) });
+    if (!conversation) {
+      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    }
+    const request = await createAddressRequest({
+      tenantId,
+      sessionId: envText(conversation.session_id || req.params.conversationId),
+      channel: envText(conversation.channel || conversation.source),
+      customerName: envText(req.body?.customer_name || conversation.customer_name || conversation.customer_profile?.name),
+      customerPhone: envText(req.body?.customer_phone || conversation.customer_profile?.phone || conversation.customer_phone),
+      createdBy: req.user?.id || null,
+    });
+    return res.status(201).json({ success: true, request });
+  } catch (error) {
+    return sendError(res, error, "Failed to create address request link");
+  }
+});
+
+router.get("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: envText(req.params.conversationId) });
+    if (!conversation) {
+      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    }
+    const request = await getLatestAddressRequest({ tenantId, sessionId: envText(conversation.session_id || req.params.conversationId) });
+    return res.json({ success: true, request });
+  } catch (error) {
+    return sendError(res, error, "Failed to load address request");
   }
 });
 

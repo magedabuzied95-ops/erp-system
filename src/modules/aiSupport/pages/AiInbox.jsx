@@ -24,6 +24,7 @@ import {
   Handshake,
   EyeOff,
   Info as InfoIcon,
+  Link2,
   Loader2,
   LockKeyhole,
   MapPin,
@@ -3794,7 +3795,7 @@ const composerLineFromCard = (card = {}) => ({
   quantity: 1,
 });
 
-function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick }) {
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick, onSendMessage }) {
   const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const [lines, setLines] = useState([]);
@@ -3823,6 +3824,11 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   // null keeps the server as the single authority on the price.
   const [quotedShipping, setQuotedShipping] = useState({ cost: null, source: "", freeShipping: false, loading: false });
   const [shippingOverride, setShippingOverride] = useState(null);
+  // The customer-facing address link: created here, delivered through the
+  // normal chat send path, and polled until the customer submits.
+  const [addressRequest, setAddressRequest] = useState(null);
+  const [addressLinkBusy, setAddressLinkBusy] = useState(false);
+  const appliedAddressRequestRef = useRef("");
 
   useEffect(() => {
     if (!open) return;
@@ -3846,6 +3852,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setNotes("");
     setQuotedShipping({ cost: null, source: "", freeShipping: false, loading: false });
     setShippingOverride(null);
+    setAddressRequest(null);
+    setAddressLinkBusy(false);
+    appliedAddressRequestRef.current = "";
     // Deliberately NOT keyed on `products`: the parent passes it as an inline
     // `cond ? list : []`, so it is a new array on every parent render. Adding a
     // model re-renders the parent, which used to re-run this effect and wipe the
@@ -3889,6 +3898,86 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       .catch(() => active && setSavedAddresses([]));
     return () => { active = false; };
   }, [customerPhone, headers, open]);
+
+  // Everything the customer typed on the public page lands in the form in one
+  // shot. City first: the id chain re-triggers the zone/district loads above.
+  const applyAddressRequest = (request = null) => {
+    const address = request?.address || {};
+    if (!clean(address.shipping_city_id)) return;
+    setShippingProvider("bosta");
+    setShippingCityId(clean(address.shipping_city_id));
+    setShippingZoneId(clean(address.shipping_zone_id));
+    setShippingDistrictId(clean(address.shipping_district_id));
+    setStreetAddress(clean(address.street_address));
+    setBuildingNumber(clean(address.building_number));
+    setFloorNumber(clean(address.floor_number));
+    setApartmentNumber(clean(address.apartment_number));
+    setLandmark(clean(address.landmark));
+    setGovernorate(clean(address.governorate));
+    setCityArea(clean(address.city_area));
+    if (clean(request?.customer_name)) setCustomerName(clean(request.customer_name));
+    if (clean(request?.customer_phone)) setCustomerPhone(clean(request.customer_phone));
+  };
+
+  // Load the latest link once on open, then keep polling while one is pending.
+  // Auto-fill happens only on the pending→submitted transition observed here —
+  // an address that was already submitted before the composer opened is offered
+  // as a button instead, so it never silently overwrites what the seller typed.
+  useEffect(() => {
+    if (!open || !conversation?.session_id) return undefined;
+    let active = true;
+    let timer = null;
+    const load = async (isFirst = false) => {
+      try {
+        const payload = await api.get(aiInboxConversationEndpoint(conversation.session_id, "/address-request"), { headers, suppressErrorStatuses: [404, 500] });
+        if (!active) return;
+        const request = payload?.request || null;
+        setAddressRequest((previous) => {
+          if (
+            !isFirst &&
+            request?.status === "submitted" &&
+            previous?.status === "pending" &&
+            appliedAddressRequestRef.current !== String(request.id)
+          ) {
+            appliedAddressRequestRef.current = String(request.id);
+            applyAddressRequest(request);
+          }
+          return request;
+        });
+        if (request?.status === "pending") timer = window.setTimeout(() => load(false), 7000);
+      } catch {
+        /* polling is best-effort */
+      }
+    };
+    load(true);
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation?.session_id, headers, open, addressLinkBusy]);
+
+  const sendAddressLink = async () => {
+    if (addressLinkBusy || !conversation?.session_id) return;
+    setAddressLinkBusy(true);
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(conversation.session_id, "/address-request"),
+        { customer_name: clean(customerName), customer_phone: clean(customerPhone) },
+        { headers, perfComponent: "AiInbox.addressRequest" }
+      );
+      const request = payload?.request || null;
+      setAddressRequest(request);
+      if (request?.url && typeof onSendMessage === "function") {
+        const firstName = clean(customerName).split(" ")[0];
+        await onSendMessage(
+          `أهلاً ${firstName || "بيك"} 🌟\nعشان نجهز أوردرك بسرعة، اكتب عنوان التوصيل من الرابط ده — دقيقة واحدة بس 👇\n${request.url}`,
+          { flow: "address_link" }
+        );
+      }
+    } catch {
+      /* the status row keeps its previous state; the seller can retry */
+    } finally {
+      setAddressLinkBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || shippingProvider !== "bosta") return;
@@ -4044,6 +4133,52 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           <div className="ai-order__group p-4">
             <div className="ai-order__group-title mb-1 flex items-center gap-2"><Truck className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.shippingSection")}</div>
             <p className="ai-order__group-hint mb-3">{t("aiSupport.inbox.order.shippingNote")}</p>
+
+            {/* The customer can type their own address: one tap drops a public
+                link into the chat, and the row below tracks it until the
+                submitted address lands back in this form. */}
+            <div className="ai-order__saved mb-3 flex flex-wrap items-center justify-between gap-2 p-2.5">
+              {addressRequest?.status === "submitted" ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-300">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {t("aiSupport.inbox.order.addressLinkSubmitted")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      appliedAddressRequestRef.current = String(addressRequest.id);
+                      applyAddressRequest(addressRequest);
+                    }}
+                    className="ai-order__saved-chip px-3 py-1.5"
+                  >
+                    {t("aiSupport.inbox.order.addressLinkUse")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="ai-order__label inline-flex items-center gap-1.5">
+                    {addressRequest?.status === "pending" ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {t("aiSupport.inbox.order.addressLinkPending")}
+                      </>
+                    ) : (
+                      t("aiSupport.inbox.order.addressLinkHint")
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={addressLinkBusy}
+                    onClick={sendAddressLink}
+                    className="ai-order__saved-chip inline-flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50"
+                  >
+                    {addressLinkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                    {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkResend") : t("aiSupport.inbox.order.addressLinkSend")}
+                  </button>
+                </>
+              )}
+            </div>
 
             {/* Addresses this customer has ordered to before — one tap instead of
                 retyping the whole block. */}
@@ -10098,6 +10233,7 @@ export default function AiInbox({ reviewerMode = false }) {
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
+        onSendMessage={sendManualReply}
         picks={composerPicks}
         onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
@@ -10616,6 +10752,7 @@ export default function AiInbox({ reviewerMode = false }) {
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
+        onSendMessage={sendManualReply}
         picks={composerPicks}
         onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
