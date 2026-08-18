@@ -5057,6 +5057,24 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
         }),
       ]
     );
+
+    // A queue item with no rendered slide is not reviewable — the operator sees an
+    // empty frame and has to trigger every story by hand. Rendering was only ever
+    // wired to the per-item button and to publish, so a fresh batch always looked
+    // imageless. Enqueue each new story here instead; the job queue runs them one
+    // at a time (AI_MARKETING_GENERATION_CONCURRENCY defaults to 1), so this stays
+    // a background trickle rather than dozens of concurrent sharp renders.
+    for (const item of inserted) {
+      if (item.content_type !== "story") continue;
+      try {
+        await enqueueAiMarketingQueueStoryAssetGeneration(tenantId, item.id);
+      } catch (error) {
+        console.warn("[ai-marketing-batch-story-asset-enqueue-failed]", {
+          queueId: item.id,
+          error: error?.message || String(error),
+        });
+      }
+    }
     return { run_id: runId, generated_stories: generatedStories, generated_posts: generatedPosts, rows: inserted };
   } catch (error) {
     console.error("[ai-daily-generate-query-error]", error);
