@@ -5950,20 +5950,14 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     background: linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
   }
 
-  .storefront-shell.storefront-dark :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-header-action, .sf-header-search, .sf-header-logo-chip, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-cart-row, .sf-checkout-payment-copy, .sf-checkout-info-line, .sf-checkout-info-box, .sf-checkout-panel, .sf-checkout-summary-item, .sf-checkout-summary-totals, .sf-order-item-row, .sf-empty-state, .sf-checkout-trust-pill, .sf-checkout-progress, .sf-storefront-card, .sf-small-product-card, .sf-product-card, .sf-review-card) {
+  .storefront-shell.storefront-dark :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-header-action, .sf-header-search, .sf-header-logo-chip, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-cart-row, .sf-checkout-payment-copy, .sf-checkout-info-line, .sf-checkout-info-box, .sf-checkout-panel, .sf-checkout-summary-item, .sf-checkout-summary-totals, .sf-order-item-row, .sf-empty-state, .sf-checkout-trust-pill, .sf-checkout-progress, .sf-storefront-card, .sf-small-product-card, .sf-product-card, .sf-review-card) {
     border-color: rgba(255, 255, 255, 0.08) !important;
     background-color: #101010 !important;
     color: #ffffff !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
   }
 
-  .storefront-shell.storefront-dark .sf-mobile-bottom-nav {
-    background: linear-gradient(180deg, rgba(5, 5, 5, 0.94), rgba(10, 10, 10, 0.96)) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.45) !important;
-  }
-
-  .storefront-shell.storefront-dark :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-empty-state) {
+  .storefront-shell.storefront-dark :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-empty-state) {
     background:
       radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.04), transparent 70%),
       linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
@@ -6506,9 +6500,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 }
 
-/* Storefront mobile navigation: isolated theme surface to prevent global theme collisions. */
+/* Storefront mobile navigation: isolated theme surface to prevent global theme collisions.
+   The wrapper must stay transparent — the rounded pill is the inner __surface element,
+   so any paint on the wrapper renders as a square-cornered slab behind it. */
 .storefront-shell .sf-mobile-bottom-nav,
-.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav {
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav,
+.storefront-shell.storefront-dark .sf-mobile-bottom-nav {
   border: 0 !important;
   background: transparent !important;
   background-image: none !important;
