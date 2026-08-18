@@ -643,10 +643,13 @@ const { ensureRestockIntentSchema } = await import("./services/restockIntentServ
 const { ensureRestockNotificationSchema } = await import("./services/restockNotificationService.js");
 const { ensureMessageDeliverySchema } = await import("./services/messageDeliveryReconciliationService.js");
 const { ensureInboundIntakeSchema } = await import("./services/aiInboundIntakeService.js");
-// Surveillance Center — Phase 1 is schema and abstractions only. No route is
-// mounted, no provider or transport is registered, and nothing here can reach a
-// device. See docs/surveillance-center-architecture.md.
+// Surveillance Center. The API is mounted and the Dahua provider is registered,
+// but the only TRANSPORT attached is the simulated device — and only outside
+// production, behind an explicit flag. Nothing in this build can reach real
+// hardware. See docs/surveillance-center-architecture.md.
 const { ensureSurveillanceSchema } = await import("./services/surveillance/surveillanceSchema.js");
+const { default: surveillanceRoutes } = await import("./routes/surveillance.js");
+const { registerSurveillanceRuntime } = await import("./services/surveillance/surveillanceRegistry.js");
 const { default: socialCommentsRoutes, socialCommentsDebugRoutes } = await import("./routes/socialComments.js");
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
@@ -1942,6 +1945,7 @@ app.use("/api/tiktok-business", tiktokBusinessRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
 app.use("/api/ai-studio", aiWorkflowRoutes);
+app.use("/api/surveillance", surveillanceRoutes);
 app.use("/api/social-comments", socialCommentsRoutes);
 app.use("/api/debug/social-comments", socialCommentsDebugRoutes);
 const registeredAiAgentEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-agent");
@@ -2364,6 +2368,9 @@ const bootstrapStartup = async () => {
     // process.exit(1) the whole backend, so this stays incapable of colliding
     // with existing data.
     await ensureSurveillanceSchema(db);
+    // Decides what this build can talk to. Only the simulated device is
+    // attached, and only outside production behind an explicit flag.
+    registerSurveillanceRuntime();
     console.log("[server] surveillance schema ensured");
     await ensureProductVariantSchema();
     console.log("[server] product variant schema ensured");

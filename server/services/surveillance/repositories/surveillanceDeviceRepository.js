@@ -248,7 +248,7 @@ export const saveCapabilities = async (tenantId, deviceId, { capabilities, probe
 
 const CHANNEL_COLUMNS = `
   id, tenant_id, device_id, channel_index, display_name, vendor_name,
-  is_enabled, ptz_supported, audio_supported, main_codec, sub_codec,
+  is_enabled, ptz_supported, audio_supported, stream_profiles,
   status, last_seen_at, created_at, updated_at
 `;
 
@@ -264,6 +264,7 @@ export const toPublicChannel = (row = {}) => ({
   audio_supported: row.audio_supported,
   status: row.status,
   last_seen_at: row.last_seen_at,
+  stream_profiles: Array.isArray(row.stream_profiles) ? row.stream_profiles : [],
 });
 
 export const listChannels = async (tenantId, deviceId, client = db) => {
@@ -291,15 +292,13 @@ export const upsertChannel = async (tenantId, deviceId, channel, client = db) =>
   const result = await client.query(
     `
     INSERT INTO surveillance_channels
-      (tenant_id, device_id, channel_index, vendor_name, is_enabled, ptz_supported, audio_supported, main_codec, sub_codec)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      (tenant_id, device_id, channel_index, vendor_name, is_enabled, ptz_supported, audio_supported)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (device_id, channel_index) DO UPDATE
     SET vendor_name = EXCLUDED.vendor_name,
         is_enabled = EXCLUDED.is_enabled,
         ptz_supported = EXCLUDED.ptz_supported,
         audio_supported = EXCLUDED.audio_supported,
-        main_codec = EXCLUDED.main_codec,
-        sub_codec = EXCLUDED.sub_codec,
         updated_at = CURRENT_TIMESTAMP
     WHERE surveillance_channels.tenant_id = $1
     RETURNING ${CHANNEL_COLUMNS}
@@ -312,8 +311,6 @@ export const upsertChannel = async (tenantId, deviceId, channel, client = db) =>
       channel.enabled !== false,
       Boolean(channel.ptz),
       Boolean(channel.audio),
-      String(channel.mainCodec || "").slice(0, 24),
-      String(channel.subCodec || "").slice(0, 24),
     ],
   );
   // The ON CONFLICT deliberately does NOT overwrite display_name. An import
@@ -344,4 +341,62 @@ export const updateChannel = async (tenantId, channelId, payload, client = db) =
     params,
   );
   return assertRowTenant(result.rows[0], tenantId, "channel");
+};
+
+/**
+ * Store the stream profiles discovered on a channel.
+ *
+ * Separate from upsertChannel because profiles come from a different device
+ * read and can be refreshed on their own — an encoder reconfiguration changes
+ * them without changing anything else about the channel.
+ *
+ * Written wholesale rather than merged: the device is the authority on which
+ * streams exist, and a profile that has disappeared from the device must
+ * disappear here too, or the UI keeps offering a stream that no longer plays.
+ */
+export const saveChannelProfiles = async (tenantId, channelId, profiles = [], client = db) => {
+  const result = await client.query(
+    `
+    UPDATE surveillance_channels
+    SET stream_profiles = $3::jsonb, updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1 AND id = $2
+    RETURNING ${CHANNEL_COLUMNS}
+    `,
+    [tenantId, channelId, JSON.stringify(Array.isArray(profiles) ? profiles : [])],
+  );
+  return assertRowTenant(result.rows[0], tenantId, "channel");
+};
+
+/* ------------------------------------------------------------------ *
+ * Saved layouts
+ * ------------------------------------------------------------------ */
+
+export const listLayouts = async (tenantId, userId, client = db) => {
+  const result = await client.query(
+    `
+    SELECT id, name, layout, slots, is_default, created_at, updated_at
+    FROM surveillance_user_layouts
+    WHERE tenant_id = $1 AND user_id = $2
+    ORDER BY is_default DESC, name
+    `,
+    [tenantId, userId],
+  );
+  return result.rows;
+};
+
+/**
+ * Layouts are per user, not per tenant. Two people watching the same shop want
+ * different tiles, and one overwriting the other's grid is the kind of small
+ * daily annoyance that makes a feature feel broken.
+ */
+export const saveLayout = async (tenantId, userId, payload, client = db) => {
+  const result = await client.query(
+    `
+    INSERT INTO surveillance_user_layouts (tenant_id, user_id, name, layout, slots, is_default)
+    VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+    RETURNING id, name, layout, slots, is_default, created_at, updated_at
+    `,
+    [tenantId, userId, payload.name, payload.layout, JSON.stringify(payload.slots || []), payload.is_default],
+  );
+  return result.rows[0];
 };
