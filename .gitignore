@@ -130,3 +130,7 @@ server/services/*
 
 # Real-device probe credentials. Local only, never committed.
 .surveillance-probe.local
+
+# Local media POC. mediamtx.yml holds a device credential.
+media-poc/
+mediamtx.yml
