@@ -1469,7 +1469,7 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
       <input
         type="number"
         min="0"
-        step="0.01"
+        step="1"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -1498,7 +1498,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
       <input
         type="number"
         min="0"
-        step="0.01"
+        step="1"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}

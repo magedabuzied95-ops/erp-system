@@ -3711,7 +3711,7 @@ function ProductEdit() {
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={product.custom_compare_price || ""}
                     onChange={(event) => updateProductField("custom_compare_price", event.target.value)}
                     placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}

@@ -3101,7 +3101,7 @@ function CreateProduct() {
                       <input
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="1"
                         value={customComparePrice}
                         onChange={(e) => setCustomComparePrice(e.target.value)}
                         placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}

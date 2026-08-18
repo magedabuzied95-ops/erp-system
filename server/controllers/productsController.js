@@ -45,6 +45,7 @@ import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterV
 import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSearch.js";
 import { normalizeCartonColors, normalizePurchaseMode, validatePurchasePatternConfiguration } from "../services/purchasePatternService.js";
 import { normalizeSizeGroupKey, normalizeSizeGroupKeys } from "../utils/sizeGroups.js";
+import { wholePoundPriceErrors, wholePoundVariantPriceErrors } from "../utils/priceValidation.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -5104,6 +5105,16 @@ export const createProduct = async (req, res) => {
   const performanceLogger = createProductSavePerformanceLogger();
 
   try {
+    // Whole-pound prices are enforced here, before any schema or transaction work,
+    // so a mistyped 949.99 never reaches the catalogue (or a story image).
+    const priceErrors = [
+      ...wholePoundPriceErrors(req.body || {}),
+      ...wholePoundVariantPriceErrors(req.body?.variants),
+    ];
+    if (priceErrors.length) {
+      client.release();
+      return res.status(400).json({ success: false, message: priceErrors[0], errors: priceErrors });
+    }
     await ensureProductSchema();
     await ensureProductVariantSchema();
     await ensureProductVariantManufacturerColumn();
@@ -5702,6 +5713,16 @@ export const updateProduct = async (req, res) => {
   const performanceLogger = createProductSavePerformanceLogger();
 
   try {
+    // Whole-pound prices are enforced here, before any schema or transaction work,
+    // so a mistyped 949.99 never reaches the catalogue (or a story image).
+    const priceErrors = [
+      ...wholePoundPriceErrors(req.body || {}),
+      ...wholePoundVariantPriceErrors(req.body?.variants),
+    ];
+    if (priceErrors.length) {
+      client.release();
+      return res.status(400).json({ success: false, message: priceErrors[0], errors: priceErrors });
+    }
     const bootstrapSteps = [
       ["ensureProductSchema", ensureProductSchema],
       ["ensureProductVariantSchema", ensureProductVariantSchema],
