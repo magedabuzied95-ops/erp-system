@@ -6121,7 +6121,12 @@ function POSPro() {
         paid_amount: checkoutPaymentSummary.paidAmount,
         change_amount: checkoutPaymentSummary.changeAmount,
         status: checkoutPaymentSummary.paymentStatus,
-        payment_status: creditSaleCheckout ? "unpaid" : partialCreditCheckout ? "partially_paid" : checkoutPaymentSummary.paymentStatus,
+        // On an edit "collect nothing now" does not mean "nothing was ever collected":
+        // whatever the invoice already took stays paid, so the deferred edit is
+        // partially paid rather than unpaid.
+        payment_status: creditSaleCheckout
+          ? (editActive && originalEditPaidAmount > 0.009 ? "partially_paid" : "unpaid")
+          : partialCreditCheckout ? "partially_paid" : checkoutPaymentSummary.paymentStatus,
         branch_id: checkoutBranchId,
         cash_amount: payloadCashAmount,
         card_amount: payloadCardAmount,

@@ -6148,6 +6148,16 @@ export const editOrder = async (req, res) => {
           }))
           .filter((payment) => payment.amount > 0)
       : [];
+    // An edit settles on credit exactly like a sale does: the cashier takes a deposit
+    // (or nothing at all) and the rest stays on the customer's account. What has to
+    // balance is the money that actually moved — the breakdown against paid_amount —
+    // never the whole amount the edit made due. Requiring the latter is what made آجل
+    // impossible on an edit: every deferred save was rejected as an underpayment even
+    // though the remainder is customer debt, not a missing collection.
+    const collectedNowAmount = normalizeInvoiceMoney(
+      additionalPaymentBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+    );
+    const deferredEditAmount = normalizeInvoiceMoney(Math.max(0, amountDueNow - additionalPaidAmount));
     const existingPaymentBreakdown = Array.isArray(loaded.order.payment_breakdown) ? loaded.order.payment_breakdown : [];
     const editPaymentBreakdown = [
       ...existingPaymentBreakdown,
@@ -6178,6 +6188,23 @@ export const editOrder = async (req, res) => {
       : Object.prototype.hasOwnProperty.call(req.body, "customer_phone")
         ? req.body.customer_phone || ""
         : loaded.order.customer_phone || "";
+
+    // Same rule the sale path enforces: debt with nobody to collect it from is not a
+    // deferred invoice, it is a hole in the books.
+    if (deferredEditAmount > 0.009 && !resolvedCustomerId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "customer_id is required to leave part of an edited invoice on credit",
+        edit_payment_difference: {
+          original_paid_amount: originalPaidAmount,
+          new_total: totalValue,
+          amount_due_now: amountDueNow,
+          additional_paid_amount: additionalPaidAmount,
+          deferred_amount: deferredEditAmount,
+        },
+      });
+    }
 
     const loadedSalesEmployeeId = loaded.order.sales_employee_id || loaded.order.salesperson_id || null;
     const requestedSalesEmployeeId = firstValue(
@@ -6374,6 +6401,21 @@ export const editOrder = async (req, res) => {
         );
         Object.assign(orderResult.rows[0], refreshed.rows[0] || {});
       }
+    } else if (deferredEditAmount > 0.009 && (resolvedCustomerId || orderResult.rows[0].customer_id)) {
+      // An edit that newly defers money follows the same rule the sale path follows:
+      // a deferred invoice for a customer who IS an employee is a سلفة, not customer
+      // debt. No-op for every ordinary customer — the service returns null when the
+      // customer is not a linked employee.
+      const editAdvanceSettlement = await settleOrderAsEmployeeAdvance(client, {
+        tenantId,
+        order: { ...orderResult.rows[0], customer_id: resolvedCustomerId || orderResult.rows[0].customer_id },
+        outstandingAmount: Number(orderResult.rows[0].remaining_amount || deferredEditAmount),
+        actorId: req.user?.id || null,
+        reason: "order-edit",
+      });
+      if (editAdvanceSettlement?.order) {
+        Object.assign(orderResult.rows[0], editAdvanceSettlement.order);
+      }
     }
 
     await markCustomerTrustedForCompletedOrder(client, orderResult.rows[0]);
@@ -6407,7 +6449,10 @@ export const editOrder = async (req, res) => {
     );
     const editAuditId = editAuditResult.rows[0]?.id || loaded.order.id;
 
-    const settlementType = amountDueNow > 0.009
+    // Settlement follows the cash, not the arithmetic. An edit that raises the total
+    // but collects nothing now is a deferred sale — no drawer event, no account entry,
+    // no journal — with the remainder carried on remaining_amount like any آجل invoice.
+    const settlementType = additionalPaidAmount > 0.009
       ? "extra_payment"
       : refundOrCreditDue > 0.009
         ? "refund"
@@ -6428,6 +6473,8 @@ export const editOrder = async (req, res) => {
       original_paid_amount: originalPaidAmount,
       new_total: totalValue,
       amount_due_now: amountDueNow,
+      collected_now: collectedNowAmount,
+      deferred_amount: deferredEditAmount,
       refund_or_credit_due: refundOrCreditDue,
       settlement_type: settlementType,
       settlement_method: settlementMethod,
@@ -6436,7 +6483,7 @@ export const editOrder = async (req, res) => {
       additional_payment_breakdown: additionalPaymentBreakdown,
       edit_audit_id: editAuditId,
     };
-    logEditFlowStep("settlement:before", { settlementType, settlementMethod, amountDueNow, refundOrCreditDue });
+    logEditFlowStep("settlement:before", { settlementType, settlementMethod, amountDueNow, collectedNowAmount, deferredEditAmount, refundOrCreditDue });
 
     if (settlementType === "refund") {
       if (!EDIT_REFUND_METHODS.has(settlementMethod)) {
@@ -6512,11 +6559,19 @@ export const editOrder = async (req, res) => {
     } else if (settlementType === "extra_payment") {
       const normalizedBreakdown = (Array.isArray(additionalPaymentBreakdown) ? additionalPaymentBreakdown : []).filter((payment) => Number(payment.amount || 0) > 0);
       const breakdownTotal = normalizeInvoiceMoney(normalizedBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0));
-      if (Math.abs(breakdownTotal - amountDueNow) > 0.009) {
+      if (Math.abs(breakdownTotal - additionalPaidAmount) > 0.009) {
         await client.query("ROLLBACK");
         return res.status(400).json({
           success: false,
-          message: "Additional payment must equal the amount due now.",
+          message: "Additional payment breakdown must equal the amount collected now.",
+          edit_payment_difference: {
+            original_paid_amount: originalPaidAmount,
+            new_total: totalValue,
+            amount_due_now: amountDueNow,
+            additional_paid_amount: additionalPaidAmount,
+            payment_breakdown_total: breakdownTotal,
+            deferred_amount: deferredEditAmount,
+          },
         });
       }
 
@@ -6593,7 +6648,10 @@ export const editOrder = async (req, res) => {
           ? "split"
           : (cashPayments.length ? "cash" : (normalizedBreakdown[0]?.method || normalizedBreakdown[0]?.payment_method || settlementMethod)),
         settlementType,
-        amount: amountDueNow,
+        // The revenue credit has to match the debits the breakdown produces, so it is
+        // the collected total — on a deposit-plus-credit edit `amountDueNow` would
+        // credit 4000 with money nobody handed over and unbalance the entry.
+        amount: breakdownTotal,
         paymentBreakdown: normalizedBreakdown,
       });
       if (journalLines.length) {

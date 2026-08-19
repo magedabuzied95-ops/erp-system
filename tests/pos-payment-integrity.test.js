@@ -54,10 +54,12 @@ test("POS persists the remaining balance and the actual collected method", () =>
   assert.doesNotMatch(ordersControllerSource, /transactionPaymentMethod/);
 });
 
-test("POS invoice edit treats an outstanding balance as an extra payment even when total is unchanged", () => {
+test("POS invoice edit settles against the money collected, not the balance on paper", () => {
+  // Settlement follows the cash: an outstanding balance that IS collected stays an
+  // extra payment, one that is left on credit moves no money at all.
   assert.match(
     ordersControllerSource,
-    /const settlementType = amountDueNow > 0\.009[\s\S]*"extra_payment"[\s\S]*refundOrCreditDue > 0\.009/
+    /const settlementType = additionalPaidAmount > 0\.009[\s\S]*"extra_payment"[\s\S]*refundOrCreditDue > 0\.009/
   );
   assert.doesNotMatch(
     ordersControllerSource,
@@ -66,6 +68,27 @@ test("POS invoice edit treats an outstanding balance as an extra payment even wh
   assert.match(ordersControllerSource, /const refundAmount = refundOrCreditDue/);
   assert.doesNotMatch(ordersControllerSource, /settlementMethod,\s*difference,/);
   assert.doesNotMatch(ordersControllerSource, /Math\.abs\(difference\)/);
+});
+
+test("POS invoice edit can be saved آجل with the remainder carried as customer debt", () => {
+  // The edit route used to demand the full amount due in cash, so both deferred
+  // saves — "آجل" and "العربون + الباقي آجل" — were rejected with a 400 the cashier
+  // could do nothing about. The breakdown now has to match what was collected.
+  assert.match(
+    ordersControllerSource,
+    /Math\.abs\(breakdownTotal - additionalPaidAmount\) > 0\.009/
+  );
+  assert.doesNotMatch(ordersControllerSource, /Additional payment must equal the amount due now/);
+  assert.match(ordersControllerSource, /const deferredEditAmount = normalizeInvoiceMoney\(Math\.max\(0, amountDueNow - additionalPaidAmount\)\)/);
+  // Debt nobody is on the hook for is not a deferred invoice.
+  assert.match(ordersControllerSource, /deferredEditAmount > 0\.009 && !resolvedCustomerId/);
+  // A deferred invoice for an employee-customer is a سلفة, exactly as on the sale path.
+  assert.match(ordersControllerSource, /deferredEditAmount > 0\.009 && \(resolvedCustomerId \|\| orderResult\.rows\[0\]\.customer_id\)/);
+  assert.match(ordersControllerSource, /settleOrderAsEmployeeAdvance\(client, \{[\s\S]*reason: "order-edit"/);
+  // Revenue is credited with what actually arrived, or the entry cannot balance.
+  assert.match(ordersControllerSource, /amount: breakdownTotal,\s*\r?\n\s*paymentBreakdown: normalizedBreakdown,/);
+  // A deferred edit on an invoice that already collected money is partially paid.
+  assert.match(posSource, /editActive && originalEditPaidAmount > 0\.009 \? "partially_paid" : "unpaid"/);
 });
 
 test("POS invoice edit exposes the original payment methods and their amounts", () => {
