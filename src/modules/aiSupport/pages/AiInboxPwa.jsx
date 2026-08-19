@@ -49,7 +49,7 @@ import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
-import DeliveryTicks from "../components/DeliveryTicks.jsx";
+import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
@@ -2446,9 +2446,8 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
             {!hasProductCards && isStaff ? (
               <div className="flex justify-start">
                 <div className={`max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "bg-rose-950 text-rose-50 ring-1 ring-rose-200" : "bg-slate-900 text-white"}`}>
-                  <div className={`mb-1 flex items-center gap-1.5 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
-                    <span>{message.message_type === "internal_note" ? "Internal Note" : "Team"} · {absoluteTime(message.created_at)}</span>
-                    {message.message_type === "internal_note" ? null : <DeliveryTicks status={message.delivery_status} />}
+                  <div className={`mb-1 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
+                    {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {absoluteTime(message.created_at)}
                   </div>
                   <p dir="auto" className={`whitespace-pre-wrap break-words text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`}>{message.staff_message || displayText}</p>
                 </div>
@@ -4651,7 +4650,9 @@ export default function AiInboxPwa() {
     setEditingAiDraft(false);
   }, [selectedConversation?.session_id]);
   const selectedTranscriptRows = useMemo(() => {
-    const messages = uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message));
+    const messages = cascadeDeliveryStatuses(
+      uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message))
+    );
     return messages
       .map((message) => {
         const normalizedMessage = normalizeInboxMessage(message);

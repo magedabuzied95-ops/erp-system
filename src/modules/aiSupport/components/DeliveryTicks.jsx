@@ -23,10 +23,37 @@ export const deliveryStatusLabel = (t, status) => {
   return key ? t(key) : String(status || "");
 };
 
-const TICK_STATES = new Set(["pending", "sending", "sent", "delivered", "read"]);
+const STATUS_ORDER = ["pending", "sending", "sent", "delivered", "read"];
+const STATUS_RANK = Object.fromEntries(STATUS_ORDER.map((status, rank) => [status, rank]));
+const TICK_STATES = new Set(STATUS_ORDER);
 
 export const isTickableDeliveryStatus = (status) =>
   TICK_STATES.has(String(status || "").trim().toLowerCase());
+
+// WhatsApp often acks only the newest message when the customer opens the chat
+// (the read receipt names the last id, not every id), so an older outbound
+// message can be stored as delivered — or stuck at sending — while a newer one
+// is read. The official clients infer the rest from ordering; mirror that for
+// DISPLAY only: a message never shows a lower state than any newer message in
+// the same transcript. Failed, empty and unknown statuses neither change nor
+// feed the cascade, stored rows are not rewritten, and inputs are not mutated
+// (cached conversation objects must stay canonical).
+export const cascadeDeliveryStatuses = (messages = []) => {
+  const list = Array.isArray(messages) ? messages : [];
+  let newestRank = -1;
+  const result = new Array(list.length);
+  for (let index = list.length - 1; index >= 0; index -= 1) {
+    const message = list[index] || {};
+    const rank = STATUS_RANK[String(message.delivery_status || "").trim().toLowerCase()];
+    if (rank === undefined) {
+      result[index] = message;
+      continue;
+    }
+    result[index] = rank < newestRank ? { ...message, delivery_status: STATUS_ORDER[newestRank] } : message;
+    if (rank > newestRank) newestRank = rank;
+  }
+  return result;
+};
 
 // WhatsApp-style delivery marks: clock while pending/sending, ✓ sent,
 // ✓✓ delivered, blue ✓✓ read. Everything else (failed, stored_only, unknown)

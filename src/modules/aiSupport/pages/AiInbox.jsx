@@ -78,6 +78,7 @@ import { emitRealtime, subscribeRealtime, useRealtimeStatus } from "../../../sha
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
+import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import {
   MAX_BATCH_PRODUCTS, SELECTION_MODES, selectionModeFromSemantics, productSelectionKey, toggleProductSelection,
@@ -7372,9 +7373,11 @@ export default function AiInbox({ reviewerMode = false }) {
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
   const selectedTranscriptRows = useMemo(() => {
-    const messages = uniqueMessages(selectedConversation?.messages)
-      .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
-      .map((message) => normalizeTranscriptMessage(message));
+    const messages = cascadeDeliveryStatuses(
+      uniqueMessages(selectedConversation?.messages)
+        .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
+        .map((message) => normalizeTranscriptMessage(message))
+    );
     const reactionsByTarget = new Map();
     messages.forEach((message) => {
       if (clean(message.message_type).toLowerCase() !== "reaction") return;
