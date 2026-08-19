@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n/i18n";
 import { resolveStorefrontPriceBreakdown } from "../../../shared/lib/storefrontPricing.js";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 
 import {
   createSocialPublisherPost,
@@ -856,6 +857,12 @@ export default function SocialMediaPublisher() {
   const selectedCatalogPrimaryMediaUrl = useMemo(() => buildCatalogFallbackMediaUrl(selectedCatalogProduct || {}), [selectedCatalogProduct]);
   const selectedCatalogResolvedMediaUrl = selectedCatalogMediaUrl || selectedCatalogPrimaryMediaUrl || selectedCatalogProduct?.image_url || "";
   const resolvedMediaPreview = mediaFile ? mediaPreview : selectedCatalogResolvedMediaUrl || mediaPreview || "";
+  // Catalog media arrives as backend-relative paths (/uploads/...). Rendered
+  // raw they resolve against the app origin, which answers with the SPA shell
+  // instead of the file. Resolve for display only so media_url keeps the raw
+  // path the publish path rebases on PUBLIC_BACKEND_URL.
+  const selectedCatalogMediaSrc = resolveProductImageUrl(selectedCatalogResolvedMediaUrl);
+  const mediaPreviewSrc = resolveProductImageUrl(resolvedMediaPreview);
   const selectedCatalogProductAvailability = useMemo(() => collectFirstCommentAvailability(selectedCatalogProduct || {}), [selectedCatalogProduct]);
   const selectedCatalogProductDiscount = useMemo(() => {
     if (!selectedCatalogProduct) return "";
@@ -1750,9 +1757,9 @@ export default function SocialMediaPublisher() {
         <div className="aspect-[4/5] bg-gradient-to-br from-slate-900 via-slate-950 to-black">
           {resolvedMediaPreview ? (
             mediaType === "video" ? (
-              <video src={resolvedMediaPreview} controls className="h-full w-full object-cover bg-black" />
+              <video src={mediaPreviewSrc} controls className="h-full w-full object-cover bg-black" />
             ) : (
-              <img src={resolvedMediaPreview} alt={t("marketing.socialPublisher.previewCard.mediaAlt", { platform: platformName })} className="h-full w-full object-cover bg-black" />
+              <img src={mediaPreviewSrc} alt={t("marketing.socialPublisher.previewCard.mediaAlt", { platform: platformName })} className="h-full w-full object-cover bg-black" />
             )
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center text-slate-500">
@@ -1887,7 +1894,7 @@ export default function SocialMediaPublisher() {
                     <div className="flex items-start gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                         {selectedCatalogResolvedMediaUrl ? (
-                          <img src={selectedCatalogResolvedMediaUrl} alt={selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")} className="h-full w-full object-cover" />
+                          <img src={selectedCatalogMediaSrc} alt={selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-slate-500">
                             <ImageIcon className="h-6 w-6" />
@@ -1954,7 +1961,7 @@ export default function SocialMediaPublisher() {
                                     title={item.color || item.url}
                                   >
                                     <div className="aspect-square overflow-hidden rounded-xl bg-black/40">
-                                      <img src={item.url} alt={item.color || "Color image"} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" />
+                                      <img src={resolveProductImageUrl(item.url)} alt={item.color || "Color image"} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" />
                                     </div>
                                     <div className="mt-1 truncate px-1 text-[10px] font-semibold text-emerald-100/80">{item.color || "Color"}</div>
                                   </button>
@@ -1996,9 +2003,9 @@ export default function SocialMediaPublisher() {
                 <div className={`flex items-center justify-center text-center ${hasCatalogProduct || resolvedMediaPreview ? "min-h-[190px] md:min-h-[220px]" : "min-h-[280px]"}`}>
                   {resolvedMediaPreview ? (
                     mediaType === "video" ? (
-                      <video src={resolvedMediaPreview} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <video src={mediaPreviewSrc} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     ) : (
-                      <img src={resolvedMediaPreview} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <img src={mediaPreviewSrc} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     )
                   ) : (
                     <div className="space-y-3 px-4">
@@ -2734,7 +2741,7 @@ export default function SocialMediaPublisher() {
                             <div className="flex gap-3">
                               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                                 {product.primary_media_url || product.image_url ? (
-                                  <img src={product.primary_media_url || product.image_url} alt={product.name || "Product"} className="h-full w-full object-cover" />
+                                  <img src={resolveProductImageUrl(product.primary_media_url || product.image_url)} alt={product.name || "Product"} className="h-full w-full object-cover" />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-slate-500">
                                     <ImageIcon className="h-6 w-6" />
