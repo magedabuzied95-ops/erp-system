@@ -147,13 +147,21 @@ test("the surveillance bundle reaches the runtime, not just the manifest", () =>
   // every page would have rendered raw key paths in production while every
   // other guard passed.
   const manifest = read("src/i18n/localeManifest.js");
-  assert.match(manifest, /branch:s*"surveillance"/, "not in localeManifest");
+  assert.match(manifest, /branch:\s*"surveillance"/, "not in localeManifest");
 
   for (const locale of ["en", "ar"]) {
     const bundle = read(`src/i18n/bundles/rest.${locale}.js`);
-    assert.match(bundle, /import surveillance from "../../locales/[a-z]{2}/surveillance.json"/,
-      `surveillance.json is not imported by rest.${locale}.js — regenerate with scripts/generate-locale-bundles.mjs`);
-    assert.match(bundle, /surveillance/, `surveillance is not exported from rest.${locale}.js`);
+    // String containment rather than a regex literal: the path is full of
+    // slashes and dots, and escaping those is how the first version of this
+    // assertion became a syntax error that failed the whole file.
+    assert.ok(
+      bundle.includes(`import surveillance from "../../locales/${locale}/surveillance.json"`),
+      `surveillance.json is not imported by rest.${locale}.js — regenerate with scripts/generate-locale-bundles.mjs`,
+    );
+    // Imported is not the same as exported. The generator emits both; a
+    // hand-edit could plausibly add one and forget the other.
+    assert.ok(bundle.includes('"surveillance": surveillance,'),
+      `surveillance is not exported from rest.${locale}.js`);
   }
 });
 

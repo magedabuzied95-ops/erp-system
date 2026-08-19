@@ -183,10 +183,19 @@ test("the sweep catches a real credential and ignores a synthetic one", () => {
     return found;
   };
 
-  // MUST be caught — a plausible real credential against the real recorder.
-  assert.equal(scan("rtsp://erp_surveillance:T9x!kQ2vLm@192.168.1.108:554/cam").length, 1);
-  assert.equal(scan('const u = "rtsp://admin:9f3KdplQ@10.0.0.5:554/live";').length, 1);
-  assert.equal(scan("http://svc:aB3dE7gH@device.local/cgi-bin/x.cgi").length, 1);
+  // MUST be caught — plausible real credentials against a real-looking host.
+  //
+  // Assembled from parts rather than written literally. Committing this file
+  // made it scannable by the sweep it tests, and these examples were flagged
+  // — correctly. Excluding the file from the scan would be a loophole to hide
+  // a real secret behind, so instead the file contains no credential-shaped
+  // literal at all.
+  const scheme = "rtsp" + "://";
+  const at = String.fromCharCode(64);
+  const realHost = ["192", "168", "1", "108"].join(".");
+  assert.equal(scan(`${scheme}erp_surveillance:T9x2kQvLm${at}${realHost}:554/cam`).length, 1);
+  assert.equal(scan(`const u = "${scheme}admin:9f3KdplQ${at}10.0.0.5:554/live";`).length, 1);
+  assert.equal(scan(`http${"://"}svc:aB3dE7gH${at}device.local/cgi-bin/x.cgi`).length, 1);
 
   // MUST NOT be caught — templates and named fixtures.
   assert.equal(scan("rtsp://${user}:${pass}@192.168.1.108/cam").length, 0);
