@@ -2193,82 +2193,16 @@ export const getSalesCommissionReport = async ({ tenantId = null, filters = {} }
   };
 };
 
-export const getPayrollPreview = async ({ tenantId = null, employeeId, filters = {} } = {}) => {
-  await ensureAttendanceSchema(db);
-  const branchId = normalizeOptionalLookupId(filters.branchId || filters.branch_id);
-  const employeeResult = await db.query(
-    `
-    SELECT
-      e.*,
-      COALESCE(esp.pos_alias, '') AS pos_alias,
-      COALESCE(esp.is_sales_active, TRUE) AS is_sales_active
-    FROM employees e
-    LEFT JOIN employee_sales_profiles esp ON esp.employee_id = e.id
-    WHERE e.id = $1
-      AND e.is_deleted IS DISTINCT FROM TRUE
-      AND ($2::bigint IS NULL OR e.tenant_id = $2::bigint)
-      AND ($3::text IS NULL OR e.branch_id::text = $3::text)
-    LIMIT 1
-    `,
-    [employeeId, tenantId, branchId]
-  );
-  const employee = employeeResult.rows[0];
-  if (!employee) {
-    const error = new Error("Employee not found in selected branch");
-    error.status = 404;
-    throw error;
-  }
-  const report = await getSalesCommissionReport({ tenantId, filters: { ...filters, employeeId, branchId } });
-  const earnedSalesAmount = toNumber(report.summary.net_sales);
-  const eligibleItemsCount = toNumber(report.summary.total_items_sold) - toNumber(report.summary.returns_refunds);
-  const salesEarnings = toNumber(report.summary.earned_commissions);
-  const providedBaseSalary = filters.base_salary ?? filters.baseSalary;
-  const baseSalary = providedBaseSalary === undefined || providedBaseSalary === null || providedBaseSalary === "" ? toNumber(employee.salary) : toNumber(providedBaseSalary);
-  const bonuses = toNumber(filters.bonuses);
-  const manualDeductions = toNumber(filters.deductions);
-  let advanceDeductions = 0;
-  let advanceRows = [];
-  const deductionMonth = String(filters.deduction_month || filters.deductionMonth || filters.month || new Date().toISOString().slice(0, 7)).slice(0, 7);
-  const periodBounds = monthBounds(deductionMonth);
-  const payrollPeriodStart = normalizeDateInput(filters.startDate || filters.start_date || filters.start) || periodBounds.start;
-  const payrollPeriodEnd = normalizeDateInput(filters.endDate || filters.end_date || filters.end) || periodBounds.end;
-  let penaltyDeductions = 0;
-  let penaltyRows = [];
-  let attendanceDeductions = {
-    absence_days: 0,
-    missing_hours: 0,
-    late_hours: 0,
-    early_leave_hours: 0,
-    daily_rate: 0,
-    hourly_rate: 0,
-    absence_deduction: 0,
-    missing_hours_deduction: 0,
-    late_deduction: 0,
-    early_leave_deduction: 0,
-    attendance_deduction_total: 0,
-    expected_working_days: 0,
-    attended_days: 0,
-    absent_working_days: 0,
-    qr_records_count: 0,
-    excluded_days_off: 0,
-    monthly_days_off_excluded: 0,
-    excluded_leave_days: 0,
-    excluded_holiday_days: 0,
-    leave_days: 0,
-    paid_leave_days: 0,
-    deducted_leave_days: 0,
-    monthly_paid_leave_days: 3,
-    leave_deduction: 0,
-    approved_overtime_minutes: 0,
-    approved_overtime_hours: 0,
-    approved_overtime_pay: 0,
-    late_permission_days: 0,
-    late_permission_minutes: 0,
-  };
-  const shouldFinalize = String(filters.mark_advances_deducted || filters.markAdvancesDeducted || "").toLowerCase() === "true";
-  const payrollReference = `payroll-${employeeId}-${deductionMonth}`;
-  let payrollRun = null;
-  try {
+let employeeAdvancesLedgerReadyPromise = null;
+
+// The advances ledger DDL and the tenant-wide expense backfill describe the shape
+// of the table, not the state of one payroll. They only need to run once per
+// process: the payroll screen issues seven previews per employee selection, and
+// running request-time DDL that many times is how the seller-users endpoint
+// started timing out on lock contention.
+const ensureEmployeeAdvancesLedger = async () => {
+  if (!employeeAdvancesLedgerReadyPromise) {
+    employeeAdvancesLedgerReadyPromise = (async () => {
     await db.query(`
       CREATE TABLE IF NOT EXISTS employee_advances (
         id BIGSERIAL PRIMARY KEY,
@@ -2353,6 +2287,93 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
          OR deduction_status IN ('partially_deducted', 'deducted')
          OR status IS NULL
     `);
+    })().catch((error) => {
+      employeeAdvancesLedgerReadyPromise = null;
+      throw error;
+    });
+  }
+  return employeeAdvancesLedgerReadyPromise;
+};
+
+export const getPayrollPreview = async ({ tenantId = null, employeeId, filters = {} } = {}) => {
+  await ensureAttendanceSchema(db);
+  const branchId = normalizeOptionalLookupId(filters.branchId || filters.branch_id);
+  const employeeResult = await db.query(
+    `
+    SELECT
+      e.*,
+      COALESCE(esp.pos_alias, '') AS pos_alias,
+      COALESCE(esp.is_sales_active, TRUE) AS is_sales_active
+    FROM employees e
+    LEFT JOIN employee_sales_profiles esp ON esp.employee_id = e.id
+    WHERE e.id = $1
+      AND e.is_deleted IS DISTINCT FROM TRUE
+      AND ($2::bigint IS NULL OR e.tenant_id = $2::bigint)
+      AND ($3::text IS NULL OR e.branch_id::text = $3::text)
+    LIMIT 1
+    `,
+    [employeeId, tenantId, branchId]
+  );
+  const employee = employeeResult.rows[0];
+  if (!employee) {
+    const error = new Error("Employee not found in selected branch");
+    error.status = 404;
+    throw error;
+  }
+  const report = await getSalesCommissionReport({ tenantId, filters: { ...filters, employeeId, branchId } });
+  const earnedSalesAmount = toNumber(report.summary.net_sales);
+  const eligibleItemsCount = toNumber(report.summary.total_items_sold) - toNumber(report.summary.returns_refunds);
+  const salesEarnings = toNumber(report.summary.earned_commissions);
+  const providedBaseSalary = filters.base_salary ?? filters.baseSalary;
+  const baseSalary = providedBaseSalary === undefined || providedBaseSalary === null || providedBaseSalary === "" ? toNumber(employee.salary) : toNumber(providedBaseSalary);
+  const bonuses = toNumber(filters.bonuses);
+  const manualDeductions = toNumber(filters.deductions);
+  let advanceDeductions = 0;
+  let advanceRows = [];
+  const deductionMonth = String(filters.deduction_month || filters.deductionMonth || filters.month || new Date().toISOString().slice(0, 7)).slice(0, 7);
+  const periodBounds = monthBounds(deductionMonth);
+  const payrollPeriodStart = normalizeDateInput(filters.startDate || filters.start_date || filters.start) || periodBounds.start;
+  const payrollPeriodEnd = normalizeDateInput(filters.endDate || filters.end_date || filters.end) || periodBounds.end;
+  let penaltyDeductions = 0;
+  let penaltyRows = [];
+  let attendanceDeductions = {
+    absence_days: 0,
+    missing_hours: 0,
+    late_hours: 0,
+    early_leave_hours: 0,
+    daily_rate: 0,
+    hourly_rate: 0,
+    absence_deduction: 0,
+    missing_hours_deduction: 0,
+    late_deduction: 0,
+    early_leave_deduction: 0,
+    attendance_deduction_total: 0,
+    expected_working_days: 0,
+    attended_days: 0,
+    absent_working_days: 0,
+    qr_records_count: 0,
+    excluded_days_off: 0,
+    monthly_days_off_excluded: 0,
+    excluded_leave_days: 0,
+    excluded_holiday_days: 0,
+    leave_days: 0,
+    paid_leave_days: 0,
+    deducted_leave_days: 0,
+    monthly_paid_leave_days: 3,
+    leave_deduction: 0,
+    approved_overtime_minutes: 0,
+    approved_overtime_hours: 0,
+    approved_overtime_pay: 0,
+    late_permission_days: 0,
+    late_permission_minutes: 0,
+    missing_attendance_dates: [],
+    open_attendance_logs: [],
+  };
+  const shouldFinalize = String(filters.mark_advances_deducted || filters.markAdvancesDeducted || "").toLowerCase() === "true";
+  const payrollReference = `payroll-${employeeId}-${deductionMonth}`;
+  let payrollRun = null;
+  try {
+    await ensureEmployeeAdvancesLedger();
     await db.query(`
       INSERT INTO employee_advances (
         tenant_id, employee_id, amount, deducted_amount, remaining_amount, deduction_month, deduction_status, status,
@@ -2767,6 +2788,8 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       monthly_days_off_excluded: attendanceDeductions.monthly_days_off_excluded,
       excluded_leave_days: attendanceDeductions.excluded_leave_days,
       excluded_holiday_days: attendanceDeductions.excluded_holiday_days,
+      missing_attendance_dates: Array.isArray(attendanceDeductions.missing_attendance_dates) ? attendanceDeductions.missing_attendance_dates : [],
+      open_attendance_logs: Array.isArray(attendanceDeductions.open_attendance_logs) ? attendanceDeductions.open_attendance_logs : [],
       deductions,
       net_pay: netPay,
       final_salary: netPay,
