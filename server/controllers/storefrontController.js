@@ -57,6 +57,8 @@ import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderE
 
 export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
+// The storefront's "آخر مقاسات" chip counts a card as a last piece up to 3 units.
+const STOREFRONT_LAST_PIECE_MAX_STOCK = 3;
 const isEnabledSetting = (value) => value === true || value === 1 || ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 
 const getStorefrontOrderSettings = async () => {
@@ -169,9 +171,35 @@ const firstQueryValue = (value) => {
 
 const queryText = (value = "") => String(firstQueryValue(value) ?? "").trim();
 
+// A facet the customer can pick more than once (`?size=16-inch&size=18-inch`, or a
+// comma list from an older bundle). Express hands repeated keys over as an array,
+// so the single-value reader above would silently keep only the first one.
+const queryTextList = (...values) => {
+  const collected = [];
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === undefined || value === null || typeof value === "object") return;
+    String(value)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((item) => collected.push(item));
+  };
+  values.forEach(visit);
+  return [...new Set(collected)];
+};
+
 const queryFlagOn = (value) => {
   const normalized = queryText(value).toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const queryPositiveNumber = (value) => {
+  const parsed = Number.parseFloat(queryText(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
 const queryPositiveInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
@@ -1694,14 +1722,15 @@ const storefrontProductsWhereSql = `
         OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($12::text[])
         OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($12::text[])
       )
-      AND ($10 = '' OR EXISTS (
+      AND (COALESCE(array_length($15::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.bag_type, ''))) = ANY($15::text[]))
+      AND (COALESCE(array_length($10::text[], 1), 0) = 0 OR EXISTS (
         SELECT 1
         FROM product_variants pv_size
         WHERE pv_size.product_id = p.id
           AND pv_size.is_active IS DISTINCT FROM FALSE
           AND COALESCE(pv_size.is_storefront_visible, TRUE) = TRUE
           AND pv_size.deleted_at IS NULL
-          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($10))
+          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = ANY($10::text[])
           AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR COALESCE(TRIM(pv_size.audience), '') = '' OR string_to_array(LOWER(REPLACE(pv_size.audience, ' ', '')), ',') && $7::text[])
           AND ($11::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       ))
@@ -1719,7 +1748,7 @@ const storefrontProductsTrailingSql = `    GROUP BY p.id, c.name, b.name, m.name
     ORDER BY
       CASE
         WHEN $6::boolean = TRUE THEN 0
-        WHEN $10 <> '' THEN 0
+        WHEN COALESCE(array_length($10::text[], 1), 0) > 0 THEN 0
         WHEN COALESCE(p.is_offer_story, FALSE) = TRUE THEN 1
         ELSE 0
       END ASC,
@@ -1745,6 +1774,7 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
   const arrayParam = (value) => Array.isArray(value)
     ? value
     : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const lowerArrayParam = (value) => arrayParam(value).map((item) => item.toLowerCase());
   const params = [
     tenantId,
     q,
@@ -1755,11 +1785,12 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
     arrayParam(filters.gender),
     arrayParam(filters.productType),
     arrayParam(filters.grade),
-    filters.size || "",
+    lowerArrayParam(filters.sizes ?? filters.size),
     Boolean(filters.inStock),
     arrayParam(filters.quality),
     limit,
     offset,
+    lowerArrayParam(filters.bagType),
   ];
   try {
     const result = await db.query(sql, params);
@@ -2584,15 +2615,52 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
   });
 };
 
+// The card hover fades to a second photo, so a card needs exactly two. The lean
+// list projection used to carry only the primary, which disabled the swap on
+// every listing and rail — the client sees no second image and closes the
+// feature itself. Two short strings per row keeps the projection lean.
+const CARD_IMAGE_LIMIT = 2;
+const cardImageValue = (image) => {
+  if (typeof image === "string") return image.trim();
+  if (image && typeof image === "object") {
+    return toText(image.url || image.image_url || image.secure_url || image.src || image.path || "");
+  }
+  return "";
+};
+const firstCardImages = (...collections) => {
+  const picked = [];
+  for (const collection of collections) {
+    for (const image of Array.isArray(collection) ? collection : [collection]) {
+      const value = cardImageValue(image);
+      if (value && !picked.includes(value)) picked.push(value);
+      if (picked.length >= CARD_IMAGE_LIMIT) return picked;
+    }
+  }
+  return picked;
+};
+
 const slimVariantForList = (variant = {}) => ({
   id: variant.id || variant.variant_id || null,
   variant_id: variant.variant_id || variant.id || null,
   product_id: variant.product_id || null,
   size: variant.size || "",
   color: variant.color || "",
+  // The card's colour identity is the durable key, so the lean list projection has
+  // to carry it or the client falls back to matching colours by name again.
+  color_group_key: variant.color_group_key || variant.colorGroupKey || "",
   sku: variant.sku || "",
   barcode: variant.barcode || "",
   image_url: variant.image_url || variant.primary_image_url || variant.variant_image_url || "",
+  // Colour cards scope the swap to their own colour, so the second photo has to
+  // ride the variant rather than the product-wide gallery.
+  images: firstCardImages(
+    variant.images,
+    variant.color_images,
+    variant.gallery_images,
+    variant.additional_images,
+    variant.image_url,
+    variant.primary_image_url
+  ),
   stock: toNumber(variant.stock),
   price: roundMoney(variant.price),
   regular_price: roundMoney(variant.regular_price),
@@ -2633,7 +2701,14 @@ const slimProductForList = (product = {}) => ({
   manufacturer_name: product.manufacturer_name || product.manufacturer || "",
   image_url: product.image_url,
   product_image_url: product.product_image_url || product.image_url || "",
-  gallery_images: [],
+  gallery_images: firstCardImages(
+    product.gallery_images,
+    product.images,
+    product.image_urls,
+    product.product_images,
+    product.image_url,
+    product.product_image_url
+  ),
   created_at: product.created_at,
   price: product.price,
   regular_price: product.regular_price,
@@ -2866,7 +2941,13 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
 
 const variantColorNameForCard = (variant = {}) => firstText(variant.color, variant.color_name, variant.colour, variant.name, "Default");
 
+// One product routinely holds several colours sharing a visible name - four
+// different Navy shoes, two different Greys. The durable colour key decides which
+// card a variant belongs to, so each of them gets its own card; the name slug is
+// only for rows saved before colour keys existed.
 const variantColorKeyForCard = (variant = {}) => {
+  const durable = toText(variant.color_group_key || variant.colorGroupKey).toLowerCase();
+  if (durable) return durable;
   const value = variantColorNameForCard(variant);
   return toText(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || `variant-${variant.id || "default"}`;
 };
@@ -2897,7 +2978,7 @@ const productColorDisplayName = (name = "", color = "") => {
   return `${base} - ${colorText}`;
 };
 
-const expandProductsToColorCards = (products = []) => {
+export const expandProductsToColorCards = (products = []) => {
   const cards = [];
   for (const product of Array.isArray(products) ? products : []) {
     const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -2923,10 +3004,15 @@ const expandProductsToColorCards = (products = []) => {
       const selectedVariant = preferredVariantForColorCard(group.variants, product);
       if (!selectedVariant) continue;
       const productColorImages = Array.isArray(product.color_images) ? product.color_images : Array.isArray(product.colors) ? product.colors : [];
-      const matchedColorRecord = productColorImages.find((color) => {
-        const colorKey = variantColorKeyForCard({ color: color?.color || color?.color_name || "" });
-        return colorKey === group.key;
-      }) || null;
+      const colorRecordKey = (color = {}) => toText(color?.color_group_key || color?.colorGroupKey).toLowerCase();
+      const matchedColorRecord =
+        productColorImages.find((color) => colorRecordKey(color) && colorRecordKey(color) === group.key) ||
+        // A keyless legacy record can only be found by name, and only if no keyed
+        // record already owns this group - otherwise a same-named colour's photos
+        // would leak onto this card.
+        productColorImages.find((color) => !colorRecordKey(color) &&
+          variantColorKeyForCard({ color: color?.color || color?.color_name || "" }) === group.key) ||
+        null;
       const groupImages = dedupeImages([
         ...(Array.isArray(matchedColorRecord?.images) ? matchedColorRecord.images : []),
         ...(Array.isArray(selectedVariant?.images) ? selectedVariant.images : []),
@@ -3009,17 +3095,41 @@ const expandProductsToColorCards = (products = []) => {
   return cards;
 };
 
+// Mirrors the storefront's label normalization so a colour chip built from the
+// card labels matches the card it came from.
+const storefrontColorFilterKey = (value = "") =>
+  String(value || "")
+    .normalize("NFKD")
+    .replace(/ـ/g, "")
+    .replace(/‌/g, "")
+    .replace(/‍/g, "")
+    .replace(/‎/g, "")
+    .replace(/‏/g, "")
+    .replace(/\p{M}+/gu, "")
+    .replace(/['’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+const storefrontCardColorKeys = (product = {}) => {
+  const values = [product.display_color, product.color];
+  for (const variant of Array.isArray(product.variants) ? product.variants : []) {
+    values.push(variant?.color, variant?.color_name);
+  }
+  return [...new Set(values.map(storefrontColorFilterKey).filter(Boolean))];
+};
+
 export const storefrontCardHasAvailableSize = (product = {}, size = "") => {
-  const targetSize = queryText(size).toLowerCase();
-  if (!targetSize) return true;
+  const targetSizes = queryTextList(size).map((item) => item.toLowerCase());
+  if (!targetSizes.length) return true;
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   if (variants.length) {
     return variants.some((variant) =>
-      queryText(variant?.size ?? variant?.size_value).toLowerCase() === targetSize &&
+      targetSizes.includes(queryText(variant?.size ?? variant?.size_value).toLowerCase()) &&
       toNumber(variant?.stock ?? variant?.quantity) > 0
     );
   }
-  return queryText(product?.size ?? product?.size_value).toLowerCase() === targetSize &&
+  return targetSizes.includes(queryText(product?.size ?? product?.size_value).toLowerCase()) &&
     toNumber(product?.total_stock ?? product?.stock) > 0;
 };
 
@@ -3035,7 +3145,15 @@ const normalizeStorefrontProductsQuery = (query = {}) => {
     productType: queryText(query.product_type || query.productType),
     grade: queryText(query.grade),
     quality: queryText(query.quality),
+    // Every facet the listing page can stack must be filtered here, before the
+    // page is cut: filtering a 24-card page afterwards is what left pages short.
+    sizes: queryTextList(query.size, query.sizes),
     size: queryText(query.size),
+    colors: queryTextList(query.color, query.colors),
+    bagType: queryTextList(query.bag_type, query.bagType),
+    minPrice: queryPositiveNumber(query.min_price ?? query.minPrice),
+    maxPrice: queryPositiveNumber(query.max_price ?? query.maxPrice),
+    lastSizes: queryFlagOn(query.last_sizes || query.lastSizes),
     largeSizes: queryFlagOn(query.large_sizes || query.largeSizes),
     inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
     saleOnly: queryFlagOn(query.sale),
@@ -3093,7 +3211,7 @@ export const listProducts = async (req, res) => {
     const pricingSettings = await perf.step("pricing_settings", () => loadStorefrontPricingSettings(tenantId));
     const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 120, async () => {
       const normalizedQuery = perf.sync("normalize_query", () => normalizeStorefrontProductsQuery(req.query || {}));
-      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch, largeSizes } = normalizedQuery;
+      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, sizes, colors, bagType, minPrice, maxPrice, lastSizes, inStock, audienceSearch, largeSizes } = normalizedQuery;
       const genderAliases = await perf.step("alias_gender", () => getClassificationFilterAliases("gender", normalizedQuery.gender));
       const productType = await perf.step("alias_product_type", () => getActiveClassificationFilterAliases("product_type", normalizedQuery.productType));
       const grade = await perf.step("alias_grade", () => getActiveClassificationFilterAliases("grade", normalizedQuery.grade));
@@ -3123,7 +3241,7 @@ export const listProducts = async (req, res) => {
           },
           computedSearchTerm: q,
           computedGenderFilter: gender,
-          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, saleOnly: effectiveSaleOnly, offerStory: effectiveOfferStoryOnly },
+          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, saleOnly: effectiveSaleOnly, offerStory: effectiveOfferStoryOnly },
         });
       }
       if (ERP_PERF_DEBUG) console.log("[storefront-random-seed]", {
@@ -3143,9 +3261,9 @@ export const listProducts = async (req, res) => {
       if (process.env.NODE_ENV !== "production" && effectiveOfferStoryOnly) {
         const debugLimit = Math.max(candidateLimit, 1000);
         const [beforeOfferStory, afterOfferStoryBeforeVisibility, afterVisibility] = await Promise.all([
-          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, debugLimit, 0),
-          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
-          queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
+          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, debugLimit, 0),
+          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
+          queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
         ]);
         const dbCheck = await db.query(
           `
@@ -3179,10 +3297,10 @@ export const listProducts = async (req, res) => {
           excluded_due_to_is_storefront_visible: excludedDueToVisibility,
         });
       }
-      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+        const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
@@ -3191,9 +3309,9 @@ export const listProducts = async (req, res) => {
       if (effectiveOfferStoryOnly && !result.rows.length) {
         const isDbOfferStory = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
         const isDbStorefrontVisible = (value) => value === true || value === 1 || value === undefined || value === null || String(value || "").trim() === "" || String(value || "").toLowerCase() === "true";
-        let relaxedResult = await perf.step("sql_relaxed", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
+        let relaxedResult = await perf.step("sql_relaxed", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
         if (!relaxedResult.rows.length && tenantId !== null) {
-          relaxedResult = await perf.step("sql_relaxed_null", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
+          relaxedResult = await perf.step("sql_relaxed_null", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
         }
         const relaxedRows = relaxedResult.rows.filter((row) => isDbOfferStory(row.is_offer_story) && isDbStorefrontVisible(row.is_storefront_visible));
         if (relaxedRows.length) {
@@ -3209,7 +3327,7 @@ export const listProducts = async (req, res) => {
       }
       let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+        const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;
@@ -3220,14 +3338,36 @@ export const listProducts = async (req, res) => {
       const imagedProducts = await perf.step("hydrate_images", () => hydrateProductsWithImages(products, { compact: true }));
       const hydratedProducts = await perf.step("scrub_classifications", () => scrubInactiveClassifications(imagedProducts));
       const expandedProducts = perf.sync("color_expansion", () => (groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts)));
-      const sizeAvailableProducts = size && effectiveInStockOnly
-        ? expandedProducts.filter((product) => storefrontCardHasAvailableSize(product, size))
+      // A colour card only earns its place when that colour itself has the size in
+      // stock - the SQL predicate above can only vouch for the product.
+      const sizeAvailableProducts = sizes.length
+        ? expandedProducts.filter((product) => storefrontCardHasAvailableSize(product, sizes))
         : expandedProducts;
+      // Colour, price and last-piece are card-level facets: the SQL above filters
+      // products, so they can only be resolved once a product has been expanded
+      // into its colour cards - but still before the page is cut.
+      const facetFilteredProducts = perf.sync("card_facets", () => {
+        const wantedColors = colors.map((color) => storefrontColorFilterKey(color)).filter(Boolean);
+        if (!wantedColors.length && !minPrice && !maxPrice && !lastSizes) return sizeAvailableProducts;
+        return sizeAvailableProducts.filter((product) => {
+          if (wantedColors.length && !storefrontCardColorKeys(product).some((key) => wantedColors.includes(key))) return false;
+          if (minPrice || maxPrice) {
+            const price = toNumber(product.final_price ?? product.price ?? product.selling_price);
+            if (minPrice && price < minPrice) return false;
+            if (maxPrice && price > maxPrice) return false;
+          }
+          if (lastSizes) {
+            const stock = toNumber(product.total_stock ?? product.stock);
+            if (!(stock > 0 && stock <= STOREFRONT_LAST_PIECE_MAX_STOCK)) return false;
+          }
+          return true;
+        });
+      });
       if (randomSeed) {
         console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
-      const sortedExpandedProducts = perf.sync("sort_cards", () => (shouldOrderAfterExpansion ? sortStorefrontCards(sizeAvailableProducts, sort, randomSeed) : sizeAvailableProducts));
-      const orderedExpandedProducts = perf.sync("offer_ordering", () => keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || Boolean(size)));
+      const sortedExpandedProducts = perf.sync("sort_cards", () => (shouldOrderAfterExpansion ? sortStorefrontCards(facetFilteredProducts, sort, randomSeed) : facetFilteredProducts));
+      const orderedExpandedProducts = perf.sync("offer_ordering", () => keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || sizes.length > 0));
       const categoryProducts = largeSizes
         ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
             const variantSize = Number(variant.size ?? variant.size_value);
@@ -5150,6 +5290,8 @@ export const accountByPhone = async (req, res) => {
       `,
       [tenantId, phoneVariants, customerId]
     );
+    const accountPricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const accountSaleModeEnabled = saleModeEnabled(accountPricingSettings);
     const wishlist = await db.query(
       `
       SELECT
@@ -5185,7 +5327,7 @@ export const accountByPhone = async (req, res) => {
       ORDER BY cw.created_at DESC
       LIMIT 50
       `,
-      [tenantId, phone, saleModeEnabled(await loadStorefrontPricingSettings(tenantId))]
+      [tenantId, phone, accountSaleModeEnabled]
     );
     const recent = await db.query(
       `
@@ -5222,8 +5364,21 @@ export const accountByPhone = async (req, res) => {
       ORDER BY rv.product_id, rv.viewed_at DESC
       LIMIT 20
       `,
-      [tenantId, phone, saleModeEnabled(await loadStorefrontPricingSettings(tenantId))]
+      [tenantId, phone, accountSaleModeEnabled]
     );
+    // The SELECTs above read the raw price columns, but for a large part of the catalogue the
+    // only normal price lives on the purchase invoice (see resolveCurrentSellingPrice), so those
+    // rows come back at 0. Re-hydrate them through the same catalog projection the storefront
+    // grid uses, which also restores the variants/colours/sizes the cards render.
+    const accountProductIds = [...new Set([...wishlist.rows, ...recent.rows].map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0))];
+    const accountCatalog = new Map(
+      (await queryProductsByIds(tenantId, accountProductIds, accountPricingSettings)).map((product) => [String(product.id), product])
+    );
+    const hydrateAccountProduct = (row = {}) => {
+      const product = accountCatalog.get(String(row.id));
+      if (!product) return row;
+      return { ...row, ...product, created_at: row.created_at ?? product.created_at, viewed_at: row.viewed_at ?? product.viewed_at };
+    };
     const loyalty = customerId ? await getCustomerLoyaltySummary(db, customerId, tenantId) : null;
     const addresses = [
       ...new Set(
@@ -5240,8 +5395,10 @@ export const accountByPhone = async (req, res) => {
       loyalty,
       addresses,
       wishlist: wishlist.rows.map((row) => ({ product_id: row.id })),
-      wishlist_products: wishlist.rows,
-      recent_products: recent.rows.sort((a, b) => new Date(b.viewed_at || 0) - new Date(a.viewed_at || 0)),
+      wishlist_products: wishlist.rows.map(hydrateAccountProduct),
+      recent_products: recent.rows
+        .sort((a, b) => new Date(b.viewed_at || 0) - new Date(a.viewed_at || 0))
+        .map(hydrateAccountProduct),
     });
   } catch (error) {
     console.error("[storefront-account] failed", {

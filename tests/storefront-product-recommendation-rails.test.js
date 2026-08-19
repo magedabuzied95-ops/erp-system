@@ -6,25 +6,193 @@ const storefrontSource = readFileSync(new URL("../src/storefront/Storefront.jsx"
 const detailSource = readFileSync(new URL("../src/storefront/pages/StorefrontProductDetailPage.jsx", import.meta.url), "utf8");
 const lightStyles = readFileSync(new URL("../src/storefront/storefront-light.css", import.meta.url), "utf8");
 
-test("product details render grade, brand and recently viewed recommendation rails", () => {
+test("product details render similar, brand and recently viewed recommendation rails", () => {
   assert.match(detailSource, /<RelatedProducts currentProduct=\{product\}/);
   assert.match(detailSource, /<RecentProductsSection currentId=\{product\.id\}/);
   assert.match(storefrontSource, /title="منتجات ذات صلة"/);
-  assert.match(storefrontSource, /grade: grade \|\| "__no_grade__", limit: 15/);
   assert.match(storefrontSource, /brand: brand \|\| "__no_brand__", limit: 15/);
   assert.match(storefrontSource, /title=\{brand \? `المزيد من منتجات \$\{brand\}`/);
   assert.match(storefrontSource, /slice\(0, 15\)/);
   assert.match(storefrontSource, /sfText\("storefront\.account\.recentlyViewed"\)/);
 });
 
-test("recommendation rails provide paging controls and exclude the open product", () => {
+test("the similar rail matches the product family, never the mirror grade", () => {
+  assert.match(storefrontSource, /\.\.\.\(productType \? \{ product_type: productType \} : \{ category: category \|\| "__no_category__" \}\)/);
+  assert.match(storefrontSource, /\.\.\.similarFilter, limit: 15, in_stock: 1, grouping: "product"/);
+  assert.match(storefrontSource, /products=\{similarResult\.products\} loading=\{similarResult\.loading\}/);
+  assert.doesNotMatch(storefrontSource, /grade: grade \|\| "__no_grade__"/);
+});
+
+test("rails glide one card at a time on the sibling site's swiper timings", () => {
+  assert.match(storefrontSource, /const RAIL_GAP_PX = 10;/);
+  assert.match(storefrontSource, /const RAIL_AUTOPLAY_MS = 2500;/);
+  assert.match(storefrontSource, /const RAIL_SLIDE_MS = 1500;/);
+  // The delay is the REST between glides, exactly as Swiper counts it: a step lands
+  // once per rest + glide. Timing the interval at RAIL_AUTOPLAY_MS alone left the row
+  // in motion 60% of the time, and a moving row shows a sliced card at each edge.
+  assert.match(storefrontSource, /setSlide\(\(current\) => current \+ 1\), RAIL_AUTOPLAY_MS \+ RAIL_SLIDE_MS\)/);
+  assert.match(storefrontSource, /transition: animating \? `transform \$\{RAIL_SLIDE_MS\}ms ease` : "none"/);
+  // Card width must survive a missed measurement, so it is pure CSS.
+  assert.match(storefrontSource, /const slideBasis = `calc\(\(100% - \$\{\(perView - 1\) \* RAIL_GAP_PX\}px\) \/ \$\{perView\}\)`;/);
+  assert.match(storefrontSource, /const slideOffset = `calc\(\(100% \+ \$\{RAIL_GAP_PX\}px\) \* \$\{slide\} \/ \$\{perView\}\)`;/);
+  assert.doesNotMatch(storefrontSource, /new ResizeObserver\(\(\[entry\]\) => setViewportWidth/);
+  // A page-at-a-time slice is what made a rotated row collapse to its remainder.
+  assert.doesNotMatch(storefrontSource, /items\.slice\(page \* pageSize/);
+});
+
+test("rail breakpoints and looping match the reference carousel", () => {
+  assert.match(storefrontSource, /\{ minWidth: 1024, perView: 5 \}/);
+  assert.match(storefrontSource, /\{ minWidth: 768, perView: 3 \}/);
+  assert.match(storefrontSource, /\{ minWidth: 640, perView: 2 \}/);
+  assert.match(storefrontSource, /\{ minWidth: 0, perView: 1 \}/);
+  // Mirrors railPerViewForWidth: first breakpoint at or below the viewport wins.
+  const breakpoints = [...storefrontSource.matchAll(/\{ minWidth: (\d+), perView: (\d+) \}/g)].map(([, minWidth, perView]) => ({
+    minWidth: Number(minWidth),
+    perView: Number(perView),
+  }));
+  const perViewFor = (width) => breakpoints.find((breakpoint) => width >= breakpoint.minWidth).perView;
+  assert.equal(perViewFor(1440), 5);
+  assert.equal(perViewFor(800), 3);
+  assert.equal(perViewFor(700), 2);
+  assert.equal(perViewFor(380), 1);
+  // Cloning the head is what lets the track run past the end and snap back unseen.
+  assert.match(storefrontSource, /const trackItems = canSlide \? \[\.\.\.items, \.\.\.items\.slice\(0, perView\)\] : items;/);
+  assert.match(storefrontSource, /jumpLap\(slide - items\.length\), RAIL_SLIDE_MS/);
+});
+
+test("the similar rail narrows by family, audience and grade together", () => {
+  assert.match(storefrontSource, /\.\.\.\(audience \? \{ gender: audience \} : \{\}\)/);
+  assert.match(storefrontSource, /\.\.\.\(grade \? \{ grade \} : \{\}\)/);
+  assert.match(storefrontSource, /currentProduct\?\.gender \|\|/);
+  assert.match(storefrontSource, /Array\.isArray\(currentProduct\?\.audiences\) \? currentProduct\.audiences\[0\] : ""/);
+  assert.match(storefrontSource, /currentProduct\?\.grade \|\| currentProduct\?\.quality/);
+
+  // The filter the component builds, mirrored here so the cases stay pinned.
+  const build = (productType, category, audience, grade) => {
+    const filter = {
+      ...(productType ? { product_type: productType } : { category: category || "__no_category__" }),
+      ...(audience ? { gender: audience } : {}),
+      ...(grade ? { grade } : {}),
+    };
+    const query = new URLSearchParams(
+      Object.entries(filter).filter(([, value]) => value && !String(value).startsWith("__"))
+    ).toString();
+    return { filter, href: query ? `/products?${query}` : "/products" };
+  };
+
+  // Grade values as production actually stores them.
+  assert.deepEqual(build("sneakers", "", "men", "imported_from_vietnam").filter, {
+    product_type: "sneakers",
+    gender: "men",
+    grade: "imported_from_vietnam",
+  });
+  assert.equal(
+    build("sneakers", "", "men", "mirror_original").href,
+    "/products?product_type=sneakers&gender=men&grade=mirror_original"
+  );
+  // Each axis is optional and must widen the match, never empty it.
+  assert.deepEqual(build("sneakers", "", "men", "").filter, { product_type: "sneakers", gender: "men" });
+  assert.deepEqual(build("sneakers", "", "", "local").filter, { product_type: "sneakers", grade: "local" });
+  assert.deepEqual(build("", "Bags", "kids", "").filter, { category: "Bags", gender: "kids" });
+  // A product with none of the three still yields a usable link.
+  assert.equal(build("", "", "", "").href, "/products");
+});
+
+test("a missing photo falls back to the product's own shot before the logo", () => {
+  // The walker, mirrored from the component so its cases stay pinned.
+  const walk = (node) => {
+    if (node.dataset.fallbackApplied === "true") return;
+    const originalSrc = String(node.dataset.originalSrc || "").trim();
+    if (originalSrc && node.dataset.originalTried !== "true" && node.src !== originalSrc) {
+      node.dataset.originalTried = "true";
+      node.src = originalSrc;
+      return;
+    }
+    const tried = String(node.dataset.triedSrc || "").split("|").filter(Boolean);
+    const next = String(node.dataset.fallbackSrc || "").split("|").map((u) => u.trim())
+      .find((url) => url && url !== node.src && !tried.includes(url));
+    if (next) {
+      node.dataset.triedSrc = [...tried, next].join("|");
+      node.src = next;
+      return;
+    }
+    node.dataset.fallbackApplied = "true";
+    node.src = "/favicon.svg";
+  };
+  const settle = (src, dataset, alive) => {
+    const node = { src, dataset: { ...dataset } };
+    for (let i = 0; i < 12 && !alive.includes(node.src); i += 1) walk(node);
+    return node.src;
+  };
+
+  // The real case: Adidas Running - Black, whose colour photo 404s while the
+  // product's other shot of the same shoe is alive.
+  assert.equal(settle("/dead.jpg", { fallbackSrc: "/good.jpg" }, ["/good.jpg"]), "/good.jpg");
+  assert.equal(settle("/dead.jpg", { fallbackSrc: "/d2.jpg|/d3.jpg" }, ["/favicon.svg"]), "/favicon.svg");
+  assert.equal(settle("/dead.jpg", {}, ["/favicon.svg"]), "/favicon.svg");
+  // The responsive url gives way to the original before any alternate.
+  assert.equal(settle("/resized.jpg", { originalSrc: "/orig.jpg", fallbackSrc: "/good.jpg" }, ["/orig.jpg"]), "/orig.jpg");
+  // A repeated candidate must not loop.
+  assert.equal(settle("/dead.jpg", { fallbackSrc: "/a.jpg|/a.jpg" }, ["/favicon.svg"]), "/favicon.svg");
+
+  assert.match(storefrontSource, /const productCardFallbackImages = /);
+  // Borrowing another colour's photo would misdescribe the card.
+  assert.match(storefrontSource, /const wideCandidates = colorCount > 1\s*\?\s*\[\]/);
+  assert.match(storefrontSource, /data-fallback-src=\{tileFallbackImages\.map\(\(url\) => imageFor\(url\)\)\.join\("\|"\)\}/);
+  assert.match(storefrontSource, /data-fallback-src=\{cardFallbackImages\.map\(\(url\) => imageFor\(url\)\)\.join\("\|"\)\}/);
+});
+
+test("rail tile photos sit on the sibling site's grey plate, not white", () => {
+  const tile = storefrontSource.slice(
+    storefrontSource.indexOf("function RecommendationProductTile"),
+    storefrontSource.indexOf("const RECOMMENDATION_RAIL_MIN_ITEMS")
+  );
+  assert.match(tile, /sf-product-card-media group\/card-image relative aspect-square overflow-hidden bg-\[#e5e5e5\]/);
+  assert.doesNotMatch(tile, /aspect-square overflow-hidden bg-white/);
+});
+
+test("rail tiles carry the same slide-up quick add as the grid card", () => {
+  const tile = storefrontSource.slice(
+    storefrontSource.indexOf("function RecommendationProductTile"),
+    storefrontSource.indexOf("const RECOMMENDATION_RAIL_MIN_ITEMS")
+  );
+  // The tile is its own hover group, so a rail neighbour cannot slide it.
+  assert.match(tile, /sf-product-recommendation-tile group group\/tile/);
+  assert.match(tile, /md:group-hover\/tile:-translate-y-\[35px\] md:focus-within:-translate-y-\[35px\]/);
+  assert.match(tile, /sf-card-action-wrap min-w-0 overflow-clip md:h-\[35px\]/);
+  assert.match(tile, /sf-card-slide-cta hidden h-\[35px\][\s\S]{0,400}md:inline-flex/);
+  // Touch has no hover, so the price stays put next to a round quick add.
+  assert.match(tile, /sf-quick-add-button[\s\S]{0,900}md:hidden/);
+  // Colour and size resolve through the very helpers the grid card uses.
+  assert.match(tile, /getProductColorGroups\(\{ \.\.\.product, variants: sellableTileVariants\.length \? sellableTileVariants : tileVariants \}\)/);
+  assert.match(tile, /getSizeOptionsForColorGroup\(nextGroup, product\)\.filter\(\(item\) => variantHasStock\(item\.variant\)\)/);
+  assert.match(tile, /<ProductCardVariantSheet/);
+  assert.match(tile, /onAddToCart\?\.\(product, chosenVariant, quantity\)/);
+  // A tile with nothing sellable, or no cart handler, must not offer the button.
+  assert.match(tile, /const canQuickAdd = sellableTileVariants\.length > 0 && typeof onAddToCart === "function"/);
+  assert.match(tile, /disabled=\{!canQuickAdd\}/);
+});
+
+test("the product page hands its rails a cart handler to make quick add reachable", () => {
+  assert.match(detailSource, /<RelatedProducts currentProduct=\{product\}[^>]*onAddToCart=\{onAddToCart\}/);
+  assert.match(storefrontSource, /function RecommendationProductTile\(\{ product, wishlist = \[\], toggleWishlist, saleModeEnabled, onAddToCart \}\)/);
+});
+
+test("a thin brand rail unfolds colour cards instead of rendering a half-empty row", () => {
+  assert.match(storefrontSource, /const RECOMMENDATION_RAIL_MIN_ITEMS = 5;/);
+  assert.match(storefrontSource, /const source = onePerModel\.length >= minItems \? onePerModel : cards;/);
+  assert.equal((storefrontSource.match(/minItems=\{RECOMMENDATION_RAIL_MIN_ITEMS\}/g) || []).length, 2);
+});
+
+test("recommendation rails provide slide controls and exclude the open product", () => {
   assert.match(storefrontSource, /parentId === String\(currentId\)/);
-  assert.match(storefrontSource, /Math\.ceil\(items\.length \/ pageSize\)/);
-  assert.match(storefrontSource, /items\.slice\(page \* pageSize, page \* pageSize \+ pageSize\)/);
+  assert.match(storefrontSource, /onClick=\{\(\) => moveBy\(-1\)\}/);
+  assert.match(storefrontSource, /onClick=\{\(\) => moveBy\(1\)\}/);
   assert.match(storefrontSource, /window\.setInterval/);
-  assert.match(storefrontSource, /\(currentPage \+ 1\) % pageCount/);
   assert.match(storefrontSource, /sf-product-recommendation-page/);
-  assert.match(storefrontSource, /aria-label=\{`صفحة \$\{index \+ 1\}`\}/);
+  assert.match(storefrontSource, /aria-label=\{`شريحة \$\{index \+ 1\}`\}/);
+  // A swipe has to follow the reading direction, which flips under RTL.
+  assert.match(storefrontSource, /moveBy\(distance \* direction > 0 \? 1 : -1\)/);
 });
 
 test("customer recent products include brand and crossed-price fields", () => {
@@ -47,10 +215,12 @@ test("product page prioritizes cached or direct product data and defers recommen
   assert.match(storefrontSource, /ready \? <RelatedProductsContent/);
 });
 
-test("recommendations use a compact five-column storefront strip instead of product cards", () => {
+test("recommendations use a compact five-across storefront strip instead of product cards", () => {
   assert.match(storefrontSource, /function RecommendationProductTile/);
-  assert.match(storefrontSource, /lg:grid-cols-5/);
-  assert.match(storefrontSource, /aspect-square overflow-hidden bg-white/);
+  // Five across is now the widest breakpoint of the sliding track, not a static grid.
+  assert.match(storefrontSource, /sf-product-recommendation-viewport/);
+  assert.match(storefrontSource, /flex: `0 0 \$\{slideBasis\}`/);
+  assert.match(storefrontSource, /aspect-square overflow-hidden bg-\[#e5e5e5\]/);
   assert.doesNotMatch(storefrontSource, /<ProductCard product=\{product\} railType="similar" rank=\{index \+ 1\}/);
 });
 

@@ -1039,6 +1039,8 @@ function ProductEdit() {
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
   const [colorGroups, setColorGroups] = useState([]);
   const [expandedGroupId, setExpandedGroupId] = useState("");
+  const [draggedColorGroupId, setDraggedColorGroupId] = useState("");
+  const [dragOverColorGroupId, setDragOverColorGroupId] = useState("");
   const [highlightMissingColorKeys, setHighlightMissingColorKeys] = useState(() => new Set());
   const [crocsLibraryGroupId, setCrocsLibraryGroupId] = useState("");
   const [removedVariantIds, setRemovedVariantIds] = useState([]);
@@ -2818,15 +2820,47 @@ function ProductEdit() {
     }
   };
 
-  const moveColorGroup = (groupId, direction) => {
+  // Lifts the dragged colour out and reinserts it at the target's position,
+  // rather than swapping the pair the way the arrows did. Swapping is what made
+  // reaching the top a per-row chore; this lands a colour anywhere in one drag.
+  const moveColorGroupToIndex = (groupId, targetIndex) => {
     setColorGroups((prev) => {
       const currentIndex = prev.findIndex((group) => group.id === groupId);
-      const targetIndex = currentIndex + direction;
-      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= prev.length) return prev;
+      if (currentIndex < 0) return prev;
+      const bounded = Math.max(0, Math.min(prev.length - 1, targetIndex));
+      if (bounded === currentIndex) return prev;
       const next = [...prev];
-      [next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]];
+      const [moved] = next.splice(currentIndex, 1);
+      next.splice(bounded, 0, moved);
       return next;
     });
+  };
+
+  const dropColorGroupOn = (targetGroupId) => {
+    const sourceId = draggedColorGroupId;
+    setDraggedColorGroupId("");
+    setDragOverColorGroupId("");
+    if (!sourceId || sourceId === targetGroupId) return;
+    const targetIndex = colorGroups.findIndex((group) => group.id === targetGroupId);
+    if (targetIndex < 0) return;
+    moveColorGroupToIndex(sourceId, targetIndex);
+  };
+
+  // Keyboard parity for the handle, since the arrow buttons it replaces were
+  // the only way to reorder without a mouse. Home/End are the "all the way to
+  // the top/bottom" that dragging a long list makes tedious.
+  const handleColorGroupHandleKeyDown = (event, groupId, groupIndex) => {
+    const actions = {
+      ArrowUp: () => moveColorGroupToIndex(groupId, groupIndex - 1),
+      ArrowDown: () => moveColorGroupToIndex(groupId, groupIndex + 1),
+      Home: () => moveColorGroupToIndex(groupId, 0),
+      End: () => moveColorGroupToIndex(groupId, colorGroups.length - 1),
+    };
+    const action = actions[event.key];
+    if (!action) return;
+    event.preventDefault();
+    event.stopPropagation();
+    action();
   };
 
   const zeroAllColorStock = () => {
@@ -3677,7 +3711,7 @@ function ProductEdit() {
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={product.custom_compare_price || ""}
                     onChange={(event) => updateProductField("custom_compare_price", event.target.value)}
                     placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
@@ -4348,10 +4382,32 @@ function ProductEdit() {
                 const isMissingImageHighlight = highlightMissingColorKeys.has(normalizeColorKey(group.color));
 
                 return (
-                <div key={group.id} className={`overflow-visible rounded-[var(--radius-card)] border bg-surface-soft transition ${ isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_var(--danger-soft),0_0_28px_var(--danger-soft)]" : "border-border" }`}>
+                <div
+                  key={group.id}
+                  className={`overflow-visible rounded-[var(--radius-card)] border bg-surface-soft transition ${ draggedColorGroupId === group.id ? "opacity-40" : "" } ${ dragOverColorGroupId === group.id && draggedColorGroupId !== group.id ? "border-primary shadow-[0_0_0_1px_var(--primary)]" : isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_var(--danger-soft),0_0_28px_var(--danger-soft)]" : "border-border" }`}
+                  onDragOver={(event) => {
+                    if (!draggedColorGroupId) return;
+                    event.preventDefault();
+                    setDragOverColorGroupId(group.id);
+                  }}
+                  onDragLeave={() => setDragOverColorGroupId((current) => (current === group.id ? "" : current))}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    dropColorGroupOn(group.id);
+                  }}
+                >
                   <div
                     role="button"
                     tabIndex={0}
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggedColorGroupId(group.id);
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => {
+                      setDraggedColorGroupId("");
+                      setDragOverColorGroupId("");
+                    }}
                     onClick={() => setExpandedGroupId((current) => (current === group.id ? "" : group.id))}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -4362,16 +4418,29 @@ function ProductEdit() {
                     className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-hover"
                     aria-expanded={isExpanded}
                   >
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface sm:h-[72px] sm:w-[72px]">
+                    <div className="group/thumb relative shrink-0">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface sm:h-[72px] sm:w-[72px]">
+                        {(getPrimaryColorImage(group) || group.imagePreview || group.image_url) ? (
+                          <img
+                            src={resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url)}
+                            alt={group.color || `Color ${groupIndex + 1}`}
+                            className="h-full w-full object-contain p-2"
+                          />
+                        ) : (
+                          <span className="px-2 text-center text-[11px] font-semibold text-text-muted">لا توجد صورة</span>
+                        )}
+                      </div>
                       {(getPrimaryColorImage(group) || group.imagePreview || group.image_url) ? (
-                        <img
-                          src={resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url)}
-                          alt={group.color || `Color ${groupIndex + 1}`}
-                          className="h-full w-full object-contain p-2"
-                        />
-                      ) : (
-                        <span className="px-2 text-center text-[11px] font-semibold text-text-muted">لا توجد صورة</span>
-                      )}
+                        <div className="pointer-events-none invisible absolute bottom-full right-0 z-50 mb-2 origin-bottom-right scale-95 opacity-0 transition duration-150 group-hover/thumb:visible group-hover/thumb:scale-100 group-hover/thumb:opacity-100">
+                          <div className="h-64 w-64 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl">
+                            <img
+                              src={resolveAssetUrl(getPrimaryColorImage(group) || group.imagePreview || group.image_url)}
+                              alt={group.color || `Color ${groupIndex + 1}`}
+                              className="h-full w-full object-contain p-3"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -4405,34 +4474,17 @@ function ProductEdit() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center rounded-[var(--radius-control)] border border-border bg-surface p-1" aria-label="ترتيب اللون">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            moveColorGroup(group.id, -1);
-                          }}
-                          disabled={groupIndex === 0}
-                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-text-muted transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-25"
-                          aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
-                          title="تحريك لأعلى"
-                        >
-                          <ArrowUp size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            moveColorGroup(group.id, 1);
-                          }}
-                          disabled={groupIndex === colorGroups.length - 1}
-                          className="inline-flex h-[var(--control-height-sm)] w-8 items-center justify-center rounded-[var(--radius-control)] text-text-muted transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-25"
-                          aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
-                          title="تحريك لأسفل"
-                        >
-                          <ArrowDown size={15} />
-                        </button>
-                      </div>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => handleColorGroupHandleKeyDown(event, group.id, groupIndex)}
+                        className="inline-flex h-[var(--control-height-md)] w-8 shrink-0 cursor-grab items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text-muted transition hover:bg-surface-hover active:cursor-grabbing"
+                        aria-label={`اسحب لترتيب ${group.color || `اللون ${groupIndex + 1}`}. الأسهم تحرك خطوة، Home للأعلى، End للأسفل`}
+                        title="اسحب لتغيير الترتيب — أو الأسهم للتحريك خطوة، Home لأعلى القائمة، End لأسفلها"
+                      >
+                        <GripVertical size={16} />
+                      </span>
                       <button
                         type="button"
                         aria-pressed={group.is_storefront_visible !== false}
@@ -4451,9 +4503,10 @@ function ProductEdit() {
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
                         onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
                         disabled={!getPrimaryColorImage(group)}
-                        className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
+                        title={`إنشاء Thermal لهذا اللون عند الحفظ — ${group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}`}
+                        className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
                       >
-                        <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
+                        <span>Thermal عند الحفظ</span>
                         <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
                       </button>
                       <button

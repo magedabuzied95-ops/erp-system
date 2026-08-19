@@ -633,7 +633,7 @@ const resolveCollectedPaymentMode = (order = {}, fallback = "") => {
   )
     .filter((payment) => Number(payment?.amount ?? payment?.paid_amount ?? payment?.value ?? 0) > 0)
     .map((payment) => normalizePaymentMethodKey(payment?.method || payment?.payment_method))
-    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit"].includes(method))));
+    .filter((method) => method && !["credit_sale", "exchange_credit", "return_credit", "employee_advance"].includes(method))));
   return methods.length > 1 ? "split" : methods[0] || fallback;
 };
 
@@ -3492,20 +3492,51 @@ function POSPro() {
     [productsAfterNonSmartFilters, selectedGender, selectedProductType, selectedGrade, smartClassificationOptions]
   );
 
+  // Brand and factory are facets of each other: each list is narrowed by the
+  // search term and by the OTHER selection, but never by its own. Filtering a
+  // list by its own selection would collapse it to the single chip already
+  // chosen, leaving no way to switch without clearing first.
+  const facetSource = (constraints) => {
+    const query = normalizeSmartText(deferredSearch.trim());
+    return productsAfterSmartFilters.filter(({ meta }) => {
+      const matchesOther = matchesQuickFilterGroups(
+        { brandKey: meta.brandKey, manufacturerIds: meta.manufacturerIds, manufacturerNames: meta.manufacturerNames },
+        constraints,
+        normalizeSmartText
+      );
+      return matchesOther && (!query || meta.searchText.includes(query));
+    });
+  };
+
+  const productsForBrandFacet = useMemo(
+    () => facetSource({ manufacturers: selectedManufacturerId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [productsAfterSmartFilters, deferredSearch, selectedManufacturerId]
+  );
+
+  const productsForManufacturerFacet = useMemo(
+    () => facetSource({ brands: selectedBrandId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [productsAfterSmartFilters, deferredSearch, selectedBrandId]
+  );
+
   const brandOptions = useMemo(() => {
     const map = new Map();
-    productsAfterSmartFilters.forEach(({ product, meta }) => {
+    productsForBrandFacet.forEach(({ product, meta }) => {
       const label = product.brand_name || product.brand;
       if (!label || label === "Unbranded") return;
       const key = meta.brandKey || `name:${normalizeSmartText(label)}`;
       if (!map.has(key)) map.set(key, { id: key, name: label });
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [productsAfterSmartFilters]);
+  }, [productsForBrandFacet]);
 
+  // Every tenant factory used to be appended here regardless of the catalogue,
+  // which is why narrowing to "Bags + women" still offered all of them — and
+  // picking one of those returned an empty grid.
   const manufacturerOptions = useMemo(() => {
     const map = new Map();
-    productsAfterSmartFilters.forEach(({ product, meta }) => {
+    productsForManufacturerFacet.forEach(({ product, meta }) => {
       meta.manufacturerIds.forEach((id) => {
         const name = manufacturerLookup.get(id) || product.manufacturer_name || product.manufacturer;
         if (name) map.set(id, { id, name });
@@ -3516,12 +3547,8 @@ function POSPro() {
         if (!existing) map.set(`name:${name}`, { id: `name:${name}`, name });
       });
     });
-    manufacturers.forEach((manufacturer) => {
-      const id = String(manufacturer.id);
-      if (!map.has(id)) map.set(id, { id, name: manufacturer.name });
-    });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [productsAfterSmartFilters, manufacturers, manufacturerLookup]);
+  }, [productsForManufacturerFacet, manufacturerLookup]);
 
   const draftProductsAfterSmartFilters = useMemo(() => {
     const draftGender = draftPosFilters?.gender ?? selectedGender;
@@ -7356,6 +7383,10 @@ function POSPro() {
     setSelectedGender([]);
     setSelectedProductType("all");
     setSelectedGrade("all");
+    // The search term narrows the grid exactly like the chips do, so leaving it
+    // behind made "clear" look broken: every chip reset yet the same one or two
+    // products stayed on screen.
+    setSearch("");
   }, []);
 
   const handleGenderFilterChange = useCallback((value) => {
@@ -7368,6 +7399,12 @@ function POSPro() {
 
   const handleManufacturerFilterChange = useCallback((value) => {
     setSelectedManufacturerId((current) => toggleMultiFilterValue(current, value));
+  }, []);
+
+  // Product type is single-value, so this replaces rather than toggles a list;
+  // the quick chips pass "all" back when the active one is clicked again.
+  const handleProductTypeFilterChange = useCallback((value) => {
+    setSelectedProductType(value || "all");
   }, []);
 
   const handleToggleFilters = useCallback(() => {
@@ -8218,6 +8255,9 @@ function POSPro() {
                 </button>
             </div>
             <QuickPosFilters
+              productTypeOptions={smartFilterOptions.productType}
+              selectedProductType={selectedProductType}
+              onSelectProductType={handleProductTypeFilterChange}
               genderOptions={smartFilterOptions.gender}
               selectedGenders={normalizeMultiFilterValue(selectedGender)}
               onToggleGender={handleGenderFilterChange}

@@ -411,6 +411,55 @@ const ProductAudienceBadges = ({ row = {}, language = "ar" }) => {
   });
 };
 
+// The factory lives on the colour rows, so a product can legitimately carry more
+// than one. admin-list sends the distinct names already resolved and sorted.
+const getProductManufacturerNames = (row = {}) => {
+  const values = Array.isArray(row.manufacturer_names)
+    ? row.manufacturer_names
+    : Array.isArray(row.manufacturerNames)
+      ? row.manufacturerNames
+      : Array.isArray(row.variant_manufacturer_names)
+        ? row.variant_manufacturer_names
+        : [row.manufacturer_name];
+  const seen = new Map();
+  values.forEach((value) => {
+    const name = String(value || "").trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    if (!seen.has(key)) seen.set(key, name);
+  });
+  return [...seen.values()];
+};
+
+const ProductManufacturerBadges = ({ row = {}, language = "ar", limit = 3 }) => {
+  const manufacturers = getProductManufacturerNames(row);
+  if (!manufacturers.length) return null;
+  const isArabic = String(language || "").toLowerCase().startsWith("ar");
+  const visible = manufacturers.slice(0, limit);
+  const remainingCount = Math.max(0, manufacturers.length - visible.length);
+
+  return (
+    <div
+      className="flex min-w-0 flex-wrap items-center justify-center gap-1"
+      title={`${isArabic ? "المصنع" : "Manufacturer"}: ${manufacturers.join(" • ")}`}
+    >
+      {visible.map((name) => (
+        <span
+          key={name}
+          className="inline-flex max-w-[8rem] items-center rounded-full border border-sky-300/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-black leading-4 text-sky-200"
+        >
+          <span className="truncate">{name}</span>
+        </span>
+      ))}
+      {remainingCount ? (
+        <span className="inline-flex items-center rounded-full border border-border bg-surface-soft px-1.5 py-0.5 text-[10px] font-black leading-4 text-text-muted">
+          +{remainingCount}
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
 const getColorImageStatusDetails = (row = {}) => {
   const status = String(row.colorImageStatus || row.color_image_status || "none").trim().toLowerCase();
   const totalColors = Number(row.totalColors ?? row.total_colors ?? 0) || 0;
@@ -1217,8 +1266,8 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
 
   if (!src) {
     return (
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
-        <Package2 size={20} />
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
+        <Package2 size={26} />
       </div>
     );
   }
@@ -1231,9 +1280,9 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
     return (
       <div
         title={`الصورة غير موجودة على السيرفر: ${src}`}
-        className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
+        className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
       >
-        <ImageOff size={18} />
+        <ImageOff size={22} />
         <span className="text-[8px] font-black leading-none">مفقودة</span>
       </div>
     );
@@ -1249,7 +1298,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         onError={() => setLoadFailed(true)}
         onMouseEnter={showColorPreviews}
         onMouseLeave={hideColorPreviews}
-        className="h-14 w-14 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
+        className="h-20 w-20 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
       />
       {previewPosition && typeof document !== "undefined" ? createPortal(
         <div
@@ -1420,7 +1469,7 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
       <input
         type="number"
         min="0"
-        step="0.01"
+        step="1"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -1449,7 +1498,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
       <input
         type="number"
         min="0"
-        step="0.01"
+        step="1"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -1927,10 +1976,12 @@ function ProductsList() {
   const [storefrontVisibilityFilter, setStorefrontVisibilityFilter] = useState(initialFilters.storefrontVisibility);
   const [classificationFilters, setClassificationFilters] = useState(initialFilters.classifications);
   const [brandFilter, setBrandFilter] = useState(initialFilters.brand);
+  const [manufacturerFilter, setManufacturerFilter] = useState(initialFilters.manufacturer);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getStoredProductsPageSize);
   const [pagination, setPagination] = useState({ page: 1, limit: 8, offset: 0, total: 0, totalPages: 1 });
   const [brandOptions, setBrandOptions] = useState(["all"]);
+  const [manufacturerOptions, setManufacturerOptions] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [openActionId, setOpenActionId] = useState(null);
@@ -1979,9 +2030,10 @@ function ProductsList() {
       colorImageStatus: colorImageFilter,
       storefrontVisibility: storefrontVisibilityFilter,
       brand: brandFilter,
+      manufacturer: manufacturerFilter,
       classifications: classificationFilters,
     });
-  }, [brandFilter, catalogTab, classificationFilters, colorImageFilter, statusFilter, storefrontVisibilityFilter]);
+  }, [brandFilter, manufacturerFilter, catalogTab, classificationFilters, colorImageFilter, statusFilter, storefrontVisibilityFilter]);
 
   useEffect(() => {
     if (!openActionId) return undefined;
@@ -2077,6 +2129,7 @@ function ProductsList() {
             status: statusFilter,
             colorImageStatus: colorImageFilter,
             brand: brandFilter,
+            manufacturer: manufacturerFilter,
             storefrontVisibility: storefrontVisibilityFilter,
             catalogTab,
             gender: classificationFilters.gender,
@@ -2088,6 +2141,7 @@ function ProductsList() {
         const baseProducts = Array.isArray(productsResult?.products) ? productsResult.products : [];
         const nextPagination = productsResult?.pagination || {};
         const apiBrands = Array.isArray(productsResult?.raw?.filters?.brands) ? productsResult.raw.filters.brands : [];
+        const apiManufacturers = Array.isArray(productsResult?.raw?.filters?.manufacturers) ? productsResult.raw.filters.manufacturers : [];
         productDetailsCacheRef.current.clear();
         setRows(baseProducts);
         setPagination({
@@ -2098,6 +2152,7 @@ function ProductsList() {
           totalPages: Number(nextPagination.totalPages || 1) || 1,
         });
         setBrandOptions(["all", ...apiBrands.filter(Boolean)]);
+        setManufacturerOptions(apiManufacturers.filter(Boolean));
       } catch (err) {
         if (cancelled || latestProductsRequestRef.current !== requestId) return;
         if (err?.name === "AbortError" || err?.name === "CanceledError" || String(err?.code || "") === "ERR_CANCELED") return;
@@ -2129,6 +2184,7 @@ function ProductsList() {
     statusFilter,
     colorImageFilter,
     brandFilter,
+    manufacturerFilter,
     storefrontVisibilityFilter,
     catalogTab,
     classificationFilters.gender,
@@ -2154,6 +2210,19 @@ function ProductsList() {
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((id) => rows.some((row) => row.id === id)));
   }, [rows]);
+
+  // The server narrows the factory list to the other active filters, so a
+  // previously picked factory can drop out of it. Release the selection instead
+  // of leaving a filter applied whose chip is no longer on screen — that reads
+  // as "no products" with nothing to click to undo it. Skip while the list is
+  // empty: that is the pre-first-response state, not a real "no longer valid".
+  useEffect(() => {
+    if (!manufacturerOptions.length) return;
+    if (manufacturerFilter === "all") return;
+    if (manufacturerOptions.includes(manufacturerFilter)) return;
+    setManufacturerFilter("all");
+    setPage(1);
+  }, [manufacturerOptions, manufacturerFilter]);
 
   const classificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
@@ -2196,14 +2265,45 @@ function ProductsList() {
     setPage(1);
   };
 
+  const setManufacturerGroupFilter = (value) => {
+    setManufacturerFilter(value);
+    setPage(1);
+  };
+
   const clearClassificationFilters = () => {
     setClassificationFilters({
       gender: "all",
       productType: "all",
       grade: "all",
     });
+    setManufacturerFilter("all");
     setPage(1);
   };
+
+  // Manufacturer is not a product classification: its options come from the
+  // server (admin-list `filters.manufacturers`) and it has its own state, so it
+  // joins the rendered groups here rather than via CLASSIFICATION_FILTER_FIELDS.
+  const filterGroups = useMemo(() => {
+    const groups = classificationFilterGroups.map((group) => ({
+      key: group.key,
+      label: group.label,
+      options: group.options,
+      value: classificationFilters[group.key] || "all",
+      onSelect: (value) => setClassificationGroupFilter(group.key, value),
+    }));
+    if (manufacturerOptions.length) {
+      groups.push({
+        key: "manufacturer",
+        label: t("products.filters.manufacturer", "Manufacturer"),
+        options: manufacturerOptions.map((name) => ({ value: name, label: name })),
+        value: manufacturerFilter || "all",
+        onSelect: setManufacturerGroupFilter,
+      });
+    }
+    return groups;
+  }, [classificationFilterGroups, classificationFilters, manufacturerFilter, manufacturerOptions, t]);
+
+  const activeFilterCount = activeClassificationCount + (manufacturerFilter && manufacturerFilter !== "all" ? 1 : 0);
 
   const hasAnyStoredFilter =
     catalogTab !== DEFAULT_PRODUCTS_LIST_FILTERS.catalogTab ||
@@ -2211,7 +2311,7 @@ function ProductsList() {
     colorImageFilter !== "all" ||
     storefrontVisibilityFilter !== "all" ||
     brandFilter !== "all" ||
-    activeClassificationCount > 0;
+    activeFilterCount > 0;
 
   const clearAllProductFilters = () => {
     setCatalogTab(DEFAULT_PRODUCTS_LIST_FILTERS.catalogTab);
@@ -2219,6 +2319,7 @@ function ProductsList() {
     setColorImageFilter("all");
     setStorefrontVisibilityFilter("all");
     setBrandFilter("all");
+    setManufacturerFilter(DEFAULT_PRODUCTS_LIST_FILTERS.manufacturer);
     setClassificationFilters({ ...DEFAULT_PRODUCTS_LIST_FILTERS.classifications });
     removeStoredProductsListFilters();
     setPage(1);
@@ -3109,12 +3210,12 @@ function ProductsList() {
                 ref={filtersTriggerRef}
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
-                disabled={!classificationFilterGroups.length}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeClassificationCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text hover:border-border-strong hover:bg-surface-hover" }`}
+                disabled={!filterGroups.length}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${ activeFilterCount ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100" : "border-border bg-surface-soft text-text hover:border-border-strong hover:bg-surface-hover" }`}
                 aria-expanded={filtersOpen}
               >
                 <Filter size={16} />
-                <span>{t("products.filters.filters", "Filters")}{activeClassificationCount ? ` (${activeClassificationCount})` : ""}</span>
+                <span>{t("products.filters.filters", "Filters")}{activeFilterCount ? ` (${activeFilterCount})` : ""}</span>
                 <ChevronDown size={16} className={`transition ${filtersOpen ? "rotate-180" : ""}`} />
               </button>
               {hasAnyStoredFilter ? (
@@ -3130,18 +3231,18 @@ function ProductsList() {
               ) : null}
             </div>
 
-            {filtersOpen && classificationFilterGroups.length ? (
+            {filtersOpen && filterGroups.length ? (
               <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(38rem,calc(100vw-2rem))]">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-soft px-4 py-3">
                   <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
                     <Filter size={14} />
                     {t("products.filters.classifications", "Product filters")}
-                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${ activeClassificationCount ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : "border-border bg-surface-soft text-text-muted" }`}>
-                      {activeClassificationCount}
+                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${ activeFilterCount ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : "border-border bg-surface-soft text-text-muted" }`}>
+                      {activeFilterCount}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    {activeClassificationCount ? (
+                    {activeFilterCount ? (
                       <button
                         type="button"
                         onClick={clearClassificationFilters}
@@ -3163,7 +3264,7 @@ function ProductsList() {
                 </div>
 
                 <div className="max-h-[min(28rem,70vh)] space-y-3 overflow-auto p-4">
-                  {classificationFilterGroups.map((group) => (
+                  {filterGroups.map((group) => (
                     <div key={group.key} className="grid min-w-0 gap-2 lg:grid-cols-[8.5rem_minmax(0,1fr)] lg:items-start">
                       <div className="pt-1 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">
                         {group.label}
@@ -3171,18 +3272,18 @@ function ProductsList() {
                       <div className="flex min-w-0 flex-wrap gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setClassificationGroupFilter(group.key, "all")}
-                          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ classificationFilters[group.key] === "all" ? "border-border bg-surface-soft text-text" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:text-text" }`}
+                          onClick={() => group.onSelect("all")}
+                          className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ group.value === "all" ? "border-border bg-surface-soft text-text" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:text-text" }`}
                         >
                           {t("products.filters.allClassifications", "All")}
                         </button>
                         {group.options.map((option) => {
-                          const isActive = classificationFilters[group.key] === option.value;
+                          const isActive = group.value === option.value;
                           return (
                             <button
                               key={`${group.key}-${option.value}`}
                               type="button"
-                              onClick={() => setClassificationGroupFilter(group.key, option.value)}
+                              onClick={() => group.onSelect(option.value)}
                               className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-black transition ${ isActive ? "border-emerald-300/70 bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:bg-surface-hover hover:text-[var(--primary-contrast)]" }`}
                             >
                               {option.label}
@@ -3346,11 +3447,11 @@ function ProductsList() {
                     />
                   </th>
                   <th className="px-4 py-2 text-right">{t("products.table.product")}</th>
-                  <th className="px-4 py-2">{t("products.table.typeCategoryBrand")}</th>
-                  <th className="px-4 py-2">{t("products.table.stock")}</th>
-                  <th className="px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
-                  <th className="px-4 py-2">{t("products.table.status")}</th>
-                  <th className="px-4 py-2 text-center">{t("products.table.actions")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.typeCategoryBrand")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.stock")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.status")}</th>
+                  <th className="m1-table__cell--center px-4 py-2">{t("products.table.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3440,7 +3541,7 @@ function ProductsList() {
                             </div>
                           </button>
                         </td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="m1-table__cell--center px-4 py-4 align-middle">
                           <p className="truncate font-semibold text-text">
                             {productType || category || t("products.selected.category")}
                           </p>
@@ -3451,8 +3552,11 @@ function ProductsList() {
                           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
                             <ProductAudienceBadges row={row} language={i18n.language} />
                           </div>
+                          <div className="mt-1.5">
+                            <ProductManufacturerBadges row={row} language={i18n.language} />
+                          </div>
                         </td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="m1-table__cell--center px-4 py-4 align-middle">
                           <p className="font-semibold text-text">{totalStock}</p>
                           <p className="text-sm text-text-muted">{t("products.stock.lowAlert")} {lowStockAlert}</p>
                         </td>
@@ -4024,6 +4128,9 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
             <div className="mt-0.5 truncate text-[11px] font-semibold text-primary">{category}</div>
           ) : null}
           <div className="mt-0.5 truncate text-[11px] font-semibold text-text-muted">{row.brand || t("products.selected.brand")}</div>
+          <div className="mt-1.5 flex justify-start">
+            <ProductManufacturerBadges row={row} language={language} />
+          </div>
         </div>
       </div>
 

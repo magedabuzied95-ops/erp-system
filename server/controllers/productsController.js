@@ -45,6 +45,7 @@ import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterV
 import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSearch.js";
 import { normalizeCartonColors, normalizePurchaseMode, validatePurchasePatternConfiguration } from "../services/purchasePatternService.js";
 import { normalizeSizeGroupKey, normalizeSizeGroupKeys } from "../utils/sizeGroups.js";
+import { wholePoundPriceErrors, wholePoundVariantPriceErrors } from "../utils/priceValidation.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -1886,7 +1887,11 @@ const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => 
 
   const manufacturerValues = normalizeAdminListFilterValues(filters.manufacturer);
   if (manufacturerValues.length) {
-    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(m.name), ''), NULLIF(TRIM(p.manufacturer), ''), '')`, manufacturerValues, values));
+    // products has no legacy `manufacturer` text column (unlike brand/category),
+    // so the name can only come from the joined manufacturers row. Referencing
+    // p.manufacturer here threw "column p.manufacturer does not exist" the moment
+    // the filter was actually passed, which is why it stayed unused until now.
+    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(m.name), ''), '')`, manufacturerValues, values));
     applied.manufacturer = manufacturerValues.length === 1 ? manufacturerValues[0] : manufacturerValues;
   }
 
@@ -3308,6 +3313,48 @@ export const getProductsAdminList = async (req, res) => {
         grade: req.query.grade,
       },
     });
+    // The manufacturer chip list is a facet, not a fixed list: it must offer the
+    // factories that still have products under the OTHER active filters, so
+    // narrowing by gender/type/grade drops the factories that no longer match.
+    // Its own selection is deliberately excluded — otherwise picking a factory
+    // would collapse the list to that one chip and there would be no way to
+    // switch to another without clearing first.
+    //
+    // The color-image filter is left out: its clause needs the `cis` join, a CTE
+    // over every variant, and pulling that into the facet query would roughly
+    // double the cost of every products-list request for a maintenance filter
+    // that is rarely combined with the factory chips.
+    const manufacturerFacetValues = [...scopeClause.values];
+    const manufacturerFacetSearchClause = buildProductSearchClause({
+      values: manufacturerFacetValues,
+      search: req.query.search ?? req.query.q ?? "",
+    });
+    const manufacturerFacetFiltersClause = await buildProductsAdminListFiltersClause({
+      values: manufacturerFacetValues,
+      filters: {
+        status: req.query.status,
+        brand: req.query.brand,
+        category: req.query.category,
+        storefront_visibility: req.query.storefront_visibility ?? req.query.storefrontVisibility,
+        sale: req.query.sale,
+        offers: req.query.offers,
+        is_offer_story: req.query.is_offer_story,
+        catalog_tab: req.query.catalog_tab ?? req.query.catalogTab,
+        gender: req.query.gender,
+        product_type: req.query.product_type ?? req.query.productType,
+        grade: req.query.grade,
+      },
+    });
+    const manufacturerFacetWhereSql = [
+      scopeClause.whereSql,
+      manufacturerFacetSearchClause
+        ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${manufacturerFacetSearchClause}`
+        : "",
+      manufacturerFacetFiltersClause.sql
+        ? `${scopeClause.whereSql || manufacturerFacetSearchClause ? "AND" : "WHERE"} ${manufacturerFacetFiltersClause.sql}`
+        : "",
+    ].filter(Boolean).join("\n");
+
     const colorImageFilter = String(req.query.color_image_status ?? req.query.colorImageStatus ?? "all").trim().toLowerCase();
     const normalizedColorImageFilter = colorImageFilter === "missing" ? "incomplete" : colorImageFilter;
     const colorImageFilterClause = ["complete", "incomplete", "none"].includes(normalizedColorImageFilter)
@@ -3546,6 +3593,26 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(p.barcode, '') AS barcode,
         COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(p.category), ''), '') AS category,
         COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), ''), '') AS brand,
+        COALESCE(NULLIF(TRIM(m.name), ''), '') AS manufacturer_name,
+        COALESCE((
+          SELECT jsonb_agg(manufacturer_source.manufacturer_name ORDER BY manufacturer_source.manufacturer_name)
+          FROM (
+            SELECT DISTINCT TRIM(vm.name) AS manufacturer_name
+            FROM product_variants pv_manu
+            CROSS JOIN LATERAL unnest(
+              CASE
+                WHEN COALESCE(cardinality(pv_manu.manufacturer_ids), 0) > 0 THEN pv_manu.manufacturer_ids
+                WHEN pv_manu.manufacturer_id IS NOT NULL THEN ARRAY[pv_manu.manufacturer_id]::bigint[]
+                ELSE ARRAY[]::bigint[]
+              END
+            ) AS variant_manufacturer(manufacturer_id)
+            JOIN manufacturers vm ON vm.id = variant_manufacturer.manufacturer_id
+            WHERE pv_manu.product_id = p.id
+              AND pv_manu.is_active IS DISTINCT FROM FALSE
+              AND pv_manu.deleted_at IS NULL
+              AND TRIM(COALESCE(vm.name, '')) <> ''
+          ) manufacturer_source
+        ), '[]'::jsonb) AS variant_manufacturer_names,
         COALESCE(
           NULLIF(TRIM(p.image_url), ''),
           NULLIF(TRIM(p.thumbnail_url), ''),
@@ -3677,6 +3744,7 @@ export const getProductsAdminList = async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
       LEFT JOIN (
         SELECT product_id, COALESCE(SUM(stock), 0)::int AS total_variant_stock
         FROM product_variants
@@ -3714,8 +3782,29 @@ export const getProductsAdminList = async (req, res) => {
       scopeClause.values
     );
 
+    const manufacturerOptionsResult = await db.query(
+      `
+      SELECT
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(m.name, '')), '') ORDER BY NULLIF(TRIM(COALESCE(m.name, '')), '')), NULL) AS manufacturers
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+      ${manufacturerFacetWhereSql}
+      `,
+      manufacturerFacetValues
+    );
+
     const rows = (result.rows || []).map((row) => {
       const currentSellingPrice = resolveAdminListCurrentSellingPrice(row);
+      // The colour rows carry the real factory; the product-level manufacturer is
+      // only a fallback for products whose variants were never assigned one.
+      const variantManufacturerNames = (Array.isArray(row.variant_manufacturer_names) ? row.variant_manufacturer_names : [])
+        .map((name) => String(name || "").trim())
+        .filter(Boolean);
+      const manufacturerNames = variantManufacturerNames.length
+        ? variantManufacturerNames
+        : [String(row.manufacturer_name || "").trim()].filter(Boolean);
       return {
       ...row,
       selling_price: currentSellingPrice,
@@ -3739,11 +3828,15 @@ export const getProductsAdminList = async (req, res) => {
       productThermalImageStatus: row.product_thermal_image_status || "pending",
       thermalColorCount: Number(row.thermal_color_count || 0),
       thermalColorNames: Array.isArray(row.thermal_color_names) ? row.thermal_color_names : [],
+      variant_manufacturer_names: variantManufacturerNames,
+      manufacturer_names: manufacturerNames,
+      manufacturerNames,
     };
     });
     const total = Number(result.rows?.[0]?.total_count || 0);
     const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];
     const availableCategories = Array.isArray(filterOptionsResult.rows?.[0]?.categories) ? filterOptionsResult.rows[0].categories.filter(Boolean) : [];
+    const availableManufacturers = Array.isArray(manufacturerOptionsResult.rows?.[0]?.manufacturers) ? manufacturerOptionsResult.rows[0].manufacturers.filter(Boolean) : [];
 
     console.log("PRODUCT_ADMIN_LIST_TIMING", {
       durationMs: Date.now() - startedAt,
@@ -3768,6 +3861,7 @@ export const getProductsAdminList = async (req, res) => {
       filters: {
         brands: availableBrands,
         categories: availableCategories,
+        manufacturers: availableManufacturers,
       },
     });
   } catch (error) {
@@ -5011,6 +5105,16 @@ export const createProduct = async (req, res) => {
   const performanceLogger = createProductSavePerformanceLogger();
 
   try {
+    // Whole-pound prices are enforced here, before any schema or transaction work,
+    // so a mistyped 949.99 never reaches the catalogue (or a story image).
+    const priceErrors = [
+      ...wholePoundPriceErrors(req.body || {}),
+      ...wholePoundVariantPriceErrors(req.body?.variants),
+    ];
+    if (priceErrors.length) {
+      client.release();
+      return res.status(400).json({ success: false, message: priceErrors[0], errors: priceErrors });
+    }
     await ensureProductSchema();
     await ensureProductVariantSchema();
     await ensureProductVariantManufacturerColumn();
@@ -5609,6 +5713,16 @@ export const updateProduct = async (req, res) => {
   const performanceLogger = createProductSavePerformanceLogger();
 
   try {
+    // Whole-pound prices are enforced here, before any schema or transaction work,
+    // so a mistyped 949.99 never reaches the catalogue (or a story image).
+    const priceErrors = [
+      ...wholePoundPriceErrors(req.body || {}),
+      ...wholePoundVariantPriceErrors(req.body?.variants),
+    ];
+    if (priceErrors.length) {
+      client.release();
+      return res.status(400).json({ success: false, message: priceErrors[0], errors: priceErrors });
+    }
     const bootstrapSteps = [
       ["ensureProductSchema", ensureProductSchema],
       ["ensureProductVariantSchema", ensureProductVariantSchema],

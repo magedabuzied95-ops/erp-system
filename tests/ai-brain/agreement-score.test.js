@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   AGREEMENT_VERDICTS,
+  recordAgreement,
   scoreAgreement,
   similarityScore,
   summarizeAgreement,
@@ -104,6 +105,28 @@ test("unscored entries are excluded from the denominator", () => {
     { scored: false, reason: "no_draft" },
   ];
   assert.equal(summarizeAgreement(scores).total, 1);
+});
+
+test("recording never throws when the table is absent", async () => {
+  // The state production is in right now: the migration is a deliberate DBA step, so
+  // the recorder must degrade rather than break a send that is delivering to a
+  // customer. It still returns the score, so the caller can log it either way.
+  const result = await recordAgreement({ tenantId: 999999, draftText: DRAFT, sentText: DRAFT });
+  assert.equal(result.recorded, false);
+  assert.equal(result.reason, "write_failed", "a failed write must say so, not report an empty reason");
+  assert.equal(result.verdict, "sent_as_is", "the score survives even when the write does not");
+});
+
+test("recording is skipped when there was no draft to compare", async () => {
+  const result = await recordAgreement({ tenantId: 999999, draftText: "", sentText: "أهلاً" });
+  assert.equal(result.recorded, false);
+  assert.equal(result.reason, "no_draft");
+});
+
+test("recording refuses to run without a tenant", async () => {
+  const result = await recordAgreement({ draftText: DRAFT, sentText: DRAFT });
+  assert.equal(result.recorded, false);
+  assert.equal(result.reason, "no_tenant");
 });
 
 test("every verdict the scorer produces is a declared verdict", () => {

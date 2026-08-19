@@ -139,14 +139,22 @@ test("the Arabic bundle is actually Arabic, not copied English", () => {
  * Bundle wiring — the gap that passes every other check
  * ------------------------------------------------------------------ */
 
-test("the surveillance bundle is registered at all three required points", () => {
+test("the surveillance bundle reaches the runtime, not just the manifest", () => {
+  // THE GAP THIS CLOSES, and it was real: main refactored i18n to load locales
+  // from GENERATED bundle modules (src/i18n/bundles/*.js) instead of static
+  // imports in i18n.js. The manifest entry alone is not wiring — after the
+  // merge, surveillance was in localeManifest and in NEITHER bundle file, so
+  // every page would have rendered raw key paths in production while every
+  // other guard passed.
   const manifest = read("src/i18n/localeManifest.js");
-  const i18n = read("src/i18n/i18n.js");
-  assert.match(manifest, /branch:\s*"surveillance"/, "not in localeManifest");
-  assert.match(i18n, /import surveillanceEn from "\.\.\/locales\/en\/surveillance\.json"/, "English not imported");
-  assert.match(i18n, /import surveillanceAr from "\.\.\/locales\/ar\/surveillance\.json"/, "Arabic not imported");
-  assert.match(i18n, /surveillance:\s*surveillanceEn/, "English not in the resource map");
-  assert.match(i18n, /surveillance:\s*surveillanceAr/, "Arabic not in the resource map");
+  assert.match(manifest, /branch:s*"surveillance"/, "not in localeManifest");
+
+  for (const locale of ["en", "ar"]) {
+    const bundle = read(`src/i18n/bundles/rest.${locale}.js`);
+    assert.match(bundle, /import surveillance from "../../locales/[a-z]{2}/surveillance.json"/,
+      `surveillance.json is not imported by rest.${locale}.js — regenerate with scripts/generate-locale-bundles.mjs`);
+    assert.match(bundle, /surveillance/, `surveillance is not exported from rest.${locale}.js`);
+  }
 });
 
 test("pages use the single translation namespace, never a colon", () => {

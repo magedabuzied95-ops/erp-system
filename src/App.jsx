@@ -12,6 +12,8 @@ import {
   useLocation,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { whenLocalesReady } from "./i18n/i18n";
+import { isStorefrontBootPath } from "./i18n/loadLocaleScope";
 
 /* ======================================================
    LAYOUT
@@ -219,6 +221,7 @@ const PrivacyPage = lazy(() => import("./storefront/pages/LegalPages").then((mod
 const TermsPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.TermsPage })));
 const DataDeletionPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.DataDeletionPage })));
 const OrderConfirmationActionPage = lazy(() => import("./storefront/pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
+const CustomerAddressPage = lazy(() => import("./storefront/pages/CustomerAddressPage.jsx").then((module) => ({ default: module.CustomerAddressPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
 
@@ -350,6 +353,15 @@ function App() {
     window.addEventListener("erp:auth-user-updated", refreshAuthorization);
     return () => window.removeEventListener("erp:auth-user-updated", refreshAuthorization);
   }, []);
+
+  // Boot on a public storefront route loads only the storefront dictionaries so
+  // a shopper does not download the ERP's in order to see a product. The rest
+  // arrives on idle; navigating to a non-storefront route pulls it forward so
+  // the destination never paints against missing keys.
+  useEffect(() => {
+    if (isStorefrontBootPath(location.pathname)) return;
+    void whenLocalesReady();
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!enableErpAppRoutes || isEmployeeAppRoute || !getToken()) return undefined;
@@ -511,6 +523,15 @@ function App() {
         element={
           <Suspense fallback={<RouteSkeleton />}>
             <OrderConfirmationActionPage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/addr/:code"
+        element={
+          <Suspense fallback={<RouteSkeleton />}>
+            <CustomerAddressPage />
           </Suspense>
         }
       />

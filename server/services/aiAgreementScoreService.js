@@ -169,4 +169,67 @@ export const summarizeAgreement = (scores = []) => {
   };
 };
 
+/**
+ * Persists one draft/sent pair.
+ *
+ * Fire-and-forget by contract: the caller is on the path that delivers a message to a
+ * customer, and a measurement must never be able to fail a send. Every error — a
+ * missing table before the migration is applied, a duplicate row from a retried send —
+ * is swallowed and reported as not recorded.
+ *
+ * Returns what happened rather than nothing, so a caller that wants to log or test it
+ * can, without having to query the table back.
+ */
+export const recordAgreement = async ({
+  tenantId,
+  conversationId = "",
+  messageId = "",
+  channel = "",
+  draftText = "",
+  sentText = "",
+  confidenceScore = null,
+  autoSendEligible = null,
+  generationSource = "",
+} = {}) => {
+  if (!tenantId) return { recorded: false, reason: "no_tenant" };
+
+  const score = scoreAgreement({ draftText, sentText });
+  // No draft means there is nothing to agree or disagree with. Recording it would put
+  // rows in the table that can never contribute to the rate.
+  if (!score.scored) return { ...score, recorded: false };
+
+  try {
+    const { default: db } = await import("../database/db.js");
+    await db.query(
+      `INSERT INTO ai_reply_agreement
+         (tenant_id, conversation_id, message_id, channel, draft_text, sent_text,
+          similarity, verdict, confidence_score, auto_send_eligible, generation_source, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+       ON CONFLICT DO NOTHING`,
+      [
+        tenantId,
+        text(conversationId),
+        text(messageId),
+        text(channel),
+        text(draftText).slice(0, 8_000),
+        text(sentText).slice(0, 8_000),
+        score.similarity,
+        score.verdict,
+        Number.isFinite(Number(confidenceScore)) ? Number(confidenceScore) : null,
+        typeof autoSendEligible === "boolean" ? autoSendEligible : null,
+        text(generationSource),
+        JSON.stringify({ draft_tokens: score.draft_tokens ?? null, sent_tokens: score.sent_tokens ?? null }),
+      ]
+    );
+    return { ...score, recorded: true };
+  } catch (error) {
+    // Includes the expected case where the migration has not been applied yet.
+    // `reason` is set AFTER the spread on purpose: `score` carries an empty reason on
+    // success, and spreading it last silently erased the diagnostic at the exact
+    // moment it was needed.
+    console.warn("[ai-agreement] not recorded", { tenantId, message: error?.message });
+    return { ...score, recorded: false, reason: "write_failed" };
+  }
+};
+
 export const __testing = { foldForComparison, tokenize, SENT_AS_IS, LIGHTLY_EDITED, HEAVILY_EDITED };

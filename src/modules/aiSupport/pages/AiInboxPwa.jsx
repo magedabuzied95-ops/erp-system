@@ -49,6 +49,7 @@ import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
+import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
@@ -2469,6 +2470,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  onEditMessage,
   reactionOptions,
 }) {
   const { t } = useTranslation();
@@ -2552,6 +2554,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
+              onEditMessage={onEditMessage}
               reactionOptions={reactionOptions}
             />
           </Fragment>
@@ -4258,6 +4261,11 @@ export default function AiInboxPwa() {
   // authoritative and merges over it. Every op is fail-safe (see inboxCache).
   // ---------------------------------------------------------------------
   const cachePrimedThreadsRef = useRef(new Set());
+  // Threads already revalidated against the server this session. A cache-primed
+  // window counts as "hydrated" by message count alone, so without this one-shot
+  // forced revalidation it would never be checked against the server — and a
+  // message deleted server-side would keep rendering from the cache forever.
+  const revalidatedThreadsRef = useRef(new Set());
 
   // STEP 1-3: prime the conversation list from cache immediately, so a warm
   // reopen shows recent rows before the network responds. Only fills when state
@@ -4642,7 +4650,9 @@ export default function AiInboxPwa() {
     setEditingAiDraft(false);
   }, [selectedConversation?.session_id]);
   const selectedTranscriptRows = useMemo(() => {
-    const messages = uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message));
+    const messages = cascadeDeliveryStatuses(
+      uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message))
+    );
     return messages
       .map((message) => {
         const normalizedMessage = normalizeInboxMessage(message);
@@ -4913,10 +4923,13 @@ export default function AiInboxPwa() {
     return () => observer.disconnect();
   }, [selectedConversation, tab]);
 
-  const loadOlderMessages = useCallback(async () => {
+  const loadOlderMessages = useCallback(async ({ forceHydrate = false } = {}) => {
     if (!selectedConversation?.session_id || olderLoading || isLoadingOlderRef.current) return;
     const currentMessages = asArray(selectedConversation.messages);
-    const shouldHydrateFullPage = currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length;
+    // forceHydrate: the window on screen came from the cache, so fetch the
+    // newest page (no `before` cursor) to revalidate it against the server.
+    const shouldHydrateFullPage = forceHydrate === true
+      || (currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length);
     const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
     const beforeId = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before_id || currentMessages[0]?.id || "";
     if (!shouldHydrateFullPage && !before) return;
@@ -4935,8 +4948,20 @@ export default function AiInboxPwa() {
         headers,
         perfComponent: "AiInboxPwa.messages",
       });
+      const conversationCacheKey = clean(selectedConversation.conversation_key || selectedConversation.session_id);
       patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => {
-        const mergedMessages = mergeMessagesByIdentity([...asArray(payload.messages), ...asArray(conversation.messages)]);
+        const incoming = asArray(payload.messages);
+        // Inside the window the authoritative full page covers, the server's
+        // word is final: a cache-primed message with a real server id that the
+        // page no longer returns was DELETED on the server and must not
+        // survive the merge (union-only merges kept deleted duplicates alive).
+        const existing = shouldHydrateFullPage
+          ? inboxCache.reconcileWithServerPage(asArray(conversation.messages), incoming, messageIdentityKeys)
+          : asArray(conversation.messages);
+        const mergedMessages = mergeMessagesByIdentity([...incoming, ...existing]);
+        // Replace-write (not union) so dropped messages leave the cached record
+        // too — a union write would resurrect them next session.
+        if (shouldHydrateFullPage) inboxCache.replaceThreadNow(conversationCacheKey, mergedMessages);
         return {
           ...conversation,
           messages: mergedMessages,
@@ -4958,9 +4983,18 @@ export default function AiInboxPwa() {
   useEffect(() => {
     if (!selectedConversation?.session_id || tab !== "conversations") return;
     if (isHydratingConversationRef.current || isLoadingOlderRef.current || isAppendingNewMessageRef.current) return;
-    if (selectedConversation.conversationHydrated !== false) return;
-    void loadOlderMessages();
-  }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, tab]);
+    const key = conversationKey(selectedConversation || {});
+    // A cache-primed window passes the count-based hydration check without ever
+    // consulting the server, so revalidate it exactly ONCE per session (marked
+    // up-front so a failing fetch can't retry-loop). The reconcile inside the
+    // full-page hydrate then drops any cached message the server deleted.
+    const primedNeedsRevalidate = Boolean(key) &&
+      cachePrimedThreadsRef.current.has(key) &&
+      !revalidatedThreadsRef.current.has(key);
+    if (selectedConversation.conversationHydrated !== false && !primedNeedsRevalidate) return;
+    if (primedNeedsRevalidate) revalidatedThreadsRef.current.add(key);
+    void loadOlderMessages({ forceHydrate: primedNeedsRevalidate });
+  }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, selectedConversation, tab]);
 
   const reactToMessage = useCallback(async ({ emoji = "", targetMessageId = "", remoteJid = "", targetFromMe = false } = {}) => {
     if (!selectedConversation?.session_id || !targetMessageId) return null;
@@ -4978,6 +5012,27 @@ export default function AiInboxPwa() {
     } catch (reactionError) {
       toast.error(reactionError?.message || "تعذر إرسال التفاعل");
       throw reactionError;
+    }
+  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+
+  // Edits a message the customer already received. WhatsApp only, and only
+  // inside its 15-minute window — the server is the authority, so the thread is
+  // refreshed from it rather than patched optimistically.
+  const editMessage = useCallback(async ({ text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/edit"), {
+        tenant_id: tenantId,
+        text,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+      }, { headers, perfComponent: "AiInboxPwa.messageEdit" });
+      toast.success("تم تعديل الرسالة عند العميل");
+      requestRefresh("message-edit", { silent: true, force: true });
+      return payload;
+    } catch (editError) {
+      toast.error(editError?.message || "تعذر تعديل الرسالة");
+      throw editError;
     }
   }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
 
@@ -6840,6 +6895,7 @@ export default function AiInboxPwa() {
                   onReplyComment={sendLeadCommentReply}
                   onPrivateMessage={sendLeadPrivateMessage}
                   onReact={["whatsapp", "instagram", "messenger"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
+                  onEditMessage={normalizeConversationChannel(selectedConversation || {}) === "whatsapp" ? editMessage : null}
                   reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : normalizeConversationChannel(selectedConversation || {}) === "messenger" ? MESSENGER_MESSAGE_REACTIONS : undefined}
                 />
               </>
@@ -7061,6 +7117,7 @@ export default function AiInboxPwa() {
           headers={headers}
           onClose={() => setOrderComposerOpen(false)}
           onSubmit={createDraftOrder}
+          onSendMessage={sendManualReply}
         />
         <ProductCardPicker
           open={availableBySizePickerConfig.open}

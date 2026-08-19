@@ -12,6 +12,11 @@ import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
+// The storefront shows Crocs in EU sizing, and the story has to say the same
+// thing the customer sees on the product page. Importing the storefront's own
+// conversion table rather than restating it here is deliberate: a second copy
+// would drift the moment a size is added.
+import { compareCrocsEuSizes, isCrocsProduct, resolveCrocsEuSize } from "../../src/shared/lib/crocsSizes.js";
 import { getSetting } from "./settingsService.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { resolveSaleModePrice } from "./saleModeService.js";
@@ -436,13 +441,19 @@ const isPublicStoryAssetUrl = (value = "") => isDirectImageCdnUrl(value) || isBa
 
 const absoluteStoryAssetUrl = (value = "") => {
   const text = cleanImageUrl(value);
-  if (!text || isForbiddenFrontendAssetUrl(text)) return "";
-  if (isDirectImageCdnUrl(text) || isBackendStoryAssetUrl(text)) return text;
-  if (/^\/uploads\/stories\//i.test(text) || /^uploads\/stories\//i.test(text)) {
+  if (!text) return "";
+  // A freshly rendered slide is a server-relative /uploads/stories path. Resolve
+  // it against the public backend host BEFORE the forbidden-prefix guard, which
+  // rejects every relative URL outright because `new URL(text)` throws without a
+  // base. That guard made this branch unreachable, so once Cloudinary stopped
+  // returning absolute URLs every story render produced zero usable assets.
+  if (/^\/?uploads\/stories\//i.test(text)) {
     const backendBase = publicBackendBaseUrl();
     if (!backendBase) return "";
     return `${backendBase}/${text.replace(/^\/+/, "")}`;
   }
+  if (isForbiddenFrontendAssetUrl(text)) return "";
+  if (isDirectImageCdnUrl(text) || isBackendStoryAssetUrl(text)) return text;
   return "";
 };
 
@@ -1515,6 +1526,18 @@ const isLastPieceVariant = (variant = {}) => {
   return variant?.is_active !== false && stock > 0 && stock <= 2;
 };
 
+/**
+ * Sizes as the storefront prints them: Crocs variants keep their factory marking
+ * as identity but are shown in EU, so `J1` reads `32/33` and `M8/W10` reads
+ * `41/42`. Mirrors `isCrocsProduct(product) ? resolveCrocsEuSize(size) : size`
+ * in Storefront.jsx.
+ */
+const storefrontSizeLabels = (sizes = [], product = {}) => {
+  if (!isCrocsProduct(product)) return uniqueTextValues(sizes).sort(naturalSizeSort);
+  const euSizes = uniqueTextValues((Array.isArray(sizes) ? sizes : []).map((size) => resolveCrocsEuSize(size)));
+  return euSizes.sort(compareCrocsEuSizes);
+};
+
 const availableSizesForVariantGroup = (product = {}, variant = null) => {
   const selectedColor = cleanText(variant?.color || "");
   const selectedArticleCode = cleanText(variant?.article_code || variant?.articleCode || "");
@@ -1528,7 +1551,7 @@ const availableSizesForVariantGroup = (product = {}, variant = null) => {
       return !rowColor || rowColor.toLowerCase() === selectedColor.toLowerCase();
     })
     .map((row) => row?.size);
-  return uniqueTextValues(sizes).sort(naturalSizeSort);
+  return storefrontSizeLabels(sizes, product);
 };
 
 const withAvailableSizes = (design = {}, sizes = []) => {
@@ -1560,7 +1583,7 @@ const fetchAvailableSizesForQueueItem = async (tenantId, item = {}) => {
         AND id = NULLIF($3::text, '')::bigint
       LIMIT 1
     )
-    SELECT DISTINCT pv.size
+    SELECT DISTINCT pv.size, p.product_type
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN selected_variant sv ON TRUE
@@ -1599,7 +1622,8 @@ const fetchAvailableSizesForQueueItem = async (tenantId, item = {}) => {
     `,
     [productId, tenantId, variantId, color]
   );
-  return uniqueTextValues(result.rows.map((row) => row.size)).sort(naturalSizeSort);
+  const productType = cleanText(result.rows[0]?.product_type || "");
+  return storefrontSizeLabels(result.rows.map((row) => row.size), { product_type: productType });
 };
 
 const fetchProductLinkForQueueItem = async (tenantId, item = {}) => {
@@ -5033,6 +5057,24 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
         }),
       ]
     );
+
+    // A queue item with no rendered slide is not reviewable — the operator sees an
+    // empty frame and has to trigger every story by hand. Rendering was only ever
+    // wired to the per-item button and to publish, so a fresh batch always looked
+    // imageless. Enqueue each new story here instead; the job queue runs them one
+    // at a time (AI_MARKETING_GENERATION_CONCURRENCY defaults to 1), so this stays
+    // a background trickle rather than dozens of concurrent sharp renders.
+    for (const item of inserted) {
+      if (item.content_type !== "story") continue;
+      try {
+        await enqueueAiMarketingQueueStoryAssetGeneration(tenantId, item.id);
+      } catch (error) {
+        console.warn("[ai-marketing-batch-story-asset-enqueue-failed]", {
+          queueId: item.id,
+          error: error?.message || String(error),
+        });
+      }
+    }
     return { run_id: runId, generated_stories: generatedStories, generated_posts: generatedPosts, rows: inserted };
   } catch (error) {
     console.error("[ai-daily-generate-query-error]", error);

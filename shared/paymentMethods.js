@@ -1,4 +1,8 @@
-const NON_COLLECTED_METHODS = new Set(["credit_sale", "exchange_credit", "return_credit"]);
+// `employee_advance` settles a deferred invoice against an employee's salary
+// advance. Like `credit_sale`, it moves no money at the till — the invoice reads
+// as paid, but nothing entered the drawer, so it must never be counted as
+// collected or it inflates the shift's expected cash.
+const NON_COLLECTED_METHODS = new Set(["credit_sale", "exchange_credit", "return_credit", "employee_advance"]);
 
 export const normalizePaymentMethodKey = (value = "") => {
   const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -6,6 +10,7 @@ export const normalizePaymentMethodKey = (value = "") => {
   if (key === "vodafone") return "vodafone_cash";
   if (key === "insta_pay") return "instapay";
   if (["deferred_sale", "deferred", "due_sale", "due"].includes(key)) return "credit_sale";
+  if (["employee_advances", "staff_advance", "salary_advance"].includes(key)) return "employee_advance";
   if (["store_credit", "customer_credit", "credit_balance"].includes(key)) return "customer_wallet";
   if (["split", "multiple"].includes(key)) return "mixed";
   return key;
@@ -38,7 +43,7 @@ export const getCollectedPaymentAllocations = (value) => {
 // real method for one allocation and an internal `mixed` marker for 2+ methods.
 export const deriveStoredPaymentMethod = ({ requestedMethod = "", paymentBreakdown = [], fallback = "cash" } = {}) => {
   const requested = normalizePaymentMethodKey(requestedMethod);
-  if (["credit_sale", "personal", "cod", "cash_on_delivery"].includes(requested)) return requested;
+  if (["credit_sale", "personal", "employee_advance", "cod", "cash_on_delivery"].includes(requested)) return requested;
   const methods = getCollectedPaymentAllocations(paymentBreakdown).map((payment) => payment.method);
   if (methods.length === 1) return methods[0];
   if (methods.length > 1) return "mixed";
@@ -53,6 +58,7 @@ const AR_LABELS = {
   wallet: "محفظة",
   customer_wallet: "رصيد العميل",
   credit_sale: "آجل",
+  employee_advance: "سلفة موظف",
   cod: "الدفع عند الاستلام",
   cash_on_delivery: "الدفع عند الاستلام",
 };
@@ -64,6 +70,7 @@ const EN_LABELS = {
   wallet: "Wallet",
   customer_wallet: "Customer credit",
   credit_sale: "Deferred",
+  employee_advance: "Employee advance",
   cod: "Cash on delivery",
   cash_on_delivery: "Cash on delivery",
 };

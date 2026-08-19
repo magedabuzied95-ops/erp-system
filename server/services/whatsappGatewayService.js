@@ -934,6 +934,47 @@ export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "
   };
 };
 
+// WhatsApp itself only accepts an edit within ~15 minutes of the original send,
+// and only for a text message we sent. The window is enforced by the route
+// against created_at; this is the number both sides agree on.
+export const WHATSAPP_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+export const editWhatsappTextMessage = async ({ remoteJid = "", targetMessageId = "", messageText = "" } = {}) => {
+  // Same LID-safe addressing as sendWhatsappReaction: a username customer has no
+  // phone, so the edit has to travel over the @lid JID the message went out on.
+  const safeRemoteJid = normalizeWhatsappRemoteJid(remoteJid)
+    || text(remoteJid).replace(/^whatsapp:/i, "");
+  const safeTargetMessageId = text(targetMessageId);
+  const body = String(messageText ?? "").trim();
+  if (!safeRemoteJid) throw gatewayError("WhatsApp conversation target is required", "WHATSAPP_EDIT_TARGET_REQUIRED", 400);
+  if (!safeTargetMessageId) throw gatewayError("WhatsApp message id is required", "WHATSAPP_EDIT_MESSAGE_ID_REQUIRED", 400);
+  if (!body) throw gatewayError("Message body is required", "WHATSAPP_EDIT_MESSAGE_REQUIRED", 400);
+  const current = requireEvolutionConfig();
+  const endpoint = `/chat/updateMessage/${encodeURIComponent(current.instanceName)}`;
+  const payload = {
+    number: safeRemoteJid,
+    text: body,
+    key: {
+      remoteJid: safeRemoteJid,
+      fromMe: true,
+      id: safeTargetMessageId,
+    },
+  };
+  const data = await evolutionFetch(endpoint, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    timeoutMs: 15000,
+  });
+  return {
+    success: true,
+    provider: current.provider,
+    instanceName: current.instanceName,
+    targetMessageId: safeTargetMessageId,
+    text: body,
+    result: data,
+  };
+};
+
 export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) => {
   // Same LID addressing as sendTextMessage: a username customer has no number,
   // so product photos have to travel over the LID too.

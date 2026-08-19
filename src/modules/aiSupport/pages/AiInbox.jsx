@@ -11,6 +11,7 @@ import {
   Bot,
   BadgePercent,
   CheckCheck,
+  Mail,
   ChevronLeft,
   ChevronDown,
   ChevronUp,
@@ -23,6 +24,7 @@ import {
   Handshake,
   EyeOff,
   Info as InfoIcon,
+  Link2,
   Loader2,
   LockKeyhole,
   MapPin,
@@ -76,6 +78,7 @@ import { emitRealtime, subscribeRealtime, useRealtimeStatus } from "../../../sha
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
+import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import {
   MAX_BATCH_PRODUCTS, SELECTION_MODES, selectionModeFromSemantics, productSelectionKey, toggleProductSelection,
@@ -807,7 +810,9 @@ const instagramShareText = (card = {}) => {
   return [
     name,
     color ? `اللون: ${color}` : "",
-    (price != null && price !== "" && Number.isFinite(Number(price))) ? `السعر: ${Math.round(Number(price))} جنيه` : "",
+    // Parity with the server's formatCloserPrice: only a POSITIVE price is a price. A 0 (no canonical price)
+    // is dropped from the line there, so previewing "السعر: 0 جنيه" here would be preview-vs-sent drift.
+    (Number.isFinite(Number(price)) && Number(price) > 0) ? `السعر: ${Math.round(Number(price))} جنيه` : "",
     url ? "عرض المنتج:" : "",
     url || "",
   ].filter(Boolean).join("\n");
@@ -1886,7 +1891,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2034,6 +2039,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
+              {onToggleRead ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleRead(item);
+                  }}
+                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 ${unreadCount ? "text-emerald-400 hover:text-emerald-300" : "text-slate-500 hover:text-cyan-300"}`}
+                  aria-label={unreadCount ? "تحديد كمقروء" : "تحديد كغير مقروء"}
+                  title={unreadCount ? "تحديد كمقروء" : "تحديد كغير مقروء"}
+                >
+                  {unreadCount ? <CheckCheck className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={(event) => {
@@ -2282,7 +2301,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2402,6 +2421,20 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
+              {onToggleRead ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleRead(item);
+                  }}
+                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 ${unreadCount ? "text-emerald-400 hover:text-emerald-300" : "text-slate-500 hover:text-cyan-300"}`}
+                  aria-label={unreadCount ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
+                  title={unreadCount ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
+                >
+                  {unreadCount ? <CheckCheck className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={(event) => {
@@ -2739,6 +2772,7 @@ const Transcript = memo(function Transcript({
   onReplyComment,
   onPrivateMessage,
   onReact,
+  onEditMessage,
   reactionOptions,
   olderMessagesAvailable = false,
 }) {
@@ -2814,6 +2848,7 @@ const Transcript = memo(function Transcript({
               onReplyComment={onReplyComment}
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
+              onEditMessage={onEditMessage}
               reactionOptions={reactionOptions}
               channelLabel={row.channelLabel}
             />
@@ -3025,6 +3060,20 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
+// A 0 is NOT a price. The canonical resolver (resolveEffectiveCustomerPrice) returns active_price 0 with
+// has_price:false when a product carries no canonical normal price, and these panels guarded on `!= null`, so a
+// priced product whose price the backend failed to resolve was rendered to the operator as "0 جنيه" — a real
+// product read as free. Every price in these panels goes through here: a positive number, or an explicit gap.
+function CardPriceLine({ price, label = "", as: Tag = "span", className = "" }) {
+  const value = Number(price);
+  const known = Number.isFinite(value) && value > 0;
+  return (
+    <Tag className={`font-bold ${known ? "text-emerald-200" : "text-amber-200"}${className ? ` ${className}` : ""}`}>
+      {known ? `${value} جنيه` : label}
+    </Tag>
+  );
+}
+
 function SuggestionProductToSend({ card = null, choices = [], ambiguous = false, colorChoices = [], colorRequired = false, removed = false, deliveryFormat = "", instagramDelivery = false, recommendationMode = false, variantOptionsMode = false, recommendationSelectedKeys = null, onToggleRecommendation, onRemove, onChange, onChoose }) {
   const { t } = useTranslation();
   const hasCard = Boolean(card && (card.product_id || card.id));
@@ -3078,7 +3127,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
                   <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
                     <span className="block truncate font-black">{clean(c.color) || "لون"}</span>
                     {c.size ? <span className="block text-slate-300">{t("aiSupport.inbox.panel.size")} {clean(c.size)}</span> : null}
-                    {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
+                    <CardPriceLine price={price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
                   </span>
                 </button>
               </div>
@@ -3096,7 +3145,9 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
           {colorChoices.map((c) => (
             <button key={c.variant_id || `${c.product_id}:${c.color}`} type="button" onClick={() => onChoose?.(c)} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
               {(c.image_url || c.image) ? <img src={c.image_url || c.image} alt={clean(c.color)} className="h-6 w-6 rounded border border-white/10 object-cover" /> : null}
-              {clean(c.color) || "لون"}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
+              {clean(c.color) || "لون"}
+              {" — "}
+              <CardPriceLine price={c.display_price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
             </button>
           ))}
         </div>
@@ -3127,7 +3178,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
                   {img ? <img src={img} alt={name} className="h-9 w-9 shrink-0 rounded border border-white/10 object-cover" /> : null}
                   <span className="min-w-0 flex-1 text-[11px] leading-4 text-slate-100">
                     <span className="block truncate font-black">{name}</span>
-                    {price != null && price !== "" ? <span className="text-emerald-200 font-bold">{price} جنيه</span> : null}
+                    <CardPriceLine price={price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
                   </span>
                 </button>
                 {url ? <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-[9px] font-black text-cyan-200 underline">{t("aiSupport.inbox.panel.openProduct")}</a> : null}
@@ -3145,7 +3196,9 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {choices.map((c) => (
             <button key={c.product_id || c.id} type="button" onClick={() => onChoose?.(c)} className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-slate-100 hover:bg-white/[0.1]">
-              {clean(c.name || c.product_name)}{c.display_price ? ` — ${c.display_price} جنيه` : ""}
+              {clean(c.name || c.product_name)}
+              {" — "}
+              <CardPriceLine price={c.display_price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
             </button>
           ))}
         </div>
@@ -3168,7 +3221,7 @@ function SuggestionProductToSend({ card = null, choices = [], ambiguous = false,
           <div className="truncate font-black">{name}</div>
           {card.color ? <div className="text-slate-300">{t("aiSupport.inbox.panel.colourLabel")} {clean(card.color)}</div> : null}
           {card.size ? <div className="text-slate-300">{t("aiSupport.inbox.panel.sizeLabel")} {clean(card.size)}</div> : null}
-          {price != null && price !== "" ? <div className="text-emerald-200 font-bold">{price} جنيه</div> : null}
+          <CardPriceLine as="div" price={price} label={t("aiSupport.inbox.panel.priceUnavailable")} />
           <div className={`font-bold ${card.in_stock === false ? "text-rose-300" : "text-emerald-300"}`}>{card.in_stock === false ? "غير متاح" : "متاح"}</div>
           {(card.storefront_url || card.product_url) ? <a href={card.storefront_url || card.product_url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-cyan-200 underline">{t("aiSupport.inbox.panel.viewProduct")}</a> : null}
         </div>
@@ -3743,7 +3796,7 @@ const composerLineFromCard = (card = {}) => ({
   quantity: 1,
 });
 
-function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick }) {
+function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick, onSendMessage }) {
   const { t } = useTranslation();
   const profile = conversation?.customer_profile || {};
   const [lines, setLines] = useState([]);
@@ -3772,6 +3825,12 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   // null keeps the server as the single authority on the price.
   const [quotedShipping, setQuotedShipping] = useState({ cost: null, source: "", freeShipping: false, loading: false });
   const [shippingOverride, setShippingOverride] = useState(null);
+  // The customer-facing address link: created here, delivered through the
+  // normal chat send path, and polled until the customer submits.
+  const [addressRequest, setAddressRequest] = useState(null);
+  const [addressLinkBusy, setAddressLinkBusy] = useState(false);
+  const [addressLinkCopied, setAddressLinkCopied] = useState(false);
+  const appliedAddressRequestRef = useRef("");
 
   useEffect(() => {
     if (!open) return;
@@ -3795,6 +3854,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setNotes("");
     setQuotedShipping({ cost: null, source: "", freeShipping: false, loading: false });
     setShippingOverride(null);
+    setAddressRequest(null);
+    setAddressLinkBusy(false);
+    appliedAddressRequestRef.current = "";
     // Deliberately NOT keyed on `products`: the parent passes it as an inline
     // `cond ? list : []`, so it is a new array on every parent render. Adding a
     // model re-renders the parent, which used to re-run this effect and wipe the
@@ -3838,6 +3900,96 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       .catch(() => active && setSavedAddresses([]));
     return () => { active = false; };
   }, [customerPhone, headers, open]);
+
+  // Everything the customer typed on the public page lands in the form in one
+  // shot. City first: the id chain re-triggers the zone/district loads above.
+  const applyAddressRequest = (request = null) => {
+    const address = request?.address || {};
+    if (!clean(address.shipping_city_id)) return;
+    setShippingProvider("bosta");
+    setShippingCityId(clean(address.shipping_city_id));
+    setShippingZoneId(clean(address.shipping_zone_id));
+    setShippingDistrictId(clean(address.shipping_district_id));
+    setStreetAddress(clean(address.street_address));
+    setBuildingNumber(clean(address.building_number));
+    setFloorNumber(clean(address.floor_number));
+    setApartmentNumber(clean(address.apartment_number));
+    setLandmark(clean(address.landmark));
+    setGovernorate(clean(address.governorate));
+    setCityArea(clean(address.city_area));
+    if (clean(request?.customer_name)) setCustomerName(clean(request.customer_name));
+    if (clean(request?.customer_phone)) setCustomerPhone(clean(request.customer_phone));
+  };
+
+  // Load the latest link once on open, then keep polling while one is pending.
+  // Auto-fill happens only on the pending→submitted transition observed here —
+  // an address that was already submitted before the composer opened is offered
+  // as a button instead, so it never silently overwrites what the seller typed.
+  useEffect(() => {
+    if (!open || !conversation?.session_id) return undefined;
+    let active = true;
+    let timer = null;
+    const load = async (isFirst = false) => {
+      try {
+        const payload = await api.get(aiInboxConversationEndpoint(conversation.session_id, "/address-request"), { headers, suppressErrorStatuses: [404, 500] });
+        if (!active) return;
+        const request = payload?.request || null;
+        setAddressRequest((previous) => {
+          if (
+            !isFirst &&
+            request?.status === "submitted" &&
+            previous?.status === "pending" &&
+            appliedAddressRequestRef.current !== String(request.id)
+          ) {
+            appliedAddressRequestRef.current = String(request.id);
+            applyAddressRequest(request);
+          }
+          return request;
+        });
+        if (request?.status === "pending") timer = window.setTimeout(() => load(false), 7000);
+      } catch {
+        /* polling is best-effort */
+      }
+    };
+    load(true);
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation?.session_id, headers, open, addressLinkBusy]);
+
+  const sendAddressLink = async () => {
+    if (addressLinkBusy || !conversation?.session_id) return;
+    setAddressLinkBusy(true);
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(conversation.session_id, "/address-request"),
+        { customer_name: clean(customerName), customer_phone: clean(customerPhone) },
+        { headers, perfComponent: "AiInbox.addressRequest" }
+      );
+      const request = payload?.request || null;
+      setAddressRequest(request);
+      if (!request?.url) return;
+      // A reused pending link means the customer ALREADY has this exact message — re-sending it only spams
+      // them (a real conversation got it 10+ times). Copy the link instead; the server independently refuses
+      // duplicate /addr/ sends, so even a pasted resend within the cooldown never reaches the customer twice.
+      if (request.reused) {
+        try { await navigator.clipboard?.writeText(request.url); } catch { /* clipboard is best-effort */ }
+        setAddressLinkCopied(true);
+        window.setTimeout(() => setAddressLinkCopied(false), 3000);
+        return;
+      }
+      if (typeof onSendMessage === "function") {
+        const firstName = clean(customerName).split(" ")[0];
+        await onSendMessage(
+          `أهلاً ${firstName || "بيك"} 🌟\nعشان نجهز أوردرك بسرعة، اكتب عنوان التوصيل من الرابط ده — دقيقة واحدة بس 👇\n${request.url}`,
+          { flow: "address_link" }
+        );
+      }
+    } catch {
+      /* the status row keeps its previous state; the seller can retry */
+    } finally {
+      setAddressLinkBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || shippingProvider !== "bosta") return;
@@ -3993,6 +4145,57 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           <div className="ai-order__group p-4">
             <div className="ai-order__group-title mb-1 flex items-center gap-2"><Truck className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.shippingSection")}</div>
             <p className="ai-order__group-hint mb-3">{t("aiSupport.inbox.order.shippingNote")}</p>
+
+            {/* The customer can type their own address: one tap drops a public
+                link into the chat, and the row below tracks it until the
+                submitted address lands back in this form. */}
+            <div className="ai-order__saved mb-3 flex flex-wrap items-center justify-between gap-2 p-2.5">
+              {addressRequest?.status === "submitted" ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-300">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {t("aiSupport.inbox.order.addressLinkSubmitted")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      appliedAddressRequestRef.current = String(addressRequest.id);
+                      applyAddressRequest(addressRequest);
+                    }}
+                    className="ai-order__saved-chip px-3 py-1.5"
+                  >
+                    {t("aiSupport.inbox.order.addressLinkUse")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="ai-order__label inline-flex items-center gap-1.5">
+                    {addressLinkCopied ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {t("aiSupport.inbox.order.addressLinkCopied")}
+                      </>
+                    ) : addressRequest?.status === "pending" ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {t("aiSupport.inbox.order.addressLinkPending")}
+                      </>
+                    ) : (
+                      t("aiSupport.inbox.order.addressLinkHint")
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={addressLinkBusy}
+                    onClick={sendAddressLink}
+                    className="ai-order__saved-chip inline-flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50"
+                  >
+                    {addressLinkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                    {addressRequest?.status === "pending" ? t("aiSupport.inbox.order.addressLinkCopy") : t("aiSupport.inbox.order.addressLinkSend")}
+                  </button>
+                </>
+              )}
+            </div>
 
             {/* Addresses this customer has ordered to before — one tap instead of
                 retyping the whole block. */}
@@ -5309,6 +5512,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
   const [favoriteFilter, setFavoriteFilter] = useState("all");
+  const [readFilter, setReadFilter] = useState("all"); // all | unread | read
   const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
   const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
@@ -5387,7 +5591,9 @@ export default function AiInbox({ reviewerMode = false }) {
   // Phase 11.2 — inline edit buffer for the AI suggestion (separate from the manual composer).
   const [aiSuggestionEditText, setAiSuggestionEditText] = useState("");
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
-  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false });
+  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false, restockMode: false });
+  // The card chosen for a back-in-stock request, handed to Customer360Drawer.
+  const [restockPick, setRestockPick] = useState(null);
   // Models picked for the order composer cart, handed over once and then cleared.
   const [composerPicks, setComposerPicks] = useState(null);
   const [productCardSending, setProductCardSending] = useState(false);
@@ -6035,6 +6241,11 @@ export default function AiInbox({ reviewerMode = false }) {
       const isFavorite = conversation?.is_favorite === true || clean(conversation?.is_favorite).toLowerCase() === "true";
       return isFavorite;
     };
+    const matchesReadFilter = (conversation = {}) => {
+      if (readFilter === "all") return true;
+      const isUnread = Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
+      return readFilter === "unread" ? isUnread : !isUnread;
+    };
     const sortValue = (conversation = {}) => {
       const score = conversationLeadScore(conversation);
       const updatedAt = new Date(conversation.last_message_at || conversation.last_activity_at || conversation.updated_at || conversation.created_at || 0).getTime();
@@ -6070,7 +6281,7 @@ export default function AiInbox({ reviewerMode = false }) {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesChannelFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesChannelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -6078,7 +6289,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter]);
+  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -6781,6 +6992,99 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: err?.message || "فشل تحديث حالة المفضلة." });
     }
   }, [api, headers, patchConversation, setToast, tenantId]);
+  // Manual read/unread toggle from the conversation card. Marking read reuses the
+  // same /read endpoint the auto-mark-on-open effect uses; marking unread persists a
+  // manually_unread flag on the server so it survives refetch.
+  const toggleConversationRead = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    const conversationIdentifier = clean(item?.conversation_key || sessionId);
+    if (!sessionId || !conversationIdentifier) return;
+    const previousUnreadCount = Number(item?.unread_count || item?.unread || 0);
+    const previousManuallyUnread = item?.manually_unread === true;
+    const currentlyUnread = previousUnreadCount > 0 || previousManuallyUnread;
+    const channel = clean(item?.channel || item?.source || "");
+    if (currentlyUnread) {
+      // Marking read: keep the auto-mark-on-open effect from fighting us by pinning
+      // its signature to this conversation's current state.
+      markReadSignatureRef.current = `${sessionId}:${item?.last_activity_at || item?.updated_at || ""}`;
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+        manually_unread: false,
+        read_at: new Date().toISOString(),
+      }));
+      try {
+        await api.post(
+          aiInboxConversationEndpoint(sessionId, "/read"),
+          { tenant_id: tenantId, conversation_id: sessionId, channel },
+          { headers, perfComponent: "AiInbox.markReadManual" }
+        );
+      } catch (err) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          unread_count: previousUnreadCount,
+          unread: previousUnreadCount > 0 || previousManuallyUnread,
+          manually_unread: previousManuallyUnread,
+        }));
+        setToast({ tone: "rose", text: err?.message || "فشل تحديد المحادثة كمقروءة." });
+      }
+      return;
+    }
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      unread_count: 1,
+      unread: true,
+      manually_unread: true,
+      read_at: null,
+    }));
+    try {
+      await api.post(
+        aiInboxConversationEndpoint(sessionId, "/unread"),
+        { tenant_id: tenantId, conversation_id: sessionId, channel },
+        { headers, perfComponent: "AiInbox.markUnread" }
+      );
+    } catch (err) {
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        unread_count: previousUnreadCount,
+        unread: previousUnreadCount > 0 || previousManuallyUnread,
+        manually_unread: previousManuallyUnread,
+      }));
+      setToast({ tone: "rose", text: err?.message || "فشل تحديد المحادثة كغير مقروءة." });
+    }
+  }, [api, headers, patchConversation, setToast, tenantId]);
+  const markAllConversationsRead = useCallback(async () => {
+    const readAt = new Date().toISOString();
+    const previousConversations = asArray(inbox?.conversations);
+    const hadUnread = previousConversations.some((conversation) => Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true);
+    if (!hadUnread) return;
+    setInbox((current) => ({
+      ...current,
+      conversations: asArray(current.conversations).map((conversation) => ({
+        ...conversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+        manually_unread: false,
+        read_at: readAt,
+      })),
+    }));
+    try {
+      await api.post(
+        "/ai-inbox/conversations/read-all",
+        { tenant_id: tenantId },
+        { headers, perfComponent: "AiInbox.markAllRead" }
+      );
+      setToast({ tone: "emerald", text: "تم تحديد كل المحادثات كمقروءة." });
+    } catch (err) {
+      setInbox((current) => ({ ...current, conversations: previousConversations }));
+      setToast({ tone: "rose", text: err?.message || "فشل تحديد الكل كمقروء." });
+    }
+  }, [api, headers, inbox, setInbox, setToast, tenantId]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
@@ -7069,9 +7373,11 @@ export default function AiInbox({ reviewerMode = false }) {
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
   const selectedTranscriptRows = useMemo(() => {
-    const messages = uniqueMessages(selectedConversation?.messages)
-      .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
-      .map((message) => normalizeTranscriptMessage(message));
+    const messages = cascadeDeliveryStatuses(
+      uniqueMessages(selectedConversation?.messages)
+        .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
+        .map((message) => normalizeTranscriptMessage(message))
+    );
     const reactionsByTarget = new Map();
     messages.forEach((message) => {
       if (clean(message.message_type).toLowerCase() !== "reaction") return;
@@ -7220,6 +7526,9 @@ export default function AiInbox({ reviewerMode = false }) {
       // selectMode (AI single-product identity disambiguation "Change product") stays SINGLE-select.
       allowMultiple: options.allowMultiple !== undefined ? Boolean(options.allowMultiple) : !selectMode,
       selectMode,
+      // restockMode: the pick names the variant to watch for a back-in-stock
+      // request. Single-select — a request is one customer waiting on one size.
+      restockMode: Boolean(options.restockMode),
     });
   }, []);
   const closeProductCardPicker = useCallback(() => {
@@ -7250,6 +7559,14 @@ export default function AiInbox({ reviewerMode = false }) {
       // Each hand-over carries a batch id: the composer appends a batch once and
       // never has to clear this shared state (clearing it raced the append).
       setComposerPicks({ batch: `${picked.length}:${picked.map((card) => `${card.product_id}-${card.variant_id || ""}-${card.color}-${card.size}`).join("|")}:${performance.now()}`, cards: picked });
+      closeProductCardPicker();
+      return Promise.resolve();
+    }
+    if (productCardPickerConfig.restockMode) {
+      const first = asArray(cards)[0];
+      // A fresh object every time: the drawer keys its "a pick arrived" effect on
+      // identity, so re-picking the same variant must still register.
+      if (first) setRestockPick({ ...normalizeChosenSuggestionCard(first) });
       closeProductCardPicker();
       return Promise.resolve();
     }
@@ -7436,8 +7753,16 @@ export default function AiInbox({ reviewerMode = false }) {
           });
       hydratedThreadsRef.current.add(clean(conversationIdentifier));
       patchConversation(conversationIdentifier, (conversation) => {
-        const existing = asArray(conversation.messages);
+        const rawExisting = asArray(conversation.messages);
         const incoming = reviewerMode ? asArray(payload.messages).map(normalizeMetaReviewerMessage) : asArray(payload.messages);
+        // Inside the window the authoritative full page covers, the server's
+        // word is final: a cache-primed message with a real server id that the
+        // page no longer returns was DELETED on the server (e.g. a cleaned-up
+        // duplicate) and must not survive the merge. Optimistic bubbles and
+        // history older than the page keep living.
+        const existing = shouldHydrateFullPage
+          ? inboxCache.reconcileWithServerPage(rawExisting, incoming, messageIdentityKeys)
+          : rawExisting;
         // Older-page loads prepend (incoming is strictly older). A full-page
         // hydrate may merge over a cache-primed window that reaches FURTHER BACK
         // than this page, and merge keeps first-seen order, so order the result
@@ -7449,6 +7774,9 @@ export default function AiInbox({ reviewerMode = false }) {
               mergeMessagesByIdentity([...incoming, ...existing])
             )
           : mergeMessagesByIdentity([...incoming, ...existing]);
+        // Replace-write (not union) so the dropped messages leave the cached
+        // record too — a union write would resurrect them next session.
+        if (shouldHydrateFullPage) inboxCache.replaceThreadNow(clean(conversationIdentifier), mergedMessages);
         return {
           ...conversation,
           messages: mergedMessages,
@@ -8709,6 +9037,45 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   }, [headers, selectedConversation, selectedConversationRouteId, tenantId]);
 
+  // Edits a message that already reached the customer. WhatsApp accepts the edit
+  // only inside its own 15-minute window, so the server is the authority — the
+  // local thread is rewritten only after it confirms.
+  const editMessage = useCallback(async ({ message = {}, text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    const conversationIdentifier = clean(selectedConversation.conversation_key || selectedConversation.session_id);
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/edit"), {
+        tenant_id: tenantId,
+        text,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+      }, { headers, perfComponent: "AiInbox.messageEdit" });
+      const editedAt = clean(payload?.edited_at) || new Date().toISOString();
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => {
+          const sameMessage = (message.id && item.id === message.id)
+            || clean(item.provider_message_id) === clean(targetMessageId)
+            || clean(item.external_message_id) === clean(targetMessageId);
+          if (!sameMessage) return item;
+          return {
+            ...item,
+            message_text: text,
+            staff_message: item.staff_message ? text : item.staff_message,
+            ai_answer: item.ai_answer ? text : item.ai_answer,
+            edited_at: editedAt,
+            original_message_text: item.original_message_text || clean(payload?.previous_text),
+          };
+        }),
+      }));
+      setToast({ tone: "emerald", text: "تم تعديل الرسالة عند العميل" });
+      return payload;
+    } catch (editError) {
+      setToast({ tone: "rose", text: editError?.message || "تعذر تعديل الرسالة" });
+      throw editError;
+    }
+  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+
   // Order composer submit. `confirm: false` writes a draft; `confirm: true` sells it
   // like the POS does (stock out now) and then sends the invoice link to the
   // customer on this conversation's own channel.
@@ -9364,6 +9731,7 @@ export default function AiInbox({ reviewerMode = false }) {
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
         orderMode={productCardPickerConfig.orderMode}
+        restockMode={productCardPickerConfig.restockMode}
         mode="desktopInbox"
         portalTarget={fullscreenOverlayTarget}
       />
@@ -9522,6 +9890,31 @@ export default function AiInbox({ reviewerMode = false }) {
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
 	                      </button>
 	                  </div>
+	                  <div className="flex items-center gap-2">
+	                    <div className="flex min-w-0 flex-1 items-center gap-1 rounded-xl border border-white/10 bg-slate-950/70 p-1">
+	                      {[["all", t("aiSupport.inbox.ui.readFilterAll")], ["unread", t("aiSupport.inbox.ui.readFilterUnread")], ["read", t("aiSupport.inbox.ui.readFilterRead")]].map(([key, label]) => (
+	                        <button
+	                          key={key}
+	                          type="button"
+	                          onClick={() => setReadFilter(key)}
+	                          aria-pressed={readFilter === key}
+	                          className={`min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-[11px] font-black transition ${readFilter === key ? "bg-cyan-400/15 text-cyan-100" : "text-slate-400 hover:text-white"}`}
+	                        >
+	                          {label}{key === "unread" && Number(channelSummaries.all.unread || 0) > 0 ? ` (${channelSummaries.all.unread})` : ""}
+	                        </button>
+	                      ))}
+	                    </div>
+	                    <button
+	                      type="button"
+	                      onClick={markAllConversationsRead}
+	                      disabled={!Number(channelSummaries.all.unread || 0)}
+	                      title={t("aiSupport.inbox.ui.markAllRead")}
+	                      aria-label={t("aiSupport.inbox.ui.markAllRead")}
+	                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${Number(channelSummaries.all.unread || 0) ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/20" : "border-white/10 bg-slate-950/70 text-slate-600"}`}
+	                    >
+	                      <CheckCheck className="h-4 w-4" />
+	                    </button>
+	                  </div>
 	                </div>
 	              ) : null}
 	            </div>
@@ -9541,6 +9934,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}
 	                            onToggleFavorite={toggleConversationFavorite}
+	                            onToggleRead={toggleConversationRead}
 	                          />
 	                        );
 	                      })}
@@ -9748,6 +10142,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         onReplyComment={sendLeadCommentReplyQuick}
                         onPrivateMessage={sendLeadPrivateMessage}
                         onReact={(isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) || isMetaChannel(selectedConversation?.channel || selectedConversation?.source)) ? reactToMessage : null}
+                        onEditMessage={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? editMessage : null}
                         reactionOptions={clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram") ? INSTAGRAM_MESSAGE_REACTIONS : clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("messenger") ? MESSENGER_MESSAGE_REACTIONS : undefined}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
@@ -9856,6 +10251,9 @@ export default function AiInbox({ reviewerMode = false }) {
         context={customerDrawer.context}
         title={t("aiSupport.inbox.ui.customer360")}
         portalTarget={fullscreenOverlayTarget}
+        restockPick={restockPick}
+        onRequestRestockPick={() => openProductCardPicker({ restockMode: true, allowMultiple: false })}
+        onClearRestockPick={() => setRestockPick(null)}
       />
       <InboxOrderComposer
         open={orderComposerOpen}
@@ -9865,6 +10263,7 @@ export default function AiInbox({ reviewerMode = false }) {
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
+        onSendMessage={sendManualReply}
         picks={composerPicks}
         onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}
@@ -10363,6 +10762,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                              onSelect={handleSelectConversation}
 	                              onOpenCustomer360={openCustomerDrawer}
 	                              onToggleFavorite={toggleConversationFavorite}
+	                              onToggleRead={toggleConversationRead}
 	                            />
                         );
                       })}
@@ -10382,6 +10782,7 @@ export default function AiInbox({ reviewerMode = false }) {
         headers={headers}
         onClose={() => setOrderComposerOpen(false)}
         onSubmit={submitComposerOrder}
+        onSendMessage={sendManualReply}
         picks={composerPicks}
         onRequestPick={() => openProductCardPicker({ orderMode: true, allowMultiple: true })}
         portalTarget={fullscreenOverlayTarget}

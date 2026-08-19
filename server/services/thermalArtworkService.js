@@ -7,6 +7,7 @@ import { Buffer } from "node:buffer";
 import sharp from "sharp";
 
 import db from "../database/db.js";
+import { cloudinaryUploadsEnabled } from "../utils/cloudinaryUploads.js";
 import { thermalOpenAiApiKey } from "./openaiCredentials.js";
 
 const THERMAL_IMAGE_DIR = path.resolve(process.cwd(), "uploads", "products", "thermal");
@@ -250,7 +251,7 @@ const saveThermalArtworkAsset = async ({ buffer, productId = null, sourceKey = "
 
   try {
     const config = cloudinaryConfig();
-    if (config.cloudName && config.apiKey && config.apiSecret && typeof fetch === "function" && typeof FormData !== "undefined") {
+    if (cloudinaryUploadsEnabled() && config.cloudName && config.apiKey && config.apiSecret && typeof fetch === "function" && typeof FormData !== "undefined") {
       const timestamp = Math.floor(Date.now() / 1000);
       const signatureBase = Object.keys({ folder: config.folder, timestamp })
         .sort()

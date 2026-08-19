@@ -167,6 +167,7 @@ const getPaymentMethodLabel = (value = "", copy = EN_INVOICE_COPY) => {
     instapay: "InstaPay",
     vodafone_cash: "Vodafone Cash",
     credit_sale: copy === AR_INVOICE_COPY ? "آجل" : "Deferred sale",
+    employee_advance: copy === AR_INVOICE_COPY ? "سلفة موظف" : "Employee advance",
   };
   return labels[normalized] || (value || copy.notSpecified);
 };

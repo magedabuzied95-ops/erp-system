@@ -127,6 +127,7 @@ server/services/*
 !server/services/aiReplySafetyPipeline.js
 !server/services/aiSemanticSearchService.js
 !server/services/aiAgreementScoreService.js
+<<<<<<< HEAD
 
 # Real-device probe credentials. Local only, never committed.
 .surveillance-probe.local
@@ -134,3 +135,8 @@ server/services/*
 # Local media POC. mediamtx.yml holds a device credential.
 media-poc/
 mediamtx.yml
+=======
+!server/services/employeeAdvanceSalesService.js
+# Customer address-request links (AI inbox → public storefront page).
+!server/services/conversationAddressRequestService.js
+>>>>>>> origin/main

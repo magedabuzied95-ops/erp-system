@@ -242,6 +242,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Center a column whose header and body content read as centered (status
+   chips, action clusters, a lone stock count). A plain `text-center` utility
+   can't do this: these cell rules are unlayered, so they outrank any Tailwind
+   utility in `@layer utilities` regardless of specificity. This modifier is the
+   in-system override — (0,1,0) beats the `:where(...) th/td` default at (0,0,3),
+   no !important. */
+.m1-table__cell--center {
+  text-align: center;
+}
+
 .m1-table__cell--actions {
   width: 1%;
   white-space: nowrap;

@@ -126,6 +126,12 @@
     "reference": "Reference:",
     "by": "By:"
   },
+  "employeeLink": {
+    "label": "Link this customer to an employee",
+    "hint": "When linked, every deferred invoice is stored as paid and its amount is added to that employee's salary advances immediately.",
+    "none": "Not an employee",
+    "suggestion": "This phone belongs to employee {{name}} — link"
+  },
   "personalUse": {
     "giftEnum": "Gift (GIFT)",
     "employeeAdvanceEnum": "Employee advance (EMPLOYEE_ADVANCE)",

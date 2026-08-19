@@ -6,6 +6,7 @@ export const DEFAULT_PRODUCTS_LIST_FILTERS = Object.freeze({
   colorImageStatus: "all",
   storefrontVisibility: "all",
   brand: "all",
+  manufacturer: "all",
   classifications: {
     gender: "all",
     productType: "all",
@@ -24,6 +25,7 @@ export const normalizeProductsListFilters = (value = {}) => ({
   colorImageStatus: safeFilterValue(value?.colorImageStatus),
   storefrontVisibility: safeFilterValue(value?.storefrontVisibility),
   brand: safeFilterValue(value?.brand),
+  manufacturer: safeFilterValue(value?.manufacturer),
   classifications: {
     gender: safeFilterValue(value?.classifications?.gender),
     productType: safeFilterValue(value?.classifications?.productType),

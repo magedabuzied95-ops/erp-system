@@ -1,79 +1,15 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import { buildResources } from "./localeManifest";
+import {
+  buildLocaleResources,
+  loadCoreBundles,
+  loadRestBundles,
+  mergeRemainingBundles,
+  shouldDeferErpLocales,
+} from "./loadLocaleScope";
+import { SUPPORTED_LOCALES } from "./localeManifest";
 
-import commonAr from "../locales/ar/common.json";
-import dashboardAr from "../locales/ar/dashboard.json";
-import productsAr from "../locales/ar/products.json";
-import posAr from "../locales/ar/pos.json";
-import customersAr from "../locales/ar/customers.json";
-import ordersAr from "../locales/ar/orders.json";
-import inventoryAr from "../locales/ar/inventory.json";
-import analyticsAr from "../locales/ar/analytics.json";
-import reportsAr from "../locales/ar/reports.json";
-import overviewAr from "../locales/ar/overview.json";
-import inventoryAnalyticsAr from "../locales/ar/inventoryAnalytics.json";
-import salesAnalyticsAr from "../locales/ar/salesAnalytics.json";
-import suppliersAr from "../locales/ar/suppliers.json";
-import purchasesAr from "../locales/ar/purchases.json";
-import accountingAr from "../locales/ar/accounting.json";
-import expensesAr from "../locales/ar/expenses.json";
-import branchesAr from "../locales/ar/branches.json";
-import warehousesAr from "../locales/ar/warehouses.json";
-import transfersAr from "../locales/ar/transfers.json";
-import settingsAr from "../locales/ar/settings.json";
-import managerPortalAr from "../locales/ar/managerPortal.json";
-import employeePortalAr from "../locales/ar/employeePortal.json";
-import attendanceAr from "../locales/ar/attendance.json";
-import accessAr from "../locales/ar/access.json";
-import authAr from "../locales/ar/auth.json";
-import marketingAr from "../locales/ar/marketing.json";
-import aiStudioAr from "../locales/ar/aiStudio.json";
-import surveillanceAr from "../locales/ar/surveillance.json";
-import aiSupportAr from "../locales/ar/aiSupport.json";
-import shippingAr from "../locales/ar/shipping.json";
-import loyaltyAr from "../locales/ar/loyalty.json";
-import saasAr from "../locales/ar/saas.json";
-import storefrontAr from "../locales/ar/storefront.json";
-import printAr from "../locales/ar/print.json";
-import salesAr from "../locales/ar/sales.json";
-
-import commonEn from "../locales/en/common.json";
-import dashboardEn from "../locales/en/dashboard.json";
-import productsEn from "../locales/en/products.json";
-import posEn from "../locales/en/pos.json";
-import customersEn from "../locales/en/customers.json";
-import ordersEn from "../locales/en/orders.json";
-import inventoryEn from "../locales/en/inventory.json";
-import analyticsEn from "../locales/en/analytics.json";
-import reportsEn from "../locales/en/reports.json";
-import overviewEn from "../locales/en/overview.json";
-import inventoryAnalyticsEn from "../locales/en/inventoryAnalytics.json";
-import salesAnalyticsEn from "../locales/en/salesAnalytics.json";
-import suppliersEn from "../locales/en/suppliers.json";
-import purchasesEn from "../locales/en/purchases.json";
-import accountingEn from "../locales/en/accounting.json";
-import expensesEn from "../locales/en/expenses.json";
-import branchesEn from "../locales/en/branches.json";
-import warehousesEn from "../locales/en/warehouses.json";
-import transfersEn from "../locales/en/transfers.json";
-import settingsEn from "../locales/en/settings.json";
-import managerPortalEn from "../locales/en/managerPortal.json";
-import employeePortalEn from "../locales/en/employeePortal.json";
-import attendanceEn from "../locales/en/attendance.json";
-import accessEn from "../locales/en/access.json";
-import authEn from "../locales/en/auth.json";
-import marketingEn from "../locales/en/marketing.json";
-import aiStudioEn from "../locales/en/aiStudio.json";
-import surveillanceEn from "../locales/en/surveillance.json";
-import aiSupportEn from "../locales/en/aiSupport.json";
-import shippingEn from "../locales/en/shipping.json";
-import loyaltyEn from "../locales/en/loyalty.json";
-import saasEn from "../locales/en/saas.json";
-import storefrontEn from "../locales/en/storefront.json";
-import printEn from "../locales/en/print.json";
-import salesEn from "../locales/en/sales.json";
 
 export const DEFAULT_LANGUAGE = "en";
 export const LANGUAGE_STORAGE_KEY = "app_language";
@@ -146,89 +82,6 @@ export const getBrowserLanguage = () => {
 export const resolveInitialLanguage = () => {
   return getStoredLanguage() || getBrowserLanguage();
 };
-
-/**
- * The branch -> file wiring lives in localeManifest.js so the dictionary parity
- * guard reads exactly the same tree the runtime does. Assigning branches by
- * hand here previously allowed a duplicate `inventory` key to silently drop a
- * whole bundle.
- */
-const resources = buildResources({
-  ar: {
-    common: commonAr,
-    dashboard: dashboardAr,
-    products: productsAr,
-    pos: posAr,
-    customers: customersAr,
-    orders: ordersAr,
-    inventory: inventoryAr,
-    analytics: analyticsAr,
-    reports: reportsAr,
-    overview: overviewAr,
-    inventoryAnalytics: inventoryAnalyticsAr,
-    salesAnalytics: salesAnalyticsAr,
-    suppliers: suppliersAr,
-    purchases: purchasesAr,
-    accounting: accountingAr,
-    expenses: expensesAr,
-    branches: branchesAr,
-    warehouses: warehousesAr,
-    transfers: transfersAr,
-    settings: settingsAr,
-    managerPortal: managerPortalAr,
-    employeePortal: employeePortalAr,
-    attendance: attendanceAr,
-    access: accessAr,
-    auth: authAr,
-    marketing: marketingAr,
-    aiStudio: aiStudioAr,
-    surveillance: surveillanceAr,
-    aiSupport: aiSupportAr,
-    shipping: shippingAr,
-    loyalty: loyaltyAr,
-    saas: saasAr,
-    storefront: storefrontAr,
-    print: printAr,
-    sales: salesAr,
-  },
-  en: {
-    common: commonEn,
-    dashboard: dashboardEn,
-    products: productsEn,
-    pos: posEn,
-    customers: customersEn,
-    orders: ordersEn,
-    inventory: inventoryEn,
-    analytics: analyticsEn,
-    reports: reportsEn,
-    overview: overviewEn,
-    inventoryAnalytics: inventoryAnalyticsEn,
-    salesAnalytics: salesAnalyticsEn,
-    suppliers: suppliersEn,
-    purchases: purchasesEn,
-    accounting: accountingEn,
-    expenses: expensesEn,
-    branches: branchesEn,
-    warehouses: warehousesEn,
-    transfers: transfersEn,
-    settings: settingsEn,
-    managerPortal: managerPortalEn,
-    employeePortal: employeePortalEn,
-    attendance: attendanceEn,
-    access: accessEn,
-    auth: authEn,
-    marketing: marketingEn,
-    aiStudio: aiStudioEn,
-    surveillance: surveillanceEn,
-    aiSupport: aiSupportEn,
-    shipping: shippingEn,
-    loyalty: loyaltyEn,
-    saas: saasEn,
-    storefront: storefrontEn,
-    print: printEn,
-    sales: salesEn,
-  },
-});
 
 const resolveFontFamily = (language) =>
   normalizeLanguage(language) === "ar"
@@ -321,8 +174,23 @@ removeStorage("i18nextLng");
 removeStorage("language");
 removeStorage("lang");
 
+/**
+ * Boot dictionaries.
+ *
+ * Only the ACTIVE language is loaded before init, and on a public storefront
+ * route only its core bundles. Everything else — the rest of this language's
+ * bundles, plus the fallback language — is grafted on after first paint by
+ * `hydrateRemainingLocales` below, so none of it sits on the critical path.
+ *
+ * See src/i18n/loadLocaleScope.js for why this split exists.
+ */
+const deferErpLocales = shouldDeferErpLocales();
+const bootFiles = deferErpLocales
+  ? await loadCoreBundles(initialLanguage)
+  : { ...(await loadCoreBundles(initialLanguage)), ...(await loadRestBundles(initialLanguage)) };
+
 await i18n.use(initReactI18next).init({
-  resources,
+  resources: buildLocaleResources(initialLanguage, bootFiles),
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   supportedLngs: ["ar", "en"],
@@ -332,6 +200,55 @@ await i18n.use(initReactI18next).init({
     escapeValue: false,
   },
 });
+
+/**
+ * Fills in everything boot skipped: the deferred bundles for the active
+ * language, then the fallback language in full. Both are best-effort — a failed
+ * chunk must never break a page that already painted, and every key an already
+ * rendered screen needs is by construction in the boot set.
+ *
+ * Awaited by `whenLocalesReady()` so a screen that genuinely needs the full
+ * dictionary (a language switch, an ERP route reached from the storefront) can
+ * wait for it instead of rendering fallback text.
+ */
+const hydrateRemainingLocales = async () => {
+  if (deferErpLocales) {
+    await mergeRemainingBundles(i18n, initialLanguage).catch(() => false);
+  }
+  await Promise.all(
+    SUPPORTED_LOCALES.filter((locale) => locale !== initialLanguage).map((locale) =>
+      mergeRemainingBundles(i18n, locale, { includeCore: true }).catch(() => false)
+    )
+  );
+};
+
+// Started on idle rather than immediately: kicking these chunks off the moment
+// init resolves puts them back in contention with App/Storefront for the very
+// bandwidth this split was meant to free. `whenLocalesReady()` short-circuits
+// the wait for anything that actually needs the full dictionary now.
+let localeHydration = null;
+const startLocaleHydration = () => {
+  if (!localeHydration) localeHydration = hydrateRemainingLocales();
+  return localeHydration;
+};
+
+if (typeof window !== "undefined") {
+  // After `load`, then on idle: the first waits out the render and the product
+  // imagery, the second waits out whatever the page is still busy with. Either
+  // alone would still let these chunks compete with the very work this split
+  // was meant to unblock.
+  const onIdle = () => {
+    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1200));
+    schedule(() => startLocaleHydration(), { timeout: 4000 });
+  };
+  if (document.readyState === "complete") onIdle();
+  else window.addEventListener("load", onIdle, { once: true });
+} else {
+  startLocaleHydration();
+}
+
+/** Resolves once every locale bundle has been merged into the instance. */
+export const whenLocalesReady = () => startLocaleHydration();
 
 const originalT = i18n.t.bind(i18n);
 i18n.t = (key, options, ...rest) => {
@@ -373,6 +290,10 @@ if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
 
 i18n.on("languageChanged", (language) => {
   applyDocumentLanguage(language);
+  // The target language may still be mid-hydration (or not started, if the
+  // switch happens before idle). Force it and re-emit so mounted screens
+  // re-render once its bundles land.
+  startLocaleHydration().then(() => i18n.emit("loaded"));
 });
 
 applyDocumentLanguage(initialLanguage);

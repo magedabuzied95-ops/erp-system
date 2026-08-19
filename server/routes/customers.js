@@ -11,6 +11,7 @@ import {
   getCustomerOrders,
   getCustomerProfile,
   getCustomerStatement,
+  getCustomerEmployeeOptions,
   getCustomerWalletAudit,
   importCustomers,
   listCustomers,
@@ -31,6 +32,8 @@ const importUpload = multer({
 router.get("/", protect, permit("customers", "view"), listCustomers);
 router.post("/import/preview", protect, permit("customers", "create"), importUpload.single("file"), previewCustomerImport);
 router.post("/import/confirm", protect, permit("customers", "create"), importUpload.single("file"), importCustomers);
+// Registered before "/:id/..." so "employee-options" is never read as an id.
+router.get("/employee-options", protect, permit("customers", "edit"), getCustomerEmployeeOptions);
 router.post("/", protect, permit("customers", "create"), createCustomer);
 router.get("/:id/profile", protect, permit("customers", "view"), getCustomerProfile);
 router.get("/:id/orders", protect, permit("customers", "view"), getCustomerOrders);

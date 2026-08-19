@@ -535,6 +535,11 @@ function Customers() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [allowPersonalTransactions, setAllowPersonalTransactions] = useState(false);
+  // Linking a customer to an employee is what turns their deferred invoices into
+  // salary advances instead of customer debt.
+  const [linkedEmployeeId, setLinkedEmployeeId] = useState("");
+  const [employeeOptions, setEmployeeOptions] = useState([]);
+  const [suggestedEmployee, setSuggestedEmployee] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(() => (
     statementCustomerId ? { id: Number(statementCustomerId) || statementCustomerId } : null
   ));
@@ -752,12 +757,41 @@ function Customers() {
     fetchCustomers();
   }, [fetchCustomers]);
 
+  // Employees to link to, plus the one whose phone matches what is being typed.
+  // The suggestion is offered, never applied: linking the wrong employee would
+  // charge someone else's salary for this customer's deferred invoices.
+  useEffect(() => {
+    if (!customerFormOpen) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const query = phone ? `?phone=${encodeURIComponent(phone)}` : "";
+        const response = await api.get(`/customers/employee-options${query}`);
+        if (cancelled) return;
+        setEmployeeOptions(Array.isArray(response?.employees) ? response.employees : []);
+        setSuggestedEmployee(response?.suggested_employee || null);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[customers] failed to load employee options:", error);
+          setEmployeeOptions([]);
+          setSuggestedEmployee(null);
+        }
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [customerFormOpen, phone]);
+
   const resetForm = () => {
     setName("");
     setPhone("");
     setEmail("");
     setAddress("");
     setAllowPersonalTransactions(false);
+    setLinkedEmployeeId("");
+    setSuggestedEmployee(null);
     setEditingId(null);
     setCustomerFormOpen(false);
   };
@@ -772,7 +806,14 @@ function Customers() {
     setCustomerSaving(true);
 
     try {
-      const customerData = { name, phone, email, address, allow_personal_transactions: allowPersonalTransactions };
+      const customerData = {
+        name,
+        phone,
+        email,
+        address,
+        allow_personal_transactions: allowPersonalTransactions,
+        linked_employee_id: linkedEmployeeId ? Number(linkedEmployeeId) : null,
+      };
 
       if (editingId) {
         await api.put(`/customers/${editingId}`, customerData);
@@ -802,6 +843,7 @@ function Customers() {
     setEmail(customer.email || "");
     setAddress(customer.address || "");
     setAllowPersonalTransactions(Boolean(customer.allow_personal_transactions ?? customer.allowPersonalTransactions ?? false));
+    setLinkedEmployeeId(customer.linked_employee_id ? String(customer.linked_employee_id) : "");
   };
 
   const deleteCustomer = async (id) => {
@@ -1039,6 +1081,36 @@ function Customers() {
             />
             <span>{tt("customers.personalUse.allow")}</span>
           </label>
+
+          <div className="mt-4 rounded-[var(--radius-card)] border border-amber-400/20 bg-amber-400/10 px-4 py-3">
+            <label className="block text-sm font-semibold text-amber-50">
+              {tt("customers.employeeLink.label")}
+            </label>
+            <p className="mt-1 text-xs text-amber-100/70">{tt("customers.employeeLink.hint")}</p>
+            <select
+              value={linkedEmployeeId}
+              onChange={(event) => setLinkedEmployeeId(event.target.value)}
+              className={`${inputClass} mt-2`}
+            >
+              <option value="">{tt("customers.employeeLink.none")}</option>
+              {employeeOptions.map((employee) => (
+                <option key={employee.id} value={String(employee.id)}>
+                  {[employee.full_name, employee.employee_code].filter(Boolean).join(" — ")}
+                </option>
+              ))}
+            </select>
+            {suggestedEmployee && String(suggestedEmployee.id) !== String(linkedEmployeeId) ? (
+              <button
+                type="button"
+                onClick={() => setLinkedEmployeeId(String(suggestedEmployee.id))}
+                className="mt-2 inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/40 bg-amber-400/15 px-3 py-1.5 text-xs font-bold text-amber-50 transition hover:bg-amber-400/25"
+              >
+                {tt("customers.employeeLink.suggestion", {
+                  name: [suggestedEmployee.full_name, suggestedEmployee.employee_code].filter(Boolean).join(" — "),
+                })}
+              </button>
+            ) : null}
+          </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
             <button

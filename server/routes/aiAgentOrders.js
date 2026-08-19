@@ -99,6 +99,10 @@ import {
 } from "../services/aiInboxLeadActionsService.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "../services/inboundMediaService.js";
 import {
+  createAddressRequest,
+  getLatestAddressRequest,
+} from "../services/conversationAddressRequestService.js";
+import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
 import { likeComment, probePrivateReplyComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
@@ -118,6 +122,8 @@ import {
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
   markAiSupportConversationRead,
+  markAiSupportConversationUnread,
+  markAllAiSupportConversationsRead,
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
   upsertAiSupportMessageReaction,
@@ -126,7 +132,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -3768,6 +3774,89 @@ const handleMarkConversationRead = async (req, res) => {
 router.post("/conversations/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
 router.post("/inbox/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
 
+const handleMarkConversationUnread = async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const rawConversationId = envText(req.params.conversationId);
+    const conversationId = decodeRouteId(rawConversationId);
+    const channel = req.body?.channel || req.query?.channel || "";
+    if (!conversationId) {
+      return res.status(200).json({
+        success: true,
+        queued: false,
+        conversation: null,
+        message: "conversation id missing",
+      });
+    }
+
+    const conversation = await markAiSupportConversationUnread({
+      tenantId,
+      sessionId: conversationId,
+      channel,
+    });
+    if (conversation?.unread_updated !== true) {
+      throw Object.assign(new Error("Conversation was not found or could not be marked as unread"), { status: 404 });
+    }
+    console.log("[ai-inbox][mark-unread] success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel,
+    });
+
+    return res.status(200).json({
+      success: true,
+      queued: false,
+      conversation,
+    });
+  } catch (error) {
+    console.warn("[ai-inbox][mark-unread] failure", {
+      tenant_id: toTenantId(req),
+      raw_conversation_id: envText(req.params.conversationId),
+      decoded_conversation_id: decodeRouteId(req.params.conversationId),
+      channel: req.body?.channel || req.query?.channel || "",
+      code: error?.code || "",
+      message: error?.message || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      conversation: null,
+      message: error?.message || "Failed to mark conversation as unread",
+    });
+  }
+};
+
+router.post("/conversations/:conversationId/unread", protect, permit("settings", "edit"), handleMarkConversationUnread);
+router.post("/inbox/:conversationId/unread", protect, permit("settings", "edit"), handleMarkConversationUnread);
+
+const handleMarkAllConversationsRead = async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const channel = req.body?.channel || req.query?.channel || "";
+    const result = await markAllAiSupportConversationsRead({ tenantId, channel });
+    console.log("[ai-inbox][mark-all-read] success", {
+      tenant_id: tenantId,
+      channel,
+      sessions_updated: result?.sessions_updated || 0,
+      channels_updated: result?.channels_updated || 0,
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.warn("[ai-inbox][mark-all-read] failure", {
+      tenant_id: toTenantId(req),
+      channel: req.body?.channel || req.query?.channel || "",
+      code: error?.code || "",
+      message: error?.message || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to mark all conversations as read",
+    });
+  }
+};
+
+router.post("/conversations/read-all", protect, permit("settings", "edit"), handleMarkAllConversationsRead);
+router.post("/inbox/read-all", protect, permit("settings", "edit"), handleMarkAllConversationsRead);
+
 router.get("/conversations/:conversationId/sales-closer", protect, permit("settings", "view"), async (req, res) => {
   const tenantId = toTenantId(req);
   const rawRouteId = envText(req.params.conversationId);
@@ -5109,6 +5198,59 @@ router.get("/corrections/search", protect, permit("settings", "view"), async (re
   }
 });
 
+// Address-request link: a public URL the customer opens to type their own
+// shipping address. Creating one is idempotent per conversation (a live pending
+// link is reused); the composer polls the GET for the submitted address.
+//
+// Both handlers resolve the conversation with ONE indexed ai_support_sessions
+// read. The first rollout went through loadLeadConversationForAction — a full
+// 1000-conversation inbox load on every tap AND every 7s poll — which is what
+// made "إرسال رابط العنوان" feel stuck for the seller.
+const resolveAddressRequestSession = async ({ tenantId, conversationId }) => {
+  const direct = await db.query(
+    `SELECT session_id, channel FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
+    [tenantId, conversationId]
+  );
+  if (direct.rows[0]) return direct.rows[0];
+  // The composers always pass the canonical session_id; this fallback only
+  // serves aliases (external ids), where the slow resolution is acceptable.
+  const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+  return conversation ? { session_id: conversation.session_id, channel: conversation.channel || conversation.source || "" } : null;
+};
+
+router.post("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const session = await resolveAddressRequestSession({ tenantId, conversationId: envText(req.params.conversationId) });
+    if (!session) {
+      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    }
+    const request = await createAddressRequest({
+      tenantId,
+      sessionId: envText(session.session_id),
+      channel: envText(req.body?.channel || session.channel),
+      customerName: envText(req.body?.customer_name),
+      customerPhone: envText(req.body?.customer_phone),
+      createdBy: req.user?.id || null,
+    });
+    return res.status(201).json({ success: true, request });
+  } catch (error) {
+    return sendError(res, error, "Failed to create address request link");
+  }
+});
+
+router.get("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    // Polled every few seconds while the composer is open: a single indexed
+    // read against the requests table, no conversation resolution at all.
+    const request = await getLatestAddressRequest({ tenantId, sessionId: envText(req.params.conversationId) });
+    return res.json({ success: true, request });
+  } catch (error) {
+    return sendError(res, error, "Failed to load address request");
+  }
+});
+
 router.post("/conversations/:conversationId/reply", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -5241,6 +5383,145 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
     return res.json({ success: true, emoji: deliveredEmoji, target_message_id: targetMessageId, reaction: stored?.reaction || null, removed: !deliveredEmoji });
   } catch (error) {
     return sendError(res, error, "Failed to send message reaction");
+  }
+});
+
+// Editing a message that already reached the customer. WhatsApp is the only
+// channel of ours that has an edit primitive at all — Instagram and Messenger
+// expose no edit endpoint, so those conversations are refused up front instead
+// of silently rewriting only our copy of the thread.
+const EDITABLE_MESSAGE_TYPES = new Set(["", "text", "private_message"]);
+
+router.post("/conversations/:conversationId/message/edit", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedConversationId = envText(req.params.conversationId);
+    const requestedTargetId = envText(req.body?.target_message_id || req.body?.message_id || req.body?.targetMessageId);
+    const nextText = String(req.body?.text ?? req.body?.message ?? "").trim();
+    if (!requestedTargetId) {
+      throw Object.assign(new Error("Message id is required for an edit"), { status: 400, code: "MESSAGE_EDIT_MESSAGE_ID_REQUIRED" });
+    }
+    if (!nextText) {
+      throw Object.assign(new Error("New message text is required"), { status: 400, code: "MESSAGE_EDIT_TEXT_REQUIRED" });
+    }
+    if (nextText.length > 4096) {
+      throw Object.assign(new Error("Message text is too long to edit"), { status: 400, code: "MESSAGE_EDIT_TEXT_TOO_LONG" });
+    }
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: requestedConversationId });
+    if (!conversation) {
+      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    }
+    const channel = envText(conversation.channel || conversation.source).toLowerCase();
+    if (!channel.includes("whatsapp")) {
+      throw Object.assign(new Error("Editing a sent message is only supported on WhatsApp"), { status: 409, code: "MESSAGE_EDIT_CHANNEL_UNSUPPORTED" });
+    }
+    const sessionId = envText(conversation.session_id || requestedConversationId);
+    const targetResult = await db.query(
+      `
+      SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone,
+             sender_type, message_type, message_text, staff_message, ai_answer, customer_message,
+             original_message_text, visual_attachments, product_cards, created_at
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND (
+          provider_message_id = $3::text
+          OR external_message_id = $3::text
+          OR id::text = $3::text
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [tenantId, sessionId, requestedTargetId]
+    );
+    const target = targetResult.rows[0] || null;
+    if (!target) {
+      throw Object.assign(new Error("Message not found in this conversation"), { status: 404, code: "MESSAGE_EDIT_TARGET_NOT_FOUND" });
+    }
+    const senderType = envText(target.sender_type).toLowerCase();
+    if (!["staff", "agent", "human", "ai", "assistant", "bot", "system"].includes(senderType)) {
+      throw Object.assign(new Error("Only messages we sent can be edited"), { status: 409, code: "MESSAGE_EDIT_INBOUND_NOT_EDITABLE" });
+    }
+    const messageType = envText(target.message_type).toLowerCase();
+    const hasAttachments = Array.isArray(target.visual_attachments) ? target.visual_attachments.length > 0 : false;
+    const hasProductCards = Array.isArray(target.product_cards) ? target.product_cards.length > 0 : false;
+    if (!EDITABLE_MESSAGE_TYPES.has(messageType) || hasAttachments || hasProductCards) {
+      throw Object.assign(new Error("Only a plain text message can be edited"), { status: 409, code: "MESSAGE_EDIT_TYPE_NOT_EDITABLE" });
+    }
+    const sentAt = target.created_at ? new Date(target.created_at).getTime() : 0;
+    if (!sentAt || Date.now() - sentAt > WHATSAPP_EDIT_WINDOW_MS) {
+      throw Object.assign(
+        new Error("WhatsApp only allows editing a message within 15 minutes of sending it"),
+        { status: 409, code: "MESSAGE_EDIT_WINDOW_EXPIRED" }
+      );
+    }
+    const targetMessageId = envText(target.provider_message_id || target.external_message_id);
+    if (!targetMessageId) {
+      throw Object.assign(new Error("This message has no WhatsApp id, so it cannot be edited"), { status: 409, code: "MESSAGE_EDIT_PROVIDER_ID_MISSING" });
+    }
+    const rawRemoteJid = envText(
+      target.remote_jid ||
+      target.resolved_reply_jid ||
+      req.body?.remote_jid ||
+      conversation.remote_jid ||
+      conversation.channel_metadata?.remote_jid ||
+      conversation.channel_metadata?.resolved_reply_jid ||
+      conversation.external_customer_id ||
+      conversation.customer_phone ||
+      conversation.customer_profile?.phone
+    ).replace(/^whatsapp:/i, "");
+    // A LID chat is addressed @lid, never @s.whatsapp.net — same trap the
+    // reaction path hit.
+    const remoteDigits = rawRemoteJid.replace(/\D/g, "");
+    const remoteJid = normalizeWhatsappRemoteJid(rawRemoteJid)
+      || (rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "");
+    const previousText = envText(target.message_text || target.staff_message || target.ai_answer || target.customer_message);
+    await editWhatsappTextMessage({ remoteJid, targetMessageId, messageText: nextText });
+    // Only rewrite our copy of the thread after WhatsApp accepted the edit, so
+    // the inbox can never show text the customer never received.
+    await db.query(
+      `
+      UPDATE ai_support_messages
+      SET message_text = $3::text,
+          staff_message = CASE WHEN staff_message <> '' THEN $3::text ELSE staff_message END,
+          ai_answer = CASE WHEN ai_answer <> '' THEN $3::text ELSE ai_answer END,
+          last_message = CASE WHEN last_message <> '' THEN $3::text ELSE last_message END,
+          original_message_text = CASE WHEN original_message_text = '' THEN $4::text ELSE original_message_text END,
+          edited_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint
+        AND id = $2::bigint
+      `,
+      [tenantId, target.id, nextText, previousText]
+    );
+    await db.query(
+      `
+      UPDATE ai_support_sessions
+      SET last_message = $3::text,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND last_message = $4::text
+      `,
+      [tenantId, sessionId, nextText, previousText]
+    ).catch(() => null);
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: sessionId,
+      channel: "whatsapp",
+      reason: "staff_message_edited",
+      at: new Date().toISOString(),
+    });
+    return res.json({
+      success: true,
+      message_id: target.id,
+      target_message_id: targetMessageId,
+      text: nextText,
+      previous_text: previousText,
+      edited_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to edit the sent message");
   }
 });
 
@@ -5416,6 +5697,38 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         return res.status(409).json({
           success: false, sent: false, code: "STALE_SUGGESTION", reason: "newer_customer_message",
           message: "العميل بعت رسالة أحدث — حدّث الاقتراح قبل الإرسال.",
+        });
+      }
+    }
+
+    // ADDRESS-LINK RESEND GUARD. The "اكتب عنوانك من الرابط" message carries the conversation's /addr/<code>
+    // link, and the link is reused while pending — so re-sending it is never a new link, only the same message
+    // spammed at the customer (a real conversation received it 10+ times in one minute). If this exact code was
+    // already DELIVERED to this conversation in the last 10 minutes, refuse before the provider is ever called.
+    // Scoped to /addr/ links only; ordinary repeated texts ("تمام") are never touched. Fails open on query error.
+    const addressLinkCode = (messageText.match(/\/addr\/([A-Za-z0-9_-]{8,64})/) || [])[1] || "";
+    if (addressLinkCode && !mockDelivery) {
+      const duplicate = await db.query(
+        `
+        SELECT id FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND session_id = $2
+          AND sender_type = 'staff'
+          AND delivery_status = 'sent'
+          AND created_at > NOW() - INTERVAL '10 minutes'
+          AND (POSITION($3 IN COALESCE(staff_message, '')) > 0 OR POSITION($3 IN COALESCE(message_text, '')) > 0)
+        ORDER BY created_at DESC
+        LIMIT 1
+        `,
+        [tenantId, conversation.session_id || conversationId, `/addr/${addressLinkCode}`]
+      ).catch(() => ({ rows: [] }));
+      if (duplicate.rows[0]) {
+        return res.status(409).json({
+          success: false,
+          sent: false,
+          code: "ADDRESS_LINK_ALREADY_SENT",
+          reason: "duplicate_address_link",
+          message: "رابط العنوان اتبعت للعميل بالفعل — مش هيتبعت تاني دلوقتي.",
         });
       }
     }

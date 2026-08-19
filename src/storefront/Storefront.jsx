@@ -6,12 +6,10 @@ import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } f
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import {
-  FaAppStoreIos,
   FaCcMastercard,
   FaCcPaypal,
   FaCcVisa,
   FaFacebookF,
-  FaGooglePlay,
   FaInstagram,
   FaTiktok,
   FaWhatsapp,
@@ -821,23 +819,39 @@ const resolveStorefrontPrice = (product = {}, variant = {}) => {
     discountPercent: pricing.discountPercent || 0,
   };
 };
+// A dead photo used to drop straight to the site logo even when the product had
+// another usable shot of the same shoe -- one missing file on the server turned a
+// real product into a placeholder. Walk the alternates first, and only give up
+// once they are exhausted. data-fallback-src carries them, pipe separated.
 const fallbackProductImage = (event) => {
-  if (event.currentTarget.dataset.fallbackApplied === "true") return;
-  const originalSrc = String(event.currentTarget.dataset.originalSrc || "").trim();
-  event.currentTarget.dataset.fallbackApplied = "true";
+  const node = event.currentTarget;
+  if (!node || node.dataset.fallbackApplied === "true") return;
   if (isAiSupportDebugEnabled()) {
     console.warn("[storefront-ai] suggested product image failed", {
-      src: event.currentTarget.currentSrc || event.currentTarget.src,
-      alt: event.currentTarget.alt,
+      src: node.currentSrc || node.src,
+      alt: node.alt,
     });
   }
-  event.currentTarget.removeAttribute("srcset");
-  event.currentTarget.removeAttribute("sizes");
-  if (originalSrc && event.currentTarget.src !== originalSrc) {
-    event.currentTarget.src = originalSrc;
+  node.removeAttribute("srcset");
+  node.removeAttribute("sizes");
+  const originalSrc = String(node.dataset.originalSrc || "").trim();
+  if (originalSrc && node.dataset.originalTried !== "true" && node.src !== originalSrc) {
+    node.dataset.originalTried = "true";
+    node.src = originalSrc;
     return;
   }
-  event.currentTarget.src = "/favicon.svg";
+  const tried = String(node.dataset.triedSrc || "").split("|").filter(Boolean);
+  const next = String(node.dataset.fallbackSrc || "")
+    .split("|")
+    .map((url) => url.trim())
+    .find((url) => url && url !== node.src && !tried.includes(url));
+  if (next) {
+    node.dataset.triedSrc = [...tried, next].join("|");
+    node.src = next;
+    return;
+  }
+  node.dataset.fallbackApplied = "true";
+  node.src = "/favicon.svg";
 };
 const safeStorefrontRecord = (value) => (value && typeof value === "object" ? value : {});
 const variantHasStock = (variant = {}) => Number(safeStorefrontRecord(variant).stock || 0) > 0;
@@ -884,7 +898,10 @@ const variantColorName = (variant = {}) => {
 };
 const variantColorKey = (variant = {}) => {
   const safeVariant = safeStorefrontRecord(variant);
-  const stable = safeVariant.color_id || safeVariant.color_slug || safeVariant.edition_slug || variantColorName(safeVariant);
+  // color_group_key first: two colours can share a visible name and still be two
+  // different shoes, and this key is what the server cards are grouped by.
+  const stable = safeVariant.color_group_key || safeVariant.colorGroupKey ||
+    safeVariant.color_id || safeVariant.color_slug || safeVariant.edition_slug || variantColorName(safeVariant);
   return String(stable || "Default").trim().toLowerCase();
 };
 const firstVariantImage = (variants = []) => variantImage(variants.find((variant) => variantHasStock(variant) && variantImage(variant))) || variantImage(variants.find((variant) => variantImage(variant)));
@@ -960,6 +977,27 @@ const productCardSecondaryImageFor = (product = {}, variant = null, activeColorG
     if (next && next !== primary) return next;
   }
   return "";
+};
+// Photos this card may fall back to when its own file is missing. Colour-scoped
+// shots first; the product-wide gallery only joins when the product has a single
+// colour, because another colour's photo on this card would misdescribe it.
+const productCardFallbackImages = (product = {}, variant = null, activeColorGroup = null, primaryImage = "") => {
+  const primary = resolveCardImageUrl(primaryImage);
+  const colorCount = new Set(
+    (Array.isArray(product?.variants) ? product.variants : []).map((item) => variantColorKey(item)).filter(Boolean)
+  ).size;
+  const wideCandidates = colorCount > 1
+    ? []
+    : [
+        ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+        ...(Array.isArray(product?.images) ? product.images : []),
+        product?.image_url,
+        product?.product_image_url,
+      ];
+  return productCardResolvedImageCollection([
+    ...productCardColorScopedImages(activeColorGroup, variant),
+    ...wideCandidates,
+  ]).filter((url) => url && url !== primary);
 };
 const normalizeModelToken = (value = "") =>
   cleanDisplayText(value)
@@ -1225,6 +1263,10 @@ const offerStoryReadColorEntries = (source = {}) => {
     );
     const key = offerStoryColorKeyFromValue(
       firstTextValue(
+        // Same durable-key-first rule as variantColorKey, so a story entry and the
+        // variants it owns land in one group instead of splitting in two.
+        value.color_group_key,
+        value.colorGroupKey,
         value.color_key,
         value.colorKey,
         value.key,
@@ -2540,9 +2582,19 @@ const classificationLabel = (option = {}, lang = "ar") =>
     const productTypeKey = resolveProductTypeKey(rawValue);
     const productTypeEntry = PRODUCT_TYPE_LABELS[productTypeKey];
     const productTypeLabel = productTypeEntry ? getProductTypeLabel(rawValue, lang) : "";
+    // Prefer the canonical locale-specific display label (from the product-classification
+    // taxonomy: label_en / label_ar) over the generic `label`, which the taxonomy sets to
+    // label_ar||label_en||value and therefore renders Arabic in English mode. Options without
+    // a localized field (brand/colour/free-text facets) fall through to the raw label unchanged,
+    // so unknown merchant-authored values keep their original stored value. Display-only —
+    // raw `value`, filter query values, URLs and comparisons are untouched.
+    const localizedField = lang === "en"
+      ? (option?.label_en || option?.name_en || option?.title_en)
+      : (option?.label_ar || option?.name_ar || option?.title_ar);
     return cleanDisplayText(
       productTypeLabel ||
         storefrontLocalizedLabels[lang]?.[rawKey] ||
+      localizedField ||
       option?.label ||
       option?.name ||
       option?.title ||
@@ -2552,7 +2604,6 @@ const classificationLabel = (option = {}, lang = "ar") =>
       option?.value ||
       option?.id ||
       option?.key ||
-      (lang === "ar" ? option?.label_ar || option?.name_ar || option?.title_ar : option?.label_en || option?.name_en || option?.title_en) ||
       "",
     ) || "";
   })();
@@ -3451,7 +3502,7 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger hidden border-y border-[#2f687f]/20 bg-[#2f687f] text-white dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] md:mt-12 md:block">
+    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger hidden border-y border-white/[0.08] bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] text-white md:mt-12 md:block">
       <div className="mx-auto grid max-w-[1440px] divide-y divide-white/15 px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 md:grid-cols-4 md:px-8 rtl:sm:divide-x-reverse">
           {items.map((item, index) => {
             const Icon = item.icon;
@@ -3520,17 +3571,17 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               </div>
             </div>
             <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
-            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#2f687f] dark:text-white dark:hover:text-[#f3d77a]">
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#121212] dark:text-white dark:hover:text-[#f3d77a]">
               <FaWhatsapp className="h-5 w-5 text-[#25D366]" />
               {isRtl ? "خدمة العملاء" : "Customer service"}
             </a>
-            <a href={`mailto:${supportEmail}`} className="mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#2f687f] dark:text-white/80 dark:hover:text-[#f3d77a]">
-              <Mail className="h-5 w-5 text-[#2f687f] dark:text-[#d4af37]" />
+            <a href={`mailto:${supportEmail}`} className="mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#121212] dark:text-white/80 dark:hover:text-[#f3d77a]">
+              <Mail className="h-5 w-5 text-[#121212] dark:text-[#d4af37]" />
               <span dir="ltr">{supportEmail}</span>
             </a>
             <div className="mt-5 flex flex-wrap gap-2">
               {socialLinks.map(({ label, href, icon: SocialIcon }) => (
-                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#2f687f] hover:text-[#2f687f] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
+                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#121212] hover:text-[#121212] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
                   <SocialIcon className="h-4 w-4" />
                 </a>
               ))}
@@ -3550,7 +3601,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             <h3 className="text-base font-black">{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
             <div className="mt-4 grid gap-3">
               {categoryLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#2f687f] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3559,7 +3610,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             <h3 className="text-base font-black">{isRtl ? "روابط مهمة" : "Important links"}</h3>
             <div className="mt-4 grid gap-3">
               {importantLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#2f687f] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3570,15 +3621,17 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               {isRtl ? "تابع آخر العروض والمنتجات الجديدة مباشرة على بريدك." : "Receive the latest offers and new arrivals in your inbox."}
             </p>
             <form className="mt-4 grid gap-2" onSubmit={(event) => { event.preventDefault(); toast.success(isRtl ? "تم الاشتراك بنجاح" : "Subscribed successfully"); }}>
-              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#2f687f] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
-              <button type="submit" className="h-12 rounded-xl bg-[#2f687f] px-4 text-sm font-black text-white transition hover:bg-[#25566a] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
+              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#121212] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
+              <button type="submit" className="h-12 rounded-xl bg-[#121212] px-4 text-sm font-black text-white transition hover:bg-[#000] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
                 {isRtl ? "اشترك دلوقتي" : "Subscribe now"}
               </button>
             </form>
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-6 border-t border-stone-200 pt-7 dark:border-white/10 md:flex-row md:items-center md:justify-between">
+        {/* Payment marks only: the app-launch block was removed on request — the app is
+            not published, so the footer does not advertise it. */}
+        <div className="mt-10 border-t border-stone-200 pt-7 dark:border-white/10">
           <div className="flex flex-wrap items-center gap-3">
             {paymentMarks.map(({ label, icon: PaymentIcon, className }) => (
               <span key={label} title={label} aria-label={label} className="grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
@@ -3589,27 +3642,10 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-8 w-14 object-contain" width="56" height="32" loading="lazy" decoding="async" />
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-black">{isRtl ? "انتظروا إطلاق التطبيق" : "App coming soon"}</span>
-            <span className="inline-flex min-h-14 items-center gap-3 rounded-xl bg-stone-950 px-4 py-2 text-white shadow-sm dark:border dark:border-white/15">
-              <FaGooglePlay className="h-7 w-7 text-[#34a853]" />
-              <span className="text-start">
-                <small className="block text-[8px] font-bold uppercase tracking-wide text-white/65">Get it on</small>
-                <strong className="block text-sm font-black leading-4">Google Play</strong>
-              </span>
-            </span>
-            <span className="inline-flex min-h-14 items-center gap-3 rounded-xl bg-stone-950 px-4 py-2 text-white shadow-sm dark:border dark:border-white/15">
-              <FaAppStoreIos className="h-8 w-8" />
-              <span className="text-start">
-                <small className="block text-[8px] font-bold uppercase tracking-wide text-white/65">Download on the</small>
-                <strong className="block text-sm font-black leading-4">App Store</strong>
-              </span>
-            </span>
-          </div>
         </div>
       </div>
 
-      <div className="bg-[#2f687f] px-5 py-5 text-center text-sm font-bold text-white dark:bg-[#050505] dark:text-white/55">
+      <div className="bg-[#050505] px-5 py-5 text-center text-sm font-bold text-white dark:text-white/55">
         {isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}
       </div>
     </footer>
@@ -4247,9 +4283,12 @@ function useStorefrontProductGridColumns() {
   return width >= 768 ? 4 : 2;
 }
 
-const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
+// `revealAll` belongs to a paginated listing: the page already carries exactly the
+// count the customer chose, so revealing it in batches makes a full page look short
+// until they scroll. Endless rails keep the batched reveal.
+const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, revealAll = false }) {
   const columnCount = useStorefrontProductGridColumns();
-  const initialBatchSize = columnCount >= 4 ? 16 : 12;
+  const initialBatchSize = revealAll ? Math.max(products.length, 1) : columnCount >= 4 ? 16 : 12;
   const appendBatchSize = columnCount >= 4 ? 8 : 4;
   const [visibleCount, setVisibleCount] = useState(initialBatchSize);
   const [isAppending, setIsAppending] = useState(false);
@@ -5878,7 +5917,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
 }
 
 const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, priorityImage = false, imagePreset = "grid" }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const product = useMemo(() => groupedProduct || rawProduct || {}, [groupedProduct, rawProduct]);
   const cardRef = useRef(null);
@@ -5941,6 +5980,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     () => productCardPrimaryImageFor(product, availableVariant, activeColorGroup),
     [activeColorGroup, availableVariant, product]
   );
+  const cardFallbackImages = useMemo(
+    () => productCardFallbackImages(product, availableVariant, activeColorGroup, displayImage),
+    [activeColorGroup, availableVariant, displayImage, product]
+  );
   const hoverDetailVariants = useMemo(
     () => (Array.isArray(hoverProductDetails?.variants) ? hoverProductDetails.variants : []),
     [hoverProductDetails]
@@ -5967,8 +6010,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const [quickAddVariantId, setQuickAddVariantId] = useState("");
   const [quickAddQty, setQuickAddQty] = useState(1);
   const [secondaryImageReady, setSecondaryImageReady] = useState(false);
-  const [secondaryFlashActive, setSecondaryFlashActive] = useState(false);
-  const secondaryFlashTimerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
     setHoverProductDetails(null);
@@ -5985,11 +6026,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [firstAvailableVariant, product.id, providedSelectedColor, providedSelectedVariant]);
   useEffect(() => {
     setSecondaryImageReady(false);
-    setSecondaryFlashActive(false);
-    if (secondaryFlashTimerRef.current) {
-      window.clearTimeout(secondaryFlashTimerRef.current);
-      secondaryFlashTimerRef.current = null;
-    }
     if (!hasReadySecondaryImage || typeof window === "undefined") return undefined;
     let cancelled = false;
     const preloadImage = new Image();
@@ -6012,31 +6048,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       cancelled = true;
     };
   }, [hasReadySecondaryImage, secondaryImageUrl]);
-
-  useEffect(() => () => {
-    if (secondaryFlashTimerRef.current && typeof window !== "undefined") {
-      window.clearTimeout(secondaryFlashTimerRef.current);
-      secondaryFlashTimerRef.current = null;
-    }
-  }, []);
-
-  const triggerSecondaryFlash = useCallback(() => {
-    if (!hasReadySecondaryImage || !secondaryImageReady || typeof window === "undefined") return;
-    setSecondaryFlashActive(true);
-    if (secondaryFlashTimerRef.current) window.clearTimeout(secondaryFlashTimerRef.current);
-    secondaryFlashTimerRef.current = window.setTimeout(() => {
-      setSecondaryFlashActive(false);
-      secondaryFlashTimerRef.current = null;
-    }, 140);
-  }, [hasReadySecondaryImage, secondaryImageReady]);
-
-  const clearSecondaryFlash = useCallback(() => {
-    if (secondaryFlashTimerRef.current && typeof window !== "undefined") {
-      window.clearTimeout(secondaryFlashTimerRef.current);
-      secondaryFlashTimerRef.current = null;
-    }
-    setSecondaryFlashActive(false);
-  }, []);
 
   useEffect(() => {
     if (!selectedVariantId || !activeSizes.length) return;
@@ -6193,24 +6204,15 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       <div className={`relative overflow-hidden rounded-[1.05rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.2rem] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
-            <div
-              className="sf-product-card-media group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
-              onMouseEnter={triggerSecondaryFlash}
-              onMouseLeave={clearSecondaryFlash}
-            >
-              {hasReadySecondaryImage && secondaryImageReady ? (
-                <div
-                  className="pointer-events-none absolute inset-0 z-[2] bg-stone-100/20 opacity-0 transition-opacity duration-150 ease-out md:group-hover/product:opacity-0"
-                  style={{ opacity: secondaryFlashActive ? 0.18 : 0 }}
-                />
-              ) : null}
+            <div className="sf-product-card-media group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]">
               <img
                 ref={primaryImageRef}
                 src={imageFor(displayImage)}
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
                 onError={fallbackProductImage}
-                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-active/product:scale-[1.12] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
+                data-fallback-src={cardFallbackImages.map((url) => imageFor(url)).join("|")}
+                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.19] md:group-active/product:scale-[1.19] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
                 fetchPriority={priorityImage ? "high" : undefined}
@@ -6225,7 +6227,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   alt={product.name}
                   aria-hidden="true"
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-hover/card-image:opacity-100 md:group-active/product:opacity-95"
+                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.13] md:group-hover/card-image:opacity-100 md:group-active/product:opacity-95"
                   style={{ backfaceVisibility: "hidden" }}
                   loading="lazy"
                   decoding="async"
@@ -6267,7 +6269,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           <Link
             to={brandFilterUrl || "/products"}
             onClick={(event) => event.stopPropagation()}
-            aria-label={`عرض منتجات ${brandLabel}`}
+            aria-label={`${normalizeLanguage(i18n.language) === "ar" ? "عرض منتجات" : "Shop"} ${brandLabel}`}
             dir="ltr"
             className="line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#d4af37] hover:underline focus-visible:text-[#d4af37] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#f3d77a] md:min-h-[1.05rem]"
           >
@@ -6282,10 +6284,34 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         >
           {product.name}
         </Link>
+        {/* Desktop hover swap: the price row slides up out of a fixed 35px window and
+            the add-to-cart row takes its place. Touch has no hover, so it keeps the
+            price permanently visible next to the round quick-add button. */}
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-            {comparePrice ? <span className="sf-product-card-compare-price text-[10px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
+          {/* clip, not hidden: an overflow-hidden window is programmatically
+              scrollable, so tabbing to the clipped CTA scrolled it 35px out of
+              place for good instead of letting the slide reveal it. */}
+          <div className="sf-card-action-wrap min-w-0 flex-1 overflow-clip md:h-[35px]">
+            <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/product:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:h-[35px] md:flex-nowrap md:items-center">
+                <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
+                {comparePrice ? <span className="sf-product-card-compare-price text-[10px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
+              </div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openVariantSheet();
+                }}
+                disabled={!canQuickAdd}
+                className="sf-card-slide-cta hidden h-[35px] w-full shrink-0 items-center gap-1.5 whitespace-nowrap bg-transparent p-0 text-[13px] font-black leading-none text-stone-900 transition-colors duration-200 hover:text-[#d4af37] disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:text-stone-400 dark:text-stone-100 dark:hover:text-[#f3d77a] dark:disabled:text-stone-500 md:inline-flex"
+                aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+                title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+              >
+                <ShoppingCart className="h-[18px] w-[18px] shrink-0 text-[#d4af37] dark:text-[#f3d77a]" />
+                {canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+              </button>
+            </div>
           </div>
           <button
             type="button"
@@ -6294,7 +6320,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               openVariantSheet();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none md:hidden"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
             title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
@@ -6671,112 +6697,376 @@ const recommendationText = (value) => {
   return String(value || "").trim();
 };
 
-function RecommendationProductTile({ product, wishlist = [], toggleWishlist, saleModeEnabled }) {
+function RecommendationProductTile({ product, wishlist = [], toggleWishlist, saleModeEnabled, onAddToCart }) {
   const variant = firstDisplayVariant(Array.isArray(product?.variants) ? product.variants : []);
   const pricing = getDisplayPricing(product, parseSaleModeEnabled(saleModeEnabled, false), variant || {});
   const image = productCardPrimaryImageFor(product, variant);
   const brand = recommendationText(product?.brand?.name || product?.brand_name || product?.brand);
   const inWishlist = wishlist.some((item) => String(item?.id) === String(product?.id));
+  // Same two-photo swap as the grid card, on the same shared classes so both
+  // surfaces stay on one timing. Only swap once the second photo has decoded --
+  // fading to a half-loaded image reads as a flicker.
+  const secondaryImage = useMemo(
+    () => productCardSecondaryImageFor(product || {}, variant, null, image),
+    [image, product, variant]
+  );
+  const secondaryImageUrl = useMemo(() => resolveCardImageUrl(secondaryImage), [secondaryImage]);
+  const primaryImageUrl = useMemo(() => resolveCardImageUrl(image), [image]);
+  const hasSecondaryImage = Boolean(secondaryImageUrl && secondaryImageUrl !== primaryImageUrl);
+  const [secondaryImageReady, setSecondaryImageReady] = useState(false);
+  useEffect(() => {
+    setSecondaryImageReady(false);
+    if (!hasSecondaryImage || typeof window === "undefined") return undefined;
+    let cancelled = false;
+    const preloadImage = new Image();
+    preloadImage.decoding = "async";
+    preloadImage.onload = () => {
+      if (!cancelled) setSecondaryImageReady(true);
+    };
+    preloadImage.src = imageFor(secondaryImageUrl);
+    if (preloadImage.complete && preloadImage.naturalWidth > 0) setSecondaryImageReady(true);
+    return () => {
+      cancelled = true;
+    };
+  }, [hasSecondaryImage, secondaryImageUrl]);
+  const showSecondaryImage = hasSecondaryImage && secondaryImageReady;
+  const tileFallbackImages = useMemo(
+    () => productCardFallbackImages(product || {}, variant, null, image),
+    [image, product, variant]
+  );
+  // The same quick-add the grid card runs, on the same helpers, so a rail tile and
+  // a listing card resolve colour and size identically.
+  const tileVariants = useMemo(() => (Array.isArray(product?.variants) ? product.variants : []), [product]);
+  const sellableTileVariants = useMemo(() => tileVariants.filter(variantHasStock), [tileVariants]);
+  const tileColorGroups = useMemo(
+    () => getProductColorGroups({ ...product, variants: sellableTileVariants.length ? sellableTileVariants : tileVariants }),
+    [product, sellableTileVariants, tileVariants]
+  );
+  const canQuickAdd = sellableTileVariants.length > 0 && typeof onAddToCart === "function";
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddColorKey, setQuickAddColorKey] = useState("");
+  const [quickAddVariantId, setQuickAddVariantId] = useState("");
+  const [quickAddQty, setQuickAddQty] = useState(1);
+  const openVariantSheet = useCallback(() => {
+    const nextGroup = tileColorGroups.length === 1 ? tileColorGroups[0] : null;
+    const availableSizes = getSizeOptionsForColorGroup(nextGroup, product).filter((item) => variantHasStock(item.variant));
+    setQuickAddColorKey(nextGroup?.key || "");
+    setQuickAddVariantId(availableSizes.length === 1 ? availableSizes[0]?.variant?.id || "" : "");
+    setQuickAddQty(1);
+    setQuickAddOpen(true);
+  }, [product, tileColorGroups]);
+  const closeVariantSheet = useCallback(() => {
+    setQuickAddOpen(false);
+    setQuickAddColorKey("");
+    setQuickAddVariantId("");
+    setQuickAddQty(1);
+  }, []);
+  const quickAddLabel = canQuickAdd ? sfText("storefront.cart.addToCart") : sfText("storefront.products.unavailable");
   return (
-    <div className="sf-product-recommendation-tile group relative min-w-0 text-center">
+    <div className="sf-product-recommendation-tile group group/tile relative min-w-0 text-center">
       <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
-        <div className="relative aspect-square overflow-hidden bg-white">
-          <img src={imageFor(image)} onError={fallbackProductImage} alt={product?.name || ""} className="h-full w-full object-contain p-2 transition duration-300 group-hover:scale-[1.025]" loading="lazy" decoding="async" />
-          {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
+        {/* The sibling site sits its photos on a #e5e5e5 plate, not white. Its
+            product shots are opaque white like ours, so the grey only ever reads
+            as the frame around the photo — and the hover zoom eating into that
+            frame is the movement the plate exists to show. */}
+        <div className="sf-product-card-media group/card-image relative aspect-square overflow-hidden bg-[#e5e5e5]">
+          <img
+            src={imageFor(image)}
+            onError={fallbackProductImage}
+            data-fallback-src={tileFallbackImages.map((url) => imageFor(url)).join("|")}
+            alt={product?.name || ""}
+            className={`sf-card-primary-image absolute inset-0 z-[1] h-full w-full transform-gpu object-contain p-2 opacity-100 ${showSecondaryImage ? "md:group-hover/card-image:opacity-0" : ""}`}
+            loading="lazy"
+            decoding="async"
+          />
+          {showSecondaryImage ? (
+            <img
+              src={imageFor(secondaryImageUrl)}
+              onError={fallbackProductImage}
+              alt=""
+              aria-hidden="true"
+              className="sf-card-secondary-image absolute inset-0 z-[2] h-full w-full transform-gpu object-contain p-2 opacity-0 md:group-hover/card-image:opacity-100"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
+          {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 z-[3] rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
         </div>
         <div className="px-1 pt-2">
           {brand ? <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{brand}</div> : null}
           <h3 className="sf-product-recommendation-name mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
-          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs font-black">
-            <span className="sf-product-recommendation-current-price">{money(pricing.price)}</span>
-            {pricing.comparePrice > pricing.price ? <span className="sf-product-recommendation-compare-price line-through">{money(pricing.comparePrice)}</span> : null}
-          </div>
         </div>
       </Link>
+      {/* Price slides up and the add-to-cart row takes its place, the same swap the
+          grid card runs. The tile is centred and narrower, so the row centres too
+          and touch keeps the price beside a round quick-add instead. */}
+      <div className="mt-1.5 flex min-h-[2.35rem] items-center justify-center gap-2 px-1">
+        <div className="sf-card-action-wrap min-w-0 overflow-clip md:h-[35px]">
+          <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/tile:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
+            <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-xs font-black md:h-[35px] md:flex-nowrap">
+              <span className="sf-product-recommendation-current-price">{money(pricing.price)}</span>
+              {pricing.comparePrice > pricing.price ? <span className="sf-product-recommendation-compare-price line-through">{money(pricing.comparePrice)}</span> : null}
+            </div>
+            <button
+              type="button"
+              onClick={openVariantSheet}
+              disabled={!canQuickAdd}
+              className="sf-card-slide-cta hidden h-[35px] w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap bg-transparent p-0 text-[13px] font-black leading-none text-stone-900 transition-colors duration-200 hover:text-[#d4af37] disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:text-stone-400 dark:text-stone-100 dark:hover:text-[#f3d77a] dark:disabled:text-stone-500 md:inline-flex"
+              aria-label={quickAddLabel}
+              title={quickAddLabel}
+            >
+              <ShoppingCart className="h-[18px] w-[18px] shrink-0 text-[#d4af37] dark:text-[#f3d77a]" />
+              {quickAddLabel}
+            </button>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={openVariantSheet}
+          disabled={!canQuickAdd}
+          className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none md:hidden"
+          aria-label={quickAddLabel}
+          title={quickAddLabel}
+        >
+          <ShoppingCart className="h-[18px] w-[18px]" />
+        </button>
+      </div>
       {typeof toggleWishlist === "function" ? <button type="button" onClick={() => toggleWishlist(product)} aria-label="المفضلة" className={`absolute start-2 top-2 grid h-7 w-7 place-items-center rounded-full border bg-white/95 shadow-sm transition ${inWishlist ? "border-rose-300 text-rose-500" : "border-stone-200 text-stone-700"}`}><Heart className={`h-3.5 w-3.5 ${inWishlist ? "fill-current" : ""}`} /></button> : null}
+      <ProductCardVariantSheet
+        open={quickAddOpen}
+        product={product}
+        colorGroups={tileColorGroups}
+        selectedColorKey={quickAddColorKey}
+        selectedVariantId={quickAddVariantId}
+        quantity={quickAddQty}
+        onColorChange={setQuickAddColorKey}
+        onVariantChange={setQuickAddVariantId}
+        onQuantityChange={setQuickAddQty}
+        onClose={closeVariantSheet}
+        onAdd={async (chosenVariant, quantity) => {
+          await Promise.resolve(onAddToCart?.(product, chosenVariant, quantity));
+          closeVariantSheet();
+        }}
+      />
     </div>
   );
 }
 
-function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, ...cardProps }) {
-  const [page, setPage] = useState(0);
-  const isMobile = useIsMobileViewport();
+// One full desktop row. Below it a rail looks broken, so it unfolds colour cards.
+const RECOMMENDATION_RAIL_MIN_ITEMS = 5;
+
+// Matched to the Swiper config the storefront's sibling site runs on its product
+// carousels: advance a single card, glide for 1500ms, rest, repeat — never swap a
+// whole page at once.
+const RAIL_GAP_PX = 10;
+const RAIL_AUTOPLAY_MS = 2500;
+const RAIL_SLIDE_MS = 1500;
+const RAIL_BREAKPOINTS = [
+  { minWidth: 1024, perView: 5 },
+  { minWidth: 768, perView: 3 },
+  { minWidth: 640, perView: 2 },
+  { minWidth: 0, perView: 1 },
+];
+
+const railPerViewForWidth = (width = 0) =>
+  (RAIL_BREAKPOINTS.find((breakpoint) => width >= breakpoint.minWidth) || RAIL_BREAKPOINTS[RAIL_BREAKPOINTS.length - 1]).perView;
+
+function useRailPerView() {
+  const [perView, setPerView] = useState(() =>
+    typeof window === "undefined" ? RAIL_BREAKPOINTS[0].perView : railPerViewForWidth(window.innerWidth)
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const update = () => setPerView(railPerViewForWidth(window.innerWidth));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return perView;
+}
+
+function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, ...cardProps }) {
+  const [slide, setSlide] = useState(0);
+  const [animating, setAnimating] = useState(true);
+  const perView = useRailPerView();
   const touchStartXRef = useRef(null);
   const items = useMemo(() => {
-    const seen = new Set();
-    return sortStorefrontColorCardsByModel(products).filter((product) => {
+    const cards = sortStorefrontColorCardsByModel(products).filter((product) => {
       const parentId = String(product.parent_product_id || product.id || "");
-      if (!parentId || parentId === String(currentId) || seen.has(parentId)) return false;
+      if (!parentId || parentId === String(currentId)) return false;
+      return true;
+    });
+    const seen = new Set();
+    const onePerModel = cards.filter((product) => {
+      const parentId = String(product.parent_product_id || product.id || "");
+      if (seen.has(parentId)) return false;
       seen.add(parentId);
       return true;
+    });
+    // A brand that only carries one or two models would otherwise render a
+    // half-empty row, so the rail falls back to that model's colour cards.
+    const source = onePerModel.length >= minItems ? onePerModel : cards;
+    const seenCards = new Set();
+    return source.filter((product, index) => {
+      const cardKey = productCardKey(product, index);
+      if (seenCards.has(cardKey)) return false;
+      seenCards.add(cardKey);
+      return true;
     }).slice(0, 15);
-  }, [currentId, products]);
+  }, [currentId, minItems, products]);
   const itemsSignature = items.map((item, index) => productCardKey(item, index)).join("|");
-  const pageSize = isMobile ? 1 : 5;
-  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const canSlide = items.length > perView;
+  // The head of the list is repeated once so the track can run past the end and
+  // be snapped back to the start while the clones are on screen — the seam is
+  // never visible, which is what makes the loop read as endless.
+  const trackItems = canSlide ? [...items, ...items.slice(0, perView)] : items;
+  // Sizing stays in CSS. Measuring the viewport in JS meant a missed measurement
+  // (a hidden tab, a resize the observer slept through, a mount before layout)
+  // rendered every card at a stale width — or at zero, which reads as an empty
+  // rail. Percentages here resolve against the shifter, which is exactly one
+  // viewport wide, so a slide step is (100% + gap) / perView.
+  const slideBasis = `calc((100% - ${(perView - 1) * RAIL_GAP_PX}px) / ${perView})`;
+  const slideOffset = `calc((100% + ${RAIL_GAP_PX}px) * ${slide} / ${perView})`;
+  // In RTL the track sits flush right, so it advances the other way.
+  const direction = typeof document !== "undefined" && document.documentElement.dir === "rtl" ? 1 : -1;
+
   useEffect(() => {
-    setPage(0);
-  }, [currentId, isMobile, itemsSignature]);
+    setSlide(0);
+    setAnimating(true);
+  }, [currentId, itemsSignature, perView]);
+
   useEffect(() => {
-    if (loading || pageCount < 2 || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const moveTimer = window.setInterval(() => {
-      setPage((currentPage) => (currentPage + 1) % pageCount);
-    }, 4000);
+    if (loading || !canSlide || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    // Swiper counts its autoplay delay from the moment a glide ENDS, so a card rests
+    // for the delay and only then moves again. Restarting the clock every
+    // RAIL_AUTOPLAY_MS instead left the row gliding 1500ms out of every 2500ms - and a
+    // gliding row shows a sliced card at each edge, so the rail read as permanently cut.
+    const moveTimer = window.setInterval(() => setSlide((current) => current + 1), RAIL_AUTOPLAY_MS + RAIL_SLIDE_MS);
     return () => window.clearInterval(moveTimer);
-  }, [loading, pageCount, itemsSignature]);
-  const visibleItems = items.slice(page * pageSize, page * pageSize + pageSize);
-  const moveToPage = (nextPage) => {
-    const safePage = pageCount > 1 ? (nextPage + pageCount) % pageCount : 0;
-    setPage(safePage);
+  }, [canSlide, loading, itemsSignature]);
+
+  // Repositioning by a whole lap must land before the browser paints, otherwise
+  // the jump is visible. Two frames: one to apply the untransitioned offset, one
+  // to arm the transition again.
+  const jumpLap = useCallback((nextSlide) => {
+    setAnimating(false);
+    setSlide(nextSlide);
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setAnimating(true)));
+  }, []);
+
+  useEffect(() => {
+    if (!canSlide || slide < items.length || typeof window === "undefined") return undefined;
+    // Let the glide into the clones finish, then snap back to the real cards.
+    const snapTimer = window.setTimeout(() => jumpLap(slide - items.length), RAIL_SLIDE_MS);
+    return () => window.clearTimeout(snapTimer);
+  }, [canSlide, items.length, jumpLap, slide]);
+
+  const moveBy = (step) => {
+    if (!canSlide) return;
+    if (slide + step >= 0) {
+      setSlide(slide + step);
+      return;
+    }
+    // Only the head is cloned, so stepping back off the start means teleporting a
+    // lap forward first and gliding from there.
+    jumpLap(slide + items.length);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setSlide((current) => current + step)));
   };
+  const activeDot = ((slide % items.length) + items.length) % items.length;
   if (!loading && !items.length) return null;
+  // min-w-0: the clipped track still reports its full intrinsic width, so wherever this
+  // rail lands in a grid or flex parent it must not be allowed to stretch it.
   return (
-    <section className="sf-product-recommendation-rail border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
+    <section className="sf-product-recommendation-rail min-w-0 border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-xl font-black text-stone-950 dark:text-white md:text-2xl">{title}</h2>
           {subtitle ? <p className="mt-1 truncate text-xs font-bold text-stone-500 dark:text-white/55 md:text-sm">{subtitle}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => moveToPage(page - 1)} disabled={pageCount < 2} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => moveToPage(page + 1)} disabled={pageCount < 2} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveBy(-1)} disabled={!canSlide} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveBy(1)} disabled={!canSlide} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
           <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
         </div>
       </div>
       <div
-        key={`${isMobile ? "mobile" : "desktop"}-${page}`}
-        className="sf-product-recommendation-page grid touch-pan-y grid-cols-1 gap-x-3 gap-y-6 pb-3 md:grid-cols-3 md:gap-x-5 lg:grid-cols-5"
+        className="sf-product-recommendation-viewport overflow-hidden pb-3"
         onTouchStart={(event) => {
           touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
         }}
         onTouchEnd={(event) => {
-          if (!isMobile || touchStartXRef.current == null) return;
+          if (touchStartXRef.current == null) return;
           const touchEndX = event.changedTouches?.[0]?.clientX ?? touchStartXRef.current;
           const distance = touchEndX - touchStartXRef.current;
           touchStartXRef.current = null;
           if (Math.abs(distance) < 45) return;
-          moveToPage(distance < 0 ? page + 1 : page - 1);
+          moveBy(distance * direction > 0 ? 1 : -1);
         }}
       >
-        {loading ? Array.from({ length: pageSize }).map((_, index) => <div key={index} className="aspect-[0.72] min-w-0 animate-pulse bg-stone-100 dark:bg-white/5" />) : visibleItems.map((product, index) => (
-          <RecommendationProductTile key={productCardKey(product, index)} product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
-        ))}
+        <div
+          className="sf-product-recommendation-shifter"
+          style={{
+            transform: `translate3d(${direction < 0 ? `-${slideOffset}` : slideOffset}, 0, 0)`,
+            transition: animating ? `transform ${RAIL_SLIDE_MS}ms ease` : "none",
+          }}
+        >
+          <div className="sf-product-recommendation-page flex touch-pan-y" style={{ gap: `${RAIL_GAP_PX}px` }}>
+            {loading
+              ? Array.from({ length: perView }).map((_, index) => (
+                  <div key={index} style={{ flex: `0 0 ${slideBasis}` }} className="aspect-[0.72] animate-pulse bg-stone-100 dark:bg-white/5" />
+                ))
+              : trackItems.map((product, index) => (
+                  <div key={`${productCardKey(product, index)}-${index}`} style={{ flex: `0 0 ${slideBasis}` }} className="min-w-0">
+                    <RecommendationProductTile product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
+                  </div>
+                ))}
+          </div>
+        </div>
       </div>
-      {pageCount > 1 ? <div className="mt-3 flex justify-center gap-1.5">{Array.from({ length: pageCount }).map((_, index) => <button key={index} type="button" onClick={() => moveToPage(index)} aria-label={`صفحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${page === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
+      {canSlide ? <div className="mt-3 flex flex-wrap justify-center gap-1.5">{items.map((product, index) => <button key={productCardKey(product, index)} type="button" onClick={() => moveBy(index - activeDot)} aria-label={`شريحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${activeDot === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
     </section>
   );
 }
 
 function RelatedProductsContent({ currentProduct, ...props }) {
   const currentId = currentProduct?.id;
-  const grade = recommendationText(currentProduct?.grade || currentProduct?.quality || currentProduct?.quality_grade || currentProduct?.product_grade);
+  // Relevance follows the product family — a bag sits next to bags and a sneaker
+  // next to sneakers. The grade only says how good a copy is, so it used to mix
+  // shoes into a bag page.
+  const productType = recommendationText(currentProduct?.product_type || currentProduct?.productType || currentProduct?.type);
+  const category = recommendationText(currentProduct?.category || currentProduct?.category_name || currentProduct?.categoryName);
   const brand = recommendationText(currentProduct?.brand?.name || currentProduct?.brand_name || currentProduct?.brand);
-  const gradeResult = useProducts({ grade: grade || "__no_grade__", limit: 15, in_stock: 1, grouping: "product" });
+  // Family alone still mixed a men's shoe with kids' and women's. The audience
+  // narrows it to who the open product is actually for. A product with no
+  // audience keeps the wider match rather than filtering itself down to nothing.
+  const audience = recommendationText(
+    currentProduct?.gender ||
+    (Array.isArray(currentProduct?.audiences) ? currentProduct.audiences[0] : "") ||
+    (Array.isArray(currentProduct?.product_audiences) ? currentProduct.product_audiences[0] : "")
+  );
+  // Grade is the third axis: a shopper looking at a Vietnamese import wants other
+  // Vietnamese imports, not the mirror of the same shoe. It only ever narrows here
+  // — on its own it used to be the whole filter, which is how a bag page ended up
+  // recommending sneakers.
+  const grade = recommendationText(
+    currentProduct?.grade || currentProduct?.quality || currentProduct?.quality_grade || currentProduct?.product_grade
+  );
+  const similarFilter = {
+    ...(productType ? { product_type: productType } : { category: category || "__no_category__" }),
+    ...(audience ? { gender: audience } : {}),
+    ...(grade ? { grade } : {}),
+  };
+  const similarQuery = new URLSearchParams(
+    Object.entries(similarFilter).filter(([, value]) => value && !String(value).startsWith("__"))
+  ).toString();
+  const similarHref = similarQuery ? `/products?${similarQuery}` : "/products";
+  const similarResult = useProducts({ ...similarFilter, limit: 15, in_stock: 1, grouping: "product" });
   const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
   return (
     <div className="sf-related-products mt-5">
-      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle="منتجات مشابهة مختارة لك" href={grade ? `/products?grade=${encodeURIComponent(grade)}` : "/products"} products={gradeResult.products} loading={gradeResult.loading} currentId={currentId} {...props} />
-      <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} {...props} />
+      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle="منتجات مشابهة مختارة لك" href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
+      <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
     </div>
   );
 }

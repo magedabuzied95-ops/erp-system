@@ -13,7 +13,11 @@
 
 // V2 invalidates transcript snapshots written before WhatsApp reactions were
 // represented as linked events instead of standalone text messages.
-export const SCHEMA_VERSION = 2;
+// V3 invalidates snapshots written before server-page reconciliation existed:
+// until then a message DELETED on the server lived in the cached window forever
+// (union-only merges), which is how one conversation kept showing address-link
+// spam bubbles that no longer existed in the database.
+export const SCHEMA_VERSION = 3;
 
 // Bounded retention policy (V1). Starting points per spec; report actual sizes.
 export const MAX_CONVERSATIONS_WITH_MESSAGES = 30; // LRU cap on cached threads
@@ -99,6 +103,35 @@ export const orderMessages = (messages = [], fallback = messages) => {
   return list.sort((a, b) => ts(a) - ts(b));
 };
 
+// The authoritative full-page hydrate covers a time window; inside that window
+// the server's word is final. A cached message that carries a real server id,
+// sits inside the window, and is absent from the server page was DELETED on the
+// server — drop it. Everything else is kept: optimistic in-flight bubbles (no
+// server id yet) and history older than the page window (the page simply does
+// not reach back that far). An empty server page reconciles nothing, so a
+// failed/blank fetch can never wipe a thread.
+export const reconcileWithServerPage = (cachedMessages = [], serverPage = [], identityKeysFn = null) => {
+  const cached = Array.isArray(cachedMessages) ? cachedMessages : [];
+  const incoming = Array.isArray(serverPage) ? serverPage : [];
+  if (!incoming.length || typeof identityKeysFn !== "function") return cached;
+  const ts = (m) => new Date(m?.created_at || m?.updated_at || 0).getTime() || 0;
+  const incomingTimes = incoming.map(ts).filter(Boolean);
+  if (!incomingTimes.length) return cached;
+  const windowStart = Math.min(...incomingTimes);
+  const serverKeys = new Set();
+  for (const message of incoming) {
+    for (const key of identityKeysFn(message)) serverKeys.add(key);
+  }
+  return cached.filter((message) => {
+    const id = clean(message?.id);
+    const hasServerId = Boolean(id) && !id.startsWith("sending-");
+    if (!hasServerId) return true;
+    const messageTime = ts(message);
+    if (messageTime && messageTime < windowStart) return true;
+    return identityKeysFn(message).some((key) => serverKeys.has(key));
+  });
+};
+
 // ---- Conversation list --------------------------------------------------
 
 export const readList = async (adapter, ns, channelFilter) => {
@@ -165,8 +198,12 @@ export const writeThread = async (adapter, ns, conversationKey, messages, mergeF
     : [...existingMessages, ...incoming];
   const bounded = boundMessages(merged.map(projectMessage));
   await adapter.set(threadKey(ns, key), { messages: bounded, cachedAt: nowMs() });
+  await touchThreadIndex(adapter, ns, key);
+  return true;
+};
 
-  // LRU index: move this thread to the front (most-recent), evict overflow.
+// LRU index: move this thread to the front (most-recent), evict overflow.
+const touchThreadIndex = async (adapter, ns, key) => {
   let index = (await readThreadIndex(adapter, ns)).filter((entry) => entry.key !== key);
   index.unshift({ key, lastAccess: nowMs() });
   if (index.length > MAX_CONVERSATIONS_WITH_MESSAGES) {
@@ -177,6 +214,20 @@ export const writeThread = async (adapter, ns, conversationKey, messages, mergeF
     }
   }
   await writeThreadIndex(adapter, ns, index);
+};
+
+// OVERWRITE the cached window (no union with the previous record). Only the
+// full-page hydrate path may use this: its window is already the union of the
+// primed cache and the authoritative server page, reconciled — merging it with
+// the stale record again would resurrect server-deleted messages forever (the
+// union refreshes cachedAt, so the TTL never expires them).
+export const replaceThread = async (adapter, ns, conversationKey, messages) => {
+  if (!adapter || !ns || !clean(conversationKey)) return false;
+  const key = clean(conversationKey);
+  const bounded = boundMessages((Array.isArray(messages) ? messages : []).map(projectMessage));
+  if (!bounded.length) return false; // never blank a thread from here
+  await adapter.set(threadKey(ns, key), { messages: bounded, cachedAt: nowMs() });
+  await touchThreadIndex(adapter, ns, key);
   return true;
 };
 
@@ -199,6 +250,16 @@ export const writeLastThread = async (adapter, ns, conversationKey) => {
 // Drop expired threads across the namespace (called opportunistically on mount).
 export const sweepExpired = async (adapter, ns) => {
   if (!adapter || !ns) return 0;
+  // Records from older schema versions are unreachable (the namespace prefix
+  // changed) — without this they'd sit in IndexedDB forever.
+  try {
+    const allKeys = (await adapter.keys()) || [];
+    for (const key of allKeys) {
+      if (typeof key === "string" && /^v\d+:/.test(key) && !key.startsWith(`v${SCHEMA_VERSION}:`)) {
+        await adapter.delete(key);
+      }
+    }
+  } catch { /* best-effort cleanup */ }
   const index = await readThreadIndex(adapter, ns);
   let removed = 0;
   const kept = [];

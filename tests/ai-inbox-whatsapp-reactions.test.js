@@ -120,5 +120,8 @@ test("ordinary text messages do not show a technical text type badge", () => {
 });
 
 test("the transcript cache version drops stale standalone reaction snapshots", () => {
-  assert.match(cacheStore, /SCHEMA_VERSION = 2/);
+  // Any version >= 2 keeps the invariant: v2 dropped pre-reaction snapshots,
+  // and later bumps (v3 = server-page reconciliation) drop them transitively.
+  const version = Number((cacheStore.match(/SCHEMA_VERSION = (\d+)/) || [])[1] || 0);
+  assert.ok(version >= 2, `SCHEMA_VERSION must be >= 2, got ${version}`);
 });

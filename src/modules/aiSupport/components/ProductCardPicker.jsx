@@ -365,7 +365,11 @@ const matchesQuery = (product = {}, query = "") => {
 
 // orderMode: same picker, but the selection feeds the order composer cart instead
 // of being sent to the customer — only the wording changes.
-export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, orderMode = false, mode = "", portalTarget = null }) {
+// restockMode: the pick names a variant to watch for a back-in-stock request.
+// It only relabels the header and the confirm button — leaving them on the
+// default "إرسال منتج" wording would tell staff they are messaging the customer
+// when the pick merely returns to the request form.
+export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, orderMode = false, restockMode = false, mode = "", portalTarget = null }) {
   const { t, i18n } = useTranslation();
   const pickerDir = i18n.resolvedLanguage === "ar" ? "rtl" : "ltr";
   const { theme } = useTheme();
@@ -1314,8 +1318,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 backdrop-blur ${desktopInboxMode ? "ai-inbox-product-picker-desktop__header bg-slate-950/95 px-6 py-4" : `px-4 py-3 ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}`}>
           <div className="min-w-0">
             <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>{t("aiSupport.inbox.picker.aiInbox")}</div>
-            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{orderMode ? t("aiSupport.inbox.order.pickerOrderTitle") : t("aiSupport.inbox.picker.sendProduct")}</h3>
-            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>{orderMode ? t("aiSupport.inbox.order.pickerOrderSubtitle") : t("aiSupport.inbox.picker.sendProductHint")}</p>
+            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{restockMode ? t("aiSupport.inbox.picker.restockTitle") : orderMode ? t("aiSupport.inbox.order.pickerOrderTitle") : t("aiSupport.inbox.picker.sendProduct")}</h3>
+            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>{restockMode ? t("aiSupport.inbox.picker.restockSubtitle") : orderMode ? t("aiSupport.inbox.order.pickerOrderSubtitle") : t("aiSupport.inbox.picker.sendProductHint")}</p>
           </div>
           <button
             type="button"
@@ -1690,9 +1694,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {orderMode
-                    ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.order.pickerAddCountToOrder", { count: selectedProducts.length }) : t("aiSupport.inbox.order.pickerAddToOrder"))
-                    : (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.sendSelectedCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.sendProduct"))}
+                  {restockMode
+                    ? t("aiSupport.inbox.picker.restockConfirm")
+                    : orderMode
+                      ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.order.pickerAddCountToOrder", { count: selectedProducts.length }) : t("aiSupport.inbox.order.pickerAddToOrder"))
+                      : (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.sendSelectedCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.sendProduct"))}
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}

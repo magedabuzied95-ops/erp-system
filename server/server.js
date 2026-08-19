@@ -552,6 +552,7 @@ const { default: manufacturersRoutes } = await import("./routes/manufacturers.js
 const { default: purchaseRoutes } = await import("./routes/purchases.js");
 const { default: publicInvoiceRoutes } = await import("./routes/publicInvoices.js");
 const { default: publicOrderConfirmationRoutes } = await import("./routes/publicOrderConfirmation.js");
+const { default: publicAddressRequestRoutes } = await import("./routes/publicAddressRequest.js");
 const { default: publicProductsRoutes } = await import("./routes/publicProducts.js");
 const { default: metaCatalogFeedRoutes } = await import("./routes/metaCatalogFeed.js");
 const { getPublicAvailableOgDebugSvg, getPublicAvailableOgImage, getPublicAvailableOgImagePng, getPublicAvailableSharePage, getPublicProductOgImage, getPublicProductShareMetadata, getPublicProductSharePage } = await import("./controllers/publicProductsController.js");
@@ -1770,6 +1771,7 @@ app.use("/api/pos", posRoutes);
 app.use("/api/paymob", paymobRoutes);
 app.use("/api/public/invoices", publicInvoiceRoutes);
 app.use("/api/public/order-confirmation", publicOrderConfirmationRoutes);
+app.use("/api/public/address-request", publicAddressRequestRoutes);
 app.use("/api/public/products", publicProductsRoutes);
 app.use("/feeds", googleMerchantFeedRoutes);
 app.use("/feeds", metaCatalogFeedRoutes);

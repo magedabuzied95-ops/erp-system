@@ -1,15 +1,24 @@
-// AI Studio Phase 8 — Human-Approved Customer Restock Messaging.
+// AI Studio Phase 8 — Customer Restock Messaging.
 // ---------------------------------------------------------------------------
-// SECURITY-CRITICAL. Turns an EXACT restock intent + real restock into a grounded message DRAFT that
-// a human must review and explicitly Approve & Send. There is NO autonomous customer messaging.
+// SECURITY-CRITICAL. Turns an EXACT restock intent + real restock into a grounded message DRAFT.
+// In every mode but auto_send a human must review and explicitly Approve & Send.
 //
-// Guarantees enforced here:
+// auto_send (opt-in, per tenant, off by default) DOES message the customer unattended: recovery
+// dispatches the draft the moment it creates it. This file previously promised "there is NO
+// autonomous customer messaging" — that promise no longer holds, and the mode that breaks it is
+// named here rather than left for a reader to discover in the recovery service.
+//
+// Guarantees enforced here (unchanged by auto_send):
 //  - Draft/create/edit/reject have ZERO external side effects (no provider call).
 //  - Only EXACT-variant, active, explicit restock_intents may be messaged. Legacy wishlist, product-
 //    only, cancelled/fulfilled/expired intents are excluded from the send path.
 //  - customer_notified_at is set ONLY after a confirmed successful send.
 //  - Send is idempotent (atomic status transition) — double Approve&Send = one message.
-//  - Mode gate: off (no drafts) / preview_only (drafts+approval, sending DISABLED) / approval_send.
+//  - Mode gate: off (no drafts) / preview_only (drafts+approval, sending DISABLED) /
+//    approval_send (human approves each) / auto_send (no human).
+//  - An unattended send is refused unless the tenant is actually in auto_send, so an upstream bug
+//    cannot dispatch without approval while the tenant sits in approval_send.
+//  - The audit trail distinguishes the two: auto sends log restock_notification.auto_*.
 //  - The real provider send is injectable (deps.sender) so tests never contact a provider.
 // Reuses the audited canonical WhatsApp sender + conversation persistence (lazy-imported at send time).
 
@@ -19,7 +28,14 @@ import { getInventoryFacts } from "./aiBusinessToolsService.js";
 import { getIntent, markIntentNotified } from "./restockIntentService.js";
 import { writeAudit } from "./aiWorkflowService.js";
 
-export const MESSAGING_MODES = Object.freeze(["off", "preview_only", "approval_send"]);
+// auto_send dispatches the draft the moment restock recovery creates it, with no
+// human in the loop. It is the only mode that messages a customer unattended, so
+// it stays opt-in per tenant and every other guard is unchanged: exact variant
+// only, intent still active, not already notified, channel resolvable, plus the
+// recovery-side event dedup and the 14-day per-customer cooldown that both run
+// BEFORE a draft is ever created.
+export const MESSAGING_MODES = Object.freeze(["off", "preview_only", "approval_send", "auto_send"]);
+export const SENDING_MODES = Object.freeze(["approval_send", "auto_send"]);
 export const NOTIF_STATUSES = Object.freeze(["draft", "pending_approval", "approved", "sending", "sent", "rejected", "failed", "cancelled"]);
 export const NOTIF_DEFAULT_LIMIT = 25;
 export const NOTIF_MAX_LIMIT = 100;
@@ -270,13 +286,19 @@ const persistOutbound = async ({ tenantId, notif, text, providerMessageId }) => 
   } catch (e) { console.error("[restock] persistOutbound failed", String(e?.message || e).slice(0, 160)); }
 };
 
-export const sendApprovedRestockNotification = async ({ tenantId, notificationId, approvedBy, req = null, deps = {} } = {}) => {
+export const sendApprovedRestockNotification = async ({ tenantId, notificationId, approvedBy, req = null, deps = {}, auto = false } = {}) => {
   await ensureRestockNotificationSchema();
   const sender = deps.sender || defaultSender;
+  // The audit trail must never blur an unattended send into an approved one, so
+  // the action name carries which it was rather than only the (null) actor id.
+  const auditAction = (suffix) => `restock_notification.${auto ? `auto_${suffix}` : suffix}`;
 
-  // Mode gate: sending only in approval_send. preview_only/off never dispatch.
+  // Mode gate: sending only in approval_send / auto_send. preview_only/off never dispatch.
   const mode = await getMessagingMode(tenantId);
-  if (mode !== "approval_send") { const e = new Error("Sending is disabled (messaging mode is not approval_send)."); e.status = 409; e.code = "MODE_BLOCKED"; throw e; }
+  if (!SENDING_MODES.includes(mode)) { const e = new Error("Sending is disabled (messaging mode does not permit sending)."); e.status = 409; e.code = "MODE_BLOCKED"; throw e; }
+  // An unattended send is only ever legitimate in auto_send: without this, a bug
+  // upstream could dispatch without approval while the tenant sits in approval_send.
+  if (auto && mode !== "auto_send") { const e = new Error("Automatic sending requires messaging mode auto_send."); e.status = 409; e.code = "MODE_BLOCKED"; throw e; }
 
   const cur = await db.query(`SELECT * FROM restock_notifications WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [tenantId, notificationId]);
   const notif = cur.rows[0];
@@ -299,20 +321,20 @@ export const sendApprovedRestockNotification = async ({ tenantId, notificationId
   );
   if (!claim.rows[0]) return { ok: true, alreadyClaimed: true }; // concurrent send in progress
   const text = String(notif.approved_text || notif.draft_text || "").trim();
-  await writeAudit({ tenantId, userId: approvedBy, action: "restock_notification.approved", entityType: "restock_notification", entityId: notificationId, details: { channel: notif.channel } });
+  await writeAudit({ tenantId, userId: approvedBy, action: auditAction("approved"), entityType: "restock_notification", entityId: notificationId, details: { channel: notif.channel } });
 
   let result;
   try {
     result = await sender({ channel: notif.channel, recipientId: notif.recipient_reference, text, tenantId, conversationId: notif.conversation_id });
   } catch (e) {
     await db.query(`UPDATE restock_notifications SET status='failed', failed_at=NOW(), failure_reason=$3, updated_at=NOW() WHERE id=$1 AND tenant_id=$2`, [notificationId, tenantId, String(e?.message || e).slice(0, 300)]);
-    await writeAudit({ tenantId, userId: approvedBy, action: "restock_notification.send_failed", entityType: "restock_notification", entityId: notificationId, details: { error: String(e?.message || e).slice(0, 200) } });
+    await writeAudit({ tenantId, userId: approvedBy, action: auditAction("send_failed"), entityType: "restock_notification", entityId: notificationId, details: { error: String(e?.message || e).slice(0, 200) } });
     return { ok: false, failed: true, reason: String(e?.message || e) }; // customer_notified_at stays NULL
   }
 
   if (!result?.ok) {
     await db.query(`UPDATE restock_notifications SET status='failed', failed_at=NOW(), failure_reason=$3, updated_at=NOW() WHERE id=$1 AND tenant_id=$2`, [notificationId, tenantId, String(result?.error || result?.raw?.delivery_status || "send_failed").slice(0, 300)]);
-    await writeAudit({ tenantId, userId: approvedBy, action: "restock_notification.send_failed", entityType: "restock_notification", entityId: notificationId, details: { delivery: result?.raw?.delivery_status } });
+    await writeAudit({ tenantId, userId: approvedBy, action: auditAction("send_failed"), entityType: "restock_notification", entityId: notificationId, details: { delivery: result?.raw?.delivery_status } });
     return { ok: false, failed: true, reason: result?.error || "send_failed" };
   }
 
@@ -320,7 +342,7 @@ export const sendApprovedRestockNotification = async ({ tenantId, notificationId
   await db.query(`UPDATE restock_notifications SET status='sent', sent_at=NOW(), provider_message_id=$3, approved_text=$4, updated_at=NOW() WHERE id=$1 AND tenant_id=$2`, [notificationId, tenantId, result.providerMessageId || null, text]);
   await markIntentNotified(tenantId, notif.restock_intent_id, { channel: notif.channel }); // <-- ONLY here
   await persistOutbound({ tenantId, notif, text, providerMessageId: result.providerMessageId });
-  await writeAudit({ tenantId, userId: approvedBy, action: "restock_notification.sent", entityType: "restock_notification", entityId: notificationId, details: { channel: notif.channel, provider_message_id: result.providerMessageId, intent_id: notif.restock_intent_id } });
+  await writeAudit({ tenantId, userId: approvedBy, action: auditAction("sent"), entityType: "restock_notification", entityId: notificationId, details: { channel: notif.channel, provider_message_id: result.providerMessageId, intent_id: notif.restock_intent_id } });
   const fresh = await db.query(`SELECT * FROM restock_notifications WHERE id=$1 AND tenant_id=$2`, [notificationId, tenantId]);
   return { ok: true, sent: true, providerMessageId: result.providerMessageId, notification: fresh.rows[0] };
 };

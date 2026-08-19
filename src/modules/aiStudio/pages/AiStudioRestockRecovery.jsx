@@ -75,6 +75,9 @@ export default function AiStudioRestockRecovery() {
 
   const doSetMode = async (mode) => {
     if (mode === "approval_send" && !window.confirm(t("aiStudio.restock.confirm.enableApprovalSend"))) return;
+    // auto_send is the only mode that messages a customer with nobody reading it
+    // first, so it gets its own confirmation rather than reusing the approval one.
+    if (mode === "auto_send" && !window.confirm(t("aiStudio.restock.confirm.enableAutoSend"))) return;
     setBusy("mode"); setMsg("");
     try { const r = await setRestockMessagingMode(mode, headers); if (r?.success === false) setMsg(r?.message || t("aiStudio.restock.failed")); else setMessagingMode(r.mode); }
     catch (e) { setMsg(e?.responseBody?.message || e?.message || t("aiStudio.restock.failed")); }
@@ -170,10 +173,10 @@ export default function AiStudioRestockRecovery() {
         ))}
         <div className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
           <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{t("aiStudio.restock.messaging.label")}</span>
-          {["off", "preview_only", "approval_send"].map((m) => (
-            <button key={m} type="button" onClick={() => doSetMode(m)} disabled={busy === "mode"} title={m === "approval_send" ? t("aiStudio.restock.messaging.titleApprovalSend") : m === "preview_only" ? t("aiStudio.restock.messaging.titlePreviewOnly") : t("aiStudio.restock.messaging.titleOff")}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${messagingMode === m ? (m === "approval_send" ? "bg-rose-400 text-slate-950" : m === "preview_only" ? "bg-amber-300 text-slate-950" : "bg-slate-500 text-white") : "text-slate-400 hover:text-white"}`}>
-              {m === "off" ? t("aiStudio.restock.messaging.off") : m === "preview_only" ? t("aiStudio.restock.messaging.previewOnly") : t("aiStudio.restock.messaging.approvalSend")}
+          {["off", "preview_only", "approval_send", "auto_send"].map((m) => (
+            <button key={m} type="button" onClick={() => doSetMode(m)} disabled={busy === "mode"} title={m === "auto_send" ? t("aiStudio.restock.messaging.titleAutoSend") : m === "approval_send" ? t("aiStudio.restock.messaging.titleApprovalSend") : m === "preview_only" ? t("aiStudio.restock.messaging.titlePreviewOnly") : t("aiStudio.restock.messaging.titleOff")}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${messagingMode === m ? (m === "auto_send" ? "bg-rose-500 text-white" : m === "approval_send" ? "bg-rose-400 text-slate-950" : m === "preview_only" ? "bg-amber-300 text-slate-950" : "bg-slate-500 text-white") : "text-slate-400 hover:text-white"}`}>
+              {m === "off" ? t("aiStudio.restock.messaging.off") : m === "preview_only" ? t("aiStudio.restock.messaging.previewOnly") : m === "approval_send" ? t("aiStudio.restock.messaging.approvalSend") : t("aiStudio.restock.messaging.autoSend")}
             </button>
           ))}
         </div>
@@ -182,7 +185,15 @@ export default function AiStudioRestockRecovery() {
       {view === "notifications" ? (
         <>
           <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-4 py-3 text-[12px] text-slate-300">
-            <b className="text-white">{t("aiStudio.restock.banner.humanApproved")}</b> {t("aiStudio.restock.banner.verifiedFacts")} <b>{t("aiStudio.restock.banner.noSendUntil")}</b>, {t("aiStudio.restock.banner.andOnlyWhen")} <b>{t("aiStudio.restock.messaging.approvalSend")}</b>. {messagingMode !== "approval_send" ? <span className="text-amber-200">{t("aiStudio.restock.banner.sendingDisabled", { mode: messagingMode === "off" ? t("aiStudio.restock.messaging.off") : t("aiStudio.restock.messaging.previewOnly") })}</span> : <span className="text-rose-200">{t("aiStudio.restock.banner.approvalSendOn")}</span>}
+            {/* In auto_send the "nothing sends without a human" promise is false,
+                so the banner states the opposite outright instead of qualifying it. */}
+            {messagingMode === "auto_send" ? (
+              <span className="text-rose-200"><b className="text-white">{t("aiStudio.restock.banner.autoSendOn")}</b> {t("aiStudio.restock.banner.autoSendDetail")}</span>
+            ) : (
+              <>
+                <b className="text-white">{t("aiStudio.restock.banner.humanApproved")}</b> {t("aiStudio.restock.banner.verifiedFacts")} <b>{t("aiStudio.restock.banner.noSendUntil")}</b>, {t("aiStudio.restock.banner.andOnlyWhen")} <b>{t("aiStudio.restock.messaging.approvalSend")}</b>. {messagingMode !== "approval_send" ? <span className="text-amber-200">{t("aiStudio.restock.banner.sendingDisabled", { mode: messagingMode === "off" ? t("aiStudio.restock.messaging.off") : t("aiStudio.restock.messaging.previewOnly") })}</span> : <span className="text-rose-200">{t("aiStudio.restock.banner.approvalSendOn")}</span>}
+              </>
+            )}
           </section>
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[["pendingApproval", notifCounts.pending_approval, "text-amber-200"], ["sent", notifCounts.sent, "text-emerald-200"], ["rejected", notifCounts.rejected, "text-slate-300"], ["failed", notifCounts.failed, "text-rose-200"]].map(([id, val, tone]) => (
@@ -238,7 +249,7 @@ export default function AiStudioRestockRecovery() {
                         <button type="button" onClick={() => { setEditId(n.id); setEditText(n.approved_text || n.draft_text || ""); }} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-white"><Pencil className="h-3.5 w-3.5" />{t("aiStudio.restock.notif.edit")}</button>
                       )}
                       <button type="button" onClick={() => doNotifAction(n.id, "reject")} disabled={busy === `reject-${n.id}`} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 px-3 text-[11px] font-black text-rose-100"><Ban className="h-3.5 w-3.5" />{t("aiStudio.restock.notif.reject")}</button>
-                      <button type="button" onClick={() => doNotifAction(n.id, "send")} disabled={busy === `send-${n.id}` || messagingMode !== "approval_send"} title={messagingMode !== "approval_send" ? t("aiStudio.restock.notif.sendDisabledTitle") : t("aiStudio.restock.notif.sendTitle")} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-[var(--radius-control)] border border-emerald-300/40 bg-emerald-400/15 px-3 text-[11px] font-black text-emerald-50 disabled:opacity-40">{busy === `send-${n.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{t("aiStudio.restock.notif.approveSend")}</button>
+                      <button type="button" onClick={() => doNotifAction(n.id, "send")} disabled={busy === `send-${n.id}` || !["approval_send", "auto_send"].includes(messagingMode)} title={!["approval_send", "auto_send"].includes(messagingMode) ? t("aiStudio.restock.notif.sendDisabledTitle") : t("aiStudio.restock.notif.sendTitle")} className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-[var(--radius-control)] border border-emerald-300/40 bg-emerald-400/15 px-3 text-[11px] font-black text-emerald-50 disabled:opacity-40">{busy === `send-${n.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{t("aiStudio.restock.notif.approveSend")}</button>
                     </div>
                   ) : sent ? (
                     <div className="mt-2 space-y-1.5">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CalendarClock,
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 import i18n from "../../../i18n/i18n";
 
@@ -698,7 +699,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="text-lg text-slate-400">...</div>
         </div>
         <div className="relative aspect-square bg-slate-950">
-          {image ? <img src={image} alt={title} className="h-full w-full object-cover" /> : <EmptyMedia t={t} />}
+          {image ? <img src={resolveProductImageUrl(image)} alt={title} className="h-full w-full object-cover" /> : <EmptyMedia t={t} />}
           {carousel.length > 1 ? (
             <div className="absolute bottom-3 right-3 rounded-full bg-black/65 px-3 py-1 text-xs font-black text-white backdrop-blur">
               1/{carousel.length}
@@ -709,7 +710,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="flex gap-2 overflow-x-auto border-b border-white/10 p-3">
             {thumbnailUrls.slice(0, 6).map((url, index) => (
               <div key={url} className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10">
-                <img src={url} alt={`وسائط إنستجرام ${index + 1}`} className="h-full w-full object-cover" />
+                <img src={resolveProductImageUrl(url)} alt={`وسائط إنستجرام ${index + 1}`} className="h-full w-full object-cover" />
               </div>
             ))}
           </div>
@@ -746,7 +747,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
     return (
       <div className="mx-auto flex w-full max-w-[360px] justify-center">
         <div className="relative aspect-[9/16] max-h-[650px] w-full overflow-hidden rounded-[34px] border border-white/10 bg-slate-950 shadow-2xl shadow-black/40">
-          {image ? <img src={image} alt={title} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950" />}
+          {image ? <img src={resolveProductImageUrl(image)} alt={title} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950" />}
           <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/15 to-black/75" />
           <div className="absolute left-4 right-4 top-4 flex items-center gap-2">
             <div className="h-1 flex-1 rounded-full bg-white/80" />
@@ -789,7 +790,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
         </div>
       </div>
       <div className="relative min-h-[340px] bg-[var(--surface-soft)]">
-        {image ? <img src={image} alt={title} className="h-full max-h-[520px] min-h-[340px] w-full object-cover" /> : <EmptyMedia t={t} />}
+        {image ? <img src={resolveProductImageUrl(image)} alt={title} className="h-full max-h-[520px] min-h-[340px] w-full object-cover" /> : <EmptyMedia t={t} />}
         {carousel.length > 1 ? (
           <div className="absolute right-4 top-4 rounded-full bg-black/65 px-3 py-1 text-xs font-black text-white backdrop-blur">
             {t("marketing.social.preview.photoCount", { count: carousel.length })}
@@ -800,7 +801,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
         <div className="flex gap-2 overflow-x-auto border-t border-white/10 p-3">
           {thumbnailUrls.slice(0, 7).map((url, index) => (
             <div key={url} className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10">
-              <img src={url} alt={`وسائط فيسبوك ${index + 1}`} className="h-full w-full object-cover" />
+              <img src={resolveProductImageUrl(url)} alt={`وسائط فيسبوك ${index + 1}`} className="h-full w-full object-cover" />
             </div>
           ))}
         </div>
@@ -823,7 +824,15 @@ const EmptyMedia = ({ t }) => (
   </div>
 );
 
-export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = false }) {
+// The creative is laid out once at this size and scaled to whatever box it is
+// dropped into. Every offset and font size inside it is a fixed pixel value, so
+// rendering it directly into a smaller frame clipped the copy instead of
+// shrinking it: at thumbnail size the price and CTA fell outside the frame
+// entirely and the sizes strip truncated mid-word.
+const STORY_FRAME_WIDTH = 360;
+const STORY_FRAME_HEIGHT = 640;
+
+export function StoryCreativeFrame({ slide, total = 1, index = 0 }) {
   const baseTitle = cleanStoryText(slide.product_name || slide.title, "Featured product");
   const colorName = cleanStoryText(slide.color_name || slide.color);
   const title = colorName && !baseTitle.toLowerCase().includes(colorName.toLowerCase()) ? `${baseTitle} - ${colorName}` : baseTitle;
@@ -837,13 +846,43 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   const theme = storyCreativeTheme(slide);
   const badge = theme.badge;
   const sizeDisplay = storySizeDisplay(slide);
-  const productTitleClass = compact ? "text-[1.12rem]" : "text-[1.38rem]";
-  const priceClass = compact ? "text-[1.78rem]" : "text-[2.12rem]";
+  const productTitleClass = "text-[1.38rem]";
+  const priceClass = "text-[2.12rem]";
   const ctaUrl = storyCtaUrl(slide);
   const copyDirection = /[\u0600-\u06ff]/.test(`${title} ${sizeDisplay || ""}`) ? "rtl" : "ltr";
+  const frameRef = useRef(null);
+  const [frameScale, setFrameScale] = useState(1);
+
+  // Measured rather than expressed in CSS: scale() takes a plain number, and
+  // dividing a container-query length by the design width yields a length, so
+  // `scale(calc(100cqw / 360))` is simply invalid and silently does nothing.
+  useEffect(() => {
+    const node = frameRef.current;
+    if (!node) return undefined;
+    const applyScale = () => {
+      const width = node.getBoundingClientRect().width;
+      if (width > 0) setFrameScale(width / STORY_FRAME_WIDTH);
+    };
+    applyScale();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(applyScale);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="story-creative-frame relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-[#f6f2ea] text-slate-950 shadow-2xl shadow-black/35">
+    <div
+      ref={frameRef}
+      className="story-creative-frame relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-[#f6f2ea] text-slate-950 shadow-2xl shadow-black/35"
+    >
+      <div
+        className="absolute left-0 top-0 origin-top-left"
+        style={{
+          width: STORY_FRAME_WIDTH,
+          height: STORY_FRAME_HEIGHT,
+          transform: `scale(${frameScale})`,
+        }}
+      >
       <div className={`story-creative-bg absolute inset-0 ${theme.background}`} />
       <div className="absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black/82 via-black/44 to-transparent" />
       <div className="absolute left-4 right-4 top-3 z-20 flex gap-1.5">
@@ -864,7 +903,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
         <div className="absolute bottom-9 h-24 w-80 rounded-[50%] bg-white/12 blur-xl [transform:perspective(360px)_rotateX(68deg)]" />
         {slide.image_url ? (
           <img
-            src={slide.image_url}
+            src={resolveProductImageUrl(slide.image_url)}
             alt={title}
             className="story-creative-product-image relative z-10 max-h-full max-w-[112%] object-contain drop-shadow-[0_34px_28px_rgba(0,0,0,.5)]"
           />
@@ -904,11 +943,12 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
           </a>
         </div>
       </div>
+      </div>
     </div>
   );
 }
 
-export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "", compact = false }) {
+export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "" }) {
   const { t } = useTranslation();
   const slidesTitle = title || t("marketing.postEditor.story.slidesTitle");
   const [activeStorySlideIndex, setActiveStorySlideIndex] = useState(0);
@@ -938,7 +978,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(230px,360px)_minmax(140px,1fr)] xl:items-start">
       <div className="mx-auto w-full max-w-[360px]">
-        <StoryCreativeFrame slide={activeStorySlide} total={safeSlides.length} index={selectedIndex} compact={compact} />
+        <StoryCreativeFrame slide={activeStorySlide} total={safeSlides.length} index={selectedIndex} />
       </div>
       {showThumbnails ? (
         <div className="min-w-0">
@@ -954,7 +994,7 @@ export function StoryCreativePreview({ slides = [], activeIndex = null, onSelect
                 onKeyDown={(event) => handleSlideKeyDown(event, index)}
                 className={`group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition ${ index === selectedIndex ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-white/10 bg-white/[0.04] hover:border-white/25" }`}
               >
-                <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} compact />
+                <StoryCreativeFrame slide={slide} total={safeSlides.length} index={index} />
                 <div className="mt-2 truncate px-1 pb-1 text-[11px] font-black text-slate-200">{t("marketing.postEditor.story.slide", { number: index + 1 })}</div>
               </button>
             ))}
@@ -1320,7 +1360,7 @@ export default function PostEditorModal({
                       onClick={() => selectMainImage(url)}
                       className={`group relative aspect-square overflow-hidden rounded-[var(--radius-control)] border transition ${ form.image_url === url ? "border-[var(--primary)] shadow-lg" : "border-[var(--border)] hover:border-[var(--primary)]" }`}
                     >
-                      <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
+                      <img src={resolveProductImageUrl(url)} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
                     </button>
                   ))}
                 </div>

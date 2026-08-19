@@ -37,7 +37,7 @@ import {
 } from "../Storefront";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
-import { Baby, Briefcase, ChevronDown, ChevronLeft, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
+import { Baby, Briefcase, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
 import {
   buildCategoryBreadcrumb,
   buildCategoryItemList,
@@ -48,6 +48,33 @@ import {
 
 const FILTER_DEBOUNCE_MS = 320;
 const SEO_PAGE_SIZE = 24;
+// The customer picks how many cards a page carries, and the choice rides in the
+// URL so a shared or bookmarked link reproduces the exact page it was copied from.
+const PAGE_SIZE_OPTIONS = [12, 24, 36, 48];
+
+// The arrow keeps its place at both ends of the range instead of disappearing,
+// so the row does not shift under the cursor between page 1 and page 2.
+function PaginationArrow({ to, rel, label, lang, direction }) {
+  const pointsBack = direction === "prev";
+  const Icon = lang === "en" ? (pointsBack ? ChevronLeft : ChevronRight) : (pointsBack ? ChevronRight : ChevronLeft);
+  const shared = "grid h-11 w-11 place-items-center rounded-full border text-sm font-black";
+  if (!to) {
+    return (
+      <span aria-hidden="true" className={`${shared} cursor-default border-stone-200 bg-stone-100 text-stone-300 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/20`}>
+        <Icon className="h-5 w-5" />
+      </span>
+    );
+  }
+  return (
+    <Link rel={rel} to={to} aria-label={label} className={`${shared} border-[#d4af37]/50 bg-[#d4af37]/10 text-[#8a6a00] transition hover:bg-[#d4af37]/20 dark:text-[#f4d675]`}>
+      <Icon className="h-5 w-5" />
+    </Link>
+  );
+}
+const normalizePageSize = (value) => {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  return PAGE_SIZE_OPTIONS.includes(parsed) ? parsed : SEO_PAGE_SIZE;
+};
 
 const useDebouncedValue = (value, delay = FILTER_DEBOUNCE_MS) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -479,6 +506,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const [params, setParams] = useSearchParams();
   const seoCategory = seoCategoryByPath(location.pathname);
   const page = Math.max(1, Number.parseInt(params.get("page") || "1", 10) || 1);
+  const pageSize = normalizePageSize(params.get("per_page") || params.get("perPage"));
   const q = params.get("q") || "";
   const category = params.get("category") || "";
   const brand = params.get("brand") || "";
@@ -532,15 +560,23 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       quality: quality || "",
       // Crocs filters use customer-facing EU labels while inventory keeps the
       // original factory marking, so filter those variants client-side.
-      size: selectedSizes.length === 1 && !isCrocsListing ? selectedSizes[0] : "",
+      // Everything else goes to the backend: a facet applied after the backend
+      // has already cut the page removes cards from that page instead of from
+      // the result set, which is what left pages short of a full row.
+      size: isCrocsListing ? "" : selectedSizes,
+      color: color || "",
+      bag_type: bagType || "",
+      min_price: minPrice || "",
+      max_price: maxPrice || "",
+      last_sizes: lastSizes ? 1 : "",
       inStock: truthyFlag(inStock) ? 1 : "",
       large_sizes: seoCategory?.largeSizes ? 1 : "",
       offer_story: saleView ? 1 : "",
       sort: sort || "newest",
-      limit: SEO_PAGE_SIZE,
-      offset: (page - 1) * SEO_PAGE_SIZE,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
     }),
-    [backendSearchTerm, brand, category, gender, grade, inStock, isCrocsListing, page, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
+    [backendSearchTerm, bagType, brand, category, color, gender, grade, inStock, isCrocsListing, lastSizes, maxPrice, minPrice, page, pageSize, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);
@@ -653,11 +689,17 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       productType: "",
       grade: "",
       quality: "",
-      sizes: selectedSizes.length === 1 ? [] : catalogFilters.sizes,
+      color: "",
+      minPrice: "",
+      maxPrice: "",
+      lastSizes: false,
+      // Crocs is the one facet the backend cannot resolve: the chips are EU
+      // labels while inventory keeps the factory marking.
+      sizes: isCrocsListing ? catalogFilters.sizes : [],
       saleView: false,
       inStock: false,
     }),
-    [catalogFilters, selectedSizes.length]
+    [catalogFilters, isCrocsListing]
   );
   const hasActiveCatalogFilters = Boolean(
     debouncedFilterState.gender ||
@@ -676,11 +718,12 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   );
   const filteredProducts = useMemo(
     () => {
-      const base = hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
-      const typed = bagType ? base.filter((product) => normalizeFilterKey(product.bag_type || product.bagType) === bagType) : base;
-      return typed;
+      // Bag type is a product column the list projection never carried, so the
+      // old client-side pass matched nothing and emptied the page. The backend
+      // filters it now.
+      return hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
     },
-    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
+    [catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
   );
   const pagedFilteredProducts = filteredProducts;
   const orderedFilteredProducts = useMemo(
@@ -688,7 +731,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [debouncedFilterState.selectedSort, pagedFilteredProducts]
   );
   const totalProducts = Number(backendTotal || orderedFilteredProducts.length);
-  const totalPages = Math.max(1, Math.ceil(totalProducts / SEO_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalProducts / pageSize));
+  const firstResultIndex = totalProducts ? (page - 1) * pageSize + 1 : 0;
+  const lastResultIndex = totalProducts ? Math.min(page * pageSize, totalProducts) : 0;
   const listingPagePath = seoCategory?.path || location.pathname || filterBasePath;
   const visiblePaginationPages = Array.from({ length: totalPages }, (_, index) => index + 1)
     .filter((pageNumber) => pageNumber === 1 || pageNumber === totalPages || Math.abs(pageNumber - page) <= 2);
@@ -696,6 +741,16 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     const next = new URLSearchParams(params);
     if (pageNumber <= 1) next.delete("page");
     else next.set("page", String(pageNumber));
+    return `${listingPagePath}${next.toString() ? `?${next.toString()}` : ""}`;
+  };
+  // Changing the page size re-cuts the whole result set, so the customer goes
+  // back to the first page rather than landing past the new last page.
+  const pageSizeUrl = (nextSize) => {
+    const next = new URLSearchParams(params);
+    next.delete("page");
+    if (normalizePageSize(nextSize) === SEO_PAGE_SIZE) next.delete("per_page");
+    else next.set("per_page", String(normalizePageSize(nextSize)));
+    next.delete("perPage");
     return `${listingPagePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
 
@@ -706,9 +761,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
 
   useEffect(() => {
     if (loading || page >= totalPages) return;
-    const nextPageParams = { ...backendFilterState, offset: page * SEO_PAGE_SIZE };
+    const nextPageParams = { ...backendFilterState, offset: page * pageSize };
     void prefetchStorefrontProducts(nextPageParams);
-  }, [backendFilterState, loading, page, totalPages]);
+  }, [backendFilterState, loading, page, pageSize, totalPages]);
 
   useEffect(() => {
     if (!seoCategory || typeof document === "undefined") return undefined;
@@ -742,7 +797,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     }
     const schemas = [
       ["breadcrumb", buildCategoryBreadcrumb(seoCategory)],
-      ["item-list", buildCategoryItemList(seoCategory, orderedFilteredProducts, page, SEO_PAGE_SIZE)],
+      ["item-list", buildCategoryItemList(seoCategory, orderedFilteredProducts, page, pageSize)],
     ];
     schemas.forEach(([key, value]) => {
       let script = document.head.querySelector(`script[data-m1-category-seo="${key}"]`);
@@ -755,7 +810,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       script.textContent = JSON.stringify(value).replace(/</g, "\\u003c");
     });
     return () => document.head.querySelectorAll("script[data-m1-category-seo]").forEach((node) => node.remove());
-  }, [orderedFilteredProducts, page, params, seoCategory]);
+  }, [orderedFilteredProducts, page, pageSize, params, seoCategory]);
   useEffect(() => {
     if (seoCategory || typeof document === "undefined") return;
     const robots = document.head.querySelector('meta[name="robots"]') || document.head.appendChild(document.createElement("meta"));
@@ -1020,7 +1075,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
           {seoCategory ? <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-stone-600 dark:text-stone-300">{seoCategory.intro}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">{t("storefront.products.productCount", "{{count}} منتج", { count: totalProducts })}</div>
+          <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">
+            {totalProducts
+              ? t("storefront.products.showingRange", "عرض {{from}}-{{to}} من {{count}} نتيجة", { from: firstResultIndex, to: lastResultIndex, count: totalProducts })
+              : t("storefront.products.productCount", "{{count}} منتج", { count: totalProducts })}
+          </div>
           <button
             type="button"
             onClick={() => setFiltersOpen(true)}
@@ -1159,24 +1218,44 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 toggleWishlist={toggleWishlist}
                 onAddToCart={onAddToCart}
                 saleModeEnabled={saleModeEnabled}
+                revealAll
               />
-              {totalPages > 1 ? (
-                <nav aria-label="صفحات المنتجات" className="mt-6 flex flex-wrap items-center justify-center gap-2 pb-24 sm:pb-4">
-                  {page > 1 ? <Link rel="prev" to={pageUrl(page - 1)} className="grid h-11 place-items-center rounded-full border border-stone-200 bg-white px-4 text-sm font-black text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white">السابق</Link> : null}
-                  {visiblePaginationPages.map((pageNumber, index) => {
-                    const previousPageNumber = visiblePaginationPages[index - 1];
-                    return (
-                      <span key={pageNumber} className="contents">
-                        {previousPageNumber && pageNumber - previousPageNumber > 1 ? <span className="grid h-11 min-w-6 place-items-center text-stone-500">…</span> : null}
-                        <Link to={pageUrl(pageNumber)} aria-current={pageNumber === page ? "page" : undefined} className={`grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-black ${pageNumber === page ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}>{pageNumber}</Link>
-                      </span>
-                    );
-                  })}
-                  {page < totalPages ? <Link rel="next" to={pageUrl(page + 1)} className="grid h-11 place-items-center rounded-full border border-[#d4af37]/50 bg-[#d4af37]/10 px-4 text-sm font-black text-[#8a6a00] dark:text-[#f4d675]">التالي</Link> : null}
-                </nav>
-              ) : null}
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3 pb-24 sm:pb-4">
+                {totalPages > 1 ? (
+                  <nav aria-label={lang === "en" ? "Product pages" : "صفحات المنتجات"} className="flex flex-wrap items-center justify-center gap-2">
+                    <PaginationArrow to={page > 1 ? pageUrl(page - 1) : null} rel="prev" label={lang === "en" ? "Previous page" : "الصفحة السابقة"} lang={lang} direction="prev" />
+                    {visiblePaginationPages.map((pageNumber, index) => {
+                      const previousPageNumber = visiblePaginationPages[index - 1];
+                      return (
+                        <span key={pageNumber} className="contents">
+                          {previousPageNumber && pageNumber - previousPageNumber > 1 ? <span className="grid h-11 min-w-6 place-items-center text-stone-500">…</span> : null}
+                          <Link to={pageUrl(pageNumber)} aria-current={pageNumber === page ? "page" : undefined} className={`grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-black ${pageNumber === page ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}>{pageNumber}</Link>
+                        </span>
+                      );
+                    })}
+                    <PaginationArrow to={page < totalPages ? pageUrl(page + 1) : null} rel="next" label={lang === "en" ? "Next page" : "الصفحة التالية"} lang={lang} direction="next" />
+                  </nav>
+                ) : null}
+                {totalProducts > PAGE_SIZE_OPTIONS[0] ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-stone-600 dark:text-stone-400">{t("storefront.products.perPage", "عدد المنتجات في الصفحة")}</span>
+                    <div className="flex items-center gap-1.5">
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <Link
+                          key={size}
+                          to={pageSizeUrl(size)}
+                          aria-current={size === pageSize ? "true" : undefined}
+                          className={`grid h-9 min-w-10 place-items-center rounded-full border px-2 text-xs font-black ${size === pageSize ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}
+                        >
+                          {size}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               {seoCategory ? (
-                <nav aria-label="أقسام مرتبطة" className="mt-7 flex flex-wrap justify-center gap-2">
+                <nav aria-label={lang === "en" ? "Related sections" : "أقسام مرتبطة"} className="mt-7 flex flex-wrap justify-center gap-2">
                   {seoCategory.related.map((path) => {
                     const related = seoCategoryByPath(path);
                     return related ? <Link key={path} to={path} className="rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;
@@ -1345,11 +1424,11 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
         <div className="grid grid-cols-2 gap-2 text-right text-[11px] font-black text-stone-600 dark:text-stone-300">
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
             <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.minPrice", "أقل سعر")}</span>
-            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)} جنيه</span>
+            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)}</span>
           </div>
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
             <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.maxPrice", "أعلى سعر")}</span>
-            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)} جنيه</span>
+            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)}</span>
           </div>
         </div>
         <p className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
@@ -1409,7 +1488,7 @@ function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
             ? normalizeStorefrontAudienceValue(activeValue) === normalizeStorefrontAudienceValue(item.value)
             : normalizeStorefrontProductTypeValue(activeValue) === normalizeStorefrontProductTypeValue(item.value);
         const Icon = catalogQuickCategoryIcon(item.icon);
-        const label = item.field === "type" ? getProductTypeLabel(item.value, lang) : item.label;
+        const label = item.field === "type" ? getProductTypeLabel(item.value, lang) : classificationLabel(item, lang);
         return (
           <Link
             key={item.key}
@@ -1449,7 +1528,7 @@ function CatalogAppliedFilterChips({
   const { t } = useTranslation();
   const chips = [];
   if (q) chips.push({ key: "q", label: q, field: "q" });
-  if (gender) chips.push({ key: "gender", label: gender === "men" ? "رجالي" : gender === "women" ? "حريمي" : "أطفال", field: "gender" });
+  if (gender) chips.push({ key: "gender", label: classificationLabel({ value: gender }, lang), field: "gender" });
   if (category) chips.push({ key: "category", label: category, field: "category" });
   if (productType) chips.push({ key: "type", label: getProductTypeLabel(productType, lang), field: "type" });
   if (grade) chips.push({ key: "grade", label: grade, field: "grade" });
@@ -1458,7 +1537,7 @@ function CatalogAppliedFilterChips({
   (Array.isArray(selectedSizes) ? selectedSizes : []).forEach((size) => {
     if (size) chips.push({ key: `size:${size}`, label: size, field: "size", value: size });
   });
-  if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} جنيه`, field: "price" });
+  if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} ${lang === "en" ? "EGP" : "جنيه"}`, field: "price" });
   if (normalizeCatalogSortValue(selectedSort) !== "newest") chips.push({ key: "sort", label: sortLabelForValue(selectedSort, t), field: "sort" });
   if (!chips.length) return null;
   return (

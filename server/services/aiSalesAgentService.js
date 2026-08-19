@@ -527,6 +527,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS staff_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS sender_type VARCHAR(40) NOT NULL DEFAULT 'customer'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS manual_message BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -735,6 +736,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
     await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_tenant_lead_status ON ai_channel_conversations (tenant_id, lead_status, updated_at DESC)`);
     await clientOrPool.query(`
       CREATE TABLE IF NOT EXISTS ai_channel_event_logs (
@@ -941,6 +943,8 @@ export const normalizeInboxMessage = (row = {}) => {
     delivery_error: row.delivery_error || "",
     error_code: row.error_code || "",
     message_type: row.message_type || "",
+    edited_at: row.edited_at || null,
+    original_message_text: row.original_message_text || "",
     confidence: Number(row.confidence || 0),
     needs_human_support: row.needs_human_support === true,
     detected_intent: row.detected_intent || "",
@@ -2306,6 +2310,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       c.metadata AS channel_metadata,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
+      COALESCE(c.manually_unread, s.manually_unread, FALSE) AS manually_unread,
       (
         SELECT COUNT(*)::int
         FROM ai_support_messages unread_msg
@@ -2321,6 +2326,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
               WHERE staff_msg.tenant_id = s.tenant_id
                 AND staff_msg.session_id = s.session_id
                 AND staff_msg.sender_type = 'staff'
+                -- Human replies only: an AI auto-reply (manual_message = false,
+                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
+                -- A thread the AI answered stays unread until a human opens it
+                -- (read_at) or replies manually.
+                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
             ), TIMESTAMP 'epoch')
           )
       ) AS unread_count,
@@ -2470,7 +2480,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           }))
         : null;
       const summaryMessages = summaryMessage ? [summaryMessage] : [];
-      const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const manuallyUnread = conversation.manually_unread === true;
+      const computedUnreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread ? 1 : 0);
       const leadStatus = normalizedSummaryLeadStatus(conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
       const leadType = leadTypeFrom({
         memoryScore: 0,
@@ -2640,6 +2652,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         last_ai_reply_draft_updated_at: conversation.last_ai_reply_draft_updated_at || null,
         unread_count: unreadCount,
         unread: unreadCount > 0,
+        manually_unread: manuallyUnread,
         waiting: false,
         lead_status: leadStatus,
         lead_type: leadType,
@@ -2740,6 +2753,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       acm.updated_at AS conversation_memory_updated_at,
       COALESCE(m.created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
+      COALESCE(c.manually_unread, s.manually_unread, FALSE) AS manually_unread,
       (
         SELECT COUNT(*)::int
         FROM ai_support_messages unread_msg
@@ -2755,6 +2769,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
               WHERE staff_msg.tenant_id = s.tenant_id
                 AND staff_msg.session_id = s.session_id
                 AND staff_msg.sender_type = 'staff'
+                -- Human replies only: an AI auto-reply (manual_message = false,
+                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
+                -- A thread the AI answered stays unread until a human opens it
+                -- (read_at) or replies manually.
+                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
             ), TIMESTAMP 'epoch')
           )
       ) AS unread_count,
@@ -3379,7 +3398,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         "new"
       );
       const lastMessagePreview = conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "";
-      const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const manuallyUnread = conversation.manually_unread === true;
+      const computedUnreadCount = Math.max(0, numeric(conversation.unread_count, 0));
+      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread ? 1 : 0);
       const conversationSessionId = canonicalInboxConversationSessionId(conversation);
       const channel = canonicalInboxChannel(conversation.channel || conversation.source || "web_chat") || "web_chat";
       return {
@@ -3422,6 +3443,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         last_activity_at: conversation.last_message_at || conversation.updated_at,
         unread_count: unreadCount,
         unread: unreadCount > 0,
+        manually_unread: manuallyUnread,
         waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
         lead_status: leadStatus,
         lead_type: leadType,
@@ -4401,10 +4423,44 @@ export const enrichGroundedSendReadyCard = async ({ tenantId, identity }) => {
     // when the GLOBAL Sale Mode rules say so. The raw DB rows are passed (not a serialized API object, whose
     // regular_price may have been overwritten with the resolved normal price).
     const saleModeSettings = await loadTenantSaleModeSettings({ tenantId });
-    const priceInfo = resolveCustomerDisplayPrice(
-      { ...prod, variant, product: prod, selected_variant: variant, matched_variant: variant },
-      { saleModeSettings }
-    );
+    const pricingScope = (v) => ({ ...prod, variant: v, product: prod, selected_variant: v, matched_variant: v });
+    let priceInfo = resolveCustomerDisplayPrice(pricingScope(variant), { saleModeSettings });
+    // VARIANT PRICE FALLBACK. The grounding gate's `card_choices` are a PRODUCT identity with NO variant_id, and
+    // for part of the catalogue the canonical normal price lives on the VARIANT row only (the product row holds
+    // none of manual_selling_price / purchase_selling_price / selling_price / price / regular_price). Resolving
+    // from the product row alone then returned 0 and the operator picker rendered "0 جنيه" for products the
+    // storefront and POS quote correctly (proven live: Classic Bag #690 = 950, Momolly Bag Size /16 #707 = 1700,
+    // New Bag #593 = 600 — all shown as 0). The rule is UNCHANGED: same canonical authority, never a sale/cost/
+    // wholesale fallback; a product with no price anywhere still resolves to 0 (has_price false).
+    // The variant is picked EXACTLY the way the send route picks it when the card carries no variant_id
+    // (aiAgentOrders.js normalizeProductCardForSend: variants by id ASC → requested colour → first in stock →
+    // first), so the price the operator approves is the price that reaches the customer. The chosen variant is
+    // used for PRICE ONLY — variant_id stays null so identity, selection keys and colour disambiguation are
+    // untouched.
+    let priceVariantId = null;
+    if (!identity.variant_id && !(Number(priceInfo?.display_price) > 0)) {
+      const variantRows = (await db.query(
+        "SELECT * FROM product_variants WHERE tenant_id = $1 AND product_id = $2 ORDER BY id ASC",
+        [tenantId, prod.id]
+      ).catch(() => ({ rows: [] }))).rows || [];
+      const requestedColor = String(identity.color || "").trim().toLowerCase();
+      const colorRows = requestedColor
+        ? variantRows.filter((r) => String(r.color || r.color_name || r.variant_color || "").trim().toLowerCase() === requestedColor)
+        : variantRows;
+      const stockOf = (r) => Number(r.stock_quantity ?? r.stock ?? r.quantity ?? r.available_quantity ?? 0);
+      const picked = colorRows.find((r) => stockOf(r) > 0) || colorRows[0] || variantRows[0] || null;
+      if (picked) {
+        const fromVariant = resolveCustomerDisplayPrice(pricingScope(picked), { saleModeSettings });
+        if (Number(fromVariant?.display_price) > 0) {
+          priceInfo = fromVariant;
+          priceVariantId = picked.id;
+          console.log("[ai-inbox][card-price-from-variant]", {
+            product_id: prod.id, price_variant_id: picked.id,
+            display_price: fromVariant.display_price, price_source: fromVariant.price_source,
+          });
+        }
+      }
+    }
     const image = resolvePublicProductImageUrl(resolveProductImageFromRecord({ ...prod, ...(variant || {}) }) || variant?.image_url || variant?.image || prod.image_url || prod.image || "");
     const url = resolvePublicProductUrl(prod);
     const sizes = availableProductSizes(prod);
@@ -4419,6 +4475,9 @@ export const enrichGroundedSendReadyCard = async ({ tenantId, identity }) => {
       display_price: priceInfo?.display_price ?? null,
       old_price: priceInfo?.old_price ?? null,
       sale_active: priceInfo?.sale_active === true,
+      has_price: priceInfo?.has_price === true,
+      // Audit only: which variant supplied the price when the product row had none. Never an identity field.
+      price_variant_id: priceVariantId,
       in_stock: identity.in_stock !== false,
       grounded: true,
       action: identity.action || null,
