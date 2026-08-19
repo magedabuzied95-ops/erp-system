@@ -5158,9 +5158,14 @@ const getActiveThemeCycle = async (tenantId, themeKey) => {
     [tenantId, themeKey]
   );
   if (result.rows[0]) return result.rows[0];
+  // $2 has to be cast on both sides. Uncast, the INSERT list deduces it from the
+  // theme_key column (character varying) while the WHERE deduces text, because
+  // varchar equality resolves through texteq, and Postgres rejects the statement
+  // with "inconsistent types deduced for parameter $2". $1 escapes it only
+  // because bigint has its own equality operator.
   await db.query(
     `INSERT INTO ai_marketing_theme_cycles (tenant_id, theme_key, cycle_number, status)
-     SELECT $1, $2, COALESCE(MAX(cycle_number), 0) + 1, 'active' FROM ai_marketing_theme_cycles WHERE tenant_id = $1 AND theme_key = $2
+     SELECT $1, $2::text, COALESCE(MAX(cycle_number), 0) + 1, 'active' FROM ai_marketing_theme_cycles WHERE tenant_id = $1 AND theme_key = $2::text
      ON CONFLICT DO NOTHING`,
     [tenantId, themeKey]
   );
