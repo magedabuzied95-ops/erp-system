@@ -188,6 +188,8 @@
       "namePlaceholder": "أدخل اسم العميل",
       "phone": "رقم الموبايل",
       "phonePlaceholder": "أدخل رقم الموبايل",
+      "arabicKeysOn": "الكتابة بالعربي — دوس للتبديل للإنجليزي (F9)",
+      "arabicKeysOff": "الكتابة بالإنجليزي — دوس للتبديل للعربي (F9)",
       "selectSource": "اختر المصدر",
       "sourceOptional": "اختياري",
       "saveHint": "اضغط Enter للحفظ"

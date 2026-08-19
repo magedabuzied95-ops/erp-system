@@ -188,6 +188,8 @@
       "namePlaceholder": "Enter customer name",
       "phone": "Phone number",
       "phonePlaceholder": "Enter phone number",
+      "arabicKeysOn": "Typing in Arabic — click to switch to English (F9)",
+      "arabicKeysOff": "Typing in English — click to switch to Arabic (F9)",
       "selectSource": "Select source",
       "sourceOptional": "Optional",
       "saveHint": "Press Enter to save"
