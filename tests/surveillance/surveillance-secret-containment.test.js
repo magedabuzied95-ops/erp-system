@@ -209,3 +209,51 @@ test("the sweep catches a real credential and ignores a synthetic one", () => {
     0,
   );
 });
+
+test("every module the surveillance code imports is actually committed", () => {
+  // THE OUTAGE THIS PREVENTS, which already happened once:
+  // server/services is gitignored wholesale. The allowlist covered
+  // server/services/surveillance/** but NOT redisInfrastructure.js, which
+  // sits one level above it and is imported by cacheService. The deploy
+  // shipped a cacheService importing a file that did not exist, the backend
+  // died at module load with ERR_MODULE_NOT_FOUND, and only the auto-rollback
+  // saved production.
+  //
+  // The earlier version of this check walked server/services/surveillance/
+  // only, so it could never have caught it. This one follows the IMPORTS.
+  const roots = [
+    "server/services/surveillance",
+    "server/routes/surveillance.js",
+    "server/middleware/surveillanceGuards.js",
+  ];
+
+  const files = [];
+  for (const root of roots) {
+    const full = path.join(ROOT, root);
+    if (!fs.existsSync(full)) continue;
+    if (fs.statSync(full).isFile()) { files.push(root); continue; }
+    for (const entry of fs.readdirSync(full, { recursive: true })) {
+      const rel = `${root}/${String(entry).split(path.sep).join("/")}`;
+      if (rel.endsWith(".js")) files.push(rel);
+    }
+  }
+
+  const tracked = new Set(trackedFiles());
+  const missing = [];
+  for (const file of files) {
+    const dir = path.dirname(path.join(ROOT, file));
+    const source = fs.readFileSync(path.join(ROOT, file), "utf8");
+    const IMPORT_RE = new RegExp("from\\s+[\"']([.][^\"']+)[\"']", "g");
+    for (const match of source.matchAll(IMPORT_RE)) {
+      const resolved = path.resolve(dir, match[1]);
+      const rel = path.relative(ROOT, resolved).split(path.sep).join("/");
+      // Only our own source matters; node_modules and bare specifiers do not.
+      if (!rel.startsWith("server/")) continue;
+      if (!fs.existsSync(resolved)) continue;
+      if (!tracked.has(rel)) missing.push(`${file} -> ${rel}`);
+    }
+  }
+
+  assert.deepEqual(missing, [],
+    "these imports exist on disk but are NOT committed, so the deploy will not ship them: " + missing.join(", "));
+});
