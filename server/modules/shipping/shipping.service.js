@@ -874,14 +874,14 @@ export const fetchBostaShipmentLabels = async (orderIds = []) => {
 
   const { rows } = await db.query(
     `
-    SELECT id,
-           COALESCE(order_number, '') AS order_number,
-           COALESCE(shipping_provider_id, shipping_provider, '') AS provider,
-           COALESCE(shipping_provider_delivery_id, '') AS delivery_id,
-           COALESCE(shipping_tracking_number, tracking_number, '') AS tracking_number
-    FROM orders
-    WHERE id = ANY($1::int[])
-    ORDER BY id
+    SELECT o.id,
+           COALESCE(o.public_order_number, o.display_order_number, o.invoice_number, 'ORD-' || o.id::text) AS order_number,
+           COALESCE(o.shipping_provider_id, o.shipping_provider, '') AS provider,
+           COALESCE(o.shipping_provider_delivery_id, '') AS delivery_id,
+           COALESCE(o.shipping_tracking_number, o.tracking_number, '') AS tracking_number
+    FROM orders o
+    WHERE o.id = ANY($1::int[])
+    ORDER BY o.id
     `,
     [ids]
   );
