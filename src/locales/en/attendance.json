@@ -47,7 +47,22 @@
     "attendanceTrend": "Attendance trend",
     "lateArrivalsTrend": "Late arrivals trend",
     "branchComparison": "Branch attendance comparison",
-    "employeeRanking": "Employee attendance ranking"
+    "employeeRanking": "Employee attendance ranking",
+    "loadFailed": "Some sections could not be loaded — the figures below are incomplete.",
+    "retry": "Retry",
+    "emptyRange": "No attendance records in the selected range.",
+    "sectionBranches": "Branches",
+    "sectionEmployees": "Employees",
+    "sectionDashboard": "Overview",
+    "sectionList": "Daily attendance",
+    "sectionLive": "Live attendance",
+    "sectionPayroll": "Payroll impact",
+    "sectionOvertime": "Overtime approvals",
+    "sectionLeaves": "Leaves",
+    "sectionSchedules": "Schedules",
+    "sectionQr": "QR sessions",
+    "sectionReports": "Reports",
+    "sectionHrSettings": "HR settings"
   },
   "public": {
     "attendance": "Attendance",

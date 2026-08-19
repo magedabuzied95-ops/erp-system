@@ -236,7 +236,7 @@ const createEmptyShiftForm = () => ({
   check_in_window_end: "10:00",
   allowed_late_minutes: 15,
   overtime_after_minutes: 0,
-  working_days: "Sun,Mon,Tue,Wed,Thu",
+  working_days: "Sat,Sun,Mon,Tue,Wed,Thu",
 });
 
 const sameEmployeeRecord = (left = {}, right = {}) =>
@@ -1024,7 +1024,7 @@ function AttendanceWorkspace({
         check_in_window_end: "10:00",
         allowed_late_minutes: 15,
         overtime_after_minutes: 0,
-        working_days: "Sun,Mon,Tue,Wed,Thu",
+        working_days: "Sat,Sun,Mon,Tue,Wed,Thu",
       });
       toast.success(tr("toasts.shiftSaved"));
       await loadEmployeeRelatedData(selectedEmployeeId);

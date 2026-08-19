@@ -47,7 +47,22 @@
     "attendanceTrend": "اتجاه الحضور",
     "lateArrivalsTrend": "اتجاه التأخير",
     "branchComparison": "مقارنة حضور الفروع",
-    "employeeRanking": "ترتيب حضور الموظفين"
+    "employeeRanking": "ترتيب حضور الموظفين",
+    "loadFailed": "تعذّر تحميل بعض الأقسام — الأرقام بالأسفل ناقصة.",
+    "retry": "إعادة المحاولة",
+    "emptyRange": "لا توجد سجلات حضور في المدى المحدد.",
+    "sectionBranches": "الفروع",
+    "sectionEmployees": "الموظفون",
+    "sectionDashboard": "النظرة العامة",
+    "sectionList": "الحضور اليومي",
+    "sectionLive": "الحضور المباشر",
+    "sectionPayroll": "تأثير الرواتب",
+    "sectionOvertime": "موافقات الوقت الإضافي",
+    "sectionLeaves": "الإجازات",
+    "sectionSchedules": "الجداول",
+    "sectionQr": "جلسات QR",
+    "sectionReports": "التقارير",
+    "sectionHrSettings": "إعدادات الموارد البشرية"
   },
   "public": {
     "attendance": "الحضور",
