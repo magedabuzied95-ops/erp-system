@@ -134,6 +134,48 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
   };
 };
 
+// The AWB endpoints answer with a base64 PDF, not a link: the official WooCommerce
+// plugin base64-decodes `body.data` straight into a PDF response. The nesting differs
+// between the mass and single endpoints, so both are probed, and the decoded bytes are
+// checked for the %PDF magic — a truncated or HTML body must fail loudly here rather
+// than reach the browser as a blank tab.
+const BASE64_DATA_URI = /^data:[^;,]*;base64,/i;
+
+const pickAwbBase64 = (payload) => {
+  const candidates = [
+    payload?.data,
+    payload?.data?.data,
+    payload?.data?.pdf,
+    payload?.data?.awb,
+    payload?.data?.base64,
+    payload?.pdf,
+    payload?.awb,
+    payload?.base64,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim().replace(BASE64_DATA_URI, "");
+  }
+  return "";
+};
+
+export const normalizeBostaAwbResponse = (payload = {}) => {
+  const message = text(pick(payload, ["message", "errorMessage"]));
+  const base64 = pickAwbBase64(payload);
+  if (!base64) {
+    return { pdf_base64: "", byte_length: 0, error: message || "Bosta returned no airway bill content" };
+  }
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, "base64");
+  } catch {
+    return { pdf_base64: "", byte_length: 0, error: "Bosta airway bill is not valid base64" };
+  }
+  if (!buffer.length || buffer.subarray(0, 4).toString("latin1") !== "%PDF") {
+    return { pdf_base64: "", byte_length: buffer.length, error: message || "Bosta airway bill is not a PDF" };
+  }
+  return { pdf_base64: buffer.toString("base64"), byte_length: buffer.length, error: "" };
+};
+
 export const buildBostaAddressLine = (order = {}) => {
   const streetAddress = text(order.street_address || order.shipping_address_line || order.customer_address);
   const parts = [

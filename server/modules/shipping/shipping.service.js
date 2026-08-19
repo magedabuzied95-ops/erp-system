@@ -4,7 +4,7 @@ import { getSetting, setSetting } from "../../services/settingsService.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
-import { bostaStateText, buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
+import { bostaStateText, buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const nowIso = () => new Date().toISOString();
@@ -15,6 +15,7 @@ let shippingSchemaEnsurePromise = null;
 const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.";
 const BOSTA_NOT_CONFIGURED_MESSAGE = "لم يتم إنشاء أي شحنة على بوسطة: مفتاح الـ API غير مضبوط. أضفه من إعدادات الشحن ثم أعد المحاولة.";
 const BOSTA_DISABLED_MESSAGE = "تكامل بوسطة معطّل في إعدادات الشحن. فعّله أولاً قبل إنشاء الشحنات.";
+const BOSTA_NO_LABEL_MESSAGE = "مفيش شحنة على بوسطة للطلبات المختارة، فمافيش ملصق يتطبع. أنشئ الشحنة الأول ثم اطبع الملصق.";
 const BOSTA_ZERO_COLLECTION_MESSAGE = "الطلب لسه عليه مبلغ متبقّي، لكن طريقة الدفع مسجّلة كمدفوعة مسبقاً — فالشحنة هتروح لبوسطة بتحصيل صفر. صحّح بيانات الدفع أو اكتب مبلغ التحصيل في تبويب التكاليف قبل إنشاء الشحنة.";
 
 // Turning the integration off has to actually stop new deliveries, otherwise the
@@ -846,6 +847,108 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
   } finally {
     client.release();
   }
+};
+
+// One Bosta call prints every selected label. Reprinting is deliberately allowed while
+// the integration is switched off — shipments already with the courier still need their
+// airway bill, the same reason refresh and cancel stay open.
+const AWB_BATCH_LIMIT = 100;
+
+export const fetchBostaShipmentLabels = async (orderIds = []) => {
+  await ensureShippingSchema();
+  const ids = [...new Set((Array.isArray(orderIds) ? orderIds : []).map((id) => Number(id)).filter(Number.isFinite))];
+  if (!ids.length) {
+    const error = new Error("Select at least one shipment to print");
+    error.status = 400;
+    throw error;
+  }
+  if (ids.length > AWB_BATCH_LIMIT) {
+    const error = new Error(`Print at most ${AWB_BATCH_LIMIT} labels at a time`);
+    error.status = 400;
+    error.code = "BOSTA_AWB_BATCH_TOO_LARGE";
+    throw error;
+  }
+
+  const config = await bostaConfig();
+  if (!text(config.apiKey)) throw bostaNotConfiguredError("bosta_credentials_missing");
+
+  const { rows } = await db.query(
+    `
+    SELECT id,
+           COALESCE(order_number, '') AS order_number,
+           COALESCE(shipping_provider_id, shipping_provider, '') AS provider,
+           COALESCE(shipping_provider_delivery_id, '') AS delivery_id,
+           COALESCE(shipping_tracking_number, tracking_number, '') AS tracking_number
+    FROM orders
+    WHERE id = ANY($1::int[])
+    ORDER BY id
+    `,
+    [ids]
+  );
+
+  const found = new Map(rows.map((row) => [Number(row.id), row]));
+  const printable = [];
+  const skipped = [];
+  for (const id of ids) {
+    const row = found.get(id);
+    if (!row) {
+      skipped.push({ order_id: id, order_number: "", reason: "order_not_found" });
+      continue;
+    }
+    const entry = { order_id: Number(row.id), order_number: row.order_number, tracking_number: row.tracking_number };
+    if (normalizeKey(row.provider) !== "bosta") {
+      skipped.push({ ...entry, reason: "provider_unsupported", provider: text(row.provider) });
+      continue;
+    }
+    if (!text(row.delivery_id)) {
+      skipped.push({ ...entry, reason: "shipment_not_created" });
+      continue;
+    }
+    printable.push({ ...entry, delivery_id: text(row.delivery_id) });
+  }
+
+  if (!printable.length) {
+    const error = new Error(BOSTA_NO_LABEL_MESSAGE);
+    error.status = 400;
+    error.code = "BOSTA_NO_PRINTABLE_LABEL";
+    error.payload = { skipped };
+    throw error;
+  }
+
+  const bosta = createBostaClient(config);
+  let rawAwbResponse;
+  try {
+    rawAwbResponse = await bosta.massAirwayBill(printable.map((row) => row.delivery_id), { lang: "ar" });
+  } catch (apiError) {
+    if (isBostaCredentialsMissingError(apiError)) {
+      console.error("[bosta] awb rejected for missing credentials", { orderIds: printable.map((row) => row.order_id), message: apiError?.message });
+      throw bostaNotConfiguredError("bosta_credentials_rejected");
+    }
+    const rawErrorPayload = apiError?.payload || { message: apiError?.message, status: apiError?.status };
+    console.error("[bosta-awb-response]", JSON.stringify(rawErrorPayload));
+    throw bostaDeliveryError(
+      rawErrorPayload,
+      apiError?.message || "Bosta airway bill request failed",
+      apiError?.status >= 400 && apiError.status < 500 ? 400 : 502
+    );
+  }
+
+  const awb = normalizeBostaAwbResponse(rawAwbResponse);
+  if (!awb.pdf_base64) {
+    console.error("[bosta] awb response carried no printable pdf", { orderIds: printable.map((row) => row.order_id), message: awb.error });
+    const error = new Error(awb.error || "Bosta returned no printable airway bill");
+    error.status = 502;
+    error.code = "BOSTA_AWB_EMPTY";
+    throw error;
+  }
+
+  return {
+    pdf_base64: awb.pdf_base64,
+    content_type: "application/pdf",
+    byte_length: awb.byte_length,
+    printed: printable,
+    skipped,
+  };
 };
 
 export const refreshBostaShipmentForOrder = async (orderId) => {

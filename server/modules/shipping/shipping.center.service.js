@@ -3,6 +3,7 @@ import { normalizeShippingProviderKey } from "../../services/shippingProviders/i
 import {
   createBostaShipmentForOrder,
   ensureShippingSchema,
+  fetchBostaShipmentLabels,
   orderCodAmount,
   orderOwedAmount,
   refreshBostaShipmentForOrder,
@@ -285,17 +286,12 @@ export const bulkShippingCenterAction = async ({ action, orderIds = [] } = {}) =
     return { updated: result.rows.length, results: result.rows };
   }
 
+  // Reading `shipping_label_url` here was the whole bug: Bosta's create-delivery reply
+  // carries no label, so the column was empty on every order and the print returned rows
+  // the client then filtered down to nothing — a success toast over a no-op. The label
+  // has to be pulled from Bosta's AWB endpoint at print time.
   if (action === "print_labels") {
-    const result = await db.query(
-      `
-      SELECT id, COALESCE(shipping_label_url, '') AS label_url, COALESCE(shipping_tracking_number, tracking_number, '') AS tracking_number
-      FROM orders
-      WHERE id = ANY($1::int[])
-      ORDER BY id
-      `,
-      [ids]
-    );
-    return { labels: result.rows, results: result.rows };
+    return fetchBostaShipmentLabels(ids);
   }
 
   const results = [];

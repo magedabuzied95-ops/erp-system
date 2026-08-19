@@ -40,7 +40,17 @@
       "printLabels": "Print Labels",
       "markReady": "Mark Ready",
       "exportCsv": "Export CSV",
-      "selectFirst": "Select shipments first"
+      "selectFirst": "Select shipments first",
+      "printPreparing": "Preparing labels from Bosta…",
+      "printPopupBlocked": "The browser blocked the print window, so the labels were downloaded as a PDF instead.",
+      "printFailed": "Could not prepare the labels",
+      "printReason": {
+        "shipment_not_created": "no Bosta shipment yet",
+        "provider_unsupported": "not a Bosta shipment",
+        "order_not_found": "order not found"
+      },
+      "printReady": "{{count}} label(s) ready",
+      "printSkipped": "Orders with no label ({{count}}): {{orders}}"
     },
     "drawer": {
       "title": "Shipment Drawer",

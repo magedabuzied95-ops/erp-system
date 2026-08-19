@@ -60,6 +60,31 @@ const PROVIDER_LABELS = {
   get in_store_delivery() { return tt("shipping.center.providers.inStoreDelivery"); },
 };
 
+// A label arrives as one base64 PDF that Bosta already merged, so it becomes a single
+// blob the browser can show or save. atob gives latin1 chars, hence the byte copy.
+const pdfUrlFromBase64 = (base64) => {
+  const binary = window.atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+};
+
+const downloadPdf = (url) => {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `bosta-labels-${new Date().toISOString().slice(0, 10)}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
+/* Literal keys keep these verifiable by the missing-key guard. */
+const SKIP_REASON_KEY = {
+  shipment_not_created: "shipping.center.bulk.printReason.shipment_not_created",
+  provider_unsupported: "shipping.center.bulk.printReason.provider_unsupported",
+  order_not_found: "shipping.center.bulk.printReason.order_not_found",
+};
+
 const fmtMoney = (value) => `${Number(value || 0).toLocaleString()} EGP`;
 // The `cod_amount` column is 0 on every order that did not come from the website,
 // so reading it straight showed "0 EGP" next to shipments the courier does collect
@@ -100,7 +125,7 @@ function Select({ value, onChange, children }) {
   return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/50">{children}</select>;
 }
 
-function ShipmentDrawer({ order, onClose }) {
+function ShipmentDrawer({ order, onClose, onPrintLabel }) {
   const { t } = useTranslation();
   if (!order) return null;
   const timeline = Array.isArray(order.shipment_timeline) ? order.shipment_timeline : [];
@@ -131,7 +156,6 @@ function ShipmentDrawer({ order, onClose }) {
               ["Status", <StatusBadge status={order.shipment_status} />],
               ["Tracking Number", order.tracking_number || "-"],
               ["Delivery ID", order.delivery_id || "-"],
-              ["Label URL", order.shipping_label_url || "-"],
               ["COD Amount", fmtMoney(codOf(order))],
               ["Order Total", fmtMoney(order.order_total)],
             ].map(([label, value]) => (
@@ -144,8 +168,8 @@ function ShipmentDrawer({ order, onClose }) {
           <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> {t("shipping.center.drawer.address")}</div>
             <p className="text-sm font-semibold leading-6 text-slate-300">{address || "-"}</p>
-            {order.shipping_label_url ? (
-              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">{t("shipping.center.drawer.printLabel")}</button>
+            {order.delivery_id || order.shipping_provider_delivery_id ? (
+              <button type="button" onClick={() => onPrintLabel?.(order.id)} className="mt-3 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/20">{t("shipping.center.drawer.printLabel")}</button>
             ) : null}
           </section>
           <section className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
@@ -235,14 +259,47 @@ export default function ShippingCenter() {
     if (!selectedIds.length) return toast.error(t("shipping.center.bulk.selectFirst"));
     try {
       const result = await api.post("/shipping/center/bulk", { action, order_ids: selectedIds });
-      toast.success(action === "print_labels" ? "Labels prepared" : `Action finished${result.failed ? ` with ${result.failed} failed` : ""}`);
-      if (action === "print_labels") {
-        const urls = (result.labels || []).map((label) => label.label_url).filter(Boolean);
-        urls.forEach((url) => window.open(url, "_blank", "noopener,noreferrer"));
-      }
+      toast.success(`Action finished${result.failed ? ` with ${result.failed} failed` : ""}`);
       await load();
     } catch (error) {
       toast.error(error.message || "Bulk action failed");
+    }
+  };
+
+  const printLabels = async (orderIds = selectedIds) => {
+    if (!orderIds.length) return toast.error(t("shipping.center.bulk.selectFirst"));
+    /*
+     * The tab is claimed inside the click, before any await. Opening it after the
+     * round trip is a popup with no user gesture behind it, which is exactly what
+     * the blocker eats — and the old code opened one per label on top of that.
+     */
+    const printWindow = window.open("", "_blank");
+    const toastId = toast.loading(t("shipping.center.bulk.printPreparing"));
+    try {
+      const result = await api.post("/shipping/center/bulk", { action: "print_labels", order_ids: orderIds });
+      // A blank tab reads as "printing is broken" all over again, so a response with
+      // no PDF in it has to surface as an error rather than as an empty document.
+      if (!result?.pdf_base64) throw new Error(t("shipping.center.bulk.printFailed"));
+      const url = pdfUrlFromBase64(result.pdf_base64);
+      if (printWindow && !printWindow.closed) printWindow.location.href = url;
+      else downloadPdf(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+
+      const printed = Array.isArray(result?.printed) ? result.printed : [];
+      toast.success(t("shipping.center.bulk.printReady", { count: printed.length || orderIds.length }), { id: toastId });
+      if (!printWindow || printWindow.closed) toast(t("shipping.center.bulk.printPopupBlocked"));
+
+      const skipped = Array.isArray(result?.skipped) ? result.skipped : [];
+      if (skipped.length) {
+        const listed = skipped
+          .slice(0, 5)
+          .map((row) => `${row.order_number || row.order_id} (${SKIP_REASON_KEY[row.reason] ? t(SKIP_REASON_KEY[row.reason]) : row.reason})`)
+          .join("، ");
+        toast.error(t("shipping.center.bulk.printSkipped", { count: skipped.length, orders: listed }));
+      }
+    } catch (error) {
+      if (printWindow && !printWindow.closed) printWindow.close();
+      toast.error(error.message || t("shipping.center.bulk.printFailed"), { id: toastId });
     }
   };
 
@@ -318,7 +375,7 @@ export default function ShippingCenter() {
             <div className="flex flex-wrap gap-2">
               <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)]"><Send className="h-4 w-4" /> {t("shipping.center.bulk.createShipments")}</button>
               <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> {t("shipping.center.bulk.refreshStatus")}</button>
-              <button onClick={() => runBulk("print_labels")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> {t("shipping.center.bulk.printLabels")}</button>
+              <button onClick={() => printLabels()} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> {t("shipping.center.bulk.printLabels")}</button>
               <button onClick={() => runBulk("mark_ready_to_ship")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><PackageCheck className="h-4 w-4" /> {t("shipping.center.bulk.markReady")}</button>
               <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black"><Download className="h-4 w-4" /> {t("shipping.center.bulk.exportCsv")}</button>
             </div>
@@ -382,7 +439,7 @@ export default function ShippingCenter() {
           ) : null}
         </section>
       </div>
-      <ShipmentDrawer order={drawerOrder} onClose={() => setDrawerOrder(null)} />
+      <ShipmentDrawer order={drawerOrder} onClose={() => setDrawerOrder(null)} onPrintLabel={(id) => printLabels([id])} />
     </main>
   );
 }

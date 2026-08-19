@@ -40,7 +40,17 @@
       "printLabels": "طباعة الملصقات",
       "markReady": "تعليم كجاهز",
       "exportCsv": "تصدير CSV",
-      "selectFirst": "اختر شحنات أولًا"
+      "selectFirst": "اختر شحنات أولًا",
+      "printPreparing": "بنجهّز الملصقات من بوسطة…",
+      "printPopupBlocked": "المتصفح منع فتح نافذة الطباعة، فنزّلنا الملصقات كملف PDF.",
+      "printFailed": "تعذّر تجهيز الملصقات",
+      "printReason": {
+        "shipment_not_created": "لسه مافيش شحنة على بوسطة",
+        "provider_unsupported": "شركة شحن غير بوسطة",
+        "order_not_found": "الطلب غير موجود"
+      },
+      "printReady": "تم تجهيز {{count}} ملصق للطباعة",
+      "printSkipped": "طلبات من غير ملصق ({{count}}): {{orders}}"
     },
     "drawer": {
       "title": "تفاصيل الشحنة",
