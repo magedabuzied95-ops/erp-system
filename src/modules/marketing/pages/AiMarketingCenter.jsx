@@ -48,6 +48,7 @@ import StoryThemeCalendar from "../components/StoryThemeCalendar";
 import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
 import {
+  currentStoryAssetUrls,
   hasValidStoryAssetSnapshot,
   mergeStoryAssetResponse,
   normalizeStoryAssetSnapshot,
@@ -225,9 +226,20 @@ const storyProductImageUrl = (item = {}) =>
 
 const generatedStoryAssetUrls = (item = {}) => {
   const snapshot = normalizeStoryAssetSnapshot(item);
-  if (hasValidStoryAssetSnapshot(item)) return [snapshot.assetUrl];
   const design = item.design_json || {};
   const metadata = item.metadata || {};
+  if (hasValidStoryAssetSnapshot(item)) {
+    // The snapshot names the primary slide only. Every other colour rendered by
+    // the same generation is a sibling snapshot, and older rows that predate
+    // the plural array still carry the URL list next to the generation id.
+    const snapshotUrls = currentStoryAssetUrls(item);
+    if (snapshotUrls.length > 1) return snapshotUrls;
+    const generationId = String(metadata.story_asset_generation_id || design.story_asset_generation_id || "");
+    const sameGenerationUrls = generationId && generationId === snapshot.generationId
+      ? normalizeUrlList(metadata.generated_asset_urls, metadata.generated_media_urls, design.generated_media_urls)
+      : [];
+    return normalizeUrlList(snapshot.assetUrl, sameGenerationUrls);
+  }
   const explicitGeneratedUrls = normalizeUrlList(
     item.final_asset_urls,
     item.generated_asset_urls,

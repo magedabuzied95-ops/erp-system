@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  currentStoryAssetUrls,
   hasValidStoryAssetSnapshot,
   mergeStoryAssetResponse,
   normalizeStoryAssetSnapshot,
@@ -50,8 +51,33 @@ test("Preview opens immediately while final asset generation stays deduplicated"
   assert.match(pageSource, /if \(!hasValidStoryAssetSnapshot\(updatedItem\)\) throw new Error/);
 });
 
+test("Preview keeps every colour the generation rendered, not just the primary slide", () => {
+  const siblings = [1, 2, 3].map((slide) => ({
+    ...snapshot,
+    assetId: `story-42-slide-${slide}`,
+    assetUrl: `https://cdn.example.com/erp/stories/story-42-slide-${slide}.png`,
+    checksum: String(slide).repeat(64),
+  }));
+  const item = {
+    id: 42,
+    metadata: {
+      story_asset_snapshot: { ...siblings[0], assetUrl: snapshot.assetUrl },
+      story_asset_snapshots: siblings,
+    },
+  };
+  assert.deepEqual(currentStoryAssetUrls(item), [snapshot.assetUrl, ...siblings.map((row) => row.assetUrl)]);
+  // A previous generation's slides must not leak into the current preview.
+  const stale = { ...siblings[1], generationId: "generation-41" };
+  assert.deepEqual(
+    currentStoryAssetUrls({ ...item, metadata: { ...item.metadata, story_asset_snapshots: [siblings[0], stale] } }),
+    [snapshot.assetUrl, siblings[0].assetUrl]
+  );
+  assert.deepEqual(currentStoryAssetUrls({ id: 42, metadata: { story_asset_snapshot: snapshot } }), [snapshot.assetUrl]);
+});
+
 test("Preview selects the immutable snapshot URL and offers an instant unpublished fallback", () => {
-  assert.match(pageSource, /if \(hasValidStoryAssetSnapshot\(item\)\) return \[snapshot\.assetUrl\]/);
+  assert.match(pageSource, /const snapshotUrls = currentStoryAssetUrls\(item\)/);
+  assert.match(pageSource, /return normalizeUrlList\(snapshot\.assetUrl, sameGenerationUrls\)/);
   assert.match(pageSource, /<StoryCreativePreview\s+slides=\{storySlides\}/);
   assert.match(pageSource, /import PostEditorModal, \{ StoryCreativePreview/);
   assert.match(pageSource, /معاينة فورية/);
