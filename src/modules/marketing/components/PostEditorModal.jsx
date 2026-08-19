@@ -30,6 +30,7 @@ import i18n from "../../../i18n/i18n";
 const tt = (key, options) => i18n.t(key, options);
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+import { parseStorefrontPriceValue } from "../../../shared/lib/storefrontPricing";
 
 import {
   buildSocialAICopy,
@@ -246,6 +247,15 @@ const formatPrice = (price, currency = "EGP") => {
 const positivePrice = (value) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : 0;
+};
+
+const firstFiniteNumber = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
 };
 
 export const resolveMarketingEditorPrice = ({ post = {}, design = {}, product = {}, variants = [] } = {}) => {
@@ -578,6 +588,23 @@ export const normalizeMarketingPostInput = (post = {}) => {
   const caption = normalizeAICaption(post, design, product, variants);
   const aiTone = post.ai_tone || design.ai_tone || defaultSocialTone;
   const firstCommentProduct = { ...post, ...product, variants, product_url: productUrl };
+  // An AI Center queue row keeps its catalogue facts in design_json and ships no variants
+  // array, so the builder would find no price and read the missing stock as "sold out".
+  // Ground it in the same numbers the editor itself is showing.
+  if (!variants.length) {
+    const suggestedPrice = parseStorefrontPriceValue(resolveMarketingEditorPrice({ post, design, product, variants }));
+    const suggestedComparePrice = parseStorefrontPriceValue(
+      design.old_crossed_price ?? design.original_price ?? post.old_crossed_price ?? post.original_price
+    );
+    // Late link in the storefront price chain, so a catalogue selling price still wins.
+    if (suggestedPrice > 0) firstCommentProduct.price = suggestedPrice;
+    if (suggestedPrice > 0 && suggestedComparePrice > suggestedPrice) {
+      firstCommentProduct.use_custom_compare_price = true;
+      firstCommentProduct.custom_compare_price = suggestedComparePrice;
+    }
+    const queueStock = firstFiniteNumber(post.current_variant_stock, design.stock, post.stock);
+    if (queueStock !== null) firstCommentProduct.stock = queueStock;
+  }
   const firstComment = String(post.first_comment || design.first_comment || "").trim() || buildSuggestedFirstComment(firstCommentProduct);
 
   return {

@@ -22,7 +22,7 @@ const unique = (...values) => Array.from(new Set(values.flatMap(list).filter(Boo
 const currency = (value) => {
   const number = Number(value || 0);
   return Number.isFinite(number) && number > 0
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number)
+    ? new Intl.NumberFormat("ar-EG-u-nu-latn", { maximumFractionDigits: 0 }).format(number)
     : "";
 };
 const discount = (originalPrice, currentPrice) => {
@@ -52,6 +52,17 @@ const fullUrl = (value) => {
   return /^https?:\/\//i.test(clean) ? clean : publicStorefrontUrl(clean.startsWith("/") ? clean : `/${clean}`);
 };
 
+const STOCK_FIELDS = ["stock_quantity", "available_stock", "stock", "quantity"];
+const declaredStock = (product = {}) => {
+  for (const field of STOCK_FIELDS) {
+    const value = product[field];
+    if (value === null || value === undefined || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+};
+
 export const collectFirstCommentAvailability = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const activeVariants = variants.filter((variant) => {
@@ -65,10 +76,14 @@ export const collectFirstCommentAvailability = (product = {}) => {
     const quantity = Number(variant?.quantity ?? variant?.stock ?? variant?.stock_quantity ?? variant?.available_quantity ?? 0);
     return sum + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
   }, 0);
+  const declared = declaredStock(product);
   return {
-    sizes: sizes.length ? sizes : unique(product.available_sizes, product.sizes),
-    colors: colors.length ? colors : unique(product.available_colors, product.colors, product.color_names).map(localizeColor).filter(Boolean),
-    stock: stockFromVariants || Math.max(0, Number(product.stock_quantity ?? product.available_stock ?? product.stock ?? product.quantity ?? 0)),
+    sizes: sizes.length ? sizes : unique(product.available_sizes, product.sizes, product.size_name, product.size),
+    colors: colors.length ? colors : unique(product.available_colors, product.colors, product.color_names, product.color_name, product.color).map(localizeColor).filter(Boolean),
+    stock: stockFromVariants || Math.max(0, declared || 0),
+    // No variants and no stock field means the payload says nothing about availability,
+    // which is not the same thing as being sold out.
+    stock_known: variants.length > 0 || declared !== null,
   };
 };
 
@@ -96,7 +111,10 @@ export const buildSuggestedFirstComment = (product = {}, options = {}) => {
   if (availability.sizes.length) lines.push("", `📏 المقاسات: ${availability.sizes.join(" • ")}`);
   if (sku) lines.push("", `🏷️ كود المنتج: ${sku}`);
   if (availability.colors.length) lines.push("", `🎨 ${availability.colors.length === 1 ? "اللون" : "الألوان"}: ${availability.colors.join(" • ")}`);
-  lines.push("", availability.stock > 0 ? (availability.stock < 5 ? "⚠️ الحالة: الكمية محدودة." : "✅ الحالة: متوفر الآن.") : "❌ الحالة: غير متوفر حالياً.");
+  const availabilityLine = availability.stock > 0
+    ? availability.stock < 5 ? "⚠️ الحالة: الكمية محدودة." : "✅ الحالة: متوفر الآن."
+    : availability.stock_known ? "❌ الحالة: غير متوفر حالياً." : "";
+  if (availabilityLine) lines.push("", availabilityLine);
   if (options.includeShipping !== false) lines.push("", "🚚 الشحن: شحن لجميع المحافظات");
   if (options.includeLocation !== false) lines.push("", "📍 الموقع: دمياط الجديدة، شارع البشبيشي، بجوار الفرنسية جروب");
   lines.push("", "💬 للحجز: للحجز أو الاستفسار ابعتلنا رسالة.");

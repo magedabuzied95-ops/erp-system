@@ -1,4 +1,4 @@
-import { productPath, storefrontPathFromLink } from "../../storefront/lib/paths";
+import { productPath, storefrontPathFromLink } from "../../storefront/lib/paths.js";
 
 const PUBLIC_STOREFRONT_ORIGIN = "https://m1store-egy.com";
 
