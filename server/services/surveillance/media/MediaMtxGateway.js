@@ -20,17 +20,28 @@
 // any local user and any crash dump can read. There is no way to hide argv from
 // the same user on Windows or Linux.
 //
-// So MediaMTX authenticates to the recorder instead — its source URL lives in a
-// config file — and FFmpeg reads the already-authenticated stream back over
-// loopback:
+// So MediaMTX authenticates to the recorder instead, and FFmpeg reads the
+// already-authenticated stream back over loopback:
 //
-//   recorder --(RTSP, credential in config)--> MediaMTX  <vendor>_raw
+//   recorder --(RTSP, credential held in memory)--> MediaMTX  <vendor>_raw
 //            --(RTSP, loopback, no credential)--> FFmpeg  H.265 -> H.264
 //            --(RTSP, loopback, no credential)--> MediaMTX  <path>
 //            --(WHEP)--> browser
 //
 // The extra loopback hop costs single-digit milliseconds and removes the
 // credential from every process command line and every FFmpeg log line.
+//
+// AND THE CREDENTIAL IS NEVER ON DISK EITHER
+// ------------------------------------------
+// The POC put the source URL in `mediamtx.yml`, which solved argv exposure by
+// creating a cleartext password on disk instead. Paths are now pushed through
+// the control API when a viewer asks for a stream. Measured: after adding a
+// path whose password was a canary, the config file's hash was unchanged and
+// the canary appeared nowhere on disk and nowhere in the logs.
+//
+// The trade is that the running config is readable back from that API, so the
+// API is now as sensitive as the credentials in it. mediaHostConfig.js refuses
+// to use one that is not bound to loopback.
 //
 // WHAT THE BROWSER GETS
 // ---------------------
@@ -40,6 +51,8 @@
 import { MediaGateway, buildTicketClaims, signTicket } from "./MediaGateway.js";
 import { SURVEILLANCE_ERROR_CODES, SurveillanceError } from "../surveillanceErrors.js";
 import { surveillanceLog, surveillanceLogError } from "../surveillanceRedaction.js";
+import { decoderInputArgs, encoderOutputArgs } from "./mediaEncoderPolicy.js";
+import { assertApiIsLoopback } from "./mediaHostConfig.js";
 
 /**
  * FFmpeg arguments for one transcode.
@@ -58,23 +71,32 @@ import { surveillanceLog, surveillanceLogError } from "../surveillanceRedaction.
  *
  * Resolution and frame rate are never changed. Upscaling CIF would multiply the
  * encode cost to invent detail that is not in the source.
+ *
+ * The codec flags come from mediaEncoderPolicy rather than being written here,
+ * because which encoder is correct is a property of the HOST, not of this
+ * gateway: measured on the shop laptop, libx264 costs 0.702 CPU cores per
+ * camera and h264_qsv costs 0.049. Hardcoding either one would be wrong on
+ * half the machines this will run on.
  */
-export const buildTranscodeArgs = ({ inputUrl, outputUrl, bitrateKbps = 150, fps = 7 }) => [
+export const buildTranscodeArgs = ({
+  inputUrl,
+  outputUrl,
+  bitrateKbps = 150,
+  fps = 7,
+  encoder = "libx264",
+  sourceCodec = "",
+}) => [
   "-hide_banner",
   "-loglevel", "warning",
   "-rtsp_transport", "tcp",
+  // Hardware decode, when the encoder and the source codec agree on one. Empty
+  // for software decode, which is safe: decode was never the expensive half.
+  ...decoderInputArgs(encoder, { sourceCodec }),
   "-i", inputUrl,
   "-fps_mode", "passthrough",
-  "-c:v", "libx264",
-  "-preset", "veryfast",
-  "-tune", "zerolatency",
-  // ~2 s of keyframe interval, so a joining viewer gets a picture quickly. Any
-  // longer and the first frames are the undecodable mid-GOP NALUs the probe saw.
-  "-g", String(Math.max(2, Math.round(fps * 2))),
-  "-b:v", `${bitrateKbps}k`,
-  "-maxrate", `${Math.round(bitrateKbps * 1.35)}k`,
-  "-bufsize", `${bitrateKbps * 2}k`,
-  "-pix_fmt", "yuv420p",
+  // Rate control is encoder-specific. An x264 argument list handed to QSV
+  // either errors or silently produces the wrong bitrate.
+  ...encoderOutputArgs(encoder, { bitrateKbps, fps }),
   "-an",
   "-f", "rtsp",
   "-rtsp_transport", "tcp",
@@ -90,6 +112,11 @@ export class MediaMtxGateway extends MediaGateway {
     this.baseUrl = String(config.baseUrl || process.env.SURVEILLANCE_MEDIA_URL || "").replace(/\/$/, "");
     this.apiUrl = String(config.apiUrl || process.env.SURVEILLANCE_MEDIA_API_URL || "").replace(/\/$/, "");
     this.rtspUrl = String(config.rtspUrl || process.env.SURVEILLANCE_MEDIA_RTSP_URL || "").replace(/\/$/, "");
+    // MediaMTX runs this string as a command line, so a path with a space in it
+    // must arrive quoted. "C:\Program Files\ffmpeg\ffmpeg.exe" otherwise
+    // becomes the command "C:\Program" with "Files\..." as its first argument.
+    const binary = String(config.ffmpegPath || process.env.SURVEILLANCE_FFMPEG_PATH || "ffmpeg");
+    this.ffmpegBinary = /\s/.test(binary) ? `"${binary}"` : binary;
   }
 
   #assertConfigured() {
@@ -99,6 +126,11 @@ export class MediaMtxGateway extends MediaGateway {
         status: 503,
       });
     }
+    // Every credential this gateway pushes is readable back from the control
+    // API. Checking on each use rather than once at startup is deliberate:
+    // the URL comes from the environment, and a deployment that changes it
+    // later should fail immediately rather than at the next restart.
+    assertApiIsLoopback(this.apiUrl);
   }
 
   /**
@@ -107,7 +139,10 @@ export class MediaMtxGateway extends MediaGateway {
    * `sourceUrl` is CREDENTIALED and is written into the media server's own
    * configuration, never returned and never logged.
    */
-  async ensurePath({ tenantId, deviceId, channelId, userId, stream = "sub", sourceUrl, fps, bitrateKbps, ttlSeconds = 60 }) {
+  async ensurePath({
+    tenantId, deviceId, channelId, userId, stream = "sub", sourceUrl,
+    fps, bitrateKbps, ttlSeconds = 60, encoder = "libx264", sourceCodec = "",
+  }) {
     this.#assertConfigured();
     if (!sourceUrl) {
       throw new SurveillanceError("no source URL supplied for the stream", {
@@ -124,15 +159,19 @@ export class MediaMtxGateway extends MediaGateway {
       source: sourceUrl,
       rtspTransport: "tcp",
       // On-demand: the recorder is only dialled while somebody is watching.
-      // NOTE: the POC had to disable this because a 10 s close tore the source
-      // down under a running FFmpeg. Re-enabling it needs its own lifecycle
-      // test before production — tracked as a known gap.
+      //
+      // The POC had to disable this, because a 10 s close tore the source down
+      // underneath a running FFmpeg. 30 s is now PROVEN rather than guessed —
+      // scripts/surveillance-probe/lifecycleProof covers 13 scenarios against
+      // real OS processes, including the two that matter most: a second viewer
+      // reuses the running transcode instead of starting another, and a
+      // reconnect inside the grace window reuses it rather than restarting.
       sourceOnDemand: true,
       sourceOnDemandCloseAfter: "30s",
     });
 
     await this.#configurePath(pathName, {
-      runOnDemand: this.#ffmpegCommand({ rawPath, pathName, fps, bitrateKbps }),
+      runOnDemand: this.#ffmpegCommand({ rawPath, pathName, fps, bitrateKbps, encoder, sourceCodec }),
       runOnDemandRestart: true,
       // Grace period after the last viewer leaves, so switching layouts does not
       // restart an encoder that is about to be needed again.
@@ -159,10 +198,13 @@ export class MediaMtxGateway extends MediaGateway {
    * Both URLs are loopback and carry no credential — that is the entire point of
    * the two-hop design.
    */
-  #ffmpegCommand({ rawPath, pathName, fps, bitrateKbps }) {
+  #ffmpegCommand({ rawPath, pathName, fps, bitrateKbps, encoder, sourceCodec }) {
     const input = `${this.rtspUrl}/${rawPath}`;
     const output = `${this.rtspUrl}/${pathName}`;
-    return ["ffmpeg", ...buildTranscodeArgs({ inputUrl: input, outputUrl: output, fps, bitrateKbps })].join(" ");
+    return [
+      this.ffmpegBinary,
+      ...buildTranscodeArgs({ inputUrl: input, outputUrl: output, fps, bitrateKbps, encoder, sourceCodec }),
+    ].join(" ");
   }
 
   async #configurePath(name, settings) {

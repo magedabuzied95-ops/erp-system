@@ -9,7 +9,7 @@
 //
 // where `error` is an axios/undici error whose `.config` still holds
 // `auth: { username, password }` and whose `.request` holds the full URL
-// `rtsp://erp_surveillance:Hunter2@192.168.1.108:554/cam/realmonitor`. Node
+// `rtsp://erp_surveillance:Hunter2@192.0.2.10:554/cam/realmonitor`. Node
 // prints nested objects happily, and the credential lands in journald forever.
 //
 // So this module does not trust callers to pick the right fields. It walks the

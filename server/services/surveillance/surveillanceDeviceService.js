@@ -11,8 +11,11 @@
 // arguments transposed.
 
 import crypto from "node:crypto";
+import os from "node:os";
 
 import db from "../../database/db.js";
+import { configuredGatewayKey, getMediaGateway } from "./media/mediaGatewayRegistry.js";
+import { capacityFor, detectEncoderCapability } from "./media/mediaEncoderPolicy.js";
 import { createProvider } from "./providers/providerRegistry.js";
 import { createTransport } from "./transports/transportRegistry.js";
 import { SURVEILLANCE_ERROR_CODES, SurveillanceError } from "./surveillanceErrors.js";
@@ -24,6 +27,16 @@ import { assertMockTransportAllowed } from "./transports/MockSurveillanceTranspo
 import * as devices from "./repositories/surveillanceDeviceRepository.js";
 import * as credentials from "./repositories/surveillanceCredentialRepository.js";
 import * as access from "./repositories/surveillanceAccessRepository.js";
+
+/**
+ * Cores available to this process.
+ *
+ * `availableParallelism` respects cgroup/affinity limits, which `cpus().length`
+ * does not — it reports the host's cores even inside a container pinned to one.
+ * Overstating the budget is exactly the mistake that oversubscribes the media
+ * plane, so prefer it and fall back only on older runtimes.
+ */
+const hostCoreCount = () => os.availableParallelism?.() ?? os.cpus().length;
 
 /**
  * Build a provider for one device.
@@ -310,11 +323,132 @@ export const resolveStreamPlan = async (tenantId, channelId, { purpose, tileCoun
       browser_native: profile.browser_native,
     },
     selection_reason: reason,
-    // No gateway is deployed, so nothing is playable yet. Saying so explicitly
-    // lets the UI render a real tile with a real "not available" state rather
-    // than a spinner that never resolves.
-    playable: false,
-    unavailable_reason: "media-gateway-not-configured",
+    // The DECISION only — whether a browser can play it depends on a media
+    // gateway existing, which openLiveStream answers. Keeping the two apart is
+    // what lets the grid price a 16-tile layout without starting 16 encoders
+    // to find out what it costs.
+    playable: Boolean(configuredGatewayKey()),
+    unavailable_reason: configuredGatewayKey() ? null : "media-gateway-not-configured",
+  };
+};
+
+/**
+ * Open a live stream and return something a browser can actually play.
+ *
+ * THE FLOW THIS COMPLETES
+ * -----------------------
+ *   browser -> ERP auth -> tenant scope -> branch scope -> surveillance.live
+ *           -> ticket -> gateway -> MediaMTX -> FFmpeg -> transport -> recorder
+ *
+ * The browser never learns the recorder's address and never holds a credential.
+ * `buildStreamSource` returns a URL with the password in its userinfo segment:
+ * that value is created here, handed to the gateway here, and never returned
+ * from this function, never logged, and never persisted.
+ *
+ * CAPACITY IS CHECKED BEFORE THE STREAM STARTS
+ * --------------------------------------------
+ * Measured on the reference host: 0.049 cores per camera on hardware against
+ * 0.702 in software, and a hardware encode block that saturates at ~19x
+ * realtime. Past that ceiling nothing fails cleanly — every tile degrades at
+ * once, and so does the point-of-sale sharing the machine. Refusing the
+ * seventeenth stream is the kinder outcome.
+ */
+export const openLiveStream = async (
+  tenantId,
+  channelId,
+  { userId, purpose = STREAM_PURPOSES.LIVE, tileCount, budgetKbps } = {},
+  client = db,
+) => {
+  const plan = await resolveStreamPlan(tenantId, channelId, { purpose, tileCount, budgetKbps }, client);
+  if (!configuredGatewayKey()) return plan;
+
+  const channel = await devices.getChannelById(tenantId, channelId, client);
+  const device = await devices.getDeviceById(tenantId, channel.device_id, client);
+
+  const capability = await detectEncoderCapability();
+  const capacity = capacityFor(capability.encoder, { cores: hostCoreCount() });
+
+  const gateway = getMediaGateway();
+  const stats = await gateway.getStats().catch(() => ({ paths: 0 }));
+  // Each stream occupies two paths: the credentialed source and the transcode.
+  const running = Math.ceil((stats.paths || 0) / 2);
+  if (running >= capacity.max_concurrent_transcodes) {
+    throw new SurveillanceError("this host cannot carry another simultaneous stream", {
+      code: SURVEILLANCE_ERROR_CODES.MEDIA_GATEWAY_UNAVAILABLE,
+      status: 503,
+      details: {
+        running,
+        capacity: capacity.max_concurrent_transcodes,
+        limited_by: capacity.limited_by,
+      },
+    });
+  }
+
+  const provider = await openDevice(tenantId, device, client);
+  // CREDENTIALED from here until ensurePath consumes it. Nothing in between
+  // may log, serialise, or return any part of it.
+  const source = provider.buildStreamSource(channel.channel_index, { profileKey: plan.profile_key });
+
+  const opened = await gateway.ensurePath({
+    tenantId,
+    deviceId: device.id,
+    channelId: channel.id,
+    userId,
+    stream: plan.profile_key,
+    sourceUrl: source.url,
+    fps: plan.profile.fps,
+    bitrateKbps: plan.profile.bitrate_kbps,
+    encoder: capability.encoder,
+    sourceCodec: plan.profile.codec,
+  });
+
+  return {
+    ...plan,
+    playable: true,
+    unavailable_reason: null,
+    path_name: opened.pathName,
+    whep_url: opened.whepUrl,
+    ticket: opened.ticket,
+    expires_in: opened.expiresIn,
+    encoder: capability.encoder,
+    hardware_accelerated: capability.hardware,
+    host_capacity: capacity.max_concurrent_transcodes,
+  };
+};
+
+/**
+ * Release a stream.
+ *
+ * Requirement #32: nothing outlives its last viewer. MediaMTX's own on-demand
+ * timers are the primary mechanism; this is the explicit path for "the operator
+ * closed the tile", so a 30 s idle timer is not the only thing standing between
+ * a closed tab and a recorder session left open.
+ */
+export const closeLiveStream = async (tenantId, channelId, { stream } = {}, client = db) => {
+  if (!configuredGatewayKey()) return { released: false };
+  const channel = await devices.getChannelById(tenantId, channelId, client);
+  const gateway = getMediaGateway();
+  await gateway.releasePath(
+    gateway.pathNameFor({
+      tenantId,
+      deviceId: channel.device_id,
+      channelId: channel.id,
+      stream: stream || "0",
+    }),
+  );
+  return { released: true };
+};
+
+/** What the media plane can carry, so the UI can refuse an oversized layout. */
+export const mediaCapacity = async () => {
+  if (!configuredGatewayKey()) {
+    return { configured: false, max_concurrent_transcodes: 0, encoder: null, hardware_accelerated: false };
+  }
+  const capability = await detectEncoderCapability();
+  return {
+    ...capacityFor(capability.encoder, { cores: hostCoreCount() }),
+    hardware_accelerated: capability.hardware,
+    configured: true,
   };
 };
 
@@ -375,3 +509,30 @@ export const dangerousActionToken = (tenantId, deviceId, action) =>
     .update(`${tenantId}:${deviceId}:${action}`)
     .digest("hex")
     .slice(0, 12);
+
+/* ------------------------------------------------------------------ *
+ * Snapshot
+ * ------------------------------------------------------------------ */
+
+/**
+ * A single still frame from a channel, right now.
+ *
+ * NOT PERSISTED. The bytes are returned to the caller and forgotten. A
+ * surveillance system that quietly writes a copy of every frame an operator
+ * glances at builds a second, unaudited image store next to the recorder's own
+ * — one with no retention policy, no overwrite behaviour, and no place in the
+ * customer's data map. Saving is a separate, explicit act (see
+ * `saveSnapshotMetadata`) that records WHO saved WHAT and WHEN.
+ *
+ * The capability is checked first, so a device that cannot produce a snapshot
+ * hides the control rather than failing at the click.
+ */
+export const getSnapshot = (tenantId, deviceId, channelIndex, client = db) =>
+  guarded(
+    tenantId,
+    deviceId,
+    "snapshot",
+    (provider) => provider.getSnapshot(channelIndex),
+    {},
+    client,
+  );

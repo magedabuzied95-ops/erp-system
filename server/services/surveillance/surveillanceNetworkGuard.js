@@ -662,3 +662,25 @@ export const isDestinationAllowed = async (host, port, options = {}) => {
     return { allowed: false, reason: error?.reason || error?.code || "blocked" };
   }
 };
+
+/**
+ * Is this address the machine itself?
+ *
+ * Used by the media-auth route to decide whether a PUBLISH may proceed. The
+ * only publisher is our own FFmpeg, reached over loopback with no ticket to
+ * present; anything publishing from elsewhere is injecting video into a
+ * surveillance path and must be refused.
+ *
+ * Reuses parseIpLiteral deliberately, because the interesting inputs are the
+ * ones that only LOOK non-local: `::1`, `::ffff:127.0.0.1`, `0177.0.0.1` and
+ * `2130706433` are all loopback, and a naive `=== "127.0.0.1"` accepts none of
+ * them — which would be the safe direction here, while a naive `startsWith`
+ * would accept `127.0.0.1.evil.com` and would not be.
+ */
+export const isLoopbackAddress = (value = "") => {
+  const parsed = parseIpLiteral(String(value || "").trim());
+  if (!parsed) return false;
+  // ::ffff:127.0.0.1 is how a dual-stack listener reports an IPv4 client, and
+  // it parses as IPv6 -- so the v4 range alone would reject our own FFmpeg.
+  return ["127.0.0.0/8", "::1/128", "::ffff:127.0.0.0/104"].some((cidr) => cidrContains(cidr, parsed));
+};

@@ -14,7 +14,9 @@
 
 import { registerProvider } from "./providers/providerRegistry.js";
 import { registerTransport } from "./transports/transportRegistry.js";
+import { registerMediaGateway } from "./media/mediaGatewayRegistry.js";
 import { DahuaAdapter } from "./providers/dahua/DahuaAdapter.js";
+import { MediaMtxGateway } from "./media/MediaMtxGateway.js";
 import { MockSurveillanceTransport, mockTransportAllowed } from "./transports/MockSurveillanceTransport.js";
 
 let registered = false;
@@ -32,6 +34,12 @@ export const registerSurveillanceRuntime = () => {
     registerTransport(MockSurveillanceTransport);
   }
 
+  // Media plane. Registering the gateway does NOT start anything: it is inert
+  // until SURVEILLANCE_MEDIA_GATEWAY names it AND the media URLs are set, and
+  // getMediaGateway() throws MEDIA_GATEWAY_UNAVAILABLE until then. The class
+  // holds no connection and no credential of its own.
+  registerMediaGateway(MediaMtxGateway);
+
   // Phase 2B-2, once a network path exists and has been approved:
   //
   //   const { DirectTransport, TunnelTransport } = await import("./transports/DirectTransport.js");
@@ -46,4 +54,5 @@ export const registerSurveillanceRuntime = () => {
 export const surveillanceRuntimeStatus = () => ({
   mock_enabled: mockTransportAllowed(),
   real_transports_enabled: false,
+  media_gateway: String(process.env.SURVEILLANCE_MEDIA_GATEWAY || "") || null,
 });

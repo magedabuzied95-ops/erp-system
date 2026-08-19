@@ -155,6 +155,28 @@ export const verifyTicket = (ticket, expected = {}) => {
   return claims;
 };
 
+/**
+ * The opaque path name for one channel+stream.
+ *
+ * Module-level rather than only a method, because the media-auth route has to
+ * derive the SAME name from a ticket's claims in order to check that the
+ * ticket matches the path being asked for. Two implementations of this would
+ * eventually disagree, and the failure mode of that disagreement is a ticket
+ * for one camera quietly opening another.
+ */
+export const mediaPathName = ({ tenantId, deviceId, channelId, stream }) => {
+  const digest = crypto
+    .createHmac("sha256", ticketKey())
+    .update(`path:${tenantId}:${deviceId}:${channelId}:${stream}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `s${digest}`;
+};
+
+/** The one path a given ticket authorises. */
+export const mediaPathForClaims = (claims = {}) =>
+  mediaPathName({ tenantId: claims.t, deviceId: claims.d, channelId: claims.c, stream: claims.s });
+
 export class MediaGateway {
   static gatewayKey = "";
   static displayName = "";
@@ -180,12 +202,7 @@ export class MediaGateway {
    * path instead of starting a second copy of it.
    */
   pathNameFor({ tenantId, deviceId, channelId, stream }) {
-    const digest = crypto
-      .createHmac("sha256", ticketKey())
-      .update(`path:${tenantId}:${deviceId}:${channelId}:${stream}`)
-      .digest("hex")
-      .slice(0, 24);
-    return `s${digest}`;
+    return mediaPathName({ tenantId, deviceId, channelId, stream });
   }
 
   /**
