@@ -1344,7 +1344,7 @@ const buildAiMarketingRecommendations = async (tenantId) => {
 };
 
 const getCatalogCoverageOverview = async (tenantId, catalog = null) => {
-  const products = eligibleCatalogProducts(catalog || (await loadProducts(tenantId)));
+  const products = eligibleCatalogProducts(catalog || (await loadOverviewCatalog(tenantId)));
   const cycle = await getActiveCatalogCycle(tenantId);
   const coverage = await db.query(
     `SELECT c.product_id, c.lane, c.generated_at, c.published_at,
@@ -1384,9 +1384,10 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
   if (!calendar.length) {
     return { mode_active: settings.story_selection_mode === "theme_calendar", blocks: [], week: [] };
   }
-  const eligible = eligibleCatalogProducts(catalog || (await loadProducts(tenantId)));
-  const blocks = [];
-  for (const block of calendar) {
+  const eligible = eligibleCatalogProducts(catalog || (await loadOverviewCatalog(tenantId)));
+  // Each block reads its own cycle and coverage rows; they are independent, so they run
+  // together instead of one block at a time.
+  const blocks = await Promise.all(calendar.map(async (block) => {
     const pool = eligible.filter((product) => productMatchesThemeBlock(product, block) && themeAudienceMatches(product, block));
     const cycle = await getActiveThemeCycle(tenantId, block.key);
     const coverage = await db.query(
@@ -1397,7 +1398,7 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
     const rows = coverage.rows.filter((row) => poolIds.has(String(row.product_id)));
     const coveredIds = new Set(rows.map((row) => String(row.product_id)));
     const remaining = pool.filter((product) => !coveredIds.has(String(product.id)));
-    blocks.push({
+    return ({
       key: block.key,
       label_ar: block.label_ar,
       days: block.days,
@@ -1420,7 +1421,7 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
         : null,
       next_product: remaining[0] ? { id: remaining[0].id, name: remaining[0].name } : null,
     });
-  }
+  }));
   const byKey = new Map(blocks.map((block) => [block.key, block]));
   const week = THEME_DAY_LABELS_AR.map((label, day) => {
     const dayBlocks = calendar.filter((block) => block.active !== false && block.days.includes(day) && block.stories_per_day > 0);
@@ -1443,9 +1444,10 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
 export const getAiMarketingOverview = async (tenantId) => {
   await ensureAiMarketingCenterSchema();
   scheduleAiMarketingReadMaintenance(tenantId);
-  const settings = await getAiMarketingSettings(tenantId);
-  const result = await db.query(
-    `
+  const [settings, result, postingInsights, operatingInsights, catalog] = await Promise.all([
+    getAiMarketingSettings(tenantId),
+    db.query(
+      `
     SELECT
       COUNT(*) FILTER (WHERE content_type = 'story' AND status <> 'archived' AND created_at::date = CURRENT_DATE)::int AS stories_generated_today,
       COUNT(*) FILTER (WHERE content_type = 'post' AND status <> 'archived' AND created_at::date = CURRENT_DATE)::int AS posts_generated_today,
@@ -1456,14 +1458,17 @@ export const getAiMarketingOverview = async (tenantId) => {
     FROM ai_marketing_content_queue
     WHERE tenant_id = $1 AND status <> 'archived'
     `,
-    [tenantId]
-  );
+      [tenantId]
+    ),
+    getCachedAiMarketingPostingInsights(tenantId),
+    buildAiMarketingRecommendations(tenantId),
+    loadOverviewCatalog(tenantId),
+  ]);
   const row = result.rows[0] || {};
-  const postingInsights = await getCachedAiMarketingPostingInsights(tenantId);
-  const operatingInsights = await buildAiMarketingRecommendations(tenantId);
-  const catalog = await loadProducts(tenantId);
-  const catalogCoverage = await getCatalogCoverageOverview(tenantId, catalog);
-  const themeCalendar = await getThemeCalendarOverview(tenantId, settings, catalog);
+  const [catalogCoverage, themeCalendar] = await Promise.all([
+    getCatalogCoverageOverview(tenantId, catalog),
+    getThemeCalendarOverview(tenantId, settings, catalog),
+  ]);
   return {
     ai_status: settings.active ? "Active" : "Paused",
     stories_generated_today: Number(row.stories_generated_today || 0),
@@ -3640,7 +3645,31 @@ const segmentMatches = (product = {}, quota = {}) => {
   return [product.grade, product.style, product.product_type, product.category_name, product.category, product.brand].some((value) => cleanText(value).toLowerCase().includes(target));
 };
 
-const loadProducts = async (tenantId) => {
+const OVERVIEW_CATALOG_TTL_MS = 60_000;
+const overviewCatalogCache = new Map();
+
+// Dashboard reads never look at prices, so they skip the per-variant purchase-price
+// LATERAL — the single most expensive part of this query — and reuse the result for a
+// minute. Generation still calls loadProducts() directly and always reads live prices.
+const loadOverviewCatalog = async (tenantId) => {
+  const key = String(tenantId || "default");
+  const cached = overviewCatalogCache.get(key);
+  if (cached?.pending) return cached.pending;
+  if (cached && Date.now() - cached.storedAt < OVERVIEW_CATALOG_TTL_MS) return cached.value;
+  const pending = loadProducts(tenantId, { lean: true })
+    .then((value) => {
+      overviewCatalogCache.set(key, { value, storedAt: Date.now(), pending: null });
+      return value;
+    })
+    .catch((error) => {
+      overviewCatalogCache.delete(key);
+      throw error;
+    });
+  overviewCatalogCache.set(key, { value: cached?.value || [], storedAt: 0, pending });
+  return pending;
+};
+
+const loadProducts = async (tenantId, { lean = false } = {}) => {
   const [result, saleModeSettings] = await Promise.all([
     db.query(
     `
@@ -3675,13 +3704,13 @@ const loadProducts = async (tenantId) => {
       pv.size,
       pv.article_code,
       pv.price AS variant_price,
-      COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price) AS variant_selling_price,
+      ${lean ? "pv.selling_price" : "COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price)"} AS variant_selling_price,
       pv.regular_price AS variant_regular_price,
-      COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price) AS variant_sale_price,
-      CASE
+      ${lean ? "pv.sale_price" : "COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price)"} AS variant_sale_price,
+      ${lean ? "pv.sale_price_enabled" : `CASE
         WHEN last_color_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
         ELSE pv.sale_price_enabled
-      END AS variant_sale_price_enabled,
+      END`} AS variant_sale_price_enabled,
       pv.sale_start_at AS variant_sale_start_at,
       pv.sale_end_at AS variant_sale_end_at,
       pv.sale_reason AS variant_sale_reason,
@@ -3713,7 +3742,7 @@ const loadProducts = async (tenantId) => {
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL
-    LEFT JOIN LATERAL (
+    ${lean ? "" : `LEFT JOIN LATERAL (
       SELECT
         COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
         NULLIF(pi.sale_price, 0) AS purchase_sale_price
@@ -3736,7 +3765,7 @@ const loadProducts = async (tenantId) => {
         )
       ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
       LIMIT 1
-    ) last_color_purchase_price ON TRUE
+    ) last_color_purchase_price ON TRUE`}
     WHERE p.tenant_id = $1
       AND COALESCE(p.status, 'active') = 'active'
       AND COALESCE(pv.stock, 0) > 0

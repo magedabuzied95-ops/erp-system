@@ -106,6 +106,33 @@ const logQueueAuditDebug = (label, payload) => {
   console.debug(label, payload);
 };
 
+// Render-path audit: one entry per card per render, so it never ships to production.
+// The action-path audit above still runs live — that one fires once per click.
+const logQueueRenderDebug = (label, buildPayload) => {
+  if (!isDev()) return;
+  logQueueAuditDebug(label, typeof buildPayload === "function" ? buildPayload() : buildPayload);
+};
+
+// Rows only need repainting when the server actually changed something. Without this
+// every poll tick replaced the array and re-rendered every card in both queues.
+const queueFingerprint = (rows = []) =>
+  rows
+    .map((row) =>
+      [
+        row.id,
+        row.status,
+        row.publish_status,
+        row.post_status,
+        row.state,
+        row.updated_at,
+        row.scheduled_at,
+        row.rendered_image_url,
+        row.story_image_url,
+        row.final_asset_url,
+      ].join(":")
+    )
+    .join("|");
+
 const formatApiError = (error, fallback) => {
   if (Number(error?.status) === 401) return "Session expired or unauthorized";
   if (Number(error?.status) === 403) return error?.message || "You do not have permission to use this AI Marketing Center action";
@@ -394,6 +421,8 @@ function AiMarketingCenter() {
   const [historyTarget, setHistoryTarget] = useState(null);
   const [historyRows, setHistoryRows] = useState([]);
   const loadInFlightRef = useRef(null);
+  const queueRefreshRef = useRef(null);
+  const queueFingerprintRef = useRef("");
   const storyAssetRequestsRef = useRef(new Map());
   const queueRef = useRef(queue);
   queueRef.current = queue;
@@ -420,20 +449,74 @@ function AiMarketingCenter() {
   });
   const stories = useMemo(() => filterQueueItems(storiesAll, storyStatusFilter), [storiesAll, storyStatusFilter]);
   const posts = useMemo(() => filterQueueItems(postsAll, postStatusFilter), [postsAll, postStatusFilter]);
+  const needsArchived = storyStatusFilter === "archived" || postStatusFilter === "archived";
+  const queueParamsRef = useRef({});
+  queueParamsRef.current = needsArchived ? { include_archived: true } : {};
   const activeGenerationCount = useMemo(
     () => queue.filter((item) => ["queued", "generating_copy", "generating_image", "uploading"].includes(getQueueStatusInfo(item).normalizedStatus)).length,
     [queue]
   );
+
+  const applyQueue = (rows, { logQueueCount = false } = {}) => {
+    const nextQueue = Array.isArray(rows) ? rows : [];
+    const nextFingerprint = queueFingerprint(nextQueue);
+    if (nextFingerprint !== queueFingerprintRef.current) {
+      queueFingerprintRef.current = nextFingerprint;
+      setQueue((current) => {
+        logQueueRenderDebug("[queue-status]", () => {
+          const previousIds = current.map((item) => item.id);
+          const nextIds = new Set(nextQueue.map((item) => String(item.id)));
+          return {
+            source: "api-load",
+            queueType: "all",
+            count: nextQueue.length,
+            previousIds,
+            nextIds: [...nextIds],
+            staleRemainingIds: previousIds.filter((id) => !nextIds.has(String(id))),
+            items: nextQueue.map((item) => getQueueStatusInfo(item, { source: "api-load", queueType: item.content_type || item.strategy_type || "queue" })),
+          };
+        });
+        return nextQueue;
+      });
+    }
+    if (logQueueCount) logQueueDeleteDebug({ queueReloadResultCount: nextQueue.length });
+    return nextQueue;
+  };
+
+  // Only the queue is worth re-reading on a timer: /overview walks the whole catalogue
+  // server-side, and settings cannot change underneath an open page.
+  const refreshQueue = async ({ logQueueCount = false } = {}) => {
+    if (queueRefreshRef.current) return queueRefreshRef.current;
+    const request = (async () => {
+      try {
+        return applyQueue(await getAutonomousAiMarketingQueue(queueParamsRef.current), { logQueueCount });
+      } catch {
+        return queueRef.current;
+      } finally {
+        queueRefreshRef.current = null;
+      }
+    })();
+    queueRefreshRef.current = request;
+    return request;
+  };
 
   const load = async ({ logQueueCount = false, silent = false } = {}) => {
     if (loadInFlightRef.current) return loadInFlightRef.current;
     const request = (async () => {
       try {
         if (!silent) setLoading(true);
-        const [settingsResult, overviewResult, queueResult] = await Promise.allSettled([
+        // The overview is by far the slowest of the three, so it is applied when it lands
+        // instead of holding the queue and the settings panel behind it.
+        const overviewSettled = getAutonomousAiMarketingOverview().then(
+          (value) => {
+            setOverview(unwrapOverview(value));
+            return true;
+          },
+          () => false
+        );
+        const [settingsResult, queueResult] = await Promise.allSettled([
           getAutonomousAiMarketingSettings(),
-          getAutonomousAiMarketingOverview(),
-          getAutonomousAiMarketingQueue({ include_archived: true }),
+          getAutonomousAiMarketingQueue(queueParamsRef.current),
         ]);
         if (settingsResult.status === "fulfilled") {
           const nextSettings = unwrapSettings(settingsResult.value);
@@ -447,31 +530,17 @@ function AiMarketingCenter() {
             },
           });
         }
-        if (overviewResult.status === "fulfilled") setOverview(unwrapOverview(overviewResult.value));
 
         let nextQueue = queueRef.current;
-        if (queueResult.status === "fulfilled") {
-          nextQueue = Array.isArray(queueResult.value) ? queueResult.value : [];
-          setQueue((current) => {
-            const previousIds = current.map((item) => item.id);
-            const nextIds = nextQueue.map((item) => item.id);
-            logQueueAuditDebug("[queue-status]", {
-              source: "api-load",
-              queueType: "all",
-              count: nextQueue.length,
-              previousIds,
-              nextIds,
-              staleRemainingIds: previousIds.filter((id) => !nextIds.some((nextId) => String(nextId) === String(id))),
-              items: nextQueue.map((item) => getQueueStatusInfo(item, { source: "api-load", queueType: item.content_type || item.strategy_type || "queue" })),
-            });
-            return nextQueue;
-          });
-          if (logQueueCount) logQueueDeleteDebug({ queueReloadResultCount: nextQueue.length });
-        }
+        if (queueResult.status === "fulfilled") nextQueue = applyQueue(queueResult.value, { logQueueCount });
 
-        const failures = [settingsResult, overviewResult, queueResult].filter((result) => result.status === "rejected");
+        const failures = [settingsResult, queueResult].filter((result) => result.status === "rejected");
         if (failures.length && !silent) {
-          toast.error(formatApiError(failures[0].reason, failures.length === 3 ? "تعذر تحميل مركز التسويق بالذكاء الاصطناعي" : "تم تحميل الصفحة جزئيًا، حاول التحديث مرة أخرى"));
+          toast.error(formatApiError(failures[0].reason, failures.length === 2 ? "تعذر تحميل مركز التسويق بالذكاء الاصطناعي" : "تم تحميل الصفحة جزئيًا، حاول التحديث مرة أخرى"));
+        } else if (!silent) {
+          overviewSettled.then((ok) => {
+            if (!ok) toast.error("تم تحميل الصفحة جزئيًا، حاول التحديث مرة أخرى");
+          });
         }
         return nextQueue;
       } catch (error) {
@@ -494,13 +563,21 @@ function AiMarketingCenter() {
   }, []);
 
   useEffect(() => {
-    const hasActiveGeneration = queue.some((item) => ["queued", "generating_copy", "generating_image", "uploading"].includes(getQueueStatusInfo(item).normalizedStatus));
-    if (!running && generatingStoryAssetIds.size === 0 && !hasActiveGeneration) return undefined;
+    if (!running && generatingStoryAssetIds.size === 0 && activeGenerationCount === 0) return undefined;
     const timer = setInterval(() => {
-      load({ silent: true });
-    }, 2500);
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      refreshQueue();
+    }, 4000);
     return () => clearInterval(timer);
-  }, [queue, running, generatingStoryAssetIds]);
+  }, [activeGenerationCount, running, generatingStoryAssetIds]);
+
+  const archivedModeRef = useRef(needsArchived);
+  useEffect(() => {
+    if (archivedModeRef.current === needsArchived) return undefined;
+    archivedModeRef.current = needsArchived;
+    refreshQueue();
+    return undefined;
+  }, [needsArchived]);
 
   const patchSettings = (patch) => setSettings((current) => ({ ...current, ...patch }));
 
@@ -564,7 +641,7 @@ function AiMarketingCenter() {
   };
 
   const updateQueueItem = async (target, action) => {
-    let targetItem = typeof target === "object" && target !== null ? target : queue.find((item) => String(item.id) === String(target));
+    let targetItem = typeof target === "object" && target !== null ? target : queueRef.current.find((item) => String(item.id) === String(target));
     const id = targetItem?.id || target;
     const statusInfo = getQueueStatusInfo(targetItem || { id }, { source: "action", queueType: targetItem?.content_type || targetItem?.strategy_type || "queue" });
     logQueueAuditDebug("[queue-action]", {
@@ -676,7 +753,7 @@ function AiMarketingCenter() {
         if (!hasValidStoryAssetSnapshot(updatedItem)) {
           for (let attempt = 0; attempt < 48; attempt += 1) {
             await wait(2500);
-            const rows = await load({ silent: true });
+            const rows = await refreshQueue();
             const latest = rows.find((row) => String(row.id) === key);
             if (!latest) throw new Error("لم يعد عنصر القصة موجودًا في قائمة الانتظار.");
             if (String(latest.metadata?.story_asset_error || "").trim() || getQueueStatusInfo(latest).normalizedStatus === "failed") {
@@ -1246,15 +1323,15 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
   const performanceScore = Number(item.performance_score || item.metadata?.performance_score || 0);
   const performanceLabel = item.performance_label || item.metadata?.performance_label || (performanceScore >= 70 ? "High Performer" : performanceScore >= 40 ? "Average" : performanceScore > 0 ? "Low Performer" : "No Data");
   useEffect(() => {
-    logQueueAuditDebug("[queue-card]", {
+    logQueueRenderDebug("[queue-card]", () => ({
       ...statusInfo,
       badgeStatus: displayStatus,
       approveVisible: showApprove,
       publishVisible: showPublish,
       approveEndpointId: item.id,
       publishEndpointId: item.id,
-    });
-    logQueueAuditDebug("[queue-status]", statusInfo);
+    }));
+    logQueueRenderDebug("[queue-status]", statusInfo);
   }, [displayStatus, item.id, item.publish_status, item.status, item.post_status, item.state, normalizedStatus, queueType, showApprove, showPublish, statusInfo]);
   return (
     <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[auto_72px_minmax(0,1fr)_auto] md:items-center">
@@ -1321,7 +1398,7 @@ function Thumb({ item }) {
   const imageUrl = resolveProductImageUrl(rawImageUrl);
   return (
     <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-950 ${isPost ? "aspect-square w-16" : "aspect-[9/16] w-16"}`}>
-      {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" /> : null}
+      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : null}
     </div>
   );
 }
