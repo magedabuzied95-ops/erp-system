@@ -221,7 +221,7 @@ const sectionMap = {
     ["Free Shipping Rules", ["storefront.shipping_zones"]],
     ["COD Rules", ["storefront.shipping_zones"]],
     ["Shipping Proof Rules", ["storefront.shipping_zones"]],
-    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.mylerz_api_key", "orders.shipblu_api_key"]],
+    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package", "orders.mylerz_api_key", "orders.shipblu_api_key"]],
   ],
   payments: [
     ["Cash on Delivery", ["orders.allow_cod"]],
@@ -1656,6 +1656,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
             {renderField(setting("orders.bosta_enabled"), true)}
             {renderField(setting("orders.bosta_api_base_url"), true)}
             {renderField(setting("orders.bosta_api_key"), true)}
+            {renderField(setting("orders.bosta_allow_open_package"), true)}
             {renderField(setting("orders.mylerz_api_key"), true)}
             {renderField(setting("orders.shipblu_api_key"), true)}
           </div>

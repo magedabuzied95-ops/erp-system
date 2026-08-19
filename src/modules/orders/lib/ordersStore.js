@@ -202,6 +202,9 @@ export const normalizeOrder = (order, details = {}) => {
     order_notes: order.order_notes || "",
     delivery_fee: Number(order.delivery_fee ?? order.shipping_fee ?? 0),
     cod_amount: Number(order.cod_amount || 0),
+    // Tri-state: null follows the shop default, so it must survive normalization
+    // instead of collapsing into false.
+    allow_open_package: order.allow_open_package === undefined ? null : order.allow_open_package,
     branch: meta.branch || order.branch || tt("orders.breadcrumb.home"),
     notes: meta.notes || order.notes || "",
     shipping_provider: meta.shipping_provider || order.shipping_provider || "",

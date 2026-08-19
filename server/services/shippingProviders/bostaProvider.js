@@ -9,7 +9,10 @@ const bostaProvider = {
   key: "bosta",
   name: "Bosta",
   isConfigured: hasCredentials,
-  syncLocations: syncBostaLocations,
+  // Called, not referenced: this module and shipping.service import each other, so
+  // reading the binding while the object literal is built throws a TDZ error for
+  // whoever loads shipping.service first. Deferring it to call time breaks the cycle.
+  syncLocations: (...args) => syncBostaLocations(...args),
   async createShipment() {
     // TODO: Add Bosta shipment API request mapping, credentials validation, and webhook handlers.
     if (!hasCredentials()) {

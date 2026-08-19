@@ -684,6 +684,8 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS courier_notes TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS allow_open_package BOOLEAN NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
@@ -4684,6 +4686,18 @@ const BLOCKED_OPERATION_STATUSES = new Set(["cancelled", "returned"]);
 
 const normalizeOrderStatus = (value = "") => normalizeOrderLifecycleStatus(value, "pending");
 const normalizeShipmentStatus = (value = "") => normalizeShippingLifecycleStatus(value, "pending");
+
+// Three states, not two: NULL means this order has no opinion and follows the shop
+// default, which is why an empty choice must not collapse into `false`.
+const normalizeOpenPackageChoice = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "boolean") return value;
+  const key = String(value).trim().toLowerCase();
+  if (["inherit", "default", "account", "null"].includes(key)) return null;
+  if (["1", "true", "yes", "on", "allow", "allowed"].includes(key)) return true;
+  if (["0", "false", "no", "off", "deny", "denied"].includes(key)) return false;
+  return null;
+};
 const isDeliveredOrder = (order = {}) => {
   const status = normalizeOrderStatus(order.status || order.payment_status);
   const shippingStatus = normalizeShipmentStatus(order.shipment_status || order.shipping_status);
@@ -5921,6 +5935,13 @@ export const editOrder = async (req, res) => {
         building_number: Object.prototype.hasOwnProperty.call(req.body, "building_number") ? String(req.body.building_number || "").trim() : loaded.order.building_number,
         floor_number: Object.prototype.hasOwnProperty.call(req.body, "floor_number") ? String(req.body.floor_number || "").trim() : loaded.order.floor_number,
         apartment_number: Object.prototype.hasOwnProperty.call(req.body, "apartment_number") ? String(req.body.apartment_number || "").trim() : loaded.order.apartment_number,
+        // The shipping panel has always had a COD box; it was never in this patch, so
+        // whatever the seller typed there was dropped and the courier was quoted from
+        // the payment columns alone.
+        cod_amount: Object.prototype.hasOwnProperty.call(req.body, "cod_amount") ? Math.max(0, Number(req.body.cod_amount || 0)) : Number(loaded.order.cod_amount ?? 0),
+        allow_open_package: Object.prototype.hasOwnProperty.call(req.body, "allow_open_package")
+          ? normalizeOpenPackageChoice(req.body.allow_open_package)
+          : (loaded.order.allow_open_package ?? null),
       };
       const orderResult = await client.query(
         `
@@ -5958,9 +5979,11 @@ export const editOrder = async (req, res) => {
             building_number = $29,
             floor_number = $30,
             apartment_number = $31,
+            cod_amount = $32,
+            allow_open_package = $33,
             updated_at = NOW()
-        WHERE id = $32
-          AND ($33::bigint IS NULL OR tenant_id = $33::bigint OR tenant_id IS NULL)
+        WHERE id = $34
+          AND ($35::bigint IS NULL OR tenant_id = $35::bigint OR tenant_id IS NULL)
         RETURNING *
         `,
         [
@@ -5995,6 +6018,8 @@ export const editOrder = async (req, res) => {
           safePatch.building_number,
           safePatch.floor_number,
           safePatch.apartment_number,
+          safePatch.cod_amount,
+          safePatch.allow_open_package,
           loaded.order.id,
           tenantId,
         ]

@@ -120,7 +120,10 @@ export const searchLocations = async (req, res) => {
 
 export const createOrderBostaShipment = async (req, res) => {
   try {
-    const result = await createBostaShipmentForOrder(req.params.id);
+    const result = await createBostaShipmentForOrder(req.params.id, {
+      codAmount: req.body?.cod_amount ?? req.body?.codAmount,
+      allowOpenPackage: req.body?.allow_open_package ?? req.body?.allowOpenPackage,
+    });
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to create Bosta shipment");

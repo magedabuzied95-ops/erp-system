@@ -146,7 +146,7 @@ export const buildBostaAddressLine = (order = {}) => {
   return parts.join(", ");
 };
 
-export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0 }) => {
+export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null }) => {
   const names = text(order.customer_name || order.full_name || "Online Customer").split(/\s+/);
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
@@ -162,6 +162,9 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   return {
     type: 10,
     cod: Math.max(0, Number(codAmount || 0)),
+    // Bosta keeps its own per-account default for this, so the flag is sent only
+    // when the shop has actually decided. Omitting it is not the same as false.
+    ...(typeof allowOpenPackage === "boolean" ? { allowToOpenPackage: allowOpenPackage } : {}),
     specs: {
       packageType: "Parcel",
       size: "MEDIUM",

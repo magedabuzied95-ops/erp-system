@@ -61,6 +61,10 @@ const PROVIDER_LABELS = {
 };
 
 const fmtMoney = (value) => `${Number(value || 0).toLocaleString()} EGP`;
+// The `cod_amount` column is 0 on every order that did not come from the website,
+// so reading it straight showed "0 EGP" next to shipments the courier does collect
+// on. The backend now sends the figure the create call would actually use.
+const codOf = (order = {}) => (order.collectible_amount === undefined || order.collectible_amount === null ? order.cod_amount : order.collectible_amount);
 const fmtDate = (value) => (value ? new Date(value).toLocaleString() : "-");
 /* Literal keys keep these verifiable by the missing-key guard. */
 const STATUS_LABEL_KEY = {
@@ -128,7 +132,7 @@ function ShipmentDrawer({ order, onClose }) {
               ["Tracking Number", order.tracking_number || "-"],
               ["Delivery ID", order.delivery_id || "-"],
               ["Label URL", order.shipping_label_url || "-"],
-              ["COD Amount", fmtMoney(order.cod_amount)],
+              ["COD Amount", fmtMoney(codOf(order))],
               ["Order Total", fmtMoney(order.order_total)],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
@@ -252,7 +256,7 @@ export default function ShippingCenter() {
       PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id,
       order.tracking_number,
       statusLabel(order.shipment_status),
-      order.cod_amount,
+      codOf(order),
       order.order_total,
       order.created_at,
       order.last_sync,
@@ -344,7 +348,7 @@ export default function ShippingCenter() {
                         <td className="px-3 py-3"><span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-black">{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span></td>
                         <td className="px-3 py-3 font-mono text-xs text-primary">{order.tracking_number || "-"}</td>
                         <td className="px-3 py-3"><StatusBadge status={order.shipment_status} /></td>
-                        <td className="px-3 py-3 font-bold text-amber-100">{fmtMoney(order.cod_amount)}</td>
+                        <td className="px-3 py-3 font-bold text-amber-100">{fmtMoney(codOf(order))}</td>
                         <td className="px-3 py-3 font-bold text-slate-100">{fmtMoney(order.order_total)}</td>
                         <td className="px-3 py-3 text-xs text-slate-400">{fmtDate(order.created_at)}</td>
                         <td className="px-3 py-3 text-xs text-slate-400">{fmtDate(order.last_sync)}</td>
@@ -368,7 +372,7 @@ export default function ShippingCenter() {
                       <button key={order.id} onClick={() => setDrawerOrder(order)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-3 text-start hover:bg-white/[0.08]">
                         <div className="flex items-start justify-between gap-2"><span className="font-black text-white">{order.order_number}</span><ExternalLink className="h-4 w-4 text-slate-500" /></div>
                         <div className="mt-1 text-sm font-bold text-slate-300">{order.customer_name || "-"}</div>
-                        <div className="mt-2 flex items-center justify-between text-xs font-bold text-slate-500"><span>{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span><span>{fmtMoney(order.cod_amount)}</span></div>
+                        <div className="mt-2 flex items-center justify-between text-xs font-bold text-slate-500"><span>{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span><span>{fmtMoney(codOf(order))}</span></div>
                       </button>
                     ))}
                   </div>

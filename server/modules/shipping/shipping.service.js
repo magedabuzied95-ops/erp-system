@@ -15,6 +15,7 @@ let shippingSchemaEnsurePromise = null;
 const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.";
 const BOSTA_NOT_CONFIGURED_MESSAGE = "لم يتم إنشاء أي شحنة على بوسطة: مفتاح الـ API غير مضبوط. أضفه من إعدادات الشحن ثم أعد المحاولة.";
 const BOSTA_DISABLED_MESSAGE = "تكامل بوسطة معطّل في إعدادات الشحن. فعّله أولاً قبل إنشاء الشحنات.";
+const BOSTA_ZERO_COLLECTION_MESSAGE = "الطلب لسه عليه مبلغ متبقّي، لكن طريقة الدفع مسجّلة كمدفوعة مسبقاً — فالشحنة هتروح لبوسطة بتحصيل صفر. صحّح بيانات الدفع أو اكتب مبلغ التحصيل في تبويب التكاليف قبل إنشاء الشحنة.";
 
 // Turning the integration off has to actually stop new deliveries, otherwise the
 // toggle is decoration. Refresh and cancel stay open on purpose: shipments already
@@ -310,6 +311,9 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  // NULL is "follow the shop default", which is why this is not a defaulted boolean.
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS allow_open_package BOOLEAN NULL`);
   await ensureWhatsappShippingSchema(client);
   await client.query(`
     CREATE TABLE IF NOT EXISTS shipping_events (
@@ -457,6 +461,7 @@ const bostaConfig = async () => {
     enabled: Boolean(provider.is_enabled),
     apiKey: provider.api_key || (await getSetting("orders.bosta_api_key", "")) || process.env.BOSTA_API_KEY || "",
     apiBaseUrl: provider.api_base_url || (await getSetting("orders.bosta_api_base_url", "")) || process.env.BOSTA_API_BASE_URL || "https://app.bosta.co/api/v2",
+    allowOpenPackage: await getSetting("orders.bosta_allow_open_package", "inherit"),
   };
 };
 
@@ -613,16 +618,102 @@ const isCodPayment = (value = "") => {
   return key.includes("cash_on_delivery") || key.includes("cashondelivery") || /(^|_)cod(_|$)/.test(key);
 };
 
-export const orderCodAmount = (order = {}) => {
+// Money that has already moved. Only a recorded electronic payment lets a parcel
+// leave with nothing to collect.
+const PREPAID_PAYMENT_KEYS = ["instapay", "vodafone_cash", "paymob", "fawry", "valu", "visa", "mastercard", "credit_card", "debit_card", "card", "bank_transfer", "transfer", "wallet", "online", "electronic"];
+
+const isPrepaidPayment = (value = "") => {
+  const key = normalizeKey(value);
+  if (!key) return false;
+  return PREPAID_PAYMENT_KEYS.some((entry) => key === entry || key.includes(entry));
+};
+
+const isSettledPaymentStatus = (value = "") =>
+  ["paid", "completed", "complete", "settled", "success", "succeeded", "refunded", "fully_refunded"].includes(normalizeKey(value));
+
+// What the customer still owes. `total - paid` is computed from the two columns the
+// money flows through; `remaining_amount` is a denormalized mirror that only some
+// writers keep in sync, so it is the fallback, not the source.
+export const orderOwedAmount = (order = {}) => {
   const total = Number(order.total_amount ?? order.total_price ?? order.total ?? 0);
   const paid = Number(order.paid_amount ?? 0);
+  const stored = order.remaining_amount === null || order.remaining_amount === undefined || order.remaining_amount === ""
+    ? null
+    : Number(order.remaining_amount);
+  const owed = Number.isFinite(total) && Number.isFinite(paid) && total > 0
+    ? total - paid
+    : (stored !== null && Number.isFinite(stored) ? stored : 0);
+  return Math.max(0, Math.round(owed * 100) / 100);
+};
+
+// The courier collects what the customer still owes. The old rule inverted the
+// burden of proof: it collected only when `payment_method` spelled out cash on
+// delivery, so an AI inbox draft (`payment_method: "pending"`), a credit sale, or a
+// blank method all shipped as prepaid and Bosta was handed cod: 0 — the parcel is
+// delivered and nobody pays. Now silence means "still owed"; only a payment we can
+// actually point at zeroes the collection.
+export const orderCodAmount = (order = {}) => {
   const explicit = Number(order.cod_amount || 0);
-  if (isCodPayment(order.payment_method) || isCodPayment(order.payment_status)) {
-    // An explicitly recorded collection amount wins; otherwise the courier collects
-    // whatever the customer still owes.
-    return Math.max(0, explicit > 0 ? explicit : total - paid);
+  if (explicit > 0) return Math.round(explicit * 100) / 100;
+  const owed = orderOwedAmount(order);
+  if (owed <= 0) return 0;
+  if (isCodPayment(order.payment_method) || isCodPayment(order.payment_status)) return owed;
+  // A part payment already on the record — an Instapay deposit, prepaid shipping —
+  // proves this order collects money, so the balance is collected at the door no
+  // matter what the method is called.
+  if (Number(order.paid_amount ?? 0) > 0) return owed;
+  if (isPrepaidPayment(order.payment_method) || isPrepaidPayment(order.payment_type) || isSettledPaymentStatus(order.payment_status)) return 0;
+  return owed;
+};
+
+// A shipment that collects nothing is either a settled order or a mistake, and the
+// two are told apart here rather than at the courier's door. `override` is the
+// operator deciding on the order screen — including an explicit 0, which is how a
+// genuinely prepaid parcel with an unrecorded payment gets out.
+export const resolveBostaCollection = ({ order = {}, override } = {}) => {
+  const owed = orderOwedAmount(order);
+  const overrideProvided = override !== undefined && override !== null && String(override).trim() !== "" && Number.isFinite(Number(override));
+  if (overrideProvided) {
+    return { amount: Math.max(0, Math.round(Number(override) * 100) / 100), owed, source: "operator", blocked: false, reason: "" };
   }
-  return Math.max(0, explicit);
+  const amount = orderCodAmount(order);
+  if (amount > 0) return { amount, owed, source: Number(order.cod_amount || 0) > 0 ? "order_cod_amount" : "amount_owed", blocked: false, reason: "" };
+  if (owed <= 0) return { amount: 0, owed, source: "settled", blocked: false, reason: "" };
+  return { amount: 0, owed, source: "prepaid_method", blocked: true, reason: "unpaid_order_marked_prepaid" };
+};
+
+const bostaZeroCollectionError = (collection = {}) => {
+  const error = new Error(BOSTA_ZERO_COLLECTION_MESSAGE);
+  error.status = 409;
+  error.code = "BOSTA_ZERO_COLLECTION";
+  error.payload = { amount_owed: collection.owed, reason: collection.reason };
+  return error;
+};
+
+// Bosta's own default lives in the business account, so "inherit" means send no
+// field at all and let the account decide. Anything else is this shop overruling it.
+const OPEN_PACKAGE_MODES = { inherit: null, default: null, account: null, allow: true, allowed: true, deny: false, denied: false, block: false };
+
+const toOpenPackageTriState = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  const key = normalizeKey(value);
+  if (!key) return undefined;
+  if (key in OPEN_PACKAGE_MODES) return OPEN_PACKAGE_MODES[key];
+  if (["1", "true", "yes", "on"].includes(key)) return true;
+  if (["0", "false", "no", "off"].includes(key)) return false;
+  return undefined;
+};
+
+// Order override first, then the order's stored preference, then the shop default.
+// `null` at the end of that chain means the payload carries no flag.
+export const resolveOpenPackagePreference = ({ order = {}, defaultMode = "inherit", override } = {}) => {
+  const fromOverride = toOpenPackageTriState(override);
+  if (fromOverride !== undefined) return fromOverride;
+  const fromOrder = toOpenPackageTriState(order.allow_open_package);
+  if (fromOrder !== undefined) return fromOrder;
+  const fromSettings = toOpenPackageTriState(defaultMode);
+  return fromSettings === undefined ? null : fromSettings;
 };
 
 const loadOrderShipmentContext = async (client, orderId) => {
@@ -640,7 +731,7 @@ const loadOrderShipmentContext = async (client, orderId) => {
   return { order, items: itemsResult.rows, city: cityResult.rows[0], zone: zoneResult.rows[0], district: districtResult.rows[0] };
 };
 
-export const createBostaShipmentForOrder = async (orderId) => {
+export const createBostaShipmentForOrder = async (orderId, options = {}) => {
   await ensureShippingSchema();
   const client = await db.connect();
   try {
@@ -677,10 +768,17 @@ export const createBostaShipmentForOrder = async (orderId) => {
       throw error;
     }
 
+    const collection = resolveBostaCollection({ order, override: options.codAmount });
+    if (collection.blocked) {
+      console.error("[bosta] refusing to ship an unpaid order with nothing to collect", { orderId: order.id, owed: collection.owed, payment_method: order.payment_method, payment_status: order.payment_status });
+      throw bostaZeroCollectionError(collection);
+    }
+    const allowOpenPackage = resolveOpenPackagePreference({ order, defaultMode: config.allowOpenPackage, override: options.allowOpenPackage });
+
     const bosta = createBostaClient(config);
-    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: orderCodAmount(order) });
+    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage });
     console.log("[bosta-create-payload]", JSON.stringify(deliveryPayload));
-    console.log("[bosta] creating delivery", { orderId: order.id, city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id });
+    console.log("[bosta] creating delivery", { orderId: order.id, city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id, cod: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage });
     let rawBostaResponse;
     try {
       rawBostaResponse = await bosta.createDelivery(deliveryPayload);
@@ -706,7 +804,10 @@ export const createBostaShipmentForOrder = async (orderId) => {
     const status = response.status || "created";
     const providerDeliveryId = response.provider_delivery_id || response.shipment_id;
     const bostaShipmentNumber = response.tracking_number || response.shipment_id || providerDeliveryId;
-    const timelineEvent = { at: nowIso(), action: "bosta_create_delivery", provider: "bosta", status, delivery_id: providerDeliveryId, shipment_id: bostaShipmentNumber, tracking_number: response.tracking_number };
+    // The collection is written back onto the order so the shipping centre, the
+    // invoice and the courier all quote the same figure — the column used to stay 0
+    // while Bosta held a different number, and no screen ever showed the difference.
+    const timelineEvent = { at: nowIso(), action: "bosta_create_delivery", provider: "bosta", status, delivery_id: providerDeliveryId, shipment_id: bostaShipmentNumber, tracking_number: response.tracking_number, cod_amount: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage };
     const updateResult = await client.query(
       `
       UPDATE orders SET
@@ -724,11 +825,13 @@ export const createBostaShipmentForOrder = async (orderId) => {
         last_shipping_sync_at = CURRENT_TIMESTAMP,
         shipping_raw_payload = $8::jsonb,
         shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $9::jsonb,
+        cod_amount = $10,
+        allow_open_package = $11,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
       `,
-      [order.id, providerDeliveryId, bostaShipmentNumber, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
+      [order.id, providerDeliveryId, bostaShipmentNumber, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent]), collection.amount, allowOpenPackage]
     );
     await client.query("COMMIT");
     const updatedOrder = updateResult.rows[0];
