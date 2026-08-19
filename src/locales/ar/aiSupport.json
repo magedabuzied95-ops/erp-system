@@ -1574,7 +1574,20 @@
       "editHint": "واتساب يسمح بالتعديل خلال 15 دقيقة من الإرسال فقط",
       "editSave": "حفظ التعديل",
       "editSaving": "جارٍ الحفظ...",
-      "editCancel": "إلغاء"
+      "editCancel": "إلغاء",
+      "playVoice": "تشغيل الرسالة الصوتية",
+      "pauseVoice": "إيقاف مؤقت",
+      "seekVoice": "تغيير موضع التشغيل",
+      "playbackSpeed": "سرعة التشغيل",
+      "download": "تنزيل",
+      "openImage": "عرض الصورة",
+      "openInTab": "فتح في تبويب جديد",
+      "closeViewer": "إغلاق العارض",
+      "previousImage": "الصورة السابقة",
+      "nextImage": "الصورة التالية",
+      "mediaUnavailable": "المرفق غير متاح",
+      "file": "ملف",
+      "transcribed": "نص مُفرَّغ آليًا"
     }
   },
   "integrations": {

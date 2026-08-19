@@ -1574,7 +1574,20 @@
       "editHint": "WhatsApp only allows edits within 15 minutes of sending",
       "editSave": "Save edit",
       "editSaving": "Saving...",
-      "editCancel": "Cancel"
+      "editCancel": "Cancel",
+      "playVoice": "Play voice message",
+      "pauseVoice": "Pause",
+      "seekVoice": "Seek playback position",
+      "playbackSpeed": "Playback speed",
+      "download": "Download",
+      "openImage": "View image",
+      "openInTab": "Open in a new tab",
+      "closeViewer": "Close viewer",
+      "previousImage": "Previous image",
+      "nextImage": "Next image",
+      "mediaUnavailable": "Attachment unavailable",
+      "file": "File",
+      "transcribed": "Auto transcript"
     }
   },
   "integrations": {
