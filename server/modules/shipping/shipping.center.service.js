@@ -126,7 +126,6 @@ const selectSql = `
     o.allow_open_package,
     COALESCE(o.payment_status, '') AS payment_status,
     COALESCE(o.payment_method, '') AS payment_method,
-    COALESCE(o.payment_type, '') AS payment_type,
     o.created_at,
     COALESCE(o.shipping_last_synced_at, o.last_shipping_sync_at) AS last_sync,
     o.shipping_label_url,
