@@ -49,7 +49,10 @@
 // the only deployment that exists would be removed by the next person under
 // pressure, and a security control that gets removed protects nothing.
 
-import { incrementRateCounter, rateCounterBackend } from "../cacheService.js";
+// The counter comes from the surveillance module, not from cacheService: a
+// security control must not inherit its counting, expiry and fallback
+// semantics from the storefront cache. The Redis CONNECTION is still shared.
+import { incrementRateCounter, rateCounterBackend } from "./surveillanceRateLimitCounter.js";
 import { surveillanceLog } from "./surveillanceRedaction.js";
 
 /** Refusing costs a click; allowing costs a reboot. */

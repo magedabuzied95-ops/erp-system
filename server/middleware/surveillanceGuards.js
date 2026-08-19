@@ -12,7 +12,9 @@ import {
   SURVEILLANCE_RATE_LIMITS,
   consumeRateLimit,
 } from "../services/surveillance/surveillanceRateLimitPolicy.js";
-import { __resetRateCounters } from "../services/cacheService.js";
+// The counter moved out of cacheService so a security control no longer
+// inherits the storefront cache module. This reset seam follows it.
+import { __resetRateCounters } from "../services/surveillance/surveillanceRateLimitCounter.js";
 
 const respond = (res, error) => res.status(errorStatus(error)).json(toErrorResponse(error));
 

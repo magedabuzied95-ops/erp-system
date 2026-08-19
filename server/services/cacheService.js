@@ -1,3 +1,5 @@
+import { legacyCacheMayUseRedis } from "./redisInfrastructure.js";
+
 const memoryCache = new Map();
 let redisClientPromise = null;
 let redisUnavailableLogged = false;
@@ -8,8 +10,22 @@ const CACHE_DISABLED = String(process.env.CACHE_DISABLED || "").toLowerCase() ==
 
 const now = () => Date.now();
 
+// LEGACY CACHE REDIS IS NOW BEHIND ITS OWN SWITCH.
+//
+// Before this change, setting REDIS_URL moved the public storefront cache from
+// memory to Redis. That made "give Surveillance a distributed rate-limit
+// counter" and "change the hot path of the storefront" the same action, which
+// is exactly the coupling the Redis decision record rejected: losing a cache
+// entry costs latency, losing a counter degrades a security control, and one
+// switch must not move both.
+//
+// Caching therefore stays on memory until CACHE_USE_SHARED_REDIS is set, whose
+// prerequisites are listed in the decision record (maxmemory + allkeys-lru,
+// AOF off or a separate database, a guard on invalidateProductStorefrontCache,
+// and the build id in the cache key).
 const getRedisClient = async () => {
   if (CACHE_DISABLED || !REDIS_URL) return null;
+  if (!legacyCacheMayUseRedis()) return null;
   if (!redisClientPromise) {
     redisClientPromise = import("redis")
       .then(async ({ createClient }) => {

@@ -20,7 +20,7 @@ import {
   rateLimitKey,
   requireDistributedCounters,
 } from "../../server/services/surveillance/surveillanceRateLimitPolicy.js";
-import { __resetRateCounters } from "../../server/services/cacheService.js";
+import { __resetRateCounters } from "../../server/services/surveillance/surveillanceRateLimitCounter.js";
 
 test.beforeEach(__resetRateCounters);
 
@@ -233,17 +233,46 @@ test("the Redis path increments and expires in one atomic step", () => {
   //
   // GET-then-SET would let two concurrent requests both read 0, both write 1,
   // and turn "one restart per ten minutes" into "one per parallel request".
+  // Read from the module Surveillance ACTUALLY uses. This assertion pointed at
+  // cacheService.js after the counter moved to shared Redis infrastructure, and
+  // still passed — because cacheService kept its own copy of the old script.
+  // A structural test that inspects a file the code no longer calls is a green
+  // light attached to nothing.
   const source = readFileSync(
-    new URL("../../server/services/cacheService.js", import.meta.url),
+    new URL("../../server/services/redisInfrastructure.js", import.meta.url),
     "utf8",
   );
   assert.match(source, /redis\.call\('INCR', KEYS\[1\]\)/);
-  assert.match(source, /if count == 1 then/);
+  assert.match(source, /if current == 1 then/);
   assert.match(source, /redis\.call\('PEXPIRE', KEYS\[1\], ARGV\[1\]\)/);
-  assert.match(source, /redis\.eval\(RATE_COUNTER_SCRIPT/);
+  assert.match(source, /client\.eval\(RATE_COUNTER_SCRIPT/);
   // PEXPIRE is guarded by the first-increment check, so the window is fixed
-  // rather than sliding.
+  // rather than sliding forward on every request.
   assert.doesNotMatch(source, /redis\.call\('EXPIRE'[\s\S]{0,40}\nreturn/);
+});
+
+test("the surveillance counter does not come from the storefront cache module", () => {
+  // The coupling this removes: a security control importing its counting,
+  // expiry and fallback semantics from the module that caches product lists.
+  const policy = readFileSync(
+    new URL("../../server/services/surveillance/surveillanceRateLimitPolicy.js", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(policy, /from "\.\.\/cacheService\.js"/);
+  assert.match(policy, /from "\.\/surveillanceRateLimitCounter\.js"/);
+});
+
+test("setting REDIS_URL does not switch the legacy cache to Redis", () => {
+  // The whole point of the shared-infrastructure decision: giving Surveillance
+  // a distributed counter must not move the public storefront's hot path from
+  // memory to Redis as a side effect.
+  const cache = readFileSync(
+    new URL("../../server/services/cacheService.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(cache, /legacyCacheMayUseRedis\(\)/, "the legacy cache must be behind its own switch");
+  const guard = /const getRedisClient[\s\S]{0,400}?if \(!legacyCacheMayUseRedis\(\)\) return null;/;
+  assert.match(cache, guard, "the switch must gate the client, not merely be imported");
 });
 
 test("the middleware refuses rather than passing through when a fail-closed counter throws", () => {
