@@ -44,6 +44,7 @@ import {
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
 import StoryAutopilotSettingsModal from "../components/StoryAutopilotSettingsModal";
+import StoryThemeCalendar from "../components/StoryThemeCalendar";
 import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
 import {
@@ -66,6 +67,8 @@ const EMPTY_SETTINGS = {
   auto_archive_published_after_days: 30,
   auto_delete_archived_after_days: 90,
   story_selection_mode: "catalog_coverage",
+  // null (not []) so a save before the first load cannot wipe a saved calendar.
+  story_theme_calendar: null,
   active_strategies: { new_arrivals: true, last_size: true, ai_posts: true },
   active: true,
   daily_content_quotas: [],
@@ -908,21 +911,44 @@ function AiMarketingCenter() {
         </section>
       ) : null}
 
+      {settings.story_selection_mode === "theme_calendar" ? (
+        <section className="mt-4">
+          <StoryThemeCalendar
+            calendar={Array.isArray(settings.story_theme_calendar) ? settings.story_theme_calendar : []}
+            overview={overview.theme_calendar}
+            disabled={saving}
+            onChange={(calendar) => patchSettings({ story_theme_calendar: calendar })}
+          />
+        </section>
+      ) : null}
+
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <section className={`${cardClass} p-5`}>
             <SectionTitle icon={<Sparkles className="h-4 w-4" />} title={t("marketing.aiCenter.lanes.title")} />
-            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/20 p-1">
-              <button type="button" onClick={() => patchSettings({ story_selection_mode: "catalog_coverage" })} className={`${buttonClass} ${settings.story_selection_mode !== "newest_only" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
-                Full catalog first
+            <div className="mt-4 grid gap-2 rounded-xl border border-white/10 bg-black/20 p-1">
+              <button type="button" onClick={() => patchSettings({ story_selection_mode: "theme_calendar" })} className={`${buttonClass} ${settings.story_selection_mode === "theme_calendar" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+                تقويم أسبوعي بالمواضيع
               </button>
-              <button type="button" onClick={() => patchSettings({ story_selection_mode: "newest_only" })} className={`${buttonClass} ${settings.story_selection_mode === "newest_only" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
-                Newest only
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => patchSettings({ story_selection_mode: "catalog_coverage" })} className={`${buttonClass} ${settings.story_selection_mode === "catalog_coverage" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+                  Full catalog first
+                </button>
+                <button type="button" onClick={() => patchSettings({ story_selection_mode: "newest_only" })} className={`${buttonClass} ${settings.story_selection_mode === "newest_only" ? "bg-primary text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+                  Newest only
+                </button>
+              </div>
             </div>
             <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
-              Full catalog publishes every eligible product once before repeating, balanced across departments.
+              {settings.story_selection_mode === "theme_calendar"
+                ? "كل يوم في الأسبوع ليه موضوعه، وكل موضوع بيلف على منتجاته لوحده — اللي نزل مينزلش تاني قبل ما الباقي في نفس الموضوع ينزل."
+                : "Full catalog publishes every eligible product once before repeating, balanced across departments."}
             </p>
+            {settings.story_selection_mode === "theme_calendar" ? (
+              <p className="mt-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold leading-5 text-slate-300">
+                في الوضع ده الشيك بوكسات تحت بتأثر على البوستات بس — اختيار الاستوري بيتحدد من التقويم.
+              </p>
+            ) : null}
             <div className="mt-4 grid gap-3">
               <StrategyCard title={t("marketing.aiCenter.lanes.newArrivals")} text="Newest active products with stock and usable images." checked={settings.active_strategies?.new_arrivals !== false} onChange={(value) => toggleStrategy("new_arrivals", value)} />
               <StrategyCard title={t("marketing.aiCenter.lanes.lastSizeOrPiece")} text="يعرض فقط المتغيرات القابلة للبيع مع مخزون 1-2." checked={settings.active_strategies?.last_size !== false} onChange={(value) => toggleStrategy("last_size", value)} />
