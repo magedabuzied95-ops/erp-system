@@ -16,6 +16,7 @@ const SECTION_TITLE_KEYS = {
   "System Settings": "sidebar.systemSettings",
   "AI Studio": "sidebar.aiStudio",
   "Marketing": "sidebar.marketing",
+  "Surveillance Center": "sidebar.surveillanceCenter",
 };
 
 const ITEM_LABEL_KEYS = {
@@ -69,6 +70,17 @@ const ITEM_LABEL_KEYS = {
   // Roles screen renders them); they become sidebar labels in a later phase and
   // the keys are the same either way.
   Surveillance: "sidebar.surveillance",
+  "Surveillance Dashboard": "sidebar.surveillanceDashboard",
+  "Live View": "sidebar.surveillanceLive",
+  Playback: "sidebar.surveillancePlayback",
+  Recorders: "sidebar.surveillanceRecorders",
+  "Camera Channels": "sidebar.surveillanceChannels",
+  "Recorder Storage": "sidebar.surveillanceStorage",
+  "Video Settings": "sidebar.surveillanceVideo",
+  "Recording Settings": "sidebar.surveillanceRecording",
+  "Motion Settings": "sidebar.surveillanceMotion",
+  "Recorder Network": "sidebar.surveillanceNetwork",
+  "Surveillance Audit": "sidebar.surveillanceAudit",
   "Surveillance Devices": "sidebar.surveillanceDevices",
   "Surveillance Recording": "sidebar.surveillanceRecording",
   "Surveillance Storage": "sidebar.surveillanceStorage",

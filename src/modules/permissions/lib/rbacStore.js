@@ -27,6 +27,16 @@ import {
   Megaphone,
   Share2,
   TicketPercent,
+  Radio,
+  Video,
+  History,
+  Server,
+  Grid3x3,
+  HardDrive,
+  Film,
+  Activity,
+  Network,
+  ScrollText,
 } from "lucide-react";
 
 import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage.js";
@@ -460,6 +470,22 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "AI Studio",
     items: [
       { label: "AI Studio", to: "/ai-studio", permission: "settings.view", icon: Sparkles, adminOnly: true },
+    ],
+  },
+  {
+    title: "Surveillance Center",
+    items: [
+      { label: "Surveillance Dashboard", to: "/surveillance", permission: "surveillance.view", icon: Radio },
+      { label: "Live View", to: "/surveillance/live", permission: "surveillance.live", icon: Video },
+      { label: "Playback", to: "/surveillance/playback", permission: "surveillance.playback", icon: History },
+      { label: "Recorders", to: "/surveillance/devices", permission: "surveillance.device.view", icon: Server },
+      { label: "Camera Channels", to: "/surveillance/channels", permission: "surveillance.view", icon: Grid3x3 },
+      { label: "Recorder Storage", to: "/surveillance/storage", permission: "surveillance.storage.view", icon: HardDrive },
+      { label: "Video Settings", to: "/surveillance/video-settings", permission: "surveillance.device.view", icon: Film },
+      { label: "Recording Settings", to: "/surveillance/recording-settings", permission: "surveillance.recording.settings", icon: CalendarClock },
+      { label: "Motion Settings", to: "/surveillance/motion-settings", permission: "surveillance.device.view", icon: Activity },
+      { label: "Recorder Network", to: "/surveillance/network", permission: "surveillance.network.view", icon: Network },
+      { label: "Surveillance Audit", to: "/surveillance/audit", permission: "surveillance.device.view", icon: ScrollText },
     ],
   },
   {

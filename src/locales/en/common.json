@@ -873,10 +873,19 @@
     "aiStudio": "AI Studio",
     "surveillance": "Surveillance",
     "surveillanceDevices": "Surveillance Devices",
-    "surveillanceRecording": "Surveillance Recording",
-    "surveillanceStorage": "Surveillance Storage",
-    "surveillanceNetwork": "Surveillance Network",
-    "surveillanceAdmin": "Surveillance Admin"
+    "surveillanceRecording": "Recording Settings",
+    "surveillanceStorage": "Storage",
+    "surveillanceNetwork": "Network",
+    "surveillanceAdmin": "Surveillance Admin",
+    "surveillanceCenter": "Surveillance Center",
+    "surveillanceDashboard": "Dashboard",
+    "surveillanceLive": "Live View",
+    "surveillancePlayback": "Playback",
+    "surveillanceRecorders": "Recorders",
+    "surveillanceChannels": "Channels",
+    "surveillanceVideo": "Video Settings",
+    "surveillanceMotion": "Motion Settings",
+    "surveillanceAudit": "Audit Log"
   },
   "language": {
     "label": "Language",
