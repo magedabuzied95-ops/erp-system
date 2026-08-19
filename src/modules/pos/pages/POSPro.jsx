@@ -75,6 +75,7 @@ import {
   writeCachedActivePosShift,
 } from "../lib/posShiftCache";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
+import { keyboardLayoutAlternates } from "../lib/keyboardLayout";
 import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
@@ -1397,13 +1398,24 @@ const cacheAllPosCustomers = async ({ firstResponse, tenantId, branchId, signal 
 
 const POS_SALE_STATS_KEY = "erp.pos.saleStats";
 
+/**
+ * Fold the spellings a cashier can reasonably pick between into one lookup key.
+ *
+ * The letter folds below used to be written as Arabic literals and were corrupted
+ * into mojibake at some point, so they matched nothing at all: a name spelled with
+ * bare alef never found the same name spelled with hamza, and one ending in
+ * ta-marbuta never found the ha spelling. They are unicode escapes now, so a tool
+ * that guesses the wrong encoding cannot silently break them again.
+ *
+ * NFKD plus the combining-mark strip already folds every hamza form back to bare
+ * alef, so only ta-marbuta and alef-maksura still need a fold of their own.
+ */
 const normalizeSmartText = (value) =>
   String(value ?? "")
     .normalize("NFKD")
     .replace(/[\u064B-\u065F\u0670]/g, "")
-    .replace(/[ط·آ£ط·آ¥ط·آ¢]/g, "ط·آ§")
-    .replace(/ط·آ©/g, "ط¸â€،")
-    .replace(/ط¸â€°/g, "ط¸ظ¹")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\u0649/g, "\u064A")
     .toLowerCase()
     .trim();
 
@@ -2707,14 +2719,22 @@ function POSPro() {
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
+      // The server is handed the same raw keystrokes the local filter gets, so a
+      // query typed on the wrong layout has to be retried there too - and retried
+      // here rather than only locally, because the POS loads its catalog lazily and
+      // the product may not be in memory yet.
+      const attempts = [rawSearch, ...keyboardLayoutAlternates(rawSearch)];
       try {
-        const rawProducts = await getProductsWithVariants({
-          params: { pos: 1, search: rawSearch },
-          signal: controller.signal,
-        });
-        const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
-        if (catalog.length > 0) {
-          setProducts((current) => mergeCatalogProducts(current, catalog));
+        for (const attempt of attempts) {
+          const rawProducts = await getProductsWithVariants({
+            params: { pos: 1, search: attempt },
+            signal: controller.signal,
+          });
+          const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
+          if (catalog.length > 0) {
+            setProducts((current) => mergeCatalogProducts(current, catalog));
+            return;
+          }
         }
       } catch (err) {
         if (controller.signal.aborted || err?.name === "AbortError") return;
@@ -3430,14 +3450,36 @@ function POSPro() {
     [productsAfterSubCategory, selectedChildCategoryId]
   );
 
-  const productsAfterNonSmartFilters = useMemo(() => {
+  /**
+   * The query everything downstream filters on, after checking whether these
+   * keystrokes read better through the other keyboard layout.
+   *
+   * A browser cannot switch the OS keyboard layout, so a cashier who leaves Windows
+   * on Arabic and types "vans" sends us Arabic letters and used to get an empty grid
+   * with nothing on screen to explain why. The alternate reading is only consulted
+   * when the literal query matches nothing, so a genuine Arabic search is never
+   * hijacked by its own latin gibberish. Resolving it once here also keeps the brand
+   * and manufacturer facet counts agreeing with the grid they sit above.
+   */
+  const resolvedSearchQuery = useMemo(() => {
     const query = normalizeSmartText(deferredSearch.trim());
+    if (!query) return "";
 
-    return productsAfterChildCategory.filter(({ meta }) => {
-      const matchesText = !query || meta.searchText.includes(query);
-      return matchesText;
-    });
-  }, [productsAfterChildCategory, deferredSearch]);
+    const matchesCatalog = (candidate) =>
+      Boolean(candidate) && productsAfterChildCategory.some(({ meta }) => meta.searchText.includes(candidate));
+    if (matchesCatalog(query)) return query;
+
+    const alternate = keyboardLayoutAlternates(deferredSearch.trim()).map(normalizeSmartText).find(matchesCatalog);
+    return alternate || query;
+  }, [deferredSearch, productsAfterChildCategory]);
+
+  const productsAfterNonSmartFilters = useMemo(
+    () =>
+      productsAfterChildCategory.filter(
+        ({ meta }) => !resolvedSearchQuery || meta.searchText.includes(resolvedSearchQuery)
+      ),
+    [productsAfterChildCategory, resolvedSearchQuery]
+  );
 
   const smartFilterOptions = useMemo(() => {
     const renderedFilterSource = productsAfterNonSmartFilters.map(({ product }) => product);
@@ -3497,27 +3539,26 @@ function POSPro() {
   // list by its own selection would collapse it to the single chip already
   // chosen, leaving no way to switch without clearing first.
   const facetSource = (constraints) => {
-    const query = normalizeSmartText(deferredSearch.trim());
     return productsAfterSmartFilters.filter(({ meta }) => {
       const matchesOther = matchesQuickFilterGroups(
         { brandKey: meta.brandKey, manufacturerIds: meta.manufacturerIds, manufacturerNames: meta.manufacturerNames },
         constraints,
         normalizeSmartText
       );
-      return matchesOther && (!query || meta.searchText.includes(query));
+      return matchesOther && (!resolvedSearchQuery || meta.searchText.includes(resolvedSearchQuery));
     });
   };
 
   const productsForBrandFacet = useMemo(
     () => facetSource({ manufacturers: selectedManufacturerId }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [productsAfterSmartFilters, deferredSearch, selectedManufacturerId]
+    [productsAfterSmartFilters, resolvedSearchQuery, selectedManufacturerId]
   );
 
   const productsForManufacturerFacet = useMemo(
     () => facetSource({ brands: selectedBrandId }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [productsAfterSmartFilters, deferredSearch, selectedBrandId]
+    [productsAfterSmartFilters, resolvedSearchQuery, selectedBrandId]
   );
 
   const brandOptions = useMemo(() => {
@@ -3629,8 +3670,6 @@ function POSPro() {
   }, [draftBrandOptions, draftManufacturerOptions, draftPosFilters, filtersOpen]);
 
   const visibleProducts = useMemo(() => {
-    const query = normalizeSmartText(deferredSearch.trim());
-
     return productsAfterSmartFilters
       .filter(({ meta }) => {
         const matchesQuickFilters = matchesQuickFilterGroups(
@@ -3645,11 +3684,11 @@ function POSPro() {
           },
           normalizeSmartText
         );
-        const matchesText = !query || meta.searchText.includes(query);
+        const matchesText = !resolvedSearchQuery || meta.searchText.includes(resolvedSearchQuery);
         return matchesQuickFilters && matchesText;
       })
       .map(({ product }) => product);
-  }, [productsAfterSmartFilters, deferredSearch, selectedBrandId, selectedManufacturerId]);
+  }, [productsAfterSmartFilters, resolvedSearchQuery, selectedBrandId, selectedManufacturerId]);
 
   const orderedVisibleProducts = useMemo(() => {
     const favorites = [];
@@ -4410,7 +4449,12 @@ function POSPro() {
       return;
     }
 
-    const exactVariant = barcodeLookup.variantsByCode.get(normalized);
+    // A scanner firing into an Arabic keyboard layout emits Arabic letters for every
+    // letter in the code, so the scanned string has to be looked up under its other
+    // layout reading before we decide the code is unknown.
+    const codeCandidates = [normalized, ...keyboardLayoutAlternates(normalized).map((code) => code.toLowerCase())];
+
+    const exactVariant = codeCandidates.map((code) => barcodeLookup.variantsByCode.get(code)).find(Boolean);
 
     if (exactVariant) {
       addVariantToCart(exactVariant.product, exactVariant.variant);
@@ -4422,7 +4466,7 @@ function POSPro() {
       return;
     }
 
-    const exactProduct = barcodeLookup.productsByCode.get(normalized);
+    const exactProduct = codeCandidates.map((code) => barcodeLookup.productsByCode.get(code)).find(Boolean);
 
     if (exactProduct) {
       quickAddProduct(exactProduct);
