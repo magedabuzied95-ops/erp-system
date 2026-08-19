@@ -187,10 +187,24 @@ router.post(
   }
 );
 
+// The global request timeout is 60s. A full album publish makes Meta fetch every
+// image from our origin before it answers, so it legitimately outlives that and
+// the app killed its own request with a 503 while the upload was still running.
+// Cloudflare cuts the connection at 100s, so this is the widest window that can
+// still deliver a real answer rather than a proxy error.
+const PUBLISH_REQUEST_TIMEOUT_MS = 90_000;
+
 router.post(
   "/posts/:id/publish",
   protect,
   permit("marketing", "publish"),
+  (req, res, next) => {
+    // No callback: the global timeout handler stays registered and now fires at
+    // this longer deadline instead of at 60s.
+    req.setTimeout(PUBLISH_REQUEST_TIMEOUT_MS);
+    res.setTimeout(PUBLISH_REQUEST_TIMEOUT_MS);
+    next();
+  },
   async (req, res) => {
     try {
       const tenantId = getTenantId(req, req.user?.tenant_id) || 1;

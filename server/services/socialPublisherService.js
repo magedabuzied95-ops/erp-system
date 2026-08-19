@@ -143,6 +143,27 @@ const callMeta = async ({ endpoint, params, mode, imageUrl }) => {
   throw error;
 };
 
+// Meta downloads every image from our origin before it answers, so an album
+// uploaded in series costs one round trip per picture. Ten pictures crossed the
+// 60s request timeout and the publish was cut off mid-upload. The uploads are
+// independent — only their ORDER matters, and that is carried by the index here
+// rather than by the order results happen to arrive in.
+const META_UPLOAD_CONCURRENCY = 4;
+
+const mapWithConcurrency = async (items, limit, worker) => {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+};
+
 const uploadUnpublishedPhoto = async ({ pageId, accessToken, imageUrl }) =>
   callMeta({
     endpoint: `/${encodeURIComponent(pageId)}/photos`,
@@ -156,36 +177,33 @@ const uploadUnpublishedPhoto = async ({ pageId, accessToken, imageUrl }) =>
   });
 
 const publishMultiPhotoFeed = async ({ pageId, accessToken, message, imageUrls }) => {
-  const uploadedPhotoIds = [];
-  const uploadErrors = [];
-
-  for (const imageUrl of imageUrls) {
+  const uploadOutcomes = await mapWithConcurrency(imageUrls, META_UPLOAD_CONCURRENCY, async (imageUrl) => {
     try {
       const payload = await uploadUnpublishedPhoto({ pageId, accessToken, imageUrl });
       const photoId = trimString(payload?.id);
-      if (photoId) {
-        uploadedPhotoIds.push(photoId);
-      } else {
-        const errorMessage = "Meta photo upload response did not include id.";
-        uploadErrors.push({ image_url: imageUrl, error: errorMessage, response: payload });
-        console.error("[marketing] Meta photo upload missing id", {
-          image_url: imageUrl,
-          response: payload,
-        });
-      }
-    } catch (error) {
-      uploadErrors.push({
+      if (photoId) return { photoId };
+      console.error("[marketing] Meta photo upload missing id", {
         image_url: imageUrl,
-        error: error?.message || "Meta photo upload failed",
-        response: error?.metaResponse || null,
+        response: payload,
       });
+      return { error: { image_url: imageUrl, error: "Meta photo upload response did not include id.", response: payload } };
+    } catch (error) {
       console.error("[marketing] Meta photo upload failed; continuing with remaining images", {
         image_url: imageUrl,
         error: error?.message,
         response: error?.metaResponse || null,
       });
+      return {
+        error: {
+          image_url: imageUrl,
+          error: error?.message || "Meta photo upload failed",
+          response: error?.metaResponse || null,
+        },
+      };
     }
-  }
+  });
+  const uploadedPhotoIds = uploadOutcomes.filter((item) => item?.photoId).map((item) => item.photoId);
+  const uploadErrors = uploadOutcomes.filter((item) => item?.error).map((item) => item.error);
 
   console.log("[marketing] Meta uploaded photo ids", {
     uploaded_photo_ids: uploadedPhotoIds,
@@ -439,10 +457,9 @@ export const publishInstagramPost = async ({ post, settings, accessToken }) => {
 
   try {
     if (imageUrls.length > 1) {
-      const childContainerIds = [];
-      const childErrors = [];
-
-      for (const imageUrl of imageUrls) {
+      // Concurrent, but index-ordered: the children array is the slide order of
+      // the carousel, so it must follow imageUrls and not completion order.
+      const childOutcomes = await mapWithConcurrency(imageUrls, META_UPLOAD_CONCURRENCY, async (imageUrl) => {
         try {
           const childContainer = await callMeta({
             endpoint: `/${encodeURIComponent(instagramAccountId)}/media`,
@@ -455,25 +472,26 @@ export const publishInstagramPost = async ({ post, settings, accessToken }) => {
             },
           });
           const childContainerId = trimString(childContainer?.id);
-          if (childContainerId) {
-            childContainerIds.push(childContainerId);
-          } else {
-            childErrors.push({ image_url: imageUrl, error: "Instagram carousel item response did not include id.", response: childContainer });
-            console.error("[instagram] carousel item missing id", { image_url: imageUrl, response: childContainer });
-          }
+          if (childContainerId) return { childContainerId };
+          console.error("[instagram] carousel item missing id", { image_url: imageUrl, response: childContainer });
+          return { error: { image_url: imageUrl, error: "Instagram carousel item response did not include id.", response: childContainer } };
         } catch (error) {
-          childErrors.push({
-            image_url: imageUrl,
-            error: error?.message || "Instagram carousel item upload failed",
-            response: error?.metaResponse || null,
-          });
           console.error("[instagram] carousel item failed; continuing with remaining images", {
             image_url: imageUrl,
             error: error?.message,
             response: error?.metaResponse || null,
           });
+          return {
+            error: {
+              image_url: imageUrl,
+              error: error?.message || "Instagram carousel item upload failed",
+              response: error?.metaResponse || null,
+            },
+          };
         }
-      }
+      });
+      const childContainerIds = childOutcomes.filter((item) => item?.childContainerId).map((item) => item.childContainerId);
+      const childErrors = childOutcomes.filter((item) => item?.error).map((item) => item.error);
 
       console.log("[instagram] carousel child container ids", {
         child_container_ids: childContainerIds,
