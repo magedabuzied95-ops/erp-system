@@ -282,13 +282,16 @@ const summarizeAllPublish = (facebookResult, instagramResult) => {
   if (successCount === 2) status = "published";
   if (successCount === 1) status = "partial_success";
 
+  // The partial branches used to stop at "Instagram failed" and leave the reason
+  // only in platformResults. error_message is the one field the history page
+  // stores and shows, so a half-published post explained nothing about itself.
   const message =
     status === "published"
       ? "Published to Facebook and Instagram"
       : facebookSuccess && !instagramSuccess
-        ? "Facebook published, Instagram failed"
+        ? `Facebook published, Instagram failed: ${platformResults.instagram.error || "unknown reason"}`
         : !facebookSuccess && instagramSuccess
-          ? "Instagram published, Facebook failed"
+          ? `Instagram published, Facebook failed: ${platformResults.facebook.error || "unknown reason"}`
           : `${platformResults.facebook.error || "Facebook failed"}; ${platformResults.instagram.error || "Instagram failed"}`;
 
   return {
