@@ -416,10 +416,18 @@ export const publishInstagramPost = async ({ post, settings, accessToken }) => {
   }
 
   if (!imageUrls.length) {
+    // Facebook survives this case by falling back to a text-only feed post, so
+    // a post that fails here still reads as "published" overall. Name the URLs
+    // that were rejected — a relative path here means PUBLIC_BACKEND_URL is not
+    // set to a public HTTPS origin, and the bare sentence never said so.
+    const attemptedImageUrls = uniqueList([post.image_url, ...parseMediaUrls(post.media_urls)].map(toPublicUploadUrl));
+    console.error("[instagram] no public https media url", { attempted_image_urls: attemptedImageUrls });
     return {
       success: false,
       status: "failed",
-      error_message: "Instagram publishing requires a valid public HTTPS image URL.",
+      error_message: attemptedImageUrls.length
+        ? `Instagram publishing requires a valid public HTTPS image URL. Rejected: ${attemptedImageUrls.slice(0, 3).join(", ")}`
+        : "Instagram publishing requires a valid public HTTPS image URL, and this post carries no media.",
       external_post_id: null,
       platform_post_id: null,
       published_at: null,

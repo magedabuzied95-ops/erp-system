@@ -50,7 +50,11 @@ const getStatusTone = (status) => {
       return "emerald";
     case "scheduled":
       return "cyan";
+    // partial_success = one network took the post and the other refused it.
+    // Missing from this switch it fell through to the neutral grey of a draft,
+    // the one tone that reads as "nothing went wrong".
     case "publishing":
+    case "partial_success":
       return "amber";
     case "failed":
       return "rose";
@@ -118,6 +122,23 @@ function HistoryRow({ item, t }) {
     instagram: t("marketing.social.platforms.instagram"),
     tiktok: t("marketing.social.platforms.tiktok"),
   };
+  // A post Instagram refused while Facebook accepted it lands here as
+  // `partial_success` with the reason only in the per-platform map. The card
+  // used to show the reason for `failed` alone, so that post looked fine.
+  const platformResults = item.platform_publish_results && typeof item.platform_publish_results === "object"
+    ? item.platform_publish_results
+    : {};
+  const failedPlatforms = Object.entries(platformResults)
+    .filter(([, result]) => String(result?.status || "").toLowerCase() !== "published")
+    .map(([platform, result]) => ({
+      platform,
+      label: platformLabels[platform] || platform,
+      reason: String(result?.error || "").trim() || errorMessage,
+    }));
+  const showFailureBox = failedPlatforms.length > 0 || (["failed", "partial_success"].includes(status) && Boolean(errorMessage));
+  const failureTone = status === "failed"
+    ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
+    : "border-amber-500/20 bg-amber-500/10 text-amber-100";
 
   return (
     // min-w-0: as a grid item its automatic minimum size is its min-content width,
@@ -168,10 +189,21 @@ function HistoryRow({ item, t }) {
             </div>
           </div>
 
-          {status === "failed" && errorMessage ? (
-            <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-100">
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-rose-200">{t("marketing.socialHistory.error")}</div>
-              <div className="mt-1 break-words leading-6">{errorMessage}</div>
+          {showFailureBox ? (
+            <div className={`mt-3 rounded-2xl border px-3 py-2.5 text-sm ${failureTone}`}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">{t("marketing.socialHistory.error")}</div>
+              {failedPlatforms.length ? (
+                <ul className="mt-1 space-y-1">
+                  {failedPlatforms.map((entry) => (
+                    <li key={`${item.id}-${entry.platform}-error`} className="break-words leading-6">
+                      <span className="font-bold">{entry.label}:</span>{" "}
+                      {entry.reason || t("marketing.socialHistory.unknownReason")}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="mt-1 break-words leading-6">{errorMessage}</div>
+              )}
             </div>
           ) : null}
         </div>

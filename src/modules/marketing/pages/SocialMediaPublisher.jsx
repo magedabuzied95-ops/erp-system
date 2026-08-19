@@ -44,7 +44,6 @@ import {
   getSocialPublisherPosts,
   getSocialPublisherProducts,
   startMetaOAuth,
-  publishSocialPublisherPost,
   publishSocialPublisherPostDetailed,
   getTikTokPublishStatus,
 } from "../services/marketingApi";
@@ -139,6 +138,57 @@ const getHistoryStatusDetails = (status, errorMessage = "") => {
     toneClass: "border-white/10 bg-white/5 text-slate-200",
     detail: String(errorMessage || "").trim(),
   };
+};
+
+// The publish endpoint answers 200 with `success: false` for a rejected post,
+// and 200 with `status: "partial_success"` when only one network took it. Both
+// used to reach the composer as a green "Published successfully", so a post
+// Instagram refused looked identical to one it accepted.
+const readPublishOutcome = (published = {}, requestedPlatforms = []) => {
+  const platformResults = published?.meta_result?.platform_publish_results || {};
+  const postStatus = String(published?.data?.status || published?.status || "").toLowerCase();
+  const platformLabel = (platform) => tt(`marketing.social.platforms.${platform}`, platform);
+  const failedPlatforms = Object.entries(platformResults)
+    .filter(([, result]) => String(result?.status || "").toLowerCase() !== "published")
+    .map(([platform, result]) => ({ platform, error: String(result?.error || "").trim() }));
+  const detail = String(published?.message || "").trim();
+
+  if (published?.success !== true || postStatus === "failed") {
+    return {
+      tone: "error",
+      message: detail || tt("marketing.socialPublisher.publishFailed"),
+    };
+  }
+
+  if (postStatus === "partial_success" || failedPlatforms.length) {
+    const names = failedPlatforms.length
+      ? failedPlatforms.map((item) => platformLabel(item.platform)).join(" + ")
+      : requestedPlatforms.map(platformLabel).join(" + ");
+    const reason = failedPlatforms.find((item) => item.error)?.error || detail;
+    return {
+      tone: "warning",
+      message: tt("marketing.socialPublisher.toasts.partialPublish", {
+        platforms: names,
+        reason: reason || tt("marketing.socialPublisher.postStatus.unknownReason"),
+      }),
+    };
+  }
+
+  // The backend's success message is a hardcoded English string; only its
+  // failure messages carry information worth showing raw.
+  return { tone: "success", message: tt("marketing.socialPublisher.publishedSuccessfully") };
+};
+
+const toastPublishOutcome = (outcome) => {
+  if (outcome.tone === "error") {
+    toast.error(outcome.message, { duration: 10000 });
+    return;
+  }
+  if (outcome.tone === "warning") {
+    toast(outcome.message, { icon: "⚠️", duration: 10000 });
+    return;
+  }
+  toast.success(outcome.message);
 };
 
 const HISTORY_TABLE_LIMIT = 20;
@@ -1588,7 +1638,14 @@ export default function SocialMediaPublisher() {
         setTiktokJob({ id: tiktokResult.job_id, status: tiktokResult.status || "uploaded", draft: Boolean(tiktokResult.draft) });
         toast.success(t("marketing.tiktok.submitted"));
       } else {
-        toast.success(published?.message || t("marketing.socialPublisher.publishedSuccessfully"));
+        const outcome = readPublishOutcome(published, selectedPlatforms);
+        toastPublishOutcome(outcome);
+        // A rejected post keeps the composer filled: clearing it would throw
+        // away the caption and media the user still needs in order to retry.
+        if (outcome.tone === "error") {
+          await loadPosts();
+          return;
+        }
       }
       resetComposer();
       await loadPosts();
@@ -1700,8 +1757,10 @@ export default function SocialMediaPublisher() {
     // rather than creating a second TikTok video.
     setPublishingId(post.id);
     try {
-      const result = await publishSocialPublisherPost(post.id);
-      toast.success(result?.message || t("marketing.socialPublisher.publishedSuccessfully"));
+      // Detailed variant: publishSocialPublisherPost() unwraps to the post row,
+      // which carries no success/message, so every republish reported success.
+      const published = await publishSocialPublisherPostDetailed(post.id);
+      toastPublishOutcome(readPublishOutcome(published, safeArray(post.platforms)));
       await loadPosts();
     } catch (err) {
       toast.error(err?.message || t("marketing.socialPublisher.publishFailed"));
