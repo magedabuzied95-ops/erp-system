@@ -130,7 +130,8 @@
     "showing": "Showing",
     "of": "of",
     "page": "Page",
-    "records": "orders"
+    "records": "orders",
+    "truncated": "Showing the newest {{limit}} orders only — older orders are not loaded."
   },
   "summary": {
     "quick": "Quick summary",

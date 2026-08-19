@@ -4551,7 +4551,7 @@ export const getOrders = async (req, res) => {
       ${employeeSellerJoin}
       ${salesEmployeeJoin}
       ${tenantWhere}
-      ORDER BY o.created_at DESC
+      ORDER BY o.created_at DESC, o.id DESC
       LIMIT ${limitParam}
       OFFSET ${offsetParam}
       `,

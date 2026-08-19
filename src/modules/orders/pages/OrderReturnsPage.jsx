@@ -22,6 +22,7 @@ import {
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { fetchAllOrders } from "../../../shared/api/ordersFetch";
 import { isCashierUser } from "../../../shared/auth/authStorage";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
@@ -147,10 +148,10 @@ function OrderReturnsPage() {
         setLoading(true);
         setError("");
         const [data, supplierQueue] = await Promise.all([
-          api.get("/orders"),
+          fetchAllOrders(),
           api.get("/orders/supplier-returns?status=all").catch(() => ({ items: [] })),
         ]);
-        const baseOrders = Array.isArray(data) ? data : Array.isArray(data.orders) ? data.orders : [];
+        const baseOrders = Array.isArray(data?.orders) ? data.orders : [];
         const normalized = baseOrders.length ? baseOrders.map((order) => normalizeOrder(order, { items: order.items || [] })) : mockOrders();
         if (!active) return;
         setOrders(normalized);
