@@ -30,6 +30,7 @@ import accessAr from "../locales/ar/access.json";
 import authAr from "../locales/ar/auth.json";
 import marketingAr from "../locales/ar/marketing.json";
 import aiStudioAr from "../locales/ar/aiStudio.json";
+import surveillanceAr from "../locales/ar/surveillance.json";
 import aiSupportAr from "../locales/ar/aiSupport.json";
 import shippingAr from "../locales/ar/shipping.json";
 import loyaltyAr from "../locales/ar/loyalty.json";
@@ -65,6 +66,7 @@ import accessEn from "../locales/en/access.json";
 import authEn from "../locales/en/auth.json";
 import marketingEn from "../locales/en/marketing.json";
 import aiStudioEn from "../locales/en/aiStudio.json";
+import surveillanceEn from "../locales/en/surveillance.json";
 import aiSupportEn from "../locales/en/aiSupport.json";
 import shippingEn from "../locales/en/shipping.json";
 import loyaltyEn from "../locales/en/loyalty.json";
@@ -180,6 +182,7 @@ const resources = buildResources({
     auth: authAr,
     marketing: marketingAr,
     aiStudio: aiStudioAr,
+    surveillance: surveillanceAr,
     aiSupport: aiSupportAr,
     shipping: shippingAr,
     loyalty: loyaltyAr,
@@ -216,6 +219,7 @@ const resources = buildResources({
     auth: authEn,
     marketing: marketingEn,
     aiStudio: aiStudioEn,
+    surveillance: surveillanceEn,
     aiSupport: aiSupportEn,
     shipping: shippingEn,
     loyalty: loyaltyEn,

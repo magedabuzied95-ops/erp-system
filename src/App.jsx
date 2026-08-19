@@ -237,6 +237,18 @@ const AiStudioWorkflows = lazy(() => import("./modules/aiStudio/pages/AiStudioWo
 const AiStudioExecutions = lazy(() => import("./modules/aiStudio/pages/AiStudioExecutions"));
 const AiStudioApprovals = lazy(() => import("./modules/aiStudio/pages/AiStudioApprovals"));
 const AiStudioTools = lazy(() => import("./modules/aiStudio/pages/AiStudioTools"));
+const SurveillanceDashboard = lazy(() => import("./modules/surveillance/pages/SurveillanceDashboard"));
+const SurveillanceLive = lazy(() => import("./modules/surveillance/pages/SurveillanceLive"));
+const SurveillancePlayback = lazy(() => import("./modules/surveillance/pages/SurveillancePlayback"));
+const SurveillanceDevices = lazy(() => import("./modules/surveillance/pages/SurveillanceDevices"));
+const SurveillanceChannels = lazy(() => import("./modules/surveillance/pages/SurveillanceChannels"));
+const SurveillanceStorage = lazy(() => import("./modules/surveillance/pages/SurveillanceStorage"));
+const SurveillanceAudit = lazy(() => import("./modules/surveillance/pages/SurveillanceAudit"));
+const SurveillanceDeviceDetail = lazy(() => import("./modules/surveillance/pages/SurveillanceDeviceDetail"));
+const SurveillanceVideoSettings = lazy(() => import("./modules/surveillance/pages/SurveillanceVideoSettings"));
+const SurveillanceRecordingSettings = lazy(() => import("./modules/surveillance/pages/SurveillanceRecordingSettings"));
+const SurveillanceMotionSettings = lazy(() => import("./modules/surveillance/pages/SurveillanceMotionSettings"));
+const SurveillanceNetwork = lazy(() => import("./modules/surveillance/pages/SurveillanceNetwork"));
 // Visual workflow builder — lazy so @xyflow/react loads ONLY on the editor route.
 const AiStudioWorkflowEditor = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflowEditor"));
 const AiStudioRestockRecovery = lazy(() => import("./modules/aiStudio/pages/AiStudioRestockRecovery"));
@@ -754,6 +766,102 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
               <AiStudioApprovals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.view"]}>
+              <SurveillanceDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/live"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.live"]}>
+              <SurveillanceLive />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/devices/:id"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.device.view"]}>
+              <SurveillanceDeviceDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/video-settings"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.device.view"]}>
+              <SurveillanceVideoSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/recording-settings"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.recording.settings"]}>
+              <SurveillanceRecordingSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/motion-settings"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.device.view"]}>
+              <SurveillanceMotionSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/network"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.network.view"]}>
+              <SurveillanceNetwork />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/playback"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.playback"]}>
+              <SurveillancePlayback />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/channels"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.view"]}>
+              <SurveillanceChannels />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/storage"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.storage.view"]}>
+              <SurveillanceStorage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/audit"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.device.view"]}>
+              <SurveillanceAudit />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="surveillance/devices"
+          element={
+            <ProtectedRoute requiredPermissions={["surveillance.device.view"]}>
+              <SurveillanceDevices />
             </ProtectedRoute>
           }
         />
