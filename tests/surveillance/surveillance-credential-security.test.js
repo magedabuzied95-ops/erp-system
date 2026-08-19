@@ -239,8 +239,8 @@ test("a password is redacted out of a log payload whatever key holds it", () => 
 
 test("credentials embedded in an RTSP or HTTP URL are stripped", () => {
   const cases = [
-    "rtsp://erp_surveillance:Hunter2@192.168.1.108:554/cam/realmonitor?channel=1",
-    "http://admin:P%40ssw0rd@192.168.1.108/cgi-bin/magicBox.cgi",
+    "rtsp://erp_surveillance:Hunter2@192.0.2.10:554/cam/realmonitor?channel=1",
+    "http://admin:P%40ssw0rd@192.0.2.10/cgi-bin/magicBox.cgi",
     "connecting to rtsp://user:pass@host/stream failed",
   ];
   for (const value of cases) {
@@ -250,14 +250,14 @@ test("credentials embedded in an RTSP or HTTP URL are stripped", () => {
     assert.ok(!redacted.includes(":pass@"), value);
     assert.ok(redacted.includes("[redacted]"), value);
     // The host is still readable, which is what makes the log worth keeping.
-    assert.ok(/192\.168\.1\.108|host/.test(redacted), value);
+    assert.ok(/192\.0\.2\.10|host/.test(redacted), value);
   }
 });
 
 test("an axios-shaped error does not leak its config, auth or URL", () => {
   // The realistic leak: console.error("probe failed", error) where the error
   // still carries the whole request.
-  const error = new Error(`Request failed for rtsp://admin:${PASSWORD}@192.168.1.108:554`);
+  const error = new Error(`Request failed for rtsp://admin:${PASSWORD}@192.0.2.10:554`);
   error.config = {
     url: `http://192.168.1.108/cgi-bin/x.cgi`,
     auth: { username: "admin", password: PASSWORD },

@@ -144,18 +144,18 @@ test("a secret-named key is redacted even when its value is an object", () => {
  * ------------------------------------------------------------------ */
 
 test("credentials inside an RTSP URL are stripped, host preserved", () => {
-  const url = `rtsp://erp_surveillance:${SECRETS.password}@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1`;
+  const url = `rtsp://erp_surveillance:${SECRETS.password}@192.0.2.10:554/cam/realmonitor?channel=1&subtype=1`;
   const out = redactString(url);
   assert.ok(!out.includes(SECRETS.password));
   assert.ok(!out.includes("erp_surveillance:"));
   assert.ok(out.includes(REDACTED));
   // The host stays readable, which is what makes the log worth keeping.
-  assert.ok(out.includes("192.168.1.108"));
+  assert.ok(out.includes("192.0.2.10"));
   assert.ok(out.includes("subtype=1"));
 });
 
 test("RTSP credentials are stripped wherever the URL appears", () => {
-  const url = `rtsp://admin:${SECRETS.password}@192.168.1.108:554/cam/realmonitor?channel=1`;
+  const url = `rtsp://admin:${SECRETS.password}@192.0.2.10:554/cam/realmonitor?channel=1`;
   for (const wrapper of [
     { message: url },
     { nested: { deep: [url] } },
@@ -166,7 +166,7 @@ test("RTSP credentials are stripped wherever the URL appears", () => {
 });
 
 test("URL-encoded passwords are stripped too", () => {
-  const out = redactString("rtsp://admin:P%40ssw0rd%21@192.168.1.108:554/cam/realmonitor?channel=1");
+  const out = redactString("rtsp://admin:P%40ssw0rd%21@192.0.2.10:554/cam/realmonitor?channel=1");
   assert.ok(!out.includes("P%40ssw0rd"));
   assert.ok(out.includes(REDACTED));
 });
@@ -176,7 +176,7 @@ test("URL-encoded passwords are stripped too", () => {
  * ------------------------------------------------------------------ */
 
 test("an error carrying config, headers and a stack leaks none of them", () => {
-  const error = new Error(`probe failed for rtsp://admin:${SECRETS.password}@192.168.1.108`);
+  const error = new Error(`probe failed for rtsp://admin:${SECRETS.password}@192.0.2.10`);
   error.config = {
     auth: { username: "admin", password: SECRETS.password },
     headers: { Authorization: SECRETS.authorization },
