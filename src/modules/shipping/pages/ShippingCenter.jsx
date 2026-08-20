@@ -613,16 +613,16 @@ export default function ShippingCenter() {
           ) : null}
 
           {!loading && view === "board" ? (
-            <div className="grid gap-3 overflow-x-auto pb-2 xl:grid-cols-8">
+            <div className="grid grid-flow-col auto-cols-[minmax(15rem,1fr)] gap-3 overflow-x-auto pb-2">
               {STATUSES.map((status) => (
-                <div key={status} className="min-w-64 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)]">
+                <div key={status} className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)]">
                   <div className="sticky top-0 rounded-t-2xl border-b border-[var(--border)] bg-[var(--surface)] p-3"><div className="flex items-center justify-between gap-2"><span className="text-sm font-black">{statusLabel(status)}</span><span className="rounded-full bg-[var(--surface-soft)] px-2 py-1 text-xs font-black">{boardGroups[status]?.length || 0}</span></div></div>
                   <div className="max-h-[620px] space-y-2 overflow-auto p-2">
                     {(boardGroups[status] || []).map((order) => (
                       <button key={order.id} onClick={() => setDrawerOrder(order)} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-3 text-start hover:bg-[var(--table-hover)]">
                         <div className="flex items-start justify-between gap-2"><span className="font-black text-[var(--text)]">{order.order_number}</span><ExternalLink className="h-4 w-4 text-[var(--text-tertiary)]" /></div>
                         <div className="mt-1 text-sm font-bold text-[var(--text-secondary)]">{order.customer_name || "-"}</div>
-                        <div className="mt-2 flex items-center justify-between text-xs font-bold text-[var(--text-tertiary)]"><span>{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span><span>{fmtMoney(codOf(order))}</span></div>
+                        <div className="mt-2 flex items-center justify-between gap-2 text-xs font-bold text-[var(--text-tertiary)]"><span className="truncate">{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span><span className="shrink-0">{fmtMoney(codOf(order))}</span></div>
                       </button>
                     ))}
                   </div>
