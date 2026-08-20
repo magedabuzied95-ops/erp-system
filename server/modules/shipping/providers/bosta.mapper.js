@@ -195,7 +195,12 @@ export const buildBostaAddressLine = (order = {}) => {
   return parts.join(", ");
 };
 
-export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null }) => {
+// Bosta's integration clients attach the status callback to the delivery itself rather
+// than relying on a dashboard-wide setting, and our deliveries have never carried one.
+// That fits the evidence exactly: shipping_events has never held a single row since the
+// integration went live. Sent only when a full URL could be built — a half-formed
+// callback is worse than none, because it looks configured.
+export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "" }) => {
   const names = text(order.customer_name || order.full_name || "Online Customer").split(/\s+/);
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
@@ -211,6 +216,7 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   return {
     type: 10,
     cod: Math.max(0, Number(codAmount || 0)),
+    ...(text(webhookUrl) ? { webHook: text(webhookUrl) } : {}),
     // Bosta keeps its own per-account default for this, so the flag is sent only
     // when the shop has actually decided. Omitting it is not the same as false.
     ...(typeof allowOpenPackage === "boolean" ? { allowToOpenPackage: allowOpenPackage } : {}),

@@ -185,6 +185,28 @@ const webhookSecret = async () => text(
   ""
 );
 
+// The per-delivery callback Bosta's own clients attach to a shipment. The token rides in
+// the query string because that is the shape this field takes — there is no header to
+// set on a URL — and `verifyBostaWebhookAuth` already accepts `req.query.token`. It is
+// therefore a secret in a URL, so it must never reach a log: see redactBostaPayload.
+// Returns "" rather than a half-built URL when the public backend URL or the secret is
+// missing, because a callback that looks configured and is not is the worse failure.
+const bostaWebhookCallbackUrl = async () => {
+  const base = text(getPublicBackendUrl());
+  const secret = await webhookSecret();
+  if (!base || !secret) {
+    console.warn("[bosta] no per-delivery webhook attached", { has_public_backend_url: Boolean(base), has_webhook_secret: Boolean(secret) });
+    return "";
+  }
+  return `${base.replace(/\/+$/, "")}/api/shipping/bosta/webhook?token=${encodeURIComponent(secret)}`;
+};
+
+export const redactBostaPayload = (payload = {}) => (
+  payload?.webHook
+    ? { ...payload, webHook: String(payload.webHook).replace(/([?&]token=)[^&]*/i, "$1***") }
+    : payload
+);
+
 const requestBaseUrl = (req) => {
   const envUrl = getPublicBackendUrl();
   if (envUrl) return envUrl;
@@ -838,8 +860,10 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     const allowOpenPackage = resolveOpenPackagePreference({ order, defaultMode: config.allowOpenPackage, override: options.allowOpenPackage });
 
     const bosta = createBostaClient(config);
-    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage });
-    console.log("[bosta-create-payload]", JSON.stringify(deliveryPayload));
+    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl() });
+    // Redacted: the callback carries the webhook secret in its query string, and this
+    // line goes to the container log verbatim.
+    console.log("[bosta-create-payload]", JSON.stringify(redactBostaPayload(deliveryPayload)));
     console.log("[bosta] creating delivery", { orderId: order.id, city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id, cod: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage });
     let rawBostaResponse;
     try {

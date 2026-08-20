@@ -64,3 +64,36 @@ test("an unknown state parses as itself and would not update", () => {
   assert.equal(preview.parsed.rawStatus, "Rescheduled");
   assert.equal(preview.would_update, false);
 });
+
+const { mapOrderToBostaDeliveryPayload } = await import("../server/modules/shipping/providers/bosta.mapper.js");
+const { redactBostaPayload } = await import("../server/modules/shipping/shipping.service.js");
+
+const order = { id: 1, customer_name: "Ahmed Hasabo", customer_phone: "201019071764", street_address: "12 Shebin El Kanater street" };
+
+// Bosta's integration clients attach the status callback to the delivery itself. Ours
+// never did, which fits the evidence: not one shipping_events row since go-live.
+test("the delivery payload carries the status callback", () => {
+  const payload = mapOrderToBostaDeliveryPayload({ order, webhookUrl: "https://api.m1store-egy.com/api/shipping/bosta/webhook?token=s3cret" });
+  assert.equal(payload.webHook, "https://api.m1store-egy.com/api/shipping/bosta/webhook?token=s3cret");
+});
+
+// A half-formed callback is worse than none: it looks configured and never fires.
+test("no callback is sent when the URL could not be built", () => {
+  assert.equal("webHook" in mapOrderToBostaDeliveryPayload({ order }), false);
+  assert.equal("webHook" in mapOrderToBostaDeliveryPayload({ order, webhookUrl: "" }), false);
+  assert.equal("webHook" in mapOrderToBostaDeliveryPayload({ order, webhookUrl: "   " }), false);
+});
+
+// The create payload is logged verbatim, and this URL carries the webhook secret.
+test("the webhook token never reaches a log", () => {
+  const redacted = redactBostaPayload({ cod: 1400, webHook: "https://api.m1store-egy.com/api/shipping/bosta/webhook?token=s3cret" });
+  assert.equal(redacted.webHook, "https://api.m1store-egy.com/api/shipping/bosta/webhook?token=***");
+  assert.doesNotMatch(JSON.stringify(redacted), /s3cret/);
+  assert.equal(redacted.cod, 1400);
+  assert.deepEqual(redactBostaPayload({ cod: 1400 }), { cod: 1400 });
+});
+
+test("the create path logs the redacted payload, never the raw one", () => {
+  assert.match(shippingServiceSource, /console\.log\("\[bosta-create-payload\]", JSON\.stringify\(redactBostaPayload\(deliveryPayload\)\)\)/);
+  assert.doesNotMatch(shippingServiceSource, /console\.log\("\[bosta-create-payload\]", JSON\.stringify\(deliveryPayload\)\)/);
+});
