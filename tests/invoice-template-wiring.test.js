@@ -48,6 +48,36 @@ test("the card's totals gates are attached", () => {
   assert.match(card, /showTotals\.show_remaining \?/);
 });
 
+const pdf = read("../src/shared/utils/invoicePdf.js");
+
+test("the printed invoice reads the template and picks its own output", () => {
+  assert.match(pdf, /invoiceTemplateForOutput\(template \|\| \{\}, thermal \? "thermal" : "print"\)/);
+  assert.match(pdf, /const resolvedTemplate = template \|\| \(await getInvoiceTemplateConfig\(\)\)/);
+  // The store's details are no longer a second copy of the customer-facing constants.
+  assert.doesNotMatch(pdf, /const M1_STORE_(PHONE|WEBSITE_TEXT|WEBSITE_HREF)\s*=/);
+  assert.doesNotMatch(pdf, /const ARABIC_RETURN_POLICY_(HTML|TEXT)\s*=/);
+  assert.doesNotMatch(pdf, /const DEFAULT_SOCIAL_LINKS\s*=/);
+  assert.doesNotMatch(pdf, /01000659301/);
+});
+
+test("the printed invoice keeps the paper's own layout facts separate from the toggles", () => {
+  // The 80mm roll drops these because of its width, not because of a setting, so the
+  // literal `thermal` check stays in front of the operator's flag.
+  assert.match(pdf, /thermal \|\| !show\.show_product_variant \? "" :/);
+  assert.match(pdf, /thermal \|\| !show\.show_unit_price \? "" :/);
+  assert.match(pdf, /!thermal && show\.show_product_image/);
+});
+
+test("the printed invoice gates its own sections", () => {
+  assert.match(pdf, /show\.show_customer_name \?/);
+  assert.match(pdf, /show\.show_customer_phone && invoice\.customerPhone/);
+  assert.match(pdf, /show\.show_seller_name && seller/);
+  assert.match(pdf, /show\.show_payment_method \?/);
+  assert.match(pdf, /showTotals\.show_subtotal \?/);
+  assert.match(pdf, /showTotals\.show_grand_total \?/);
+  assert.match(pdf, /returnPolicyHtml \?/);
+});
+
 test("resolving the template never logs a 404 as an error", () => {
   // The frontend ships ahead of the API often enough that a missing endpoint is a
   // normal state; logging it would put one console error on every invoice view.

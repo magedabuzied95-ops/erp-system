@@ -84,9 +84,12 @@ export const INVOICE_TEMPLATE_DEFAULTS = Object.freeze({
     show_sku: true,
     show_unit_price: true,
     show_line_total: true,
-    // Staff attribution — the POS receipt carries these, the A4 invoice does not.
-    show_seller_name: false,
-    show_cashier_name: false,
+    // Staff attribution. On today's invoices these print wherever the document carries
+    // them — the PDF names the seller, the cashier receipt names both — and the
+    // on-screen card has no such field at all, so a shared default of on changes
+    // nothing anywhere.
+    show_seller_name: true,
+    show_cashier_name: true,
   },
 
   totals: {
