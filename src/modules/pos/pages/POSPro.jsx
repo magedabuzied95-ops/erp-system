@@ -3923,10 +3923,27 @@ function POSPro() {
     ) || null;
   }, [activeProduct, selectedColor, selectedSize]);
   const activeVariantSizeLabel = getPosSizeDisplayLabel(activeProduct, activeVariant?.size);
-  const activeArticleCode = useMemo(
-    () => firstTextValue(activeProduct?.article_code, activeProduct?.articleCode, activeVariant?.article_code, activeVariant?.articleCode),
-    [activeProduct?.articleCode, activeProduct?.article_code, activeVariant?.articleCode, activeVariant?.article_code]
-  );
+  // The article code belongs to the colour, not the product: every colour group
+  // carries its own. buildProductFromVariants rolls the FIRST colour's code up onto
+  // the product, so reading the product first pinned this card to one code for all
+  // of the product's colours. Resolve from the selected variant, fall back to any
+  // variant in the selected colour (a colour can be picked before a size), and only
+  // then to the product roll-up.
+  const activeArticleCode = useMemo(() => {
+    const variants = Array.isArray(activeProduct?.variants) ? activeProduct.variants : [];
+    const colorVariant =
+      activeVariant ||
+      variants.find((variant) => getVariantColorKey(variant) === String(selectedColor || "")) ||
+      null;
+    return firstTextValue(
+      colorVariant?.article_code,
+      colorVariant?.articleCode,
+      colorVariant?.color_article_code,
+      colorVariant?.colorArticleCode,
+      activeProduct?.article_code,
+      activeProduct?.articleCode
+    );
+  }, [activeProduct, activeVariant, selectedColor]);
 
   const activeVariantImageUrl = useMemo(() => {
     if (!activeProduct) return "";
