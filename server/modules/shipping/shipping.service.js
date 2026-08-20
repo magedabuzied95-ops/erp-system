@@ -17,6 +17,7 @@ const BOSTA_NOT_CONFIGURED_MESSAGE = "لم يتم إنشاء أي شحنة عل�
 const BOSTA_DISABLED_MESSAGE = "تكامل بوسطة معطّل في إعدادات الشحن. فعّله أولاً قبل إنشاء الشحنات.";
 const BOSTA_NO_LABEL_MESSAGE = "مفيش شحنة على بوسطة للطلبات المختارة، فمافيش ملصق يتطبع. أنشئ الشحنة الأول ثم اطبع الملصق.";
 const BOSTA_ZERO_COLLECTION_MESSAGE = "الطلب لسه عليه مبلغ متبقّي، لكن طريقة الدفع مسجّلة كمدفوعة مسبقاً — فالشحنة هتروح لبوسطة بتحصيل صفر. صحّح بيانات الدفع أو اكتب مبلغ التحصيل في تبويب التكاليف قبل إنشاء الشحنة.";
+const BOSTA_SHIPMENT_EXISTS_MESSAGE = "الطلب ده عنده شحنة قايمة على بوسطة بالفعل. إنشاء شحنة تانية مش بيعدّل القديمة — بوسطة بتطلّع طرد جديد مستقل، والمندوب يبقى معاه اتنين. لو عايز تعيد إنشاءها، ألغِ الشحنة الحالية الأول.";
 
 // Turning the integration off has to actually stop new deliveries, otherwise the
 // toggle is decoration. Refresh and cancel stay open on purpose: shipments already
@@ -691,6 +692,33 @@ const bostaZeroCollectionError = (collection = {}) => {
   return error;
 };
 
+// A second create on the same order is not an edit. Bosta answers it with a brand new
+// parcel, and the create used to overwrite tracking_number with the new one — so the
+// parcel the courier is actually carrying became invisible to every screen we have.
+// On 2026-08-19 three orders went out twice this way (INV-413/516/517): the originals
+// moved to "In progress" while the ERP sat watching three "New" parcels nobody would
+// ever collect, and Bosta phoned each customer about both.
+const LIVE_BOSTA_SHIPMENT_ENDED = new Set(["cancelled", "canceled", "returned", "failed_delivery", "failed"]);
+
+const bostaShipmentExistsError = ({ trackingNumber = "", deliveryId = "", status = "" } = {}) => {
+  const error = new Error(trackingNumber ? `${BOSTA_SHIPMENT_EXISTS_MESSAGE} (${trackingNumber})` : BOSTA_SHIPMENT_EXISTS_MESSAGE);
+  error.status = 409;
+  error.code = "BOSTA_SHIPMENT_EXISTS";
+  error.payload = { tracking_number: trackingNumber, delivery_id: deliveryId, shipment_status: status };
+  return error;
+};
+
+// The one shipment an order already has, or null. A cancelled/returned/failed parcel is
+// finished business, so re-shipping over it is legitimate.
+export const liveBostaShipmentOf = (order = {}) => {
+  const deliveryId = text(order.shipping_provider_delivery_id);
+  const trackingNumber = text(order.shipping_tracking_number || order.tracking_number || order.shipment_id);
+  if (!deliveryId && !trackingNumber) return null;
+  const status = normalizeKey(order.shipment_status || order.shipping_status);
+  if (LIVE_BOSTA_SHIPMENT_ENDED.has(status)) return null;
+  return { deliveryId, trackingNumber, status };
+};
+
 // Bosta's own default lives in the business account, so "inherit" means send no
 // field at all and let the account decide. Anything else is this shop overruling it.
 const OPEN_PACKAGE_MODES = { inherit: null, default: null, account: null, allow: true, allowed: true, deny: false, denied: false, block: false };
@@ -747,6 +775,19 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     if (!text(config.apiKey)) {
       console.error("[bosta] refusing to create a shipment without credentials", { orderId: order.id });
       throw bostaNotConfiguredError("bosta_credentials_missing");
+    }
+
+    // Re-issuing has to retire the old parcel first, otherwise "fix the COD and create
+    // again" quietly leaves the courier holding two. Cancelling before the create is
+    // the safer order: a failed create leaves nothing extra with the courier.
+    const existing = liveBostaShipmentOf(order);
+    if (existing && !options.replaceExisting) {
+      console.error("[bosta] refusing to create a second delivery for an order that already has one", { orderId: order.id, ...existing });
+      throw bostaShipmentExistsError({ trackingNumber: existing.trackingNumber, deliveryId: existing.deliveryId, status: existing.status });
+    }
+    if (existing && options.replaceExisting && existing.deliveryId) {
+      console.log("[bosta] cancelling the existing delivery before re-issuing", { orderId: order.id, ...existing });
+      await createBostaClient(config).cancelDelivery(existing.deliveryId);
     }
 
     const missing = [];
@@ -808,7 +849,21 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     // The collection is written back onto the order so the shipping centre, the
     // invoice and the courier all quote the same figure — the column used to stay 0
     // while Bosta held a different number, and no screen ever showed the difference.
-    const timelineEvent = { at: nowIso(), action: "bosta_create_delivery", provider: "bosta", status, delivery_id: providerDeliveryId, shipment_id: bostaShipmentNumber, tracking_number: response.tracking_number, cod_amount: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage };
+    const timelineEvent = {
+      at: nowIso(),
+      action: "bosta_create_delivery",
+      provider: "bosta",
+      status,
+      delivery_id: providerDeliveryId,
+      shipment_id: bostaShipmentNumber,
+      tracking_number: response.tracking_number,
+      cod_amount: collection.amount,
+      cod_source: collection.source,
+      allow_open_package: allowOpenPackage,
+      // The overwritten parcel stays named here, so a replacement is never a tracking
+      // number that simply vanished from the order.
+      ...(existing ? { replaced_delivery_id: existing.deliveryId, replaced_tracking_number: existing.trackingNumber } : {}),
+    };
     const updateResult = await client.query(
       `
       UPDATE orders SET

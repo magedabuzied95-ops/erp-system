@@ -50,7 +50,9 @@
         "order_not_found": "الطلب غير موجود"
       },
       "printReady": "تم تجهيز {{count}} ملصق للطباعة",
-      "printSkipped": "طلبات من غير ملصق ({{count}}): {{orders}}"
+      "printSkipped": "طلبات من غير ملصق ({{count}}): {{orders}}",
+      "done": "تمت العملية",
+      "failedCount": "فشلت {{count}} من الشحنات:"
     },
     "drawer": {
       "title": "تفاصيل الشحنة",

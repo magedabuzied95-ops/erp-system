@@ -50,7 +50,9 @@
         "order_not_found": "order not found"
       },
       "printReady": "{{count}} label(s) ready",
-      "printSkipped": "Orders with no label ({{count}}): {{orders}}"
+      "printSkipped": "Orders with no label ({{count}}): {{orders}}",
+      "done": "Action finished",
+      "failedCount": "{{count}} shipment(s) failed:"
     },
     "drawer": {
       "title": "Shipment Drawer",

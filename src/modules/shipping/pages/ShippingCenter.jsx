@@ -259,7 +259,21 @@ export default function ShippingCenter() {
     if (!selectedIds.length) return toast.error(t("shipping.center.bulk.selectFirst"));
     try {
       const result = await api.post("/shipping/center/bulk", { action, order_ids: selectedIds });
-      toast.success(`Action finished${result.failed ? ` with ${result.failed} failed` : ""}`);
+      /*
+       * A per-order failure came back inside a 200, and this used to render it as a
+       * green "Action finished with 3 failed" with the reason nowhere on screen. That
+       * is how three orders got shipped twice without anyone seeing a word about it.
+       */
+      const failures = (result.results || []).filter((row) => !row.success);
+      if (failures.length) {
+        const reasons = [...new Set(failures.map((row) => row.message).filter(Boolean))];
+        toast.error(
+          `${t("shipping.center.bulk.failedCount", { count: failures.length })}${reasons.length ? `\n${reasons.join("\n")}` : ""}`,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success(t("shipping.center.bulk.done"));
+      }
       await load();
     } catch (error) {
       toast.error(error.message || "Bulk action failed");
