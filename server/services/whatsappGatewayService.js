@@ -502,6 +502,11 @@ const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) 
       remote_jid: remoteJid,
       customer_name: customerName,
       last_message: evolutionChatLastMessageText(chat),
+      // Who wrote last. This recovery creates the conversation from the chat list and
+      // imports no message rows (the transcript is pulled only when the thread is
+      // opened), so this is the ONLY record of direction the inbox has for these
+      // conversations — and unread state is read off it. See loadAiInbox.
+      last_message_from_me: fromMe,
       last_message_at: text(chat?.updatedAt || chat?.updated_at || lastMessage?.messageTimestamp || "") || new Date().toISOString(),
     }];
   });
@@ -546,13 +551,14 @@ const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) 
                'resolved_reply_jid', r.remote_jid,
                'resolved_phone', r.phone,
                'instance', $3::text,
-               'source', 'evolution_chat_recovery'
+               'source', 'evolution_chat_recovery',
+               'last_message_from_me', r.last_message_from_me
              ),
              COALESCE(NULLIF(r.last_message_at, '')::timestamptz, NOW()),
              COALESCE(NULLIF(r.last_message_at, '')::timestamptz, NOW())
       FROM jsonb_to_recordset($2::jsonb) AS r(
         session_id text, phone text, remote_jid text, customer_name text,
-        last_message text, last_message_at text
+        last_message text, last_message_from_me boolean, last_message_at text
       )
       ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
         external_customer_id = COALESCE(NULLIF(ai_channel_conversations.external_customer_id, ''), EXCLUDED.external_customer_id),

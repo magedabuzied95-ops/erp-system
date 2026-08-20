@@ -2171,6 +2171,39 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
   }
 };
 
+// Unread for a conversation the inbox knows only from the channel's chat list.
+//
+// The Evolution recovery builds the session + channel conversation from the WhatsApp
+// chat list and imports NO message rows — the transcript is pulled only when the thread
+// is opened. Counting unread purely out of ai_support_messages therefore reads every one
+// of those as "read" forever, which is what emptied the unread filter while the same
+// cards showed the customer's own last message. So when the chat-level preview is newer
+// than anything imported and the recovery recorded the CUSTOMER as the last sender, the
+// conversation stays unread until a human opens it (read_at) — the same rule the message
+// path applies, just sourced from the chat preview. `last_message_from_me` must be
+// present and false: a conversation that predates the flag is left to the message path
+// rather than flipped to unread on a guess.
+const unreadFromChatPreviewSql = (latestMessageCreatedAt) => `
+      (
+        COALESCE(c.metadata->>'last_message_from_me', '') = 'false'
+        AND COALESCE(NULLIF(c.last_message, ''), NULLIF(s.last_message, ''), '') <> ''
+        AND c.last_message_at IS NOT NULL
+        AND (
+          ${latestMessageCreatedAt} IS NULL
+          OR (
+            c.last_message_at > ${latestMessageCreatedAt}
+            -- A staff row as the newest imported message means a human already replied
+            -- here; the chat preview can lag behind that (it is only refreshed on the
+            -- next recovery sweep) so it must not flip the thread back to unread.
+            AND LOWER(COALESCE(m.sender_type, '')) <> 'staff'
+          )
+        )
+        AND c.last_message_at > GREATEST(
+          COALESCE(c.read_at, TIMESTAMP 'epoch'),
+          COALESCE(s.read_at, TIMESTAMP 'epoch')
+        )
+      ) AS unread_from_chat_preview`;
+
 export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
@@ -2334,6 +2367,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
             ), TIMESTAMP 'epoch')
           )
       ) AS unread_count,
+      ${unreadFromChatPreviewSql("m.latest_message_created_at")},
       m.latest_message_id,
       m.latest_message_customer_name,
       m.latest_message_customer_avatar_url,
@@ -2482,7 +2516,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       const summaryMessages = summaryMessage ? [summaryMessage] : [];
       const manuallyUnread = conversation.manually_unread === true;
       const computedUnreadCount = Math.max(0, numeric(conversation.unread_count, 0));
-      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread ? 1 : 0);
+      // A chat-list-only conversation has no message rows to count — see unreadFromChatPreviewSql.
+      const unreadFromChatPreview = conversation.unread_from_chat_preview === true;
+      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread || unreadFromChatPreview ? 1 : 0);
       const leadStatus = normalizedSummaryLeadStatus(conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
       const leadType = leadTypeFrom({
         memoryScore: 0,
@@ -2777,6 +2813,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
             ), TIMESTAMP 'epoch')
           )
       ) AS unread_count,
+      ${unreadFromChatPreviewSql("m.created_at")},
       e.last_webhook_event_at,
       e.last_webhook_status,
       m.customer_message,
@@ -3400,7 +3437,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       const lastMessagePreview = conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "";
       const manuallyUnread = conversation.manually_unread === true;
       const computedUnreadCount = Math.max(0, numeric(conversation.unread_count, 0));
-      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread ? 1 : 0);
+      // A chat-list-only conversation has no message rows to count — see unreadFromChatPreviewSql.
+      const unreadFromChatPreview = conversation.unread_from_chat_preview === true;
+      const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread || unreadFromChatPreview ? 1 : 0);
       const conversationSessionId = canonicalInboxConversationSessionId(conversation);
       const channel = canonicalInboxChannel(conversation.channel || conversation.source || "web_chat") || "web_chat";
       return {

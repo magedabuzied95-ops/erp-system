@@ -6294,6 +6294,18 @@ export default function AiInbox({ reviewerMode = false }) {
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
   );
+  // An empty list has to name the filter that emptied it. The old copy only looked at
+  // leadFilter/filter, so hiding every conversation behind "unread" or "favorites"
+  // still claimed no real messages had arrived at all.
+  const emptyConversationsText = useMemo(() => {
+    if (readFilter === "unread") return t("aiSupport.inbox.ui.emptyUnread");
+    if (readFilter === "read") return t("aiSupport.inbox.ui.emptyRead");
+    if (favoriteFilter !== "all") return t("aiSupport.inbox.ui.emptyFavorites");
+    if (leadFilter !== "all" || filter !== "all" || channelFilter !== "all" || clean(search)) {
+      return t("aiSupport.inbox.ui.emptyFiltered");
+    }
+    return t("aiSupport.inbox.ui.emptyNoConversations");
+  }, [channelFilter, favoriteFilter, filter, leadFilter, readFilter, search, t]);
   const visibleSocialComments = useMemo(() => {
     if (inboxSection !== "social_comments") return [];
     const normalizedCaption = (value = "") => clean(value)
@@ -9939,7 +9951,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                        );
 	                      })}
 	                    </div>
-	                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
+	                  ) : !loading ? <EmptyBlock text={emptyConversationsText} /> : null}
 	                </>
 	              ) : null}
 	            </div>
