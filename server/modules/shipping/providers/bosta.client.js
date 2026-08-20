@@ -78,9 +78,16 @@ export const createBostaClient = ({ apiKey, apiBaseUrl } = {}) => {
       const template = path("BOSTA_AWB_PATH", "/deliveries/awb/{id}");
       return jsonRequest(url(template.replace("{id}", encodeURIComponent(deliveryId))), { apiKey: token });
     },
+    // `/deliveries/{id}` is not a Bosta route at all: it answers "Cannot GET" — an
+    // Express 404 raised before any auth check, whereas a real path answers 401
+    // errorCode 1028 even unauthenticated. So every status refresh this ERP ever
+    // attempted failed with a bare 404, which is why no order has a single
+    // `bosta_refresh_status` timeline entry. `/deliveries/business/{trackingNumber}`
+    // is the path that exists; the env override stays so it can be repointed without
+    // a deploy if Bosta moves it again.
     getDeliveryStatus: async (identifier) => {
       requireApiKey();
-      const template = path("BOSTA_DELIVERY_STATUS_PATH", "/deliveries/{id}");
+      const template = path("BOSTA_DELIVERY_STATUS_PATH", "/deliveries/business/{id}");
       return jsonRequest(url(template.replace("{id}", encodeURIComponent(identifier))), { apiKey: token });
     },
     cancelDelivery: async (identifier) => {

@@ -119,7 +119,14 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
   const errorPayload = payload?.error && typeof payload.error === "object" ? payload.error : {};
   const providerDeliveryId = text(pick(data, ["_id", "id", "deliveryId", "delivery_id", "shipment_id"]));
   const trackingNumber = text(pick(data, ["trackingNumber", "tracking_number", "trackingCode", "tracking_code", "trackingNo"]));
+  // Whether a state was actually found, as opposed to the "created" default below.
+  // On the create call that default is harmless — we just made the parcel. On a status
+  // refresh it is a silent lie: an unreadable response would overwrite a real status
+  // with "created" and stamp a fresh sync time, which on screen is indistinguishable
+  // from "the courier has not moved it yet".
+  const parsedStatus = normalizeBostaStatus(pick(data, ["status", "state", "deliveryStatus"]));
   return {
+    status_parsed: Boolean(parsedStatus),
     success: payload?.success !== false && !payload?.errorCode && !errorPayload?.errorCode,
     provider: "bosta",
     provider_delivery_id: providerDeliveryId,
@@ -127,7 +134,7 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
     tracking_number: trackingNumber,
     tracking_url: text(pick(data, ["trackingUrl", "tracking_url", "trackingURL"])),
     label_url: text(pick(data, ["labelUrl", "label_url", "airwayBillUrl", "awbUrl"])),
-    status: normalizeBostaStatus(pick(data, ["status", "state", "deliveryStatus"])) || "created",
+    status: parsedStatus || "created",
     raw_response: payload,
     error: text(pick(payload, ["message", "errorMessage"])) || text(pick(errorPayload, ["message", "errorMessage", "details"])) || (typeof payload?.error === "string" ? text(payload.error) : ""),
     error_code: text(pick(payload, ["errorCode", "code"])) || text(pick(errorPayload, ["errorCode", "code"])),

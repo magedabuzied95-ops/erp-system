@@ -1015,14 +1015,27 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     error.status = 404;
     throw error;
   }
-  const identifier = order.shipping_provider_delivery_id || order.shipment_id || order.shipping_tracking_number || order.tracking_number;
+  // The status endpoint is keyed by tracking number, so that comes first — the
+  // delivery id is only a fallback for rows that somehow never got one.
+  const identifier = order.shipping_tracking_number || order.tracking_number || order.shipment_id || order.shipping_provider_delivery_id;
   if (!identifier) {
     const error = new Error("Order has no Bosta delivery id or tracking number");
     error.status = 400;
     throw error;
   }
   const response = normalizeBostaDeliveryResponse(await createBostaClient(await bostaConfig()).getDeliveryStatus(identifier));
-  const status = response.status || order.shipping_status || "created";
+  // Refusing here is the whole point: writing the "created" default over a real status
+  // would look exactly like a parcel the courier has not touched, and would stamp a
+  // fresh sync time on top of the lie.
+  if (!response.status_parsed) {
+    console.error("[bosta] refresh could not read a state out of the response", { orderId, identifier, raw: JSON.stringify(response.raw_response).slice(0, 800) });
+    const error = new Error("Bosta answered without a readable shipment state, so the status was left untouched.");
+    error.status = 502;
+    error.code = "BOSTA_STATUS_UNREADABLE";
+    error.payload = { identifier, raw_response: response.raw_response };
+    throw error;
+  }
+  const status = response.status;
   const timelineEvent = { at: nowIso(), action: "bosta_refresh_status", provider: "bosta", status };
   const updated = await db.query(
     `

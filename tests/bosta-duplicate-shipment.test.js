@@ -73,3 +73,34 @@ test("a failed bulk action shows the reason instead of a success toast", () => {
   assert.match(shippingCenterPageSource, /toast\.error\(/);
   assert.doesNotMatch(shippingCenterPageSource, /toast\.success\(`Action finished/);
 });
+
+const bostaClientSource = readFileSync(new URL("../server/modules/shipping/providers/bosta.client.js", import.meta.url), "utf8");
+
+// `/deliveries/{id}` answers "Cannot GET" — an Express 404 raised before any auth
+// check, while every real Bosta path answers 401 errorCode 1028 even unauthenticated.
+// So every status refresh this ERP ever made failed with a bare 404, which is exactly
+// why no order carries a single `bosta_refresh_status` timeline entry.
+test("the status refresh calls a Bosta path that exists", () => {
+  assert.match(bostaClientSource, /BOSTA_DELIVERY_STATUS_PATH", "\/deliveries\/business\/\{id\}"/);
+  assert.doesNotMatch(bostaClientSource, /BOSTA_DELIVERY_STATUS_PATH", "\/deliveries\/\{id\}"/);
+});
+
+test("the refresh keys on the tracking number, not the delivery id", () => {
+  const refreshBody = shippingServiceSource.slice(shippingServiceSource.indexOf("export const refreshBostaShipmentForOrder"));
+  const identifier = refreshBody.slice(refreshBody.indexOf("const identifier ="), refreshBody.indexOf(";", refreshBody.indexOf("const identifier =")));
+  assert.ok(
+    identifier.indexOf("shipping_tracking_number") < identifier.indexOf("shipping_provider_delivery_id"),
+    "the tracking number must be preferred over the delivery id"
+  );
+});
+
+// "created" is a fine default right after creating a parcel and a silent lie on a
+// refresh: it overwrites a real status and stamps a fresh sync time, which on screen
+// reads as "the courier has not moved it yet".
+test("an unreadable Bosta response never gets written as 'created'", () => {
+  assert.match(shippingServiceSource, /if \(!response\.status_parsed\)/);
+  assert.match(shippingServiceSource, /code = "BOSTA_STATUS_UNREADABLE"/);
+  const refreshBody = shippingServiceSource.slice(shippingServiceSource.indexOf("export const refreshBostaShipmentForOrder"));
+  const cancelIndex = refreshBody.indexOf("export const cancelBostaShipmentForOrder");
+  assert.doesNotMatch(refreshBody.slice(0, cancelIndex), /order\.shipping_status \|\| "created"/);
+});
