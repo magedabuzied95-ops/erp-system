@@ -993,7 +993,7 @@ function OrderDetails() {
         </Link>
       }
     >
-      <div className="order-details-theme mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-4 xl:grid-cols-12">
+      <div className="order-details-theme grid w-full grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
