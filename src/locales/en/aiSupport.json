@@ -1500,6 +1500,8 @@
       "preview": "Preview",
       "searchingFor": "Searching for {{sizes}}",
       "chooseSizeFirst": "Choose a size first.",
+      "allSizes": "All available sizes",
+      "sizeOptionalHint": "With no size picked, the link sends everything available under these filters.",
       "matchingResults": "Matching results: {{count}}",
       "sendLink": "Send link",
       "sendProduct": "Send product",

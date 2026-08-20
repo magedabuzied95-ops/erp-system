@@ -66,6 +66,30 @@ test("grade + audience chips scope the size list and the match count, not just t
   assert.match(picker, /smartClassificationOptions\.grade/);
 });
 
+// Size is one filter among several, not a precondition: staff asked to send
+// "كل المستورد الرجالي" without naming a size.
+test("a link with no size still opens the filtered catalog", () => {
+  const url = new URL(buildAvailableProductsUrl({ gender: "men", quality: "local" }));
+  assert.equal(url.searchParams.get("size"), null);
+  assert.equal(url.searchParams.get("gender"), "men");
+  assert.equal(url.searchParams.get("quality"), "local");
+  assert.equal(url.searchParams.get("inStock"), "1");
+
+  const message = buildAvailableProductsMessage({ genderLabel: "رجالي", qualityLabel: "محلي" }, url.toString());
+  assert.match(message, /دي كل الموديلات المتاحة/);
+  assert.doesNotMatch(message, /المقاس/);
+});
+
+test("sending the link is never gated on picking a size", () => {
+  const picker = fs.readFileSync(new URL("../src/modules/aiSupport/components/ProductCardPicker.jsx", import.meta.url), "utf8");
+  const sizeBranch = picker.slice(picker.indexOf("const sizeContent = ("), picker.indexOf("const content = ("));
+  const sendButton = sizeBranch.slice(sizeBranch.indexOf('data-testid="available-by-size-send"'));
+  assert.match(sendButton, /disabled=\{submitting\}/);
+  assert.doesNotMatch(sendButton.slice(0, sendButton.indexOf("</button>")), /normalizedSelectedSizes\.length/);
+  // The submit handler must not bail out on an empty size selection either.
+  assert.doesNotMatch(picker, /if \(!sizes\.length \|\| submitting\) return;/);
+});
+
 test("the link preview counts the same grade the shopper will land on", () => {
   assert.deepEqual(buildShareAvailableStorefrontFilters({
     filters: { quality: "mirror_original", inStock: true },

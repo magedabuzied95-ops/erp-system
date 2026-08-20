@@ -1500,6 +1500,8 @@
       "preview": "المعاينة",
       "searchingFor": "سيتم البحث عن {{sizes}}",
       "chooseSizeFirst": "اختر المقاس أولًا.",
+      "allSizes": "كل المقاسات المتاحة",
+      "sizeOptionalHint": "من غير تحديد مقاس هيتبعت كل المتاح بالفلاتر دي.",
       "matchingResults": "النتائج المطابقة: {{count}}",
       "sendLink": "إرسال الرابط",
       "sendProduct": "إرسال منتج",

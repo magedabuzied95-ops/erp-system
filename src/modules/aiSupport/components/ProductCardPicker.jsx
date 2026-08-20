@@ -634,10 +634,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   useEffect(() => {
     if (!open || !sizeMode) return undefined;
     const sizes = uniqueSizeValues(selectedLinkSizes);
-    if (!sizes.length) {
-      setSizeMatchCount(0);
-      return undefined;
-    }
     let active = true;
     const timer = window.setTimeout(() => {
       getProductsBySizeCount({
@@ -1118,7 +1114,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const submitSelectionWithSizeMode = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
     const sizes = uniqueSizeValues(selectedLinkSizes);
-    if (!sizes.length || submitting) return;
+    if (submitting) return;
     const url = buildAvailableProductsUrl({
       sizes,
       gender: selectedLinkGender,
@@ -1185,11 +1181,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     });
     // Match count comes from the server (by-size count endpoint). Falls back to
     // the catalog derivation when the endpoints are unavailable.
-    const matchingCount = !normalizedSelectedSizes.length
-      ? 0
-      : sizeCatalogFallback
+    const matchingCount = sizeCatalogFallback
+      ? (normalizedSelectedSizes.length
         ? sizeLinkFilteredProducts.filter((product) => normalizedSelectedSizes.some((size) => productHasAvailableSize(product, size))).length
-        : sizeMatchCount;
+        : sizeLinkFilteredProducts.length)
+      : sizeMatchCount;
 
     // Presentation note (AI_INBOX_PRODUCT_LINK_MODAL): every colour below now
     // resolves through the M1 theme tokens in ProductLinkPicker.m1.css. Only
@@ -1394,7 +1390,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
             <div className="ai-plink__preview p-4">
               <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.preview")}</div>
-              <div className="ai-plink__preview-value mt-2">{normalizedSelectedSizes.length ? t("aiSupport.inbox.picker.searchingFor", { sizes: normalizedSelectedSizes.join(", ") }) : t("aiSupport.inbox.picker.chooseSizeFirst")}</div>
+              <div className="ai-plink__preview-value mt-2">{normalizedSelectedSizes.length ? t("aiSupport.inbox.picker.searchingFor", { sizes: normalizedSelectedSizes.join(", ") }) : t("aiSupport.inbox.picker.allSizes")}</div>
               <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.matchingResults", { count: matchingCount })}</div>
             </div>
           </div>
@@ -1404,13 +1400,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               data-testid="available-by-size-send"
               type="button"
               onClick={() => void submitSelectionWithSizeMode()}
-              disabled={submitting || !normalizedSelectedSizes.length}
+              disabled={submitting}
               className="ai-plink__send inline-flex w-full items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {t("aiSupport.inbox.picker.sendLink")}
             </button>
-            {!normalizedSelectedSizes.length ? <div className="ai-plink__footer-hint mt-2">{t("aiSupport.inbox.picker.chooseSizeFirst")}</div> : null}
+            {!normalizedSelectedSizes.length ? <div className="ai-plink__footer-hint mt-2">{t("aiSupport.inbox.picker.sizeOptionalHint")}</div> : null}
           </div>
         </section>
       </div>
