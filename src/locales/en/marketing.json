@@ -499,7 +499,10 @@
       "sizeCount": "Size count",
       "colorCount": "Colour count",
       "discountRate": "Discount rate",
-      "availableColorImages": "Available colour images"
+      "availableColorImages": "Available colour images",
+      "carouselCount": "{{selected}} of {{total}} will publish",
+      "carouselLimitHint": "Instagram and Facebook accept at most {{limit}} pictures per post. Click a colour to move it to the front and into the {{limit}}.",
+      "colorExcluded": "{{color}} will not publish — click to include it"
     },
     "tiktokVideoOnly": "Video only"
   },

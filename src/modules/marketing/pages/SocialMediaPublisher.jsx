@@ -191,6 +191,11 @@ const toastPublishOutcome = (outcome) => {
   toast.success(outcome.message);
 };
 
+// Instagram's own ceiling: a carousel holds 10 items and the Graph API rejects
+// an eleventh. Facebook's attached_media caps at 10 too, so this is a platform
+// limit on both sides, not a number we chose.
+const CAROUSEL_MEDIA_LIMIT = 10;
+
 const HISTORY_TABLE_LIMIT = 20;
 const ANALYTICS_DAYS = 30;
 const HISTORY_CHART_HEIGHT = 96;
@@ -913,6 +918,17 @@ export default function SocialMediaPublisher() {
   // path the publish path rebases on PUBLIC_BACKEND_URL.
   const selectedCatalogMediaSrc = resolveProductImageUrl(selectedCatalogResolvedMediaUrl);
   const mediaPreviewSrc = resolveProductImageUrl(resolvedMediaPreview);
+  // The exact list the publish payload carries, so the colour strip below can
+  // show which pictures actually go out. A product with more colours than the
+  // carousel holds used to lose the tail with nothing on screen saying so.
+  const carouselMediaUrls = useMemo(
+    () =>
+      uniqueTextList(
+        selectedCatalogResolvedMediaUrl,
+        selectedCatalogMediaItems.map((item) => item.url)
+      ).slice(0, CAROUSEL_MEDIA_LIMIT),
+    [selectedCatalogResolvedMediaUrl, selectedCatalogMediaItems]
+  );
   const selectedCatalogProductAvailability = useMemo(() => collectFirstCommentAvailability(selectedCatalogProduct || {}), [selectedCatalogProduct]);
   const selectedCatalogProductDiscount = useMemo(() => {
     if (!selectedCatalogProduct) return "";
@@ -1571,11 +1587,9 @@ export default function SocialMediaPublisher() {
     }
     if (!mediaFile && selectedCatalogResolvedMediaUrl) {
       formData.append("media_url", selectedCatalogResolvedMediaUrl);
-      const carouselUrls = uniqueTextList(
-        selectedCatalogResolvedMediaUrl,
-        selectedCatalogMediaItems.map((item) => item.url)
-      ).slice(0, 10);
-      formData.append("media_urls", JSON.stringify(carouselUrls));
+      // Same list the colour strip numbers on screen — one source of truth, so
+      // what the composer shows is what gets published.
+      formData.append("media_urls", JSON.stringify(carouselMediaUrls));
     }
     // Provider payloads stay separate: Meta keys are unchanged and the TikTok
     // block is added only when TikTok is actually selected, so a Facebook or
@@ -2001,10 +2015,39 @@ export default function SocialMediaPublisher() {
                         </div>
                         {selectedCatalogMediaItems.length > 1 ? (
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.availableColorImages")}</div>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.availableColorImages")}</div>
+                              <span
+                                className={[
+                                  "rounded-full border px-2.5 py-1 text-[10px] font-bold",
+                                  selectedCatalogMediaItems.length > CAROUSEL_MEDIA_LIMIT
+                                    ? "border-amber-400/25 bg-amber-400/10 text-amber-100"
+                                    : "border-white/10 bg-white/[0.04] text-slate-300",
+                                ].join(" ")}
+                              >
+                                {/* Not `count`: i18next reads that name as a plural
+                                    selector, and an Arabic bundle without the full
+                                    set of plural forms silently renders English. */}
+                                {t("marketing.socialPublisher.catalog.carouselCount", {
+                                  selected: carouselMediaUrls.length,
+                                  total: selectedCatalogMediaItems.length,
+                                })}
+                              </span>
+                            </div>
+                            {selectedCatalogMediaItems.length > CAROUSEL_MEDIA_LIMIT ? (
+                              <div className="mt-2 text-[11px] leading-5 text-amber-100/80">
+                                {t("marketing.socialPublisher.catalog.carouselLimitHint", { limit: CAROUSEL_MEDIA_LIMIT })}
+                              </div>
+                            ) : null}
                             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5 xl:grid-cols-6">
                               {selectedCatalogMediaItems.map((item) => {
                                 const isActive = item.url === selectedCatalogResolvedMediaUrl;
+                                // The publish order, not the strip order: the
+                                // selected colour is pushed to the front, so a
+                                // colour past the cap joins the carousel simply
+                                // by being clicked.
+                                const slideNumber = carouselMediaUrls.indexOf(item.url) + 1;
+                                const isPublished = slideNumber > 0;
                                 return (
                                   <button
                                     key={item.key || item.url}
@@ -2014,14 +2057,27 @@ export default function SocialMediaPublisher() {
                                       setMediaType("image");
                                     }}
                                     className={[
-                                      "group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition",
+                                      "group relative overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition",
                                       isActive ? "border-emerald-300/60 bg-emerald-300/15" : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]",
+                                      isPublished ? "" : "opacity-45 grayscale",
                                     ].join(" ")}
-                                    title={item.color || item.url}
+                                    title={
+                                      isPublished
+                                        ? `${item.color || item.url} — ${slideNumber}`
+                                        : t("marketing.socialPublisher.catalog.colorExcluded", { color: item.color || "" })
+                                    }
                                   >
                                     <div className="aspect-square overflow-hidden rounded-xl bg-black/40">
                                       <img src={resolveProductImageUrl(item.url)} alt={item.color || "Color image"} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" />
                                     </div>
+                                    <span
+                                      className={[
+                                        "absolute right-2 top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black",
+                                        isPublished ? "bg-emerald-400 text-slate-950" : "bg-slate-800 text-slate-400",
+                                      ].join(" ")}
+                                    >
+                                      {isPublished ? slideNumber : "—"}
+                                    </span>
                                     <div className="mt-1 truncate px-1 text-[10px] font-semibold text-emerald-100/80">{item.color || "Color"}</div>
                                   </button>
                                 );

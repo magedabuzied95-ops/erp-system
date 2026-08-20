@@ -499,7 +499,10 @@
       "sizeCount": "عدد المقاسات",
       "colorCount": "عدد الألوان",
       "discountRate": "نسبة الخصم",
-      "availableColorImages": "صور الألوان المتاحة"
+      "availableColorImages": "صور الألوان المتاحة",
+      "carouselCount": "{{selected}} من {{total}} هيتنشروا",
+      "carouselLimitHint": "انستجرام وفيسبوك بياخدوا {{limit}} صور كحد أقصى في البوست الواحد. اضغط على أي لون عشان يتقدّم لأول الترتيب ويدخل ضمن الـ {{limit}}.",
+      "colorExcluded": "{{color}} مش هيتنشر — اضغط عليه عشان يدخل"
     },
     "tiktokVideoOnly": "فيديو فقط"
   },
