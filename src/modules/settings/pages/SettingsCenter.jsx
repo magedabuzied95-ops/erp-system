@@ -1795,6 +1795,9 @@ function BostaIntegrationPanel({ copy }) {
     ["Locations Synced", status?.locations_synced],
     ["Webhook Secret", status?.webhook_secret_configured],
     ["Last Webhook Received", Boolean(status?.last_webhook_received_at), status?.last_webhook_received_at ? new Date(status.last_webhook_received_at).toLocaleString() : "No events yet"],
+    // Bosta states the ERP does not track are now recorded rather than rejected, so this
+    // row is the evidence list to map from. Green means nothing unknown has arrived.
+    ["Unmapped Bosta Statuses", !(status?.webhook_untracked_statuses || []).length, (status?.webhook_untracked_statuses || []).join(", ") || "None"],
     ["Last Sync Date", Boolean(status?.last_locations_sync_at || settings.last_locations_sync_at), status?.last_locations_sync_at || settings.last_locations_sync_at ? new Date(status?.last_locations_sync_at || settings.last_locations_sync_at).toLocaleString() : "Not synced"],
   ];
   return (

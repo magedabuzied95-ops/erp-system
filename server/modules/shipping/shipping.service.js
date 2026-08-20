@@ -407,6 +407,19 @@ export const getBostaIntegrationStatus = async ({ req } = {}) => {
     LIMIT 1
     `
   );
+  // Bosta's vocabulary is wider than the eight statuses the ERP tracks, and guessing the
+  // rest is how a wrong status becomes unfalsifiable. Unknown states are recorded under
+  // their real spelling instead, so this is the list to map from — evidence, not guesses.
+  const webhookStatusMix = await db.query(
+    `
+    SELECT status, COUNT(*)::int AS events, MAX(created_at) AS last_seen
+    FROM shipping_events
+    WHERE provider = 'bosta'
+    GROUP BY status
+    ORDER BY MAX(created_at) DESC
+    LIMIT 20
+    `
+  );
   const counts = locationCounts.rows[0] || { cities: 0, zones: 0, districts: 0 };
   const webhookUrl = `${requestBaseUrl(req) || ""}/api/shipping/bosta/webhook`;
   return {
@@ -419,6 +432,13 @@ export const getBostaIntegrationStatus = async ({ req } = {}) => {
     last_webhook_received_at: lastWebhook.rows[0]?.created_at || null,
     last_webhook_status: lastWebhook.rows[0]?.status || "",
     last_webhook_order_id: lastWebhook.rows[0]?.order_id || null,
+    webhook_status_mix: webhookStatusMix.rows.map((row) => ({
+      status: row.status,
+      events: Number(row.events || 0),
+      last_seen: row.last_seen,
+      tracked: ERP_SHIPPING_STATUSES.has(row.status),
+    })),
+    webhook_untracked_statuses: webhookStatusMix.rows.filter((row) => !ERP_SHIPPING_STATUSES.has(row.status)).map((row) => row.status),
     last_locations_sync_at: provider.last_locations_sync_at || null,
     location_counts: {
       cities: Number(counts.cities || 0),
@@ -1121,20 +1141,14 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
   console.log("[bosta-webhook]", safeJson(payload));
   const auth = req ? await verifyBostaWebhookAuth({ req, payload }) : { verified: true, mode: "internal" };
   const parsed = extractBostaWebhook(payload);
-  if (!parsed.status) {
-    const error = new Error("Bosta webhook status is missing or unsupported");
-    error.status = 400;
-    error.code = "BOSTA_WEBHOOK_STATUS_UNSUPPORTED";
-    error.payload = { parsed, payload };
-    throw error;
-  }
-  if (!parsed.deliveryId && !parsed.trackingNumber) {
-    const error = new Error("Bosta webhook delivery id or tracking number is required");
-    error.status = 400;
-    error.code = "BOSTA_WEBHOOK_IDENTIFIER_MISSING";
-    error.payload = { parsed, payload };
-    throw error;
-  }
+  // A callback we cannot map is still proof that Bosta is calling. This used to answer
+  // 400 and throw *before* the shipping_events INSERT, so a rejected callback left no
+  // row, no last_webhook_received_at, nothing in the drawer — "no events yet" could not
+  // be told apart from "Bosta never called", and a platform that keeps collecting 4xx
+  // throttles or drops the subscription outright. Bosta's vocabulary is wider than the
+  // eight statuses the ERP tracks, so the unknown ones are recorded under their real
+  // spelling and answered 200; only a status the ERP actually tracks may move an order.
+  const recordedStatus = parsed.status || normalizeKey(parsed.rawStatus) || "unmapped";
 
   const client = await db.connect();
   try {
@@ -1165,25 +1179,34 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
       ON CONFLICT (provider, event_key) WHERE event_key IS NOT NULL AND event_key <> '' DO NOTHING
       RETURNING *
       `,
-      [order?.id || null, parsed.status, safeJson({ ...payload, parsed }), eventKey]
+      [order?.id || null, recordedStatus, safeJson({ ...payload, parsed }), eventKey]
     );
     const duplicate = eventInsert.rowCount === 0;
 
     if (!order) {
       await client.query("COMMIT");
-      return { success: true, matched: false, duplicate, auth, parsed, message: "No matching ERP order found for Bosta webhook" };
+      return { success: true, recorded: true, applied: false, matched: false, duplicate, auth, parsed, message: "No matching ERP order found for Bosta webhook" };
     }
 
     const orderStatus = normalizeKey(order.status);
     const shippingStatus = normalizeKey(order.shipping_status || order.shipment_status);
     if (order.cancelled_at || orderStatus === "cancelled" || shippingStatus === "cancelled") {
       await client.query("COMMIT");
-      return { success: true, matched: true, skipped: true, duplicate, order_id: order.id, auth, parsed, message: "ERP order is cancelled; webhook did not overwrite it" };
+      return { success: true, recorded: true, applied: false, matched: true, skipped: true, duplicate, order_id: order.id, auth, parsed, message: "ERP order is cancelled; webhook did not overwrite it" };
     }
 
     if (duplicate) {
       await client.query("COMMIT");
-      return { success: true, matched: true, duplicate: true, order_id: order.id, auth, parsed, order };
+      return { success: true, recorded: true, applied: false, matched: true, duplicate: true, order_id: order.id, auth, parsed, order };
+    }
+
+    // Recorded under its real spelling so the unhandled vocabulary is visible in
+    // shipping_events, but never written onto the order: guessing what an unknown
+    // Bosta state means is how a wrong status becomes unfalsifiable from the UI.
+    if (!parsed.status) {
+      console.warn("[bosta-webhook] status not tracked by the ERP; recorded without touching the order", { orderId: order.id, raw_status: parsed.rawStatus, recorded_as: recordedStatus });
+      await client.query("COMMIT");
+      return { success: true, recorded: true, applied: false, matched: true, duplicate, order_id: order.id, auth, parsed, reason: "status_not_tracked" };
     }
 
     const timelineEvent = {
@@ -1219,7 +1242,7 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     sendShipmentNotificationForStatus(updatedOrder, parsed.status).catch((error) => {
       console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: parsed.status, message: error?.message || String(error) });
     });
-    return { success: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updatedOrder };
+    return { success: true, recorded: true, applied: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updatedOrder };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
