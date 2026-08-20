@@ -1484,21 +1484,38 @@ export const getEmployees = async (req, res) => {
     const tenantId = getTenantScope(req);
     const attendanceDate = getRequestAttendanceDate(req);
     const search = String(req.query.search || "").trim().toLowerCase();
+    // The picker listed every non-deleted employee while the attendance queries
+    // only ever counted the ones whose status is 'active'. Picking an inactive
+    // name then produced a whole page of zeros with nothing to explain it, so
+    // the caller's `active` and `branch_id` now mean what they say. Both stay
+    // opt-in: the employee-management screens still ask for the full list.
+    const activeOnly = ["1", "true", "yes"].includes(String(req.query.active ?? "").toLowerCase());
+    const branchId = String(req.query.branch_id || req.query.branchId || "").trim();
     const params = [tenantId, attendanceDate];
     const tenantPredicate = "($1::bigint IS NULL OR e.tenant_id = $1::bigint)";
-    const searchPredicate = search
-      ? ` AND (
-          LOWER(COALESCE(e.full_name, '')) LIKE $${params.length + 1}
-          OR LOWER(COALESCE(e.employee_code, '')) LIKE $${params.length + 1}
-          OR LOWER(COALESCE(e.phone, '')) LIKE $${params.length + 1}
-          OR LOWER(COALESCE(e.email, '')) LIKE $${params.length + 1}
-          OR LOWER(COALESCE(e.role, '')) LIKE $${params.length + 1}
-        )`
-      : "";
+    const filterPredicates = [];
 
     if (search) {
       params.push(`%${search}%`);
+      filterPredicates.push(`AND (
+          LOWER(COALESCE(e.full_name, '')) LIKE $${params.length}
+          OR LOWER(COALESCE(e.employee_code, '')) LIKE $${params.length}
+          OR LOWER(COALESCE(e.phone, '')) LIKE $${params.length}
+          OR LOWER(COALESCE(e.email, '')) LIKE $${params.length}
+          OR LOWER(COALESCE(e.role, '')) LIKE $${params.length}
+        )`);
     }
+
+    if (activeOnly) {
+      filterPredicates.push("AND LOWER(COALESCE(e.status, 'active')) = 'active'");
+    }
+
+    if (branchId) {
+      params.push(branchId);
+      filterPredicates.push(`AND e.branch_id::text = $${params.length}::text`);
+    }
+
+    const searchPredicate = filterPredicates.length ? `\n      ${filterPredicates.join("\n      ")}` : "";
 
     const result = await db.query(
       `
@@ -3465,6 +3482,14 @@ const centerNumber = (value, fallback = 0) => {
 
 const centerWeekdayCodes = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
+const OVERTIME_APPROVAL_STATUSES = new Set(["pending", "approved", "rejected"]);
+
+// The local week runs Saturday → Friday, so a headcount of working days per week
+// has to be spent in that order. Counting from Sunday with the JS weekday index
+// handed the store Friday as a work day and took Saturday off — every Friday
+// absence became a deduction and every real Saturday hid as a weekly day off.
+const centerWeekOrder = [6, 0, 1, 2, 3, 4, 5];
+
 const centerWorkingDayCodes = (workingDays) => {
   let source = workingDays;
   if (typeof source === "string") {
@@ -3482,7 +3507,8 @@ const centerIsExpectedWeekday = (dateValue, workingDays = [], workingDaysPerWeek
   if (Number.isNaN(date.getTime())) return false;
   const configuredDays = centerWorkingDayCodes(workingDays);
   if (configuredDays.size) return configuredDays.has(centerWeekdayCodes[date.getUTCDay()]);
-  return date.getUTCDay() < Math.max(1, Math.min(7, Math.round(centerNumber(workingDaysPerWeek, 6))));
+  const perWeek = Math.max(1, Math.min(7, Math.round(centerNumber(workingDaysPerWeek, 6))));
+  return centerWeekOrder.slice(0, perWeek).includes(date.getUTCDay());
 };
 
 const centerBuildFilters = (req) => {
@@ -3696,7 +3722,10 @@ const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeG
   employees.forEach((employee) => {
     dates.forEach((date) => {
       const log = logsByKey.get(`${employee.id}:${date}`);
-      if (!includeGenerated && !log) return;
+      // A source filter asks about recorded check-ins, and a generated row has no
+      // source at all. Letting those through answered "show me QR" with a wall of
+      // absences for everyone who simply has no QR record.
+      if (!log && (!includeGenerated || filters.source)) return;
       const leave = approvedLeaveDates.get(`${employee.id}:${date}`);
       const holiday = holidays.get(date);
       const weeklyExpected = centerIsExpectedWeekday(date, employee.working_days, employee.working_days_per_week);
@@ -4095,6 +4124,19 @@ export const getAttendanceLive = async (req, res) => {
       params.push(filters.branchId);
       where.push(`COALESCE(al.branch_id, e.branch_id)::text = $${params.length}::text`);
     }
+    // The employee picker sits above this tab, so it has to bind here too. It
+    // used to be dropped, and the tab answered a filtered question with the
+    // whole roster.
+    if (filters.employeeId) {
+      params.push(filters.employeeId);
+      where.push(`al.employee_id::text = $${params.length}::text`);
+    }
+    // "Live" is anchored to now, not to the report window — but it had no bound
+    // at all, so an old check-in that was never closed sat here forever reading
+    // as someone at work with hundreds of hours on the clock. Yesterday is kept
+    // so an overnight shift still counts as in progress.
+    params.push(getAttendanceDate());
+    where.push(`al.attendance_date >= ($${params.length}::date - INTERVAL '1 day')`);
     const result = await db.query(
       `
       SELECT al.id, al.employee_id, e.full_name AS employee_name, e.employee_code,
@@ -4128,7 +4170,11 @@ export const getAttendancePayrollImpact = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const filters = centerBuildFilters(req);
-    const rows = await loadAttendanceCenterRows(filters, { qrOnly: true });
+    // Deductions have to be read off every source of truth, not just QR. Scoping
+    // this to QR meant a day fixed through this very page's manual correction was
+    // invisible here, so the employee read as absent and lost a full daily rate —
+    // while the overview tab, which reads all sources, showed them present.
+    const rows = await loadAttendanceCenterRows(filters);
     const leaveImpactByEmployee = await loadLeavePayrollImpact(filters);
     const approvedOvertimeByEmployee = await loadApprovedOvertimePayrollImpact(filters);
     let penaltiesByEmployee = new Map();
@@ -4201,7 +4247,7 @@ export const getAttendancePayrollImpact = async (req, res) => {
     });
     if (analyticsDebugEnabled()) console.info("[payroll-impact]", {
       filters: { branch_id: filters.branchId, employee_id: filters.employeeId, start_date: filters.startDate, end_date: filters.endDate },
-      qr_rows: rows.length,
+      attendance_rows: rows.length,
       employee_rows: grouped.length,
       attendance_deduction_total: grouped.reduce((sum, row) => sum + centerNumber(row.attendance_deduction), 0),
       penalties_total: grouped.reduce((sum, row) => sum + centerNumber(row.penalties), 0),
@@ -4230,7 +4276,10 @@ export const getAttendanceOvertimeApprovals = async (req, res) => {
       params.push(filters.employeeId);
       where.push(`a.employee_id::text = $${params.length}::text`);
     }
-    if (filters.status) {
+    // The page's status picker holds attendance states (present / absent / late),
+    // while this column holds approval states. Feeding one into the other made
+    // the tab go empty for every choice, so only a real approval state binds.
+    if (OVERTIME_APPROVAL_STATUSES.has(filters.status)) {
       params.push(filters.status);
       where.push(`LOWER(COALESCE(a.status, 'pending')) = $${params.length}`);
     }
@@ -4332,6 +4381,7 @@ export const getAttendanceLeaves = async (req, res) => {
         AND COALESCE(l.leave_date, l.start_date) <= $3::date
         AND COALESCE(l.leave_date, l.end_date, l.start_date) >= $2::date
         AND ($4::text = '' OR e.branch_id::text = $4::text)
+        AND ($5::text = '' OR e.id::text = $5::text)
       UNION ALL
       SELECT 'vacation' AS record_type, v.id, v.employee_id, e.full_name AS employee_name,
         e.branch_id, b.name AS branch_name, v.vacation_type AS leave_type, v.start_date, v.end_date,
@@ -4343,9 +4393,10 @@ export const getAttendanceLeaves = async (req, res) => {
         AND COALESCE(v.vacation_date, v.start_date) <= $3::date
         AND COALESCE(v.vacation_date, v.end_date, v.start_date) >= $2::date
         AND ($4::text = '' OR e.branch_id::text = $4::text)
+        AND ($5::text = '' OR e.id::text = $5::text)
       ORDER BY start_date DESC NULLS LAST, leave_date DESC NULLS LAST
       `,
-      [filters.tenantId, filters.startDate, filters.endDate, filters.branchId]
+      [filters.tenantId, filters.startDate, filters.endDate, filters.branchId, filters.employeeId]
     );
     return res.json({ success: true, rows: result.rows });
   } catch (error) {
@@ -4406,10 +4457,11 @@ export const getAttendanceQrSessions = async (req, res) => {
       WHERE ($1::bigint IS NULL OR ev.tenant_id = $1::bigint)
         AND ev.action_timestamp::date BETWEEN $2::date AND $3::date
         AND ($4::text = '' OR ev.branch_id::text = $4::text)
+        AND ($5::text = '' OR ev.employee_id::text = $5::text)
       ORDER BY ev.action_timestamp DESC
       LIMIT 300
       `,
-      [filters.tenantId, filters.startDate, filters.endDate, filters.branchId]
+      [filters.tenantId, filters.startDate, filters.endDate, filters.branchId, filters.employeeId]
     );
     return res.json({ success: true, rows: result.rows.map((row) => ({
       ...row,

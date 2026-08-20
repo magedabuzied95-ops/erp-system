@@ -253,6 +253,7 @@
       "publishing": "Publishing",
       "published": "Published",
       "partialSuccess": "Partial success",
+      "partial_success": "Partial success",
       "failed": "Failed"
     }
   },
@@ -269,6 +270,7 @@
     "scheduledAt": "Scheduled at",
     "publishedAt": "Published at",
     "error": "Error",
+    "unknownReason": "Unknown reason",
     "notAvailable": "Not available",
     "noPlatforms": "No platforms",
     "untitled": "Untitled operation",
@@ -453,7 +455,8 @@
       "connectFacebookFirst": "Connect Facebook first",
       "connectInstagramFirst": "Connect Instagram first",
       "draftDuplicated": "Draft duplicated.",
-      "postRemoved": "Post removed from view."
+      "postRemoved": "Post removed from view.",
+      "partialPublish": "Not published on {{platforms}}: {{reason}}"
     },
     "confirm": {
       "deleteFromHistory": "Delete this post from the current history view?"
@@ -496,7 +499,10 @@
       "sizeCount": "Size count",
       "colorCount": "Colour count",
       "discountRate": "Discount rate",
-      "availableColorImages": "Available colour images"
+      "availableColorImages": "Available colour images",
+      "carouselCount": "{{selected}} of {{total}} will publish",
+      "carouselLimitHint": "Instagram and Facebook accept at most {{limit}} pictures per post. Click a colour to move it to the front and into the {{limit}}.",
+      "colorExcluded": "{{color}} will not publish — click to include it"
     },
     "tiktokVideoOnly": "Video only"
   },

@@ -40,6 +40,72 @@ const DEFAULT_QUOTAS = [
 const DEFAULT_ARCHIVE_AFTER_DAYS = 30;
 const DEFAULT_DELETE_ARCHIVED_AFTER_DAYS = 90;
 const DEFAULT_STORY_SELECTION_MODE = "catalog_coverage";
+const STORY_SELECTION_MODES = ["catalog_coverage", "newest_only", "theme_calendar"];
+const THEME_AUDIENCES = ["men", "women", "kids"];
+// 0 = Sunday .. 6 = Saturday, matching Date#getDay() and the autopilot day weights.
+export const THEME_DAY_LABELS_AR = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+// Seeded so the calendar editor opens on a working week instead of a blank slate.
+// Filter entries are classification OPTION VALUES, which is exactly what
+// products.product_type / products.grade store, so a filter and a product row
+// compare like for like. A tenant whose classification list differs just sees the
+// block reported as needs_setup (pool of zero) instead of a day going out empty.
+const DEFAULT_THEME_CALENDAR = [
+  {
+    key: "slippers-crocs",
+    label_ar: "سليبرات وكروكس",
+    days: [3],
+    stories_per_day: 6,
+    audiences: [],
+    active: true,
+    filters: { product_types: ["slippers", "crocs"], grades: [], styles: [], categories: [], offers_only: false, include_offers: false },
+  },
+  {
+    key: "mirror-sneakers",
+    label_ar: "كوتشي ميرور",
+    days: [4, 5],
+    stories_per_day: 6,
+    audiences: [],
+    active: true,
+    filters: { product_types: ["sneakers"], grades: ["mirror_original"], styles: [], categories: [], offers_only: false, include_offers: false },
+  },
+  {
+    key: "vietnam-sneakers",
+    label_ar: "كوتشي فيتنامي",
+    days: [6, 0],
+    stories_per_day: 6,
+    audiences: [],
+    active: true,
+    filters: { product_types: ["sneakers"], grades: ["imported_from_vietnam"], styles: [], categories: [], offers_only: false, include_offers: false },
+  },
+  {
+    key: "bags",
+    label_ar: "شنط",
+    days: [1],
+    stories_per_day: 6,
+    audiences: [],
+    active: true,
+    filters: { product_types: ["bags"], grades: [], styles: [], categories: [], offers_only: false, include_offers: false },
+  },
+  {
+    key: "local-sneakers",
+    label_ar: "كوتشي محلي",
+    days: [2],
+    stories_per_day: 6,
+    audiences: [],
+    active: true,
+    filters: { product_types: ["sneakers"], grades: ["local"], styles: [], categories: [], offers_only: false, include_offers: false },
+  },
+  {
+    key: "offers",
+    label_ar: "العروض",
+    days: [],
+    stories_per_day: 4,
+    audiences: [],
+    active: false,
+    filters: { product_types: [], grades: [], styles: [], categories: [], offers_only: true, include_offers: true },
+  },
+];
 const LOCAL_UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 export const CANONICAL_STORY_TEMPLATE_KEY = "m1_story_current";
 export const CANONICAL_STORY_TEMPLATE_VERSION = "v1";
@@ -536,6 +602,98 @@ const productUrl = (product = {}) => {
   return base ? `${base}${path}` : path;
 };
 
+// Arabic spellings drift between the product record and whatever the operator
+// typed into the classification list (محلى/محلي, ة/ه, alef variants). Fold those
+// before comparing so a theme filter is not silently empty.
+const themeMatchText = (value = "") =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/\u0640/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeThemeFilters = (value = {}) => {
+  const list = (key) => uniqueTextValues(normalizeJsonArray(value[key], []).map((entry) => cleanText(entry)));
+  return {
+    product_types: list("product_types"),
+    grades: list("grades"),
+    styles: list("styles"),
+    categories: list("categories"),
+    offers_only: value.offers_only === true,
+    include_offers: value.include_offers === true,
+  };
+};
+
+const normalizeThemeBlock = (block = {}, index = 0) => ({
+  key: slugify(cleanText(block.key)) || `theme-${index + 1}`,
+  label_ar: cleanText(block.label_ar || block.label) || `بلوك ${index + 1}`,
+  days: Array.from(
+    new Set(
+      normalizeJsonArray(block.days, [])
+        .map((day) => Math.trunc(numberValue(day, -1)))
+        .filter((day) => day >= 0 && day <= 6)
+    )
+  ).sort((left, right) => left - right),
+  stories_per_day: Math.min(positiveInt(block.stories_per_day, 6), 60),
+  audiences: uniqueTextValues(normalizeJsonArray(block.audiences, []).map((entry) => cleanText(entry).toLowerCase())).filter((entry) =>
+    THEME_AUDIENCES.includes(entry)
+  ),
+  filters: normalizeThemeFilters(normalizeJsonObject(block.filters, {})),
+  active: block.active !== false,
+});
+
+// NULL means the tenant has never touched the calendar, so seed the suggested
+// week. An empty array means they deliberately cleared it and must stay empty.
+export const normalizeThemeCalendar = (value) => {
+  const rows = value === null || value === undefined ? DEFAULT_THEME_CALENDAR : normalizeJsonArray(value, DEFAULT_THEME_CALENDAR);
+  const seen = new Set();
+  return rows
+    .map((block, index) => normalizeThemeBlock(block, index))
+    .filter((block) => {
+      if (seen.has(block.key)) return false;
+      seen.add(block.key);
+      return true;
+    });
+};
+
+const themeFilterMatches = (needles = [], ...haystackValues) => {
+  if (!needles.length) return true;
+  const haystack = haystackValues.map((value) => themeMatchText(value)).filter(Boolean);
+  if (!haystack.length) return false;
+  return needles.some((needle) => {
+    const target = themeMatchText(needle);
+    return Boolean(target) && haystack.some((value) => value === target || value.includes(target));
+  });
+};
+
+export const productMatchesThemeBlock = (product = {}, block = {}) => {
+  const filters = block.filters || {};
+  const isOffer = product.is_offer_story === true;
+  if (filters.offers_only === true) return isOffer;
+  if (isOffer && filters.include_offers !== true) return false;
+  return (
+    themeFilterMatches(filters.product_types, product.product_type, product.category_name, product.category) &&
+    themeFilterMatches(filters.grades, product.grade) &&
+    themeFilterMatches(filters.styles, product.style) &&
+    themeFilterMatches(filters.categories, product.category_name, product.category)
+  );
+};
+
+export const themeAudienceMatches = (product = {}, block = {}) => {
+  const wanted = block.audiences || [];
+  return wanted.length ? wanted.includes(productStoryAudience(product)) : true;
+};
+
+const activeThemeBlocks = (settings = {}) =>
+  (settings.story_theme_calendar || []).filter((block) => block.active !== false && block.days.length > 0 && block.stories_per_day > 0);
+
 const normalizeSettings = (row = {}) => ({
   id: row.id || null,
   planning_mode: row.planning_mode || "weekly",
@@ -546,7 +704,8 @@ const normalizeSettings = (row = {}) => ({
   auto_archive_published_after_days: positiveInt(row.auto_archive_published_after_days, DEFAULT_ARCHIVE_AFTER_DAYS),
   auto_delete_archived_after_days: positiveInt(row.auto_delete_archived_after_days, DEFAULT_DELETE_ARCHIVED_AFTER_DAYS),
   campaign_mode: row.campaign_mode || "balanced",
-  story_selection_mode: ["catalog_coverage", "newest_only"].includes(row.story_selection_mode) ? row.story_selection_mode : DEFAULT_STORY_SELECTION_MODE,
+  story_selection_mode: STORY_SELECTION_MODES.includes(row.story_selection_mode) ? row.story_selection_mode : DEFAULT_STORY_SELECTION_MODE,
+  story_theme_calendar: normalizeThemeCalendar(row.story_theme_calendar),
   active_strategies: normalizeFocusedStrategies({ ...DEFAULT_STRATEGIES, ...normalizeJsonObject(row.active_strategies, {}) }),
   active: row.active !== false,
   daily_content_quotas: normalizeJsonArray(row.daily_content_quotas, DEFAULT_QUOTAS),
@@ -643,6 +802,7 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS auto_delete_archived_after_days INTEGER NOT NULL DEFAULT 90,
       ADD COLUMN IF NOT EXISTS campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
       ADD COLUMN IF NOT EXISTS story_selection_mode VARCHAR(30) NOT NULL DEFAULT 'catalog_coverage',
+      ADD COLUMN IF NOT EXISTS story_theme_calendar JSONB,
       ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
       ADD COLUMN IF NOT EXISTS daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -830,6 +990,41 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_catalog_coverage_cycle ON ai_marketing_catalog_coverage (tenant_id, cycle_number, generated_at)`);
+
+  // Theme calendar mode keeps its own cycles so each block rotates independently:
+  // sneakers can start a fresh lap without waiting for slippers to finish theirs.
+  // Separate tables (rather than widening the catalog ones) keep the existing
+  // catalog_coverage mode untouched and the migration purely additive.
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_theme_cycles (
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      theme_key VARCHAR(80) NOT NULL,
+      cycle_number INTEGER NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP NULL,
+      PRIMARY KEY (tenant_id, theme_key, cycle_number)
+    )
+  `);
+  await clientOrPool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_marketing_theme_active_cycle ON ai_marketing_theme_cycles (tenant_id, theme_key) WHERE status = 'active'`
+  );
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_theme_coverage (
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      theme_key VARCHAR(80) NOT NULL,
+      cycle_number INTEGER NOT NULL,
+      product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      queue_id BIGINT NULL REFERENCES ai_marketing_content_queue(id) ON DELETE SET NULL,
+      product_signature TEXT NOT NULL DEFAULT '',
+      generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      published_at TIMESTAMP NULL,
+      PRIMARY KEY (tenant_id, theme_key, cycle_number, product_id)
+    )
+  `);
+  await clientOrPool.query(
+    `CREATE INDEX IF NOT EXISTS idx_ai_marketing_theme_coverage_queue ON ai_marketing_theme_coverage (tenant_id, queue_id)`
+  );
 };
 
 export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
@@ -876,7 +1071,12 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
     auto_archive_published_after_days: positiveInt(patch.auto_archive_published_after_days, current.auto_archive_published_after_days || DEFAULT_ARCHIVE_AFTER_DAYS),
     auto_delete_archived_after_days: positiveInt(patch.auto_delete_archived_after_days, current.auto_delete_archived_after_days || DEFAULT_DELETE_ARCHIVED_AFTER_DAYS),
     campaign_mode: ["balanced", "aggressive", "premium"].includes(patch.campaign_mode) ? patch.campaign_mode : current.campaign_mode,
-    story_selection_mode: ["catalog_coverage", "newest_only"].includes(patch.story_selection_mode) ? patch.story_selection_mode : current.story_selection_mode,
+    story_selection_mode: STORY_SELECTION_MODES.includes(patch.story_selection_mode) ? patch.story_selection_mode : current.story_selection_mode,
+    // null/undefined both mean "leave it alone" so a client that omits the field
+    // cannot reset a configured calendar back to the seeded default.
+    story_theme_calendar: normalizeThemeCalendar(
+      patch.story_theme_calendar === undefined || patch.story_theme_calendar === null ? current.story_theme_calendar : patch.story_theme_calendar
+    ),
     active_strategies: normalizeFocusedStrategies({ ...current.active_strategies, ...normalizeJsonObject(patch.active_strategies, {}) }),
     active: patch.active ?? current.active,
     daily_content_quotas: normalizeJsonArray(patch.daily_content_quotas, current.daily_content_quotas).map((row, index) => ({
@@ -908,6 +1108,7 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
         active_strategies = $11::jsonb,
         active = $12,
         daily_content_quotas = $13::jsonb,
+        story_theme_calendar = $14::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE tenant_id = $1
     RETURNING *
@@ -926,6 +1127,7 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
       JSON.stringify(next.active_strategies),
       next.active,
       JSON.stringify(next.daily_content_quotas),
+      JSON.stringify(next.story_theme_calendar),
     ]
   );
   return normalizeSettings(result.rows[0]);
@@ -1007,6 +1209,7 @@ const cleanupQueueItemAssets = async ({ tenantId, item }) => {
 
 const runAiMarketingLifecycleCleanup = async (tenantId) => {
   const settings = await getAiMarketingSettings(tenantId);
+  await releaseOrphanThemeCoverage(tenantId);
   const archiveAfterDays = positiveInt(settings.auto_archive_published_after_days, DEFAULT_ARCHIVE_AFTER_DAYS);
   const deleteAfterDays = positiveInt(settings.auto_delete_archived_after_days, DEFAULT_DELETE_ARCHIVED_AFTER_DAYS);
   if (archiveAfterDays > 0) {
@@ -1140,8 +1343,8 @@ const buildAiMarketingRecommendations = async (tenantId) => {
   };
 };
 
-const getCatalogCoverageOverview = async (tenantId) => {
-  const products = eligibleCatalogProducts(await loadProducts(tenantId));
+const getCatalogCoverageOverview = async (tenantId, catalog = null) => {
+  const products = eligibleCatalogProducts(catalog || (await loadOverviewCatalog(tenantId)));
   const cycle = await getActiveCatalogCycle(tenantId);
   const coverage = await db.query(
     `SELECT c.product_id, c.lane, c.generated_at, c.published_at,
@@ -1174,12 +1377,77 @@ const getCatalogCoverageOverview = async (tenantId) => {
   };
 };
 
+// Dashboard view of the weekly calendar: how deep each block's pool is, how far
+// through its own cycle it has travelled, and what the next seven days will run.
+const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
+  const calendar = settings.story_theme_calendar || [];
+  if (!calendar.length) {
+    return { mode_active: settings.story_selection_mode === "theme_calendar", blocks: [], week: [] };
+  }
+  const eligible = eligibleCatalogProducts(catalog || (await loadOverviewCatalog(tenantId)));
+  // Each block reads its own cycle and coverage rows; they are independent, so they run
+  // together instead of one block at a time.
+  const blocks = await Promise.all(calendar.map(async (block) => {
+    const pool = eligible.filter((product) => productMatchesThemeBlock(product, block) && themeAudienceMatches(product, block));
+    const cycle = await getActiveThemeCycle(tenantId, block.key);
+    const coverage = await db.query(
+      `SELECT product_id, published_at FROM ai_marketing_theme_coverage WHERE tenant_id = $1 AND theme_key = $2 AND cycle_number = $3`,
+      [tenantId, block.key, cycle.cycle_number]
+    );
+    const poolIds = new Set(pool.map((product) => String(product.id)));
+    const rows = coverage.rows.filter((row) => poolIds.has(String(row.product_id)));
+    const coveredIds = new Set(rows.map((row) => String(row.product_id)));
+    const remaining = pool.filter((product) => !coveredIds.has(String(product.id)));
+    return ({
+      key: block.key,
+      label_ar: block.label_ar,
+      days: block.days,
+      day_labels: block.days.map((day) => THEME_DAY_LABELS_AR[day]),
+      stories_per_day: block.stories_per_day,
+      audiences: block.audiences,
+      filters: block.filters,
+      active: block.active,
+      cycle_number: Number(cycle.cycle_number || 1),
+      pool_products: pool.length,
+      generated_products: coveredIds.size,
+      published_products: rows.filter((row) => row.published_at).length,
+      remaining_products: remaining.length,
+      coverage_percent: pool.length ? Math.round((coveredIds.size / pool.length) * 100) : 0,
+      // An active block that matches nothing publishes nothing: surface it rather
+      // than letting the day quietly go out empty.
+      needs_setup: block.active !== false && pool.length === 0,
+      weeks_to_cover: block.days.length && block.stories_per_day
+        ? Math.ceil(pool.length / (block.days.length * block.stories_per_day))
+        : null,
+      next_product: remaining[0] ? { id: remaining[0].id, name: remaining[0].name } : null,
+    });
+  }));
+  const byKey = new Map(blocks.map((block) => [block.key, block]));
+  const week = THEME_DAY_LABELS_AR.map((label, day) => {
+    const dayBlocks = calendar.filter((block) => block.active !== false && block.days.includes(day) && block.stories_per_day > 0);
+    return {
+      day,
+      label,
+      blocks: dayBlocks.map((block) => ({
+        key: block.key,
+        label_ar: block.label_ar,
+        stories_per_day: block.stories_per_day,
+        pool_products: byKey.get(block.key)?.pool_products ?? 0,
+        needs_setup: byKey.get(block.key)?.needs_setup === true,
+      })),
+      total_stories: dayBlocks.reduce((sum, block) => sum + block.stories_per_day, 0),
+    };
+  });
+  return { mode_active: settings.story_selection_mode === "theme_calendar", blocks, week };
+};
+
 export const getAiMarketingOverview = async (tenantId) => {
   await ensureAiMarketingCenterSchema();
   scheduleAiMarketingReadMaintenance(tenantId);
-  const settings = await getAiMarketingSettings(tenantId);
-  const result = await db.query(
-    `
+  const [settings, result, postingInsights, operatingInsights, catalog] = await Promise.all([
+    getAiMarketingSettings(tenantId),
+    db.query(
+      `
     SELECT
       COUNT(*) FILTER (WHERE content_type = 'story' AND status <> 'archived' AND created_at::date = CURRENT_DATE)::int AS stories_generated_today,
       COUNT(*) FILTER (WHERE content_type = 'post' AND status <> 'archived' AND created_at::date = CURRENT_DATE)::int AS posts_generated_today,
@@ -1190,12 +1458,17 @@ export const getAiMarketingOverview = async (tenantId) => {
     FROM ai_marketing_content_queue
     WHERE tenant_id = $1 AND status <> 'archived'
     `,
-    [tenantId]
-  );
+      [tenantId]
+    ),
+    getCachedAiMarketingPostingInsights(tenantId),
+    buildAiMarketingRecommendations(tenantId),
+    loadOverviewCatalog(tenantId),
+  ]);
   const row = result.rows[0] || {};
-  const postingInsights = await getCachedAiMarketingPostingInsights(tenantId);
-  const operatingInsights = await buildAiMarketingRecommendations(tenantId);
-  const catalogCoverage = await getCatalogCoverageOverview(tenantId);
+  const [catalogCoverage, themeCalendar] = await Promise.all([
+    getCatalogCoverageOverview(tenantId, catalog),
+    getThemeCalendarOverview(tenantId, settings, catalog),
+  ]);
   return {
     ai_status: settings.active ? "Active" : "Paused",
     stories_generated_today: Number(row.stories_generated_today || 0),
@@ -1211,6 +1484,7 @@ export const getAiMarketingOverview = async (tenantId) => {
     performance_insufficient_data_message: operatingInsights.insufficient_data_message,
     ai_operating_brains: operatingInsights.brains,
     catalog_coverage: catalogCoverage,
+    theme_calendar: themeCalendar,
   };
 };
 
@@ -3237,6 +3511,7 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
         });
       }
       await db.query(`UPDATE ai_marketing_catalog_coverage SET published_at = COALESCE(published_at, CURRENT_TIMESTAMP) WHERE tenant_id = $1 AND queue_id = $2`, [tenantId, id]);
+      await db.query(`UPDATE ai_marketing_theme_coverage SET published_at = COALESCE(published_at, CURRENT_TIMESTAMP) WHERE tenant_id = $1 AND queue_id = $2`, [tenantId, id]);
     }
     await appendQueueTimeline({
       tenantId,
@@ -3370,7 +3645,31 @@ const segmentMatches = (product = {}, quota = {}) => {
   return [product.grade, product.style, product.product_type, product.category_name, product.category, product.brand].some((value) => cleanText(value).toLowerCase().includes(target));
 };
 
-const loadProducts = async (tenantId) => {
+const OVERVIEW_CATALOG_TTL_MS = 60_000;
+const overviewCatalogCache = new Map();
+
+// Dashboard reads never look at prices, so they skip the per-variant purchase-price
+// LATERAL — the single most expensive part of this query — and reuse the result for a
+// minute. Generation still calls loadProducts() directly and always reads live prices.
+const loadOverviewCatalog = async (tenantId) => {
+  const key = String(tenantId || "default");
+  const cached = overviewCatalogCache.get(key);
+  if (cached?.pending) return cached.pending;
+  if (cached && Date.now() - cached.storedAt < OVERVIEW_CATALOG_TTL_MS) return cached.value;
+  const pending = loadProducts(tenantId, { lean: true })
+    .then((value) => {
+      overviewCatalogCache.set(key, { value, storedAt: Date.now(), pending: null });
+      return value;
+    })
+    .catch((error) => {
+      overviewCatalogCache.delete(key);
+      throw error;
+    });
+  overviewCatalogCache.set(key, { value: cached?.value || [], storedAt: 0, pending });
+  return pending;
+};
+
+const loadProducts = async (tenantId, { lean = false } = {}) => {
   const [result, saleModeSettings] = await Promise.all([
     db.query(
     `
@@ -3405,13 +3704,13 @@ const loadProducts = async (tenantId) => {
       pv.size,
       pv.article_code,
       pv.price AS variant_price,
-      COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price) AS variant_selling_price,
+      ${lean ? "pv.selling_price" : "COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price)"} AS variant_selling_price,
       pv.regular_price AS variant_regular_price,
-      COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price) AS variant_sale_price,
-      CASE
+      ${lean ? "pv.sale_price" : "COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price)"} AS variant_sale_price,
+      ${lean ? "pv.sale_price_enabled" : `CASE
         WHEN last_color_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
         ELSE pv.sale_price_enabled
-      END AS variant_sale_price_enabled,
+      END`} AS variant_sale_price_enabled,
       pv.sale_start_at AS variant_sale_start_at,
       pv.sale_end_at AS variant_sale_end_at,
       pv.sale_reason AS variant_sale_reason,
@@ -3443,7 +3742,7 @@ const loadProducts = async (tenantId) => {
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL
-    LEFT JOIN LATERAL (
+    ${lean ? "" : `LEFT JOIN LATERAL (
       SELECT
         COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
         NULLIF(pi.sale_price, 0) AS purchase_sale_price
@@ -3466,7 +3765,7 @@ const loadProducts = async (tenantId) => {
         )
       ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
       LIMIT 1
-    ) last_color_purchase_price ON TRUE
+    ) last_color_purchase_price ON TRUE`}
     WHERE p.tenant_id = $1
       AND COALESCE(p.status, 'active') = 'active'
       AND COALESCE(pv.stock, 0) > 0
@@ -4303,7 +4602,19 @@ const insightDayScoreMap = (days = []) => {
 
 const candidateDayOffsets = (state) => Array.from({ length: Math.max(1, state.days || 1) }, (_, index) => index);
 
+// Theme calendar items already know which day of the run they belong to, so the
+// weighted day picker must not move them. Time of day is still insight-driven.
+const forcedThemeDayOffset = (item = {}, state = {}) => {
+  const raw = item?.metadata?.theme_day_offset;
+  if (raw === undefined || raw === null || raw === "") return null;
+  const offset = Math.trunc(numberValue(raw, -1));
+  if (offset < 0) return null;
+  return Math.min(offset, Math.max(0, (state.days || 1) - 1));
+};
+
 const chooseDayOffset = ({ index, item, state, rng, attempt }) => {
+  const forced = forcedThemeDayOffset(item, state);
+  if (forced !== null) return forced;
   if ((state.days || 1) <= 1) return 0;
   const days = candidateDayOffsets(state);
   const seedOffset = stableScheduleSeed(index, item.content_type, item.product_id, item.variant_id, attempt) % days.length;
@@ -4841,6 +5152,183 @@ const buildAiPosts = (products, quota, limit) =>
       return item;
     });
 
+const getActiveThemeCycle = async (tenantId, themeKey) => {
+  let result = await db.query(
+    `SELECT * FROM ai_marketing_theme_cycles WHERE tenant_id = $1 AND theme_key = $2 AND status = 'active' ORDER BY cycle_number DESC LIMIT 1`,
+    [tenantId, themeKey]
+  );
+  if (result.rows[0]) return result.rows[0];
+  // $2 has to be cast on both sides. Uncast, the INSERT list deduces it from the
+  // theme_key column (character varying) while the WHERE deduces text, because
+  // varchar equality resolves through texteq, and Postgres rejects the statement
+  // with "inconsistent types deduced for parameter $2". $1 escapes it only
+  // because bigint has its own equality operator.
+  await db.query(
+    `INSERT INTO ai_marketing_theme_cycles (tenant_id, theme_key, cycle_number, status)
+     SELECT $1, $2::text, COALESCE(MAX(cycle_number), 0) + 1, 'active' FROM ai_marketing_theme_cycles WHERE tenant_id = $1 AND theme_key = $2::text
+     ON CONFLICT DO NOTHING`,
+    [tenantId, themeKey]
+  );
+  result = await db.query(
+    `SELECT * FROM ai_marketing_theme_cycles WHERE tenant_id = $1 AND theme_key = $2 AND status = 'active' ORDER BY cycle_number DESC LIMIT 1`,
+    [tenantId, themeKey]
+  );
+  return result.rows[0];
+};
+
+const startNextThemeCycle = async (tenantId, themeKey, cycleNumber) => {
+  await db.query(
+    `UPDATE ai_marketing_theme_cycles SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+     WHERE tenant_id = $1 AND theme_key = $2 AND cycle_number = $3 AND status = 'active'`,
+    [tenantId, themeKey, cycleNumber]
+  );
+  await db.query(
+    `INSERT INTO ai_marketing_theme_cycles (tenant_id, theme_key, cycle_number, status) VALUES ($1, $2, $3, 'active') ON CONFLICT DO NOTHING`,
+    [tenantId, themeKey, Number(cycleNumber) + 1]
+  );
+  return getActiveThemeCycle(tenantId, themeKey);
+};
+
+// A queue item that is deleted or archived before it ever published must give its
+// product back to the cycle, otherwise the product is marked "already shown" for a
+// story nobody ever saw. Published rows keep their coverage forever.
+const releaseThemeCoverageForQueueItem = async (tenantId, queueId, { client = null } = {}) => {
+  const runner = client || db;
+  await runner.query(
+    `DELETE FROM ai_marketing_theme_coverage WHERE tenant_id = $1 AND queue_id = $2 AND published_at IS NULL`,
+    [tenantId, queueId]
+  );
+};
+
+// Self-heal for every other path that can drop a queue row (FK sets queue_id to
+// NULL). An unpublished coverage row with no queue item behind it is a leak.
+const releaseOrphanThemeCoverage = async (tenantId) => {
+  await db.query(
+    `DELETE FROM ai_marketing_theme_coverage WHERE tenant_id = $1 AND queue_id IS NULL AND published_at IS NULL`,
+    [tenantId]
+  );
+};
+
+// Within one themed day, rotate men -> women -> kids instead of dumping six of the
+// same audience. This is the audience-level version of the lane interleave the
+// catalog mode does across product types.
+export const interleaveThemeAudiences = (products = []) => {
+  const groups = new Map();
+  products.forEach((product) => {
+    const audience = productStoryAudience(product);
+    groups.set(audience, [...(groups.get(audience) || []), product]);
+  });
+  const order = ["men", "women", "kids", "offers"];
+  const keys = [...order.filter((key) => groups.has(key)), ...Array.from(groups.keys()).filter((key) => !order.includes(key))];
+  const output = [];
+  while (keys.some((key) => groups.get(key)?.length)) {
+    keys.forEach((key) => {
+      const next = groups.get(key)?.shift();
+      if (next) output.push(next);
+    });
+  }
+  return output;
+};
+
+const orderThemePool = (products = [], previousSignatures = new Map()) => {
+  const prioritized = [...products].sort((left, right) => {
+    const leftChanged = previousSignatures.has(String(left.id)) && previousSignatures.get(String(left.id)) !== catalogProductSignature(left);
+    const rightChanged = previousSignatures.has(String(right.id)) && previousSignatures.get(String(right.id)) !== catalogProductSignature(right);
+    return Number(rightChanged) - Number(leftChanged) || Number(left.id) - Number(right.id);
+  });
+  return interleaveThemeAudiences(prioritized);
+};
+
+const loadThemeCycleState = async (tenantId, block, pool) => {
+  let cycle = await getActiveThemeCycle(tenantId, block.key);
+  const covered = await db.query(
+    `SELECT product_id FROM ai_marketing_theme_coverage WHERE tenant_id = $1 AND theme_key = $2 AND cycle_number = $3`,
+    [tenantId, block.key, cycle.cycle_number]
+  );
+  const coveredIds = new Set(covered.rows.map((row) => String(row.product_id)));
+  let remaining = pool.filter((product) => !coveredIds.has(String(product.id)));
+  if (!remaining.length && pool.length) {
+    cycle = await startNextThemeCycle(tenantId, block.key, cycle.cycle_number);
+    remaining = pool;
+  }
+  const previous = await db.query(
+    `SELECT product_id, product_signature FROM ai_marketing_theme_coverage WHERE tenant_id = $1 AND theme_key = $2 AND cycle_number = $3`,
+    [tenantId, block.key, Math.max(0, Number(cycle.cycle_number) - 1)]
+  );
+  const previousSignatures = new Map(previous.rows.map((row) => [String(row.product_id), row.product_signature]));
+  return { cycle, previousSignatures, queue: orderThemePool(remaining, previousSignatures) };
+};
+
+const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, settings }) => {
+  const calendar = activeThemeBlocks(settings);
+  if (!calendar.length) return [];
+  const eligible = eligibleCatalogProducts(products);
+  const days = daysForRunType(runType);
+  const baseDate = new Date();
+  baseDate.setHours(0, 0, 0, 0);
+
+  const pools = new Map(
+    calendar.map((block) => [
+      block.key,
+      eligible.filter((product) => productMatchesThemeBlock(product, block) && themeAudienceMatches(product, block)),
+    ])
+  );
+  const states = new Map();
+  const stateFor = async (block) => {
+    if (!states.has(block.key)) states.set(block.key, await loadThemeCycleState(tenantId, block, pools.get(block.key) || []));
+    return states.get(block.key);
+  };
+
+  const items = [];
+  let index = 0;
+  for (let dayOffset = 0; dayOffset < days; dayOffset += 1) {
+    const dayOfWeek = new Date(baseDate.getTime() + dayOffset * 86400000).getDay();
+    for (const block of calendar.filter((row) => row.days.includes(dayOfWeek))) {
+      const pool = pools.get(block.key) || [];
+      if (!pool.length) continue;
+      const state = await stateFor(block);
+      for (let slot = 0; slot < block.stories_per_day; slot += 1) {
+        if (!state.queue.length) {
+          // The block finished its lap mid-run; start its next one right away so a
+          // themed day never goes out short while other blocks still have depth.
+          const nextCycle = await startNextThemeCycle(tenantId, block.key, state.cycle.cycle_number);
+          state.previousSignatures = new Map(pool.map((product) => [String(product.id), catalogProductSignature(product)]));
+          state.cycle = nextCycle;
+          state.queue = orderThemePool(pool, state.previousSignatures);
+        }
+        const product = state.queue.shift();
+        if (!product) break;
+        const variant = usableVariants(product).find((row) => hasUsableImage(product, row)) || null;
+        const isOffer = product.is_offer_story === true;
+        const item = makeFocusedCreative({
+          product,
+          variant,
+          contentType: "story",
+          strategy: isOffer ? "offers" : "catalog_coverage",
+          layoutType: isOffer ? "offer_story" : "catalog_product_story",
+          quota,
+          index,
+        });
+        index += 1;
+        items.push({
+          ...item,
+          metadata: {
+            ...(item.metadata || {}),
+            selection_mode: "theme_calendar",
+            theme_key: block.key,
+            theme_label: block.label_ar,
+            theme_cycle: Number(state.cycle.cycle_number),
+            theme_day_offset: dayOffset,
+            theme_day_of_week: dayOfWeek,
+            product_signature: catalogProductSignature(product),
+          },
+        });
+      }
+    }
+  }
+  return items;
+};
+
 const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
   const products = await loadProducts(tenantId);
   const cooldownState = buildCooldownState(await loadCooldownRows(tenantId));
@@ -4849,7 +5337,9 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
   const storyLimit = Math.max(1, Math.min(positiveInt(settings.stories_per_day, 12) * runMultiplier, 360));
   const postLimit = Math.max(0, Math.min(positiveInt(settings.posts_per_day, 3) * runMultiplier, 90));
   const activeStrategies = normalizeFocusedStrategies(settings.active_strategies || {});
-  const storyCandidates = settings.story_selection_mode === "newest_only"
+  const storyCandidates = settings.story_selection_mode === "theme_calendar"
+    ? await buildThemeCalendarStories({ tenantId, products, quota, runType, settings })
+    : settings.story_selection_mode === "newest_only"
     ? interleaveStoryTemplateVariants([
         ...buildOfferStories(products, quota, storyLimit),
         ...(activeStrategies.last_size ? buildLastPieceStories(products, quota, storyLimit) : []),
@@ -4860,6 +5350,7 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
     ...storyCandidates,
     ...(activeStrategies.ai_posts ? buildAiPosts(products, quota, postLimit) : []),
   ];
+  const effectiveStoryLimit = settings.story_selection_mode === "theme_calendar" ? storyCandidates.length : storyLimit;
   const plan = [];
   const seen = new Set();
 
@@ -4872,7 +5363,9 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
     plan.push(item);
     const stories = plan.filter((row) => row.content_type === "story").length;
     const posts = plan.filter((row) => row.content_type === "post").length;
-    if (stories >= storyLimit && posts >= postLimit) break;
+    // In theme mode each block already caps itself per day, so the global
+    // stories_per_day ceiling would silently truncate the back half of the week.
+    if (stories >= effectiveStoryLimit && posts >= postLimit) break;
   }
 
   return plan;
@@ -4987,7 +5480,16 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
             AND COALESCE(existing.variant_id, 0) = COALESCE($10::bigint, 0)
             AND (
               (COALESCE($23::jsonb->>'coverage_cycle', '') <> '' AND existing.metadata->>'coverage_cycle' = $23::jsonb->>'coverage_cycle')
-              OR (COALESCE($23::jsonb->>'coverage_cycle', '') = '' AND existing.created_at::date = CURRENT_DATE)
+              OR (
+                COALESCE($23::jsonb->>'theme_key', '') <> ''
+                AND existing.metadata->>'theme_key' = $23::jsonb->>'theme_key'
+                AND COALESCE(existing.metadata->>'theme_cycle', '') = COALESCE($23::jsonb->>'theme_cycle', '')
+              )
+              OR (
+                COALESCE($23::jsonb->>'coverage_cycle', '') = ''
+                AND COALESCE($23::jsonb->>'theme_key', '') = ''
+                AND existing.created_at::date = CURRENT_DATE
+              )
             )
         )
         RETURNING *
@@ -5028,6 +5530,15 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
              ON CONFLICT (tenant_id, cycle_number, product_id) DO UPDATE
              SET queue_id = EXCLUDED.queue_id, lane = EXCLUDED.lane, product_signature = EXCLUDED.product_signature, generated_at = CURRENT_TIMESTAMP`,
             [tenantId, queueMetadata.coverage_cycle, item.product_id, insertedItem.id, queueMetadata.coverage_lane || "other", queueMetadata.product_signature || ""]
+          );
+        }
+        if (queueMetadata.theme_key && item.content_type === "story") {
+          await db.query(
+            `INSERT INTO ai_marketing_theme_coverage (tenant_id, theme_key, cycle_number, product_id, queue_id, product_signature)
+             VALUES ($1,$2,$3,$4,$5,$6)
+             ON CONFLICT (tenant_id, theme_key, cycle_number, product_id) DO UPDATE
+             SET queue_id = EXCLUDED.queue_id, product_signature = EXCLUDED.product_signature, generated_at = CURRENT_TIMESTAMP`,
+            [tenantId, queueMetadata.theme_key, queueMetadata.theme_cycle, item.product_id, insertedItem.id, queueMetadata.product_signature || ""]
           );
         }
       }
@@ -5695,6 +6206,7 @@ export const deleteAiMarketingQueueItem = async (tenantId, id) => {
       details: { title: item.title || "" },
       client,
     });
+    await releaseThemeCoverageForQueueItem(tenantId, queueItemId, { client });
     const result = await client.query(
       `DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [queueItemId, tenantId]
@@ -5739,7 +6251,10 @@ export const archiveAiMarketingQueueItem = async (tenantId, id) => {
     [queueItemId, tenantId]
   );
   const item = result.rows[0] ? normalizeQueueRow(result.rows[0]) : null;
-  if (item) await appendQueueTimeline({ tenantId, queueId: queueItemId, action: "archived", status: "archived" });
+  if (item) {
+    await releaseThemeCoverageForQueueItem(tenantId, queueItemId);
+    await appendQueueTimeline({ tenantId, queueId: queueItemId, action: "archived", status: "archived" });
+  }
   return item;
 };
 

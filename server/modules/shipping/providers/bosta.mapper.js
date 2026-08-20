@@ -119,7 +119,14 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
   const errorPayload = payload?.error && typeof payload.error === "object" ? payload.error : {};
   const providerDeliveryId = text(pick(data, ["_id", "id", "deliveryId", "delivery_id", "shipment_id"]));
   const trackingNumber = text(pick(data, ["trackingNumber", "tracking_number", "trackingCode", "tracking_code", "trackingNo"]));
+  // Whether a state was actually found, as opposed to the "created" default below.
+  // On the create call that default is harmless — we just made the parcel. On a status
+  // refresh it is a silent lie: an unreadable response would overwrite a real status
+  // with "created" and stamp a fresh sync time, which on screen is indistinguishable
+  // from "the courier has not moved it yet".
+  const parsedStatus = normalizeBostaStatus(pick(data, ["status", "state", "deliveryStatus"]));
   return {
+    status_parsed: Boolean(parsedStatus),
     success: payload?.success !== false && !payload?.errorCode && !errorPayload?.errorCode,
     provider: "bosta",
     provider_delivery_id: providerDeliveryId,
@@ -127,11 +134,53 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
     tracking_number: trackingNumber,
     tracking_url: text(pick(data, ["trackingUrl", "tracking_url", "trackingURL"])),
     label_url: text(pick(data, ["labelUrl", "label_url", "airwayBillUrl", "awbUrl"])),
-    status: normalizeBostaStatus(pick(data, ["status", "state", "deliveryStatus"])) || "created",
+    status: parsedStatus || "created",
     raw_response: payload,
     error: text(pick(payload, ["message", "errorMessage"])) || text(pick(errorPayload, ["message", "errorMessage", "details"])) || (typeof payload?.error === "string" ? text(payload.error) : ""),
     error_code: text(pick(payload, ["errorCode", "code"])) || text(pick(errorPayload, ["errorCode", "code"])),
   };
+};
+
+// The AWB endpoints answer with a base64 PDF, not a link: the official WooCommerce
+// plugin base64-decodes `body.data` straight into a PDF response. The nesting differs
+// between the mass and single endpoints, so both are probed, and the decoded bytes are
+// checked for the %PDF magic — a truncated or HTML body must fail loudly here rather
+// than reach the browser as a blank tab.
+const BASE64_DATA_URI = /^data:[^;,]*;base64,/i;
+
+const pickAwbBase64 = (payload) => {
+  const candidates = [
+    payload?.data,
+    payload?.data?.data,
+    payload?.data?.pdf,
+    payload?.data?.awb,
+    payload?.data?.base64,
+    payload?.pdf,
+    payload?.awb,
+    payload?.base64,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim().replace(BASE64_DATA_URI, "");
+  }
+  return "";
+};
+
+export const normalizeBostaAwbResponse = (payload = {}) => {
+  const message = text(pick(payload, ["message", "errorMessage"]));
+  const base64 = pickAwbBase64(payload);
+  if (!base64) {
+    return { pdf_base64: "", byte_length: 0, error: message || "Bosta returned no airway bill content" };
+  }
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, "base64");
+  } catch {
+    return { pdf_base64: "", byte_length: 0, error: "Bosta airway bill is not valid base64" };
+  }
+  if (!buffer.length || buffer.subarray(0, 4).toString("latin1") !== "%PDF") {
+    return { pdf_base64: "", byte_length: buffer.length, error: message || "Bosta airway bill is not a PDF" };
+  }
+  return { pdf_base64: buffer.toString("base64"), byte_length: buffer.length, error: "" };
 };
 
 export const buildBostaAddressLine = (order = {}) => {
@@ -146,7 +195,12 @@ export const buildBostaAddressLine = (order = {}) => {
   return parts.join(", ");
 };
 
-export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0 }) => {
+// Bosta's integration clients attach the status callback to the delivery itself rather
+// than relying on a dashboard-wide setting, and our deliveries have never carried one.
+// That fits the evidence exactly: shipping_events has never held a single row since the
+// integration went live. Sent only when a full URL could be built — a half-formed
+// callback is worse than none, because it looks configured.
+export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "" }) => {
   const names = text(order.customer_name || order.full_name || "Online Customer").split(/\s+/);
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
@@ -162,6 +216,10 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   return {
     type: 10,
     cod: Math.max(0, Number(codAmount || 0)),
+    ...(text(webhookUrl) ? { webHook: text(webhookUrl) } : {}),
+    // Bosta keeps its own per-account default for this, so the flag is sent only
+    // when the shop has actually decided. Omitting it is not the same as false.
+    ...(typeof allowOpenPackage === "boolean" ? { allowToOpenPackage: allowOpenPackage } : {}),
     specs: {
       packageType: "Parcel",
       size: "MEDIUM",

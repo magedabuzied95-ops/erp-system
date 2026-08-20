@@ -98,6 +98,23 @@ const normalizePublishSettings = (value = {}) => {
   return normalized;
 };
 
+// The per-platform outcome the publish path already writes. Without it a
+// "Facebook published, Instagram failed" post reaches the UI looking exactly
+// like a clean success, because status alone is `partial_success` and nothing
+// says which half failed.
+const parsePlatformPublishResults = (value) => {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof value === "object" && !Array.isArray(value) ? value : {};
+};
+
 const normalizeSocialPublisherPostRow = (row = {}) => ({
   id: row.id,
   tenant_id: row.tenant_id,
@@ -117,6 +134,9 @@ const normalizeSocialPublisherPostRow = (row = {}) => ({
   scheduled_at: row.scheduled_at || null,
   published_at: row.published_at || null,
   error_message: row.error_message || null,
+  platform_post_id: row.platform_post_id || null,
+  external_post_id: row.external_post_id || null,
+  platform_publish_results: parsePlatformPublishResults(row.platform_publish_results),
   created_at: row.created_at || null,
   updated_at: row.updated_at || null,
 });

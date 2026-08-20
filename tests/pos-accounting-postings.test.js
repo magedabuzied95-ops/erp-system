@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { postReturnEntry, postSaleEntry } from "../server/services/accountingService.js";
+import { createJournalEntry, postReturnEntry, postSaleEntry } from "../server/services/accountingService.js";
 
 // A fake client that records what the journal entry would contain. resolveAccount()
 // seeds/reads the chart of accounts, so the stub answers those reads with the real
@@ -172,4 +172,48 @@ test("a refund follows the method it was actually paid out with", async () => {
   const s = summarize(captured);
   assert.equal(s["1011"].credit, 800, "an InstaPay refund leaves the InstaPay account");
   assert.equal(s["1000"], undefined);
+});
+
+// The POS invoice edit builds its settlement entry itself (breakdown debits + one
+// revenue credit) rather than going through postSaleEntry, so the amount it credits
+// has to be the amount the breakdown actually debits. A deposit-plus-credit edit is
+// the case where those two diverge: 1 collected against 1400 due.
+const editSettlementLines = ({ breakdown = [], revenueAmount = 0 }) => [
+  ...breakdown.map((payment) => ({
+    account_id: payment.method === "cash" ? ACCOUNT_IDS[1000] : ACCOUNT_IDS[1100],
+    debit: payment.amount,
+    credit: 0,
+  })),
+  { account_id: ACCOUNT_IDS[4000], debit: 0, credit: revenueAmount },
+];
+
+test("an invoice edit that collects a deposit and defers the rest still balances", async () => {
+  const { client, captured } = makeClient();
+  const breakdown = [{ method: "cash", amount: 1 }];
+  await createJournalEntry(client, {
+    tenantId: 1,
+    description: "POS invoice edit extra payment",
+    referenceType: "order_edit",
+    referenceId: 517,
+    lines: editSettlementLines({ breakdown, revenueAmount: 1 }),
+  });
+  const s = summarize(captured);
+  assert.equal(s["1000"].debit, 1, "only the deposit reached the drawer");
+  assert.equal(s["4000"].credit, 1);
+  assert.deepEqual(totals(s), { debit: 1, credit: 1 });
+});
+
+test("crediting the whole amount due on a deferred edit is rejected as unbalanced", async () => {
+  const { client } = makeClient();
+  await assert.rejects(
+    createJournalEntry(client, {
+      tenantId: 1,
+      description: "POS invoice edit extra payment",
+      referenceType: "order_edit",
+      referenceId: 517,
+      // What the route used to pass: amountDueNow, not the collected total.
+      lines: editSettlementLines({ breakdown: [{ method: "cash", amount: 1 }], revenueAmount: 1400 }),
+    }),
+    /not balanced/
+  );
 });

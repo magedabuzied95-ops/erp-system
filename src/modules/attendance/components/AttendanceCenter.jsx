@@ -156,6 +156,23 @@ const twelveHourTime = (hour, minute, period) => {
   return `${String(hour24).padStart(2, "0")}:${String(minuteNumber).padStart(2, "0")}`;
 };
 
+// Spelled out rather than built from the key, so every string the failure banner
+// can print stays greppable and the i18n audit can see all twelve of them.
+const SECTION_LABEL_KEYS = {
+  branches: "attendance.center.sectionBranches",
+  employees: "attendance.center.sectionEmployees",
+  dashboard: "attendance.center.sectionDashboard",
+  list: "attendance.center.sectionList",
+  live: "attendance.center.sectionLive",
+  payroll: "attendance.center.sectionPayroll",
+  overtime: "attendance.center.sectionOvertime",
+  leaves: "attendance.center.sectionLeaves",
+  schedules: "attendance.center.sectionSchedules",
+  qr: "attendance.center.sectionQr",
+  reports: "attendance.center.sectionReports",
+  hrSettings: "attendance.center.sectionHrSettings",
+};
+
 const labels = {
   en: {
     title: "Attendance Center",
@@ -187,14 +204,14 @@ const labels = {
     suspicious: "Suspicious",
     duplicateScan: "Duplicate scan",
     missingCheckout: "Missing checkout",
-    presentToday: "Present Today",
-    absentToday: "Absent Today",
+    presentDays: "Present Days",
+    absentDays: "Absent Days",
     lateEmployees: "Late Employees",
     missingHours: "Missing Hours",
     avgWorkHours: "Average Work Hours",
     attendanceRate: "Attendance Rate %",
-    qrCheckins: "QR Check-ins Today",
-    qrCheckouts: "QR Check-outs Today",
+    qrCheckins: "QR Check-ins",
+    qrCheckouts: "QR Check-outs",
     tabs: ["Overview", "Live Attendance", "Daily Attendance", "Late Arrivals", "Missing Hours", "Absences", "Leaves", "QR Sessions", "Payroll Impact", "Reports"],
     columns: {
       employee: "Employee",
@@ -273,14 +290,14 @@ const labels = {
     suspicious: "نشاط مشبوه",
     duplicateScan: "مسح مكرر",
     missingCheckout: "خروج مفقود",
-    presentToday: "الحاضرون اليوم",
-    absentToday: "الغائبون اليوم",
+    presentDays: "أيام الحضور",
+    absentDays: "أيام الغياب",
     lateEmployees: "المتأخرون",
     missingHours: "ساعات النقص",
     avgWorkHours: "متوسط ساعات العمل",
     attendanceRate: "نسبة الحضور %",
-    qrCheckins: "دخول QR اليوم",
-    qrCheckouts: "خروج QR اليوم",
+    qrCheckins: "دخول QR",
+    qrCheckouts: "خروج QR",
     tabs: ["نظرة عامة", "الحضور المباشر", "الحضور اليومي", "التأخير", "ساعات النقص", "الغياب", "الإجازات", "جلسات QR", "تأثير الرواتب", "التقارير"],
     columns: {
       employee: "الموظف",
@@ -578,12 +595,15 @@ export default function AttendanceCenter() {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const text = isArabic ? labels.ar : labels.en;
+  const sectionLabel = (key) => (SECTION_LABEL_KEYS[key] ? t(SECTION_LABEL_KEYS[key]) : key);
   const pageEyebrow = t("common.attendanceCenterPage.eyebrow", { defaultValue: isArabic ? "مركز الحضور" : "Attendance Center" });
   const pageTitle = t("common.attendanceCenterPage.title", { defaultValue: text.title });
   const pageSubtitle = t("common.attendanceCenterPage.subtitle", { defaultValue: text.subtitle });
   const [activeTab, setActiveTab] = useState("overview");
   const [dense, setDense] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [failedSections, setFailedSections] = useState([]);
+  const loadSequence = useRef(0);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [selectedRow, setSelectedRow] = useState(null);
   const [branches, setBranches] = useState([]);
@@ -616,8 +636,18 @@ export default function AttendanceCenter() {
     payrollAffectedOnly: false,
   });
 
+  // Typing used to fire all twelve requests per keystroke, four of which rebuild
+  // the same roster-wide rows server side. The field settles before we ask.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(filters.search.trim()), 400);
+    return () => window.clearTimeout(timer);
+  }, [filters.search]);
+
+  // Deliberately not keyed on the whole `filters` object: it changes on every
+  // keystroke, which would rebuild this and undo the debounce above.
   const params = useMemo(() => ({
-    search: filters.search,
+    search: debouncedSearch,
     branchId: filters.branchId,
     employeeId: filters.employeeId,
     startDate: filters.startDate,
@@ -627,9 +657,22 @@ export default function AttendanceCenter() {
     lateOnly: filters.lateOnly ? "true" : "",
     missingOnly: filters.missingOnly ? "true" : "",
     payrollAffectedOnly: filters.payrollAffectedOnly ? "true" : "",
-  }), [filters]);
+  }), [
+    debouncedSearch,
+    filters.branchId,
+    filters.employeeId,
+    filters.startDate,
+    filters.endDate,
+    filters.status,
+    filters.source,
+    filters.lateOnly,
+    filters.missingOnly,
+    filters.payrollAffectedOnly,
+  ]);
 
   const load = useCallback(async () => {
+    const sequence = loadSequence.current + 1;
+    loadSequence.current = sequence;
     setLoading(true);
     try {
       const requests = [
@@ -647,7 +690,11 @@ export default function AttendanceCenter() {
         ["hrSettings", getAttendanceHrSettings()],
       ];
       const settled = await Promise.allSettled(requests.map(([, request]) => request));
+      // A slower earlier round used to land last and overwrite the newer answer,
+      // leaving the page showing a filter the user had already moved past.
+      if (loadSequence.current !== sequence) return;
       const fulfilled = {};
+      const failed = [];
 
       settled.forEach((result, index) => {
         const key = requests[index][0];
@@ -655,8 +702,13 @@ export default function AttendanceCenter() {
           fulfilled[key] = result.value;
           return;
         }
+        failed.push(key);
         console.error(`[attendance-center] ${key} request failed`, result.reason);
       });
+
+      // A failed section used to leave its state untouched, so a dead endpoint
+      // and a genuinely empty range both rendered as a page of zeros.
+      setFailedSections(failed);
 
       if (Object.hasOwn(fulfilled, "branches")) setBranches(safeArray(fulfilled.branches));
       if (Object.hasOwn(fulfilled, "employees")) setEmployees(safeArray(fulfilled.employees));
@@ -671,7 +723,7 @@ export default function AttendanceCenter() {
       if (Object.hasOwn(fulfilled, "reports")) setReportPayload(fulfilled.reports || null);
       if (Object.hasOwn(fulfilled, "hrSettings")) setHrSettings(fulfilled.hrSettings || null);
     } finally {
-      setLoading(false);
+      if (loadSequence.current === sequence) setLoading(false);
     }
   }, [filters.branchId, params]);
 
@@ -693,9 +745,15 @@ export default function AttendanceCenter() {
   }, [activeTab, rows]);
 
   const summary = dashboard?.summary || {};
+  // Every figure below is a total over the filtered window, never over today —
+  // the cards used to say "today" and be read as a roll call. Stamping the live
+  // range on each one keeps the number and its window in the same glance.
+  const rangeHint = filters.startDate === filters.endDate
+    ? formatDayFirstDate(filters.startDate)
+    : `${formatDayFirstDate(filters.startDate)} → ${formatDayFirstDate(filters.endDate)}`;
   const kpis = [
-    [text.presentToday, summary.present_today || 0, UserCheck, "emerald"],
-    [text.absentToday, summary.absent_today || 0, XCircle, "rose"],
+    [text.presentDays, summary.present_today || 0, UserCheck, "emerald"],
+    [text.absentDays, summary.absent_today || 0, XCircle, "rose"],
     [text.lateEmployees, summary.late_employees || 0, Clock3, "yellow"],
     [text.missingHours, summary.missing_hours || 0, TimerOff, "orange"],
     [text.avgWorkHours, summary.average_work_hours || 0, Activity, "cyan"],
@@ -879,6 +937,17 @@ export default function AttendanceCenter() {
         </div>
       </section>
 
+      {failedSections.length ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-rose-500/30 bg-rose-500/10 p-3 text-sm font-bold text-rose-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{t("attendance.center.loadFailed")}</span>
+          <span className="font-black">{failedSections.map((key) => sectionLabel(key)).join(isArabic ? "، " : ", ")}</span>
+          <button type="button" onClick={() => setRefreshIndex((value) => value + 1)} className="ms-auto h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-500/40 px-3 text-xs font-black text-rose-200">
+            {t("attendance.center.retry")}
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabKeys.map((key, index) => (
           <button key={key} type="button" onClick={() => setActiveTab(key)} className={`h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border px-3 text-sm font-black ${activeTab === key ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--text)]" : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)]"}`}>
@@ -890,8 +959,11 @@ export default function AttendanceCenter() {
       {activeTab === "overview" ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {kpis.map(([label, value, Icon, tone]) => <KpiCard key={label} label={label} value={value} icon={Icon} tone={tone} />)}
+            {kpis.map(([label, value, Icon, tone]) => <KpiCard key={label} label={label} value={value} icon={Icon} tone={tone} hint={rangeHint} />)}
           </div>
+          {!loading && !failedSections.length && !rows.length ? (
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-bold text-[var(--muted)]">{t("attendance.center.emptyRange")}</div>
+          ) : null}
           <HrSettingsPanel settings={hrSettings} isArabic={isArabic} saving={savingHrSettings} onChange={handleHrSettingsChange} onSave={handleSaveHrSettings} />
           <OpeningSchedulePanel rows={openingSchedules} isArabic={isArabic} onGenerate={handleGenerateOpeningSchedule} canGenerate={Boolean(filters.branchId)} />
           <div className="grid gap-4 xl:grid-cols-2">
@@ -1307,8 +1379,8 @@ function QrSessionsTable({ rows, text }) {
 function ReportsView({ payload, rows, text, onExport }) {
   return (
     <section className="grid gap-4 xl:grid-cols-3">
-      <KpiCard label={text.presentToday} value={payload?.summary?.present_today || 0} icon={UserCheck} />
-      <KpiCard label={text.absentToday} value={payload?.summary?.absent_today || 0} icon={XCircle} tone="rose" />
+      <KpiCard label={text.presentDays} value={payload?.summary?.present_today || 0} icon={UserCheck} />
+      <KpiCard label={text.absentDays} value={payload?.summary?.absent_today || 0} icon={XCircle} tone="rose" />
       <KpiCard label={text.missingHours} value={payload?.summary?.missing_hours || 0} icon={TimerOff} tone="orange" />
       <div className="theme-card p-5 xl:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

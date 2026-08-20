@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n/i18n";
 import { resolveStorefrontPriceBreakdown } from "../../../shared/lib/storefrontPricing.js";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 
 import {
   createSocialPublisherPost,
@@ -43,7 +44,6 @@ import {
   getSocialPublisherPosts,
   getSocialPublisherProducts,
   startMetaOAuth,
-  publishSocialPublisherPost,
   publishSocialPublisherPostDetailed,
   getTikTokPublishStatus,
 } from "../services/marketingApi";
@@ -139,6 +139,62 @@ const getHistoryStatusDetails = (status, errorMessage = "") => {
     detail: String(errorMessage || "").trim(),
   };
 };
+
+// The publish endpoint answers 200 with `success: false` for a rejected post,
+// and 200 with `status: "partial_success"` when only one network took it. Both
+// used to reach the composer as a green "Published successfully", so a post
+// Instagram refused looked identical to one it accepted.
+const readPublishOutcome = (published = {}, requestedPlatforms = []) => {
+  const platformResults = published?.meta_result?.platform_publish_results || {};
+  const postStatus = String(published?.data?.status || published?.status || "").toLowerCase();
+  const platformLabel = (platform) => tt(`marketing.social.platforms.${platform}`, platform);
+  const failedPlatforms = Object.entries(platformResults)
+    .filter(([, result]) => String(result?.status || "").toLowerCase() !== "published")
+    .map(([platform, result]) => ({ platform, error: String(result?.error || "").trim() }));
+  const detail = String(published?.message || "").trim();
+
+  if (published?.success !== true || postStatus === "failed") {
+    return {
+      tone: "error",
+      message: detail || tt("marketing.socialPublisher.publishFailed"),
+    };
+  }
+
+  if (postStatus === "partial_success" || failedPlatforms.length) {
+    const names = failedPlatforms.length
+      ? failedPlatforms.map((item) => platformLabel(item.platform)).join(" + ")
+      : requestedPlatforms.map(platformLabel).join(" + ");
+    const reason = failedPlatforms.find((item) => item.error)?.error || detail;
+    return {
+      tone: "warning",
+      message: tt("marketing.socialPublisher.toasts.partialPublish", {
+        platforms: names,
+        reason: reason || tt("marketing.socialPublisher.postStatus.unknownReason"),
+      }),
+    };
+  }
+
+  // The backend's success message is a hardcoded English string; only its
+  // failure messages carry information worth showing raw.
+  return { tone: "success", message: tt("marketing.socialPublisher.publishedSuccessfully") };
+};
+
+const toastPublishOutcome = (outcome) => {
+  if (outcome.tone === "error") {
+    toast.error(outcome.message, { duration: 10000 });
+    return;
+  }
+  if (outcome.tone === "warning") {
+    toast(outcome.message, { icon: "⚠️", duration: 10000 });
+    return;
+  }
+  toast.success(outcome.message);
+};
+
+// Instagram's own ceiling: a carousel holds 10 items and the Graph API rejects
+// an eleventh. Facebook's attached_media caps at 10 too, so this is a platform
+// limit on both sides, not a number we chose.
+const CAROUSEL_MEDIA_LIMIT = 10;
 
 const HISTORY_TABLE_LIMIT = 20;
 const ANALYTICS_DAYS = 30;
@@ -856,6 +912,23 @@ export default function SocialMediaPublisher() {
   const selectedCatalogPrimaryMediaUrl = useMemo(() => buildCatalogFallbackMediaUrl(selectedCatalogProduct || {}), [selectedCatalogProduct]);
   const selectedCatalogResolvedMediaUrl = selectedCatalogMediaUrl || selectedCatalogPrimaryMediaUrl || selectedCatalogProduct?.image_url || "";
   const resolvedMediaPreview = mediaFile ? mediaPreview : selectedCatalogResolvedMediaUrl || mediaPreview || "";
+  // Catalog media arrives as backend-relative paths (/uploads/...). Rendered
+  // raw they resolve against the app origin, which answers with the SPA shell
+  // instead of the file. Resolve for display only so media_url keeps the raw
+  // path the publish path rebases on PUBLIC_BACKEND_URL.
+  const selectedCatalogMediaSrc = resolveProductImageUrl(selectedCatalogResolvedMediaUrl);
+  const mediaPreviewSrc = resolveProductImageUrl(resolvedMediaPreview);
+  // The exact list the publish payload carries, so the colour strip below can
+  // show which pictures actually go out. A product with more colours than the
+  // carousel holds used to lose the tail with nothing on screen saying so.
+  const carouselMediaUrls = useMemo(
+    () =>
+      uniqueTextList(
+        selectedCatalogResolvedMediaUrl,
+        selectedCatalogMediaItems.map((item) => item.url)
+      ).slice(0, CAROUSEL_MEDIA_LIMIT),
+    [selectedCatalogResolvedMediaUrl, selectedCatalogMediaItems]
+  );
   const selectedCatalogProductAvailability = useMemo(() => collectFirstCommentAvailability(selectedCatalogProduct || {}), [selectedCatalogProduct]);
   const selectedCatalogProductDiscount = useMemo(() => {
     if (!selectedCatalogProduct) return "";
@@ -1514,11 +1587,9 @@ export default function SocialMediaPublisher() {
     }
     if (!mediaFile && selectedCatalogResolvedMediaUrl) {
       formData.append("media_url", selectedCatalogResolvedMediaUrl);
-      const carouselUrls = uniqueTextList(
-        selectedCatalogResolvedMediaUrl,
-        selectedCatalogMediaItems.map((item) => item.url)
-      ).slice(0, 10);
-      formData.append("media_urls", JSON.stringify(carouselUrls));
+      // Same list the colour strip numbers on screen — one source of truth, so
+      // what the composer shows is what gets published.
+      formData.append("media_urls", JSON.stringify(carouselMediaUrls));
     }
     // Provider payloads stay separate: Meta keys are unchanged and the TikTok
     // block is added only when TikTok is actually selected, so a Facebook or
@@ -1581,7 +1652,14 @@ export default function SocialMediaPublisher() {
         setTiktokJob({ id: tiktokResult.job_id, status: tiktokResult.status || "uploaded", draft: Boolean(tiktokResult.draft) });
         toast.success(t("marketing.tiktok.submitted"));
       } else {
-        toast.success(published?.message || t("marketing.socialPublisher.publishedSuccessfully"));
+        const outcome = readPublishOutcome(published, selectedPlatforms);
+        toastPublishOutcome(outcome);
+        // A rejected post keeps the composer filled: clearing it would throw
+        // away the caption and media the user still needs in order to retry.
+        if (outcome.tone === "error") {
+          await loadPosts();
+          return;
+        }
       }
       resetComposer();
       await loadPosts();
@@ -1693,8 +1771,10 @@ export default function SocialMediaPublisher() {
     // rather than creating a second TikTok video.
     setPublishingId(post.id);
     try {
-      const result = await publishSocialPublisherPost(post.id);
-      toast.success(result?.message || t("marketing.socialPublisher.publishedSuccessfully"));
+      // Detailed variant: publishSocialPublisherPost() unwraps to the post row,
+      // which carries no success/message, so every republish reported success.
+      const published = await publishSocialPublisherPostDetailed(post.id);
+      toastPublishOutcome(readPublishOutcome(published, safeArray(post.platforms)));
       await loadPosts();
     } catch (err) {
       toast.error(err?.message || t("marketing.socialPublisher.publishFailed"));
@@ -1750,9 +1830,9 @@ export default function SocialMediaPublisher() {
         <div className="aspect-[4/5] bg-gradient-to-br from-slate-900 via-slate-950 to-black">
           {resolvedMediaPreview ? (
             mediaType === "video" ? (
-              <video src={resolvedMediaPreview} controls className="h-full w-full object-cover bg-black" />
+              <video src={mediaPreviewSrc} controls className="h-full w-full object-cover bg-black" />
             ) : (
-              <img src={resolvedMediaPreview} alt={t("marketing.socialPublisher.previewCard.mediaAlt", { platform: platformName })} className="h-full w-full object-cover bg-black" />
+              <img src={mediaPreviewSrc} alt={t("marketing.socialPublisher.previewCard.mediaAlt", { platform: platformName })} className="h-full w-full object-cover bg-black" />
             )
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center text-slate-500">
@@ -1887,7 +1967,7 @@ export default function SocialMediaPublisher() {
                     <div className="flex items-start gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                         {selectedCatalogResolvedMediaUrl ? (
-                          <img src={selectedCatalogResolvedMediaUrl} alt={selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")} className="h-full w-full object-cover" />
+                          <img src={selectedCatalogMediaSrc} alt={selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-slate-500">
                             <ImageIcon className="h-6 w-6" />
@@ -1935,10 +2015,39 @@ export default function SocialMediaPublisher() {
                         </div>
                         {selectedCatalogMediaItems.length > 1 ? (
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-3">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.availableColorImages")}</div>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.availableColorImages")}</div>
+                              <span
+                                className={[
+                                  "rounded-full border px-2.5 py-1 text-[10px] font-bold",
+                                  selectedCatalogMediaItems.length > CAROUSEL_MEDIA_LIMIT
+                                    ? "border-amber-400/25 bg-amber-400/10 text-amber-100"
+                                    : "border-white/10 bg-white/[0.04] text-slate-300",
+                                ].join(" ")}
+                              >
+                                {/* Not `count`: i18next reads that name as a plural
+                                    selector, and an Arabic bundle without the full
+                                    set of plural forms silently renders English. */}
+                                {t("marketing.socialPublisher.catalog.carouselCount", {
+                                  selected: carouselMediaUrls.length,
+                                  total: selectedCatalogMediaItems.length,
+                                })}
+                              </span>
+                            </div>
+                            {selectedCatalogMediaItems.length > CAROUSEL_MEDIA_LIMIT ? (
+                              <div className="mt-2 text-[11px] leading-5 text-amber-100/80">
+                                {t("marketing.socialPublisher.catalog.carouselLimitHint", { limit: CAROUSEL_MEDIA_LIMIT })}
+                              </div>
+                            ) : null}
                             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5 xl:grid-cols-6">
                               {selectedCatalogMediaItems.map((item) => {
                                 const isActive = item.url === selectedCatalogResolvedMediaUrl;
+                                // The publish order, not the strip order: the
+                                // selected colour is pushed to the front, so a
+                                // colour past the cap joins the carousel simply
+                                // by being clicked.
+                                const slideNumber = carouselMediaUrls.indexOf(item.url) + 1;
+                                const isPublished = slideNumber > 0;
                                 return (
                                   <button
                                     key={item.key || item.url}
@@ -1948,14 +2057,27 @@ export default function SocialMediaPublisher() {
                                       setMediaType("image");
                                     }}
                                     className={[
-                                      "group overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition",
+                                      "group relative overflow-hidden rounded-[var(--radius-control)] border p-1 text-left transition",
                                       isActive ? "border-emerald-300/60 bg-emerald-300/15" : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]",
+                                      isPublished ? "" : "opacity-45 grayscale",
                                     ].join(" ")}
-                                    title={item.color || item.url}
+                                    title={
+                                      isPublished
+                                        ? `${item.color || item.url} — ${slideNumber}`
+                                        : t("marketing.socialPublisher.catalog.colorExcluded", { color: item.color || "" })
+                                    }
                                   >
                                     <div className="aspect-square overflow-hidden rounded-xl bg-black/40">
-                                      <img src={item.url} alt={item.color || "Color image"} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" />
+                                      <img src={resolveProductImageUrl(item.url)} alt={item.color || "Color image"} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" />
                                     </div>
+                                    <span
+                                      className={[
+                                        "absolute right-2 top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black",
+                                        isPublished ? "bg-emerald-400 text-slate-950" : "bg-slate-800 text-slate-400",
+                                      ].join(" ")}
+                                    >
+                                      {isPublished ? slideNumber : "—"}
+                                    </span>
                                     <div className="mt-1 truncate px-1 text-[10px] font-semibold text-emerald-100/80">{item.color || "Color"}</div>
                                   </button>
                                 );
@@ -1996,9 +2118,9 @@ export default function SocialMediaPublisher() {
                 <div className={`flex items-center justify-center text-center ${hasCatalogProduct || resolvedMediaPreview ? "min-h-[190px] md:min-h-[220px]" : "min-h-[280px]"}`}>
                   {resolvedMediaPreview ? (
                     mediaType === "video" ? (
-                      <video src={resolvedMediaPreview} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <video src={mediaPreviewSrc} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     ) : (
-                      <img src={resolvedMediaPreview} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <img src={mediaPreviewSrc} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     )
                   ) : (
                     <div className="space-y-3 px-4">
@@ -2734,7 +2856,7 @@ export default function SocialMediaPublisher() {
                             <div className="flex gap-3">
                               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                                 {product.primary_media_url || product.image_url ? (
-                                  <img src={product.primary_media_url || product.image_url} alt={product.name || "Product"} className="h-full w-full object-cover" />
+                                  <img src={resolveProductImageUrl(product.primary_media_url || product.image_url)} alt={product.name || "Product"} className="h-full w-full object-cover" />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-slate-500">
                                     <ImageIcon className="h-6 w-6" />

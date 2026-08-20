@@ -130,7 +130,8 @@
     "showing": "عرض",
     "of": "من",
     "page": "صفحة",
-    "records": "طلبات"
+    "records": "طلبات",
+    "truncated": "معروض أحدث {{limit}} طلب فقط — فيه طلبات أقدم لسه مش محمّلة."
   },
   "summary": {
     "quick": "ملخص سريع",
@@ -508,6 +509,15 @@
     "courierNotes": "ملاحظات المندوب",
     "trackingUrl": "رابط التتبع",
     "deliveryFee": "رسوم التوصيل",
+    "codAutoPlaceholder": "تلقائي: {{amount}}",
+    "codAutoHint": "اتركه فاضي عشان يتحصّل المتبقي على العميل. اكتب صفر لو الطلب مدفوع بالكامل ومش هيتحصّل حاجة.",
+    "openPackage": "فتح الشحنة",
+    "openPackageInherit": "افتراضي حساب بوسطة",
+    "openPackageAllow": "السماح للعميل بالفتح",
+    "openPackageDeny": "عدم السماح بالفتح",
+    "openPackageHint": "«افتراضي حساب بوسطة» يعني ما نبعتش أي تعليمات ويفضل إعداد حسابك في بوسطة زي ما هو.",
+    "courierCollects": "المندوب هيحصّل",
+    "courierCollectsNothing": "الشحنة هتروح لبوسطة بدون تحصيل. راجع الدفع أو اكتب مبلغ التحصيل قبل الإنشاء.",
     "createShipment": "إنشاء شحنة",
     "printLabel": "طباعة الملصق",
     "trackShipment": "تتبع الشحنة",

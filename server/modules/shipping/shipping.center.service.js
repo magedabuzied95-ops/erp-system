@@ -3,6 +3,9 @@ import { normalizeShippingProviderKey } from "../../services/shippingProviders/i
 import {
   createBostaShipmentForOrder,
   ensureShippingSchema,
+  fetchBostaShipmentLabels,
+  orderCodAmount,
+  orderOwedAmount,
   refreshBostaShipmentForOrder,
 } from "./shipping.service.js";
 
@@ -62,8 +65,12 @@ const buildWhere = (query = {}) => {
   if (query.branchId) addFilter(filters, params, "o.branch_id::text = ?", text(query.branchId));
   if (query.shippingStatus) addFilter(filters, params, "COALESCE(o.shipment_status, o.shipping_status, 'ready_to_ship') = ?", normalizeStatus(query.shippingStatus));
   if (query.paymentStatus) addFilter(filters, params, "COALESCE(o.payment_status, '') = ?", text(query.paymentStatus));
-  if (query.paymentType === "cod") filters.push("(LOWER(COALESCE(o.payment_method, '')) IN ('cod', 'cash_on_delivery') OR COALESCE(o.cod_amount, 0) > 0)");
-  if (query.paymentType === "prepaid") filters.push("NOT (LOWER(COALESCE(o.payment_method, '')) IN ('cod', 'cash_on_delivery') OR COALESCE(o.cod_amount, 0) > 0)");
+  // "COD" is any parcel the courier still has to bring money back from, not only the
+  // ones whose payment_method happens to spell it out — that spelling is exactly what
+  // shipments created from the AI inbox and the POS never carried.
+  const COLLECTED_ON_DELIVERY = "(LOWER(COALESCE(o.payment_method, '')) IN ('cod', 'cash_on_delivery') OR COALESCE(o.cod_amount, 0) > 0 OR (COALESCE(o.total_amount, o.total, o.total_price, 0) - COALESCE(o.paid_amount, 0)) > 0)";
+  if (query.paymentType === "cod") filters.push(COLLECTED_ON_DELIVERY);
+  if (query.paymentType === "prepaid") filters.push(`NOT ${COLLECTED_ON_DELIVERY}`);
   if (query.dateFrom) addFilter(filters, params, "o.created_at >= ?::timestamp", text(query.dateFrom));
   if (query.dateTo) addFilter(filters, params, "o.created_at < (?::timestamp + INTERVAL '1 day')", text(query.dateTo));
   if (query.search) {
@@ -114,6 +121,9 @@ const selectSql = `
     COALESCE(o.shipment_status, o.shipping_status, 'ready_to_ship') AS shipment_status,
     COALESCE(o.cod_amount, 0)::numeric AS cod_amount,
     COALESCE(o.total_amount, o.total, o.total_price, 0)::numeric AS order_total,
+    COALESCE(o.paid_amount, 0)::numeric AS paid_amount,
+    o.remaining_amount,
+    o.allow_open_package,
     COALESCE(o.payment_status, '') AS payment_status,
     COALESCE(o.payment_method, '') AS payment_method,
     o.created_at,
@@ -162,7 +172,18 @@ export const listShippingCenterOrders = async (query = {}) => {
     dataParams
   );
   const count = await db.query(`SELECT COUNT(*)::int AS total FROM orders o WHERE ${where}`, params);
-  return { orders: data.rows.map((row) => ({ ...row, shipment_status: normalizeStatus(row.shipment_status) })), total: count.rows[0]?.total || 0 };
+  return {
+    // `cod_amount` is only what the column happens to hold; a shipment that has not
+    // been created yet quotes the courier from the same rule the create call uses,
+    // so the screen and the parcel can never disagree about the money.
+    orders: data.rows.map((row) => ({
+      ...row,
+      shipment_status: normalizeStatus(row.shipment_status),
+      collectible_amount: orderCodAmount({ ...row, total_amount: row.order_total }),
+      amount_owed: orderOwedAmount({ ...row, total_amount: row.order_total }),
+    })),
+    total: count.rows[0]?.total || 0,
+  };
 };
 
 export const getShippingCenterSummary = async (query = {}) => {
@@ -264,17 +285,12 @@ export const bulkShippingCenterAction = async ({ action, orderIds = [] } = {}) =
     return { updated: result.rows.length, results: result.rows };
   }
 
+  // Reading `shipping_label_url` here was the whole bug: Bosta's create-delivery reply
+  // carries no label, so the column was empty on every order and the print returned rows
+  // the client then filtered down to nothing — a success toast over a no-op. The label
+  // has to be pulled from Bosta's AWB endpoint at print time.
   if (action === "print_labels") {
-    const result = await db.query(
-      `
-      SELECT id, COALESCE(shipping_label_url, '') AS label_url, COALESCE(shipping_tracking_number, tracking_number, '') AS tracking_number
-      FROM orders
-      WHERE id = ANY($1::int[])
-      ORDER BY id
-      `,
-      [ids]
-    );
-    return { labels: result.rows, results: result.rows };
+    return fetchBostaShipmentLabels(ids);
   }
 
   const results = [];

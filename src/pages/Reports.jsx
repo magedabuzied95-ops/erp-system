@@ -4,7 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pi
 import { Download, DollarSign, Package, ShoppingCart, Users } from "lucide-react";
 import toast from "react-hot-toast";
 
-import { api } from "../shared/api/api";
+import { fetchAllOrders } from "../shared/api/ordersFetch";
 import { formatCurrency } from "../shared/lib/currency";
 import { formatOrderPaymentMethods } from "../../shared/paymentMethods";
 
@@ -19,8 +19,8 @@ function Reports() {
     const fetchReports = async () => {
       try {
         setLoading(true);
-        const data = await api.get("/orders");
-        setOrders(Array.isArray(data.orders) ? data.orders : []);
+        const { orders: allOrders } = await fetchAllOrders();
+        setOrders(allOrders);
       } catch (error) {
         console.log(error);
         toast.error(t("reports.toasts.loadFailed"));

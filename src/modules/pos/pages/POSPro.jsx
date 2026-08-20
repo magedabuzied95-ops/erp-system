@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+﻿import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -75,6 +75,7 @@ import {
   writeCachedActivePosShift,
 } from "../lib/posShiftCache";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
+import { keyboardLayoutAlternates, latinLayoutToArabic } from "../lib/keyboardLayout";
 import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
@@ -221,6 +222,7 @@ const isStandaloneDisplayMode = () =>
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
+const POS_QUICK_CUSTOMER_ARABIC_KEYS_KEY = "pos.quickCustomer.arabicKeys";
 const POS_OPEN_INVOICES_KEY = "erp.pos.open-invoices";
 const POS_ACTIVE_INVOICE_KEY = "erp.pos.active-invoice";
 
@@ -315,6 +317,55 @@ const writeLastSalespersonId = (salespersonId) => {
     else window.localStorage.removeItem(POS_LAST_SALESPERSON_KEY);
   } catch {
     // This is a cashier convenience only; checkout must continue.
+  }
+};
+
+/**
+ * Read Arabic-layout keystrokes out of an English keyboard layout.
+ *
+ * A browser cannot switch the operating system layout, so a cashier who touch-types the
+ * Arabic keyboard while Windows sits on English gets latin gibberish in the name field.
+ * latinLayoutToArabic returns "" when nothing mapped - its way of saying "no alternate
+ * reading" - so an unmapped value has to fall back to what was typed, or a digits-only
+ * or already-Arabic name would be wiped on the next keystroke.
+ */
+const toArabicKeystrokes = (value = "") => latinLayoutToArabic(value) || String(value ?? "");
+
+/**
+ * The span of `next` that this edit inserted, found by trimming the common prefix and
+ * suffix. Only that span gets layout-converted: converting the whole field would eat a
+ * latin name already sitting in it the moment the next Arabic letter is typed.
+ */
+const insertedRange = (previous = "", next = "") => {
+  let start = 0;
+  const shortest = Math.min(previous.length, next.length);
+  while (start < shortest && previous[start] === next[start]) start += 1;
+
+  let end = next.length;
+  let previousEnd = previous.length;
+  while (end > start && previousEnd > start && next[end - 1] === previous[previousEnd - 1]) {
+    end -= 1;
+    previousEnd -= 1;
+  }
+
+  return { start, end };
+};
+
+const readQuickCustomerArabicKeys = () => {
+  try {
+    const saved = window.localStorage.getItem(POS_QUICK_CUSTOMER_ARABIC_KEYS_KEY);
+    if (saved === "false" || saved === "0") return false;
+  } catch {
+    // Persisted POS preferences are best-effort only.
+  }
+  return true;
+};
+
+const writeQuickCustomerArabicKeys = (value) => {
+  try {
+    window.localStorage.setItem(POS_QUICK_CUSTOMER_ARABIC_KEYS_KEY, String(Boolean(value)));
+  } catch {
+    // Persisted POS preferences are best-effort only.
   }
 };
 
@@ -1397,13 +1448,24 @@ const cacheAllPosCustomers = async ({ firstResponse, tenantId, branchId, signal 
 
 const POS_SALE_STATS_KEY = "erp.pos.saleStats";
 
+/**
+ * Fold the spellings a cashier can reasonably pick between into one lookup key.
+ *
+ * The letter folds below used to be written as Arabic literals and were corrupted
+ * into mojibake at some point, so they matched nothing at all: a name spelled with
+ * bare alef never found the same name spelled with hamza, and one ending in
+ * ta-marbuta never found the ha spelling. They are unicode escapes now, so a tool
+ * that guesses the wrong encoding cannot silently break them again.
+ *
+ * NFKD plus the combining-mark strip already folds every hamza form back to bare
+ * alef, so only ta-marbuta and alef-maksura still need a fold of their own.
+ */
 const normalizeSmartText = (value) =>
   String(value ?? "")
     .normalize("NFKD")
     .replace(/[\u064B-\u065F\u0670]/g, "")
-    .replace(/[ط·آ£ط·آ¥ط·آ¢]/g, "ط·آ§")
-    .replace(/ط·آ©/g, "ط¸â€،")
-    .replace(/ط¸â€°/g, "ط¸ظ¹")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\u0649/g, "\u064A")
     .toLowerCase()
     .trim();
 
@@ -1744,6 +1806,9 @@ function POSPro() {
   const [closingCash, setClosingCash] = useState("");
   const [sellerOverrideAllowed, setSellerOverrideAllowed] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(defaultState.quickCustomer);
+  const [quickCustomerArabicKeys, setQuickCustomerArabicKeys] = useState(readQuickCustomerArabicKeys);
+  const quickCustomerNameRef = useRef(null);
+  const quickCustomerCaretRef = useRef(null);
   const [personalSettlementType, setPersonalSettlementType] = useState(defaultState.personalSettlementType);
   const [personalNote, setPersonalNote] = useState(defaultState.personalNote);
   const [loyaltyProfile, setLoyaltyProfile] = useState(null);
@@ -2707,14 +2772,22 @@ function POSPro() {
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
+      // The server is handed the same raw keystrokes the local filter gets, so a
+      // query typed on the wrong layout has to be retried there too - and retried
+      // here rather than only locally, because the POS loads its catalog lazily and
+      // the product may not be in memory yet.
+      const attempts = [rawSearch, ...keyboardLayoutAlternates(rawSearch)];
       try {
-        const rawProducts = await getProductsWithVariants({
-          params: { pos: 1, search: rawSearch },
-          signal: controller.signal,
-        });
-        const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
-        if (catalog.length > 0) {
-          setProducts((current) => mergeCatalogProducts(current, catalog));
+        for (const attempt of attempts) {
+          const rawProducts = await getProductsWithVariants({
+            params: { pos: 1, search: attempt },
+            signal: controller.signal,
+          });
+          const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
+          if (catalog.length > 0) {
+            setProducts((current) => mergeCatalogProducts(current, catalog));
+            return;
+          }
         }
       } catch (err) {
         if (controller.signal.aborted || err?.name === "AbortError") return;
@@ -3430,14 +3503,36 @@ function POSPro() {
     [productsAfterSubCategory, selectedChildCategoryId]
   );
 
-  const productsAfterNonSmartFilters = useMemo(() => {
+  /**
+   * The query everything downstream filters on, after checking whether these
+   * keystrokes read better through the other keyboard layout.
+   *
+   * A browser cannot switch the OS keyboard layout, so a cashier who leaves Windows
+   * on Arabic and types "vans" sends us Arabic letters and used to get an empty grid
+   * with nothing on screen to explain why. The alternate reading is only consulted
+   * when the literal query matches nothing, so a genuine Arabic search is never
+   * hijacked by its own latin gibberish. Resolving it once here also keeps the brand
+   * and manufacturer facet counts agreeing with the grid they sit above.
+   */
+  const resolvedSearchQuery = useMemo(() => {
     const query = normalizeSmartText(deferredSearch.trim());
+    if (!query) return "";
 
-    return productsAfterChildCategory.filter(({ meta }) => {
-      const matchesText = !query || meta.searchText.includes(query);
-      return matchesText;
-    });
-  }, [productsAfterChildCategory, deferredSearch]);
+    const matchesCatalog = (candidate) =>
+      Boolean(candidate) && productsAfterChildCategory.some(({ meta }) => meta.searchText.includes(candidate));
+    if (matchesCatalog(query)) return query;
+
+    const alternate = keyboardLayoutAlternates(deferredSearch.trim()).map(normalizeSmartText).find(matchesCatalog);
+    return alternate || query;
+  }, [deferredSearch, productsAfterChildCategory]);
+
+  const productsAfterNonSmartFilters = useMemo(
+    () =>
+      productsAfterChildCategory.filter(
+        ({ meta }) => !resolvedSearchQuery || meta.searchText.includes(resolvedSearchQuery)
+      ),
+    [productsAfterChildCategory, resolvedSearchQuery]
+  );
 
   const smartFilterOptions = useMemo(() => {
     const renderedFilterSource = productsAfterNonSmartFilters.map(({ product }) => product);
@@ -3497,27 +3592,26 @@ function POSPro() {
   // list by its own selection would collapse it to the single chip already
   // chosen, leaving no way to switch without clearing first.
   const facetSource = (constraints) => {
-    const query = normalizeSmartText(deferredSearch.trim());
     return productsAfterSmartFilters.filter(({ meta }) => {
       const matchesOther = matchesQuickFilterGroups(
         { brandKey: meta.brandKey, manufacturerIds: meta.manufacturerIds, manufacturerNames: meta.manufacturerNames },
         constraints,
         normalizeSmartText
       );
-      return matchesOther && (!query || meta.searchText.includes(query));
+      return matchesOther && (!resolvedSearchQuery || meta.searchText.includes(resolvedSearchQuery));
     });
   };
 
   const productsForBrandFacet = useMemo(
     () => facetSource({ manufacturers: selectedManufacturerId }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [productsAfterSmartFilters, deferredSearch, selectedManufacturerId]
+    [productsAfterSmartFilters, resolvedSearchQuery, selectedManufacturerId]
   );
 
   const productsForManufacturerFacet = useMemo(
     () => facetSource({ brands: selectedBrandId }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [productsAfterSmartFilters, deferredSearch, selectedBrandId]
+    [productsAfterSmartFilters, resolvedSearchQuery, selectedBrandId]
   );
 
   const brandOptions = useMemo(() => {
@@ -3629,8 +3723,6 @@ function POSPro() {
   }, [draftBrandOptions, draftManufacturerOptions, draftPosFilters, filtersOpen]);
 
   const visibleProducts = useMemo(() => {
-    const query = normalizeSmartText(deferredSearch.trim());
-
     return productsAfterSmartFilters
       .filter(({ meta }) => {
         const matchesQuickFilters = matchesQuickFilterGroups(
@@ -3645,11 +3737,11 @@ function POSPro() {
           },
           normalizeSmartText
         );
-        const matchesText = !query || meta.searchText.includes(query);
+        const matchesText = !resolvedSearchQuery || meta.searchText.includes(resolvedSearchQuery);
         return matchesQuickFilters && matchesText;
       })
       .map(({ product }) => product);
-  }, [productsAfterSmartFilters, deferredSearch, selectedBrandId, selectedManufacturerId]);
+  }, [productsAfterSmartFilters, resolvedSearchQuery, selectedBrandId, selectedManufacturerId]);
 
   const orderedVisibleProducts = useMemo(() => {
     const favorites = [];
@@ -4410,7 +4502,12 @@ function POSPro() {
       return;
     }
 
-    const exactVariant = barcodeLookup.variantsByCode.get(normalized);
+    // A scanner firing into an Arabic keyboard layout emits Arabic letters for every
+    // letter in the code, so the scanned string has to be looked up under its other
+    // layout reading before we decide the code is unknown.
+    const codeCandidates = [normalized, ...keyboardLayoutAlternates(normalized).map((code) => code.toLowerCase())];
+
+    const exactVariant = codeCandidates.map((code) => barcodeLookup.variantsByCode.get(code)).find(Boolean);
 
     if (exactVariant) {
       addVariantToCart(exactVariant.product, exactVariant.variant);
@@ -4422,7 +4519,7 @@ function POSPro() {
       return;
     }
 
-    const exactProduct = barcodeLookup.productsByCode.get(normalized);
+    const exactProduct = codeCandidates.map((code) => barcodeLookup.productsByCode.get(code)).find(Boolean);
 
     if (exactProduct) {
       quickAddProduct(exactProduct);
@@ -6121,7 +6218,12 @@ function POSPro() {
         paid_amount: checkoutPaymentSummary.paidAmount,
         change_amount: checkoutPaymentSummary.changeAmount,
         status: checkoutPaymentSummary.paymentStatus,
-        payment_status: creditSaleCheckout ? "unpaid" : partialCreditCheckout ? "partially_paid" : checkoutPaymentSummary.paymentStatus,
+        // On an edit "collect nothing now" does not mean "nothing was ever collected":
+        // whatever the invoice already took stays paid, so the deferred edit is
+        // partially paid rather than unpaid.
+        payment_status: creditSaleCheckout
+          ? (editActive && originalEditPaidAmount > 0.009 ? "partially_paid" : "unpaid")
+          : partialCreditCheckout ? "partially_paid" : checkoutPaymentSummary.paymentStatus,
         branch_id: checkoutBranchId,
         cash_amount: payloadCashAmount,
         card_amount: payloadCardAmount,
@@ -7462,13 +7564,65 @@ function POSPro() {
     }
   }, [customerCreateSaving, handleCreateCustomer]);
 
+  // Mode only: the switch never rewrites text already in the field. Converting on toggle
+  // would read as "make this Arabic" and quietly destroy a deliberate latin name, and the
+  // conversion cannot be undone once the latin spelling is gone.
+  const toggleQuickCustomerArabicKeys = useCallback(() => {
+    const next = !quickCustomerArabicKeys;
+    setQuickCustomerArabicKeys(next);
+    writeQuickCustomerArabicKeys(next);
+  }, [quickCustomerArabicKeys]);
+
+  // Live layout conversion for the customer name, so a cashier who touch-types the Arabic
+  // keyboard is not punished for Windows sitting on the English layout.
+  const handleQuickCustomerNameChange = useCallback((event) => {
+    const typed = event.target.value;
+    // Only real keystrokes are layout-converted. A paste, a drop or an IME commit is text
+    // the cashier already has the way they want it, and reading it back as keystrokes
+    // would mangle it.
+    const inputType = event.nativeEvent?.inputType;
+    if (!quickCustomerArabicKeys || (inputType && inputType !== "insertText")) {
+      setQuickCustomer((prev) => ({ ...prev, name: typed }));
+      return;
+    }
+    const { start, end } = insertedRange(quickCustomer.name, typed);
+    const converted = toArabicKeystrokes(typed.slice(start, end));
+    const next = `${typed.slice(0, start)}${converted}${typed.slice(end)}`;
+    setQuickCustomer((prev) => ({ ...prev, name: next }));
+    if (next === typed) return;
+    // The b key is lam-alef: one keystroke, two characters, so the caret can move.
+    quickCustomerCaretRef.current = start + converted.length;
+  }, [quickCustomer.name, quickCustomerArabicKeys]);
+
+  // Assigning a new value to an input parks the caret at the end, so it has to be put
+  // back after React commits. requestAnimationFrame is the wrong hook for that: a
+  // backgrounded tab never fires it, and the restore silently never runs.
+  useLayoutEffect(() => {
+    const caret = quickCustomerCaretRef.current;
+    if (caret === null) return;
+    quickCustomerCaretRef.current = null;
+    const field = quickCustomerNameRef.current;
+    if (!field) return;
+    try {
+      field.setSelectionRange(caret, caret);
+    } catch {
+      // Selection APIs throw once the input is detached; the caret lands at the end.
+    }
+  });
+
   // The fields sit in a dialog, not a form, so Enter had nowhere to go and the
-  // cashier had to reach for the mouse after typing the name.
+  // cashier had to reach for the mouse after typing the name. F9 reaches the layout
+  // switch without spending a Tab stop on it.
   const handleQuickCustomerKeyDown = useCallback((event) => {
+    if (event.key === "F9") {
+      event.preventDefault();
+      toggleQuickCustomerArabicKeys();
+      return;
+    }
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent?.isComposing) return;
     event.preventDefault();
     void handleCreateCustomerFromToolbar();
-  }, [handleCreateCustomerFromToolbar]);
+  }, [handleCreateCustomerFromToolbar, toggleQuickCustomerArabicKeys]);
 
   const openCustomerCreateModal = useCallback((initialValues = {}) => {
     const searchText = String(customerSearch || "").trim();
@@ -8010,14 +8164,32 @@ function POSPro() {
                 <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                   <label className="block">
                     <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.posPro.quickCustomer.name")}</div>
-                    <input
-                      value={quickCustomer.name}
-                      onChange={(e) => setQuickCustomer((prev) => ({ ...prev, name: e.target.value }))}
-                      onKeyDown={handleQuickCustomerKeyDown}
-                      autoFocus
-                      className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
-                      placeholder={t("pos.posPro.quickCustomer.namePlaceholder")}
-                    />
+                    <div className="relative">
+                      <input
+                        ref={quickCustomerNameRef}
+                        value={quickCustomer.name}
+                        onChange={handleQuickCustomerNameChange}
+                        onKeyDown={handleQuickCustomerKeyDown}
+                        autoFocus
+                        className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 ps-4 pe-16 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+                        placeholder={t("pos.posPro.quickCustomer.namePlaceholder")}
+                      />
+                      <button
+                        type="button"
+                        onClick={toggleQuickCustomerArabicKeys}
+                        title={quickCustomerArabicKeys ? t("pos.posPro.quickCustomer.arabicKeysOn") : t("pos.posPro.quickCustomer.arabicKeysOff")}
+                        aria-label={quickCustomerArabicKeys ? t("pos.posPro.quickCustomer.arabicKeysOn") : t("pos.posPro.quickCustomer.arabicKeysOff")}
+                        aria-pressed={quickCustomerArabicKeys}
+                        tabIndex={-1}
+                        className={`absolute inset-y-0 end-2 my-auto inline-flex h-7 min-w-[2.75rem] items-center justify-center rounded-lg border px-2 text-[11px] font-black transition ${
+                          quickCustomerArabicKeys
+                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
+                            : "border-white/10 bg-white/[0.06] text-zinc-400"
+                        }`}
+                      >
+                        {quickCustomerArabicKeys ? "\u0639" : "EN"}
+                      </button>
+                    </div>
                   </label>
 
                   <label className="block">

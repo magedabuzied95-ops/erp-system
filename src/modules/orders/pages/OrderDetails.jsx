@@ -480,7 +480,12 @@ function OrderDetails() {
         floor_number: merged.floor_number || "",
         apartment_number: merged.apartment_number || "",
         delivery_fee: merged.delivery_fee || merged.shipping_fee || 0,
-        cod_amount: merged.cod_amount || 0,
+        // Empty means "collect whatever is still owed". Seeding this with 0 would
+        // read as a deliberate "collect nothing" the moment it was sent.
+        cod_amount: Number(merged.cod_amount || 0) > 0 ? String(merged.cod_amount) : "",
+        allow_open_package: merged.allow_open_package === null || merged.allow_open_package === undefined
+          ? "inherit"
+          : (merged.allow_open_package ? "allow" : "deny"),
         courier_notes: merged.courier_notes || "",
       });
     } catch (err) {
@@ -595,6 +600,12 @@ function OrderDetails() {
   const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
   const bostaDistrictName = shipping.shipping_district_name_ar || shipping.shipping_district_name_en || order?.shipping_district_name_ar || order?.shipping_district_name_en || shipping.shipping_district_id || order?.area_id || "";
   const financials = useMemo(() => (order ? buildOrderFinancials(order, previewItems) : buildOrderFinancials({}, [])), [order, previewItems]);
+  // An empty COD box means the courier collects whatever is still owed; a typed 0 is
+  // the operator saying "this one is already paid, collect nothing".
+  const codOverrideProvided = String(shipping.cod_amount ?? "").trim() !== "";
+  const collectionPreview = codOverrideProvided
+    ? Math.max(0, Number(shipping.cod_amount) || 0)
+    : financials.remainingOnDelivery;
   const orderExperience = useMemo(() => resolveOrderExperience(order || {}), [order]);
   const requiresShipping = orderExperience.requiresShipping || shippingSetupOpen;
   const normalizedShipmentState = normalizeComparable(shipping.shipment_status || shipping.shipping_status || "pending");
@@ -681,6 +692,8 @@ function OrderDetails() {
         tracking_number: shipping.tracking_number,
         tracking_url: shipping.tracking_url,
         shipping_cost: Number(shipping.delivery_fee || 0),
+        cod_amount: codOverrideProvided ? Math.max(0, Number(shipping.cod_amount) || 0) : 0,
+        allow_open_package: shipping.allow_open_package || "inherit",
         courier_notes: shipping.courier_notes,
         reason: "Shipping details updated",
       };
@@ -741,7 +754,15 @@ function OrderDetails() {
   const handleBostaAction = async (action) => {
     try {
       setBostaActionError(null);
-      const result = await api.post(`/orders/${order.id}/shipping/bosta/${action}`, {});
+      const body = action === "create"
+        ? {
+            // Sent only when the box was actually filled in — otherwise an untouched
+            // field would hand the courier a 0 to collect.
+            ...(codOverrideProvided ? { cod_amount: Math.max(0, Number(shipping.cod_amount) || 0) } : {}),
+            allow_open_package: shipping.allow_open_package || "inherit",
+          }
+        : {};
+      const result = await api.post(`/orders/${order.id}/shipping/bosta/${action}`, body);
       const updated = normalizeOrder(result.order || order, { items: previewItems });
       setOrder(updated);
       setShipping((prev) => ({
@@ -1704,16 +1725,38 @@ function OrderDetails() {
                       min="0"
                       step="0.01"
                       value={shipping.cod_amount}
-                      onChange={(e) => setShipping((prev) => ({ ...prev, cod_amount: Number(e.target.value || 0) }))}
-                      placeholder={t("orders.details.codAmount")}
+                      onChange={(e) => setShipping((prev) => ({ ...prev, cod_amount: e.target.value }))}
+                      placeholder={t("orders.shipping.codAutoPlaceholder", { amount: formatCurrency(financials.remainingOnDelivery) })}
                       className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
+                    <p className="mt-1 text-[11px] leading-5 text-zinc-400">{t("orders.shipping.codAutoHint")}</p>
+                  </FieldLabel>
+                  <FieldLabel label={t("orders.shipping.openPackage")}>
+                    <select
+                      value={shipping.allow_open_package || "inherit"}
+                      onChange={(e) => setShipping((prev) => ({ ...prev, allow_open_package: e.target.value }))}
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                    >
+                      <option value="inherit">{t("orders.shipping.openPackageInherit")}</option>
+                      <option value="allow">{t("orders.shipping.openPackageAllow")}</option>
+                      <option value="deny">{t("orders.shipping.openPackageDeny")}</option>
+                    </select>
+                    <p className="mt-1 text-[11px] leading-5 text-zinc-400">{t("orders.shipping.openPackageHint")}</p>
                   </FieldLabel>
                 </div>
               ) : null}
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
+              {!hasCreatedShipment ? (
+                <div className={`flex items-center justify-between gap-3 rounded-[var(--radius-card)] border px-4 py-3 text-sm font-bold ${collectionPreview > 0 ? "border-white/10 bg-white/[0.03] text-white" : "border-amber-400/30 bg-amber-400/10 text-amber-100"}`}>
+                  <span>{t("orders.shipping.courierCollects")}</span>
+                  <span className="font-black">{formatCurrency(collectionPreview)}</span>
+                </div>
+              ) : null}
+              {!hasCreatedShipment && collectionPreview <= 0 ? (
+                <p className="text-[11px] leading-5 text-amber-200/80">{t("orders.shipping.courierCollectsNothing")}</p>
+              ) : null}
               {!hasCreatedShipment ? (
                 <button type="button" onClick={handleCreateShipment} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">
                   {t("orders.shipping.createShipment")}

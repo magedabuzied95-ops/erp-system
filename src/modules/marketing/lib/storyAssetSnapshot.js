@@ -73,3 +73,38 @@ export const mergeStoryAssetResponse = (currentItem = {}, response = {}) => {
     },
   };
 };
+
+const isCurrentStoryAssetSnapshot = (snapshot = {}, itemId = "") => Boolean(
+  snapshot.assetUrl &&
+  snapshot.templateKey === CURRENT_STORY_TEMPLATE_KEY &&
+  snapshot.templateVersion === CURRENT_STORY_TEMPLATE_VERSION &&
+  snapshot.rendererBuild === CURRENT_STORY_RENDERER_BUILD &&
+  (!itemId || snapshot.storyId === String(itemId))
+);
+
+export const normalizeStoryAssetSnapshotList = (input = {}) => {
+  const item = objectValue(input.item?.id ? input.item : input);
+  const metadata = objectValue(item.metadata);
+  const design = objectValue(item.design_json);
+  const rows = [
+    input.story_asset_snapshots,
+    item.story_asset_snapshots,
+    metadata.story_asset_snapshots,
+    design.story_asset_snapshots,
+  ].find((value) => Array.isArray(value) && value.length) || [];
+  return rows
+    .map((row) => normalizeStoryAssetSnapshot({ asset: row }))
+    .filter((snapshot) => isCurrentStoryAssetSnapshot(snapshot, item.id));
+};
+
+// One render produces one slide per colour, and the backend stores every one of
+// them. Reading only `story_asset_snapshot` returns the first slide, which is
+// why the preview showed a single colour of a multi-colour product.
+export const currentStoryAssetUrls = (input = {}) => {
+  const snapshot = normalizeStoryAssetSnapshot(input);
+  if (!snapshot.assetUrl) return [];
+  const siblings = normalizeStoryAssetSnapshotList(input)
+    .filter((row) => row.generationId === snapshot.generationId)
+    .map((row) => row.assetUrl);
+  return Array.from(new Set([snapshot.assetUrl, ...siblings]));
+};

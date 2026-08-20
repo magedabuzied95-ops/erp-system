@@ -47,6 +47,7 @@ export const buildAvailableProductsUrl = ({
   type = "",
   offerStory = false,
   brand = "",
+  quality = "",
   minPrice = "",
   maxPrice = "",
 } = {}) => {
@@ -59,6 +60,10 @@ export const buildAvailableProductsUrl = ({
   normalizedTypes.forEach((item) => params.append("type", item));
   if (offerStory) params.set("offer_story", "1");
   if (normalizedBrand) params.set("brand", normalizedBrand);
+  // Grade slug (mirror_original / imported_from_vietnam / local). /share/available
+  // forwards it to the catalog, which resolves it against the grade aliases.
+  const normalizedQuality = normalizeFilterValue(quality);
+  if (normalizedQuality) params.set("quality", normalizedQuality);
   if (clean(minPrice)) params.set("min_price", clean(minPrice));
   if (clean(maxPrice)) params.set("max_price", clean(maxPrice));
   params.set("inStock", "1");
@@ -73,10 +78,13 @@ export const buildAvailableProductsMessage = (filters = {}, url = "") => {
   const sizeLabel = sizes.length > 1 ? "المقاسات" : "المقاس";
   const sizeText = sizes.length ? sizes.join("، ") : "";
   const selectedFilters = uniqueTextValues([
-    normalizeFilterValue(filters.gender),
+    // The customer reads this line, so prefer the label the picker showed
+    // ("رجالي", "مستورد فيتنامي") over the slug that goes in the URL.
+    clean(filters.genderLabel) || normalizeFilterValue(filters.gender),
     normalizeFilterValues(filters.type).join("، "),
     filters.offerStory ? "العروض" : "",
     normalizeFilterValue(filters.brand),
+    clean(filters.qualityLabel) || normalizeFilterValue(filters.quality),
     clean(filters.minPrice) ? `أقل سعر ${clean(filters.minPrice)}` : "",
     clean(filters.maxPrice) ? `أعلى سعر ${clean(filters.maxPrice)}` : "",
   ]);

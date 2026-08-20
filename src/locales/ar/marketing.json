@@ -253,6 +253,7 @@
       "publishing": "جاري النشر",
       "published": "منشور",
       "partialSuccess": "نجاح جزئي",
+      "partial_success": "نجاح جزئي",
       "failed": "فشل"
     }
   },
@@ -269,6 +270,7 @@
     "scheduledAt": "وقت الجدولة",
     "publishedAt": "وقت النشر",
     "error": "خطأ",
+    "unknownReason": "سبب غير معروف",
     "notAvailable": "غير متاح",
     "noPlatforms": "لا توجد منصات",
     "untitled": "عملية بدون عنوان",
@@ -453,7 +455,8 @@
       "connectFacebookFirst": "اربط Facebook أولًا",
       "connectInstagramFirst": "اربط Instagram أولًا",
       "draftDuplicated": "تم تكرار المسودة.",
-      "postRemoved": "تمت إزالة المنشور من العرض."
+      "postRemoved": "تمت إزالة المنشور من العرض.",
+      "partialPublish": "لم يتم النشر على {{platforms}}: {{reason}}"
     },
     "confirm": {
       "deleteFromHistory": "هل تريد حذف هذا المنشور من عرض السجل الحالي؟"
@@ -496,7 +499,10 @@
       "sizeCount": "عدد المقاسات",
       "colorCount": "عدد الألوان",
       "discountRate": "نسبة الخصم",
-      "availableColorImages": "صور الألوان المتاحة"
+      "availableColorImages": "صور الألوان المتاحة",
+      "carouselCount": "{{selected}} من {{total}} هيتنشروا",
+      "carouselLimitHint": "انستجرام وفيسبوك بياخدوا {{limit}} صور كحد أقصى في البوست الواحد. اضغط على أي لون عشان يتقدّم لأول الترتيب ويدخل ضمن الـ {{limit}}.",
+      "colorExcluded": "{{color}} مش هيتنشر — اضغط عليه عشان يدخل"
     },
     "tiktokVideoOnly": "فيديو فقط"
   },

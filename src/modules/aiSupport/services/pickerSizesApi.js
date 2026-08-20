@@ -6,7 +6,7 @@ const clean = (value = "") => String(value ?? "").trim();
 // Builds the shared query params for the size-first picker endpoints from the
 // picker's current sizeMode filter state. Empty / "all" values are omitted so the
 // backend param-stripping keeps the query minimal.
-const buildSizeParams = ({ brand, gender, types, offerStory = false, minPrice, maxPrice, search } = {}) => {
+const buildSizeParams = ({ brand, gender, types, grade, offerStory = false, minPrice, maxPrice, search } = {}) => {
   const params = {};
   const brandValue = clean(brand);
   if (brandValue && brandValue.toLowerCase() !== "all") params.brand = brandValue;
@@ -14,6 +14,11 @@ const buildSizeParams = ({ brand, gender, types, offerStory = false, minPrice, m
   if (genderValue && genderValue.toLowerCase() !== "all") params.gender = genderValue;
   const typeValues = asArray(types).map(clean).filter(Boolean);
   if (typeValues.length) params.product_type = typeValues.join(",");
+  // Grade = the source/quality classification (mirror / imported / local). Both
+  // endpoints already resolve it through the classification registry, so the
+  // size list and the match count stay in sync with the link we send.
+  const gradeValue = clean(grade);
+  if (gradeValue && gradeValue.toLowerCase() !== "all") params.grade = gradeValue;
   if (offerStory) params.offer_story = 1;
   if (clean(minPrice)) params.min_price = clean(minPrice);
   if (clean(maxPrice)) params.max_price = clean(maxPrice);

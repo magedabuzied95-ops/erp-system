@@ -37,6 +37,7 @@ import {
 import toast from "react-hot-toast";
 import { socket } from "../../../socket";
 import { api } from "../../../shared/api/api";
+import { fetchAllOrders, ORDERS_MAX_ROWS } from "../../../shared/api/ordersFetch";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { Pagination } from "../../../shared/ui";
 import OrdersShell from "../components/OrdersShell";
@@ -608,6 +609,7 @@ function OrdersDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [ordersTruncated, setOrdersTruncated] = useState(false);
   const [workspace] = useState("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -634,8 +636,8 @@ function OrdersDashboard() {
       setLoading(true);
       setError("");
 
-      const data = await api.get("/orders");
-      const baseOrders = Array.isArray(data) ? data : Array.isArray(data.orders) ? data.orders : [];
+      const { orders: baseOrders, truncated } = await fetchAllOrders();
+      setOrdersTruncated(truncated);
       const enriched = baseOrders.map((order) => normalizeOrder(order, {
         items: Array.isArray(order.items) ? order.items : [],
         total: order.total ?? order.total_amount ?? order.total_price,
@@ -990,6 +992,11 @@ function OrdersDashboard() {
             <ReturnsView t={t} orders={filteredOrders} openOrder={openOrder} />
           ) : null}
 
+          {ordersTruncated && !loading ? (
+            <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              {t("orders.paging.truncated", { limit: ORDERS_MAX_ROWS })}
+            </div>
+          ) : null}
           {workspace === "table" && !loading ? (
             <Pagination
               page={currentPage}
