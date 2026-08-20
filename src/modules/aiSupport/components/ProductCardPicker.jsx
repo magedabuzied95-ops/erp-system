@@ -188,6 +188,14 @@ const productTypeIcon = (value = "") => {
   return "📦";
 };
 
+const productGradeIcon = (value = "") => {
+  const key = lower(value);
+  if (key.includes("mirror")) return "🪞";
+  if (key.includes("vietnam") || key.includes("import")) return "🌏";
+  if (key.includes("local") || key.includes("egypt")) return "🏠";
+  return "🏷️";
+};
+
 const buildAvailableBySizeUrl = ({
   sizes = [],
   gender = "",
@@ -427,6 +435,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [selectedLinkGender, setSelectedLinkGender] = useState("all");
   const [selectedLinkTypes, setSelectedLinkTypes] = useState([]);
   const [selectedLinkOffers, setSelectedLinkOffers] = useState(false);
+  // Source/quality grade: mirror, imported from Vietnam, local. Single-select —
+  // both the size endpoints and the storefront catalog take one grade value.
+  const [selectedLinkGrade, setSelectedLinkGrade] = useState("all");
   const [selectedLinkBrand, setSelectedLinkBrand] = useState("all");
   const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
   const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
@@ -593,6 +604,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         brand: selectedLinkBrand,
         gender: selectedLinkGender,
         types: selectedLinkTypes,
+        grade: selectedLinkGrade,
         offerStory: selectedLinkOffers,
         minPrice: selectedLinkMinPrice,
         maxPrice: selectedLinkMaxPrice,
@@ -616,7 +628,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, sizeMode, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkOffers, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
+  }, [open, sizeMode, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkGrade, selectedLinkOffers, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
 
   // sizeMode: fetch the match count for the currently selected size(s)+filters.
   useEffect(() => {
@@ -633,6 +645,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         brand: selectedLinkBrand,
         gender: selectedLinkGender,
         types: selectedLinkTypes,
+        grade: selectedLinkGrade,
         offerStory: selectedLinkOffers,
         minPrice: selectedLinkMinPrice,
         maxPrice: selectedLinkMaxPrice,
@@ -649,7 +662,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, sizeMode, selectedLinkSizes, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkOffers, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
+  }, [open, sizeMode, selectedLinkSizes, selectedLinkBrand, selectedLinkGender, selectedLinkTypes, selectedLinkGrade, selectedLinkOffers, selectedLinkMinPrice, selectedLinkMaxPrice, search]);
 
   const smartClassificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
@@ -705,6 +718,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const selectedBrandValue = lower(selectedLinkBrand);
     const selectedTypeValues = selectedLinkTypes.map(lower);
     const selectedGenderValue = lower(selectedLinkGender);
+    const selectedGradeValue = normalizeFilterValue(selectedLinkGrade);
     const minPriceValue = clean(selectedLinkMinPrice) ? Number(selectedLinkMinPrice) : null;
     const maxPriceValue = clean(selectedLinkMaxPrice) ? Number(selectedLinkMaxPrice) : null;
     return products.filter((product) => {
@@ -712,13 +726,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (selectedTypeValues.length && !selectedTypeValues.some((value) => productTypeValues(product).map(lower).includes(value))) return false;
       if (selectedLinkOffers && !(product?.is_offer_story === true || String(product?.is_offer_story || product?.isOfferStory || "").toLowerCase() === "true")) return false;
       if (selectedGenderValue !== "all" && !productGenderValues(product).map(lower).includes(selectedGenderValue)) return false;
+      if (selectedGradeValue !== "all" && getProductSmartFilterValue(product, "grade", smartClassificationOptions.grade) !== selectedGradeValue) return false;
       if (!matchesQuery(product, searchValue)) return false;
       const price = Number(product?.price ?? product?.final_price ?? product?.sale_price ?? product?.selling_price ?? 0) || 0;
       if (minPriceValue !== null && Number.isFinite(minPriceValue) && price < minPriceValue) return false;
       if (maxPriceValue !== null && Number.isFinite(maxPriceValue) && price > maxPriceValue) return false;
       return true;
     });
-  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkTypes, sizeMode, sizeCatalogFallback]);
+  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkGrade, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkTypes, smartClassificationOptions, sizeMode, sizeCatalogFallback]);
 
   const availableSizes = useMemo(() => {
     if (sizeMode) {
@@ -842,7 +857,43 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       : uniqueTextValues(products.flatMap((product) => productTypeValues(product)))),
     [products, sizeServer.types]
   );
-  const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
+  // Audience + grade chips read their labels from the SAME classification
+  // registry the products module edits, so renaming a grade in settings renames
+  // the chip here. The t() values only cover the audiences when that call fails.
+  const classificationLabel = useCallback((option = {}) => clean(
+    i18n.resolvedLanguage === "en"
+      ? option.label_en || option.label || option.value
+      : option.label_ar || option.label || option.value
+  ), [i18n.resolvedLanguage]);
+  const genderChipOptions = useMemo(() => {
+    const labels = new Map(
+      asArray(smartClassificationOptions.gender)
+        .map((option) => [normalizeAudienceValue(option?.value), classificationLabel(option)])
+        .filter(([value, label]) => value && label)
+    );
+    return [
+      { value: "men", label: labels.get("men") || t("aiSupport.inbox.picker.genderMen") },
+      { value: "women", label: labels.get("women") || t("aiSupport.inbox.picker.genderWomen") },
+      { value: "kids", label: labels.get("kids") || t("aiSupport.inbox.picker.genderKids") },
+    ];
+  }, [classificationLabel, smartClassificationOptions.gender, t]);
+  // Keep the registry's own slug: it is what `p.grade` stores and what both the
+  // size endpoints and the storefront resolve. Normalisation happens only where
+  // values are COMPARED, never on the value we send.
+  const gradeOptions = useMemo(
+    () => asArray(smartClassificationOptions.grade)
+      .map((option) => ({ value: clean(option?.value), label: classificationLabel(option) }))
+      .filter((option) => option.value && option.label),
+    [classificationLabel, smartClassificationOptions.grade]
+  );
+  const selectedLinkGenderLabel = useMemo(
+    () => (selectedLinkGender === "all" ? "" : genderChipOptions.find((option) => option.value === selectedLinkGender)?.label || ""),
+    [genderChipOptions, selectedLinkGender]
+  );
+  const selectedLinkGradeLabel = useMemo(
+    () => (selectedLinkGrade === "all" ? "" : gradeOptions.find((option) => option.value === selectedLinkGrade)?.label || ""),
+    [gradeOptions, selectedLinkGrade]
+  );
 
   useEffect(() => {
     const openedNow = open && !previousOpenRef.current;
@@ -862,6 +913,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       setSelectedLinkGender("all");
       setSelectedLinkTypes([]);
       setSelectedLinkOffers(false);
+      setSelectedLinkGrade("all");
       setSelectedLinkBrand("all");
       setSelectedLinkMinPrice("");
       setSelectedLinkMaxPrice("");
@@ -1073,15 +1125,19 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       type: selectedLinkTypes,
       offerStory: selectedLinkOffers,
       brand: selectedLinkBrand,
+      quality: selectedLinkGrade,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
     });
     const message = buildAvailableProductsMessage({
       sizes,
       gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
+      genderLabel: selectedLinkGenderLabel,
       type: selectedLinkTypes,
       offerStory: selectedLinkOffers,
       brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
+      quality: selectedLinkGrade !== "all" ? selectedLinkGrade : "",
+      qualityLabel: selectedLinkGradeLabel,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
       url,
@@ -1091,14 +1147,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSubmitting(true);
     setError("");
     try {
-      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkTypes, offerStory: selectedLinkOffers, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
+      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkTypes, offerStory: selectedLinkOffers, brand: selectedLinkBrand, quality: selectedLinkGrade, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
       else await onSubmit?.([{ url, storefront_url: url, product_url: url, share_url: url, name: message, product_name: message }]);
     } catch (err) {
       setError(err?.message || t("aiSupport.inbox.picker.linkSendFailed"));
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkSizes, selectedLinkTypes, submitting, t]);
+  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkGenderLabel, selectedLinkGrade, selectedLinkGradeLabel, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkOffers, selectedLinkSizes, selectedLinkTypes, submitting, t]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -1110,15 +1166,19 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       type: selectedLinkTypes,
       offerStory: selectedLinkOffers,
       brand: selectedLinkBrand,
+      quality: selectedLinkGrade,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
     });
     const selectedLinkMessage = buildAvailableProductsMessage({
       sizes: normalizedSelectedSizes,
       gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
+      genderLabel: selectedLinkGenderLabel,
       type: selectedLinkTypes,
       offerStory: selectedLinkOffers,
       brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
+      quality: selectedLinkGrade !== "all" ? selectedLinkGrade : "",
+      qualityLabel: selectedLinkGradeLabel,
       minPrice: selectedLinkMinPrice,
       maxPrice: selectedLinkMaxPrice,
       url: selectedLinkUrl,
@@ -1212,6 +1272,74 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               </div>
             </div>
 
+            {gradeOptions.length ? (
+              <div className="ai-plink__group p-4">
+                <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.quality")}</div>
+                <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseQuality")}</div>
+                <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseQualityHint")}</div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLinkGrade("all")}
+                    aria-pressed={selectedLinkGrade === "all"}
+                    className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${selectedLinkGrade === "all" ? "is-active" : ""}`}
+                  >
+                    <span aria-hidden="true">✨</span>
+                    {t("aiSupport.inbox.picker.all")}
+                  </button>
+                  {gradeOptions.map((option) => {
+                    const active = selectedLinkGrade === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        data-testid={`available-by-size-quality-${option.value}`}
+                        type="button"
+                        onClick={() => setSelectedLinkGrade((current) => (current === option.value ? "all" : option.value))}
+                        aria-pressed={active}
+                        className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${active ? "is-active" : ""}`}
+                      >
+                        <span className="text-base" aria-hidden="true">{productGradeIcon(option.value)}</span>
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="ai-plink__group p-4">
+              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.gender")}</div>
+              <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseGender")}</div>
+              <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseGenderHint")}</div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLinkGender("all")}
+                  aria-pressed={selectedLinkGender === "all"}
+                  className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${selectedLinkGender === "all" ? "is-active" : ""}`}
+                >
+                  <span aria-hidden="true">✨</span>
+                  {t("aiSupport.inbox.picker.all")}
+                </button>
+                {genderChipOptions.map((option) => {
+                  const active = selectedLinkGender === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      data-testid={`available-by-size-gender-${option.value}`}
+                      type="button"
+                      onClick={() => setSelectedLinkGender((current) => (current === option.value ? "all" : option.value))}
+                      aria-pressed={active}
+                      className={`ai-plink__chip inline-flex items-center gap-2 px-4 py-2 ${active ? "is-active" : ""}`}
+                    >
+                      <span className="text-base" aria-hidden="true">{option.value === "men" ? "👨" : option.value === "women" ? "👩" : "🧒"}</span>
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="ai-plink__group p-4">
               <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.sizes")}</div>
               <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseSizes")}</div>
@@ -1245,12 +1373,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="ai-plink__field flex items-center gap-2 px-3">
-                <span className="ai-plink__field-label">{t("aiSupport.inbox.picker.gender")}</span>
-                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className="ai-plink__field-control min-w-0 flex-1 appearance-none">
-                  {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? t("aiSupport.inbox.picker.all") : option}</option>)}
-                </select>
-              </label>
               <label className="ai-plink__field flex items-center gap-2 px-3">
                 <span className="ai-plink__field-label">{t("aiSupport.inbox.picker.brand")}</span>
                 <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className="ai-plink__field-control min-w-0 flex-1 appearance-none">

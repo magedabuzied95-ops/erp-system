@@ -3170,7 +3170,7 @@ const normalizeStorefrontProductsQuery = (query = {}) => {
 export const resolveEffectiveStorefrontInStock = ({ inStock = false, offerStory = false, size = "" } = {}) =>
   Boolean(inStock || (offerStory && queryText(size)));
 
-const storefrontQualityAliases = (quality = "") => {
+export const storefrontQualityAliases = (quality = "") => {
   const normalized = queryText(quality).toLowerCase().replace(/[-\s]+/g, "_");
   if (["mirror", "mirror_original", "original_mirror"].includes(normalized)) {
     return ["mirror", "mirror_original", "mirror original", "original_mirror", "original mirror"];

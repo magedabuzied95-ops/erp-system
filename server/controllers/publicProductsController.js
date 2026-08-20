@@ -26,6 +26,7 @@ import {
   DEFAULT_TENANT_ID,
   queryProductsWithSql,
   storefrontProductsSql,
+  storefrontQualityAliases,
 } from "./storefrontController.js";
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -840,7 +841,9 @@ export const buildShareAvailableStorefrontFilters = ({ filters = {}, normalizedS
   gender: normalizeAudienceValue(filters.gender || "") || normalizeShareFilterValue(filters.gender || ""),
   productType: normalizeShareFilterValue(filters.type || ""),
   grade: "",
-  quality: [],
+  // The link preview counts/pictures the SAME products the shopper will land on,
+  // so the grade the picker chose has to reach this query as well.
+  quality: storefrontQualityAliases(filters.quality || ""),
   size: normalizedSizes.length === 1 ? String(normalizedSizes[0] || "").trim() : "",
   inStock: Boolean(filters.inStock),
   offerStory: Boolean(filters.offerStory),
