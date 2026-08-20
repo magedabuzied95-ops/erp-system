@@ -2388,8 +2388,43 @@ const CHECKOUT_ADDRESS_FIELDS = [
   "shipping_district_id",
 ];
 
-const whatsappPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
-const buildWhatsAppHref = (text = "") => (whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(text)}` : "https://wa.me/");
+// The store's WhatsApp number lives in the public settings, not in the build.
+// VITE_WHATSAPP_PHONE was never defined for any deploy, so every WhatsApp entry
+// point degraded to a numberless wa.me link and the order success page rendered
+// the disabled "unavailable" button. The shell publishes the resolved number
+// here once /settings/public lands; the env var stays a local-dev override.
+const envWhatsAppPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
+const toWhatsAppDigits = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) return digits.slice(2);
+  // wa.me needs a country code and a local Egyptian mobile (01xxxxxxxxx) has none.
+  if (digits.length === 11 && digits.startsWith("01")) return `20${digits.slice(1)}`;
+  return digits;
+};
+const toWhatsAppHref = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^(https?:|whatsapp:)/i.test(raw)) return raw;
+  const digits = toWhatsAppDigits(raw);
+  return digits ? `https://wa.me/${digits}` : "";
+};
+// A bare `https://wa.me/` is truthy but opens WhatsApp with nobody to talk to.
+const hasWhatsAppRecipient = (href) => {
+  const raw = String(href || "").trim();
+  if (!raw) return false;
+  return /^whatsapp:/i.test(raw) || /wa\.me\/\d/.test(raw) || /[?&](phone|jid)=\d/.test(raw);
+};
+const withWhatsAppText = (href, text = "") => {
+  if (!href || !text) return href || "";
+  return `${href}${href.includes("?") ? "&" : "?"}text=${encodeURIComponent(text)}`;
+};
+let storefrontWhatsAppHrefValue = toWhatsAppHref(envWhatsAppPhone);
+const setStorefrontWhatsAppHref = (href) => {
+  storefrontWhatsAppHrefValue = hasWhatsAppRecipient(href) ? String(href).trim() : toWhatsAppHref(envWhatsAppPhone);
+};
+const storefrontWhatsAppHref = () => storefrontWhatsAppHrefValue;
+const buildWhatsAppHref = (text = "") => withWhatsAppText(storefrontWhatsAppHrefValue, text) || "https://wa.me/";
 const getStatusLabels = () => {
   const labels = i18n.t("storefront.orders.timelineLabels", { returnObjects: true });
   return Array.isArray(labels) && labels.length ? labels : ["Order received", "Preparing", "Shipped", "On the way", "Delivered"];
@@ -4886,7 +4921,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle = () => {}, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle = () => {}, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {}, quickActionLinks = {} }) {
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
@@ -5016,8 +5051,11 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
     { label: getProductTypeLabel("crocs", currentLanguage), to: "/crocs" },
     { label: getProductTypeLabel("slippers", currentLanguage), to: "/slippers" },
   ];
+  // The number comes from the public settings; drop the row rather than ship a
+  // wa.me link with no recipient behind it.
+  const headerWhatsAppHref = hasWhatsAppRecipient(quickActionLinks.whatsappHref) ? quickActionLinks.whatsappHref : "";
   const utilityItems = [
-    { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
+    ...(headerWhatsAppHref ? [{ label: "WhatsApp", to: headerWhatsAppHref, icon: <MessageCircle className="h-3.5 w-3.5" />, external: true }] : []),
     { label: t("storefront.header.trackOrder"), to: "/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.wishlist"), to: "/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.account"), to: "/account", icon: <User className="h-3.5 w-3.5" /> },
@@ -5413,7 +5451,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
             {utilityItems.map((item) => {
               const className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition hover:bg-white/10 hover:text-white";
               return item.external ? (
-                <a key={item.label} href={item.to} className={className}>
+                <a key={item.label} href={item.to} target="_blank" rel="noopener noreferrer" className={className}>
                   {item.icon}
                   <span>{item.label}</span>
                 </a>
@@ -8769,7 +8807,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   );
 }
 
-function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
+function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "", whatsappHref = "" }) {
   const { t } = useTranslation();
   const { orderNumber } = useParams();
   const location = useLocation();
@@ -8861,7 +8899,9 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
     ? t("storefront.success.awaitingVerificationSubtitle")
     : t("storefront.success.confirmedSubtitle");
   const successStatus = isShippingAwaitingVerification ? t("storefront.status.awaiting_verification") : statusCopy(order.status || "pending");
-  const whatsAppHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¥أ¢â‚¬â„¢ ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¯ ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ© ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ ${publicNumber}`)}` : "";
+  const whatsAppHref = hasWhatsAppRecipient(whatsappHref)
+    ? withWhatsAppText(whatsappHref, t("storefront.support.orderHelpMessage", { orderNumber: publicNumber }))
+    : "";
 
   return (
     <section className="sf-order-success-page relative mx-auto max-w-6xl px-4 py-6 md:py-10">
@@ -8903,7 +8943,7 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
           <div className="grid gap-3">
             <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-[#101010] px-5 py-4 text-center font-black text-white transition hover:bg-[#d4af37]">{t("storefront.orders.trackOrder")}</Link>
             <Link to="/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#d4af37] hover:text-[#d4af37]">{t("storefront.common.continueShopping")}</Link>
-            {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable")}</button>}
+            {whatsAppHref ? <a href={whatsAppHref} target="_blank" rel="noopener noreferrer" className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable")}</button>}
           </div>
           <div className="sf-info-box mt-5 rounded-2xl border border-white/10 bg-[#101010] p-4 text-sm font-bold leading-6 text-white/72">{t("storefront.success.reviewNotice")}</div>
         </aside>
@@ -8947,7 +8987,7 @@ const formatDate = (value) => {
 };
 const supportHref = (orderNumber = "") => {
   const text = orderNumber ? sfText("storefront.support.orderHelpMessage", undefined, { orderNumber }) : sfText("storefront.support.generalHelpMessage");
-  return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(text)}` : "https://wa.me/";
+  return buildWhatsAppHref(text);
 };
 
 function OrderTimeline({ timeline = [] }) {
@@ -9001,7 +9041,7 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   const phoneHref = phoneNumber ? `tel:${phoneNumber.replace(/\D/g, "")}` : "";
   const whatsappPhone = firstValue("storefront.whatsapp_phone", "general.whatsapp_phone", "general.whatsapp", "company.whatsapp", "company.whatsapp_phone", "support.whatsapp", "contact.whatsapp", "whatsapp");
   const whatsappUrl = normalizeUrl(firstValue("storefront.whatsapp_url", "storefront.whatsapp_link"));
-  const whatsappHref = quickActionLinks.whatsappHref || whatsappUrl || (whatsappPhone ? `https://wa.me/${whatsappPhone.replace(/\D/g, "")}` : "");
+  const whatsappHref = quickActionLinks.whatsappHref || whatsappUrl || toWhatsAppHref(whatsappPhone);
   const instagramUsername = firstValue("storefront.instagram_username", "storefront.instagram", "company.instagram_username", "social.instagram_username", "instagram_username");
   const instagramHref = normalizeUrl(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url")) || (instagramUsername ? `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}` : "");
   const facebookPage = firstValue("storefront.facebook_page_name", "storefront.facebook_name", "company.facebook_page_name", "social.facebook_page_name", "facebook_page_name");
@@ -10921,9 +10961,8 @@ function Storefront() {
     const normalizeWhatsAppHref = (value, fallback = "") => {
       const raw = String(value || "").trim();
       if (!raw) return fallback;
-      if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
-      const digits = raw.replace(/\D/g, "");
-      return digits ? `https://wa.me/${digits}` : fallback;
+      if (/^(mailto:|tel:)/i.test(raw) || raw.startsWith("/")) return raw;
+      return toWhatsAppHref(raw) || fallback;
     };
     const normalizeStoreHref = (value, fallback = "") => {
       const raw = String(value || "").trim();
@@ -10932,23 +10971,28 @@ function Storefront() {
       return fallback;
     };
 
-    return {
-      whatsappHref: normalizeWhatsAppHref(
-        firstValue(
-          "storefront.whatsapp_url",
-          "storefront.whatsapp_link",
-          "storefront.whatsapp_phone",
-          "storefront.support_whatsapp",
-          "general.whatsapp_phone",
-          "general.whatsapp",
-          "company.whatsapp",
-          "company.whatsapp_phone",
-          "support.whatsapp",
-          "contact.whatsapp",
-          "whatsapp",
-        ),
-        supportHref(),
+    const resolvedWhatsAppHref = normalizeWhatsAppHref(
+      firstValue(
+        "storefront.whatsapp_url",
+        "storefront.whatsapp_link",
+        "storefront.whatsapp_phone",
+        "storefront.support_whatsapp",
+        "general.whatsapp_phone",
+        "general.whatsapp",
+        "company.whatsapp",
+        "company.whatsapp_phone",
+        "support.whatsapp",
+        "contact.whatsapp",
+        "whatsapp",
       ),
+      "",
+    );
+    // Publish the number the settings resolved to, so the module-level helpers
+    // (footer, visual search, order support) stop linking to a bare wa.me.
+    setStorefrontWhatsAppHref(resolvedWhatsAppHref);
+
+    return {
+      whatsappHref: resolvedWhatsAppHref || storefrontWhatsAppHref(),
       galleryHref: normalizeStoreHref(
         firstValue(
           "storefront.map_url",
@@ -11064,6 +11108,7 @@ function Storefront() {
     if (currentStorefrontPath.startsWith(`${ROOT_PATHS.success}/`)) {
       return (
         <OrderSuccess
+          whatsappHref={quickActionLinks.whatsappHref}
           profile={profile}
           themeMode={themeMode}
           brandName={storefrontBrandSettings.brandName}
