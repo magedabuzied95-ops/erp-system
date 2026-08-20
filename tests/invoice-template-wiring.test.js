@@ -78,6 +78,40 @@ test("the printed invoice gates its own sections", () => {
   assert.match(pdf, /returnPolicyHtml \?/);
 });
 
+test("the WhatsApp message obeys the same template", () => {
+  const orderInvoice = read("../src/shared/utils/orderInvoice.js");
+  assert.match(orderInvoice, /invoiceTemplateForOutput\(options\.template \|\| \{\}, "whatsapp"\)/);
+  assert.match(orderInvoice, /if \(parts\.include_items\)/);
+  assert.match(orderInvoice, /if \(parts\.include_totals\)/);
+  assert.match(orderInvoice, /if \(parts\.include_public_link && invoice\.publicUrl\)/);
+  // The header array is filtered, so a "" spacer pushed into it would vanish; the
+  // blocks below the filter must not add one either or the message gains blank lines
+  // it never had.
+  assert.doesNotMatch(orderInvoice, /lines\.push\(\s*"",\s*"المنتجات:"/);
+});
+
+test("the cashier receipt takes its store details from the template", () => {
+  const cart = read("../src/modules/pos/components/CartSidebar.jsx");
+  assert.match(cart, /const getStoreProfile = \(tpl = null\) =>/);
+  assert.match(cart, /website: tpl\?\.identity\?\.website_text/);
+  assert.match(cart, /phone: tpl\?\.identity\?\.phone/);
+  assert.match(cart, /address: tpl\?\.identity\?\.address/);
+  // Printing goes through renderToStaticMarkup, so the template has to be a prop.
+  assert.match(cart, /export function ReceiptPreview\(\{[^}]*template = null[^}]*\}\)/);
+  assert.match(cart, /const officialWebsite = store\.website/);
+  const pos = read("../src/modules/pos/pages/POSPro.jsx");
+  assert.match(pos, /useInvoiceTemplate\(\{ channel: "pos" \}\)/);
+  assert.match(pos, /template: invoiceTemplate,/);
+});
+
+test("the order page hands one resolved template to all three of its surfaces", () => {
+  const details = read("../src/modules/orders/pages/OrderDetails.jsx");
+  assert.match(details, /const invoiceTemplate = useInvoiceTemplate\(\)/);
+  assert.equal((details.match(/template=\{invoiceTemplate\}/g) || []).length, 2, "both invoice card previews");
+  assert.match(details, /template: invoiceTemplate,/, "the PDF download");
+  assert.match(details, /buildOrderInvoiceWhatsappText\([\s\S]{0,200}?\{ template: invoiceTemplate \}\)/, "the WhatsApp message");
+});
+
 test("resolving the template never logs a 404 as an error", () => {
   // The frontend ships ahead of the API often enough that a missing endpoint is a
   // normal state; logging it would put one console error on every invoice view.

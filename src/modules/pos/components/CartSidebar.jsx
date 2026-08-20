@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
+import { invoiceTemplateForOutput } from "../../../../shared/invoiceTemplate.js";
 import {
   Check,
   Banknote,
@@ -62,16 +63,19 @@ const resolveThermalStoreLogo = (value = "") => {
   return logoUrl.includes("ocxppxsepj5qfewqgch6") ? M1_RECEIPT_THERMAL_LOGO : logoUrl;
 };
 
-const getStoreProfile = () => {
+const getStoreProfile = (tpl = null) => {
   const tenant = getCurrentTenant() || {};
   const settings = tenant.settings || {};
   const isM1ProductionHost = typeof window !== "undefined" && /(^|\.)m1store-egy\.com$/i.test(window.location.hostname);
   return {
-    name: tenant.companyName || tenant.company_name || tenant.name || settings.companyName || "YOUR STORE",
-    website: "www.m1store-egy.com",
-    phone: M1_CUSTOMER_SERVICE_PHONE,
-    address: settings.companyAddress || settings.address || tenant.address || "",
+    name: tpl?.identity?.store_name || tenant.companyName || tenant.company_name || tenant.name || settings.companyName || "YOUR STORE",
+    // The receipt used to keep its own copy of the store website and support line.
+    // They come off the invoice template now, whose defaults are those same values.
+    website: tpl?.identity?.website_text || "www.m1store-egy.com",
+    phone: tpl?.identity?.phone || M1_CUSTOMER_SERVICE_PHONE,
+    address: tpl?.identity?.address || settings.companyAddress || settings.address || tenant.address || "",
     logoUrl:
+      tpl?.identity?.logo_url ||
       settings["storefront.store_logo_url"] ||
       settings["general.company_logo_url"] ||
       settings.logoUrl ||
@@ -1454,8 +1458,11 @@ function DiscountLoyaltyModal({
   );
 }
 
-export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", cashierName = "", createdAt, storeProfile, compact = false }) {
-  const premiumStore = useMemo(() => mergeStoreProfile(getStoreProfile(), storeProfile), [storeProfile]);
+export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", cashierName = "", createdAt, storeProfile, compact = false, template = null }) {
+  // Rendered through renderToStaticMarkup for thermal printing, so the template has to
+  // arrive as a prop — there is no React tree here to hang a hook on.
+  const tpl = useMemo(() => invoiceTemplateForOutput(template || {}, "thermal"), [template]);
+  const premiumStore = useMemo(() => mergeStoreProfile(getStoreProfile(tpl), storeProfile), [storeProfile, tpl]);
   const premiumReceiptNumber = String(invoiceNumber || "DRAFT");
   const invoiceDigits = premiumReceiptNumber.replace(/\D/g, "").slice(-12);
   const receiptBarcodeValue = invoiceDigits ? `9919${invoiceDigits.padStart(12, "0")}` : premiumReceiptNumber;
@@ -1494,6 +1501,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         cashierName={cashierName}
         createdAt={createdAt}
         storeProfile={premiumStore}
+        template={template}
       />
     );
   }
@@ -1724,10 +1732,12 @@ function ThermalReceiptFinal({
   cashierName = "",
   createdAt,
   storeProfile,
+  template = null,
 }) {
   const money = (value) => formatCurrency(Number.isFinite(Number(value)) ? Number(value) : 0, "ar");
   const amount = (value) => Number(Number(value || 0).toFixed(2)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const store = mergeStoreProfile(getStoreProfile(), storeProfile);
+  const tpl = invoiceTemplateForOutput(template || {}, "thermal");
+  const store = mergeStoreProfile(getStoreProfile(tpl), storeProfile);
   const thermalLogoUrl = resolveThermalStoreLogo(store.logoUrl);
   const receiptNumber = String(invoiceNumber || "DRAFT").trim();
   const receiptDate = createdAt ? new Date(createdAt) : new Date();
@@ -1751,7 +1761,8 @@ function ThermalReceiptFinal({
   const subtotal = Number(totals.subtotal ?? cart.reduce((sum, item) => sum + getReceiptItemUnitPrice(item) * Number(item.quantity || 0), 0));
   const total = Number(totals.total || 0);
   const totalQuantity = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const officialWebsite = "www.m1store-egy.com";
+  const officialWebsite = store.website || "";
+  const supportPhone = store.phone || "";
   const invoiceFooter = officialWebsite && String(store.invoiceFooter || "").toLowerCase().includes(officialWebsite.toLowerCase())
     ? ""
     : String(store.invoiceFooter || "").trim();
@@ -1816,9 +1827,9 @@ function ThermalReceiptFinal({
         {dueAmount > 0 ? <div className="thermal-row"><span>المتبقي</span><strong>{money(dueAmount)}</strong></div> : null}
       </section>
 
-      {(store.address || M1_CUSTOMER_SERVICE_PHONE || officialWebsite) ? <><hr className="thermal-rule" /><section className="thermal-store-info">
+      {(store.address || supportPhone || officialWebsite) ? <><hr className="thermal-rule" /><section className="thermal-store-info">
         {store.address ? <div className="thermal-store-row"><span>العنوان</span><strong>{store.address}</strong></div> : null}
-        <div className="thermal-store-row"><span>خدمة العملاء</span><strong dir="ltr">{M1_CUSTOMER_SERVICE_PHONE}</strong></div>
+        {supportPhone ? <div className="thermal-store-row"><span>خدمة العملاء</span><strong dir="ltr">{supportPhone}</strong></div> : null}
         {officialWebsite ? <div className="thermal-website"><span>الموقع الإلكتروني الرسمي</span><strong dir="ltr">{officialWebsite}</strong></div> : null}
       </section></> : null}
       <div className="thermal-note"><div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div><div>{getReturnPolicyText()}</div></div>

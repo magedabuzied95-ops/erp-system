@@ -4,6 +4,7 @@ import { formatCurrency } from "../lib/currency";
 import { getCurrentTenant } from "../auth/authStorage";
 import { resolveBrandImageUrl } from "../lib/imageUrls";
 import { normalizeInvoicePaymentBreakdown } from "./invoicePaymentBreakdown";
+import { invoiceTemplateForOutput } from "../../../shared/invoiceTemplate.js";
 
 export { normalizeInvoicePaymentBreakdown } from "./invoicePaymentBreakdown";
 
@@ -216,6 +217,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
         order.companyPhone,
         order.settings?.phone,
         order.system_settings?.phone,
+        options.template?.identity?.phone,
         M1_STORE_PHONE
       ),
       website: firstText(
@@ -225,6 +227,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
         order.companyWebsite,
         order.settings?.website,
         order.system_settings?.website,
+        options.template?.identity?.website_text,
         M1_STORE_WEBSITE_TEXT
       ),
     },
@@ -264,29 +267,49 @@ export const buildOrderInvoiceWhatsappText = (orderOrInvoice = {}, explicitItems
   const invoice = orderOrInvoice.items?.[0]?.lineTotal !== undefined
     ? orderOrInvoice
     : normalizeOrderInvoiceData(orderOrInvoice, explicitItems, options);
+  // The message obeys the same template as the printed and on-screen invoice. With no
+  // template resolved the defaults apply, which is every section on — the message this
+  // builder has always produced.
+  const tpl = invoiceTemplateForOutput(options.template || {}, "whatsapp");
+  const show = tpl.fields;
+  const showTotals = tpl.totals;
+  const parts = tpl.outputs.whatsapp;
   const money = (value) => formatCurrency(value, invoice.currency ? { code: invoice.currency } : {});
   const lines = [
-    `*${invoice.store?.name || M1_STORE_NAME}*`,
+    `*${tpl.identity.store_name || invoice.store?.name || M1_STORE_NAME}*`,
     "فاتورة طلب",
     `رقم الطلب: ${invoice.invoiceNumber || "n/a"}`,
-    `العميل: ${invoice.customer?.name || "عميلنا العزيز"}`,
-    invoice.customer?.phone ? `رقم الهاتف: ${invoice.customer.phone}` : "",
-    `الحالة: ${invoice.status || "pending"}`,
-    `طريقة الدفع: ${invoice.paymentMethod || "cod"}`,
-    "",
-    "المنتجات:",
-    ...invoice.items.map((item) => {
-      const variant = [item.color, item.size].filter(Boolean).join(" / ");
-      return `- ${item.name}${variant ? ` (${variant})` : ""} × ${item.quantity} = ${money(item.lineTotal)}`;
-    }),
-    "",
-    `المجموع: ${money(invoice.totals?.subtotal)}`,
-    `الخصم: ${money(invoice.totals?.discount)}`,
-    `الشحن: ${money(invoice.totals?.shipping)}`,
-    `الإجمالي: ${money(invoice.totals?.grandTotal)}`,
+    show.show_customer_name ? `العميل: ${invoice.customer?.name || "عميلنا العزيز"}` : "",
+    show.show_customer_phone && invoice.customer?.phone ? `رقم الهاتف: ${invoice.customer.phone}` : "",
+    show.show_order_status ? `الحالة: ${invoice.status || "pending"}` : "",
+    show.show_payment_method ? `طريقة الدفع: ${invoice.paymentMethod || "cod"}` : "",
   ].filter(Boolean);
 
-  if (invoice.publicUrl) {
+  // No blank separator before these two blocks: the original array ran through
+  // .filter(Boolean), which stripped the "" spacers it looked like it emitted. The
+  // link block below did keep its blank line, because it was pushed after the filter.
+  if (parts.include_items) {
+    lines.push(
+      "المنتجات:",
+      ...invoice.items.map((item) => {
+        const variant = show.show_product_variant ? [item.color, item.size].filter(Boolean).join(" / ") : "";
+        return `- ${item.name}${variant ? ` (${variant})` : ""} × ${item.quantity} = ${money(item.lineTotal)}`;
+      })
+    );
+  }
+
+  if (parts.include_totals) {
+    lines.push(
+      ...[
+        showTotals.show_subtotal ? `المجموع: ${money(invoice.totals?.subtotal)}` : "",
+        showTotals.show_discount ? `الخصم: ${money(invoice.totals?.discount)}` : "",
+        showTotals.show_shipping ? `الشحن: ${money(invoice.totals?.shipping)}` : "",
+        showTotals.show_grand_total ? `الإجمالي: ${money(invoice.totals?.grandTotal)}` : "",
+      ].filter(Boolean)
+    );
+  }
+
+  if (parts.include_public_link && invoice.publicUrl) {
     lines.push("", "رابط الفاتورة:", invoice.publicUrl);
   }
 

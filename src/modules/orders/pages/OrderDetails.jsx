@@ -41,6 +41,7 @@ import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
+import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { formatOrderPaymentMethods } from "../../../../shared/paymentMethods";
 import {
@@ -396,6 +397,9 @@ function OrderDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const invoiceRef = useRef(null);
+  // Resolved once for the page and handed to every surface that draws this invoice —
+  // the preview card, the PDF, and the WhatsApp message — so all three agree.
+  const invoiceTemplate = useInvoiceTemplate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -910,6 +914,7 @@ function OrderDetails() {
       format: pdfFormat,
       invoice,
       filename: `${order.invoice_number}.pdf`,
+      template: invoiceTemplate,
       onFallback: ({ html }) => {
         const popup = window.open("", "_blank", "width=980,height=1200");
         if (!popup) {
@@ -936,7 +941,7 @@ function OrderDetails() {
 
   const shareWhatsApp = () => {
     const phone = normalizePhoneNumber(order.customer_phone || order.phone || "");
-    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: tt("common.employeeHub.analytics.export.companyName") }));
+    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: tt("common.employeeHub.analytics.export.companyName"), template: invoiceTemplate }), null, { template: invoiceTemplate });
     window.open(buildWhatsappDeepLink({ phone, message }), "_blank", "noopener,noreferrer");
   };
 
@@ -947,7 +952,7 @@ function OrderDetails() {
       return;
     }
 
-    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: tt("common.employeeHub.analytics.export.companyName") }));
+    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: tt("common.employeeHub.analytics.export.companyName"), template: invoiceTemplate }), null, { template: invoiceTemplate });
 
     window.open(buildWhatsappDeepLink({ phone, message }), "_blank", "noopener,noreferrer");
   };
@@ -1808,7 +1813,7 @@ function OrderDetails() {
 
       <div className="sr-only" aria-hidden="true">
         <div ref={invoiceRef}>
-          <OrderInvoiceCard order={order} items={previewItems} compact={pdfFormat === "thermal"} />
+          <OrderInvoiceCard order={order} items={previewItems} template={invoiceTemplate} compact={pdfFormat === "thermal"} />
         </div>
       </div>
 
@@ -1855,7 +1860,7 @@ function OrderDetails() {
         <ModalShell title={t("orders.details.invoicePreviewWithFormat", { format: pdfFormat === "thermal" ? t("orders.details.thermal") : t("orders.details.a4") })} onClose={() => setInvoicePreviewOpen(false)} closeLabel={t("common.close")}>
           <div className="max-h-[80vh] overflow-auto rounded-2xl bg-white p-4">
             <div className="mx-auto w-full max-w-[920px]">
-              <OrderInvoiceCard order={order} items={previewItems} compact={pdfFormat === "thermal"} />
+              <OrderInvoiceCard order={order} items={previewItems} template={invoiceTemplate} compact={pdfFormat === "thermal"} />
             </div>
           </div>
           <div className="mt-4 flex flex-wrap justify-end gap-2">

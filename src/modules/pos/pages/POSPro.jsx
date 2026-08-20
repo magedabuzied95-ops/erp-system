@@ -101,6 +101,7 @@ import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
 import { printThermalReceipt, warmThermalReceiptPrinter } from "../lib/thermalReceiptPrint.jsx";
+import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
 import i18nInstance from "../../../i18n/i18n";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import {
@@ -1691,6 +1692,9 @@ const writePosSaleStats = (cart) => {
 };
 
 function POSPro() {
+  // One resolution for the whole till: the on-screen receipt, the thermal print and
+  // the invoice PDF all draw from it.
+  const invoiceTemplate = useInvoiceTemplate({ channel: "pos" });
   const pageStartedAtRef = useRef(performance.now());
   const firstDataLoggedRef = useRef(false);
   const renderLoggedRef = useRef(false);
@@ -6855,6 +6859,9 @@ function POSPro() {
         "",
       createdAt: order.createdAt || order.created_at || order.completed_at || new Date().toISOString(),
       storeProfile: receiptRuntimeSettings.store || undefined,
+      // Printing renders the receipt through renderToStaticMarkup, outside React, so
+      // the template travels with the receipt props rather than through a hook.
+      template: invoiceTemplate,
       cart: renderedCart,
       totals: renderedTotals,
       paymentSummary: renderedPaymentSummary,
@@ -6962,6 +6969,7 @@ function POSPro() {
       logPagePerf("pos.invoice-pdf", importStartedAt, { heavy_component_load_ms: Math.round(performance.now() - importStartedAt) });
       await downloadInvoicePdf({
         format: "a4",
+        template: invoiceTemplate,
         invoice: {
           ...source,
           invoiceNumber: receiptContext.invoiceNumber,
