@@ -1,6 +1,7 @@
 import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js";
 import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
 import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
+import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.js";
 
 const label = (en, ar) => ({ en, ar });
 
@@ -133,6 +134,7 @@ const definitions = [
   ["orders.shipping_provider", "shipping", "select", "in_store_delivery", "Shipping provider", "شركة الشحن", "Default shipping provider.", "شركة الشحن الافتراضية.", { options: [option("bosta", "Bosta", "بوسطة"), option("mylerz", "Mylerz", "مايلرز"), option("shipblu", "ShipBlu", "شيب بلو"), option("in_store_delivery", "In Store Delivery", "توصيل داخلي")], usedBy: ["Orders", "Shipping"] }],
   ["orders.shipping_rule_engine_enabled", "shipping", "boolean", false, "Shipping rule engine", "قواعد الشحن", "Enable automatic carrier and fee rules.", "تفعيل قواعد اختيار شركة الشحن والتكلفة."],
   ["orders.shipping_auto_create_ready_to_ship", "shipping", "boolean", false, "Auto-create shipment when ready", "إنشاء الشحنة عند جاهز للشحن", "Create shipment when order becomes ready_to_ship.", "إنشاء الشحنة عند انتقال الطلب إلى جاهز للشحن."],
+  ["orders.shipment_notifications", "shipping", "json", SHIPMENT_NOTIFICATION_DEFAULTS, "Shipment WhatsApp notifications", "رسائل الشحن على واتساب", "Per-status message templates and on/off switches. Edited from the gear in the Shipping Center.", "قوالب رسائل الشحن وتشغيلها أو إيقافها لكل حالة. تُعدَّل من ترس الإعدادات في مركز الشحن.", { usedBy: ["Shipping", "WhatsApp"] }],
   ["orders.whatsapp_order_confirmation_template", "orders", "textarea", "تم استلام طلبك رقم {{order_number}}.", "WhatsApp order confirmation template", "رسالة تأكيد الطلب واتساب", "Template for order confirmation messages.", "قالب رسالة تأكيد الطلب."],
   ["orders.whatsapp_shipping_update_template", "orders", "textarea", "طلبك {{order_number}} خرج للشحن.", "WhatsApp shipping update template", "رسالة تحديث الشحن واتساب", "Template for shipping updates.", "قالب تحديثات الشحن."],
   ["orders.bosta_enabled", "shipping", "boolean", false, "Bosta enabled", "Bosta enabled", "Enable Bosta delivery integration.", "Enable Bosta delivery integration.", { usedBy: ["Shipping"] }],

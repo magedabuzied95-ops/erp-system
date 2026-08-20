@@ -10,6 +10,7 @@ import {
 import {
   getBostaProviderSettings,
   getBostaProviderStatus,
+  getShipmentNotificationSettings,
   getShippingCities,
   getShippingDistricts,
   getShippingZones,
@@ -18,6 +19,7 @@ import {
   syncBostaLocationsController,
   testBostaWebhook,
   updateBostaProviderSettings,
+  updateShipmentNotificationSettings,
 } from "./shipping.controller.js";
 
 const router = express.Router();
@@ -26,6 +28,11 @@ router.get("/center", protect, permit("orders", "view"), getShippingCenter);
 router.get("/center/summary", protect, permit("orders", "view"), getShippingCenterSummaryController);
 router.get("/center/meta", protect, permit("orders", "view"), getShippingCenterMetaController);
 router.post("/center/bulk", protect, permit("orders", "edit"), bulkShippingCenterActionController);
+
+// Scoped to the orders permission, not settings: the gear lives inside the Shipping
+// Center, so whoever runs that page can edit what its messages say.
+router.get("/notifications", protect, permit("orders", "view"), getShipmentNotificationSettings);
+router.put("/notifications", protect, permit("orders", "edit"), updateShipmentNotificationSettings);
 
 router.get("/cities", getShippingCities);
 router.get("/zones", getShippingZones);

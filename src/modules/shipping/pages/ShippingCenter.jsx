@@ -21,14 +21,29 @@ import {
   PanelRightClose,
   Printer,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
+  Settings,
   Truck,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+/*
+ * The same module the WhatsApp sender uses. The preview below therefore renders through
+ * the exact code that builds the real message — a preview with its own rules is a
+ * preview that lies, and these messages go to customers.
+ */
+import {
+  renderShipmentTemplate,
+  SHIPMENT_NOTIFICATION_DEFAULTS,
+  SHIPMENT_NOTIFICATION_LABELS,
+  SHIPMENT_NOTIFICATION_TRIGGERS,
+  SHIPMENT_NOTIFICATION_TYPES,
+  SHIPMENT_TEMPLATE_PLACEHOLDERS,
+} from "../../../../shared/shipmentNotificationTemplates";
 
 /*
  * First element is the RAW shipping status enum: it is the statusLabel()
@@ -208,10 +223,158 @@ function useVirtualRows(rows, rowHeight = 58, viewportHeight = 620) {
   return { start, end, visibleRows: rows.slice(start, end), spacerTop: start * rowHeight, spacerBottom: Math.max(0, (rows.length - end) * rowHeight), onScroll: (event) => setScrollTop(event.currentTarget.scrollTop) };
 }
 
+/*
+ * The four WhatsApp messages a customer receives, editable in place. Each one carries
+ * its own on/off switch and its own once-per-order guard on the server, so turning one
+ * off silences it without affecting the others.
+ */
+function NotificationSettingsModal({ open, onClose }) {
+  const { t, i18n: instance } = useTranslation();
+  const lang = String(instance?.language || "ar").startsWith("ar") ? "ar" : "en";
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    api.get("/shipping/notifications")
+      .then((data) => {
+        if (!cancelled) setConfig(data?.notifications || SHIPMENT_NOTIFICATION_DEFAULTS);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        toast.error(error.message || t("shipping.center.notifications.loadFailed"));
+        setConfig(SHIPMENT_NOTIFICATION_DEFAULTS);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, t]);
+
+  const patch = (type, changes) => setConfig((current) => ({ ...current, [type]: { ...current[type], ...changes } }));
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      const data = await api.put("/shipping/notifications", { notifications: config });
+      setConfig(data?.notifications || config);
+      toast.success(t("shipping.center.notifications.saved"));
+      onClose();
+    } catch (error) {
+      toast.error(error.message || t("shipping.center.notifications.saveFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) return null;
+
+  /* A real order's shape, so the preview shows what a customer actually gets. */
+  const previewValues = {
+    order_number: "INV-539",
+    customer_name: t("shipping.center.notifications.sampleCustomer"),
+    provider: "Bosta",
+    tracking_number: "8844678114",
+    tracking_url: "",
+    cod_amount: "1,895 ج.م",
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="my-6 w-full max-w-4xl rounded-[var(--radius-card)] border border-white/10 bg-slate-950 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <header className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+          <div>
+            <h2 className="text-lg font-black">{t("shipping.center.notifications.title")}</h2>
+            <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-slate-400">{t("shipping.center.notifications.subtitle")}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 hover:bg-white/10"><X className="h-4 w-4" /></button>
+        </header>
+
+        <div className="space-y-3 border-b border-white/10 p-5">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{t("shipping.center.notifications.placeholders")}</div>
+          <div className="flex flex-wrap gap-2">
+            {SHIPMENT_TEMPLATE_PLACEHOLDERS.map((placeholder) => (
+              <span key={placeholder.token} className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-100">
+                <code>{`{{${placeholder.token}}}`}</code>
+                <span className="ms-2 text-emerald-200/70">{placeholder[lang]}</span>
+              </span>
+            ))}
+          </div>
+          <p className="text-xs font-semibold leading-5 text-amber-200/80">{t("shipping.center.notifications.emptyLineRule")}</p>
+        </div>
+
+        {loading || !config ? (
+          <div className="flex items-center justify-center gap-2 p-10 text-sm font-bold text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> {t("shipping.center.notifications.loading")}</div>
+        ) : (
+          <div className="space-y-4 p-5">
+            {SHIPMENT_NOTIFICATION_TYPES.map((type) => {
+              const entry = config[type] || SHIPMENT_NOTIFICATION_DEFAULTS[type];
+              const preview = renderShipmentTemplate(entry.template, previewValues);
+              return (
+                <section key={type} className={`rounded-[var(--radius-control)] border p-4 transition ${entry.enabled ? "border-white/12 bg-white/[0.04]" : "border-white/8 bg-white/[0.02] opacity-70"}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-black text-white">{SHIPMENT_NOTIFICATION_LABELS[type][lang]}</h3>
+                      <p className="mt-1 text-xs font-semibold text-slate-400">{SHIPMENT_NOTIFICATION_TRIGGERS[type][lang]}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => patch(type, { template: SHIPMENT_NOTIFICATION_DEFAULTS[type].template })}
+                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] font-black text-slate-300 hover:bg-white/10"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> {t("shipping.center.notifications.reset")}
+                      </button>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={entry.enabled}
+                        onClick={() => patch(type, { enabled: !entry.enabled })}
+                        className={`rounded-full px-3 py-1.5 text-xs font-black ${entry.enabled ? "bg-emerald-400/20 text-emerald-100" : "bg-white/10 text-slate-300"}`}
+                      >
+                        {entry.enabled ? t("shipping.center.notifications.on") : t("shipping.center.notifications.off")}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <textarea
+                      value={entry.template}
+                      onChange={(event) => patch(type, { template: event.target.value })}
+                      disabled={!entry.enabled}
+                      rows={8}
+                      dir="auto"
+                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 p-3 text-sm font-semibold leading-6 text-white outline-none focus:border-emerald-300/50 disabled:opacity-50"
+                    />
+                    <div className="rounded-[var(--radius-control)] border border-white/10 bg-black/40 p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{t("shipping.center.notifications.preview")}</div>
+                      <pre dir="auto" className="mt-2 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-slate-200">{preview || t("shipping.center.notifications.previewEmpty")}</pre>
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+
+        <footer className="flex items-center justify-end gap-2 border-t border-white/10 p-5">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200">{t("shipping.center.notifications.cancel")}</button>
+          <button type="button" onClick={save} disabled={saving || loading || !config} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {t("shipping.center.notifications.save")}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 export default function ShippingCenter() {
   const { t } = useTranslation();
   const [filters, setFilters] = useState({ provider: "", branchId: "", shippingStatus: "", paymentStatus: "", paymentType: "", dateFrom: "", dateTo: "", search: "" });
   const [view, setView] = useState("table");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [data, setData] = useState({ orders: [], total: 0, summary: { statuses: {}, analytics: {} }, meta: { providers: [], branches: [], statuses: [] } });
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Set());
@@ -356,6 +519,15 @@ export default function ShippingCenter() {
             <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>{t("shipping.center.tableView")}</button>
             <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-white/10 bg-white/5 text-slate-200"}`}>{t("shipping.center.boardView")}</button>
             <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200"><RefreshCw className="h-4 w-4" /> {t("shipping.center.refresh")}</button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              title={t("shipping.center.notifications.title")}
+              aria-label={t("shipping.center.notifications.title")}
+              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-slate-200 hover:border-white/25 hover:bg-white/10"
+            >
+              <Settings className="h-4 w-4" /> {t("shipping.center.settings")}
+            </button>
           </div>
         </header>
 
@@ -454,6 +626,7 @@ export default function ShippingCenter() {
         </section>
       </div>
       <ShipmentDrawer order={drawerOrder} onClose={() => setDrawerOrder(null)} onPrintLabel={(id) => printLabels([id])} />
+      <NotificationSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
   );
 }

@@ -2,6 +2,8 @@ import db from "../database/db.js";
 import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
+import { getSetting } from "./settingsService.js";
+import { normalizeShipmentNotificationConfig, renderShipmentTemplate } from "../../shared/shipmentNotificationTemplates.js";
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 
@@ -42,85 +44,48 @@ const loadOrder = async (order = {}) => {
   return result.rows[0] || order;
 };
 
-const buildShipmentCreatedMessage = (order = {}) => `تم إنشاء شحنة طلبك
-
-رقم الطلب:
-${invoiceNumber(order)}
-
-شركة الشحن:
-${providerName(order)}
-
-سنقوم بإرسال تحديثات الشحنة تلقائياً.`;
-
-const buildShipmentShippedMessage = (order = {}) => `تم شحن طلبك
-
-رقم الطلب:
-${invoiceNumber(order)}
-
-شركة الشحن:
-${providerName(order)}
-
-رابط التتبع:
-${text(order.tracking_url || order.trackingUrl)}`;
-
-const buildShipmentOutForDeliveryMessage = (order = {}) => `المندوب خارج للتسليم
-
-رقم الطلب:
-${invoiceNumber(order)}
-
-نتمنى أن تكون متاحاً لاستلام الطلب.`;
-
-const buildShipmentDeliveredMessage = () => `✅ تم تسليم طلبك بنجاح
-
-شكراً لاختيارك M1 Store 
-
-نتمنى أن تكون راضياً عن تجربتك`;
-
-const buildShipmentShippedMessagePolished = (order = {}) => {
-  const trackingUrl = text(order.tracking_url || order.trackingUrl);
-  return `تم شحن طلبك
-
-رقم الطلب:
-${invoiceNumber(order)}
-
-شركة الشحن:
-${providerName(order)}${trackingUrl ? `
-
-رابط التتبع:
-${trackingUrl}` : ""}`;
-};
-
-const buildShipmentDeliveredMessagePolished = () => `✅ تم تسليم طلبك بنجاح
-
-شكراً لاختيارك M1 Store 
-
-نتمنى أن تكون راضياً عن المنتج 
-
-إذا احتجت أي مساعدة نحن في خدمتك دائماً.`;
-
 const NOTIFICATIONS = {
   shipment_created: {
     column: "whatsapp_shipment_created_sent_at",
     log: "[whatsapp:shipment-created]",
-    buildMessage: buildShipmentCreatedMessage,
     shouldSend: (order) => Boolean(text(order.shipment_id || order.shipping_provider_delivery_id || order.tracking_number)),
     skipReason: "missing_shipment_id",
   },
   shipped: {
     column: "whatsapp_shipped_sent_at",
     log: "[whatsapp:shipment-shipped]",
-    buildMessage: buildShipmentShippedMessagePolished,
   },
   out_for_delivery: {
     column: "whatsapp_out_for_delivery_sent_at",
     log: "[whatsapp:shipment-out-for-delivery]",
-    buildMessage: buildShipmentOutForDeliveryMessage,
   },
   delivered: {
     column: "whatsapp_delivered_sent_at",
     log: "[whatsapp:shipment-delivered]",
-    buildMessage: buildShipmentDeliveredMessagePolished,
   },
+};
+
+export const loadShipmentNotificationSettings = async () =>
+  normalizeShipmentNotificationConfig(await getSetting("orders.shipment_notifications", undefined));
+
+/*
+ * The values behind the placeholders. A field with nothing in it renders empty, and
+ * renderShipmentTemplate then drops the whole line — label included — so a missing
+ * tracking link can never leave the customer a bare "رابط التتبع:".
+ */
+export const shipmentTemplateValues = async (order = {}) => {
+  const collectible = Number(order.cod_amount || 0);
+  // Zero renders empty on purpose: a prepaid parcel must not carry a line telling the
+  // customer to have 0 ready. The empty value takes the line with it.
+  const symbol = collectible > 0 ? await getSetting("general.currency_symbol", "ج.م") : "";
+  return {
+    order_number: invoiceNumber(order),
+    customer_name: text(order.customer_name),
+    provider: providerName(order),
+    tracking_number: text(order.shipping_tracking_number || order.tracking_number),
+    tracking_url: text(order.tracking_url),
+    cod_amount: collectible > 0 ? `${collectible.toLocaleString("en-US")} ${symbol}`.trim() : "",
+  };
 };
 
 const sendShippingNotification = async (order = {}, type) => {
@@ -129,13 +94,21 @@ const sendShippingNotification = async (order = {}, type) => {
   if (!config) return { sent: false, reason: "unsupported_notification" };
   const current = await loadOrder(order);
   const phone = phoneForOrder(current);
+  const settings = (await loadShipmentNotificationSettings())[type];
+  // Rendered before the claim: claiming first would burn the once-only column on a
+  // message that was never sent, and the customer would never get it at all.
+  const message = current?.id ? renderShipmentTemplate(settings.template, await shipmentTemplateValues(current)) : "";
   const reason = !current?.id
     ? "order_missing"
-    : !phone
-      ? "missing_phone"
-      : config.shouldSend && !config.shouldSend(current)
-        ? config.skipReason || "not_eligible"
-        : "";
+    : !settings.enabled
+      ? "disabled"
+      : !phone
+        ? "missing_phone"
+        : !message
+          ? "empty_template"
+          : config.shouldSend && !config.shouldSend(current)
+            ? config.skipReason || "not_eligible"
+            : "";
   if (reason) return { sent: false, reason };
 
   try {
@@ -153,7 +126,6 @@ const sendShippingNotification = async (order = {}, type) => {
     const claimed = claim.rows[0] || null;
     if (!claimed) return { sent: false, reason: "already_sent" };
 
-    const message = config.buildMessage(claimed);
     const result = await sendTextMessage({ phone, message });
     try {
       const transcriptMessage = await appendWhatsappOutboundSupportReply({

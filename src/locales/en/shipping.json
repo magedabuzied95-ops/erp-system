@@ -63,6 +63,25 @@
       "webhookEvents": "Webhook Events",
       "noWebhookEvents": "No webhook events received."
     },
-    "emptyRows": "No shipments match the current filters."
+    "emptyRows": "No shipments match the current filters.",
+    "settings": "Settings",
+    "notifications": {
+      "title": "Customer shipment messages",
+      "subtitle": "What the customer receives on WhatsApp at each stage. Each message is sent once per order.",
+      "placeholders": "Available fields",
+      "emptyLineRule": "Any line containing an empty field is dropped whole — so with no tracking link, the \"Tracking link\" line never reaches the customer.",
+      "preview": "Preview",
+      "previewEmpty": "(this message renders empty with these values)",
+      "sampleCustomer": "Maged",
+      "reset": "Reset to default",
+      "on": "On",
+      "off": "Off",
+      "loading": "Loading settings…",
+      "loadFailed": "Could not load the message settings",
+      "saved": "Messages saved",
+      "saveFailed": "Could not save the messages",
+      "save": "Save",
+      "cancel": "Cancel"
+    }
   }
 }

@@ -14,6 +14,9 @@ import {
   syncBostaLocations,
   testBostaWebhookPayload,
 } from "./shipping.service.js";
+import { loadShipmentNotificationSettings } from "../../services/whatsappShippingService.js";
+import { setSetting } from "../../services/settingsService.js";
+import { normalizeShipmentNotificationConfig, SHIPMENT_NOTIFICATION_DEFAULTS, SHIPMENT_TEMPLATE_PLACEHOLDERS } from "../../../shared/shipmentNotificationTemplates.js";
 
 const sendError = (res, error, fallback = "Shipping request failed") => {
   const status = Number(error?.status || error?.statusCode || 500);
@@ -149,6 +152,31 @@ export const cancelOrderBostaShipment = async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to cancel Bosta shipment");
+  }
+};
+
+export const getShipmentNotificationSettings = async (_req, res) => {
+  try {
+    return res.json({
+      success: true,
+      notifications: await loadShipmentNotificationSettings(),
+      defaults: SHIPMENT_NOTIFICATION_DEFAULTS,
+      placeholders: SHIPMENT_TEMPLATE_PLACEHOLDERS,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load shipment notification settings");
+  }
+};
+
+export const updateShipmentNotificationSettings = async (req, res) => {
+  try {
+    // Normalized before storing, so a partial or malformed body can never blank a
+    // customer message — an empty template falls back to its default.
+    const next = normalizeShipmentNotificationConfig(req.body?.notifications ?? req.body);
+    await setSetting("orders.shipment_notifications", next, "shipping", req.user?.id || null);
+    return res.json({ success: true, notifications: next });
+  } catch (error) {
+    return sendError(res, error, "Failed to save shipment notification settings");
   }
 };
 
