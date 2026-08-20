@@ -18,24 +18,12 @@ import { getPublicSettings } from "../shared/api/publicSettings";
 import OrderInvoiceCard from "../shared/components/invoices/OrderInvoiceCard";
 import { normalizeOrderInvoiceData } from "../shared/utils/orderInvoice";
 import { getPrintDirection, normalizePrintLanguage, tPrint } from "../shared/utils/printLocalization";
+import { useInvoiceTemplate } from "../shared/hooks/useInvoiceTemplate";
 
 const invoicePrintLabel = (key, fallback, options) => tPrint(`print.invoice.${key}`, fallback, options);
-const M1_STORE_WEBSITE_TEXT = "Www.m1store-egy.com";
-const M1_STORE_WEBSITE_HREF = "https://www.m1store-egy.com";
-const M1_STORE_PHONE = "01000659301";
-const PUBLIC_RETURN_POLICY_LINES = [
-  "يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية:",
-  "• يجب أن تكون المنتجات غير مستخدمة وبحالتها الأصلية.",
-  "• يجب وجود الفاتورة الأصلية.",
-  "• في حالة وجود عيب مصنعي، تتحمل M1 Store تكلفة الشحن.",
-  "• في حالة الاستبدال بسبب رغبة العميل مثل المقاس أو اللون، يتحمل العميل تكلفة الشحن ذهابًا وعودة.",
-  "للاستفسارات، تواصل مع خدمة العملاء.",
-];
-const DEFAULT_SOCIAL_LINKS = {
-  googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
-  facebookReviewUrl: "https://www.facebook.com/share/1DmN6zj29g/?mibextid=wwXIfr",
-  instagramUrl: "https://www.instagram.com/m1store_egy?igsh=MWplb2d4cmJ4YmxhaQ%3D%3D&utm_source=qr",
-};
+// The store phone, website, return policy and review links used to live here as
+// constants. They are now fields on the invoice template (shared/invoiceTemplate.js),
+// whose defaults are these exact values — edited in the studio instead of in code.
 
 const getPublicAppUrl = () => {
   const selected = [
@@ -59,15 +47,23 @@ const normalizePublicUrl = (value) => {
   return raw;
 };
 
-// Egypt local number -> international wa.me form. Derived from the number the
-// footer already shows, so there is one source of truth for the phone.
-const M1_STORE_WHATSAPP_HREF = `https://wa.me/2${M1_STORE_PHONE.replace(/^0+/, "")}`;
+// Egypt local number -> international wa.me form. Derived from the number the footer
+// already shows, so there is one source of truth for the phone. The template can carry
+// a separate WhatsApp number for stores whose chat line is not their landline.
+const whatsappHref = (tpl) => {
+  const number = String(tpl?.social?.whatsapp_number || tpl?.identity?.phone || "").replace(/[^\d+]/g, "");
+  if (!number) return "";
+  return `https://wa.me/2${number.replace(/^0+/, "")}`;
+};
 
-const getSocialLinks = (invoice) => [
-  { key: "google", label: invoicePrintLabel("rateGoogle", "قيّمنا على Google"), url: normalizePublicUrl(invoice?.google_review_url || DEFAULT_SOCIAL_LINKS.googleReviewUrl), icon: Star },
-  { key: "facebook", label: invoicePrintLabel("rateFacebook", "قيّمنا على Facebook"), url: normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl), icon: ExternalLink },
-  { key: "instagram", label: invoicePrintLabel("followInstagram", "تابعنا على Instagram"), url: normalizePublicUrl(invoice?.instagram_url || DEFAULT_SOCIAL_LINKS.instagramUrl), icon: ExternalLink },
-].filter((link) => link.url);
+const getSocialLinks = (invoice, tpl) => {
+  if (!tpl?.social?.enabled) return [];
+  return [
+    { key: "google", label: invoicePrintLabel("rateGoogle", "قيّمنا على Google"), url: normalizePublicUrl(invoice?.google_review_url || tpl.social.google_review_url), icon: Star },
+    { key: "facebook", label: invoicePrintLabel("rateFacebook", "قيّمنا على Facebook"), url: normalizePublicUrl(invoice?.facebook_review_url || tpl.social.facebook_review_url), icon: ExternalLink },
+    { key: "instagram", label: invoicePrintLabel("followInstagram", "تابعنا على Instagram"), url: normalizePublicUrl(invoice?.instagram_url || tpl.social.instagram_url), icon: ExternalLink },
+  ].filter((link) => link.url);
+};
 
 // Current official brand marks, drawn as full-colour glyphs so each sits in the
 // white circle exactly like the platform renders it. Paths follow the vendors
@@ -157,6 +153,20 @@ export default function PublicInvoice() {
   const { i18n } = useTranslation();
   const printLanguage = normalizePrintLanguage(i18n.language);
   const printDir = getPrintDirection(printLanguage);
+  // The footer, the return policy and the review links used to be constants in this
+  // file. They now come from the invoice template, whose defaults are those same
+  // constants — so an unconfigured store still sees exactly this page.
+  const tpl = useInvoiceTemplate();
+  const storePhone = tpl.identity.phone;
+  const storeWebsiteText = tpl.identity.website_text;
+  const storeWebsiteHref = tpl.identity.website_url;
+  const returnPolicyLines = useMemo(() => {
+    if (!tpl.footer.return_policy_enabled) return [];
+    const text = printLanguage === "en" && tpl.footer.return_policy_en
+      ? tpl.footer.return_policy_en
+      : tpl.footer.return_policy_ar;
+    return String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  }, [tpl.footer.return_policy_enabled, tpl.footer.return_policy_ar, tpl.footer.return_policy_en, printLanguage]);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -195,9 +205,12 @@ export default function PublicInvoice() {
         setInvoice({
           ...payload,
           public_invoice_url: normalizePublicUrl(payload?.public_invoice_url || `/invoice/${encodeURIComponent(resolvedToken)}`),
-          google_review_url: normalizePublicUrl(payload?.google_review_url || DEFAULT_SOCIAL_LINKS.googleReviewUrl),
-          facebook_review_url: normalizePublicUrl(payload?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl),
-          instagram_url: normalizePublicUrl(payload?.instagram_url || DEFAULT_SOCIAL_LINKS.instagramUrl),
+          // Only what the payload actually carries. Filling a default in here would
+          // make the invoice always win over the template, which is the opposite of
+          // what an operator who typed a link into the studio expects.
+          google_review_url: normalizePublicUrl(payload?.google_review_url || ""),
+          facebook_review_url: normalizePublicUrl(payload?.facebook_review_url || ""),
+          instagram_url: normalizePublicUrl(payload?.instagram_url || ""),
         });
       } catch (err) {
         if (cancelled) return;
@@ -246,7 +259,7 @@ export default function PublicInvoice() {
     () => normalizeOrderInvoiceData({ ...(invoice || {}), public_invoice_url: publicUrl }, null, tenantBranding),
     [invoice, publicUrl, tenantBranding]
   );
-  const socialLinks = useMemo(() => getSocialLinks(invoice), [invoice]);
+  const socialLinks = useMemo(() => getSocialLinks(invoice, tpl), [invoice, tpl]);
 
   // "Rate us on Google / Facebook" — shown at the top on mobile, at the bottom
   // on desktop.
@@ -263,12 +276,14 @@ export default function PublicInvoice() {
   // invoice. The Facebook URL is the store's own page link already used for the
   // review action — there is no separate page URL in the invoice payload.
   const mobileContactLinks = useMemo(() => {
-    const facebookUrl = normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl);
+    if (!tpl.social.enabled) return [];
+    const facebookUrl = normalizePublicUrl(invoice?.facebook_review_url || tpl.social.facebook_review_url);
+    const whatsappUrl = whatsappHref(tpl);
     return [
       facebookUrl ? { key: "facebookPage", label: invoicePrintLabel("facebookPage", "صفحتنا على فيسبوك"), url: facebookUrl } : null,
-      { key: "whatsapp", label: invoicePrintLabel("whatsapp", "تواصل معنا واتساب"), url: M1_STORE_WHATSAPP_HREF },
+      whatsappUrl ? { key: "whatsapp", label: invoicePrintLabel("whatsapp", "تواصل معنا واتساب"), url: whatsappUrl } : null,
     ].filter(Boolean);
-  }, [invoice]);
+  }, [invoice, tpl]);
 
   if (loading) {
     return (
@@ -344,21 +359,24 @@ export default function PublicInvoice() {
 
         <OrderInvoiceCard
           invoice={normalizedInvoice}
+          template={tpl}
           luxury
           publicView
           className="print:rounded-none print:border-0 print:shadow-none"
         />
 
-        <div className="mt-5 rounded-[1.5rem] border border-amber-200/80 bg-[#fffaf0] p-4 text-xs font-bold leading-6 text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none sm:p-5">
-          <div className="flex items-start gap-3 text-start">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-            <div className="space-y-1">
-              {PUBLIC_RETURN_POLICY_LINES.map((line) => (
-                <div key={line}>{line}</div>
-              ))}
+        {returnPolicyLines.length ? (
+          <div className="mt-5 rounded-[1.5rem] border border-amber-200/80 bg-[#fffaf0] p-4 text-xs font-bold leading-6 text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none sm:p-5">
+            <div className="flex items-start gap-3 text-start">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <div className="space-y-1">
+                {returnPolicyLines.map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
         <div className="mx-auto mt-3 h-px max-w-3xl bg-gradient-to-r from-transparent via-emerald-700/55 to-transparent" />
 
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -376,15 +394,19 @@ export default function PublicInvoice() {
 
         <footer className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-xs font-bold text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4" dir="ltr">
-            <a href={M1_STORE_WEBSITE_HREF} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-emerald-300">
-              <Globe className="h-3.5 w-3.5 text-emerald-400" />
-              {M1_STORE_WEBSITE_TEXT}
-            </a>
-            <span className="hidden text-slate-500 sm:inline">/</span>
-            <a href={`tel:${M1_STORE_PHONE}`} className="inline-flex items-center gap-1.5 hover:text-emerald-300" dir={printDir}>
-              <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
-              {M1_STORE_PHONE} - خدمة العملاء
-            </a>
+            {storeWebsiteHref && storeWebsiteText ? (
+              <a href={storeWebsiteHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-emerald-300">
+                <Globe className="h-3.5 w-3.5 text-emerald-400" />
+                {storeWebsiteText}
+              </a>
+            ) : null}
+            {storeWebsiteHref && storeWebsiteText && storePhone ? <span className="hidden text-slate-500 sm:inline">/</span> : null}
+            {storePhone ? (
+              <a href={`tel:${storePhone}`} className="inline-flex items-center gap-1.5 hover:text-emerald-300" dir={printDir}>
+                <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
+                {storePhone} - خدمة العملاء
+              </a>
+            ) : null}
           </div>
         </footer>
       </div>

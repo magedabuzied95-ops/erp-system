@@ -8,6 +8,8 @@ import { useLocale } from "../../lib/locale";
 import { getCurrentTenant } from "../../auth/authStorage";
 import { normalizeOrderInvoiceData } from "../../utils/orderInvoice";
 import { displayPublicOrderNumber } from "../../utils/publicOrderNumber";
+import { useInvoiceTemplate } from "../../hooks/useInvoiceTemplate";
+import { invoiceTemplateForOutput } from "../../../../shared/invoiceTemplate.js";
 
 const AR_INVOICE_COPY = {
   orderInvoice: "فاتورة طلب",
@@ -212,14 +214,23 @@ const logInvoiceRowImageDebug = (item, index, resolvedImageUrl) => {
   });
 };
 
-export default function OrderInvoiceCard({ order, items, invoice, className = "", compact = false, luxury = false, publicView = false }) {
+export default function OrderInvoiceCard({ order, items, invoice, className = "", compact = false, luxury = false, publicView = false, template = null }) {
   const { t } = useTranslation();
   const { dir, isRtl, formatDate } = useLocale();
   const copy = isRtl ? AR_INVOICE_COPY : EN_INVOICE_COPY;
+  // A host that already resolved the template passes it down; anything else resolves it
+  // here. Either way the first render uses the defaults, which are this card as it has
+  // always looked, so an unconfigured tenant never repaints.
+  const resolvedTemplate = useInvoiceTemplate({ enabled: !template });
+  const tpl = invoiceTemplateForOutput(template || resolvedTemplate, "card");
+  const show = tpl.fields;
+  const showTotals = tpl.totals;
   const storeBranding = getStoreBranding();
   const normalizedData = normalizeOrderInvoiceData(order || invoice || {}, items, {
-    storeName: storeBranding.name,
-    logoUrl: storeBranding.logoUrl,
+    // An empty identity field means "inherit", so the tenant branding stays the source
+    // until someone actually types a name or a logo into the template.
+    storeName: tpl.identity.store_name || storeBranding.name,
+    logoUrl: tpl.identity.logo_url || storeBranding.logoUrl,
   }) || {};
   const data = invoice
     ? {
@@ -228,8 +239,11 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
         store: {
           ...normalizedData.store,
           ...(invoice.store || {}),
-          name: String(invoice.store?.name || normalizedData.store?.name || storeBranding.name || "M1 Store").trim(),
-          logoUrl: resolveBrandImageUrl(String(invoice.store?.logoUrl || normalizedData.store?.logoUrl || storeBranding.logoUrl || "").trim()),
+          // A name typed into the template is a deliberate choice by the operator, so
+          // it outranks the store name the invoice payload happens to carry. Leaving
+          // the template field empty keeps the old chain exactly as it was.
+          name: String(tpl.identity.store_name || invoice.store?.name || normalizedData.store?.name || storeBranding.name || "M1 Store").trim(),
+          logoUrl: resolveBrandImageUrl(String(tpl.identity.logo_url || invoice.store?.logoUrl || normalizedData.store?.logoUrl || storeBranding.logoUrl || "").trim()),
         },
         status: invoice.status ?? normalizedData.status,
       }
@@ -263,7 +277,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
           {publicView ? (
             <>
               <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:gap-5 sm:text-start">
-                {data.store?.logoUrl ? (
+                {tpl.identity.show_logo && data.store?.logoUrl ? (
                   <div className={`grid h-20 w-20 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.5rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-[var(--radius-card)] border-stone-200"}`}>
                     <img
                       src={data.store?.logoUrl}
@@ -286,7 +300,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
               <div className="flex flex-col gap-2">
                 <div className={`flex flex-wrap items-center justify-between gap-3 ${luxury ? "text-slate-500" : "text-stone-500"}`}>
                   <div className="text-sm font-bold">
-                    {copy.orderDate}: {formatDate(data?.createdAt)}
+                    {show.show_order_date ? `${copy.orderDate}: ${formatDate(data?.createdAt)}` : ""}
                   </div>
                   <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-slate-300 bg-slate-900 text-white" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
                     {publicNumber}
@@ -297,7 +311,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
           ) : (
             <>
               <div className="flex items-start gap-3">
-                {data.store?.logoUrl ? (
+                {tpl.identity.show_logo && data.store?.logoUrl ? (
                   <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-[var(--radius-card)] border-stone-200"}`}>
                     <img
                       src={data.store?.logoUrl}
@@ -322,10 +336,12 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
                 <div className={`mt-2 inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-violet-200 bg-violet-50 text-violet-900" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
                   {publicNumber}
                 </div>
-                <div className={`mt-2 flex items-center gap-1 text-sm font-bold ${luxury ? "text-slate-500" : "text-stone-500"} ${isRtl ? "justify-end" : "justify-start"}`}>
-                  <CalendarDays className="h-4 w-4" />
-                  {copy.orderDate}: {formatDate(data?.createdAt)}
-                </div>
+                {show.show_order_date ? (
+                  <div className={`mt-2 flex items-center gap-1 text-sm font-bold ${luxury ? "text-slate-500" : "text-stone-500"} ${isRtl ? "justify-end" : "justify-start"}`}>
+                    <CalendarDays className="h-4 w-4" />
+                    {copy.orderDate}: {formatDate(data?.createdAt)}
+                  </div>
+                ) : null}
               </div>
             </>
           )}
@@ -333,11 +349,11 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
       </div>
 
       <div className={`${luxury ? `grid gap-3 p-5 sm:p-6 ${publicView ? "sm:grid-cols-2 lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}` : `grid gap-3 p-5 ${publicView ? "sm:grid-cols-2 lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}`}>
-        <Meta luxury={luxury} icon={User} label={copy.customer} value={data?.customer?.name || copy.walkInCustomer} unavailable={unavailable} inline={publicView} />
-        <Meta luxury={luxury} icon={Phone} label={copy.phone} value={data?.customer?.phone || unavailable} unavailable={unavailable} inline={publicView} />
+        {show.show_customer_name ? <Meta luxury={luxury} icon={User} label={copy.customer} value={data?.customer?.name || copy.walkInCustomer} unavailable={unavailable} inline={publicView} /> : null}
+        {show.show_customer_phone ? <Meta luxury={luxury} icon={Phone} label={copy.phone} value={data?.customer?.phone || unavailable} unavailable={unavailable} inline={publicView} /> : null}
         {/* The delivery address only appears when the order actually carries one,
             so a walk-in POS invoice keeps its two-column header. */}
-        {data?.customer?.address ? (
+        {show.show_customer_address && data?.customer?.address ? (
           <Meta
             luxury={luxury}
             icon={MapPin}
@@ -349,8 +365,8 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
             className={publicView ? "sm:col-span-2" : "lg:col-span-2"}
           />
         ) : null}
-        {!publicView ? <Meta luxury={luxury} label={copy.status} value={getStatusLabel(data.status || "pending", copy)} unavailable={unavailable} badge /> : null}
-        {!publicView ? <Meta luxury={luxury} icon={CreditCard} label={copy.paymentMethod} value={resolvedPaymentMethod} unavailable={unavailable} /> : null}
+        {!publicView && show.show_order_status ? <Meta luxury={luxury} label={copy.status} value={getStatusLabel(data.status || "pending", copy)} unavailable={unavailable} badge /> : null}
+        {!publicView && show.show_payment_method ? <Meta luxury={luxury} icon={CreditCard} label={copy.paymentMethod} value={resolvedPaymentMethod} unavailable={unavailable} /> : null}
       </div>
 
       <div className={`${luxury ? "px-5 pb-6 sm:px-6" : "px-5 pb-5"}`}>
@@ -370,7 +386,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
               return (
                 <div key={String(item?.id ?? index)} className={`grid grid-cols-[minmax(0,1.7fr)_0.7fr_0.75fr_0.8fr] items-center gap-2 px-4 text-sm sm:grid-cols-[minmax(0,1.8fr)_0.8fr_0.75fr_0.8fr_0.9fr] ${luxury ? "bg-white/55 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] print:bg-white print:shadow-none" : "py-3"}`}>
                   <div className="flex min-w-0 items-center gap-3">
-                    {!compact ? (
+                    {!compact && show.show_product_image ? (
                       <div className={`grid shrink-0 place-items-center overflow-hidden border ${luxury ? "h-16 w-16 rounded-xl border-slate-200 bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] print:shadow-none" : "h-14 w-14 rounded-xl border-stone-200 bg-stone-100"}`}>
                         <InvoiceImage src={resolvedImageUrl} alt={item?.name || ""} />
                       </div>
@@ -378,7 +394,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
                     <div className="min-w-0">
                       <div className={`truncate ${luxury ? "font-black tracking-tight text-slate-950" : "font-black"}`}>{item?.name || "-"}</div>
                       <div className={`mt-1 truncate text-xs font-bold sm:hidden ${luxury ? "text-slate-500" : "text-stone-500"}`}>{formatVariantDetails(item, copy)}</div>
-                      {item?.sku ? <div className={`mt-1 truncate text-[11px] font-bold ${luxury ? "text-slate-400" : "text-stone-400"}`}>SKU {item?.sku}</div> : null}
+                      {show.show_sku && item?.sku ? <div className={`mt-1 truncate text-[11px] font-bold ${luxury ? "text-slate-400" : "text-stone-400"}`}>SKU {item?.sku}</div> : null}
                     </div>
                   </div>
                   <div className={`hidden text-sm font-bold sm:block ${luxury ? "text-slate-500" : "text-stone-500"}`}>{formatVariantDetails(item, copy)}</div>
@@ -394,9 +410,9 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
         </div>
 
         <div className={`mt-5 w-full max-w-sm rounded-2xl border p-4 ${luxury ? "border-slate-200/90 bg-slate-50/90 shadow-[0_16px_45px_rgba(15,23,42,0.08)] print:border-slate-200 print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"} ${isRtl ? "mr-auto" : "ml-auto"}`}>
-          <Summary luxury={luxury} label={copy.subtotal} value={formatCurrency(totals?.subtotal)} />
-          {Number(totals?.discount || 0) > 0 ? <Summary luxury={luxury} label={copy.discount} value={`- ${formatCurrency(totals?.discount)}`} /> : null}
-          {Number(totals?.shipping || 0) > 0 ? <Summary luxury={luxury} label={shippingLabel} value={formatCurrency(totals?.shipping)} /> : null}
+          {showTotals.show_subtotal ? <Summary luxury={luxury} label={copy.subtotal} value={formatCurrency(totals?.subtotal)} /> : null}
+          {showTotals.show_discount && Number(totals?.discount || 0) > 0 ? <Summary luxury={luxury} label={copy.discount} value={`- ${formatCurrency(totals?.discount)}`} /> : null}
+          {showTotals.show_shipping && Number(totals?.shipping || 0) > 0 ? <Summary luxury={luxury} label={shippingLabel} value={formatCurrency(totals?.shipping)} /> : null}
           {totals?.exchangeMode ? (
             <>
               <Summary luxury={luxury} label={copy.newItemsTotal} value={formatCurrency(totals?.newItemsTotal || totals?.grandTotal)} />
@@ -405,11 +421,13 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
               {Number(totals?.remainingCustomerCredit || 0) > 0 ? <Summary luxury={luxury} label={copy.remainingCredit} value={formatCurrency(totals?.remainingCustomerCredit)} /> : null}
             </>
           ) : null}
-          <div className={`mt-3 flex items-center justify-between border-t pt-3 text-lg font-black ${luxury ? "border-slate-200 text-slate-950" : "border-stone-200"}`}>
-            <span>{copy.grandTotal}</span>
-            <span className={`${luxury ? "text-xl text-emerald-700" : "text-emerald-700"}`}>{formatCurrency(totals?.grandTotal)}</span>
-          </div>
-          {paymentBreakdown.length > 1 ? (
+          {showTotals.show_grand_total ? (
+            <div className={`mt-3 flex items-center justify-between border-t pt-3 text-lg font-black ${luxury ? "border-slate-200 text-slate-950" : "border-stone-200"}`}>
+              <span>{copy.grandTotal}</span>
+              <span className={`${luxury ? "text-xl text-emerald-700" : "text-emerald-700"}`}>{formatCurrency(totals?.grandTotal)}</span>
+            </div>
+          ) : null}
+          {showTotals.show_payment_breakdown && paymentBreakdown.length > 1 ? (
             <div className={`my-2 border-y py-2 ${luxury ? "border-slate-200" : "border-stone-200"}`}>
               <div className={`mb-1 text-xs font-black ${luxury ? "text-slate-500" : "text-stone-500"}`}>{copy.paymentBreakdown}</div>
               {paymentBreakdown.map((payment) => (
@@ -422,9 +440,9 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
               ))}
             </div>
           ) : null}
-          <Summary luxury={luxury} label={copy.paidAmount} value={formatCurrency(totals?.paidAmount)} />
-          <Summary luxury={luxury} label={copy.remainingAmount} value={formatCurrency(outstandingAmount)} />
-          {publicView ? (
+          {showTotals.show_paid ? <Summary luxury={luxury} label={copy.paidAmount} value={formatCurrency(totals?.paidAmount)} /> : null}
+          {showTotals.show_remaining ? <Summary luxury={luxury} label={copy.remainingAmount} value={formatCurrency(outstandingAmount)} /> : null}
+          {publicView && show.show_payment_method ? (
             <div className={`mt-3 border-t pt-3 text-sm font-black ${luxury ? "border-slate-200 text-slate-950" : "border-stone-200"}`}>
               {copy.paymentMethod}: {resolvedPaymentMethod || unavailable}
             </div>

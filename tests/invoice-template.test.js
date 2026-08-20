@@ -12,22 +12,40 @@ import {
   resolveInvoiceTemplateConfig,
 } from "../shared/invoiceTemplate.js";
 
-// The point of the defaults is that an un-configured tenant keeps the invoice it has
-// today. These read the literals straight out of the renderer they were copied from, so
-// the day someone edits one side the drift is a failing test rather than a silent
-// difference on a customer's invoice.
 const publicInvoiceSource = fs.readFileSync(new URL("../src/pages/PublicInvoice.jsx", import.meta.url), "utf8");
 
-test("defaults still match the values hardcoded in PublicInvoice.jsx", () => {
+// These values used to be constants inside PublicInvoice.jsx. They moved here so the
+// store can edit them without a deploy, and the page must not grow a second copy: a
+// constant reintroduced there would silently win over whatever the operator typed.
+test("the store's own details live in the template, not in the page", () => {
+  assert.doesNotMatch(publicInvoiceSource, /const M1_STORE_(PHONE|WEBSITE_TEXT|WEBSITE_HREF)\s*=/);
+  assert.doesNotMatch(publicInvoiceSource, /const PUBLIC_RETURN_POLICY_LINES\s*=/);
+  assert.doesNotMatch(publicInvoiceSource, /const DEFAULT_SOCIAL_LINKS\s*=/);
+  assert.doesNotMatch(publicInvoiceSource, /01000659301/);
+  // The page reads them off the resolved template instead.
+  assert.match(publicInvoiceSource, /const tpl = useInvoiceTemplate\(\)/);
+  assert.match(publicInvoiceSource, /tpl\.identity\.phone/);
+  assert.match(publicInvoiceSource, /tpl\.footer\.return_policy_(ar|en)/);
+  assert.match(publicInvoiceSource, /tpl\.social\.(google|facebook|instagram)/);
+});
+
+test("the defaults are the values the page used to hardcode", () => {
   const defaults = INVOICE_TEMPLATE_DEFAULTS;
-  assert.ok(publicInvoiceSource.includes(`M1_STORE_PHONE = "${defaults.identity.phone}"`));
-  assert.ok(publicInvoiceSource.includes(`M1_STORE_WEBSITE_TEXT = "${defaults.identity.website_text}"`));
-  assert.ok(publicInvoiceSource.includes(`M1_STORE_WEBSITE_HREF = "${defaults.identity.website_url}"`));
-  assert.ok(publicInvoiceSource.includes(defaults.social.facebook_review_url));
-  assert.ok(publicInvoiceSource.includes(defaults.social.instagram_url));
-  for (const line of defaults.footer.return_policy_ar.split("\n")) {
-    assert.ok(publicInvoiceSource.includes(line), `return policy line missing from source: ${line}`);
-  }
+  assert.equal(defaults.identity.phone, "01000659301");
+  assert.equal(defaults.identity.website_text, "Www.m1store-egy.com");
+  assert.equal(defaults.identity.website_url, "https://www.m1store-egy.com");
+  assert.equal(defaults.social.facebook_review_url, "https://www.facebook.com/share/1DmN6zj29g/?mibextid=wwXIfr");
+  assert.match(defaults.social.instagram_url, /^https:\/\/www\.instagram\.com\/m1store_egy/);
+  const policy = defaults.footer.return_policy_ar.split("\n");
+  assert.equal(policy.length, 6);
+  assert.match(policy[0], /14 يومًا/);
+});
+
+// An operator link must never be shadowed by one the invoice payload defaulted in.
+test("the page no longer defaults the review links onto the invoice payload", () => {
+  assert.match(publicInvoiceSource, /google_review_url: normalizePublicUrl\(payload\?\.google_review_url \|\| ""\)/);
+  assert.match(publicInvoiceSource, /facebook_review_url: normalizePublicUrl\(payload\?\.facebook_review_url \|\| ""\)/);
+  assert.match(publicInvoiceSource, /instagram_url: normalizePublicUrl\(payload\?\.instagram_url \|\| ""\)/);
 });
 
 test("defaults describe today's invoice, not a redesign of it", () => {
@@ -37,8 +55,10 @@ test("defaults describe today's invoice, not a redesign of it", () => {
   assert.equal(config.fields.show_product_variant, true);
   assert.equal(config.totals.show_subtotal, true);
   assert.equal(config.totals.show_shipping, true);
+  // The card prints the SKU when the line carries one; the PDF never has.
+  assert.equal(config.fields.show_sku, true);
+  assert.equal(config.outputs.print.show_sku, false);
   // Not printed by any renderer today — these stay off until someone asks for them.
-  assert.equal(config.fields.show_sku, false);
   assert.equal(config.totals.show_tax, false);
   assert.equal(config.footer.show_public_link_qr, false);
   // Empty means "keep the renderer's existing tenant-branding fallback".
@@ -91,15 +111,23 @@ test("a partial patch touches only the group it names", () => {
   assert.equal(merged.footer.return_policy_ar, INVOICE_TEMPLATE_DEFAULTS.footer.return_policy_ar);
 });
 
-test("thermal folds its own overrides over the shared fields", () => {
+test("each output folds its own overrides over the shared fields", () => {
   const config = normalizeInvoiceTemplateConfig({
-    fields: { show_product_image: true, show_unit_price: true },
+    fields: { show_product_image: true, show_unit_price: true, show_sku: true },
   });
-  const a4 = invoiceTemplateForOutput(config, "a4");
+  const card = invoiceTemplateForOutput(config, "card");
+  const print = invoiceTemplateForOutput(config, "print");
   const thermal = invoiceTemplateForOutput(config, "thermal");
-  assert.equal(a4.fields.show_product_image, true);
-  assert.equal(a4.fields.show_unit_price, true);
-  // The 80mm roll has no room for either, and that is a property of the paper.
+
+  // The card is the shared config unchanged.
+  assert.equal(card.fields.show_product_image, true);
+  assert.equal(card.fields.show_unit_price, true);
+  assert.equal(card.fields.show_sku, true);
+  // The PDF has never printed the SKU, at either size.
+  assert.equal(print.fields.show_sku, false);
+  assert.equal(thermal.fields.show_sku, false, "thermal inherits print's overrides");
+  // Only the 80mm roll drops the image and the unit-price column.
+  assert.equal(print.fields.show_product_image, true);
   assert.equal(thermal.fields.show_product_image, false);
   assert.equal(thermal.fields.show_unit_price, false);
 });

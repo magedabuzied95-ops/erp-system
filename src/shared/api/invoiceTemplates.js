@@ -39,8 +39,11 @@ export const duplicateInvoiceTemplate = async (id, payload = {}) => {
 
 export const deleteInvoiceTemplate = (id) => api.delete(`/invoice-templates/${id}`);
 
+// Called on every invoice render. A backend that predates this endpoint answers 404,
+// and the caller falls back to the defaults — that is a normal state while the frontend
+// is ahead of the API, not something to log once per invoice.
 export const resolveInvoiceTemplate = (params = {}) =>
-  api.get("/invoice-templates/resolve", { params });
+  api.get("/invoice-templates/resolve", { params, suppressErrorStatuses: [401, 403, 404, 500] });
 
 let publicInFlight = null;
 let publicResolved = null;

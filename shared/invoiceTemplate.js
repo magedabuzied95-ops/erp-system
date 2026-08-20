@@ -24,9 +24,16 @@ export const INVOICE_TEMPLATE_CONFIG_VERSION = 1;
 // Which sales channel a template applies to. "all" is the catch-all every tenant starts with.
 export const INVOICE_TEMPLATE_CHANNELS = ["all", "website", "pos", "manual"];
 
-// The four things a template can come out as. Not a filter — every template drives all
-// four; these names exist so the studio preview and the per-output blocks below agree.
-export const INVOICE_TEMPLATE_OUTPUTS = ["a4", "thermal", "public", "whatsapp"];
+// The four things a template comes out as, named after the renderer that produces each.
+// Not a filter — every template drives all four.
+//   card     OrderInvoiceCard: the order page, the public /invoice/:token link, the
+//            storefront confirmation. This is the shared baseline; it has no override
+//            block because the shared `fields` ARE its settings.
+//   print    invoicePdf at A4
+//   thermal  the 80mm roll — invoicePdf's thermal format and the POS receipt. Inherits
+//            print's overrides, then applies its own.
+//   whatsapp the plain-text message
+export const INVOICE_TEMPLATE_OUTPUTS = ["card", "print", "thermal", "whatsapp"];
 
 // Transcribed from src/pages/PublicInvoice.jsx (PUBLIC_RETURN_POLICY_LINES). The window
 // here is prose, not logic — orders.return_exchange_window_days is what the storefront
@@ -59,19 +66,22 @@ export const INVOICE_TEMPLATE_DEFAULTS = Object.freeze({
     commercial_register: "",
   },
 
-  // Per-element visibility, in the order the invoice reads top to bottom.
+  // Per-element visibility, in the order the invoice reads top to bottom. The invoice
+  // number is deliberately absent: it identifies the document, it is not a display
+  // preference, and every renderer prints it unconditionally.
   fields: {
     show_order_date: true,
-    show_order_number: true,
     show_customer_name: true,
     show_customer_phone: true,
     show_customer_address: true,
     show_order_status: true,
     show_payment_method: true,
-    // Line columns. SKU is off because no renderer prints it today.
+    // Line columns. OrderInvoiceCard prints the SKU under the product name whenever the
+    // line carries one, so the shared default is on; the PDF, which omits it today,
+    // keeps omitting it through the `print` override below.
     show_product_image: true,
     show_product_variant: true,
-    show_sku: false,
+    show_sku: true,
     show_unit_price: true,
     show_line_total: true,
     // Staff attribution — the POS receipt carries these, the A4 invoice does not.
@@ -114,9 +124,14 @@ export const INVOICE_TEMPLATE_DEFAULTS = Object.freeze({
     whatsapp_number: "",
   },
 
-  // Only the settings a given output genuinely owns. Everything else is shared, which is
-  // the whole point — one edit, four channels.
+  // Where the four renderers genuinely disagree today. Everything NOT listed here is
+  // shared, which is the whole point — one edit, four channels. Each value is what that
+  // renderer already produces, so wiring it up changes nothing on its own.
   outputs: {
+    print: {
+      // The PDF has never printed the SKU, unlike the on-screen/public card.
+      show_sku: false,
+    },
     thermal: {
       paper_width_mm: 80,
       // The 80mm receipt drops images and the unit-price column for width reasons.
@@ -176,6 +191,7 @@ export const normalizeInvoiceTemplateConfig = (config = {}) => {
   const footer = input.footer && typeof input.footer === "object" ? input.footer : {};
   const social = input.social && typeof input.social === "object" ? input.social : {};
   const outputs = input.outputs && typeof input.outputs === "object" ? input.outputs : {};
+  const print = outputs.print && typeof outputs.print === "object" ? outputs.print : {};
   const thermal = outputs.thermal && typeof outputs.thermal === "object" ? outputs.thermal : {};
   const whatsapp = outputs.whatsapp && typeof outputs.whatsapp === "object" ? outputs.whatsapp : {};
 
@@ -219,6 +235,9 @@ export const normalizeInvoiceTemplateConfig = (config = {}) => {
       whatsapp_number: toText(social.whatsapp_number, defaults.social.whatsapp_number, 40),
     },
     outputs: {
+      print: {
+        show_sku: coerceBoolean(print.show_sku, defaults.outputs.print.show_sku),
+      },
       thermal: {
         paper_width_mm: clampNumber(thermal.paper_width_mm, defaults.outputs.thermal.paper_width_mm, 48, 112),
         show_product_image: coerceBoolean(thermal.show_product_image, defaults.outputs.thermal.show_product_image),
@@ -251,6 +270,7 @@ export const mergeInvoiceTemplateConfig = (base = {}, patch = {}) => {
     footer: group("footer"),
     social: group("social"),
     outputs: {
+      print: outputGroup("print"),
       thermal: outputGroup("thermal"),
       whatsapp: outputGroup("whatsapp"),
     },
@@ -299,19 +319,18 @@ export const resolveInvoiceTemplateConfig = (templates = [], options = {}) => {
 };
 
 // The config a single output should render with, after its own overrides are folded in.
-// Callers pass an output name so a thermal renderer never has to know which of the
-// shared flags its narrow paper overrides.
-export const invoiceTemplateForOutput = (config = {}, output = "a4") => {
+// Callers pass an output name so a thermal renderer never has to work out which of the
+// shared flags its narrow paper overrides. "card" is the shared config unchanged.
+export const invoiceTemplateForOutput = (config = {}, output = "card") => {
   const normalized = normalizeInvoiceTemplateConfig(config);
+  if (output !== "print" && output !== "thermal") return normalized;
+
+  // Thermal is produced by the same PDF builder as A4, so it inherits print's
+  // overrides before applying the ones the 80mm roll adds.
+  const fields = { ...normalized.fields, show_sku: normalized.outputs.print.show_sku };
   if (output === "thermal") {
-    return {
-      ...normalized,
-      fields: {
-        ...normalized.fields,
-        show_product_image: normalized.outputs.thermal.show_product_image,
-        show_unit_price: normalized.outputs.thermal.show_unit_price,
-      },
-    };
+    fields.show_product_image = normalized.outputs.thermal.show_product_image;
+    fields.show_unit_price = normalized.outputs.thermal.show_unit_price;
   }
-  return normalized;
+  return { ...normalized, fields };
 };
