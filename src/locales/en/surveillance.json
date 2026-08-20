@@ -348,5 +348,18 @@
       "not-supported": "This firmware does not implement ONVIF Profile G.",
       "unreachable": "The ONVIF endpoint did not respond."
     }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "live": "Live",
+    "playback": "Playback",
+    "devices": "Recorders",
+    "channels": "Channels",
+    "storage": "Storage",
+    "video": "Video",
+    "recording": "Recording",
+    "motion": "Motion",
+    "network": "Network",
+    "audit": "Audit"
   }
 }

@@ -4,6 +4,7 @@ import { HardDrive, Loader2, RefreshCw, Search, Wifi } from "lucide-react";
 
 import { listDevices, probeDevice, testConnection } from "../services/surveillanceApi";
 import "../../../theme/ai-surface.css";
+import SurveillanceNav from "../components/SurveillanceNav";
 
 const STATUS_TONE = {
   online: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
@@ -83,6 +84,7 @@ export default function SurveillanceDevices() {
             {t(notice.key)}
           </div>
         )}
+        <div className="mt-3"><SurveillanceNav /></div>
       </section>
 
       {loading ? (

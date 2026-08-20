@@ -47,27 +47,42 @@ const entries = [...section.matchAll(/\{\s*label:\s*"([^"]+)",\s*to:\s*"([^"]+)"
  * A door for every room
  * ------------------------------------------------------------------ */
 
-test("the sidebar has a Surveillance Center section", () => {
-  assert.ok(entries.length >= 8, `expected the full set of pages, found ${entries.length}`);
+test("the sidebar has exactly ONE surveillance row", () => {
+  // Eleven flat rows for one feature pushed every other module off the screen.
+  // The sidebar answers "which part of the business am I in"; everything below
+  // /surveillance is a "where inside it" question, which only exists once you
+  // are already there.
+  assert.equal(entries.length, 1, `expected 1 sidebar row, found ${entries.length}`);
+  assert.equal(entries[0].to, "/surveillance");
 });
 
-test("every routed surveillance page is reachable from the sidebar", () => {
-  // Parameterised routes (devices/:id) are reached FROM a listing page, so they
-  // are excluded — a sidebar link to :id would be meaningless.
+test("every routed page is reachable from the in-page tab bar", () => {
+  // The reachability guarantee MOVED rather than disappeared. A page that is
+  // routed and in neither the sidebar nor the tab bar is a page nobody can open
+  // — which is the production bug this file was written for.
+  const nav = read("src/modules/surveillance/components/SurveillanceNav.jsx");
+  const tabs = new Set([...nav.matchAll(/to:\s*"([^"]+)"/g)].map(([, to]) => to));
+
   const routed = [...APP.matchAll(/path="(surveillance(?:\/[a-z-]+)?)"/g)]
     .map(([, p]) => `/${p}`)
     .filter((p) => !p.includes(":"));
-  const linked = new Set(entries.map((e) => e.to));
 
-  const unreachable = routed.filter((r) => !linked.has(r));
+  const unreachable = routed.filter((r) => !tabs.has(r) && !entries.some((e) => e.to === r));
   assert.deepEqual(unreachable, [],
-    `these pages exist and are routed but nothing in the sidebar opens them: ${unreachable.join(", ")}`);
+    `routed but reachable from neither the sidebar nor the tab bar: ${unreachable.join(", ")}`);
 });
 
-test("no sidebar entry points at a route that does not exist", () => {
-  // The opposite failure: a link that 404s inside the SPA.
-  const dead = entries.filter((e) => !APP.includes(`path="${e.to.slice(1)}"`));
-  assert.deepEqual(dead.map((e) => e.to), [], "sidebar links to unrouted paths");
+test("the tab bar never points at a route that does not exist", () => {
+  const nav = read("src/modules/surveillance/components/SurveillanceNav.jsx");
+  const tabs = [...nav.matchAll(/to:\s*"([^"]+)"/g)].map(([, to]) => to);
+  const dead = tabs.filter((t) => !APP.includes(`path="${t.slice(1)}"`));
+  assert.deepEqual(dead, [], "tab bar links to unrouted paths");
+});
+
+test("the tab bar renders from the shared header, not per page", () => {
+  // Twelve copies means the thirteenth page forgets it.
+  const ui = read("src/modules/surveillance/components/SurveillanceUi.jsx");
+  assert.match(ui, /<SurveillanceNav \/>/, "PageHeader must render the tab bar");
 });
 
 /* ------------------------------------------------------------------ *

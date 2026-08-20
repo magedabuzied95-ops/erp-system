@@ -5,6 +5,7 @@ import { AlertTriangle, Cpu, Grid2x2, Grid3x3, Loader2, RefreshCw, Square, Video
 import CameraTile from "../components/CameraTile";
 import { getMediaCapacity, listChannels, listDevices } from "../services/surveillanceApi";
 import "../../../theme/ai-surface.css";
+import SurveillanceNav from "../components/SurveillanceNav";
 
 /**
  * The layouts an operator can pick.
@@ -136,6 +137,7 @@ export default function SurveillanceLive() {
             <span>{t("surveillance.live.cappedNotice", { requested: tiles, allowed: effectiveTiles })}</span>
           </div>
         )}
+        <div className="mt-3"><SurveillanceNav /></div>
       </section>
 
       {loading ? (

@@ -475,17 +475,11 @@ const RAW_SIDEBAR_SECTIONS = [
   {
     title: "Surveillance Center",
     items: [
-      { label: "Surveillance Dashboard", to: "/surveillance", permission: "surveillance.view", icon: Radio },
-      { label: "Live View", to: "/surveillance/live", permission: "surveillance.live", icon: Video },
-      { label: "Playback", to: "/surveillance/playback", permission: "surveillance.playback", icon: History },
-      { label: "Recorders", to: "/surveillance/devices", permission: "surveillance.device.view", icon: Server },
-      { label: "Camera Channels", to: "/surveillance/channels", permission: "surveillance.view", icon: Grid3x3 },
-      { label: "Recorder Storage", to: "/surveillance/storage", permission: "surveillance.storage.view", icon: HardDrive },
-      { label: "Video Settings", to: "/surveillance/video-settings", permission: "surveillance.device.view", icon: Film },
-      { label: "Recording Settings", to: "/surveillance/recording-settings", permission: "surveillance.recording.settings", icon: CalendarClock },
-      { label: "Motion Settings", to: "/surveillance/motion-settings", permission: "surveillance.device.view", icon: Activity },
-      { label: "Recorder Network", to: "/surveillance/network", permission: "surveillance.network.view", icon: Network },
-      { label: "Surveillance Audit", to: "/surveillance/audit", permission: "surveillance.device.view", icon: ScrollText },
+      // ONE row, not eleven. The sidebar answers "which part of the business",
+      // and eleven flat surveillance rows pushed every other module off the
+      // screen. Everything below /surveillance is reached through the tab bar
+      // on the page itself — see SurveillanceNav.
+      { label: "Surveillance Center", to: "/surveillance", permission: "surveillance.view", icon: Radio },
     ],
   },
   {

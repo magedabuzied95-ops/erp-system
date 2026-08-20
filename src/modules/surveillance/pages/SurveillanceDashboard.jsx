@@ -8,6 +8,7 @@ import {
 
 import { getOverview } from "../services/surveillanceApi";
 import "../../../theme/ai-surface.css";
+import SurveillanceNav from "../components/SurveillanceNav";
 
 /**
  * A value that may legitimately be unknown.
@@ -87,6 +88,7 @@ export default function SurveillanceDashboard() {
             {t("surveillance.refresh")}
           </button>
         </div>
+        <div className="mt-3"><SurveillanceNav /></div>
       </section>
 
       {/* The clock warning is a banner, not a per-device detail: playback

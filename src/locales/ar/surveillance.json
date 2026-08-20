@@ -348,5 +348,18 @@
       "not-supported": "هذا الإصدار من البرنامج لا يدعم ONVIF Profile G.",
       "unreachable": "لم تستجب واجهة ONVIF."
     }
+  },
+  "nav": {
+    "dashboard": "اللوحة",
+    "live": "المباشر",
+    "playback": "التشغيل",
+    "devices": "الأجهزة",
+    "channels": "القنوات",
+    "storage": "التخزين",
+    "video": "الفيديو",
+    "recording": "التسجيل",
+    "motion": "الحركة",
+    "network": "الشبكة",
+    "audit": "التدقيق"
   }
 }

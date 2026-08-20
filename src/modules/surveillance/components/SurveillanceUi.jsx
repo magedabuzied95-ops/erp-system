@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import SurveillanceNav from "./SurveillanceNav";
 
 /**
  * Shared primitives for the Surveillance pages.
@@ -138,6 +139,12 @@ export const PageHeader = ({ eyebrowIcon: Icon, title, subtitle, actions }) => {
           {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
         </div>
         {actions}
+      </div>
+      {/* The tab bar lives in the SHARED header so every page gets it from one
+          place. Adding it per page would guarantee that the twelfth page
+          someone writes is the one that forgets it. */}
+      <div className="mt-3">
+        <SurveillanceNav />
       </div>
     </section>
   );
