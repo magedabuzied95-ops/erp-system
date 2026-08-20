@@ -3444,6 +3444,187 @@ export const listProducts = async (req, res) => {
   }
 };
 
+// The listing sidebar used to build its own chips out of the 24 cards the API
+// had already paged down to, so every count described the page instead of the
+// section: /women showed "Black(2)" against 133 real cards, page 2 offered a
+// completely different size list, and picking a colour collapsed the colour
+// group to the one colour left on the page. Facets have to be counted over the
+// whole section, so they are computed here - once per section, not per page.
+//
+// Scope is deliberately only what the route itself pins (the search term and the
+// SEO category's own filters). The sidebar picks are left out on purpose: a
+// facet counted with its own group applied can only ever return the value
+// already selected, which is the trap that emptied the group.
+const STOREFRONT_FACET_CANDIDATE_LIMIT = 5000;
+
+const storefrontFacetScopeQuery = (query = {}) => {
+  const normalized = normalizeStorefrontProductsQuery(query);
+  return {
+    q: normalized.q,
+    audienceSearch: normalized.audienceSearch,
+    gender: normalized.gender,
+    productType: normalized.productType,
+    offerStory: normalized.offerStory,
+    saleOnly: normalized.saleOnly,
+    largeSizes: normalized.largeSizes,
+    inStock: normalized.inStock,
+  };
+};
+
+const storefrontFacetCacheQuery = (scope = {}) => ({
+  q: scope.q || "",
+  audience_search: scope.audienceSearch || "",
+  gender: scope.gender || "",
+  product_type: scope.productType || "",
+  offer_story: scope.offerStory ? 1 : 0,
+  sale: scope.saleOnly ? 1 : 0,
+  large_sizes: scope.largeSizes ? 1 : 0,
+  in_stock: scope.inStock ? 1 : 0,
+});
+
+// One bucket per distinct value, keyed on the normalized form the API filters on
+// so the chip that gets clicked and the row the SQL matches are the same thing.
+const createStorefrontFacetBucket = () => {
+  const buckets = new Map();
+  return {
+    add(value, key = "") {
+      const label = toText(value);
+      const bucketKey = toText(key) || storefrontColorFilterKey(label);
+      if (!label || !bucketKey) return;
+      const current = buckets.get(bucketKey);
+      if (current) {
+        current.count += 1;
+        return;
+      }
+      buckets.set(bucketKey, { value: bucketKey, label, count: 1 });
+    },
+    toArray() {
+      return [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ar", { numeric: true }));
+    },
+  };
+};
+
+const storefrontCardBrandLabel = (card = {}) =>
+  toText(card.brand) || toText(card.brand_name) || toText(card.product_brand) || toText(card.manufacturer_brand) || toText(card.manufacturer);
+
+const storefrontCardSizeLabels = (card = {}) => {
+  const sizes = Array.isArray(card.sizes) ? card.sizes : [];
+  if (sizes.length) return [...new Set(sizes.map(toText).filter(Boolean))];
+  const variants = Array.isArray(card.variants) ? card.variants : [];
+  return [...new Set(variants.filter((variant) => toNumber(variant?.stock) > 0).map((variant) => toText(variant?.size)).filter(Boolean))];
+};
+
+export const buildStorefrontProductFacets = (cards = []) => {
+  const audiences = new Map([["men", 0], ["women", 0], ["kids", 0]]);
+  const colors = createStorefrontFacetBucket();
+  const sizes = createStorefrontFacetBucket();
+  const brands = createStorefrontFacetBucket();
+  const grades = createStorefrontFacetBucket();
+  const productTypes = createStorefrontFacetBucket();
+  const categories = createStorefrontFacetBucket();
+  let minPrice = null;
+  let maxPrice = null;
+
+  for (const card of Array.isArray(cards) ? cards : []) {
+    for (const audience of normalizeProductAudiences(card.audiences, card.product_audiences, card.gender)) {
+      if (audiences.has(audience)) audiences.set(audience, audiences.get(audience) + 1);
+    }
+    // A card is one colour, so it contributes to exactly one colour bucket -
+    // counting every key a card carries would double-count multi-name colours.
+    const [colorKey] = storefrontCardColorKeys(card);
+    if (colorKey) colors.add(toText(card.display_color) || toText(card.color) || colorKey, colorKey);
+    for (const size of storefrontCardSizeLabels(card)) sizes.add(size, storefrontColorFilterKey(size));
+    const brand = storefrontCardBrandLabel(card);
+    if (brand) brands.add(brand, storefrontColorFilterKey(brand));
+    const grade = toText(card.grade);
+    if (grade) grades.add(grade, storefrontColorFilterKey(grade));
+    const productType = toText(card.product_type || card.productType);
+    if (productType) productTypes.add(productType, storefrontColorFilterKey(productType));
+    const category = toText(card.category);
+    if (category) categories.add(category, storefrontColorFilterKey(category));
+    const price = toNumber(card.final_price ?? card.price ?? card.selling_price);
+    if (price > 0) {
+      minPrice = minPrice === null ? price : Math.min(minPrice, price);
+      maxPrice = maxPrice === null ? price : Math.max(maxPrice, price);
+    }
+  }
+
+  return {
+    total: Array.isArray(cards) ? cards.length : 0,
+    audiences: [...audiences.entries()].map(([value, count]) => ({ value, label: value, count })),
+    colors: colors.toArray(),
+    sizes: sizes.toArray(),
+    brands: brands.toArray(),
+    grades: grades.toArray(),
+    product_types: productTypes.toArray(),
+    categories: categories.toArray(),
+    price: { min: minPrice === null ? 0 : minPrice, max: maxPrice === null ? 0 : maxPrice },
+  };
+};
+
+export const listProductFacets = async (req, res) => {
+  const startedAt = Date.now();
+  try {
+    // Same window as the listing payload it decorates, and the same
+    // storefront:tenant:* namespace, so a product save drops both together.
+    res.set("Cache-Control", "public, max-age=15, stale-while-revalidate=30");
+    await ensureStorefrontSchema();
+    await ensureProductVariantImagesSchema();
+    const tenantId = tenantFromRequest(req);
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const scope = storefrontFacetScopeQuery(req.query || {});
+    const payload = await getOrSetCache(
+      storefrontCacheKey(tenantId, "product-facets", storefrontFacetCacheQuery(scope)),
+      120,
+      async () => {
+        const genderAliases = await getClassificationFilterAliases("gender", scope.gender);
+        const gender = normalizeProductAudiences(genderAliases, scope.gender || scope.audienceSearch);
+        const effectiveInStock = resolveEffectiveStorefrontInStock({ inStock: scope.inStock, offerStory: scope.offerStory, size: "" });
+        const filters = {
+          brand: "",
+          gender,
+          productType: scope.productType,
+          grade: [],
+          quality: [],
+          sizes: [],
+          bagType: [],
+          size: "",
+          inStock: effectiveInStock,
+          offerStory: scope.offerStory,
+        };
+        let result = await queryProducts(tenantId, scope.q, "", filters, scope.saleOnly, STOREFRONT_FACET_CANDIDATE_LIMIT, 0);
+        if (!result.rows.length && tenantId !== null) {
+          const fallback = await queryProducts(null, scope.q, "", filters, scope.saleOnly, STOREFRONT_FACET_CANDIDATE_LIMIT, 0);
+          if (fallback.rows.length) result = fallback;
+        }
+        const products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
+        // Images are the one hydration step a facet never reads, and it is the
+        // expensive one - the chips only need colour, size, brand, grade, type
+        // and price. Classification scrubbing stays: a retired classification
+        // must not come back as a chip that matches nothing.
+        const scrubbed = await scrubInactiveClassifications(products);
+        const expanded = expandProductsToColorCards(scrubbed);
+        const cards = scope.largeSizes
+          ? expanded.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
+              const variantSize = Number(variant.size ?? variant.size_value);
+              return Number.isFinite(variantSize) && variantSize >= 47 && variantSize <= 50 && toNumber(variant.stock ?? variant.quantity) > 0;
+            }))
+          : expanded;
+        return { success: true, facets: buildStorefrontProductFacets(cards) };
+      }
+    );
+    if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.product-facets", { total_ms: Date.now() - startedAt, total: payload?.facets?.total ?? 0 });
+    res.json(payload);
+  } catch (error) {
+    console.error("[storefront/products/facets] failed", {
+      query: req.query || {},
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    res.status(500).json({ success: false, message: "Failed to load product facets" });
+  }
+};
+
 export const visualSearchProducts = async (req, res) => {
   const file = req.file;
   const tenantId = tenantFromRequest(req);

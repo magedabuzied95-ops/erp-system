@@ -623,6 +623,62 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
   return state;
 };
 
+// The sidebar chips used to be counted from whatever 24 cards the current page
+// happened to hold, so /women advertised "Black(2)" against 133 real cards, page
+// 2 offered a size list that shared nothing with page 1, and picking a colour
+// collapsed the colour group to the one colour left on the page. Counts now come
+// from the API over the whole section.
+//
+// The scope deliberately carries only what the route itself pins - never the
+// shopper's own picks. A group counted with its own selection applied can return
+// nothing but the value already chosen, which is what emptied the group.
+const STOREFRONT_FACETS_CACHE_TTL_MS = 5 * 60 * 1000;
+const buildStorefrontFacetsRequestUrl = (scope = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(scope || {}).forEach(([key, value]) => {
+    const safeKey = String(key || "").trim();
+    if (!safeKey || value === undefined || value === null || value === "" || value === false) return;
+    query.set(safeKey, value === true ? "1" : String(value));
+  });
+  const queryString = query.toString();
+  return `/storefront/products/facets${queryString ? `?${queryString}` : ""}`;
+};
+// The frontend ships on a push to main while the API waits on the VPS deploy, so
+// for that window the endpoint simply is not there. One 404 is enough to learn
+// that; asking again on every listing navigation only adds failed requests.
+// Only a 404 counts - a transient network error must not cost the whole session
+// its facets.
+let storefrontFacetsEndpointMissing = false;
+const useStorefrontProductFacets = (scope = {}) => {
+  const scopeKey = JSON.stringify(scope);
+  const requestUrl = useMemo(() => buildStorefrontFacetsRequestUrl(JSON.parse(scopeKey || "{}")), [scopeKey]);
+  const cachedFacetsData = getCachedStorefrontGetData(requestUrl, { ttlMs: STOREFRONT_FACETS_CACHE_TTL_MS });
+  const [state, setState] = useState(() => ({ facets: cachedFacetsData?.facets || null, loading: !cachedFacetsData, error: "" }));
+
+  useEffect(() => {
+    if (storefrontFacetsEndpointMissing) return undefined;
+    let cancelled = false;
+    cachedStorefrontGet(requestUrl, { ttlMs: STOREFRONT_FACETS_CACHE_TTL_MS })
+      .then((data) => {
+        if (cancelled) return;
+        setState({ facets: data?.facets || null, loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (Number(error?.status) === 404) storefrontFacetsEndpointMissing = true;
+        if (cancelled) return;
+        // A facet failure must never blank the sidebar. Leaving `facets` null
+        // drops the page back to the options it can still derive from the cards
+        // it already holds - narrower, but never empty.
+        setState({ facets: null, loading: false, error: error instanceof Error ? error.message : String(error || "") });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [requestUrl]);
+
+  return state;
+};
+
 const normalizeHomeProduct = (product = {}) => {
   const link = storefrontPathFromLink(product.link || product.product_url || product.url);
   const image = compactImageValue(
@@ -4370,6 +4426,15 @@ const productHasAvailableSize = (product = {}, size = "") => {
   );
 };
 
+const compareAvailableSizeOptions = (a, b) => {
+  if (isKnownCrocsSize(a.size) || isKnownCrocsSize(b.size)) {
+    return compareCrocsSizes(a.size, b.size);
+  }
+  const numericA = Number(a.size);
+  const numericB = Number(b.size);
+  if (Number.isFinite(numericA) && Number.isFinite(numericB)) return numericA - numericB;
+  return String(a.size).localeCompare(String(b.size), "ar", { numeric: true });
+};
 const buildAvailableSizeOptions = (products = []) => {
   const sizes = new Map();
   for (const product of Array.isArray(products) ? products : []) {
@@ -4385,15 +4450,29 @@ const buildAvailableSizeOptions = (products = []) => {
       sizes.set(size, current);
     }
   }
-  return Array.from(sizes.values()).sort((a, b) => {
-    if (isKnownCrocsSize(a.size) || isKnownCrocsSize(b.size)) {
-      return compareCrocsSizes(a.size, b.size);
-    }
-    const numericA = Number(a.size);
-    const numericB = Number(b.size);
-    if (Number.isFinite(numericA) && Number.isFinite(numericB)) return numericA - numericB;
-    return String(a.size).localeCompare(String(b.size), "ar", { numeric: true });
-  });
+  return Array.from(sizes.values()).sort(compareAvailableSizeOptions);
+};
+
+// Same shape and ordering as buildAvailableSizeOptions, but fed by the API's
+// section-wide size counts instead of the cards on the current page — a page-2
+// shopper used to get a size list that shared nothing with page 1. Crocs stays
+// the one exception: the chips are EU labels while inventory keeps the factory
+// marking, so those still fold client-side.
+const buildAvailableSizeOptionsFromFacets = (facetSizes = [], { crocs = false } = {}) => {
+  const sizes = new Map();
+  for (const entry of Array.isArray(facetSizes) ? facetSizes : []) {
+    const originalSize = String(entry?.label ?? entry?.value ?? "").trim();
+    const size = crocs ? resolveCrocsEuSize(originalSize) : originalSize;
+    if (!size) continue;
+    const count = Math.max(0, Number(entry?.count) || 0);
+    const current = sizes.get(size) || { size, available: false, stock: 0, productCount: 0 };
+    // The API only counts a size onto a card when that colour has it in stock,
+    // so anything that reaches here is available by construction.
+    current.available ||= count > 0;
+    current.productCount += count;
+    sizes.set(size, current);
+  }
+  return Array.from(sizes.values()).sort(compareAvailableSizeOptions);
 };
 
 function StepPill({ active, done, label }) {
@@ -11146,6 +11225,7 @@ export {
   StepPill,
   StorefrontPageFallback,
   buildAvailableSizeOptions,
+  buildAvailableSizeOptionsFromFacets,
   cleanDisplayText,
   classificationColor,
   classificationLabel,
@@ -11183,6 +11263,7 @@ export {
   uniqueClassificationOptions,
   useBodyScrollLock,
   useProducts,
+  useStorefrontProductFacets,
   prefetchStorefrontProducts,
   useStorefrontGenderClassifications,
   variantColorKey,

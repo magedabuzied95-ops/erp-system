@@ -18,6 +18,7 @@ import {
   listLastPieceProducts,
   listNotifications,
   listProducts,
+  listProductFacets,
   resolveProductLink,
   listShippingProviders,
   buildStorefrontHomeFromProducts,
@@ -593,6 +594,7 @@ router.get("/seo/category/:categoryKey", storefrontCategorySeoPageHandler);
 router.get("/products", listProducts);
 router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);
+router.get("/products/facets", listProductFacets);
 router.get("/products/search", searchProducts);
 router.post("/products/visual-search", visualUpload, visualSearchProducts);
 router.post("/image-search", visualUpload, imageSearchProducts);

@@ -15,6 +15,7 @@ import {
   SectionIntro,
   StepPill,
   buildAvailableSizeOptions,
+  buildAvailableSizeOptionsFromFacets,
   deferReactState,
   isLastPieceProduct,
   getProductTypeLabel,
@@ -32,6 +33,7 @@ import {
   sortStorefrontColorCardsByModel,
   useBodyScrollLock,
   useProducts,
+  useStorefrontProductFacets,
   prefetchStorefrontProducts,
   normalizeFilterKey,
 } from "../Storefront";
@@ -400,6 +402,28 @@ const buildFacetOptions = (products = [], valueGetter = () => [], selectedValue 
     .filter((option) => option.count > 0 || normalizeFilterKey(option.value) === selectedKey)
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ar", { numeric: true }));
 };
+// Taxonomy values and the values stored on a product drift on separators alone
+// (`mirror_original` vs `mirror-original`), and a miss there costs the option its
+// localized label.
+const normalizeClassificationFacetKey = (value = "") => normalizeFilterKey(value).replace(/[\s_-]+/g, "");
+// Turns one API facet group into the option shape the chips render. `keepValue`
+// guarantees the chip the shopper is standing on stays in its own group even
+// when the section-wide count no longer lists it.
+const facetOptionsFromEntries = (entries = [], keepValue = "") => {
+  const options = (Array.isArray(entries) ? entries : [])
+    .map((entry) => {
+      const value = normalizeFilterText(entry?.value ?? entry?.label ?? "");
+      if (!value) return null;
+      const count = Math.max(0, Number(entry?.count) || 0);
+      return { id: value, value, label: normalizeFilterText(entry?.label) || value, count, product_count: count };
+    })
+    .filter(Boolean);
+  const keepKey = normalizeFilterKey(keepValue);
+  if (keepKey && !options.some((option) => normalizeFilterKey(option.value) === keepKey)) {
+    options.push({ id: keepKey, value: keepKey, label: normalizeFilterText(keepValue) || keepKey, count: 0, product_count: 0 });
+  }
+  return options;
+};
 const countAudienceMatches = (products = [], optionValue = "") => {
   const target = normalizeStorefrontAudienceValue(optionValue);
   if (!target) return 0;
@@ -580,6 +604,22 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);
+  // Only what the route pins. Everything the shopper picks in the sidebar stays
+  // out on purpose: counting a group with its own selection applied can only
+  // return the value already chosen, which is what used to collapse the colour
+  // list to the single colour that was selected.
+  const facetScope = useMemo(
+    () => ({
+      q: backendSearchTerm,
+      gender: gender || "",
+      product_type: productType || "",
+      offer_story: saleView ? 1 : "",
+      large_sizes: seoCategory?.largeSizes ? 1 : "",
+      inStock: seoCategory?.apiFilters?.inStock ? 1 : "",
+    }),
+    [backendSearchTerm, gender, productType, saleView, seoCategory?.apiFilters?.inStock, seoCategory?.largeSizes]
+  );
+  const { facets } = useStorefrontProductFacets(facetScope);
   const filterBasePath = seoCategory?.path || (sale ? "/sale" : "/products");
   const activeFilterCount = [
     brand,
@@ -850,48 +890,108 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     () => (hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFilters, ["minPrice", "maxPrice"]) : catalogProducts),
     [catalogFilters, catalogProducts, hasActiveCatalogFilters]
   );
+  // Every group below reads the API's section-wide facets first and only falls
+  // back to the cards on this page when that request failed. The page-derived
+  // path is what described a 746-card section with 24 cards' worth of chips.
   const priceBounds = useMemo(() => {
+    const facetMin = Number(facets?.price?.min);
+    const facetMax = Number(facets?.price?.max);
+    if (Number.isFinite(facetMax) && facetMax > 0) {
+      return { min: Number.isFinite(facetMin) ? facetMin : 0, max: facetMax };
+    }
     const prices = filteredProductsForPrice.map((product) => productFacetPrice(product)).filter((price) => Number.isFinite(price) && price >= 0);
     if (!prices.length) return { min: "", max: "" };
     return { min: Math.min(...prices), max: Math.max(...prices) };
-  }, [filteredProductsForPrice]);
+  }, [facets, filteredProductsForPrice]);
   const genderOptions = useMemo(
-    () =>
-      storefrontGenderSwitchOptions.map((option) => {
-        const count = countAudienceMatches(filteredProductsForGender, option.value);
+    () => {
+      const facetCounts = new Map(
+        (facets?.audiences || []).map((entry) => [normalizeStorefrontAudienceValue(entry?.value), Math.max(0, Number(entry?.count) || 0)])
+      );
+      return storefrontGenderSwitchOptions.map((option) => {
+        const count = facets
+          ? facetCounts.get(normalizeStorefrontAudienceValue(option.value)) || 0
+          : countAudienceMatches(filteredProductsForGender, option.value);
         return { ...option, count, product_count: count };
-      }),
-    [filteredProductsForGender]
+      });
+    },
+    [facets, filteredProductsForGender]
   );
-  const categoryOptions = useMemo(() => buildFacetOptions(filteredProductsForCategory, productFacetCategoryValues, category), [category, filteredProductsForCategory]);
-  const brandOptions = useMemo(() => buildFacetOptions(filteredProductsForBrand, productFacetBrandValues, brand), [brand, filteredProductsForBrand]);
+  const categoryOptions = useMemo(
+    () => (facets ? facetOptionsFromEntries(facets.categories, category) : buildFacetOptions(filteredProductsForCategory, productFacetCategoryValues, category)),
+    [category, facets, filteredProductsForCategory]
+  );
+  const brandOptions = useMemo(
+    () => (facets ? facetOptionsFromEntries(facets.brands, brand) : buildFacetOptions(filteredProductsForBrand, productFacetBrandValues, brand)),
+    [brand, facets, filteredProductsForBrand]
+  );
   const gradeOptions = useMemo(() => {
     const options = uniqueClassificationOptions(classificationOptions.grade || []);
-    return options.map((option) => {
-    const normalizedValue = normalizeFilterKey(option.value);
-    const count = filteredProductsForGrade.reduce(
-      (total, product) => total + (productGradeValues(product).map(normalizeFilterKey).includes(normalizedValue) ? 1 : 0),
-      0
-    );
-    return { ...option, count, product_count: count };
-    });
-  }, [classificationOptions.grade, filteredProductsForGrade]);
-  const typeOptions = useMemo(() => {
-    const dynamicOptions = buildFacetOptions(
-      applyCatalogFilters(catalogProducts, catalogFilters, ["productType", "category"]),
-      productFacetCategoryValues,
-      productType
-    );
-    const baseOptions = uniqueClassificationOptions(classificationOptions.productType || []);
-    if (!dynamicOptions.length) return baseOptions;
-    const seen = new Set(dynamicOptions.map((option) => normalizeFilterKey(option.value)));
+    if (!facets) {
+      return options.map((option) => {
+        const normalizedValue = normalizeFilterKey(option.value);
+        const count = filteredProductsForGrade.reduce(
+          (total, product) => total + (productGradeValues(product).map(normalizeFilterKey).includes(normalizedValue) ? 1 : 0),
+          0
+        );
+        return { ...option, count, product_count: count };
+      });
+    }
+    const counts = new Map((facets.grades || []).map((entry) => [normalizeClassificationFacetKey(entry?.value), Math.max(0, Number(entry?.count) || 0)]));
+    const selectedKey = normalizeClassificationFacetKey(grade);
+    // The taxonomy keeps the label; the catalogue decides whether the chip earns
+    // a place. A grade with nothing behind it can only ever return an empty page.
+    const withCounts = options
+      .map((option) => {
+        const count = counts.get(normalizeClassificationFacetKey(option.value)) || 0;
+        return { ...option, count, product_count: count };
+      })
+      .filter((option) => option.count > 0 || normalizeClassificationFacetKey(option.value) === selectedKey);
+    const covered = new Set(withCounts.map((option) => normalizeClassificationFacetKey(option.value)));
     return uniqueClassificationOptions([
-      ...dynamicOptions,
-      ...baseOptions.filter((option) => !seen.has(normalizeFilterKey(option.value))),
+      ...withCounts,
+      ...facetOptionsFromEntries(facets.grades, grade).filter((option) => !covered.has(normalizeClassificationFacetKey(option.value))),
     ]);
-  }, [catalogFilters, catalogProducts, classificationOptions.productType, productType]);
-  const colorOptions = useMemo(() => buildFacetOptions(filteredProductsForColor, productFacetColorValues, color), [color, filteredProductsForColor]);
-  const availableSizes = useMemo(() => buildAvailableSizeOptions(filteredProductsForSizes), [filteredProductsForSizes]);
+  }, [classificationOptions.grade, facets, filteredProductsForGrade, grade]);
+  const typeOptions = useMemo(() => {
+    const baseOptions = uniqueClassificationOptions(classificationOptions.productType || []);
+    if (!facets) {
+      const dynamicOptions = buildFacetOptions(
+        applyCatalogFilters(catalogProducts, catalogFilters, ["productType", "category"]),
+        productFacetCategoryValues,
+        productType
+      );
+      if (!dynamicOptions.length) return baseOptions;
+      const seen = new Set(dynamicOptions.map((option) => normalizeFilterKey(option.value)));
+      return uniqueClassificationOptions([
+        ...dynamicOptions,
+        ...baseOptions.filter((option) => !seen.has(normalizeFilterKey(option.value))),
+      ]);
+    }
+    const counts = new Map((facets.product_types || []).map((entry) => [normalizeClassificationFacetKey(entry?.value), Math.max(0, Number(entry?.count) || 0)]));
+    const selectedKey = normalizeClassificationFacetKey(productType);
+    // "Winter Collection" was a taxonomy entry with no products behind it, so the
+    // chip took the customer straight to "No products found".
+    const withCounts = baseOptions
+      .map((option) => {
+        const count = counts.get(normalizeClassificationFacetKey(option.value)) || 0;
+        return { ...option, count, product_count: count };
+      })
+      .filter((option) => option.count > 0 || normalizeClassificationFacetKey(option.value) === selectedKey);
+    const covered = new Set(withCounts.map((option) => normalizeClassificationFacetKey(option.value)));
+    return uniqueClassificationOptions([
+      ...withCounts,
+      ...facetOptionsFromEntries(facets.product_types, productType).filter((option) => !covered.has(normalizeClassificationFacetKey(option.value))),
+    ]);
+  }, [catalogFilters, catalogProducts, classificationOptions.productType, facets, productType]);
+  const colorOptions = useMemo(
+    () => (facets ? facetOptionsFromEntries(facets.colors, color) : buildFacetOptions(filteredProductsForColor, productFacetColorValues, color)),
+    [color, facets, filteredProductsForColor]
+  );
+  const availableSizes = useMemo(
+    () => (facets ? buildAvailableSizeOptionsFromFacets(facets.sizes, { crocs: isCrocsListing }) : buildAvailableSizeOptions(filteredProductsForSizes)),
+    [facets, filteredProductsForSizes, isCrocsListing]
+  );
   const hasSalesData = useMemo(
     () =>
       catalogProducts.some((product) =>
