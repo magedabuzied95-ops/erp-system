@@ -43,6 +43,41 @@ test("both inbox mappers count a chat-preview-unread conversation as unread", ()
   assert.equal((agentSource.match(/conversation\.unread_from_chat_preview === true/g) || []).length, 2);
 });
 
+test("the read filter runs in SQL, over every conversation and not over the fetched page", () => {
+  // The list is capped per channel (150 on WhatsApp against ~700 threads), so filtering
+  // read state on the client made "unread" mean "unread among the newest 150".
+  const routeSource = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  assert.match(routeSource, /readFilter: String\(req\.query\?\.read_filter \|\| ""\)/);
+  assert.match(inboxSource, /read_filter: readFilter,/);
+  assert.match(agentSource, /readFilterClauseSql\(readFilter, "m\.latest_message_created_at"\)/);
+  assert.match(agentSource, /readFilterClauseSql\(readFilter, "m\.created_at"\)/);
+  // A refetch has to follow the chip, or the filter would apply to a stale page.
+  assert.match(inboxSource, /\}, \[channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId\]\);/);
+});
+
+test("the default list view keeps its exact WHERE clause", () => {
+  // An empty read filter must contribute nothing: the unfiltered path is the hot one and
+  // the unread predicate is a per-row correlated subquery.
+  const helpers = agentSource.slice(
+    agentSource.indexOf("const unreadCustomerMessageCountSql ="),
+    agentSource.indexOf("export const loadAiInbox = async")
+  );
+  const build = new Function("lower", `let out={};${helpers}out.clause=readFilterClauseSql;return out;`);
+  const { clause } = build((value) => String(value || "").toLowerCase());
+  assert.equal(clause("all", "m.created_at"), "");
+  assert.equal(clause("", "m.created_at"), "");
+  assert.ok(clause("unread", "m.created_at").startsWith("COALESCE(("));
+  assert.ok(clause("read", "m.created_at").startsWith("NOT COALESCE(("));
+  assert.match(agentSource, /\[\.\.\.clauses, readFilterClauseSql\([^)]+\)\]\.filter\(Boolean\)\.join\(" AND "\)/);
+});
+
+test("a read-filtered page is never written to or served from the channel cache", () => {
+  // The cache entry means "the newest N of this channel"; a filtered slice stored under
+  // that key would render as the whole channel on the next warm open.
+  assert.match(inboxSource, /const listCacheEnabled = !reviewerMode && readFilter === "all";/);
+  assert.match(inboxSource, /if \(listCacheEnabled\) inboxCache\.saveList\(channelPages\[index\], backendChannel\);/);
+});
+
 test("the empty conversation list names the filter that emptied it", () => {
   assert.match(inboxSource, /if \(readFilter === "unread"\) return t\("aiSupport\.inbox\.ui\.emptyUnread"\);/);
   assert.match(inboxSource, /<EmptyBlock text=\{emptyConversationsText\} \/>/);

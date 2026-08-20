@@ -2171,6 +2171,33 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
   }
 };
 
+// How many customer messages are still waiting for a human. Shared by the SELECT list
+// of both inbox queries and by the server-side read filter, so the number the card shows
+// and the set the filter returns can never drift apart.
+const unreadCustomerMessageCountSql = `      (
+        SELECT COUNT(*)::int
+        FROM ai_support_messages unread_msg
+        WHERE unread_msg.tenant_id = s.tenant_id
+          AND unread_msg.session_id = s.session_id
+          AND unread_msg.sender_type = 'customer'
+          AND unread_msg.created_at > GREATEST(
+            COALESCE(c.read_at, TIMESTAMP 'epoch'),
+            COALESCE(s.read_at, TIMESTAMP 'epoch'),
+            COALESCE((
+              SELECT MAX(staff_msg.created_at)
+              FROM ai_support_messages staff_msg
+              WHERE staff_msg.tenant_id = s.tenant_id
+                AND staff_msg.session_id = s.session_id
+                AND staff_msg.sender_type = 'staff'
+                -- Human replies only: an AI auto-reply (manual_message = false,
+                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
+                -- A thread the AI answered stays unread until a human opens it
+                -- (read_at) or replies manually.
+                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
+            ), TIMESTAMP 'epoch')
+          )
+      )`.trim();
+
 // Unread for a conversation the inbox knows only from the channel's chat list.
 //
 // The Evolution recovery builds the session + channel conversation from the WhatsApp
@@ -2183,7 +2210,7 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
 // path applies, just sourced from the chat preview. `last_message_from_me` must be
 // present and false: a conversation that predates the flag is left to the message path
 // rather than flipped to unread on a guess.
-const unreadFromChatPreviewSql = (latestMessageCreatedAt) => `
+const unreadFromChatPreviewExpr = (latestMessageCreatedAt) => `
       (
         COALESCE(c.metadata->>'last_message_from_me', '') = 'false'
         AND COALESCE(NULLIF(c.last_message, ''), NULLIF(s.last_message, ''), '') <> ''
@@ -2202,9 +2229,30 @@ const unreadFromChatPreviewSql = (latestMessageCreatedAt) => `
           COALESCE(c.read_at, TIMESTAMP 'epoch'),
           COALESCE(s.read_at, TIMESTAMP 'epoch')
         )
-      ) AS unread_from_chat_preview`;
+      )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
+const unreadFromChatPreviewSql = (latestMessageCreatedAt) =>
+  `${unreadFromChatPreviewExpr(latestMessageCreatedAt)} AS unread_from_chat_preview`;
+
+// The read filter has to run in SQL, not over the page the client already holds.
+//
+// The list is capped at the newest N conversations per channel — 150 on WhatsApp against
+// ~700 threads — so a conversation that has been quiet for a while never reaches the
+// browser at all. Filtering it there made "unread" mean "unread among the 150 most recent",
+// and a real queue of 40 waiting customers rendered as an empty list. Applied here the
+// filter runs over every conversation and the cap then keeps the newest N *of the queue*.
+const readFilterClauseSql = (readFilter, latestMessageCreatedAt) => {
+  const normalized = lower(readFilter || "");
+  if (normalized !== "unread" && normalized !== "read") return "";
+  const unread = `COALESCE((
+      COALESCE(c.manually_unread, s.manually_unread, FALSE) = TRUE
+      OR ${unreadCustomerMessageCountSql} > 0
+      OR ${unreadFromChatPreviewExpr(latestMessageCreatedAt)}
+    ), FALSE)`;
+  return normalized === "unread" ? unread : `NOT ${unread}`;
+};
+
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "" } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2344,29 +2392,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
       COALESCE(c.manually_unread, s.manually_unread, FALSE) AS manually_unread,
-      (
-        SELECT COUNT(*)::int
-        FROM ai_support_messages unread_msg
-        WHERE unread_msg.tenant_id = s.tenant_id
-          AND unread_msg.session_id = s.session_id
-          AND unread_msg.sender_type = 'customer'
-          AND unread_msg.created_at > GREATEST(
-            COALESCE(c.read_at, TIMESTAMP 'epoch'),
-            COALESCE(s.read_at, TIMESTAMP 'epoch'),
-            COALESCE((
-              SELECT MAX(staff_msg.created_at)
-              FROM ai_support_messages staff_msg
-              WHERE staff_msg.tenant_id = s.tenant_id
-                AND staff_msg.session_id = s.session_id
-                AND staff_msg.sender_type = 'staff'
-                -- Human replies only: an AI auto-reply (manual_message = false,
-                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
-                -- A thread the AI answered stays unread until a human opens it
-                -- (read_at) or replies manually.
-                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
-            ), TIMESTAMP 'epoch')
-          )
-      ) AS unread_count,
+      ${unreadCustomerMessageCountSql} AS unread_count,
       ${unreadFromChatPreviewSql("m.latest_message_created_at")},
       m.latest_message_id,
       m.latest_message_customer_name,
@@ -2462,7 +2488,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ORDER BY comment_msg.created_at DESC, comment_msg.id DESC
       LIMIT 1
     ) cm ON TRUE
-    WHERE ${clauses.join(" AND ")}
+    WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
@@ -2790,29 +2816,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       COALESCE(m.created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
       COALESCE(c.manually_unread, s.manually_unread, FALSE) AS manually_unread,
-      (
-        SELECT COUNT(*)::int
-        FROM ai_support_messages unread_msg
-        WHERE unread_msg.tenant_id = s.tenant_id
-          AND unread_msg.session_id = s.session_id
-          AND unread_msg.sender_type = 'customer'
-          AND unread_msg.created_at > GREATEST(
-            COALESCE(c.read_at, TIMESTAMP 'epoch'),
-            COALESCE(s.read_at, TIMESTAMP 'epoch'),
-            COALESCE((
-              SELECT MAX(staff_msg.created_at)
-              FROM ai_support_messages staff_msg
-              WHERE staff_msg.tenant_id = s.tenant_id
-                AND staff_msg.session_id = s.session_id
-                AND staff_msg.sender_type = 'staff'
-                -- Human replies only: an AI auto-reply (manual_message = false,
-                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
-                -- A thread the AI answered stays unread until a human opens it
-                -- (read_at) or replies manually.
-                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
-            ), TIMESTAMP 'epoch')
-          )
-      ) AS unread_count,
+      ${unreadCustomerMessageCountSql} AS unread_count,
       ${unreadFromChatPreviewSql("m.created_at")},
       e.last_webhook_event_at,
       e.last_webhook_status,
@@ -2889,7 +2893,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       WHERE tenant_id = $1
       GROUP BY session_id
     ) f ON f.session_id = s.session_id
-    WHERE ${clauses.join(" AND ")}
+    WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
       COALESCE(m.created_at, c.last_message_at, s.updated_at) DESC,

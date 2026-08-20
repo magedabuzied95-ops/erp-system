@@ -5768,9 +5768,14 @@ export default function AiInbox({ reviewerMode = false }) {
     // giant unscoped "all" blob — a merged blob would re-introduce exactly the
     // starvation we are fixing as soon as it got clipped by the row cap. Also
     // reused as the per-channel fallback if a channel request fails below.
-    const cachedPages = reviewerMode
-      ? warmChannels.map(() => [])
-      : await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])));
+    // The cache holds one page per channel: "the newest N of this channel", unfiltered.
+    // A read-filtered request returns a different set entirely, so it must neither be
+    // served from that cache nor written back into it — either way the next warm "All"
+    // open would render a filtered slice as if it were the whole channel.
+    const listCacheEnabled = !reviewerMode && readFilter === "all";
+    const cachedPages = listCacheEnabled
+      ? await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])))
+      : warmChannels.map(() => []);
     if (!silent) {
       // Warm start (stale-while-revalidate): render cached conversation summaries
       // immediately and skip the blocking spinner while the channels revalidate.
@@ -5816,6 +5821,10 @@ export default function AiInbox({ reviewerMode = false }) {
           channel_filter: backendChannel,
           search: debouncedSearch || deepLinkConversationId,
           limit: channelWindow(backendChannel),
+          // Read state is filtered in SQL, not over this page: the window below is the
+          // newest N per channel, so a quiet unread conversation never arrives and the
+          // client-side filter can only ever report "nothing unread".
+          read_filter: readFilter,
         },
         headers,
         perfComponent: `AiInbox.conversations.${backendChannel}`,
@@ -5881,7 +5890,7 @@ export default function AiInbox({ reviewerMode = false }) {
       // failure is not rewritten: that would just echo stale data back.
       requestedChannels.forEach((backendChannel, index) => {
         if (failedChannels.includes(backendChannel)) return;
-        if (!reviewerMode) inboxCache.saveList(channelPages[index], backendChannel);
+        if (listCacheEnabled) inboxCache.saveList(channelPages[index], backendChannel);
       });
       const deepLinkedConversation = findDeepLinkedConversation(
         nextConversations,
@@ -6027,7 +6036,7 @@ export default function AiInbox({ reviewerMode = false }) {
         }
       }
     }
-  }, [channelFilter, debouncedSearch, filter, headers, reviewerMode, tenantId]);
+  }, [channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId]);
 
   // Shared inboxCache housekeeping: expiry sweep on mount, and wipe on logout /
   // user switch so one account's cached inbox is never shown to the next.

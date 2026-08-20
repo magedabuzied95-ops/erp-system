@@ -2654,6 +2654,9 @@ router.get("/conversations", protect, permit("settings", "view"), async (req, re
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
       summaryOnly: true,
+      // all | unread | read. Applied in SQL: the row cap below would otherwise decide
+      // the queue for us — see readFilterClauseSql.
+      readFilter: String(req.query?.read_filter || ""),
     });
     scheduleMissingWhatsappProfileSync({ tenantId, conversations: inbox.conversations });
     return res.json({ success: true, ...inbox });
