@@ -591,6 +591,8 @@ const { default: employeePortalRoutes } = await import("./routes/employeePortal.
 const { default: managerPortalRoutes } = await import("./routes/managerPortal.js");
 const { default: adminStaffTasksRoutes } = await import("./routes/adminStaffTasks.js");
 const { default: settingsRoutes } = await import("./routes/settings.js");
+const { default: invoiceTemplateRoutes, publicInvoiceTemplateRouter } = await import("./routes/invoiceTemplates.js");
+const { ensureInvoiceTemplateSchema } = await import("./services/invoiceTemplateService.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
 const { default: whatsappDebugRoutes } = await import("./routes/whatsappDebug.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
@@ -1770,6 +1772,7 @@ app.use("/api/orders", ordersRoutes);
 app.use("/api/pos", posRoutes);
 app.use("/api/paymob", paymobRoutes);
 app.use("/api/public/invoices", publicInvoiceRoutes);
+app.use("/api/public/invoice-template", publicInvoiceTemplateRouter);
 app.use("/api/public/order-confirmation", publicOrderConfirmationRoutes);
 app.use("/api/public/address-request", publicAddressRequestRoutes);
 app.use("/api/public/products", publicProductsRoutes);
@@ -1870,6 +1873,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/roles", rolesRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/invoice-templates", invoiceTemplateRoutes);
 app.use("/api/whatsapp", whatsappGatewayRoutes);
 app.use("/api/debug/whatsapp", whatsappDebugRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);
@@ -2352,6 +2356,11 @@ const bootstrapStartup = async () => {
     await ensureBranchSchema();
     await ensureSingleBranchModeOnce();
     console.log("[server] single branch mode ensured");
+    // Invoice templates reference tenants, users and branches, so this has to come
+    // after the three above. Table creation only — no backfill, and no tenant is
+    // seeded a template: zero rows means every invoice keeps rendering as it does now.
+    await ensureInvoiceTemplateSchema(db);
+    console.log("[server] invoice templates schema ensured");
     await ensureProductSchema();
     console.log("[server] product schema ensured");
     await ensureAiWorkflowSchema(db);
