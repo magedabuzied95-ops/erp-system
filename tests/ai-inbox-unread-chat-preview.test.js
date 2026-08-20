@@ -14,6 +14,14 @@ test("the Evolution chat recovery records who wrote the last message", () => {
   assert.match(gatewaySource, /last_message text, last_message_from_me boolean, last_message_at text/);
 });
 
+test("recovered outbound messages never claim a human reviewed the thread", () => {
+  // Recovery cannot tell a phone-typed reply from one of our own automated sends, and
+  // manual_message = TRUE is what the unread rule reads as "a human already replied".
+  const insert = gatewaySource.slice(gatewaySource.indexOf("INSERT INTO ai_support_messages"));
+  assert.match(insert.slice(0, 1400), /CASE WHEN r\.from_me THEN 'staff' ELSE 'customer' END,[\s\S]{0,600}?\n\s*FALSE,/);
+  assert.doesNotMatch(insert.slice(0, 1400), /END,\s*\n\s*r\.from_me,/);
+});
+
 test("both inbox queries expose unread for a conversation with no imported messages", () => {
   const selections = agentSource.match(/\$\{unreadFromChatPreviewSql\("[^"]+"\)\}/g) || [];
   assert.equal(selections.length, 2, "summary and full inbox queries must both select it");

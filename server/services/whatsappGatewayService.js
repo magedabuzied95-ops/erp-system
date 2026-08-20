@@ -435,7 +435,13 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
            CASE WHEN r.from_me THEN '' ELSE r.message_text END,
            CASE WHEN r.from_me THEN r.message_text ELSE '' END,
            CASE WHEN r.from_me THEN 'staff' ELSE 'customer' END,
-           r.from_me,
+           -- NOT manual_message, even though this row is outbound. Recovery cannot tell a
+           -- human typing on the phone from one of our own automated sends (an invoice, an
+           -- AI reply the provider id never matched), and manual_message = TRUE is what the
+           -- inbox reads as "a human already reviewed this thread" — it would silently mark
+           -- the conversation read. Opening the thread in the ERP (read_at) is the review
+           -- signal; source_path keeps these rows identifiable. See loadAiInbox.
+           FALSE,
            CASE WHEN r.from_me THEN r.message_text ELSE '' END,
            r.provider_message_id, r.provider_message_id,
            'evolution-history:' || $3::text || ':' || r.provider_message_id,
