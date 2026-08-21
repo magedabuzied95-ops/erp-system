@@ -23,6 +23,12 @@ import {
   completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
+import {
+  noteGraphResponse,
+  noteGraphRateLimitError,
+  shouldDeferBackgroundGraphWork,
+  getMetaGraphBudgetSnapshot,
+} from "./metaGraphRateLimiter.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "./inboundMediaService.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
@@ -2473,6 +2479,14 @@ const metaSendPayloadType = ({ messageText = "", attachments = [], productCards 
   return "unknown";
 };
 
+// Every Graph failure passes through here so the shared governor learns about a
+// rate limit the moment it happens, wherever it happens. Returns the error so it
+// can be thrown inline; non-rate-limit errors travel through untouched.
+const metaGraphFailure = (error) => {
+  noteGraphRateLimitError(error);
+  return error;
+};
+
 const callMetaGet = async ({ endpoint, token, params = {} }) => {
   const target = new URL(`${GRAPH_BASE_URL}${endpoint}`);
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -2481,13 +2495,14 @@ const callMetaGet = async ({ endpoint, token, params = {} }) => {
   });
   if (text(token)) target.searchParams.set("access_token", token);
   const response = await fetch(target);
+  noteGraphResponse(response);
   const payload = await parseMetaPayload(response);
   if (!response.ok) {
-    throw Object.assign(new Error(metaErrorMessage(payload)), {
+    throw metaGraphFailure(Object.assign(new Error(metaErrorMessage(payload)), {
       status: response.status,
       meta: payload?.error || payload,
       metaResponse: payload,
-    });
+    }));
   }
   return payload;
 };
@@ -2523,13 +2538,14 @@ const callInstagramGraph = async ({ endpoint, token, params = {}, method = "GET"
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? json(body) : undefined,
   });
+  noteGraphResponse(response);
   const payload = await parseMetaPayload(response);
   if (!response.ok) {
-    throw Object.assign(new Error(metaErrorMessage(payload, "Instagram Graph API request failed")), {
+    throw metaGraphFailure(Object.assign(new Error(metaErrorMessage(payload, "Instagram Graph API request failed")), {
       status: response.status,
       meta: payload?.error || payload,
       metaResponse: payload,
-    });
+    }));
   }
   return payload;
 };
@@ -4241,12 +4257,13 @@ const callMetaPost = async ({ endpoint, token, body = {} }) => {
     headers: { "Content-Type": "application/json" },
     body: json(body),
   });
+  noteGraphResponse(response);
   const payload = await parseMetaPayload(response);
   if (!response.ok) {
-    throw Object.assign(new Error(metaErrorMessage(payload)), {
+    throw metaGraphFailure(Object.assign(new Error(metaErrorMessage(payload)), {
       status: response.status,
       meta: payload?.error || payload,
-    });
+    }));
   }
   return payload;
 };
@@ -4263,12 +4280,13 @@ const callMetaPostForm = async ({ endpoint, token, body = {} }) => {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form,
   });
+  noteGraphResponse(response);
   const payload = await parseMetaPayload(response);
   if (!response.ok) {
-    throw Object.assign(new Error(metaErrorMessage(payload)), {
+    throw metaGraphFailure(Object.assign(new Error(metaErrorMessage(payload)), {
       status: response.status,
       meta: payload?.error || payload,
-    });
+    }));
   }
   return payload;
 };
@@ -8143,6 +8161,32 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
       skipped: 0,
     };
   }
+  // This scan is the app's heaviest Graph consumer: it runs every minute and
+  // spends two calls per post plus one per unseen comment. When the shared budget
+  // is already under pressure it yields, so the calls that are left go to
+  // publishing and to replies rather than to re-reading a feed that will still be
+  // there next cycle. `force` is an operator asking for it explicitly.
+  const budgetDecision = force ? { defer: false } : shouldDeferBackgroundGraphWork();
+  if (budgetDecision.defer) {
+    console.warn("META_POLL_SKIPPED_GRAPH_BUDGET", {
+      tenant_id: numberOrNull(tenantId),
+      source,
+      reason: budgetDecision.reason,
+      retry_after_ms: budgetDecision.retry_after_ms,
+      pressure: budgetDecision.pressure,
+      budget: getMetaGraphBudgetSnapshot(),
+    });
+    return {
+      posts_checked: 0,
+      comments_seen: 0,
+      comments_saved: 0,
+      duplicates: 0,
+      errors: 0,
+      skipped: 1,
+      deferred_reason: budgetDecision.reason,
+    };
+  }
+
   const configs = await loadMetaCommentPollingConfigs({ tenantId });
   const totals = {
     posts_checked: 0,
@@ -8238,6 +8282,20 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
       });
 
       for (const post of posts) {
+        // A limit hit on post 30 of 100 used to keep the loop grinding through the
+        // remaining 70, spending the whole recovery window re-triggering it.
+        const midScanBudget = shouldDeferBackgroundGraphWork();
+        if (midScanBudget.defer) {
+          console.warn("META_POLL_ABORTED_GRAPH_BUDGET", {
+            tenant_id: safeTenantId,
+            page_id: pageId,
+            source,
+            reason: midScanBudget.reason,
+            posts_scanned: totals.posts_checked,
+            retry_after_ms: midScanBudget.retry_after_ms,
+          });
+          break;
+        }
         debugSocialCommentsLog("META_COMMENTS_POLL_POST_SCAN", {
           tenant_id: safeTenantId,
           page_id: pageId,
@@ -22544,12 +22602,13 @@ export const sendMessengerInboxReaction = async ({
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form,
   });
+  noteGraphResponse(response);
   const result = await parseMetaPayload(response);
   if (!response.ok) {
-    throw Object.assign(new Error(metaErrorMessage(result)), {
+    throw metaGraphFailure(Object.assign(new Error(metaErrorMessage(result)), {
       status: response.status,
       meta: result?.error || result,
-    });
+    }));
   }
   return { result, emoji: reaction, message_id: safeMessageId };
 };

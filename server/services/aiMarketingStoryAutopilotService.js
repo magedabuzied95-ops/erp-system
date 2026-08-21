@@ -538,7 +538,12 @@ const eligibleStoryItems = async (tenantId, config, now, { limit = 5 } = {}) => 
   const clauses = [
     "q.tenant_id = $1::bigint",
     "q.content_type = 'story'",
-    "q.status IN ('ready', 'generated', 'scheduled')",
+    // `publish_failed` belongs here: a publish that lost to a transient Meta
+    // answer — a rate limit, a 5xx — is exactly what `max_retries` and
+    // `retry_backoff_minutes` below were written for. Without it those two
+    // settings were dead config, every failure needed a human to click retry, and
+    // the queue quietly filled with stories that would never go out.
+    "q.status IN ('ready', 'generated', 'scheduled', 'publish_failed')",
     "COALESCE(q.publish_status, '') NOT IN ('published', 'publishing', 'queued_publish')",
   ];
 

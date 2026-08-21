@@ -5,6 +5,12 @@ import process from "node:process";
 import crypto from "node:crypto";
 import { validateMetaToken } from "./metaTokenService.js";
 import { getStoryImageMetadata, isGeneratedStoryImageUrl } from "./storyImageService.js";
+import {
+  isGraphRateLimitError,
+  noteGraphResponse,
+  runGraphRequest,
+  getMetaGraphBudgetSnapshot,
+} from "./metaGraphRateLimiter.js";
 
 const trimString = (value) => String(value || "").trim();
 const trimSlashes = (value = "") => String(value).replace(/^\/+|\/+$/g, "");
@@ -177,28 +183,44 @@ const assertGeneratedStoryAsset = async ({ story, platform, candidate }) => {
 const getPageId = (settings = {}) => trimString(settings.facebook_page_id || settings.page_id);
 const getInstagramAccountId = (settings = {}) => trimString(settings.instagram_account_id);
 
+// Every story call goes through the shared Graph governor. A publish is the one
+// Meta call an owner is actually watching, so it runs in the priority lane and
+// retries a rate-limit answer instead of reporting `(#4) Application request limit
+// reached` straight back to the queue card.
+const STORY_RATE_LIMIT_RETRIES = Math.max(0, Number(process.env.META_STORY_RATE_LIMIT_RETRIES || 2) || 0);
+
 const callMeta = async ({ endpoint, params, mode, imageUrl }) => {
   const target = `${GRAPH_API_BASE_URL}${endpoint}`;
-  console.log("[story-meta] request", { target, mode, image_url: imageUrl || null });
-  const response = await fetch(target, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(params),
+  return runGraphRequest({
+    lane: "publish",
+    label: mode || endpoint,
+    retries: STORY_RATE_LIMIT_RETRIES,
+    run: async (attempt) => {
+      console.log("[story-meta] request", { target, mode, image_url: imageUrl || null, attempt });
+      const response = await fetch(target, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(params),
+      });
+      noteGraphResponse(response);
+      const payload = await parseMetaResponse(response);
+      if (response.ok) {
+        console.log("[story-meta] response", { target, status: response.status, response: payload });
+        return payload;
+      }
+      console.error("[story-meta] error", { target, status: response.status, response: payload });
+      const error = new Error(getMetaErrorMessage(payload));
+      error.status = response.status;
+      error.metaResponse = payload;
+      error.meta = payload?.error || payload;
+      throw error;
+    },
   });
-  const payload = await parseMetaResponse(response);
-  if (response.ok) {
-    console.log("[story-meta] response", { target, status: response.status, response: payload });
-    return payload;
-  }
-  console.error("[story-meta] error", { target, status: response.status, response: payload });
-  const error = new Error(getMetaErrorMessage(payload));
-  error.status = response.status;
-  error.metaResponse = payload;
-  throw error;
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const INSTAGRAM_SLIDE_DELAY_MS = 1200;
+const FACEBOOK_SLIDE_DELAY_MS = Math.max(0, Number(process.env.META_FACEBOOK_SLIDE_DELAY_MS || 1200) || 0);
 
 const instagramCompatibleImageUrl = (value = "") => {
   const source = trimString(value);
@@ -230,6 +252,9 @@ const assertInstagramImageIsFetchable = async (imageUrl = "") => {
 };
 
 const isRetryableInstagramContainerError = (error) => {
+  // A rate limit has already been retried and backed off inside the governor; a
+  // second loop on top of that just spends the recovery window re-triggering it.
+  if (isGraphRateLimitError(error)) return false;
   const message = `${error?.message || ""} ${JSON.stringify(error?.metaResponse || {})}`.toLowerCase();
   return Number(error?.status || 0) === 429 || Number(error?.status || 0) >= 500 ||
     ["fetch failed", "only photo or video", "temporarily unavailable", "please try again"].some((token) => message.includes(token));
@@ -241,6 +266,17 @@ const storyLinkMetadata = (story = {}) => ({
 });
 
 const result = ({ status, id = null, error = null, story = {} }) => ({ status, platform_story_id: id, id, error, ...storyLinkMetadata(story) });
+
+// `(#4) Application request limit reached` tells the owner nothing about what to
+// do next. Name the cause and the recovery window so the queue card is readable.
+const describePublishError = (error) => {
+  const message = trimString(error?.message) || "Story publish failed";
+  if (!isGraphRateLimitError(error)) return message;
+  const snapshot = getMetaGraphBudgetSnapshot();
+  const minutes = Math.ceil(snapshot.breaker_ms_remaining / 60000);
+  const waitHint = minutes > 0 ? ` سيُعاد النشر تلقائيًا بعد حوالي ${minutes} دقيقة.` : "";
+  return `${message} — تم استهلاك حد طلبات تطبيق ميتا مؤقتًا (${Math.round(snapshot.pressure)}% من الحصة).${waitHint}`;
+};
 
 const isUnsupportedFacebookCtaError = (error) => {
   const text = `${error?.message || ""} ${JSON.stringify(error?.metaResponse || {})}`.toLowerCase();
@@ -327,7 +363,7 @@ export const publishInstagramStory = async ({ story, settings, accessToken }) =>
     return publishId ? result({ status: "published", id: publishId, story }) : result({ status: "failed", error: "Instagram Story publish response did not include id.", story });
   } catch (error) {
     console.error("[story-instagram] error", { error: error?.message, response: error?.metaResponse || null });
-    return result({ status: "failed", error: error?.message || "Instagram Story publish failed", story });
+    return result({ status: "failed", error: describePublishError(error) || "Instagram Story publish failed", story });
   }
 };
 
@@ -399,7 +435,7 @@ export const publishFacebookStory = async ({ story, settings, accessToken }) => 
       : result({ status: "failed", error: "Facebook Story publish response did not include id.", story });
   } catch (error) {
     console.error("[story-facebook] response/error", { error: error?.message, response: error?.metaResponse || null, ...linkMetadata });
-    return result({ status: "failed", error: error?.message || "Facebook Story publish failed", story });
+    return result({ status: "failed", error: describePublishError(error) || "Facebook Story publish failed", story });
   }
 };
 
@@ -534,13 +570,36 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {}, previo
     instagram = aggregatePlatformSlideResults("Instagram", instagramSlides);
   }
 
-  const facebook = !wantsPlatform("facebook")
-    ? skipped("Facebook")
-    : previousFacebook.status === "published"
-      ? { ...previousFacebook, reused: true }
-      : aggregatePlatformSlideResults("Facebook", await Promise.all(
-          publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))
-        ));
+  let facebook;
+  if (!wantsPlatform("facebook")) {
+    facebook = skipped("Facebook");
+  } else if (previousFacebook.status === "published") {
+    facebook = { ...previousFacebook, reused: true };
+  } else {
+    // Facebook slides publish one at a time, exactly like Instagram above. Each
+    // slide costs two Graph calls (unpublished photo upload + photo_stories), so
+    // a `Promise.all` over a five-slide story fired ten simultaneous requests and
+    // spent the app budget in one burst — which is how a whole card came back as
+    // `(#4) Application request limit reached` repeated once per slide.
+    const previousSlides = Array.isArray(previousFacebook.slide_results) ? previousFacebook.slide_results : [];
+    const facebookSlides = [];
+    for (const [index, candidate] of publishCandidates.entries()) {
+      const previousSlide = previousSlides[index];
+      // A retry must not republish a slide that already went out, or the page ends
+      // up with duplicate stories and the retry pays for them twice.
+      if (previousSlide?.status === "published") {
+        facebookSlides.push({ ...previousSlide, reused: true });
+        continue;
+      }
+      facebookSlides.push(await publishFacebookStory({
+        story: storyForCandidate(story, candidate),
+        settings,
+        accessToken,
+      }));
+      if (index < publishCandidates.length - 1) await delay(FACEBOOK_SLIDE_DELAY_MS);
+    }
+    facebook = aggregatePlatformSlideResults("Facebook", facebookSlides);
+  }
   const whatsapp = previousResults?.whatsapp?.status === "skipped"
     ? { ...previousResults.whatsapp, reused: true }
     : await publishWhatsAppStory();
