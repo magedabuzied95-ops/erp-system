@@ -85,6 +85,12 @@ export const MODULES = [
   { key: "attendance", label: "Attendance" },
   { key: "marketing", label: "Marketing" },
   { key: "notifications", label: "Notifications" },
+  // AI Inbox. Reading customer conversations and replying as the business are
+  // split: `view` opens the inbox, `reply` is what actually sends a WhatsApp or
+  // Messenger message, takes a conversation over, or opens an order from it.
+  // Both used to be `settings`, which meant every settings administrator could
+  // message customers — see the gate comment in server/routes/aiAgentOrders.js.
+  { key: "ai_inbox_messenger", label: "AI Inbox" },
   { key: "staff_tasks", label: "Staff Tasks" },
   { key: "website", label: "Website" },
   { key: "employees", label: "Employees" },
@@ -126,6 +132,7 @@ export const MODULE_ACTIONS = Object.freeze({
   attendance: ["view", "create", "edit", "delete", "export"],
   marketing: ["view", "create", "update", "delete", "publish", "settings"],
   notifications: ["view", "manage"],
+  ai_inbox_messenger: ["view", "reply"],
   staff_tasks: ["view", "create", "update", "manage"],
   website: ["view", "orders", "settings"],
   employees: ["view", "edit", "delete", "export", "print"],

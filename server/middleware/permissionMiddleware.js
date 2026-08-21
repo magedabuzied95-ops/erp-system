@@ -209,6 +209,54 @@ const ensureCorePermissions = async () => {
         ON CONFLICT (key) DO NOTHING
         `
       );
+
+      // AI Inbox permission split. Every conversation route in aiAgentOrders.js
+      // used to run on settings:view / settings:edit, so `settings` was in
+      // practice the permission to read customer conversations and to send
+      // messages as the business. Those routes now run on
+      // ai_inbox_messenger:view / :reply.
+      //
+      // Gating them on a permission nobody holds would revoke inbox access from
+      // every non-admin role, so grant the inbox permission once to every role
+      // that already holds the settings permission it replaced — view maps to
+      // view, edit maps to reply. Effective access is preserved exactly; from
+      // here the two are independent, and the inbox can be granted or revoked
+      // without touching settings. The sentinel keeps it a one-time migration,
+      // so an admin who later removes the grant does not have it restored on
+      // the next boot.
+      await db.query(
+        `
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT DISTINCT rp.role_id, target.id
+        FROM role_permissions rp
+        JOIN permissions source
+          ON source.id = rp.permission_id
+        JOIN permissions target
+          ON target.module = 'ai_inbox_messenger'
+         AND target.action = CASE source.action WHEN 'view' THEN 'view' ELSE 'reply' END
+        WHERE source.module = 'settings'
+          AND source.action IN ('view', 'edit')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM role_permissions existing
+            WHERE existing.role_id = rp.role_id
+              AND existing.permission_id = target.id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM system_settings s
+            WHERE s.key = 'permissions.ai_inbox_messenger_backfilled'
+          )
+        `
+      );
+
+      await db.query(
+        `
+        INSERT INTO system_settings (key, value, category)
+        VALUES ('permissions.ai_inbox_messenger_backfilled', 'true'::jsonb, 'permissions')
+        ON CONFLICT (key) DO NOTHING
+        `
+      );
     })().catch((error) => {
       corePermissionsReadyPromise = null;
       throw error;
@@ -218,32 +266,89 @@ const ensureCorePermissions = async () => {
   return corePermissionsReadyPromise;
 };
 
-const permissionAliases = (moduleName = "", action = "") => {
+/*
+ * `strict` drops the unqualified fallbacks below.
+ *
+ * The default (non-strict) alias set includes the BARE module name and the BARE
+ * action, and two permissions match when their alias sets intersect. Two rows
+ * from different modules therefore intersect on the action alone: a role
+ * holding products:view satisfies permit(anything, "view"), because both sides
+ * contain the bare alias "view". Since dashboard:view is backfilled to every
+ * role, every user passes every :view gate in the application.
+ *
+ * That behaviour is load-bearing for callers that pass a module or an action
+ * alone, so it is not removed here — changing it silently would re-gate every
+ * screen in the ERP at once. New gates that must actually hold opt in with
+ * { strict: true }, which compares only the qualified `module:action` forms.
+ */
+/*
+ * A permission's canonical form: module and action joined, with `:` and `.`
+ * flattened to one separator.
+ *
+ * The same grant is spelled several ways across this codebase and its data —
+ * `pos.expenses` + `create`, `pos` + `expenses.create`, `inventory` +
+ * `movements:view`, `inventory.movements` + `view`. All of them denote one
+ * permission, and all of them canonicalise to the same string, so comparing
+ * canonical forms bridges the spellings without inventing matches between
+ * genuinely different permissions.
+ */
+const canonicalPermission = (moduleName = "", action = "") => {
+  const normalized = normalizePermissionKey(moduleName, action);
+  if (!normalized.moduleName || !normalized.action) return "";
+  return `${normalized.moduleName}.${normalized.action}`.replace(/:/g, ".");
+};
+
+/*
+ * LEGACY matching. Off unless PERMISSION_LEGACY_ALIASES is set.
+ *
+ * This used to be the only behaviour. On top of the canonical form it added the
+ * bare module name and the bare action to every alias set, and `permit` allows a
+ * request when two alias sets INTERSECT — so two unrelated grants matched:
+ *
+ *   held orders:view     satisfied  permit("orders", "delete")   (bare module)
+ *   held products:view   satisfied  permit("customers", "view")  (bare action)
+ *
+ * Since dashboard:view is backfilled to every role, the second rule meant every
+ * authenticated user passed every `:view` gate in the ERP. The first meant any
+ * grant on a module was every grant on it — a Manager holding roles:view could
+ * create, edit and delete roles, and reports:view carried reports:cost and
+ * reports:profit, which CORE_PERMISSIONS deliberately withholds.
+ *
+ * Kept only as a same-day rollback: `PERMISSION_LEGACY_ALIASES=true` restores the
+ * old behaviour without a code deploy. Measure before using it —
+ * `node scripts/permission-strictness-impact.mjs` lists, per role, exactly which
+ * permissions were reachable only this way.
+ */
+const legacyAliasesEnabled = () =>
+  ["1", "true", "yes", "on"].includes(String(process.env.PERMISSION_LEGACY_ALIASES || "").toLowerCase());
+
+const permissionAliases = (moduleName = "", action = "", { legacy = false } = {}) => {
   const normalized = normalizePermissionKey(moduleName, action);
   const moduleValue = normalized.moduleName;
   const actionValue = normalized.action;
   const aliases = new Set();
 
-  if (moduleValue && actionValue) {
-    aliases.add(`${moduleValue}:${actionValue}`);
-    aliases.add(`${moduleValue}.${actionValue}`);
-  }
+  const canonical = canonicalPermission(moduleValue, actionValue);
+  if (canonical) aliases.add(canonical);
 
-  if (moduleValue === "marketing" && actionValue === "publish") {
-    aliases.add("marketing:approve");
+  // Renamed actions. These are the SAME permission under two names, so they are
+  // synonyms rather than a widening: nothing else becomes reachable.
+  if (moduleValue === "marketing" && ["publish", "approve"].includes(actionValue)) {
+    aliases.add("marketing.publish");
     aliases.add("marketing.approve");
   }
-  if (moduleValue === "marketing" && actionValue === "update") {
-    aliases.add("marketing:edit");
+  if (moduleValue === "marketing" && ["update", "edit"].includes(actionValue)) {
+    aliases.add("marketing.update");
     aliases.add("marketing.edit");
   }
   if (moduleValue === "customers" && ["edit", "update"].includes(actionValue)) {
-    aliases.add("customers:edit");
     aliases.add("customers.edit");
-    aliases.add("customers:update");
     aliases.add("customers.update");
   }
 
+  if (!legacy) return aliases;
+
+  aliases.add(`${moduleValue}:${actionValue}`);
   for (const value of [moduleValue, actionValue]) {
     if (!value) continue;
     aliases.add(value);
@@ -449,7 +554,9 @@ const permit = (
 
   moduleName,
 
-  action
+  action,
+
+  options = {}
 
 ) => {
 
@@ -583,14 +690,38 @@ const permit = (
         isAdmin &&
         ["view", "create", "update", "delete", "edit"].includes(normalized.action);
 
-      const requestedAliases = permissionAliases(normalized.moduleName, normalized.action);
-
-      const allowed =
-        branchAdminAllowed ||
+      /*
+       * Matching is canonical `module.action` only. `options.strict` is honoured
+       * for callers that opted in before this became the default, but it no
+       * longer changes anything: the loose behaviour now lives behind the
+       * PERMISSION_LEGACY_ALIASES rollback switch, which is off by default.
+       */
+      const legacy = legacyAliasesEnabled() && options?.strict !== true;
+      const matches = (aliasOptions) =>
         permissions.rows.some((permission) => {
-          const rowAliases = permissionAliases(permission.module, permission.action);
-          return [...requestedAliases].some((alias) => rowAliases.has(alias));
+          const rowAliases = permissionAliases(permission.module, permission.action, aliasOptions);
+          const requested = permissionAliases(normalized.moduleName, normalized.action, aliasOptions);
+          return [...requested].some((alias) => rowAliases.has(alias));
         });
+
+      const allowed = branchAdminAllowed || matches({ legacy });
+
+      /*
+       * A denial that the old rule would have allowed is the interesting one: it
+       * is either a privilege the role never should have had, or a privilege the
+       * shop depends on and now has to be granted explicitly. Name both the role
+       * and the exact permission so the fix is one edit in the Roles screen
+       * rather than an investigation.
+       */
+      if (!allowed && !legacy && matches({ legacy: true })) {
+        console.warn("[permission] denied by canonical matching (was allowed by the legacy alias rule)", {
+          requestId: req.id,
+          userId,
+          role: userRole,
+          required: requiredPermission,
+          hint: `Grant "${requiredPermission}" to this role, or set PERMISSION_LEGACY_ALIASES=true to roll back.`,
+        });
+      }
 
       /* =========================
          ACCESS DENIED
@@ -650,4 +781,27 @@ const permit = (
   };
 };
 
+/**
+ * True when a role holding `heldModule:heldAction` satisfies a
+ * permit(wantModule, wantAction) check. This is the exact predicate `permit`
+ * runs per permission row, exported so the aliasing rules are testable without
+ * a database.
+ */
+/**
+ * True when a role holding `heldModule:heldAction` satisfies a
+ * permit(wantModule, wantAction) check. This is the exact predicate `permit`
+ * runs per permission row, exported so the matching rules are testable without
+ * a database.
+ *
+ * `{ legacy: true }` evaluates the pre-canonical rule, which is what
+ * scripts/permission-strictness-impact.mjs compares against. `{ strict: true }`
+ * is accepted for older callers and is now the default behaviour.
+ */
+export const permissionSatisfies = (heldModule, heldAction, wantModule, wantAction, { legacy = false } = {}) => {
+  const requested = permissionAliases(wantModule, wantAction, { legacy });
+  const held = permissionAliases(heldModule, heldAction, { legacy });
+  return [...requested].some((alias) => held.has(alias));
+};
+
+export { canonicalPermission, permissionAliases };
 export default permit;
