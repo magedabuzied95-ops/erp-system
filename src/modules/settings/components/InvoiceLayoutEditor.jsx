@@ -25,8 +25,7 @@ import {
 } from "../../../../shared/invoiceBlocks.js";
 
 const FALLBACK_BLOCK_LABELS = {
-  brand: "الشعار واسم المحل",
-  order_meta: "رقم الفاتورة والتاريخ",
+  brand: "الترويسة (الشعار، الاسم، رقم الفاتورة والتاريخ)",
   customer_meta: "بيانات العميل",
   items_table: "جدول المنتجات",
   totals: "الإجماليات",

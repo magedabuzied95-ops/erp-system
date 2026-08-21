@@ -82,6 +82,19 @@ test("unknown keys are dropped rather than stored", () => {
   assert.equal("rogue_group" in config, false);
 });
 
+test("normalizing a bare config keeps the links, it does not empty them", () => {
+  // This is what every renderer falls back to when the template endpoint is unreachable,
+  // so an empty result here would strip the review links and the website from the
+  // customer's invoice at the worst possible moment.
+  const config = normalizeInvoiceTemplateConfig({});
+  assert.equal(config.identity.website_url, INVOICE_TEMPLATE_DEFAULTS.identity.website_url);
+  assert.equal(config.social.google_review_url, INVOICE_TEMPLATE_DEFAULTS.social.google_review_url);
+  assert.equal(config.social.facebook_review_url, INVOICE_TEMPLATE_DEFAULTS.social.facebook_review_url);
+  assert.equal(config.social.instagram_url, INVOICE_TEMPLATE_DEFAULTS.social.instagram_url);
+  // A field whose default really is empty stays empty.
+  assert.equal(config.identity.logo_url, "");
+});
+
 test("a link the customer would click must be http(s) or it falls back", () => {
   const config = normalizeInvoiceTemplateConfig({
     identity: { website_url: "javascript:alert(1)" },

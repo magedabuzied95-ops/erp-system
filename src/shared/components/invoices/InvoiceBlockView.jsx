@@ -124,7 +124,6 @@ export default function InvoiceBlockView({
   switch (block?.type) {
     // Sections whose markup belongs to the renderer that mounted this component.
     case "brand":
-    case "order_meta":
     case "customer_meta":
     case "items_table":
     case "totals":

@@ -22,7 +22,6 @@ test("the default layout is the one the renderers had written into them", () => 
   const blocks = normalizeInvoiceBlocks([]);
   assert.deepEqual(blocks.map((block) => block.type), [
     "brand",
-    "order_meta",
     "customer_meta",
     "items_table",
     "totals",
@@ -33,10 +32,10 @@ test("the default layout is the one the renderers had written into them", () => 
   // The in-app card has never shown the policy, the review buttons or the footer; the
   // customer's public link always has.
   assert.deepEqual(blocksForOutput(blocks, "card").map((b) => b.type), [
-    "brand", "order_meta", "customer_meta", "items_table", "totals",
+    "brand", "customer_meta", "items_table", "totals",
   ]);
-  assert.equal(blocksForOutput(blocks, "public").length, 8);
-  assert.equal(blocksForOutput(blocks, "print").length, 8);
+  assert.equal(blocksForOutput(blocks, "public").length, 7);
+  assert.equal(blocksForOutput(blocks, "print").length, 7);
 });
 
 test("an empty or missing layout falls back rather than printing nothing", () => {
@@ -96,7 +95,8 @@ test("an image or QR the customer's browser would fetch must be http(s)", () => 
 
 test("moving a block reorders without losing one", () => {
   const blocks = normalizeInvoiceBlocks([]);
-  const moved = moveInvoiceBlock(blocks, 4, 0);
+  const totalsIndex = blocks.findIndex((block) => block.type === "totals");
+  const moved = moveInvoiceBlock(blocks, totalsIndex, 0);
   assert.equal(moved.length, blocks.length);
   assert.equal(moved[0].type, "totals");
   assert.equal(moved[1].type, "brand");
@@ -169,7 +169,8 @@ test("a new block starts from a usable shape", () => {
 
 test("patching a template replaces the layout rather than merging two orderings", () => {
   const base = normalizeInvoiceTemplateConfig({});
-  const reordered = moveInvoiceBlock(base.blocks, 3, 0);
+  const itemsIndex = base.blocks.findIndex((block) => block.type === "items_table");
+  const reordered = moveInvoiceBlock(base.blocks, itemsIndex, 0);
   const merged = mergeInvoiceTemplateConfig(base, { blocks: reordered });
   assert.equal(merged.blocks[0].type, "items_table");
   // A patch that says nothing about the layout leaves it alone.

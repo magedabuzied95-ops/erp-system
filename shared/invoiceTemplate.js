@@ -176,7 +176,11 @@ const toText = (value, fallback = "", maxLength = 500) =>
 // stored, so a typo can never render as a dead or hostile link on a public invoice.
 const toPublicUrl = (value, fallback = "") => {
   const text = String(value ?? "").trim();
-  if (!text) return "";
+  // An absent value means "unset", which is what the fallback is for. Returning "" here
+  // silently emptied the review links and the website on any config normalized from a
+  // bare {} — which is exactly what a renderer falls back to when the template endpoint
+  // is unreachable, so the customer lost those links precisely when nothing else worked.
+  if (!text) return fallback;
   let parsed;
   try {
     parsed = new URL(text);

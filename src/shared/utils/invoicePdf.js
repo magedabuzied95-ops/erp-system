@@ -14,6 +14,8 @@ import {
 } from "./printLocalization";
 import { getInvoiceTemplateConfig } from "../hooks/useInvoiceTemplate";
 import { invoiceTemplateForOutput } from "../../../shared/invoiceTemplate.js";
+import { blocksForOutput } from "../../../shared/invoiceBlocks.js";
+import { renderInvoiceBlockHtml } from "./invoiceBlockHtml";
 
 const GREEN = [5, 150, 105];
 const LIGHT_BORDER = [226, 232, 240];
@@ -198,8 +200,10 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
     : "";
   const seller = getSellerName(invoice);
   const createdAt = invoice.createdAt || Date.now();
-  const body = `
-    <main class="print-sheet" dir="${dir}">
+  // Same treatment as the card: each section still emits exactly the markup it emitted
+  // when the order was fixed, and the sequence comes off the template's block list.
+  const sectionHtml = {
+    brand: `
       <section class="print-header">
         <div>
           <div class="store-mark">${renderStoreLogoMarkup(invoice, tpl)}</div>
@@ -212,6 +216,8 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
           <strong>${escapeHtml(tpl.identity.store_name || invoice.store?.name || invoice.companyName || M1_STORE_NAME)}</strong><br>
         </div>
       </section>
+    `,
+    customer_meta: `
       <section class="print-card">
         <strong>بيانات العميل</strong><br>
         ${show.show_customer_name ? `العميل: ${escapeHtml(invoice.customerName || "عميلنا العزيز")}<br>` : ""}
@@ -219,6 +225,8 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
         ${show.show_seller_name && seller ? `البائع: ${escapeHtml(seller)}<br>` : ""}
         ${show.show_payment_method ? `طريقة الدفع: ${escapeHtml(getPaymentLabel(invoice))}` : ""}
       </section>
+    `,
+    items_table: `
       <table>
         <thead>
           <tr>
@@ -231,6 +239,8 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
         </thead>
         <tbody>${rows}</tbody>
       </table>
+    `,
+    totals: `
       <section class="print-card">
         ${showTotals.show_subtotal ? `<div>الإجمالي الفرعي: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.subtotal || 0))}</span></div>` : ""}
         ${showTotals.show_discount && discount > 0 ? `<div>الخصم: <span class="amount">- ${escapeHtml(formatCurrency(discount))}</span></div>` : ""}
@@ -242,8 +252,14 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
         ${showTotals.show_paid ? `<div>المدفوع: <span class="amount">${escapeHtml(formatCurrency(paid))}</span></div>` : ""}
         ${showTotals.show_remaining ? `<div>المتبقي: <span class="amount">${escapeHtml(formatCurrency(remaining))}</span></div>` : ""}
       </section>
+    `,
+    policy: `
       ${returnPolicyHtml ? `<section class="print-card policy">${returnPolicyHtml}</section>` : ""}
+    `,
+    social: `
       ${social ? `<section class="print-card" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">${social}</section>` : ""}
+    `,
+    store_contact: `
       <footer class="print-footer">
         <div class="barcode">${escapeHtml(invoiceNumber)}</div>
         <div class="green-line"></div>
@@ -251,6 +267,24 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
         ${supportPhone ? `<a class="number" href="tel:${escapeHtml(supportPhone)}">${escapeHtml(supportPhone)} - خدمة العملاء</a>` : ""}
         ${publicUrl ? "| QR" : ""}
       </footer>
+    `,
+  };
+
+  const blockContext = {
+    // The print path names the share link publicInvoiceUrl and resolves it through
+    // getPublicInvoiceUrl; a QR block looks for publicUrl, so hand it the resolved one.
+    invoice: { ...invoice, publicUrl },
+    language: normalized,
+    money: formatCurrency,
+    formatDate: (value) => formatPrintDate(value, normalized, { dateStyle: "medium", timeStyle: undefined }),
+    barcodeSvg: null,
+  };
+
+  const body = `
+    <main class="print-sheet" dir="${dir}">
+      ${blocksForOutput(tpl.blocks, thermal ? "thermal" : "print")
+        .map((block) => sectionHtml[block.type] ?? renderInvoiceBlockHtml(block, blockContext))
+        .join("")}
     </main>`;
   return wrapPrintableHtml({ title: invoice.invoiceNumber || "فاتورة طلب", body, language: normalized, thermal });
 };

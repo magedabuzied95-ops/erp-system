@@ -66,6 +66,20 @@ test("the printed invoice reads the template and picks its own output", () => {
   assert.doesNotMatch(pdf, /01000659301/);
 });
 
+test("the printed sheet is assembled from the block list too", () => {
+  assert.match(pdf, /blocksForOutput\(tpl\.blocks, thermal \? "thermal" : "print"\)/);
+  assert.match(pdf, /sectionHtml\[block\.type\] \?\? renderInvoiceBlockHtml\(block, blockContext\)/);
+  // The print path calls the share link publicInvoiceUrl; a QR block looks for publicUrl.
+  assert.match(pdf, /invoice: \{ \.\.\.invoice, publicUrl \}/);
+  const blockHtml = read("../src/shared/utils/invoiceBlockHtml.js");
+  // Both renderers resolve a block through the same helpers, so a paragraph lands in the
+  // same place on screen and on paper.
+  for (const helper of ["localizedBlockText", "resolveQrValue", "resolveFieldRowValue", "resolveBarcodeValue"]) {
+    assert.ok(blockHtml.includes(helper), `${helper} is shared with the React renderer`);
+  }
+  assert.match(blockHtml, /escapeHtml/, "operator text is escaped before it reaches the sheet");
+});
+
 test("the printed invoice keeps the paper's own layout facts separate from the toggles", () => {
   // The 80mm roll drops these because of its width, not because of a setting, so the
   // literal `thermal` check stays in front of the operator's flag.

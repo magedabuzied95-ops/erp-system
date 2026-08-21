@@ -24,8 +24,10 @@ export const INVOICE_BLOCK_OUTPUTS = ["card", "public", "print", "thermal"];
 // Built-in blocks are drawn by each renderer's own existing code, so turning the layout
 // into data changed no pixels. Custom blocks are drawn by the shared block renderers.
 export const BUILT_IN_BLOCK_TYPES = [
+  // The header draws the logo, the store name, the invoice number and the date as one
+  // unit — on A4 they sit side by side — so it moves as one. Listing them separately
+  // would put a row in the editor that cannot actually go anywhere.
   "brand",
-  "order_meta",
   "customer_meta",
   "items_table",
   "totals",
@@ -71,7 +73,6 @@ const builtIn = (type, hiddenIn = []) => ({ id: `builtin:${type}`, type, hidden_
 //   - the A4 sheet carries all of them
 export const DEFAULT_INVOICE_BLOCKS = Object.freeze([
   builtIn("brand"),
-  builtIn("order_meta"),
   builtIn("customer_meta"),
   builtIn("items_table"),
   builtIn("totals"),

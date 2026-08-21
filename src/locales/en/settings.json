@@ -380,8 +380,7 @@
         }
       },
       "blocks": {
-        "brand": "Logo and store name",
-        "order_meta": "Invoice number and date",
+        "brand": "Header (logo, name, number and date)",
         "customer_meta": "Customer details",
         "items_table": "Products table",
         "totals": "Totals",
