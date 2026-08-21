@@ -40,6 +40,9 @@ const DashboardPrototype = lazy(() => import("./pages/DashboardPrototype"));
 const ThemeFoundation = lazy(() => import("./pages/ThemeFoundation"));
 const AppShellPreview = lazy(() => import("./pages/AppShellPreview"));
 const ComponentsPreview = lazy(() => import("./pages/ComponentsPreview"));
+// TRIAL ONLY — HeroUI v3 evaluation surface, safe to delete with its two files.
+const HeroUILab = lazy(() => import("./pages/HeroUILab"));
+const DashboardHeroUI = lazy(() => import("./pages/DashboardHeroUI"));
 
 /* ======================================================
    PRODUCTS
@@ -467,6 +470,9 @@ function App() {
 
       <Route path="/components-preview" element={<ComponentsPreview />} />
 
+      <Route path="/heroui-lab" element={<HeroUILab />} />
+      <Route path="/dashboard-heroui" element={<DashboardHeroUI />} />
+
       {/* FORBIDDEN */}
 
       <Route
@@ -720,6 +726,12 @@ function App() {
         <Route
           path="dashboard"
           element={<Dashboard />}
+        />
+
+        {/* TRIAL — HeroUI rebuild of the dashboard, alongside the real one. */}
+        <Route
+          path="dashboard-heroui"
+          element={<DashboardHeroUI />}
         />
 
         <Route

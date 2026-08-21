@@ -9,30 +9,31 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ## Summary
 
-- Source files scanned: 617
-- Files with debt: 107
-- Hardcoded Arabic UI strings: 935
-- Hardcoded English UI strings: 580
-- Total hardcoded UI strings: 1515
-- Mixed-language files (both scripts hardcoded): 25
+- Source files scanned: 658
+- Files with debt: 112
+- Hardcoded Arabic UI strings: 1079
+- Hardcoded English UI strings: 620
+- Total hardcoded UI strings: 1699
+- Mixed-language files (both scripts hardcoded): 28
 
 ### By surface
 
 | Surface | Files | Arabic | English | Total | Mixed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| main-erp | 56 | 665 | 366 | 1031 | 17 |
-| shared | 35 | 70 | 131 | 201 | 4 |
-| employee-portal | 11 | 145 | 41 | 186 | 2 |
-| pos | 5 | 55 | 42 | 97 | 2 |
+| main-erp | 59 | 759 | 405 | 1164 | 19 |
+| shared | 37 | 116 | 134 | 250 | 5 |
+| employee-portal | 11 | 149 | 41 | 190 | 2 |
+| pos | 5 | 55 | 40 | 95 | 2 |
 
 ## Mixed-language files (ranked by density)
 
 | File | Surface | Arabic | English | Total |
 | --- | --- | ---: | ---: | ---: |
 | src/pages/ComponentsPreviewPrimitives.jsx | main-erp | 83 | 5 | 88 |
-| src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 64 | 4 | 68 |
+| src/modules/attendance/components/AttendanceCenter.jsx | employee-portal | 68 | 4 | 72 |
 | src/pages/ComponentsPreview.jsx | main-erp | 58 | 2 | 60 |
 | src/pages/DashboardPrototype.jsx | main-erp | 57 | 1 | 58 |
+| src/modules/marketing/components/StoryAutopilotSettingsModal.jsx | shared | 34 | 2 | 36 |
 | src/pages/ThemeFoundation.jsx | main-erp | 19 | 14 | 33 |
 | src/modules/pos/components/CartSidebar.jsx | pos | 28 | 3 | 31 |
 | src/modules/purchases/pages/PurchaseOrder.jsx | main-erp | 28 | 3 | 31 |
@@ -42,11 +43,13 @@ of scope. The scanner is conservative and can still contain false positives.
 | src/modules/marketing/components/storyTemplateEngine.js | shared | 5 | 12 | 17 |
 | src/modules/products/pages/ProductPrintList.jsx | main-erp | 15 | 2 | 17 |
 | src/modules/products/pages/ProductEdit.jsx | main-erp | 3 | 13 | 16 |
+| src/dev/messageMediaPreview.jsx | main-erp | 12 | 1 | 13 |
 | src/modules/reports/pages/Reports.jsx | main-erp | 9 | 3 | 12 |
 | src/modules/products/pages/BarcodeLabels.jsx | main-erp | 4 | 7 | 11 |
-| src/modules/products/pages/CreateProduct.jsx | main-erp | 7 | 4 | 11 |
 | src/modules/employees/pages/EmployeePayrollPortal.jsx | employee-portal | 4 | 5 | 9 |
+| src/modules/marketing/pages/AiMarketingCenter.jsx | main-erp | 3 | 6 | 9 |
 | src/modules/pos/components/RecentOperationsDrawer.jsx | pos | 7 | 2 | 9 |
+| src/modules/products/pages/CreateProduct.jsx | main-erp | 5 | 4 | 9 |
 | src/modules/accounting/pages/Expenses.jsx | main-erp | 6 | 2 | 8 |
 | src/modules/sales/pages/InvoicesLegacy.jsx | main-erp | 6 | 1 | 7 |
 | src/components/ai/AISuggestedReplies.jsx | shared | 1 | 4 | 5 |
@@ -145,49 +148,49 @@ of scope. The scanner is conservative and can still contain false positives.
 - 331 [inline-ternary/ar] isArabic ? "الرصيد" : "Outstanding"
 - ... 99 more
 
-### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:94)
+### src/modules/permissions/lib/rbacStore.js (main-erp — ar:0 en:111)
 
-- 56 [object-key/en] Dashboard
-- 57 [object-key/en] Products
-- 59 [object-key/en] POS Expenses
-- 60 [object-key/en] Orders
-- 61 [object-key/en] Purchases
-- 62 [object-key/en] Suppliers
-- 63 [object-key/en] Customers
-- 64 [object-key/en] Inventory
-- 65 [object-key/en] Warehouses
-- 66 [object-key/en] Branches
-- 67 [object-key/en] Accounting
-- 68 [object-key/en] Money Accounts
-- 69 [object-key/en] Money Transactions
-- 70 [object-key/en] Money Transfers
-- 71 [object-key/en] Treasury Dashboard
-- 72 [object-key/en] Expenses
-- 73 [object-key/en] Employee Advances
-- 74 [object-key/en] Loyalty
-- 75 [object-key/en] Attendance
-- 76 [object-key/en] Marketing
-- 77 [object-key/en] Notifications
-- 78 [object-key/en] Staff Tasks
-- 79 [object-key/en] Website
-- 80 [object-key/en] Employees
-- 81 [object-key/en] Reports
-- 82 [object-key/en] Settings
-- 83 [object-key/en] Users
-- 84 [object-key/en] Roles
-- 233 [object-key/en] Full access to every module and action.
-- 241 [object-key/en] System-wide access across every module and action.
-- 249 [object-key/en] Broad operational access with approval and reporting controls.
-- 298 [object-key/en] POS and order-taking access with print and cashbox actions.
-- 324 [object-key/en] Inventory, warehouse, receiving, and transfer support.
-- 368 [object-key/en] Start with a blank permission set and assign only what is needed.
-- 376 [object-key/en] Main
-- 378 [object-key/en] Dashboard
-- 379 [object-key/en] Workspace
-- 380 [object-key/en] Notifications
-- 384 [object-key/en] Products
-- 386 [object-key/en] Products
-- ... 54 more
+- 66 [object-key/en] Dashboard
+- 67 [object-key/en] Products
+- 69 [object-key/en] POS Expenses
+- 70 [object-key/en] Orders
+- 71 [object-key/en] Purchases
+- 72 [object-key/en] Suppliers
+- 73 [object-key/en] Customers
+- 74 [object-key/en] Inventory
+- 75 [object-key/en] Warehouses
+- 76 [object-key/en] Branches
+- 77 [object-key/en] Accounting
+- 78 [object-key/en] Money Accounts
+- 79 [object-key/en] Money Transactions
+- 80 [object-key/en] Money Transfers
+- 81 [object-key/en] Treasury Dashboard
+- 82 [object-key/en] Expenses
+- 83 [object-key/en] Employee Advances
+- 84 [object-key/en] Loyalty
+- 85 [object-key/en] Attendance
+- 86 [object-key/en] Marketing
+- 87 [object-key/en] Notifications
+- 88 [object-key/en] Staff Tasks
+- 89 [object-key/en] Website
+- 90 [object-key/en] Employees
+- 91 [object-key/en] Reports
+- 92 [object-key/en] Settings
+- 93 [object-key/en] Users
+- 94 [object-key/en] Roles
+- 98 [object-key/en] Surveillance
+- 99 [object-key/en] Surveillance Devices
+- 100 [object-key/en] Surveillance Recording
+- 101 [object-key/en] Surveillance Storage
+- 102 [object-key/en] Surveillance Network
+- 103 [object-key/en] Surveillance Admin
+- 262 [object-key/en] Full access to every module and action.
+- 270 [object-key/en] System-wide access across every module and action.
+- 278 [object-key/en] Broad operational access with approval and reporting controls.
+- 327 [object-key/en] POS and order-taking access with print and cashbox actions.
+- 353 [object-key/en] Inventory, warehouse, receiving, and transfer support.
+- 397 [object-key/en] Start with a blank permission set and assign only what is needed.
+- ... 71 more
 
 ### src/pages/ComponentsPreviewPrimitives.jsx (main-erp — ar:83 en:5)
 
@@ -233,49 +236,49 @@ of scope. The scanner is conservative and can still contain false positives.
 - 68 [attribute/ar] الاسم كما يظهر للعميل
 - ... 48 more
 
-### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:64 en:4)
+### src/modules/attendance/components/AttendanceCenter.jsx (employee-portal — ar:68 en:4)
 
-- 121 [object-key/en] Attendance Center
-- 122 [object-key/en] Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring.
-- 207 [object-key/ar] مركز الحضور
-- 208 [object-key/ar] حضور QR والغياب وساعات النقص وتأثير الرواتب والإجازات وتحليل الفروع.
-- 364 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
-- 365 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
-- 368 [inline-ternary/ar] isArabic ? "الدقيقة" : "Minute"
-- 379 [inline-ternary/ar] isArabic ? "الافتراضي" : "Default"
-- 413 [attribute/en] DD/MM/YYYY
-- 414 [attribute/en] DD/MM/YYYY
-- 480 [inline-ternary/ar] isArabic ? "قواعد الحضور والمرتبات" : "Attendance payroll rules"
-- 483 [inline-ternary/ar] isArabic ? "إعدادات الاحتساب الأساسية" : "Core calculation settings"
-- 486 [inline-ternary/ar] isArabic ? "القواعد دي بتأثر على الإجازات المدفوعة، التأخير، وفاتح الفرع عند قفل نقطة البيع." : "These rules affect paid
-- 495 [inline-ternary/ar] isArabic ? "جاري الحفظ..." : "Saving..."
-- 495 [inline-ternary/ar] isArabic ? "حفظ الإعدادات" : "Save settings"
-- 500 [inline-ternary/ar] isArabic ? "سماحية التأخير بالدقائق" : "Late grace minutes"
-- 503 [inline-ternary/ar] isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"
-- 512 [inline-ternary/ar] isArabic ? "إلزام اختيار فاتح الفرع عند قفل شيفت POS" : "Require next opener when closing POS shift"
-- 518 [inline-ternary/ar] isArabic ? "أيام ممنوع طلب إجازة فيها بدون موافقة خاصة" : "Weekdays blocked for leave without override"
-- 541 [inline-ternary/ar] isArabic ? "مركز الحضور" : "Attendance Center"
-- 695 [inline-ternary/ar] isArabic ? "اختر الفرع أولًا لتوليد جدول فاتح الفرع." : "Select a branch first to generate opening schedule."
-- 746 [inline-ternary/ar] isArabic ? "اختر الموظف والتاريخ وأدخل الوقت المطلوب ثم اكتب سبب التصحيح." : "Select the employee and date, enter the re
-- 771 [inline-ternary/ar] isArabic ? "تعذر حفظ التصحيح." : "Failed to save the correction."
-- 789 [inline-ternary/ar] isArabic ? "إضافة حضور / انصراف" : "Add attendance"
-- 863 [inline-ternary/ar] isArabic ? "تصحيح إداري" : "Admin correction"
-- 864 [inline-ternary/ar] isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"
-- 865 [inline-ternary/ar] isArabic ? "يتم إنشاء سجل اليوم أو تصحيح السجل الموجود مع حفظ السبب واسم المسؤول." : "Creates the daily record or correc
-- 871 [inline-ternary/ar] isArabic ? "الحضور فقط" : "Check-in only"
-- 872 [inline-ternary/ar] isArabic ? "الانصراف فقط" : "Checkout only"
-- 873 [inline-ternary/ar] isArabic ? "الحضور والانصراف" : "Both"
-- 886 [inline-ternary/ar] isArabic ? "عند اختيار الحضور فقط أو الانصراف فقط، لن تتغير القيمة الأخرى المسجلة." : "Choosing check-in only or checkou
-- 889 [inline-ternary/ar] isArabic ? "اختر الموظف" : "Select employee"
-- 889 [inline-ternary/ar] isArabic ? "الموظف" : "Employee"
-- 890 [inline-ternary/ar] isArabic ? "تاريخ سجل الحضور" : "Attendance record date"
-- 892 [inline-ternary/ar] isArabic ? "وقت الحضور — الافتراضي PM" : "Check-in time — PM default"
-- 910 [inline-ternary/ar] isArabic ? "تاريخ الانصراف" : "Checkout date"
-- 911 [inline-ternary/ar] isArabic ? "وقت الانصراف — الافتراضي AM" : "Checkout time — AM default"
-- 928 [inline-ternary/ar] isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"
-- 928 [inline-ternary/ar] isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"
-- 932 [inline-ternary/ar] isArabic ? "إلغاء" : "Cancel"
-- ... 28 more
+- 161 [object-key/en] Attendance Center
+- 162 [object-key/en] Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring.
+- 264 [object-key/ar] مركز الحضور
+- 265 [object-key/ar] حضور QR والغياب وساعات النقص وتأثير الرواتب والإجازات وتحليل الفروع.
+- 438 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
+- 439 [inline-ternary/ar] isArabic ? "الساعة" : "Hour"
+- 442 [inline-ternary/ar] isArabic ? "الدقيقة" : "Minute"
+- 453 [inline-ternary/ar] isArabic ? "الافتراضي" : "Default"
+- 487 [attribute/en] DD/MM/YYYY
+- 488 [attribute/en] DD/MM/YYYY
+- 554 [inline-ternary/ar] isArabic ? "قواعد الحضور والمرتبات" : "Attendance payroll rules"
+- 557 [inline-ternary/ar] isArabic ? "إعدادات الاحتساب الأساسية" : "Core calculation settings"
+- 560 [inline-ternary/ar] isArabic ? "القواعد دي بتأثر على الإجازات المدفوعة، التأخير، وفاتح الفرع عند قفل نقطة البيع." : "These rules affect paid
+- 569 [inline-ternary/ar] isArabic ? "جاري الحفظ..." : "Saving..."
+- 569 [inline-ternary/ar] isArabic ? "حفظ الإعدادات" : "Save settings"
+- 574 [inline-ternary/ar] isArabic ? "سماحية التأخير بالدقائق" : "Late grace minutes"
+- 577 [inline-ternary/ar] isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"
+- 586 [inline-ternary/ar] isArabic ? "إلزام اختيار فاتح الفرع عند قفل شيفت POS" : "Require next opener when closing POS shift"
+- 592 [inline-ternary/ar] isArabic ? "أيام ممنوع طلب إجازة فيها بدون موافقة خاصة" : "Weekdays blocked for leave without override"
+- 615 [inline-ternary/ar] isArabic ? "مركز الحضور" : "Attendance Center"
+- 809 [inline-ternary/ar] isArabic ? "اختر الفرع أولًا لتوليد جدول فاتح الفرع." : "Select a branch first to generate opening schedule."
+- 881 [inline-ternary/ar] isArabic ? "اختر الموظف والتاريخ وأدخل الوقت المطلوب ثم اكتب سبب التصحيح." : "Select the employee and date, enter the re
+- 906 [inline-ternary/ar] isArabic ? "تعذر حفظ التصحيح." : "Failed to save the correction."
+- 924 [inline-ternary/ar] isArabic ? "إضافة حضور / انصراف" : "Add attendance"
+- 1012 [inline-ternary/ar] isArabic ? "تصحيح إداري" : "Admin correction"
+- 1013 [inline-ternary/ar] isArabic ? "إضافة حضور وانصراف" : "Add attendance and checkout"
+- 1014 [inline-ternary/ar] isArabic ? "يتم إنشاء سجل اليوم أو تصحيح السجل الموجود مع حفظ السبب واسم المسؤول." : "Creates the daily record or correc
+- 1020 [inline-ternary/ar] isArabic ? "الحضور فقط" : "Check-in only"
+- 1021 [inline-ternary/ar] isArabic ? "الانصراف فقط" : "Checkout only"
+- 1022 [inline-ternary/ar] isArabic ? "الحضور والانصراف" : "Both"
+- 1035 [inline-ternary/ar] isArabic ? "عند اختيار الحضور فقط أو الانصراف فقط، لن تتغير القيمة الأخرى المسجلة." : "Choosing check-in only or checkou
+- 1039 [inline-ternary/ar] isArabic ? "تعديل سجل محفوظ — الحقول معبأة بالقيم الحالية." : "Editing a saved record — the fields show the current valu
+- 1040 [inline-ternary/ar] isArabic ? "إنشاء سجل جديد لهذا اليوم." : "Creating a new record for this day."
+- 1043 [inline-ternary/ar] isArabic ? "اختر الموظف" : "Select employee"
+- 1043 [inline-ternary/ar] isArabic ? "الموظف" : "Employee"
+- 1044 [inline-ternary/ar] isArabic ? "تاريخ سجل الحضور" : "Attendance record date"
+- 1046 [inline-ternary/ar] isArabic ? "وقت الحضور — الافتراضي PM" : "Check-in time — PM default"
+- 1064 [inline-ternary/ar] isArabic ? "تاريخ الانصراف" : "Checkout date"
+- 1065 [inline-ternary/ar] isArabic ? "وقت الانصراف — الافتراضي AM" : "Checkout time — AM default"
+- 1082 [inline-ternary/ar] isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"
+- ... 32 more
 
 ### src/pages/ComponentsPreview.jsx (main-erp — ar:58 en:2)
 
@@ -409,44 +412,125 @@ of scope. The scanner is conservative and can still contain false positives.
 - 325 [jsx-text/en] Action
 - ... 7 more
 
-### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:36)
+### src/pages/HeroUILab.jsx (main-erp — ar:45 en:0)
 
-- 7430 [jsx-text/en] Shift report
-- 7446 [jsx-text/en] Print
-- 7448 [jsx-text/en] End of Shift Report #$
-- 7449 [jsx-text/en] Cashier: $
-- 7450 [jsx-text/en] Variance: $
-- 7452 [jsx-text/en] Count
-- 7452 [jsx-text/en] Method
-- 7452 [jsx-text/en] No payments
-- 7452 [jsx-text/en] Payment breakdown
-- 7452 [jsx-text/en] Total
-- 7453 [jsx-text/en] Invoices
-- 7453 [jsx-text/en] No seller data
-- 7453 [jsx-text/en] Sales
-- 7453 [jsx-text/en] Seller
-- 7453 [jsx-text/en] Seller performance
-- 7454 [jsx-text/en] No products
-- 7454 [jsx-text/en] Product
-- 7454 [jsx-text/en] Qty
-- 7454 [jsx-text/en] Share
-- 7454 [jsx-text/en] Top products
-- 7454 [jsx-text/en] Total
-- 7455 [jsx-text/en] Action
-- 7455 [jsx-text/en] Amount
-- 7455 [jsx-text/en] Audit timeline
-- 7455 [jsx-text/en] No events
-- 7455 [jsx-text/en] Reference
-- 7455 [jsx-text/en] Time
-- 7456 [jsx-text/en] Cashier signature
-- 7456 [jsx-text/en] Manager signature
-- 8690 [jsx-text/en] SKU:
-- 8691 [jsx-text/en] ART:
-- 8749 [jsx-text/en] SKU:
-- 9141 [object-key/en] Shift close reconciliation
-- 9142 [object-key/en] Review drawer cash, payments, sales, and audit records before final close.
-- 9677 [attribute/en] InstaPay
-- 9678 [attribute/en] Vodafone Cash
+- 51 [object-key/ar] الفرع الرئيسي
+- 52 [object-key/ar] فرع مدينة نصر
+- 53 [object-key/ar] فرع الإسكندرية
+- 103 [jsx-text/ar] HeroUI v3 — معمل تجربة
+- 115 [attribute/ar] الأزرار
+- 116 [jsx-text/ar] حفظ الفاتورة
+- 117 [jsx-text/ar] مسودة
+- 118 [jsx-text/ar] إلغاء
+- 119 [jsx-text/ar] حذف
+- 128 [attribute/ar] الكروت
+- 131 [jsx-text/ar] ملخص المبيعات
+- 132 [jsx-text/ar] آخر تحديث من دقيقتين
+- 147 [attribute/ar] حقول الإدخال
+- 149 [jsx-text/ar] اسم العميل
+- 150 [attribute/ar] اكتب اسم العميل
+- 151 [jsx-text/ar] الاسم كما سيظهر على الفاتورة
+- 159 [jsx-text/ar] الفرع
+- 176 [attribute/ar] مفاتيح التبديل
+- 183 [jsx-text/ar] إرسال إشعار واتساب للعميل
+- 187 [attribute/ar] الوسوم والتنبيهات
+- 188 [jsx-text/ar] مدفوع
+- 189 [jsx-text/ar] آجل
+- 193 [jsx-text/ar] المخزون منخفض
+- 194 [jsx-text/ar] 3 أصناف وصلت لحد إعادة الطلب.
+- 200 [attribute/ar] الجدول
+- 205 [attribute/ar] فواتير المبيعات
+- 207 [jsx-text/ar] رقم الفاتورة
+- 208 [jsx-text/ar] العميل
+- 209 [jsx-text/ar] الإجمالي
+- 210 [jsx-text/ar] الحالة
+- 229 [attribute/ar] ترقيم الصفحات
+- 231 [jsx-text/ar] صفحة 2 من 9
+- 259 [attribute/ar] التبويبات
+- 262 [attribute/ar] أقسام
+- 263 [jsx-text/ar] المبيعات
+- 264 [jsx-text/ar] المخزون
+- 265 [jsx-text/ar] المرتجعات
+- 267 [jsx-text/ar] محتوى تبويب المبيعات.
+- 268 [jsx-text/ar] محتوى تبويب المخزون.
+- 269 [jsx-text/ar] محتوى تبويب المرتجعات.
+- ... 5 more
+
+### src/modules/marketing/components/StoryAutopilotSettingsModal.jsx (shared — ar:34 en:2)
+
+- 153 [notification/ar] لازم تختار منصة واحدة على الأقل
+- 162 [notification/ar] لازم تسيب يوم واحد على الأقل مفعّل
+- 171 [notification/ar] اكتب الوقت بصيغة HH:MM
+- 187 [notification/ar] تم حفظ إعدادات النشر التلقائي
+- 203 [notification/ar] تم تطبيق الأوقات المقترحة
+- 240 [jsx-text/ar] إعدادات النشر التلقائي للاستوري
+- 261 [attribute/ar] لما يكون مفعّل، النظام بينشر الاستوريهات الجاهزة لوحده في المواعيد المحددة تحت — من غير أي تدخل منك.
+- 266 [attribute/ar] الوقت المحلي
+- 267 [attribute/ar] اتنشر النهاردة
+- 268 [attribute/ar] الميعاد الجاي
+- 269 [attribute/ar] استوري جاهز في الطابور
+- 375 [jsx-text/ar] مفيش مواعيد محددة — النشر مش هيشتغل.
+- 392 [jsx-text/ar] أيام النشر
+- 416 [jsx-text/ar] بداية النافذة
+- 420 [jsx-text/ar] نهاية النافذة
+- 424 [jsx-text/ar] المنطقة الزمنية
+- 437 [jsx-text/ar] المنصات
+- 447 [jsx-text/en] Facebook Stories
+- 458 [jsx-text/en] Instagram Stories
+- 465 [jsx-text/ar] حدود الأمان
+- 467 [attribute/ar] أقصى عدد يوميًا
+- 468 [attribute/ar] أقصى عدد في التشغيل
+- 469 [attribute/ar] أقل فاصل (دقيقة)
+- 470 [attribute/ar] لو السيرفر اتأخر عن الميعاد
+- 470 [attribute/ar] مهلة الميعاد (دقيقة)
+- 471 [attribute/ar] تعويض التأخير (دقيقة)
+- 471 [attribute/ar] لوضع مواعيد الطابور
+- 472 [attribute/ar] عدد المحاولات
+- 473 [attribute/ar] فاصل إعادة المحاولة (دقيقة)
+- 477 [attribute/ar] ينشر الموافَق عليه بس
+- 478 [attribute/ar] لو مفعّل، الاستوري لازم يتوافق عليه يدويًا قبل ما الأوتوبايلوت ينشره.
+- 483 [attribute/ar] تصميم مولّد إجباري
+- 484 [attribute/ar] ميعديش أي استوري من غير التصميم النهائي المعتمد.
+- 489 [attribute/ar] يتابع تحليلات الصفحة
+- 490 [attribute/ar] يعدّل ترتيب الأوقات المقترحة حسب تفاعل صفحتك الفعلي.
+- 499 [jsx-text/ar] آخر الأحداث
+
+### src/modules/pos/pages/POSPro.jsx (pos — ar:0 en:34)
+
+- 7561 [jsx-text/en] Shift report
+- 7577 [jsx-text/en] Print
+- 7579 [jsx-text/en] End of Shift Report #$
+- 7580 [jsx-text/en] Cashier: $
+- 7581 [jsx-text/en] Variance: $
+- 7583 [jsx-text/en] Count
+- 7583 [jsx-text/en] Method
+- 7583 [jsx-text/en] No payments
+- 7583 [jsx-text/en] Payment breakdown
+- 7583 [jsx-text/en] Total
+- 7584 [jsx-text/en] Invoices
+- 7584 [jsx-text/en] No seller data
+- 7584 [jsx-text/en] Sales
+- 7584 [jsx-text/en] Seller
+- 7584 [jsx-text/en] Seller performance
+- 7585 [jsx-text/en] No products
+- 7585 [jsx-text/en] Product
+- 7585 [jsx-text/en] Qty
+- 7585 [jsx-text/en] Share
+- 7585 [jsx-text/en] Top products
+- 7585 [jsx-text/en] Total
+- 7586 [jsx-text/en] Action
+- 7586 [jsx-text/en] Amount
+- 7586 [jsx-text/en] Audit timeline
+- 7586 [jsx-text/en] No events
+- 7586 [jsx-text/en] Reference
+- 7586 [jsx-text/en] Time
+- 7587 [jsx-text/en] Cashier signature
+- 7587 [jsx-text/en] Manager signature
+- 8855 [jsx-text/en] SKU:
+- 9244 [object-key/en] Shift close reconciliation
+- 9245 [object-key/en] Review drawer cash, payments, sales, and audit records before final close.
+- 9780 [attribute/en] InstaPay
+- 9781 [attribute/en] Vodafone Cash
 
 ### src/modules/aiStudio/lib/workflowGraph.js (main-erp — ar:0 en:33)
 
@@ -483,6 +567,42 @@ of scope. The scanner is conservative and can still contain false positives.
 - 270 [object-key/en] SENSITIVE tools always require approval.
 - 276 [object-key/en] Condition needs a left path and operator.
 - 278 [object-key/en] Condition source path is required.
+
+### src/pages/DashboardHeroUI.jsx (main-erp — ar:33 en:0)
+
+- 143 [object-key/ar] اليوم
+- 144 [object-key/ar] هذا الأسبوع
+- 145 [object-key/ar] هذا الشهر
+- 201 [jsx-text/ar] لا توجد مبيعات بعد
+- 227 [jsx-text/ar] لا توجد مدفوعات بعد
+- 317 [object-key/ar] صافي مبيعات اليوم
+- 318 [object-key/ar] عدد فواتير اليوم
+- 319 [object-key/ar] متوسط قيمة الفاتورة
+- 320 [object-key/ar] القطع المباعة اليوم
+- 321 [object-key/ar] المرتجعات اليوم
+- 322 [object-key/ar] الخصومات اليوم
+- 323 [object-key/ar] نقاط البيع النشطة
+- 345 [object-key/ar] مخزون منخفض
+- 346 [object-key/ar] طلبات شراء معلقة
+- 347 [object-key/ar] تحويلات مخزون معلقة
+- 359 [jsx-text/ar] لوحة التحكم
+- 380 [jsx-text/ar] بيانات تجريبية
+- 392 [attribute/ar] الفترة الزمنية
+- 413 [attribute/ar] المبيعات بالساعة
+- 419 [attribute/ar] طرق الدفع اليوم
+- 427 [attribute/ar] أحدث الفواتير
+- 428 [jsx-text/ar] عرض الكل
+- 434 [attribute/ar] أحدث الفواتير
+- 436 [jsx-text/ar] الفاتورة
+- 437 [jsx-text/ar] العميل
+- 438 [jsx-text/ar] الإجمالي
+- 439 [jsx-text/ar] الحالة
+- 461 [jsx-text/ar] لا توجد فواتير بعد
+- 466 [attribute/ar] الأكثر مبيعًا
+- 467 [jsx-text/ar] التقارير
+- 490 [jsx-text/ar] لا توجد مبيعات بعد
+- 497 [attribute/ar] يحتاج تدخلك
+- 518 [attribute/ar] مخزون منخفض
 
 ### src/pages/ThemeFoundation.jsx (main-erp — ar:19 en:14)
 
@@ -522,102 +642,103 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/pos/components/CartSidebar.jsx (pos — ar:28 en:3)
 
-- 1590 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
-- 1754 [jsx-text/ar] فاتورة بيع
-- 1756 [jsx-text/ar] التاريخ
-- 1757 [jsx-text/ar] البائع
-- 1758 [jsx-text/ar] العميل
-- 1759 [jsx-text/ar] الدفع
-- 1764 [jsx-text/ar] الإجمالي
-- 1764 [jsx-text/ar] السعر
-- 1764 [jsx-text/ar] الصنف
-- 1777 [jsx-text/ar] لا توجد منتجات
-- 1782 [jsx-text/ar] الإجمالي الفرعي
-- 1783 [jsx-text/ar] إجمالي الكمية
-- 1784 [jsx-text/ar] خصم المنتجات
-- 1785 [jsx-text/ar] خصم الفاتورة
-- 1786 [jsx-text/ar] خصم الكوبون
-- 1787 [jsx-text/ar] خصم الولاء
-- 1788 [jsx-text/ar] الضريبة
-- 1789 [jsx-text/ar] رسوم الخدمة
-- 1790 [jsx-text/ar] الإجمالي
-- 1792 [jsx-text/ar] تفاصيل الدفع
-- 1800 [jsx-text/ar] المدفوع
-- 1801 [jsx-text/ar] الباقي
-- 1802 [jsx-text/ar] المتبقي
-- 1806 [jsx-text/ar] العنوان
-- 1807 [jsx-text/ar] خدمة العملاء
-- 1808 [jsx-text/ar] الموقع الإلكتروني الرسمي
-- 1810 [jsx-text/ar] سياسة الاستبدال والاسترجاع
-- 1812 [jsx-text/ar] شكرًا لزيارتكم
-- 2579 [attribute/en] Vodafone Cash
-- 2586 [attribute/en] InstaPay
-- 2661 [attribute/en] INV-123
+- 1604 [jsx-text/ar] ولا يسمح باستبدال أو استرجاع الشنط.
+- 1768 [jsx-text/ar] فاتورة بيع
+- 1770 [jsx-text/ar] التاريخ
+- 1771 [jsx-text/ar] البائع
+- 1772 [jsx-text/ar] العميل
+- 1773 [jsx-text/ar] الدفع
+- 1778 [jsx-text/ar] الإجمالي
+- 1778 [jsx-text/ar] السعر
+- 1778 [jsx-text/ar] الصنف
+- 1791 [jsx-text/ar] لا توجد منتجات
+- 1796 [jsx-text/ar] الإجمالي الفرعي
+- 1797 [jsx-text/ar] إجمالي الكمية
+- 1798 [jsx-text/ar] خصم المنتجات
+- 1799 [jsx-text/ar] خصم الفاتورة
+- 1800 [jsx-text/ar] خصم الكوبون
+- 1801 [jsx-text/ar] خصم الولاء
+- 1802 [jsx-text/ar] الضريبة
+- 1803 [jsx-text/ar] رسوم الخدمة
+- 1804 [jsx-text/ar] الإجمالي
+- 1806 [jsx-text/ar] تفاصيل الدفع
+- 1814 [jsx-text/ar] المدفوع
+- 1815 [jsx-text/ar] الباقي
+- 1816 [jsx-text/ar] المتبقي
+- 1820 [jsx-text/ar] العنوان
+- 1821 [jsx-text/ar] خدمة العملاء
+- 1822 [jsx-text/ar] الموقع الإلكتروني الرسمي
+- 1824 [jsx-text/ar] سياسة الاستبدال والاسترجاع
+- 1826 [jsx-text/ar] شكرًا لزيارتكم
+- 2618 [attribute/en] Vodafone Cash
+- 2625 [attribute/en] InstaPay
+- 2700 [attribute/en] INV-123
 
 ### src/modules/purchases/pages/PurchaseOrder.jsx (main-erp — ar:28 en:3)
 
-- 1221 [inline-ternary/ar] isArabic ? "متاح فقط" : "Available only"
-- 1225 [inline-ternary/ar] isArabic ? "المفضلة فقط" : "Favorites only"
-- 1942 [inline-ternary/ar] isArabic ? "اختر الفرع أولاً قبل حفظ فاتورة الشراء." : "Select the branch before saving the purchase invoice."
-- 1989 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع أولاً." : "Choose a payment method first."
-- 1996 [inline-ternary/ar] isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first."
-- 2014 [inline-ternary/ar] isArabic ? "إجمالي الفاتورة غير صالح." : "Invoice total is invalid."
-- 2023 [inline-ternary/ar] isArabic ? "أدخل مبلغاً مدفوعاً صحيحاً أقل من إجمالي الفاتورة." : "Enter a valid paid amount less than the invoice total
-- 2255 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
-- 2257 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
-- 2354 [inline-ternary/ar] isArabic ? "إضافة مورد" : "Add supplier"
-- 2366 [inline-ternary/ar] isArabic ? "لا توجد فروع نشطة" : "No active branches"
-- 2367 [inline-ternary/ar] isArabic ? "اختر الفرع" : "Select branch"
-- 2394 [inline-ternary/ar] isArabic ? "الفلاتر" : "Filters"
-- 2523 [inline-ternary/ar] isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size."
-- 2524 [inline-ternary/ar] isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product tha
-- 2965 [inline-ternary/ar] isArabic ? "طريقة الدفع والحساب" : "Payment method & account"
-- 2983 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
-- 2987 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع" : "Choose a payment method"
-- 2990 [inline-ternary/ar] isArabic ? "الحساب المالي" : "Financial account"
-- 2997 [inline-ternary/ar] isArabic ? "اختر الحساب" : "Choose an account"
-- 3009 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
-- 3010 [inline-ternary/ar] isArabic ? "الحساب" : "Account"
-- 3010 [inline-ternary/ar] isArabic ? "غير محدد" : "Not selected"
-- 3012 [inline-ternary/ar] isArabic ? "المتبقي" : "Remaining"
-- 3214 [object-key/ar] استخدم كميات المنتج
-- 3215 [object-key/ar] راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.
-- 3234 [object-key/en] Use Product Purchase Qty
-- 3235 [object-key/en] Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.
-- 3352 [object-key/ar] تسعير المنتجات المختارة
-- 3353 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
-- 3371 [object-key/en] Price selected products
+- 1265 [inline-ternary/ar] isArabic ? "متاح فقط" : "Available only"
+- 1269 [inline-ternary/ar] isArabic ? "المفضلة فقط" : "Favorites only"
+- 1986 [inline-ternary/ar] isArabic ? "اختر الفرع أولاً قبل حفظ فاتورة الشراء." : "Select the branch before saving the purchase invoice."
+- 2033 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع أولاً." : "Choose a payment method first."
+- 2040 [inline-ternary/ar] isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first."
+- 2058 [inline-ternary/ar] isArabic ? "إجمالي الفاتورة غير صالح." : "Invoice total is invalid."
+- 2067 [inline-ternary/ar] isArabic ? "أدخل مبلغاً مدفوعاً صحيحاً أقل من إجمالي الفاتورة." : "Enter a valid paid amount less than the invoice total
+- 2299 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
+- 2301 [inline-ternary/ar] isArabic ? "ملء الشاشة" : "Fullscreen"
+- 2398 [inline-ternary/ar] isArabic ? "إضافة مورد" : "Add supplier"
+- 2410 [inline-ternary/ar] isArabic ? "لا توجد فروع نشطة" : "No active branches"
+- 2411 [inline-ternary/ar] isArabic ? "اختر الفرع" : "Select branch"
+- 2438 [inline-ternary/ar] isArabic ? "الفلاتر" : "Filters"
+- 2567 [inline-ternary/ar] isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size."
+- 2568 [inline-ternary/ar] isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product tha
+- 3009 [inline-ternary/ar] isArabic ? "طريقة الدفع والحساب" : "Payment method & account"
+- 3027 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
+- 3031 [inline-ternary/ar] isArabic ? "اختر طريقة الدفع" : "Choose a payment method"
+- 3034 [inline-ternary/ar] isArabic ? "الحساب المالي" : "Financial account"
+- 3041 [inline-ternary/ar] isArabic ? "اختر الحساب" : "Choose an account"
+- 3053 [inline-ternary/ar] isArabic ? "طريقة الدفع" : "Payment method"
+- 3054 [inline-ternary/ar] isArabic ? "الحساب" : "Account"
+- 3054 [inline-ternary/ar] isArabic ? "غير محدد" : "Not selected"
+- 3056 [inline-ternary/ar] isArabic ? "المتبقي" : "Remaining"
+- 3258 [object-key/ar] استخدم كميات المنتج
+- 3259 [object-key/ar] راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.
+- 3278 [object-key/en] Use Product Purchase Qty
+- 3279 [object-key/en] Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.
+- 3396 [object-key/ar] تسعير المنتجات المختارة
+- 3397 [object-key/ar] أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.
+- 3415 [object-key/en] Price selected products
 
-### src/modules/aiSupport/components/socialAutomation/PostProductLinksDrawer.jsx (shared — ar:0 en:28)
+### src/modules/aiSupport/components/socialAutomation/PostProductLinksDrawer.jsx (shared — ar:0 en:29)
 
-- 15 [object-key/en] Sneakers
-- 16 [object-key/en] Shoes
-- 17 [object-key/en] Running
-- 18 [object-key/en] Casual shoes
-- 19 [object-key/en] Crocs
-- 20 [object-key/en] Slippers
-- 21 [object-key/en] Bags
-- 33 [jsx-text/en] All
-- 624 [dialog/en] Remove all linked products from this post?
-- 676 [attribute/en] Close product links drawer
-- 681 [jsx-text/en] Link Products
-- 710 [jsx-text/en] Search ERP Products
-- 711 [jsx-text/en] Infinite search
-- 729 [attribute/en] Search by model, name, brand, SKU...
-- 746 [jsx-text/en] Section
-- 762 [attribute/en] Product types
-- 768 [attribute/en] Brands
-- 774 [attribute/en] Sizes
-- 817 [jsx-text/en] No products yet
-- 818 [jsx-text/en] Type to search ERP products and add them to this post.
-- 851 [jsx-text/en] Add
-- 855 [jsx-text/en] Price
-- 882 [jsx-text/en] Selected Products
-- 883 [jsx-text/en] Drag to reorder, choose primary
-- 898 [jsx-text/en] No linked products
-- 899 [jsx-text/en] Add one or more ERP products from the search panel.
-- 939 [jsx-text/en] Price
-- 956 [jsx-text/en] Primary
+- 16 [object-key/en] Sneakers
+- 17 [object-key/en] Shoes
+- 18 [object-key/en] Running
+- 19 [object-key/en] Casual shoes
+- 20 [object-key/en] Crocs
+- 21 [object-key/en] Slippers
+- 22 [object-key/en] Bags
+- 34 [jsx-text/en] All
+- 636 [dialog/en] Remove all linked products from this post?
+- 688 [attribute/en] Close product links drawer
+- 693 [jsx-text/en] Link Products
+- 722 [jsx-text/en] Search ERP Products
+- 723 [jsx-text/en] Infinite search
+- 741 [attribute/en] Search by model, name, brand, SKU...
+- 758 [jsx-text/en] Section
+- 774 [attribute/en] Product types
+- 780 [attribute/en] Brands
+- 786 [attribute/en] Sizes
+- 829 [jsx-text/en] No products yet
+- 830 [jsx-text/en] Type to search ERP products and add them to this post.
+- 863 [jsx-text/en] Add
+- 867 [jsx-text/en] Price
+- 894 [jsx-text/en] Selected Products
+- 895 [jsx-text/en] Drag to reorder, choose primary
+- 910 [jsx-text/en] No linked products
+- 911 [jsx-text/en] Add one or more ERP products from the search panel.
+- 959 [jsx-text/en] Price
+- 966 [jsx-text/en] Qty
+- 994 [jsx-text/en] Primary
 
 ### src/pages/AppShellPreview.jsx (main-erp — ar:25 en:2)
 
@@ -682,27 +803,27 @@ of scope. The scanner is conservative and can still contain false positives.
 - 80 [object-key/en] Settings Center
 - 81 [object-key/en] Manage your entire ERP from one place.
 - 82 [object-key/en] Manage company, operations, orders, AI and security settings.
-- 127 [object-key/ar] مركز الإعدادات
-- 128 [object-key/ar] إدارة إعدادات النظام بالكامل من شاشة واحدة.
-- 129 [object-key/ar] تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.
-- 704 [inline-ternary/ar] language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults"
-- 745 [inline-ternary/ar] language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved"
-- 758 [inline-ternary/ar] language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded"
-- 982 [inline-ternary/ar] language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"
-- 982 [inline-ternary/ar] language === "ar" ? "محفوظ" : "Saved"
-- 983 [inline-ternary/ar] language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
-- 1185 [inline-ternary/ar] language === "ar" ? "إعادة الافتراضي" : "Reset defaults"
-- 1630 [jsx-text/en] InstaPay
-- 1783 [inline-ternary/ar] language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"
-- 1795 [inline-ternary/ar] language === "ar" ? "الحد الأدنى لمدة التجهيز بالأيام" : "Minimum handling days"
-- 1810 [inline-ternary/ar] language === "ar" ? "الحد الأقصى لمدة التجهيز بالأيام" : "Maximum handling days"
-- 1830 [inline-ternary/ar] language === "ar" ? "تُطبّق هذه القيمة تلقائيًا على كل مناطق الشحن الفعالة ما لم يتم تفعيل مدة خاصة لمنطقة محددة." : "Ap
-- 2509 [object-key/en] Mylerz
-- 2510 [object-key/en] ShipBlu
-- 3296 [jsx-text/en] Provider:
-- 3553 [inline-ternary/ar] language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"
-- 3563 [inline-ternary/ar] language === "ar" ? "أقل مدة تجهيز" : "Handling min days"
-- 3564 [inline-ternary/ar] language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"
+- 121 [object-key/ar] مركز الإعدادات
+- 122 [object-key/ar] إدارة إعدادات النظام بالكامل من شاشة واحدة.
+- 123 [object-key/ar] تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.
+- 628 [inline-ternary/ar] language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults"
+- 669 [inline-ternary/ar] language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved"
+- 682 [inline-ternary/ar] language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded"
+- 878 [inline-ternary/ar] language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"
+- 878 [inline-ternary/ar] language === "ar" ? "محفوظ" : "Saved"
+- 879 [inline-ternary/ar] language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
+- 1081 [inline-ternary/ar] language === "ar" ? "إعادة الافتراضي" : "Reset defaults"
+- 1408 [jsx-text/en] InstaPay
+- 1561 [inline-ternary/ar] language === "ar" ? "مدة تجهيز الطلب قبل التسليم لشركة الشحن" : "Order handling time before carrier handoff"
+- 1573 [inline-ternary/ar] language === "ar" ? "الحد الأدنى لمدة التجهيز بالأيام" : "Minimum handling days"
+- 1588 [inline-ternary/ar] language === "ar" ? "الحد الأقصى لمدة التجهيز بالأيام" : "Maximum handling days"
+- 1608 [inline-ternary/ar] language === "ar" ? "تُطبّق هذه القيمة تلقائيًا على كل مناطق الشحن الفعالة ما لم يتم تفعيل مدة خاصة لمنطقة محددة." : "Ap
+- 2295 [object-key/en] Mylerz
+- 2296 [object-key/en] ShipBlu
+- 3082 [jsx-text/en] Provider:
+- 3339 [inline-ternary/ar] language === "ar" ? "استخدام مدة تجهيز خاصة لهذه المنطقة" : "Use a custom handling time for this zone"
+- 3349 [inline-ternary/ar] language === "ar" ? "أقل مدة تجهيز" : "Handling min days"
+- 3350 [inline-ternary/ar] language === "ar" ? "أقصى مدة تجهيز" : "Handling max days"
 
 ### src/shared/utils/invoicePdf.js (shared — ar:24 en:0)
 
@@ -755,6 +876,30 @@ of scope. The scanner is conservative and can still contain false positives.
 - 191 [jsx-text/en] Employee
 - 191 [jsx-text/en] Orders
 - 191 [jsx-text/en] Sales
+
+### src/modules/marketing/pages/SocialMediaPublisher.jsx (main-erp — ar:0 en:21)
+
+- 2242 [jsx-text/en] Publishing Account
+- 2243 [jsx-text/en] Choose the connected Facebook page and Instagram account.
+- 2315 [jsx-text/en] Facebook:
+- 2316 [jsx-text/en] Instagram:
+- 2456 [attribute/en] Preview post
+- 2477 [jsx-text/en] Publishing Account
+- 2490 [jsx-text/en] Post Details
+- 2493 [jsx-text/en] Media
+- 2497 [jsx-text/en] Platforms
+- 2501 [jsx-text/en] Status
+- 2502 [jsx-text/en] Draft
+- 2570 [attribute/en] Templates
+- 2576 [jsx-text/en] Templates
+- 2590 [jsx-text/en] Available templates
+- 2600 [jsx-text/en] New Collection
+- 2609 [jsx-text/en] Preview
+- 2635 [jsx-text/en] Source:
+- 2680 [attribute/en] Select Product
+- 2686 [jsx-text/en] Select Product
+- 2687 [jsx-text/en] Choose a product from ERP and autofill the post draft.
+- 2705 [attribute/en] Search products...
 
 ### src/services/realtimeFeedbackService.js (main-erp — ar:0 en:21)
 
@@ -909,22 +1054,22 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/products/pages/ProductEdit.jsx (main-erp — ar:3 en:13)
 
-- 1166 [notification/en] Select a color target before regenerating the AI cover.
-- 1221 [notification/en] AI cover regeneration queued.
-- 1262 [notification/en] OpenAI unavailable. Local description fallback applied.
-- 2276 [notification/ar] المقاسات موجودة بالفعل
-- 2319 [notification/en] All sizes already exist
-- 2326 [notification/en] All sizes already exist
-- 2493 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
-- 2566 [notification/en] Save the product first to generate AI Thermal Artwork per color
-- 2577 [notification/en] This color already has AI Thermal Artwork
-- 2579 [notification/en] This color already has an active thermal job
-- 2581 [notification/en] AI Thermal Artwork requires a color image
-- 2610 [notification/en] No eligible colors were queued
-- 2774 [notification/ar] المقاس موجود بالفعل في هذا اللون
-- 3026 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
-- 3812 [attribute/en] Open Graph preview
-- 3938 [attribute/en] Product cover
+- 1185 [notification/en] Select a color target before regenerating the AI cover.
+- 1240 [notification/en] AI cover regeneration queued.
+- 1281 [notification/en] OpenAI unavailable. Local description fallback applied.
+- 2295 [notification/ar] المقاسات موجودة بالفعل
+- 2338 [notification/en] All sizes already exist
+- 2345 [notification/en] All sizes already exist
+- 2512 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
+- 2585 [notification/en] Save the product first to generate AI Thermal Artwork per color
+- 2596 [notification/en] This color already has AI Thermal Artwork
+- 2598 [notification/en] This color already has an active thermal job
+- 2600 [notification/en] AI Thermal Artwork requires a color image
+- 2629 [notification/en] No eligible colors were queued
+- 2793 [notification/ar] المقاس موجود بالفعل في هذا اللون
+- 3077 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
+- 3873 [attribute/en] Open Graph preview
+- 4009 [attribute/en] Product cover
 
 ### src/shared/lib/categorySeo.js (shared — ar:16 en:0)
 
@@ -962,6 +1107,22 @@ of scope. The scanner is conservative and can still contain false positives.
 - 136 [inline-ternary/ar] isArabic ? "رابط واتساب" : "WhatsApp Link"
 - 140 [inline-ternary/ar] isArabic ? "تنزيل QR" : "Download QR"
 - 144 [inline-ternary/ar] isArabic ? "إعادة إنشاء الرابط" : "Regenerate Link"
+
+### src/dev/messageMediaPreview.jsx (main-erp — ar:12 en:1)
+
+- 33 [object-key/ar] customer · صورة واحدة (بدون تعليق)
+- 47 [object-key/ar] customer · صورة مع تعليق حقيقي
+- 61 [object-key/ar] customer · رسالة صوتية
+- 75 [object-key/ar] customer · رسالة صوتية مُفرَّغة
+- 90 [object-key/ar] customer · ملف PDF
+- 106 [object-key/ar] customer · أربع صور
+- 120 [object-key/ar] customer · صورة رابطها ميت
+- 134 [object-key/ar] staff · ملف مرسل من المتجر
+- 153 [object-key/ar] staff · رسالة صوتية مرسلة
+- 170 [object-key/ar] ai · رد مع صور
+- 187 [object-key/ar] comment · تعليق بصورة
+- 207 [jsx-text/ar] AI Inbox — بابلز المرفقات
+- 210 [jsx-text/en] Desktop
 
 ### src/modules/accounting/pages/AccountingAnalytics.jsx (main-erp — ar:13 en:0)
 
@@ -1009,6 +1170,21 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1768 [inline-ternary/ar] isArabic ? "صورة الموظف" : "Employee photo"
 - 1770 [inline-ternary/ar] isArabic ? "ارفع صورة أو الصق رابط الصورة الرسمي." : "Upload an image or paste the official employee photo URL."
 
+### src/modules/marketing/components/StoryThemeCalendar.jsx (shared — ar:12 en:0)
+
+- 70 [object-key/ar] مطابق للفلتر
+- 71 [object-key/ar] اتعمله استوري
+- 72 [object-key/ar] اتنشر
+- 73 [object-key/ar] متبقي في اللفة
+- 176 [jsx-text/ar] مفيش بلوك
+- 214 [attribute/ar] حذف البلوك
+- 230 [jsx-text/ar] أيام النزول
+- 247 [jsx-text/ar] استوري في اليوم
+- 259 [jsx-text/ar] الجمهور (فاضي = الكل)
+- 279 [jsx-text/ar] العروض
+- 303 [attribute/ar] نوع المنتج
+- 310 [attribute/ar] الدرجة (ميرور / فيتنامي / محلي …)
+
 ### src/modules/reports/pages/Reports.jsx (main-erp — ar:9 en:3)
 
 - 358 [jsx-text/en] Analytics & Reports
@@ -1038,20 +1214,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 1198 [jsx-text/ar] طباعة QR ذكي للمنتج
 - 1424 [jsx-text/en] Barcode
 
-### src/modules/products/pages/CreateProduct.jsx (main-erp — ar:7 en:4)
-
-- 1521 [notification/ar] المقاسات موجودة بالفعل
-- 1569 [notification/en] All sizes already exist
-- 1575 [notification/en] All sizes already exist
-- 1703 [notification/ar] المقاس موجود بالفعل في هذا اللون
-- 1838 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
-- 1883 [notification/en] Save the product first, then generate AI Thermal Artwork per color from Edit Product.
-- 2047 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
-- 2112 [notification/ar] تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.
-- 3574 [attribute/ar] ترتيب اللون
-- 3584 [attribute/ar] تحريك لأعلى
-- 3597 [attribute/ar] تحريك لأسفل
-
 ### src/modules/products/components/MultiVersionGenerator.jsx (shared — ar:0 en:10)
 
 - 6 [object-key/en] Polished
@@ -1067,40 +1229,64 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/products/components/ProductForm.jsx (shared — ar:10 en:0)
 
-- 12 [object-key/ar] رجال
-- 13 [object-key/ar] نساء
-- 14 [object-key/ar] أطفال
-- 84 [jsx-text/ar] 01 · بيانات البيع
-- 85 [jsx-text/ar] العلامة والوحدة
-- 189 [jsx-text/ar] 02 · التصنيف الذكي
-- 217 [attribute/ar] مقاس الشنطة المدرسية *
-- 221 [attribute/ar] اختر المقاس من 12 إلى 22 بوصة
-- 254 [jsx-text/ar] 03 · التسعير التسويقي
-- 418 [jsx-text/ar] قيمة غير متاحة:
+- 13 [object-key/ar] رجال
+- 14 [object-key/ar] نساء
+- 15 [object-key/ar] أطفال
+- 105 [jsx-text/ar] 01 · بيانات البيع
+- 106 [jsx-text/ar] العلامة والوحدة
+- 210 [jsx-text/ar] 02 · التصنيف الذكي
+- 238 [attribute/ar] مقاس الشنطة المدرسية *
+- 242 [attribute/ar] اختر المقاس من 12 إلى 22 بوصة
+- 275 [jsx-text/ar] 03 · التسعير التسويقي
+- 530 [jsx-text/ar] قيمة غير متاحة:
 
 ### src/modules/employees/pages/EmployeePayrollPortal.jsx (employee-portal — ar:4 en:5)
 
-- 104 [object-key/ar] محفظة الموظف
-- 105 [object-key/ar] رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.
-- 190 [object-key/en] Employee Portal
-- 191 [object-key/en] Your secure employee link opens payroll, attendance, and requests.
-- 295 [object-key/ar] الرسالة
-- 349 [object-key/en] Message
-- 604 [object-key/ar] طباعة باركود نواقص العرض
-- 4382 [attribute/en] M1 Store
-- 4387 [jsx-text/en] M1 Store
+- 105 [object-key/ar] محفظة الموظف
+- 106 [object-key/ar] رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.
+- 191 [object-key/en] Employee Portal
+- 192 [object-key/en] Your secure employee link opens payroll, attendance, and requests.
+- 304 [object-key/ar] الرسالة
+- 366 [object-key/en] Message
+- 621 [object-key/ar] طباعة باركود نواقص العرض
+- 4467 [attribute/en] M1 Store
+- 4472 [jsx-text/en] M1 Store
+
+### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:3 en:6)
+
+- 542 [notification/ar] تم تحميل الصفحة جزئيًا، حاول التحديث مرة أخرى
+- 934 [attribute/ar] إعدادات النشر التلقائي للاستوري
+- 938 [jsx-text/ar] إعدادات
+- 1241 [jsx-text/en] Source:
+- 1703 [attribute/en] selectedPublishUrl_raw
+- 1749 [jsx-text/en] Mood:
+- 1750 [jsx-text/en] Platform:
+- 1751 [jsx-text/en] Search:
+- 1788 [attribute/en] selectedPublishUrl_raw
 
 ### src/modules/pos/components/RecentOperationsDrawer.jsx (pos — ar:7 en:2)
 
 - 237 [object-key/en] Vodafone Cash
 - 238 [object-key/en] InstaPay
-- 787 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
-- 788 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
-- 789 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
-- 1130 [inline-ternary/ar] isRtl ? "العميل" : "Customer"
-- 1131 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
-- 1132 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
-- 1133 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
+- 843 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
+- 844 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
+- 845 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
+- 1186 [inline-ternary/ar] isRtl ? "العميل" : "Customer"
+- 1187 [inline-ternary/ar] isRtl ? "البائع" : "Seller"
+- 1188 [inline-ternary/ar] isRtl ? "الدفع" : "Payment"
+- 1189 [inline-ternary/ar] isRtl ? "التاريخ" : "Date"
+
+### src/modules/products/pages/CreateProduct.jsx (main-erp — ar:5 en:4)
+
+- 1525 [notification/ar] المقاسات موجودة بالفعل
+- 1573 [notification/en] All sizes already exist
+- 1579 [notification/en] All sizes already exist
+- 1707 [notification/ar] المقاس موجود بالفعل في هذا اللون
+- 1874 [notification/en] Vision AI unavailable. Text generator suggestions are ready.
+- 1919 [notification/en] Save the product first, then generate AI Thermal Artwork per color from Edit Product.
+- 2083 [notification/ar] يجب تحديد مقاس الشنطة المدرسية من 12 إلى 22 بوصة
+- 2148 [notification/ar] تنبيه: يوجد أكثر من بلوك بنفس اسم اللون. سيُحفظ كل بلوك وصوره منفصلًا ولن يتم دمج الصور.
+- 3672 [attribute/ar] اسحب لتغيير الترتيب — أو الأسهم للتحريك خطوة، Home لأعلى القائمة، End لأسفلها
 
 ### src/pages/CreateOrder.jsx (main-erp — ar:0 en:9)
 
@@ -1217,14 +1403,14 @@ of scope. The scanner is conservative and can still contain false positives.
 - 349 [attribute/en] Quantity
 - 365 [attribute/en] Price
 
-### src/modules/marketing/pages/AiMarketingCenter.jsx (main-erp — ar:0 en:6)
+### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:0 en:6)
 
-- 1116 [jsx-text/en] Source:
-- 1575 [attribute/en] selectedPublishUrl_raw
-- 1621 [jsx-text/en] Mood:
-- 1622 [jsx-text/en] Platform:
-- 1623 [jsx-text/en] Search:
-- 1660 [attribute/en] selectedPublishUrl_raw
+- 651 [object-key/en] Telegram
+- 3766 [object-key/en] Mylerz
+- 3767 [object-key/en] ShipBlu
+- 5260 [jsx-text/en] Follow-up
+- 6418 [object-key/en] Facebook Comment
+- 6419 [object-key/en] Instagram Comment
 
 ### src/pages/Branches.jsx (main-erp — ar:0 en:6)
 
@@ -1250,14 +1436,6 @@ of scope. The scanner is conservative and can still contain false positives.
 - 6 [object-key/en] Resolve the primary objection
 - 7 [object-key/en] Clarify value and price
 - 8 [object-key/en] Advance discovery
-
-### src/modules/aiSupport/pages/AiInbox.jsx (main-erp — ar:0 en:5)
-
-- 3585 [object-key/en] Mylerz
-- 3586 [object-key/en] ShipBlu
-- 4620 [jsx-text/en] Follow-up
-- 5683 [object-key/en] Facebook Comment
-- 5684 [object-key/en] Instagram Comment
 
 ### src/modules/marketing/pages/AiMarketingVideos.jsx (main-erp — ar:0 en:5)
 
@@ -1327,10 +1505,10 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/marketing/components/PostEditorModal.jsx (shared — ar:0 en:4)
 
-- 266 [object-key/en] Arabic Reel Trend
-- 1502 [jsx-text/en] Mood:
-- 1503 [jsx-text/en] Platform:
-- 1504 [jsx-text/en] Search:
+- 277 [object-key/en] Arabic Reel Trend
+- 1569 [jsx-text/en] Mood:
+- 1570 [jsx-text/en] Platform:
+- 1571 [jsx-text/en] Search:
 
 ### src/modules/products/pages/ProductDetails.jsx (main-erp — ar:4 en:0)
 
@@ -1338,6 +1516,13 @@ of scope. The scanner is conservative and can still contain false positives.
 - 178 [inline-ternary/ar] isArabic ? "حريمي" : "Women"
 - 179 [inline-ternary/ar] isArabic ? "أطفال" : "Kids"
 - 500 [inline-ternary/ar] isArabic ? "غير متاح" : "n/a"
+
+### src/modules/products/pages/ProductsList.jsx (main-erp — ar:4 en:0)
+
+- 400 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
+- 444 [inline-ternary/ar] isArabic ? "المصنع" : "Manufacturer"
+- 1184 [jsx-text/ar] صورة مفقودة
+- 1286 [jsx-text/ar] مفقودة
 
 ### src/modules/aiStudio/components/editor/nodeKit.js (shared — ar:0 en:3)
 
@@ -1417,8 +1602,8 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/sales/pages/Customers.jsx (main-erp — ar:0 en:2)
 
-- 1770 [jsx-text/en] InstaPay
-- 1771 [jsx-text/en] Vodafone Cash
+- 1899 [jsx-text/en] InstaPay
+- 1900 [jsx-text/en] Vodafone Cash
 
 ### src/shared/components/Table.jsx (shared — ar:0 en:2)
 
@@ -1432,8 +1617,8 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/theme/themes.js (main-erp — ar:0 en:2)
 
-- 70 [object-key/en] Calm, dense ERP surfaces with restrained M1 gold actions.
-- 114 [object-key/en] Neutral charcoal ERP surfaces with readable dense data.
+- 73 [object-key/en] Calm, dense ERP surfaces with restrained M1 gold actions.
+- 117 [object-key/en] Neutral charcoal ERP surfaces with readable dense data.
 
 ### src/components/ProductSizes.jsx (shared — ar:0 en:1)
 
@@ -1449,7 +1634,7 @@ of scope. The scanner is conservative and can still contain false positives.
 
 ### src/modules/aiSupport/components/ProductCardPicker.jsx (shared — ar:0 en:1)
 
-- 1391 [jsx-text/en] Variant:
+- 1422 [jsx-text/en] Variant:
 
 ### src/modules/aiSupport/copilot/SuggestionEngine.ts (main-erp — ar:0 en:1)
 
@@ -1459,21 +1644,17 @@ of scope. The scanner is conservative and can still contain false positives.
 
 - 11 [object-key/en] Human review
 
-### src/modules/aiSupport/pages/AiChannels.jsx (main-erp — ar:1 en:0)
+### src/modules/aiSupport/pages/AiInboxPwa.jsx (main-erp — ar:1 en:0)
 
-- 275 [object-key/ar] اختبار من بوابة واتساب ERP.
+- 5030 [notification/ar] تم تعديل الرسالة عند العميل
 
 ### src/modules/aiSupport/pages/AiSettings.jsx (main-erp — ar:1 en:0)
 
 - 99 [object-key/ar] بكام؟
 
-### src/modules/marketing/pages/MarketingSettings.jsx (main-erp — ar:0 en:1)
-
-- 1218 [jsx-text/en] Token:
-
 ### src/modules/marketing/services/marketingApi.js (main-erp — ar:0 en:1)
 
-- 213 [object-key/en] Test post from ERP
+- 220 [object-key/en] Test post from ERP
 
 ### src/modules/pos/lib/thermalReceiptPrint.jsx (pos — ar:0 en:1)
 
@@ -1486,10 +1667,6 @@ of scope. The scanner is conservative and can still contain false positives.
 ### src/modules/products/lib/barcodePdfGenerator.js (main-erp — ar:0 en:1)
 
 - 183 [attribute/en] No Image
-
-### src/modules/products/pages/ProductsList.jsx (main-erp — ar:1 en:0)
-
-- 399 [inline-ternary/ar] isArabic ? "غير محدد" : "Not specified"
 
 ### src/modules/purchases/pages/ReorderSuggestions.jsx (main-erp — ar:0 en:1)
 

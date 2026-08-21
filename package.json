@@ -47,10 +47,10 @@
     "migrate:merchant-policies": "node server/scripts/migrateMerchantPolicySettings.js",
     "start": "npm --prefix \"./server\" run start",
     "check:encoding": "node scripts/fix-arabic-mojibake.cjs --check server scripts tests",
-    "fix:encoding": "node scripts/fix-arabic-mojibake.cjs",
-    "test:ai-brain": "node --test tests/ai-brain/*.test.js"
+    "fix:encoding": "node scripts/fix-arabic-mojibake.cjs"
   },
   "dependencies": {
+    "@heroui/react": "^3.2.4",
     "@xyflow/react": "^12.11.2",
     "axios": "^1.16.0",
     "bcryptjs": "^3.0.3",

@@ -1,0 +1,71 @@
+/* ============================================================================
+   HeroUI v3 — TRIAL ONLY (not part of the M1 design system)
+   ----------------------------------------------------------------------------
+   This file is imported ONLY by src/pages/HeroUILab.jsx, which is a lazy route.
+   So none of this CSS reaches the app until you actually open /heroui-lab.
+
+   WHY A SEPARATE ENTRY INSTEAD OF ADDING TO src/index.css:
+   HeroUI ships its component CSS written with Tailwind `@apply` (see
+   node_modules/@heroui/styles/dist/components/button.css). `@apply` needs the
+   full Tailwind theme context, so HeroUI's entry does its own
+   `@import "tailwindcss"`. Merging it into src/index.css is therefore not a
+   cosmetic add — it drops HeroUI's whole token set onto :root next to M1's.
+
+   THE COLLISION (measured, not guessed):
+   node_modules/@heroui/styles/dist/themes/default/variables.css defines, on
+   `:root, .light, .default, [data-theme="light"], [data-theme="default"]`:
+     --surface  --surface-hover  --muted  --border  --radius  --spacing
+   M1 owns those exact names (src/theme/ThemeProvider.jsx writes them), and it
+   also toggles `.dark` + `data-theme` on <html>/<body> — which is HeroUI's own
+   dark selector. Same names, same selectors, two owners.
+
+   HOW THIS TRIAL STAYS CONTAINED:
+   HeroUI scopes its full palette to `.light` / `.dark`, so the lab wrapper
+   carries that class and re-declares every HeroUI token INSIDE the container.
+   That beats whatever M1 inherited from <html>, and keeps the demo faithful
+   without M1 having to give up any token.
+   ========================================================================== */
+@import "@heroui/styles/css";
+
+/* ============================================================================
+   SHARED ENTRY — also imported by src/pages/DashboardHeroUI.jsx
+   ----------------------------------------------------------------------------
+   Both trial pages import THIS file rather than each importing
+   "@heroui/styles/css" themselves. HeroUI's entry pulls in a full second
+   Tailwind build (~1.34 MB raw), and a per-page import would put that copy in
+   every lazy chunk that used it.
+   ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   BRAND BRIDGE — makes HeroUI wear M1's colours instead of its stock blue.
+   Scoped to `.heroui-brand`, so it only applies where we opt in.
+
+   --accent is the important one. M1 never defines it; it is read as
+   `var(--accent, var(--primary))` in m1-ui.css and bare in App.css, so today
+   the M1 gold shows through the fallback. HeroUI defines --accent on :root as
+   its own blue, which silently wins that fallback for the whole app while any
+   HeroUI stylesheet is loaded. Pinning it back to M1's --primary here keeps
+   both sides on brand.
+   -------------------------------------------------------------------------- */
+.heroui-brand {
+  --accent: var(--primary, #a47a12);
+  --accent-foreground: var(--primary-contrast, #0d0a02);
+  --focus: var(--primary, #a47a12);
+  --link: var(--primary, #a47a12);
+}
+
+/* Restore the app-wide fallback that HeroUI's :root block would otherwise
+   capture, so M1 chrome outside the trial container stays M1 gold.
+
+   :root alone is NOT enough. HeroUI's palette rule is
+   `:root, .light, .default, [data-theme="light"], [data-theme="default"]`,
+   and M1's ThemeProvider writes data-theme onto <body> as well as <html> —
+   so <body> re-claims --accent one level below :root and everything inside it
+   inherits HeroUI's blue again. Measured: a probe on <body> still resolved
+   `var(--accent, var(--primary))` to blue with only the :root override in
+   place. These selectors are unlayered, so they outrank HeroUI's @layer base. */
+:root,
+body,
+[data-theme] {
+  --accent: var(--primary, #a47a12);
+}
