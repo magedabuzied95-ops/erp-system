@@ -1961,7 +1961,7 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
           <table className="m1-table m1-table--compact min-w-full text-sm">
             <thead className="sticky top-0 bg-slate-100 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
               <tr>
-                {["City", "Zone", "District", "Availability"].map((header) => <th key={header} className="px-4 py-3 text-start">{header}</th>)}
+                {[copy.colCity, copy.colZone, copy.colDistrict, copy.colAvailability].map((header) => <th key={header} className="px-4 py-3 text-start">{header}</th>)}
               </tr>
             </thead>
             <tbody className="dark:divide-white/10">
@@ -2222,6 +2222,10 @@ const shippingUi = {
     bostaSynced: "Bosta locations synced",
     bostaStatus: "Bosta status",
     bostaStatusHint: "Operational checklist for API, location sync, and webhook readiness.",
+    colCity: "City",
+    colZone: "Zone",
+    colDistrict: "District",
+    colAvailability: "Availability",
     bostaLocations: "Locations preview",
     bostaLocationsHint: "Search synced cities, zones, and districts in English and Arabic.",
     emptyBostaLocations: "No Bosta locations synced yet.",
@@ -2298,6 +2302,10 @@ const shippingUi = {
     bostaSynced: "تمت مزامنة مناطق بوسطة",
     bostaStatus: "حالة بوسطة",
     bostaStatusHint: "قائمة تشغيلية للتحقق من الـ API والمزامنة وجاهزية الويبهوك.",
+    colCity: "المدينة",
+    colZone: "المنطقة",
+    colDistrict: "الحي",
+    colAvailability: "الإتاحة",
     bostaLocations: "معاينة المناطق",
     bostaLocationsHint: "ابحث في المدن والمناطق والأحياء المتزامنة بالعربي والإنجليزي.",
     emptyBostaLocations: "لسه مفيش مناطق متزامنة من بوسطة.",

@@ -695,9 +695,22 @@ export const listShippingDistricts = async ({ provider = "bosta", zoneId, dropof
   return result.rows;
 };
 
+// Bosta stores "القاهره" with a haa. Someone searching types "القاهرة" with a taa marbuta and a
+// raw ILIKE returns nothing -- which reads as "Bosta does not deliver there". Both the
+// query and the stored name are folded the same way, matching the rules the storefront
+// zone matcher already uses, so spelling stops deciding the answer.
+const foldArabic = (value = "") => text(value)
+  .replace(/[أإآا]/g, "ا")
+  .replace(/ة/g, "ه")
+  .replace(/ى/g, "ي")
+  .replace(/[\u064B-\u0652\u0670]/g, "");
+
+const foldedColumn = (column) =>
+  `translate(regexp_replace(${column}, '[\u064B-\u0652\u0670]', '', 'g'), 'أإآةى', 'اااهي')`;
+
 export const searchShippingLocations = async ({ provider = "bosta", q = "", limit = 50 } = {}) => {
   const providerId = await providerWhere(provider);
-  const pattern = `%${text(q)}%`;
+  const pattern = `%${foldArabic(q)}%`;
   const result = await db.query(
     `
     SELECT
@@ -711,7 +724,7 @@ export const searchShippingLocations = async ({ provider = "bosta", q = "", limi
     JOIN shipping_zones z ON z.id = d.zone_id
     JOIN shipping_cities c ON c.id = d.city_id
     WHERE d.provider_id = $1
-      AND ($2 = '%%' OR c.name_en ILIKE $2 OR c.name_ar ILIKE $2 OR z.name_en ILIKE $2 OR z.name_ar ILIKE $2 OR d.name_en ILIKE $2 OR d.name_ar ILIKE $2)
+      AND ($2 = '%%' OR ${foldedColumn("c.name_en")} ILIKE $2 OR ${foldedColumn("c.name_ar")} ILIKE $2 OR ${foldedColumn("z.name_en")} ILIKE $2 OR ${foldedColumn("z.name_ar")} ILIKE $2 OR ${foldedColumn("d.name_en")} ILIKE $2 OR ${foldedColumn("d.name_ar")} ILIKE $2)
     ORDER BY c.name_en, z.name_en, d.name_en
     LIMIT $3
     `,
