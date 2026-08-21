@@ -29,11 +29,11 @@ test("both inbox queries expose unread for a conversation with no imported messa
   assert.ok(selections.includes('${unreadFromChatPreviewSql("m.created_at")}'));
 });
 
-test("the chat-preview rule never flips a thread on a missing or stale direction flag", () => {
-  // Absent flag => the message path decides. A staff row as the newest imported message
-  // means a human already replied, so a lagging chat preview must not undo that.
+test("the chat-preview rule never flips a thread on a missing flag or a millisecond of skew", () => {
+  // Absent flag => the message path decides. And a send that updated the conversation and
+  // wrote its message row in the same breath must not read as a newer customer message.
   assert.match(agentSource, /COALESCE\(c\.metadata->>'last_message_from_me', ''\) = 'false'/);
-  assert.match(agentSource, /LOWER\(COALESCE\(m\.sender_type, ''\)\) <> 'staff'/);
+  assert.match(agentSource, /c\.last_message_at > \$\{latestMessageCreatedAt\} \+ INTERVAL '2 minutes'/);
   assert.match(agentSource, /c\.last_message_at > GREATEST\(\s*COALESCE\(c\.read_at, TIMESTAMP 'epoch'\),\s*COALESCE\(s\.read_at, TIMESTAMP 'epoch'\)\s*\)/);
 });
 

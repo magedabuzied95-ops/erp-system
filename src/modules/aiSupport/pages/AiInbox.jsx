@@ -5714,7 +5714,6 @@ export default function AiInbox({ reviewerMode = false }) {
   const selectedSessionIdRef = useRef("");
   const selectedSocialCommentIdRef = useRef("");
   const selectedSocialCommentFetchKeyRef = useRef("");
-  const markReadSignatureRef = useRef("");
   const inboxSectionRef = useRef(inboxSection);
   const selectedConversationCacheRef = useRef(null);
   const lastEnabledAutoReplyModeRef = useRef({});
@@ -7025,9 +7024,6 @@ export default function AiInbox({ reviewerMode = false }) {
     const currentlyUnread = previousUnreadCount > 0 || previousManuallyUnread;
     const channel = clean(item?.channel || item?.source || "");
     if (currentlyUnread) {
-      // Marking read: keep the auto-mark-on-open effect from fighting us by pinning
-      // its signature to this conversation's current state.
-      markReadSignatureRef.current = `${sessionId}:${item?.last_activity_at || item?.updated_at || ""}`;
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
         unread_count: 0,
@@ -7111,41 +7107,12 @@ export default function AiInbox({ reviewerMode = false }) {
       selectedConversationCacheRef.current = selectedConversation;
     }
   }, [inboxSection, selectedConversation]);
-  useEffect(() => {
-    if (inboxSection !== "conversations" || !selectedConversation?.session_id) return;
-    const unreadCount = Number(selectedConversation.unread_count || selectedConversation.unread || 0);
-    if (unreadCount <= 0) return;
-    const sessionId = clean(selectedConversation.session_id);
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    const signature = `${sessionId}:${selectedConversation.last_activity_at || selectedConversation.updated_at || ""}`;
-    if (markReadSignatureRef.current === signature) return;
-    markReadSignatureRef.current = signature;
-    const readAt = new Date().toISOString();
-    patchConversation(conversationIdentifier, (conversation) => ({
-      ...conversation,
-      unread_count: 0,
-      unseen_count: 0,
-      pending_count: 0,
-      unread: false,
-      read_at: readAt,
-    }));
-    void api.post(
-      aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/read"),
-      {
-        tenant_id: tenantId,
-        conversation_id: sessionId,
-        channel: selectedConversation.channel || selectedConversation.source || "",
-      },
-      { headers, perfComponent: "AiInbox.markRead" }
-    ).catch((markError) => {
-      console.warn("[AiInbox] mark-read failed", {
-        conversation_id: sessionId,
-        status: markError?.status || 0,
-        message: markError?.message || "",
-      });
-      markReadSignatureRef.current = "";
-    });
-  }, [headers, inboxSection, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+  // Opening a conversation deliberately does NOT mark it read any more. Unread now means
+  // "this customer is waiting for a reply", and reading a message does not answer it —
+  // auto-clearing on open emptied the queue as the operator browsed it, which is how a
+  // list of waiting customers came to render as nothing at all. The thread leaves the
+  // queue when someone answers it, or when it is dismissed on purpose from the card's
+  // read toggle (or "mark all read").
   const syncMessengerProfile = useCallback(async (options = {}) => {
     const silent = Boolean(options?.silent);
     if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;

@@ -32,17 +32,25 @@ test("AI Inbox ordering uses the latest message timestamp before session update 
   assert.match(source, /COALESCE\(m\.created_at, c\.last_message_at, s\.updated_at\) DESC/);
 });
 
-test("AI Inbox unread count is based on new customer messages after read or staff reply", () => {
+test("AI Inbox unread counts the messages a customer sent after the last answer of any kind", () => {
+  // Unread means "this customer is waiting", so an AI auto-reply ends the wait exactly
+  // like a human one. Counting from the last *human* reply is what made the filter read
+  // zero: with the AI answering, "no human replied yet" is true nearly everywhere.
   const source = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
   assert.match(source, /unread_msg\.sender_type = 'customer'/);
-  assert.match(source, /staff_msg\.sender_type = 'staff'/);
+  assert.match(source, /LOWER\(COALESCE\(answer_msg\.sender_type, ''\)\) <> 'customer'/);
+  assert.doesNotMatch(source, /staff_msg\.manual_message = TRUE OR COALESCE\(staff_msg\.staff_user_id, 0\) > 0/);
   assert.doesNotMatch(source, /requiresAttention && \(!readAt \|\| lastActivityAt > readAt\)/);
 });
 
-test("desktop AI Inbox marks an opened unread conversation as read", () => {
+test("desktop AI Inbox does not clear a waiting conversation just because it was opened", () => {
+  // Reading a message does not answer it. Auto-clearing on open drained the queue as the
+  // operator browsed it; the thread leaves when someone replies or dismisses it.
   const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
-  assert.match(source, /perfComponent: "AiInbox\.markRead"/);
-  assert.match(source, /unread_count: 0/);
+  assert.doesNotMatch(source, /perfComponent: "AiInbox\.markRead"/);
+  assert.doesNotMatch(source, /markReadSignatureRef/);
+  // The explicit toggle and the inbound bump both stay.
+  assert.match(source, /perfComponent: "AiInbox\.markReadManual"/);
   assert.match(source, /currentUnreadCount \+ 1/);
 });
 

@@ -2171,9 +2171,21 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
   }
 };
 
-// How many customer messages are still waiting for a human. Shared by the SELECT list
-// of both inbox queries and by the server-side read filter, so the number the card shows
-// and the set the filter returns can never drift apart.
+// How many messages the customer has sent while waiting for an answer.
+//
+// Unread means "this customer is waiting for a reply", not "this arrived since you last
+// looked" — the owner's question is who still needs an answer, and a thread whose newest
+// message is ours is answered whether or not anyone opened it. So the cut-off is the
+// newest OUTBOUND message of any kind (a human reply, an AI auto-reply, a system send);
+// anything the customer sent after it is still waiting. A conversation the operator
+// explicitly dismissed (read_at) drops out until the customer writes again.
+//
+// Counting from the last *human* reply instead is what made this filter read zero: with
+// the AI answering, "a human has not replied yet" is true almost everywhere, so the
+// signal carried no information about who was actually waiting.
+//
+// Shared by the SELECT list of both inbox queries and by the server-side read filter, so
+// the number the card shows and the set the filter returns can never drift apart.
 const unreadCustomerMessageCountSql = `      (
         SELECT COUNT(*)::int
         FROM ai_support_messages unread_msg
@@ -2184,16 +2196,11 @@ const unreadCustomerMessageCountSql = `      (
             COALESCE(c.read_at, TIMESTAMP 'epoch'),
             COALESCE(s.read_at, TIMESTAMP 'epoch'),
             COALESCE((
-              SELECT MAX(staff_msg.created_at)
-              FROM ai_support_messages staff_msg
-              WHERE staff_msg.tenant_id = s.tenant_id
-                AND staff_msg.session_id = s.session_id
-                AND staff_msg.sender_type = 'staff'
-                -- Human replies only: an AI auto-reply (manual_message = false,
-                -- staff_user_id = 0) must NOT mark a customer message as reviewed.
-                -- A thread the AI answered stays unread until a human opens it
-                -- (read_at) or replies manually.
-                AND (staff_msg.manual_message = TRUE OR COALESCE(staff_msg.staff_user_id, 0) > 0)
+              SELECT MAX(answer_msg.created_at)
+              FROM ai_support_messages answer_msg
+              WHERE answer_msg.tenant_id = s.tenant_id
+                AND answer_msg.session_id = s.session_id
+                AND LOWER(COALESCE(answer_msg.sender_type, '')) <> 'customer'
             ), TIMESTAMP 'epoch')
           )
       )`.trim();
@@ -2205,9 +2212,9 @@ const unreadCustomerMessageCountSql = `      (
 // is opened. Counting unread purely out of ai_support_messages therefore reads every one
 // of those as "read" forever, which is what emptied the unread filter while the same
 // cards showed the customer's own last message. So when the chat-level preview is newer
-// than anything imported and the recovery recorded the CUSTOMER as the last sender, the
-// conversation stays unread until a human opens it (read_at) — the same rule the message
-// path applies, just sourced from the chat preview. `last_message_from_me` must be
+// than anything imported and the recovery recorded the CUSTOMER as the last sender, that
+// customer is waiting — the same question the message path answers, just sourced from the
+// chat preview because there is no transcript to read. `last_message_from_me` must be
 // present and false: a conversation that predates the flag is left to the message path
 // rather than flipped to unread on a guess.
 const unreadFromChatPreviewExpr = (latestMessageCreatedAt) => `
@@ -2217,13 +2224,11 @@ const unreadFromChatPreviewExpr = (latestMessageCreatedAt) => `
         AND c.last_message_at IS NOT NULL
         AND (
           ${latestMessageCreatedAt} IS NULL
-          OR (
-            c.last_message_at > ${latestMessageCreatedAt}
-            -- A staff row as the newest imported message means a human already replied
-            -- here; the chat preview can lag behind that (it is only refreshed on the
-            -- next recovery sweep) so it must not flip the thread back to unread.
-            AND LOWER(COALESCE(m.sender_type, '')) <> 'staff'
-          )
+          -- The chat list is ahead of everything we imported: an inbound the webhook
+          -- missed. The margin keeps a send that updated the conversation and wrote its
+          -- message row in the same breath from reading as a newer customer message on a
+          -- millisecond of clock skew.
+          OR c.last_message_at > ${latestMessageCreatedAt} + INTERVAL '2 minutes'
         )
         AND c.last_message_at > GREATEST(
           COALESCE(c.read_at, TIMESTAMP 'epoch'),
