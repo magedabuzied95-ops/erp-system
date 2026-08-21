@@ -23,6 +23,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentUser, getUserRole, hasPermission } from "../../../shared/auth/authStorage";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../../shared/lib/invoiceItemImages";
 import { formatCurrency } from "../lib/posUtils";
+import { getOrderOutstandingAmount, resolveOrderPaymentState } from "../lib/orderPaymentState";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { formatOrderPaymentMethods } from "../../../../shared/paymentMethods";
 
@@ -136,10 +137,6 @@ const isCancelledOrder = (order = {}) => ["cancelled", "canceled"].includes(getO
 const isReturnedOrder = (order = {}) =>
   ["refunded", "returned", "partially_refunded"].includes(getOrderStatusKey(order)) || Boolean(order.returned_at);
 
-const isReviewOrder = (order = {}) => ["pending", "review", "under_review"].includes(getOrderStatusKey(order));
-
-const isPaidOrder = (order = {}) => ["paid", "completed", "complete"].includes(getOrderStatusKey(order) || normalizeStatus(order.payment_status));
-
 const getOrderAgeHours = (order = {}) => {
   const createdAt = new Date(order.created_at || 0).getTime();
   if (!createdAt) return 0;
@@ -169,12 +166,22 @@ const getInvoiceLock = (order = {}, user = getCurrentUser(), limitHours = readEd
   return { locked: false, reason: "" };
 };
 
+const paymentStateBadges = {
+  paid: { labelKey: "pos.recentOps.status.paid", className: "border-emerald-400/25 bg-emerald-500/10 text-emerald-100" },
+  partial: { labelKey: "pos.recentOps.status.partiallyPaid", className: "border-amber-400/25 bg-amber-500/10 text-amber-100" },
+  unpaid: { labelKey: "pos.recentOps.status.credit", className: "border-sky-400/25 bg-sky-500/10 text-sky-100" },
+};
+
 const getStatusBadges = (order = {}) => {
   const badges = [];
   if (isCancelledOrder(order)) badges.push({ id: "cancelled", labelKey: "pos.recentOps.status.cancelled", className: "border-rose-400/25 bg-rose-500/10 text-rose-100" });
   else if (isReturnedOrder(order)) badges.push({ id: "returned", labelKey: "pos.recentOps.status.returned", className: "border-amber-400/25 bg-amber-500/10 text-amber-100" });
-  else if (isReviewOrder(order)) badges.push({ id: "review", labelKey: "pos.recentOps.status.inReview", className: "border-sky-400/25 bg-sky-500/10 text-sky-100" });
-  else if (isPaidOrder(order)) badges.push({ id: "paid", labelKey: "pos.recentOps.status.paid", className: "border-emerald-400/25 bg-emerald-500/10 text-emerald-100" });
+  else {
+    // Every completed POS sale saves as `confirmed`, so the lifecycle status cannot
+    // answer the only question this badge is asked: was the invoice paid?
+    const paymentState = resolveOrderPaymentState(order);
+    if (paymentState) badges.push({ id: paymentState, ...paymentStateBadges[paymentState] });
+  }
   return badges;
 };
 
@@ -838,6 +845,10 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
   const editLoading = isActionLoading("edit");
   const deleteLoading = isActionLoading("permanent-delete");
   const statusBadge = badges[0] || { label: getOrderStatus(order), className: "border-white/10 bg-white/[0.04] text-zinc-200" };
+  // A "partly paid" / "credit" badge is only actionable next to the amount still owed.
+  // A return leaves paid_amount/remaining_amount untouched, so that number would be
+  // stale on a returned invoice - and meaningless on a cancelled one.
+  const outstandingAmount = isCancelledOrder(order) || isReturnedOrder(order) ? null : getOrderOutstandingAmount(order);
   const isRtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
   const labels = {
     payment: isRtl ? "الدفع" : "Payment",
@@ -867,6 +878,13 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
                       {statusBadge.labelKey ? t(statusBadge.labelKey) : statusBadge.label}
                     </span>
                   </div>
+
+                  {outstandingAmount > 0.009 ? (
+                    <div className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
+                      <span>{t("pos.recentOps.remainingLabel")}</span>
+                      <CurrencyText value={formatDrawerCurrency(outstandingAmount)} />
+                    </div>
+                  ) : null}
 
                   <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] text-zinc-400">
                     <Info label={labels.payment} value={getPaymentMethod(order)} />

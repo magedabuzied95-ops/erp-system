@@ -4322,6 +4322,12 @@ const getPosRecentOrders = async (req, res) => {
     const statusExpr = orderColumns.has("status") ? "o.status" : "''";
     const paymentStatusExpr = orderColumns.has("payment_status") ? "o.payment_status" : "''";
     const paymentMethodExpr = orderColumns.has("payment_method") ? "o.payment_method" : "''";
+    const paidExpr = orderColumns.has("paid_amount") ? "o.paid_amount" : "0";
+    // `remaining_amount` is the denormalized outstanding balance the rest of the app
+    // reads; only compute total - paid when the column is not there.
+    const remainingExpr = orderColumns.has("remaining_amount")
+      ? `COALESCE(o.remaining_amount, GREATEST(COALESCE(${totalExpr}, 0) - COALESCE(${paidExpr}, 0), 0))`
+      : `GREATEST(COALESCE(${totalExpr}, 0) - COALESCE(${paidExpr}, 0), 0)`;
     const createdExpr = orderColumns.has("created_at") ? "o.created_at" : "NOW()";
     const returnedExpr = orderColumns.has("returned_at") ? "o.returned_at" : "NULL";
     const deletedExpr = orderColumns.has("deleted_at") ? "o.deleted_at" : "NULL";
@@ -4372,6 +4378,8 @@ const getPosRecentOrders = async (req, res) => {
         COALESCE(${statusExpr}, '') AS status,
         COALESCE(${paymentStatusExpr}, '') AS payment_status,
         COALESCE(${paymentMethodExpr}, '') AS payment_method,
+        COALESCE(${paidExpr}, 0) AS paid_amount,
+        ${remainingExpr} AS remaining_amount,
         COALESCE(NULLIF(${orderCustomerNameExpr}, ''), NULLIF(${customerRecordNameExpr}, ''), NULLIF(${orderCustomerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_name,
         COALESCE(NULLIF(${orderCustomerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_phone,
         ${createdExpr} AS created_at,
@@ -4434,6 +4442,8 @@ const getPosRecentOrders = async (req, res) => {
       status: order.status || "",
       payment_status: order.payment_status || "",
       payment_method: order.payment_method || "",
+      paid_amount: Number(order.paid_amount || 0),
+      remaining_amount: Number(order.remaining_amount || 0),
       customer_name: order.customer_name || "",
       customer_phone: order.customer_phone || "",
       created_at: order.created_at,

@@ -527,11 +527,13 @@
     "emptyNoMatches": "No results match the search.",
     "emptyHint": "The latest POS invoices will appear here after a sale.",
     "shownCount": "Showing {{shown}} of {{total}}",
+    "remainingLabel": "Outstanding",
     "status": {
       "cancelled": "Cancelled",
       "returned": "Returned",
-      "inReview": "In review",
-      "paid": "Paid"
+      "paid": "Paid",
+      "partiallyPaid": "Partially paid",
+      "credit": "Credit"
     },
     "lock": {
       "cancelled": "The invoice is cancelled",

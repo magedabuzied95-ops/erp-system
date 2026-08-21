@@ -527,11 +527,13 @@
     "emptyNoMatches": "لا توجد نتائج مطابقة للبحث.",
     "emptyHint": "ستظهر آخر فواتير POS هنا بعد البيع.",
     "shownCount": "تم عرض {{shown}} من {{total}}",
+    "remainingLabel": "المتبقي",
     "status": {
       "cancelled": "ملغاة",
       "returned": "مرتجعة",
-      "inReview": "قيد المراجعة",
-      "paid": "مدفوعة"
+      "paid": "مدفوعة",
+      "partiallyPaid": "مدفوعة جزئيًا",
+      "credit": "آجل"
     },
     "lock": {
       "cancelled": "الفاتورة ملغاة",
