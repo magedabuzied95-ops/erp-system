@@ -885,7 +885,8 @@
     "surveillanceChannels": "القنوات",
     "surveillanceVideo": "إعدادات الفيديو",
     "surveillanceMotion": "إعدادات الحركة",
-    "surveillanceAudit": "سجل التدقيق"
+    "surveillanceAudit": "سجل التدقيق",
+    "invoiceStudio": "استوديو الفاتورة"
   },
   "language": {
     "label": "اللغة",

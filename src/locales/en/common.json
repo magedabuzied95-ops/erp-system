@@ -885,7 +885,8 @@
     "surveillanceChannels": "Channels",
     "surveillanceVideo": "Video Settings",
     "surveillanceMotion": "Motion Settings",
-    "surveillanceAudit": "Audit Log"
+    "surveillanceAudit": "Audit Log",
+    "invoiceStudio": "Invoice Studio"
   },
   "language": {
     "label": "Language",

@@ -91,6 +91,7 @@ const ITEM_LABEL_KEYS = {
   Currency: "sidebar.currency",
   Preferences: "sidebar.preferences",
   "Settings Center": "sidebar.settingsCenter",
+  "Invoice Studio": "sidebar.invoiceStudio",
   Marketing: "sidebar.marketing",
   "Marketing Dashboard": "sidebar.marketingDashboard",
   "AI Marketing Center": "sidebar.aiMarketingCenter",
