@@ -6,7 +6,7 @@
 // the three sections that used to live in the public invoice page's own JSX.
 
 import { useEffect, useState } from "react";
-import { ExternalLink, MessageCircle, ShieldCheck, Star } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 import {
   localizedBlockText,
@@ -15,6 +15,7 @@ import {
   resolveQrValue,
   qrSvgMarkup,
 } from "../../../../shared/invoiceBlocks.js";
+import SocialBrandButton from "./SocialBrandButton.jsx";
 
 const ALIGN_CLASS = { start: "text-start", center: "text-center", end: "text-end" };
 const FLEX_ALIGN_CLASS = { start: "justify-start", center: "justify-center", end: "justify-end" };
@@ -90,9 +91,21 @@ const policyLines = (template, language) => {
 
 // Egypt local number -> international wa.me form, derived from the chat number when the
 // store has one and from the support line otherwise, so there is one phone to maintain.
+// The country code is 20, not 2: dropping the local 0 and prefixing "2" minted
+// wa.me/21000659301 — a link to nobody.
 const whatsappHref = (template) => {
-  const number = String(template?.social?.whatsapp_number || template?.identity?.phone || "").replace(/[^\d+]/g, "");
-  return number ? `https://wa.me/2${number.replace(/^0+/, "")}` : "";
+  const digits = String(template?.social?.whatsapp_number || template?.identity?.phone || "").trim().replace(/[^0-9+]/g, "");
+  if (!digits) return "";
+  let msisdn;
+  if (digits.startsWith("+")) msisdn = digits.slice(1).replace(/[^0-9]/g, "");
+  else if (digits.startsWith("00")) msisdn = digits.slice(2).replace(/[^0-9]/g, "");
+  else {
+    const plain = digits.replace(/[^0-9]/g, "");
+    msisdn = plain.startsWith("20") ? plain : plain.startsWith("0") ? `20${plain.slice(1)}` : plain;
+  }
+  // A bare wa.me/ is truthy and opens WhatsApp with no recipient, so a number too
+  // short to dial has to drop the button rather than render a dead one.
+  return msisdn.length >= 8 ? `https://wa.me/${msisdn}` : "";
 };
 
 const socialLinks = (template, language, invoice) => {
@@ -102,10 +115,10 @@ const socialLinks = (template, language, invoice) => {
   // stamps a per-order link means it.
   const override = invoice?.socialOverrides || {};
   return [
-    { key: "google", label: isArabic ? "قيّمنا على Google" : "Rate us on Google", url: override.google_review_url || template.social.google_review_url, icon: Star },
-    { key: "facebook", label: isArabic ? "قيّمنا على Facebook" : "Rate us on Facebook", url: override.facebook_review_url || template.social.facebook_review_url, icon: ExternalLink },
-    { key: "instagram", label: isArabic ? "تابعنا على Instagram" : "Follow us on Instagram", url: override.instagram_url || template.social.instagram_url, icon: ExternalLink },
-    { key: "whatsapp", label: isArabic ? "تواصل معنا واتساب" : "Chat on WhatsApp", url: whatsappHref(template), icon: MessageCircle },
+    { key: "google", label: isArabic ? "قيّمنا على Google" : "Rate us on Google", url: override.google_review_url || template.social.google_review_url },
+    { key: "facebook", label: isArabic ? "قيّمنا على Facebook" : "Rate us on Facebook", url: override.facebook_review_url || template.social.facebook_review_url },
+    { key: "instagram", label: isArabic ? "تابعنا على Instagram" : "Follow us on Instagram", url: override.instagram_url || template.social.instagram_url },
+    { key: "whatsapp", label: isArabic ? "تواصل معنا واتساب" : "Chat on WhatsApp", url: whatsappHref(template) },
   ].filter((link) => link.url);
 };
 
@@ -149,18 +162,7 @@ export default function InvoiceBlockView({
       if (!links.length) return null;
       return (
         <div className="mx-5 mb-5 grid gap-2 sm:grid-cols-2">
-          {links.map(({ key, label, url, icon: Icon }) => (
-            <a
-              key={key}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-black text-stone-700"
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span className="truncate">{label}</span>
-            </a>
-          ))}
+          {links.map((link) => <SocialBrandButton key={link.key} link={link} />)}
         </div>
       );
     }
