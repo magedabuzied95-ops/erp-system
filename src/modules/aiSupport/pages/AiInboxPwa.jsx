@@ -4929,6 +4929,10 @@ export default function AiInboxPwa() {
     // forceHydrate: the window on screen came from the cache, so fetch the
     // newest page (no `before` cursor) to revalidate it against the server.
     const shouldHydrateFullPage = forceHydrate === true
+      // Unread recovered chats may not have imported message rows yet. An empty
+      // summary is therefore a reason to call /messages, not proof that the
+      // conversation has no history.
+      || currentMessages.length === 0
       || (currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length);
     const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
     const beforeId = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before_id || currentMessages[0]?.id || "";

@@ -7715,6 +7715,11 @@ export default function AiInbox({ reviewerMode = false }) {
     // forceHydrate: the window on screen came from the cache, so fetch the
     // newest page (no `before` cursor) to revalidate it against the server.
     const shouldHydrateFullPage = forceHydrate === true
+      // A recovered WhatsApp chat can be unread before any message row has been
+      // imported. Its list summary legitimately has messages=[] and
+      // message_count=0, but opening it must still hit the transcript endpoint:
+      // that endpoint performs the bounded provider-history import.
+      || currentMessages.length === 0
       || (currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length);
     const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
     const beforeId = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before_id || currentMessages[0]?.id || "";

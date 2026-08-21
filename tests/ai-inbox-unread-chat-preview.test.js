@@ -39,6 +39,14 @@ test("opening a conversation cannot hang on the WhatsApp gateway", () => {
   assert.match(historyFetch.slice(0, 400), /timeoutMs: EVOLUTION_CONVERSATION_HISTORY_FETCH_TIMEOUT_MS/);
 });
 
+test("opening an unread recovered chat imports its transcript even when the summary has no messages", () => {
+  // Recovery can expose an unread chat from the provider preview before any
+  // ai_support_messages rows exist. message_count is then zero, so comparing the
+  // count alone used to return before /messages was ever called.
+  assert.match(inboxSource, /const shouldHydrateFullPage = forceHydrate === true\s*\n\s*\/\/[\s\S]*?\|\| currentMessages\.length === 0/);
+  assert.match(inboxSource, /void loadOlderMessages\(\{ forceHydrate: primedNeedsRevalidation \}\)/);
+});
+
 test("both inbox queries expose unread for a conversation with no imported messages", () => {
   const selections = agentSource.match(/\$\{unreadFromChatPreviewSql\("[^"]+"\)\}/g) || [];
   assert.equal(selections.length, 2, "summary and full inbox queries must both select it");
