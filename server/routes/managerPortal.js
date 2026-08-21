@@ -10,6 +10,7 @@ import {
   getManagerPortalMe,
   getManagerPortalTasks,
   getManagerPortalNotifications,
+  getManagerPortalOperations,
   getManagerPortalInventoryApprovals,
   getManagerPortalInventoryApprovalSession,
   getManagerPortalSales,
@@ -348,6 +349,20 @@ router.get("/:token/sales", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] sales error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load sales analytics" });
+  }
+});
+
+router.get("/:token/operations", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const operations = await getManagerPortalOperations({ manager, query: req.query || {} });
+    return res.json({ success: true, ...operations });
+  } catch (error) {
+    console.error("[manager-portal] operations error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load invoice operations" });
   }
 });
 

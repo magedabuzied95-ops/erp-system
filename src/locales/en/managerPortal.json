@@ -523,5 +523,45 @@
     "linkCopied": "Invoice link copied",
     "copyLink": "Copy link",
     "shareWhatsapp": "Share on WhatsApp"
+  },
+  "operations": {
+    "title": "Edits & returns",
+    "subtitle": "Every edit, return, and exchange made after the invoice was issued",
+    "kinds": {
+      "all": "All",
+      "edit": "Edit",
+      "return": "Return",
+      "exchange": "Exchange"
+    },
+    "ranges": {
+      "today": "Today",
+      "week": "Last 7 days",
+      "month": "Last 30 days",
+      "all": "All"
+    },
+    "summary": {
+      "exchanges": "Exchanges",
+      "returns": "Returns",
+      "refunded": "Refunded",
+      "collected": "Difference collected"
+    },
+    "itemsOut": "Left the invoice",
+    "itemsIn": "Added to the invoice",
+    "money": "Cash movement",
+    "shift": "Shift",
+    "account": "Financial account",
+    "reason": "Reason",
+    "refundMethod": "Refund method",
+    "deferred": "Left on credit",
+    "noMoneyMoved": "No money moved",
+    "noShift": "Not recorded in a shift",
+    "notInShift": "Missing from the drawer",
+    "differentShift": "Original invoice sits on shift #{{shift}}",
+    "fieldsOnly": "Field-only edit — no item changed",
+    "openInvoice": "Open invoice",
+    "unbalancedWarning": "{{count}} operation(s) moved money that never reached a drawer or account — review them.",
+    "empty": "No operations in this period",
+    "emptyHint": "Every edit, return, and exchange shows up here as it happens.",
+    "truncated": "Showing the newest operations in this period — the counts above cover only what is shown. Narrow the range to see all of them."
   }
 }

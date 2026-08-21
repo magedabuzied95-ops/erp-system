@@ -14,7 +14,8 @@ import { ensureWalletSchema, recordWalletTransaction } from "../services/walletS
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
 import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
-import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushService.js";
+import { sendManagerInvoiceCreatedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
+import { diffOperationItems } from "../utils/orderOperationDiff.js";
 import { getSetting } from "../services/settingsService.js";
 import { sendInvoiceWhatsapp } from "../services/whatsappOrderConfirmationService.js";
 import { ensureWhatsappShippingSchema, sendShipmentNotificationForStatus } from "../services/whatsappShippingService.js";
@@ -6704,6 +6705,31 @@ export const editOrder = async (req, res) => {
     logEditFlowStep("commit:before");
     await client.query("COMMIT");
     logEditFlowStep("commit:after");
+    // The manager only ever hears about a sale when it is rung up. An edit that swaps a
+    // 700 bag for a 1000 one and takes the difference at the till is a bigger event than
+    // the original sale was, so it gets its own notification carrying the goods and the
+    // money. Field-only edits (address, shipping status) go through the other branch of
+    // this handler and stay silent — they would drown this out.
+    const editPreviousTotal = Number(loaded.order.total_amount || loaded.order.total || 0);
+    const editItemDiff = diffOperationItems(oldItems, newItems);
+    if (editItemDiff.removed.length || editItemDiff.added.length || Math.abs(totalValue - editPreviousTotal) > 0.009) {
+      sendManagerOrderOperationPush({
+        kind: editItemDiff.removed.length && editItemDiff.added.length ? "exchange" : "edit",
+        order: orderResult.rows[0],
+        operationId: `edit-${editAuditId}`,
+        actorName: req.user?.name || req.user?.email || "",
+        operation: {
+          old_total: editPreviousTotal,
+          new_total: totalValue,
+          difference: Number((totalValue - editPreviousTotal).toFixed(2)),
+          items_out: editItemDiff.removed,
+          items_in: editItemDiff.added,
+          settlement_method: settlementType === "none" ? "" : settlementMethod,
+          deferred_amount: deferredEditAmount,
+          shift_id: settlementMetadata.settlement_shift_id,
+        },
+      }).catch((error) => console.warn("[manager-push:order-operation-skipped]", { orderId: loaded.order.id, message: error?.message || String(error) }));
+    }
     const updated = await loadOrderWithItems(db, { tenantId, orderId: loaded.order.id });
     return res.status(200).json({ success: true, message: "تم حفظ تعديل الفاتورة", order: orderResult.rows[0], items: updated?.items || [] });
   } catch (error) {
@@ -7383,6 +7409,9 @@ export const returnOrder = async (req, res) => {
           refund_shift_id: refundShiftId,
           order_id: loaded.order.id,
           return_id: returnRow.id,
+          mode,
+          refund_method: refundMethod,
+          disposition,
         }),
       ]
     );
@@ -7595,6 +7624,28 @@ export const returnOrder = async (req, res) => {
 
     logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
+    // Goods walking back out of the shop is the event a manager most wants pushed to
+    // them, and until now nothing was: only a brand new invoice raised a notification.
+    sendManagerOrderOperationPush({
+      kind: mode === "exchange" ? "exchange" : "return",
+      order: updatedOrder.rows[0] || loaded.order,
+      operationId: `return-${returnRow.id}`,
+      actorName: req.user?.name || req.user?.email || "",
+      operation: {
+        old_total: Number(loaded.order.total_amount || loaded.order.total || 0),
+        new_total: Number((Number(loaded.order.total_amount || loaded.order.total || 0) - refundTotal).toFixed(2)),
+        difference: Number((-refundTotal).toFixed(2)),
+        items_out: validatedItems.map(({ original, quantity, refund }) => ({
+          name: original.product_name || "منتج",
+          quantity,
+          price: quantity > 0 ? Number((refund / quantity).toFixed(2)) : refund,
+          line_total: Number(Number(refund).toFixed(2)),
+        })),
+        items_in: [],
+        refund_method: refundMethod,
+        shift_id: refundShiftId,
+      },
+    }).catch((error) => console.warn("[manager-push:order-operation-skipped]", { orderId: loaded.order.id, message: error?.message || String(error) }));
     try {
       io.emit("dashboard:activity", {
         type: refundMethod === "cash" ? "refund_cash" : "refund",
@@ -7946,6 +7997,7 @@ export const createReturn = async (req, res) => {
 
     // Cost of the restocked goods, so the return reverses COGS the way the sale posted it.
     let returnCogsTotal = 0;
+    const returnedLineSummary = [];
 
     for (const item of items) {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
@@ -7980,6 +8032,12 @@ export const createReturn = async (req, res) => {
         throw error;
       }
       const variantId = originalItem.variant_id || null;
+      returnedLineSummary.push({
+        name: originalItem.product_name || "منتج",
+        quantity,
+        price: quantity > 0 ? Number((refund / quantity).toFixed(2)) : refund,
+        line_total: Number(Number(refund).toFixed(2)),
+      });
 
       const returnItemResult = await client.query(
         `
@@ -8122,6 +8180,21 @@ export const createReturn = async (req, res) => {
 
     logReturnFlowStep(routeName, { orderId, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
+    sendManagerOrderOperationPush({
+      kind: "return",
+      order: orderResult.rows[0] || { id: orderId },
+      operationId: `return-${returnRow.id}`,
+      actorName: req.user?.name || req.user?.email || "",
+      operation: {
+        old_total: Number(orderResult.rows[0]?.total_amount || orderResult.rows[0]?.total || 0),
+        new_total: Number((Number(orderResult.rows[0]?.total_amount || orderResult.rows[0]?.total || 0) - effectiveRefundAmount).toFixed(2)),
+        difference: Number((-effectiveRefundAmount).toFixed(2)),
+        items_out: returnedLineSummary,
+        items_in: [],
+        refund_method: refundMethod,
+        shift_id: refundShiftId,
+      },
+    }).catch((error) => console.warn("[manager-push:order-operation-skipped]", { orderId, message: error?.message || String(error) }));
 
     return res.status(201).json({
       success: true,

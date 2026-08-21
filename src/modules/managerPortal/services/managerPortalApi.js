@@ -10,6 +10,7 @@ export const managerPortalApi = {
   reviewAdvanceRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/advance-requests/${encodeURIComponent(requestId)}`, payload),
   tasks: (token, options = {}) => api.get(`${tokenPath(token)}/tasks`, options),
   sales: (token, options = {}) => api.get(`${tokenPath(token)}/sales`, options),
+  operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
   stockAlerts: (token, options = {}) => api.get(`${tokenPath(token)}/stock-alerts`, options),
   inventoryApprovals: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/inventory-approvals`, { ...options, params }),
   inventoryApproval: (token, sessionId) => api.get(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}`),

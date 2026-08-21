@@ -66,6 +66,10 @@ import i18n from "../../../i18n/i18n";
 const tt = (key, options) => i18n.t(key, options);
 
 const TABS = ["today", "staff", "tasks", "sales", "chat", "inventory", "more"];
+// Reachable by URL and by notification, but deliberately not in the bottom bar —
+// seven thumb targets is already the ceiling on a phone.
+const SECONDARY_TABS = ["notifications", "operations"];
+const OPERATION_KINDS = ["all", "exchange", "return", "edit"];
 const STORAGE_KEY = "manager.portal.active.tab";
 const DEFAULT_NOTIFICATION_SETTINGS = {
   messages: { sound: true, toast: true, push: true },
@@ -844,6 +848,7 @@ export default function ManagerPortal() {
     sales: "Manager Sales",
     chat: "Employee Chat",
     notifications: tt("managerPortal.alerts.settings"),
+    operations: tt("managerPortal.operations.title"),
     more: "Manager Portal",
   };
   const [loading, setLoading] = useState(true);
@@ -856,6 +861,11 @@ export default function ManagerPortal() {
   const [tasks, setTasks] = useState(null);
   const [sales, setSales] = useState(null);
   const [stockAlerts, setStockAlerts] = useState(null);
+  const [operations, setOperations] = useState({ operations: [], summary: null, truncated: false });
+  const [operationsLoading, setOperationsLoading] = useState(false);
+  const [operationsRange, setOperationsRange] = useState("month");
+  const [operationsKind, setOperationsKind] = useState("all");
+  const [expandedOperationIds, setExpandedOperationIds] = useState({});
   const [inventoryApprovals, setInventoryApprovals] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -916,7 +926,7 @@ export default function ManagerPortal() {
 
   useEffect(() => {
     const queryTab = searchParams.get("tab");
-    if (queryTab && TABS.includes(queryTab) && queryTab !== activeTab) {
+    if (queryTab && (TABS.includes(queryTab) || SECONDARY_TABS.includes(queryTab)) && queryTab !== activeTab) {
       setActiveTab(queryTab);
     }
   }, [activeTab, searchParams]);
@@ -1466,6 +1476,19 @@ export default function ManagerPortal() {
         const response = await managerPortalApi.sales(token);
         setSales(normalizeManagerPortalPayload("salesReload", response?.sales || null));
       }
+      if (tab === "operations") {
+        setOperationsLoading(true);
+        try {
+          const response = await managerPortalApi.operations(token, { range: operationsRange, kind: operationsKind, limit: 100 });
+          setOperations(normalizeManagerPortalPayload("operationsReload", {
+            operations: Array.isArray(response?.operations) ? response.operations : [],
+            summary: response?.summary || null,
+            truncated: Boolean(response?.truncated),
+          }));
+        } finally {
+          setOperationsLoading(false);
+        }
+      }
       tabFetchedAtRef.current[tab] = Date.now();
     } catch (reloadError) {
       toast.error(reloadError?.responseBody?.message || reloadError?.message || tt("managerPortal.errors.refreshData"));
@@ -1477,6 +1500,12 @@ export default function ManagerPortal() {
     void reloadTabData(activeTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token]);
+
+  useEffect(() => {
+    if (!token || loading || activeTab !== "operations") return;
+    void reloadTabData("operations", { force: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operationsRange, operationsKind]);
 
   const markNotificationRead = async (id) => {
     const previous = notifications;
@@ -1513,6 +1542,16 @@ export default function ManagerPortal() {
     await markNotificationRead(notification.id);
     setNotificationsOpen(false);
     const invoiceId = notification.metadata?.order_id || notification.metadata?.invoice_id || notification.entity_id;
+    // An edit / return / exchange is answered by the operations feed, not by the
+    // invoice sheet: the sheet shows the invoice as it stands now and says nothing
+    // about what changed or where the money went.
+    if (notification.metadata?.open_operations || String(notification.entity_type || "") === "order_operation") {
+      setActiveTab("operations");
+      if (notification.metadata?.operation_id) {
+        setExpandedOperationIds((current) => ({ ...current, [String(notification.metadata.operation_id)]: true }));
+      }
+      return;
+    }
     if (categoryFromNotification(notification) === "sales" && invoiceId) {
       await openInvoiceDetail(invoiceId);
       return;
@@ -3067,6 +3106,10 @@ export default function ManagerPortal() {
                     <span className="text-sm font-black">{tt("managerPortal.settings.alerts")}</span>
                     {unreadCount > 0 ? <span className="absolute left-3 top-3 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{formatNumber(unreadCount)}</span> : null}
                   </button>
+                  <button type="button" onClick={() => setActiveTab("operations")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-500/15 text-sky-500"><ArrowLeftRight className="h-6 w-6" /></span>
+                    <span className="text-sm font-black">{tt("managerPortal.operations.title")}</span>
+                  </button>
                   <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-500/15 text-slate-500">{theme.mode === "dark" ? <SunMedium className="h-6 w-6" /> : <Moon className="h-6 w-6" />}</span>
                     <span className="text-sm font-black">{tt("managerPortal.settings.appearance")}</span>
@@ -3095,6 +3138,216 @@ export default function ManagerPortal() {
                   </div>
                 </Card>
               </div>
+            </div>
+          ) : null}
+
+          {activeTab === "operations" ? (
+            <div className="manager-portal-tab manager-portal-tab--operations space-y-4">
+              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                <Settings className="h-4 w-4" />
+                {tt("managerPortal.settings.back")}
+              </button>
+
+              <Card
+                title={tt("managerPortal.operations.title")}
+                subtitle={tt("managerPortal.operations.subtitle")}
+                icon={ArrowLeftRight}
+                compact={isMobilePortal}
+                tone="amber"
+                action={(
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {OPERATION_KINDS.map((kind) => (
+                        <button
+                          key={kind}
+                          type="button"
+                          onClick={() => setOperationsKind(kind)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${operationsKind === kind ? "border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-400/10 dark:text-amber-100" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
+                        >
+                          {tt(`managerPortal.operations.kinds.${kind}`)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {["today", "week", "month", "all"].map((range) => (
+                        <button
+                          key={range}
+                          type="button"
+                          onClick={() => setOperationsRange(range)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${operationsRange === range ? "border-slate-900 bg-slate-900 text-white dark:border-white/40" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
+                        >
+                          {tt(`managerPortal.operations.ranges.${range}`)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              >
+                {operations.summary ? (
+                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.exchanges")}</div>
+                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{formatNumber(operations.summary.exchanges || 0)}</div>
+                    </div>
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.returns")}</div>
+                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{formatNumber(operations.summary.returns || 0)}</div>
+                    </div>
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.refunded")}</div>
+                      <div className="mt-1 text-lg font-black text-rose-600">{formatCurrency(operations.summary.refunded_amount || 0)}</div>
+                    </div>
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.collected")}</div>
+                      <div className="mt-1 text-lg font-black text-emerald-600">{formatCurrency(operations.summary.collected_amount || 0)}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {operations.truncated ? (
+                  <div className="mb-3 rounded-[var(--radius-card)] border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
+                    {tt("managerPortal.operations.truncated")}
+                  </div>
+                ) : null}
+
+                {operations.summary?.unbalanced > 0 ? (
+                  <div className="mb-3 flex items-start gap-2 rounded-[var(--radius-card)] border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-bold text-rose-800 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{tt("managerPortal.operations.unbalancedWarning", { count: operations.summary.unbalanced })}</span>
+                  </div>
+                ) : null}
+
+                {operationsLoading ? (
+                  <div className="flex items-center justify-center py-8 text-slate-500"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : operations.operations.length ? (
+                  <div className="space-y-3">
+                    {operations.operations.map((operation) => {
+                      const expanded = Boolean(expandedOperationIds[String(operation.id)]);
+                      const difference = Number(operation.difference || 0);
+                      const kindTone = operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber";
+                      return (
+                        <div key={operation.id} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedOperationIds((current) => ({ ...current, [String(operation.id)]: !expanded }))}
+                            className="flex w-full items-start justify-between gap-3 text-right"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusPill tone={kindTone} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
+                                <span className="text-sm font-black text-slate-950 dark:text-white">{portalText(operation.invoice_number)}</span>
+                                {operation.money && operation.money.balanced === false ? (
+                                  <StatusPill tone="red" value={tt("managerPortal.operations.notInShift")} />
+                                ) : null}
+                              </div>
+                              <div className="mt-1 truncate text-sm font-bold text-slate-600 dark:text-slate-300">
+                                <InlineName>{portalText(operation.customer_name)}</InlineName>
+                                {operation.actor_name ? ` · ${operation.actor_name}` : ""}
+                              </div>
+                              <div className="mt-0.5 text-[11px] font-bold text-slate-500">{formatDateTime(operation.at)}</div>
+                            </div>
+                            <div className="shrink-0 text-left">
+                              <div className={`text-base font-black ${difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                                {difference > 0 ? "+" : ""}{formatCurrency(difference)}
+                              </div>
+                              {/* dir=ltr so the before → after arrow keeps pointing at the
+                                  new total; in the RTL page it silently reversed. */}
+                              <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
+                                {formatCurrency(operation.old_total || 0)} → {formatCurrency(operation.new_total || 0)}
+                              </div>
+                              <ChevronDown className={`mr-auto mt-1 h-4 w-4 text-slate-400 transition ${expanded ? "rotate-180" : ""}`} />
+                            </div>
+                          </button>
+
+                          {expanded ? (
+                            <div className="mt-3 space-y-3 border-t border-slate-200 pt-3 dark:border-white/10">
+                              {operation.items_out?.length ? (
+                                <div>
+                                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-600">{tt("managerPortal.operations.itemsOut")}</div>
+                                  <div className="mt-1 space-y-1">
+                                    {operation.items_out.map((item, index) => (
+                                      <div key={`out-${index}`} className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName> × {formatNumber(item.quantity)}</span>
+                                        <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {operation.items_in?.length ? (
+                                <div>
+                                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-600">{tt("managerPortal.operations.itemsIn")}</div>
+                                  <div className="mt-1 space-y-1">
+                                    {operation.items_in.map((item, index) => (
+                                      <div key={`in-${index}`} className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName> × {formatNumber(item.quantity)}</span>
+                                        <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {operation.fields_only ? (
+                                <div className="text-sm font-bold text-slate-500">{tt("managerPortal.operations.fieldsOnly")}</div>
+                              ) : null}
+
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                                  <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.money")}</div>
+                                  <div className="mt-1 font-bold text-slate-800 dark:text-slate-100">
+                                    {operation.money?.cash_event_label
+                                      ? `${operation.money.cash_event_label}: ${formatCurrency(operation.money.cash_amount || 0)}`
+                                      : operation.money?.account_amount
+                                        ? `${portalText(operation.money.account_name, tt("managerPortal.operations.account"))}: ${formatCurrency(operation.money.account_amount)}`
+                                        : tt("managerPortal.operations.noMoneyMoved")}
+                                  </div>
+                                  {operation.settlement?.deferred_amount > 0 ? (
+                                    <div className="mt-1 text-xs font-bold text-amber-700">{tt("managerPortal.operations.deferred")}: {formatCurrency(operation.settlement.deferred_amount)}</div>
+                                  ) : null}
+                                  {operation.refund_method ? (
+                                    <div className="mt-1 text-xs font-bold text-slate-500">{tt("managerPortal.operations.refundMethod")}: {portalText(operation.refund_method)}</div>
+                                  ) : null}
+                                </div>
+                                <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                                  <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.shift")}</div>
+                                  <div className="mt-1 font-bold text-slate-800 dark:text-slate-100">
+                                    {operation.money?.shift_id
+                                      ? `#${operation.money.shift_id}${operation.money.shift_cashier_name ? ` · ${operation.money.shift_cashier_name}` : ""}`
+                                      : tt("managerPortal.operations.noShift")}
+                                  </div>
+                                  {operation.order_shift_id && operation.money?.shift_id && Number(operation.order_shift_id) !== Number(operation.money.shift_id) ? (
+                                    <div className="mt-1 text-xs font-bold text-amber-700">{tt("managerPortal.operations.differentShift", { shift: operation.order_shift_id })}</div>
+                                  ) : null}
+                                  {operation.branch_name ? (
+                                    <div className="mt-1 text-xs font-bold text-slate-500">{portalText(operation.branch_name)}</div>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {operation.reason ? (
+                                <div className="text-xs font-bold text-slate-500">{tt("managerPortal.operations.reason")}: {portalText(operation.reason)}</div>
+                              ) : null}
+
+                              <button
+                                type="button"
+                                onClick={() => openInvoiceDetail(operation.order_id)}
+                                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                {tt("managerPortal.operations.openInvoice")}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState title={tt("managerPortal.operations.empty")} body={tt("managerPortal.operations.emptyHint")} />
+                )}
+              </Card>
             </div>
           ) : null}
 

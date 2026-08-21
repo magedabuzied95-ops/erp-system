@@ -574,3 +574,148 @@ export const sendManagerInvoiceCreatedPush = async ({ order = {}, source = "" } 
     },
   });
 };
+
+const OPERATION_TITLES = {
+  edit: "تعديل فاتورة",
+  return: "مرتجع",
+  exchange: "استبدال",
+};
+
+const OPERATION_TYPES = {
+  edit: "order_edited",
+  return: "order_returned",
+  exchange: "order_exchanged",
+};
+
+const money = (value) => {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed)) return "0";
+  return Number(parsed.toFixed(2)).toLocaleString("en-US");
+};
+
+const operationItemsPreview = (items = [], max = 2) => {
+  const list = (Array.isArray(items) ? items : []).filter((item) => item && text(item.name));
+  if (!list.length) return "";
+  const head = list.slice(0, max).map((item) => {
+    const quantity = Number(item.quantity || 0);
+    const label = text(item.name);
+    return quantity > 1 ? `${label} ×${quantity}` : label;
+  });
+  const rest = list.length - head.length;
+  return rest > 0 ? `${head.join("، ")} +${rest}` : head.join("، ");
+};
+
+// The manager reads the notification, not the portal. So the body carries the whole
+// story — what left, what came in, the difference, and whether the till took it —
+// because a push that only says "فاتورة اتعدلت" forces a trip into the app to learn
+// anything at all.
+const buildOperationBody = (operation = {}) => {
+  const parts = [];
+  const outPreview = operationItemsPreview(operation.items_out);
+  const inPreview = operationItemsPreview(operation.items_in);
+  if (outPreview) parts.push(`خرج: ${outPreview}`);
+  if (inPreview) parts.push(`دخل: ${inPreview}`);
+  const difference = Number(operation.difference || 0);
+  if (Math.abs(difference) > 0.009) {
+    parts.push(difference > 0 ? `فرق مدفوع +${money(difference)}` : `مرتجع ${money(Math.abs(difference))}`);
+  }
+  const method = text(operation.settlement_method || operation.refund_method);
+  if (method) parts.push(method === "cash" ? "كاش" : method);
+  if (operation.deferred_amount && Number(operation.deferred_amount) > 0.009) {
+    parts.push(`آجل ${money(operation.deferred_amount)}`);
+  }
+  if (!parts.length) parts.push(`الإجمالي ${money(operation.old_total)} ← ${money(operation.new_total)}`);
+  return parts.join(" · ");
+};
+
+export const sendManagerOrderOperationPush = async ({
+  kind = "edit",
+  order = {},
+  operationId = null,
+  operation = {},
+  actorName = "",
+} = {}) => {
+  const orderId = numberOrNull(order.id || order.order_id);
+  const tenantId = numberOrNull(order.tenant_id);
+  const branchId = numberOrNull(order.branch_id);
+  if (!orderId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
+
+  const normalizedKind = OPERATION_TITLES[kind] ? kind : "edit";
+  const invoiceNumber = text(order.invoice_number || order.public_order_number || orderId);
+  const customerName = text(order.customer_name) || "عميل";
+  const title = `${OPERATION_TITLES[normalizedKind]} · ${invoiceNumber}`;
+  const detail = buildOperationBody(operation);
+  const body = `${customerName} — ${detail}`;
+  const entityId = text(operationId) || `${normalizedKind}-${orderId}`;
+
+  console.info("[manager-push:order-operation]", {
+    tenantId,
+    branchId,
+    order_id: orderId,
+    invoice_number: invoiceNumber,
+    kind: normalizedKind,
+    operation_id: entityId,
+  });
+
+  createNotification({
+    tenant_id: tenantId || null,
+    role_key: "manager",
+    branch_id: branchId || null,
+    type: OPERATION_TYPES[normalizedKind],
+    category: "sales",
+    priority: "high",
+    title,
+    message: body,
+    action_label: "عرض التفاصيل",
+    // Keyed on the operation, not the order: two edits to the same invoice inside the
+    // dedupe window are two separate events and both have to reach the manager.
+    entity_type: "order_operation",
+    entity_id: entityId,
+    metadata: {
+      type: OPERATION_TYPES[normalizedKind],
+      operation_kind: normalizedKind,
+      operation_id: entityId,
+      order_id: orderId,
+      invoice_id: orderId,
+      invoice_number: invoiceNumber,
+      customer_name: customerName,
+      actor_name: text(actorName),
+      old_total: Number(operation.old_total || 0),
+      new_total: Number(operation.new_total || 0),
+      difference: Number(operation.difference || 0),
+      items_out: Array.isArray(operation.items_out) ? operation.items_out : [],
+      items_in: Array.isArray(operation.items_in) ? operation.items_in : [],
+      settlement_method: text(operation.settlement_method || operation.refund_method),
+      shift_id: numberOrNull(operation.shift_id),
+      open_operations: true,
+    },
+  }).catch((error) => console.warn("[manager-push:operation-notification-failed]", { order_id: orderId, message: error?.message || String(error) }));
+
+  return sendToManagerSubscriptions({
+    tenantId,
+    branchId,
+    category: "sales",
+    logLabels: {
+      attempt: "[manager-push:operation-send-attempt]",
+      success: "[manager-push:operation-send-success]",
+      failed: "[manager-push:operation-send-failed]",
+    },
+    buildPayload: (row) => {
+      const url = `/manager-portal/${encodeURIComponent(row.portal_token)}?tab=operations&operation_id=${encodeURIComponent(entityId)}&invoice_id=${encodeURIComponent(String(orderId))}`;
+      return {
+        title,
+        body,
+        tag: `manager-operation-${entityId}`,
+        data: {
+          type: OPERATION_TYPES[normalizedKind],
+          operation_kind: normalizedKind,
+          operation_id: entityId,
+          invoice_id: orderId,
+          order_id: orderId,
+          invoice_number: invoiceNumber,
+          url,
+        },
+      };
+    },
+  });
+};

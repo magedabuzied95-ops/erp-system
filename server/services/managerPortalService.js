@@ -23,6 +23,7 @@ import { getRolePermissions } from "./rolesService.js";
 import { listEmployeePortalRequests, reviewEmployeePortalRequest } from "./employeePayrollPortalService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
+import { diffOperationItems } from "../utils/orderOperationDiff.js";
 
 const tokenBytes = 32;
 const DEFAULT_MANAGER_PORTAL_APP_URL = "https://erp-system-ten-green.vercel.app";
@@ -1287,6 +1288,542 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
       ai_confirmed_orders: Number(aiConversionSummary.ai_confirmed_orders || 0),
       ai_conversion_rate: Number(aiConversionSummary.ai_conversion_rate || 0),
     },
+  };
+};
+
+/* ======================================================
+   OPERATIONS FEED — invoice edits, returns, exchanges
+   Every operation that moves goods or money AFTER the sale
+   was rung up, with the money trail attached: which drawer
+   shift took (or gave back) the difference, and how much.
+====================================================== */
+
+const OPERATION_RANGES = {
+  today: "CREATED_AT >= CURRENT_DATE",
+  yesterday: "CREATED_AT >= CURRENT_DATE - INTERVAL '1 day'",
+  week: "CREATED_AT >= CURRENT_DATE - INTERVAL '7 days'",
+  month: "CREATED_AT >= CURRENT_DATE - INTERVAL '30 days'",
+  all: "TRUE",
+};
+
+const operationRangeClause = (range = "month", column = "a.created_at") => {
+  const key = lower(range) || "month";
+  const template = OPERATION_RANGES[key] || OPERATION_RANGES.month;
+  return template.replaceAll("CREATED_AT", column);
+};
+
+const cashEventLabel = (eventType = "") => {
+  const key = lower(eventType);
+  if (key === "cash_in") return "نقدية دخلت الدرج";
+  if (key === "refund_cash" || key === "cash_out") return "نقدية خرجت من الدرج";
+  return key;
+};
+
+// The one question a manager actually asks about an edit: did the drawer see the
+// difference? A settlement with no ledger row at all is money that moved on the
+// invoice but never in the till, and that is what `balanced: false` flags.
+const buildOperationMoneyTrail = ({ cashEvent = null, accountEntry = null, expectedDifference = 0 } = {}) => {
+  const cashAmount = cashEvent ? toNumber(cashEvent.amount) : 0;
+  const accountAmount = accountEntry ? Math.abs(toNumber(accountEntry.amount)) : 0;
+  const recorded = cashAmount || accountAmount;
+  const expected = Math.abs(toNumber(expectedDifference));
+  return {
+    recorded_in_shift: Boolean(cashEvent?.shift_id),
+    shift_id: numberOrNull(cashEvent?.shift_id),
+    shift_opened_at: cashEvent?.shift_opened_at || null,
+    shift_status: clean(cashEvent?.shift_status || ""),
+    shift_cashier_name: repairManagerPortalPayload(clean(cashEvent?.shift_cashier_name || "")),
+    cash_event_type: clean(cashEvent?.event_type || ""),
+    cash_event_label: cashEvent ? cashEventLabel(cashEvent.event_type) : "",
+    cash_amount: cashAmount,
+    account_amount: accountAmount,
+    account_name: repairManagerPortalPayload(clean(accountEntry?.financial_account_name || "")),
+    recorded_amount: recorded,
+    expected_amount: expected,
+    // Deferred difference (آجل / رصيد للعميل) is legitimately absent from the drawer,
+    // so only flag a gap when money was supposed to change hands right now.
+    balanced: expected <= 0.009 ? true : Math.abs(recorded - expected) <= 0.009,
+  };
+};
+
+const emptyOperationsSummary = () => ({
+  total: 0,
+  edits: 0,
+  returns: 0,
+  exchanges: 0,
+  refunded_amount: 0,
+  collected_amount: 0,
+  unbalanced: 0,
+});
+
+const summarizeOperations = (operations = []) => {
+  const summary = emptyOperationsSummary();
+  for (const operation of operations) {
+    summary.total += 1;
+    if (operation.kind === "edit") summary.edits += 1;
+    if (operation.kind === "return") summary.returns += 1;
+    if (operation.kind === "exchange") summary.exchanges += 1;
+    const difference = toNumber(operation.difference);
+    if (difference < 0) summary.refunded_amount += Math.abs(difference);
+    if (difference > 0) summary.collected_amount += difference;
+    if (operation.money && operation.money.balanced === false) summary.unbalanced += 1;
+  }
+  summary.refunded_amount = Number(summary.refunded_amount.toFixed(2));
+  summary.collected_amount = Number(summary.collected_amount.toFixed(2));
+  return summary;
+};
+
+const buildCashEvent = (row = {}) =>
+  row.cash_shift_id || row.cash_event_type
+    ? {
+        event_type: row.cash_event_type,
+        amount: row.cash_amount,
+        shift_id: row.cash_shift_id,
+        shift_opened_at: row.cash_shift_opened_at,
+        shift_status: row.cash_shift_status,
+        shift_cashier_name: row.cash_shift_cashier_name,
+      }
+    : null;
+
+const buildAccountEntry = (row = {}) =>
+  row.account_amount !== null && row.account_amount !== undefined
+    ? { amount: row.account_amount, financial_account_name: row.account_name }
+    : null;
+
+// A POS edit snapshot is whatever the till posted. When it carried the ids but not
+// the product_name, the diff can only say "منتج" — useless to a manager reviewing an
+// exchange. One lookup over every unnamed line in the page fills them back in.
+const resolveMissingOperationItemNames = async (operations = []) => {
+  const unnamed = [];
+  for (const operation of operations) {
+    for (const item of [...(operation.items_out || []), ...(operation.items_in || [])]) {
+      if (clean(item.name) && clean(item.name) !== "منتج") continue;
+      if (!item.variant_id && !item.product_id) continue;
+      unnamed.push(item);
+    }
+  }
+  if (!unnamed.length) return;
+
+  const variantIds = [...new Set(unnamed.map((item) => numberOrNull(item.variant_id)).filter(Boolean))];
+  const productIds = [...new Set(unnamed.map((item) => numberOrNull(item.product_id)).filter(Boolean))];
+  const [variantRows, productRows] = await Promise.all([
+    variantIds.length && (await tableExists("product_variants"))
+      ? safeQuery(
+          `
+          SELECT pv.id, COALESCE(NULLIF(p.name, ''), '') AS product_name,
+                 COALESCE(NULLIF(pv.color, ''), '') AS color,
+                 COALESCE(NULLIF(pv.size, ''), '') AS size
+          FROM product_variants pv
+          LEFT JOIN products p ON p.id = pv.product_id
+          WHERE pv.id = ANY($1::bigint[])
+          `,
+          [variantIds],
+          []
+        )
+      : [],
+    productIds.length && (await tableExists("products"))
+      ? safeQuery(`SELECT id, COALESCE(NULLIF(name, ''), '') AS name FROM products WHERE id = ANY($1::bigint[])`, [productIds], [])
+      : [],
+  ]);
+
+  const byVariant = new Map(variantRows.map((row) => [
+    String(row.id),
+    [clean(row.product_name), [clean(row.color), clean(row.size)].filter(Boolean).join(" / ")].filter(Boolean).join(" · "),
+  ]));
+  const byProduct = new Map(productRows.map((row) => [String(row.id), clean(row.name)]));
+
+  for (const item of unnamed) {
+    const resolved = byVariant.get(String(item.variant_id)) || byProduct.get(String(item.product_id)) || "";
+    if (resolved) item.name = repairManagerPortalPayload(resolved);
+  }
+};
+
+export const getManagerPortalOperations = async ({ manager = {}, query = {} } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const range = lower(query.range || "month") || "month";
+  const limit = Math.min(Math.max(Number(query.limit) || 60, 1), 200);
+  const kindFilter = lower(query.kind || "all") || "all";
+
+  const [hasOrders, hasEdits, hasReturns, hasReturnItems, hasCashEvents, hasAccountEntries, hasExchangeColumn, hasDisposition] = await Promise.all([
+    tableExists("orders"),
+    tableExists("order_edit_audits"),
+    tableExists("returns"),
+    tableExists("return_items"),
+    tableExists("cash_drawer_shift_events"),
+    tableExists("financial_account_entries"),
+    columnExists("orders", "exchange_mode"),
+    columnExists("returns", "disposition"),
+  ]);
+  if (!hasOrders) return { operations: [], summary: emptyOperationsSummary(), range, kind: kindFilter, total: 0 };
+
+  const branchClause = branchId ? "AND o.branch_id = $2::bigint" : "";
+  const params = branchId ? [tenantId, branchId] : [tenantId];
+
+  const cashJoinTemplate = hasCashEvents
+    ? `
+      LEFT JOIN LATERAL (
+        SELECT ev.event_type, ev.amount, ev.shift_id, ev.created_at,
+               sh.opened_at AS shift_opened_at,
+               sh.status AS shift_status,
+               COALESCE(NULLIF(su.name, ''), NULLIF(su.email, ''), '') AS shift_cashier_name
+        FROM cash_drawer_shift_events ev
+        LEFT JOIN cash_drawer_shifts sh ON sh.id = ev.shift_id
+        LEFT JOIN users su ON su.id = sh.opened_by
+        WHERE ev.source_type = '__SOURCE_TYPE__'
+          AND ev.source_id = __SOURCE_ID__
+          AND ($1::bigint IS NULL OR ev.tenant_id = $1::bigint)
+        ORDER BY ev.id ASC
+        LIMIT 1
+      ) cash ON TRUE`
+    : "";
+  const accountJoinTemplate = hasAccountEntries
+    ? `
+      LEFT JOIN LATERAL (
+        SELECT fe.amount, fe.entry_type, COALESCE(fa.name, '') AS financial_account_name
+        FROM financial_account_entries fe
+        LEFT JOIN financial_accounts fa ON fa.id = fe.financial_account_id
+        WHERE fe.source_type = '__SOURCE_TYPE__'
+          AND fe.source_id = __SOURCE_ID__
+          AND ($1::bigint IS NULL OR fe.tenant_id = $1::bigint)
+        ORDER BY fe.id ASC
+        LIMIT 1
+      ) acct ON TRUE`
+    : "";
+  const bindLateral = (sql, sourceType, sourceIdExpr) =>
+    sql.replaceAll("__SOURCE_TYPE__", sourceType).replaceAll("__SOURCE_ID__", sourceIdExpr);
+
+  const cashSelect = hasCashEvents
+    ? `cash.event_type AS cash_event_type, cash.amount AS cash_amount, cash.shift_id AS cash_shift_id,
+       cash.shift_opened_at AS cash_shift_opened_at, cash.shift_status AS cash_shift_status,
+       cash.shift_cashier_name AS cash_shift_cashier_name,`
+    : `NULL::text AS cash_event_type, NULL::numeric AS cash_amount, NULL::bigint AS cash_shift_id,
+       NULL::timestamp AS cash_shift_opened_at, NULL::text AS cash_shift_status,
+       NULL::text AS cash_shift_cashier_name,`;
+  const accountSelect = hasAccountEntries
+    ? `acct.amount AS account_amount, acct.financial_account_name AS account_name,`
+    : `NULL::numeric AS account_amount, NULL::text AS account_name,`;
+
+  const editRows = hasEdits
+    ? await safeQuery(
+        `
+        SELECT
+          a.id, a.order_id, a.old_items, a.new_items, a.old_total, a.new_total, a.reason, a.created_at,
+          COALESCE(NULLIF(u.name, ''), NULLIF(u.email, ''), 'غير معروف') AS actor_name,
+          o.invoice_number, o.customer_name, o.customer_phone, o.branch_id,
+          COALESCE(o.total_amount, o.total, 0) AS order_total,
+          o.edit_payment_difference,
+          o.shift_id AS order_shift_id,
+          COALESCE(b.name, '') AS branch_name,
+          ${cashSelect}
+          ${accountSelect}
+          a.id AS audit_id
+        FROM order_edit_audits a
+        JOIN orders o ON o.id = a.order_id
+        LEFT JOIN users u ON u.id = a.user_id
+        LEFT JOIN branches b ON b.id = o.branch_id
+        ${bindLateral(cashJoinTemplate, "order_edit", "a.id")}
+        ${bindLateral(accountJoinTemplate, "order_edit", "a.id")}
+        WHERE ($1::bigint IS NULL OR a.tenant_id = $1::bigint OR a.tenant_id IS NULL)
+          ${branchClause}
+          AND ${operationRangeClause(range, "a.created_at")}
+        ORDER BY a.created_at DESC
+        LIMIT ${limit}
+        `,
+        params,
+        []
+      )
+    : [];
+
+  const returnRows = hasReturns
+    ? await safeQuery(
+        `
+        SELECT
+          r.id, r.order_id, r.return_number, r.reason, r.refund_amount, r.refund_method,
+          COALESCE(r.exchange_difference, 0) AS exchange_difference,
+          r.restock, ${hasDisposition ? "COALESCE(r.disposition, '')" : "''"} AS disposition,
+          r.metadata, r.created_at, r.shift_id AS return_shift_id,
+          COALESCE(NULLIF(u.name, ''), NULLIF(u.email, ''), 'غير معروف') AS actor_name,
+          o.invoice_number, o.customer_name, o.customer_phone, o.branch_id,
+          COALESCE(o.total_amount, o.total, 0) AS order_total,
+          o.shift_id AS order_shift_id,
+          COALESCE(b.name, '') AS branch_name,
+          ${cashSelect}
+          ${accountSelect}
+          r.id AS return_row_id
+        FROM returns r
+        JOIN orders o ON o.id = r.order_id
+        LEFT JOIN users u ON u.id = r.created_by
+        LEFT JOIN branches b ON b.id = o.branch_id
+        ${bindLateral(cashJoinTemplate, "return", "r.id")}
+        ${bindLateral(accountJoinTemplate, "return", "r.id")}
+        WHERE ($1::bigint IS NULL OR r.tenant_id = $1::bigint OR r.tenant_id IS NULL)
+          ${branchClause}
+          AND ${operationRangeClause(range, "r.created_at")}
+        ORDER BY r.created_at DESC
+        LIMIT ${limit}
+        `,
+        params,
+        []
+      )
+    : [];
+
+  const returnIds = returnRows.map((row) => Number(row.id)).filter(Boolean);
+  const returnItemRows = hasReturnItems && returnIds.length
+    ? await safeQuery(
+        `
+        SELECT ri.return_id, ri.quantity, ri.refund_amount, ri.restock,
+               COALESCE(NULLIF(oi.product_name, ''), 'منتج') AS product_name
+        FROM return_items ri
+        LEFT JOIN order_items oi ON oi.id = ri.order_item_id
+        WHERE ri.return_id = ANY($1::bigint[])
+        `,
+        [returnIds],
+        []
+      )
+    : [];
+  const returnItemsByReturn = new Map();
+  for (const row of returnItemRows) {
+    const key = String(row.return_id);
+    const quantity = toNumber(row.quantity);
+    const list = returnItemsByReturn.get(key) || [];
+    list.push({
+      name: repairManagerPortalPayload(clean(row.product_name)),
+      quantity,
+      line_total: toNumber(row.refund_amount),
+      price: quantity > 0 ? Number((toNumber(row.refund_amount) / quantity).toFixed(2)) : toNumber(row.refund_amount),
+      restock: Boolean(row.restock),
+    });
+    returnItemsByReturn.set(key, list);
+  }
+
+  const exchangeOrderRows = hasExchangeColumn
+    ? await safeQuery(
+        `
+        SELECT
+          o.id, o.invoice_number, o.customer_name, o.customer_phone, o.branch_id, o.created_at,
+          COALESCE(o.total_amount, o.total, 0) AS order_total,
+          COALESCE(o.exchange_credit_amount, 0) AS exchange_credit_amount,
+          COALESCE(o.exchange_difference, 0) AS exchange_difference,
+          COALESCE(o.exchange_invoice_number, '') AS exchange_invoice_number,
+          COALESCE(o.paid_amount, 0) AS paid_amount,
+          o.shift_id AS order_shift_id,
+          COALESCE(b.name, '') AS branch_name,
+          COALESCE(NULLIF(u.name, ''), NULLIF(u.email, ''), NULLIF(o.cashier_name, ''), 'غير معروف') AS actor_name
+        FROM orders o
+        LEFT JOIN branches b ON b.id = o.branch_id
+        LEFT JOIN users u ON u.id = o.created_by
+        WHERE COALESCE(o.exchange_mode, FALSE) = TRUE
+          AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          ${branchClause}
+          AND ${operationRangeClause(range, "o.created_at")}
+        ORDER BY o.created_at DESC
+        LIMIT ${limit}
+        `,
+        params,
+        []
+      )
+    : [];
+
+  const exchangeOrderIds = exchangeOrderRows.map((row) => Number(row.id)).filter(Boolean);
+  const exchangeItemRows = exchangeOrderIds.length
+    ? await safeQuery(
+        `
+        SELECT oi.order_id, oi.quantity, COALESCE(NULLIF(oi.product_name, ''), 'منتج') AS product_name,
+               COALESCE(oi.total_amount, 0) AS total_amount
+        FROM order_items oi
+        WHERE oi.order_id = ANY($1::bigint[])
+        `,
+        [exchangeOrderIds],
+        []
+      )
+    : [];
+  const exchangeItemsByOrder = new Map();
+  for (const row of exchangeItemRows) {
+    const key = String(row.order_id);
+    const quantity = toNumber(row.quantity);
+    const list = exchangeItemsByOrder.get(key) || [];
+    list.push({
+      name: repairManagerPortalPayload(clean(row.product_name)),
+      quantity,
+      line_total: toNumber(row.total_amount),
+      price: quantity > 0 ? Number((toNumber(row.total_amount) / quantity).toFixed(2)) : toNumber(row.total_amount),
+    });
+    exchangeItemsByOrder.set(key, list);
+  }
+
+  const operations = [];
+
+  for (const row of editRows) {
+    const oldTotal = toNumber(row.old_total);
+    const newTotal = toNumber(row.new_total);
+    const difference = Number((newTotal - oldTotal).toFixed(2));
+    const diff = diffOperationItems(row.old_items, row.new_items);
+    // Item names come out of a JSONB snapshot written by the POS, so they carry the
+    // same mojibake risk as every other stored Arabic string in this portal.
+    const repairItems = (items) => items.map((item) => ({ ...item, name: repairManagerPortalPayload(item.name) }));
+    diff.removed = repairItems(diff.removed);
+    diff.added = repairItems(diff.added);
+    const settlement = jsonObject(row.edit_payment_difference);
+    // Only the newest edit owns edit_payment_difference; older audits keep their
+    // totals but lose the settlement block, so match on audit id before trusting it.
+    const settlementMatches = clean(settlement.edit_audit_id) === String(row.id);
+    const deferred = settlementMatches ? toNumber(settlement.deferred_amount) : 0;
+    const expectedCashMovement = Math.max(0, Math.abs(difference) - Math.max(0, deferred));
+    // Swapping one product out and a different one in IS an exchange, whatever the
+    // seller called the button. Label it by intent, not by the mechanism used.
+    const looksLikeExchange = diff.comparable && diff.removed.length > 0 && diff.added.length > 0;
+    operations.push({
+      id: `edit-${row.id}`,
+      kind: looksLikeExchange ? "exchange" : "edit",
+      mechanism: "invoice_edit",
+      at: row.created_at,
+      order_id: Number(row.order_id),
+      invoice_number: repairManagerPortalPayload(clean(row.invoice_number)) || `#${row.order_id}`,
+      customer_name: repairManagerPortalPayload(clean(row.customer_name)) || "عميل",
+      customer_phone: clean(row.customer_phone),
+      branch_id: numberOrNull(row.branch_id),
+      branch_name: repairManagerPortalPayload(clean(row.branch_name)),
+      actor_name: repairManagerPortalPayload(clean(row.actor_name)),
+      reason: repairManagerPortalPayload(clean(row.reason)),
+      fields_only: !diff.comparable,
+      old_total: oldTotal,
+      new_total: newTotal,
+      difference,
+      items_out: diff.removed,
+      items_in: diff.added,
+      settlement: settlementMatches
+        ? {
+            type: clean(settlement.settlement_type),
+            method: clean(settlement.settlement_method),
+            collected_now: toNumber(settlement.collected_now),
+            refund_or_credit_due: toNumber(settlement.refund_or_credit_due),
+            deferred_amount: deferred,
+            original_paid_amount: toNumber(settlement.original_paid_amount),
+          }
+        : null,
+      money: buildOperationMoneyTrail({
+        cashEvent: buildCashEvent(row),
+        accountEntry: buildAccountEntry(row),
+        expectedDifference: expectedCashMovement,
+      }),
+      order_shift_id: numberOrNull(row.order_shift_id),
+    });
+  }
+
+  for (const row of returnRows) {
+    const metadata = jsonObject(row.metadata);
+    const exchangeDifference = toNumber(row.exchange_difference);
+    const isExchange = lower(metadata.mode) === "exchange"
+      || clean(row.reason).includes("استبدال")
+      || Math.abs(exchangeDifference) > 0.009;
+    const refundAmount = toNumber(row.refund_amount);
+    const refundMethod = lower(row.refund_method) || "cash";
+    const orderTotal = toNumber(row.order_total);
+    operations.push({
+      id: `return-${row.id}`,
+      kind: isExchange ? "exchange" : "return",
+      mechanism: "return",
+      at: row.created_at,
+      order_id: Number(row.order_id),
+      return_id: Number(row.id),
+      return_number: repairManagerPortalPayload(clean(row.return_number)),
+      invoice_number: repairManagerPortalPayload(clean(row.invoice_number)) || `#${row.order_id}`,
+      customer_name: repairManagerPortalPayload(clean(row.customer_name)) || "عميل",
+      customer_phone: clean(row.customer_phone),
+      branch_id: numberOrNull(row.branch_id),
+      branch_name: repairManagerPortalPayload(clean(row.branch_name)),
+      actor_name: repairManagerPortalPayload(clean(row.actor_name)),
+      reason: repairManagerPortalPayload(clean(row.reason)),
+      fields_only: false,
+      old_total: orderTotal,
+      new_total: Number((orderTotal - refundAmount).toFixed(2)),
+      difference: Number((-refundAmount).toFixed(2)),
+      refund_amount: refundAmount,
+      refund_method: refundMethod,
+      exchange_difference: exchangeDifference,
+      restocked: row.restock === true || lower(row.disposition) === "restock",
+      disposition: clean(row.disposition),
+      items_out: returnItemsByReturn.get(String(row.id)) || [],
+      items_in: [],
+      settlement: null,
+      // A wallet / exchange-credit refund never touches a drawer: the money stays with
+      // the shop as store credit, so nothing is expected in the till for it.
+      money: buildOperationMoneyTrail({
+        cashEvent: buildCashEvent(row),
+        accountEntry: buildAccountEntry(row),
+        expectedDifference: ["wallet", "customer_wallet", "exchange_credit"].includes(refundMethod) ? 0 : refundAmount,
+      }),
+      order_shift_id: numberOrNull(row.order_shift_id),
+      return_shift_id: numberOrNull(row.return_shift_id),
+    });
+  }
+
+  for (const row of exchangeOrderRows) {
+    const credit = toNumber(row.exchange_credit_amount);
+    const total = toNumber(row.order_total);
+    const dueNow = Math.max(0, Number((total - credit).toFixed(2)));
+    operations.push({
+      id: `exchange-order-${row.id}`,
+      kind: "exchange",
+      mechanism: "exchange_invoice",
+      at: row.created_at,
+      order_id: Number(row.id),
+      invoice_number: repairManagerPortalPayload(clean(row.invoice_number)) || `#${row.id}`,
+      original_invoice_number: repairManagerPortalPayload(clean(row.exchange_invoice_number)),
+      customer_name: repairManagerPortalPayload(clean(row.customer_name)) || "عميل",
+      customer_phone: clean(row.customer_phone),
+      branch_id: numberOrNull(row.branch_id),
+      branch_name: repairManagerPortalPayload(clean(row.branch_name)),
+      actor_name: repairManagerPortalPayload(clean(row.actor_name)),
+      reason: "فاتورة استبدال",
+      fields_only: false,
+      old_total: credit,
+      new_total: total,
+      difference: Number((total - credit).toFixed(2)),
+      exchange_credit_amount: credit,
+      exchange_difference: toNumber(row.exchange_difference),
+      remaining_customer_credit: Math.max(0, Number((credit - total).toFixed(2))),
+      items_out: [],
+      items_in: exchangeItemsByOrder.get(String(row.id)) || [],
+      settlement: null,
+      money: {
+        recorded_in_shift: Boolean(row.order_shift_id),
+        shift_id: numberOrNull(row.order_shift_id),
+        shift_opened_at: null,
+        shift_status: "",
+        shift_cashier_name: "",
+        cash_event_type: "",
+        cash_event_label: "",
+        cash_amount: 0,
+        account_amount: 0,
+        account_name: "",
+        recorded_amount: toNumber(row.paid_amount),
+        expected_amount: dueNow,
+        balanced: Math.abs(toNumber(row.paid_amount) - dueNow) <= 0.009,
+      },
+      order_shift_id: numberOrNull(row.order_shift_id),
+    });
+  }
+
+  operations.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
+  const filtered = kindFilter === "all" ? operations : operations.filter((operation) => operation.kind === kindFilter);
+  const page = filtered.slice(0, limit);
+  await resolveMissingOperationItemNames(page);
+
+  // Each source is capped independently, so a source that came back exactly full may
+  // be hiding older rows — and then the counts below describe the window, not the
+  // period. Say so rather than letting the totals read as complete.
+  const truncated = [editRows, returnRows, exchangeOrderRows].some((rows) => rows.length >= limit)
+    || filtered.length > page.length;
+
+  return {
+    operations: page,
+    summary: summarizeOperations(operations),
+    range,
+    kind: kindFilter,
+    total: filtered.length,
+    truncated,
   };
 };
 
