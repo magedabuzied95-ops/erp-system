@@ -1693,7 +1693,8 @@ function ProviderBadgePicker({ value, onChange, carriers = [] }) {
 }
 
 function ProviderCredentialsCard({ provider, draft, onChange, onSave, saving, copy, t }) {
-  const secretPlaceholder = t("settings.shipping.apiKeyPlaceholder");
+  // Per-carrier, because one shared placeholder read "Bosta API key" on every card.
+  const secretPlaceholder = t("settings.shipping.apiKeyPlaceholderFor", { carrier: provider.name });
   return (
     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
       <div className="flex items-start justify-between gap-3">
@@ -1701,8 +1702,8 @@ function ProviderCredentialsCard({ provider, draft, onChange, onSave, saving, co
           <h3 className={`m1-section-title ${headingText}`}>{provider.name}</h3>
           <p className={`mt-1 text-xs leading-5 ${bodyText}`}>
             {provider.integrated
-              ? copy.providerIntegrated || "Live integration: creates shipments, labels, and status updates."
-              : copy.providerNotWired || "Credentials are stored, but no shipments are booked yet - the API is not wired."}
+              ? copy.providerIntegrated
+              : copy.providerNotWired}
           </p>
         </div>
         <button
@@ -1710,13 +1711,13 @@ function ProviderCredentialsCard({ provider, draft, onChange, onSave, saving, co
           onClick={() => onChange({ enabled: !draft.enabled })}
           className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black ${draft.enabled ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}
         >
-          {draft.enabled ? copy.enabled || "Enabled" : copy.disabled || "Disabled"}
+          {draft.enabled ? copy.enabled : copy.disabled}
         </button>
       </div>
 
       {provider.integrated ? null : (
         <p className="mt-3 rounded-xl border border-amber-300/40 bg-amber-50 px-3 py-2 text-[11px] font-black leading-5 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
-          {copy.providerPlaceholderWarning || "No API client exists for this carrier yet. Enabling it will not create shipments."}
+          {copy.providerPlaceholderWarning}
         </p>
       )}
 
@@ -1731,9 +1732,9 @@ function ProviderCredentialsCard({ provider, draft, onChange, onSave, saving, co
         </label>
         {provider.supports_webhook ? (
           <label>
-            <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.bostaWebhookSecret || "Webhook secret"}</span>
+            <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.webhookSecret}</span>
             <input type="password" value={draft.webhook_secret} onChange={(event) => onChange({ webhook_secret: event.target.value })} className={inputClass} placeholder={secretPlaceholder} />
-            <span className={`mt-2 block text-[11px] leading-5 ${bodyText}`}>{copy.bostaWebhookSecretHint || "Paste the same value into the carrier dashboard webhook. Without it every status callback is rejected."}</span>
+            <span className={`mt-2 block text-[11px] leading-5 ${bodyText}`}>{copy.webhookSecretHint}</span>
           </label>
         ) : null}
         <button
@@ -1743,7 +1744,7 @@ function ProviderCredentialsCard({ provider, draft, onChange, onSave, saving, co
           className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 dark:bg-white dark:text-[var(--primary-contrast)]"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {copy.saveBosta || "Save settings"}
+          {copy.saveProvider}
         </button>
       </div>
     </article>
@@ -1830,7 +1831,7 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
         api_key: draft.api_key === SECRET_PLACEHOLDER ? undefined : draft.api_key,
         webhook_secret: draft.webhook_secret === SECRET_PLACEHOLDER ? undefined : draft.webhook_secret,
       });
-      toast.success(copy.bostaSaved || "Shipping provider saved");
+      toast.success(copy.providerSaved);
       await loadProviders();
       if (code === "bosta") loadStatus();
     } catch (error) {
@@ -1845,7 +1846,7 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
       setSyncState({ loading: true, counts: null, error: "" });
       const data = await api.post("/shipping/bosta/sync-locations", {});
       setSyncState({ loading: false, counts: data.counts || null, error: "" });
-      toast.success(copy.bostaSynced || "Bosta locations synced");
+      toast.success(copy.bostaSynced);
       loadProviders();
       loadStatus();
       loadLocations(query);
@@ -1876,7 +1877,7 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
         {loading && !providers.length ? (
           <div className={`rounded-2xl p-6 text-sm font-bold ${fieldSurface} ${bodyText}`}>
             <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-            {copy.loadingProviders || "Loading providers..."}
+            {copy.loadingProviders}
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
@@ -1896,10 +1897,10 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
         )}
       </VisualSection>
 
-      <VisualSection icon={Database} title={copy.bostaTitle || "Bosta operations"} description={copy.bostaDescription || "Sync Bosta cities, zones, and districts, then create deliveries from ERP orders."}>
+      <VisualSection icon={Database} title={copy.bostaTitle} description={copy.bostaDescription}>
         <div className={`rounded-2xl p-4 ${fieldSurface}`}>
-          <h3 className={`m1-section-title ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
-          <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint || "Imports Bosta City -> Zone -> District master locations. Checkout only shows dropoff-available rows."}</p>
+          <h3 className={`m1-section-title ${headingText}`}>{copy.bostaSync}</h3>
+          <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <TesterMetric label={t("settings.shipping.cities")} value={counts.citiesSynced ?? counts.cities ?? 0} />
             <TesterMetric label={t("settings.shipping.zones")} value={counts.zonesSynced ?? counts.zones ?? 0} />
@@ -1909,15 +1910,15 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
           {syncState.error ? <p className="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200">{syncState.error}</p> : null}
           <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
             {syncState.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {copy.syncNow || "Sync now"}
+            {copy.syncNow}
           </button>
         </div>
 
         <article className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className={`m1-section-title ${headingText}`}>{copy.bostaStatus || "Bosta status"}</h3>
-              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaStatusHint || "Operational checklist for API, location sync, and webhook readiness."}</p>
+              <h3 className={`m1-section-title ${headingText}`}>{copy.bostaStatus}</h3>
+              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaStatusHint}</p>
             </div>
             <code className="max-w-full break-all rounded-2xl bg-slate-950 px-3 py-2 text-xs font-bold text-cyan-100 dark:bg-black/40">
               {status?.webhook_url || "/api/shipping/bosta/webhook"}
@@ -1949,7 +1950,7 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
         </article>
       </VisualSection>
 
-      <VisualSection icon={MapPin} title={copy.bostaLocations || "Locations preview"} description={copy.bostaLocationsHint || "Search synced cities, zones, and districts in English and Arabic."}>
+      <VisualSection icon={MapPin} title={copy.bostaLocations} description={copy.bostaLocationsHint}>
         <div className="mb-3 max-w-lg">
           <div className="relative">
             <Search className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${mutedText}`} />
@@ -1978,7 +1979,7 @@ function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChang
                 </tr>
               ))}
               {!locations.length ? (
-                <tr><td colSpan={4} className={`px-4 py-8 text-center text-sm font-bold ${bodyText}`}>{copy.emptyBostaLocations || "No Bosta locations synced yet."}</td></tr>
+                <tr><td colSpan={4} className={`px-4 py-8 text-center text-sm font-bold ${bodyText}`}>{copy.emptyBostaLocations}</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -2207,6 +2208,23 @@ const shippingUi = {
     proofTitle: "Shipping Proof Rules",
     proofDescription: "Use the per-zone proof toggle to require or skip shipping payment proof for each area.",
     proofBody: "Proof rules are controlled directly inside Shipping Zones so Damietta, city, and district exceptions stay visible beside their prices.",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    saveProvider: "Save settings",
+    providerSaved: "Shipping provider saved",
+    webhookSecret: "Webhook secret",
+    webhookSecretHint: "Paste the same value into the carrier dashboard webhook. Without it every status callback is rejected.",
+    bostaTitle: "Bosta operations",
+    bostaDescription: "Sync Bosta cities, zones, and districts, then create deliveries from ERP orders.",
+    bostaSync: "Sync locations",
+    bostaSyncHint: "Imports Bosta City to Zone to District master locations. Checkout only shows dropoff-available rows.",
+    syncNow: "Sync now",
+    bostaSynced: "Bosta locations synced",
+    bostaStatus: "Bosta status",
+    bostaStatusHint: "Operational checklist for API, location sync, and webhook readiness.",
+    bostaLocations: "Locations preview",
+    bostaLocationsHint: "Search synced cities, zones, and districts in English and Arabic.",
+    emptyBostaLocations: "No Bosta locations synced yet.",
     providersTitle: "Shipping Providers",
     providersDescription: "Every carrier the ERP knows, its credentials, and whether it can actually book a shipment.",
     providerIntegrated: "Live integration: creates shipments, labels, and status updates.",
@@ -2266,6 +2284,23 @@ const shippingUi = {
     proofTitle: "قواعد إثبات دفع الشحن",
     proofDescription: "استخدم هذا المفتاح لتحديد ما إذا كانت صورة التحويل مطلوبة لكل منطقة.",
     proofBody: "تظهر قواعد إثبات الدفع داخل مناطق الشحن حتى تبقى الاستثناءات واضحة بجانب السعر.",
+    enabled: "مفعّل",
+    disabled: "معطّل",
+    saveProvider: "حفظ الإعدادات",
+    providerSaved: "تم حفظ إعدادات الشركة",
+    webhookSecret: "مفتاح الويبهوك",
+    webhookSecretHint: "الصق نفس القيمة في إعدادات الويبهوك على لوحة الشركة. من غيرها كل تحديث حالة بيتم رفضه.",
+    bostaTitle: "تشغيل بوسطة",
+    bostaDescription: "زامن مدن ومناطق وأحياء بوسطة، وبعدها تقدر تنشئ الشحنات من طلبات النظام.",
+    bostaSync: "مزامنة المناطق",
+    bostaSyncHint: "بيستورد شجرة المدينة ثم المنطقة ثم الحي من بوسطة. صفحة الدفع بتعرض المتاح للتسليم فقط.",
+    syncNow: "زامن الآن",
+    bostaSynced: "تمت مزامنة مناطق بوسطة",
+    bostaStatus: "حالة بوسطة",
+    bostaStatusHint: "قائمة تشغيلية للتحقق من الـ API والمزامنة وجاهزية الويبهوك.",
+    bostaLocations: "معاينة المناطق",
+    bostaLocationsHint: "ابحث في المدن والمناطق والأحياء المتزامنة بالعربي والإنجليزي.",
+    emptyBostaLocations: "لسه مفيش مناطق متزامنة من بوسطة.",
     providersTitle: "شركات الشحن",
     providersDescription: "كل شركة شحن يعرفها النظام، وبيانات ربطها، وهل تقدر تنشئ شحنة فعلاً.",
     providerIntegrated: "تكامل شغّال: ينشئ الشحنات والملصقات ويتابع الحالة.",

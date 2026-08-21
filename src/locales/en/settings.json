@@ -142,7 +142,7 @@
       "defaultProviderHint": "Select the fallback carrier used when a zone has no specific provider.",
       "baseUrl": "Base URL",
       "apiKey": "API key",
-      "apiKeyPlaceholder": "Bosta API key",
+      "apiKeyPlaceholderFor": "{{carrier}} API key",
       "cities": "Cities",
       "zones": "Zones",
       "districts": "Districts",

@@ -142,7 +142,7 @@
       "defaultProviderHint": "اختر شركة الشحن البديلة عند عدم تحديد شركة لمنطقة معينة.",
       "baseUrl": "الرابط الأساسي",
       "apiKey": "مفتاح API",
-      "apiKeyPlaceholder": "مفتاح Bosta API",
+      "apiKeyPlaceholderFor": "مفتاح API لـ {{carrier}}",
       "cities": "المدن",
       "zones": "المناطق",
       "districts": "الأحياء",
