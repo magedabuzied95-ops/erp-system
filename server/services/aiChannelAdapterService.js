@@ -604,16 +604,75 @@ const extractMetaAttachmentUrl = (attachment = {}) => {
   return "";
 };
 
-const extractMetaAttachments = (event = {}) =>
-  asArray(event.message?.attachments)
-    .map((attachment) => ({
-      type: attachment.type || "file",
-      url: extractMetaAttachmentUrl(attachment),
-      image_url: extractMetaAttachmentUrl(attachment),
-      title: attachment.title || attachment.type || "",
-      metadata: { sticker_id: attachment.payload?.sticker_id || "" },
-    }))
+// Meta states the same fact — "this message is about a story" — in two unrelated
+// shapes. A story REPLY (the customer answers one of our stories) arrives as
+// `message.reply_to.story` and carries no attachment at all; a story MENTION
+// (the customer puts us in theirs) arrives as an attachment of type
+// `story_mention`. Reading only `message.attachments` meant a story reply
+// reached the inbox as a bare line of text — "Hm?" with nothing saying what the
+// customer was looking at. Both shapes are folded into one attachment here so
+// every reader downstream sees a story the same way.
+const STORY_ATTACHMENT_TYPES = new Set(["story_mention", "story_reply", "story"]);
+
+const isStoryAttachmentType = (value = "") => STORY_ATTACHMENT_TYPES.has(toText(value).toLowerCase());
+
+export const findStoryAttachment = (attachments = []) =>
+  asArray(attachments).find(
+    (attachment) => toText(attachment?.metadata?.story_kind) || isStoryAttachmentType(attachment?.type)
+  ) || null;
+
+const metaStoryReplyContext = (event = {}) => {
+  const message = event?.message && typeof event.message === "object" ? event.message : {};
+  const replyTo = message.reply_to && typeof message.reply_to === "object" ? message.reply_to : {};
+  const story = [replyTo.story, message.story, replyTo.story_reply, message.story_reply].find(
+    (candidate) => candidate && typeof candidate === "object"
+  );
+  const storyId = toText(story?.id || story?.story_id || replyTo.story_id || message.story_id || "");
+  const storyUrl = toText(story?.url || story?.link || story?.media_url || (story ? extractMetaAttachmentUrl(story) : ""));
+  if (!storyId && !storyUrl) return null;
+  return { kind: "story_reply", story_id: storyId, url: storyUrl };
+};
+
+const extractMetaAttachments = (event = {}) => {
+  const storyReply = metaStoryReplyContext(event);
+  const mapped = asArray(event.message?.attachments)
+    .map((attachment) => {
+      const url = extractMetaAttachmentUrl(attachment);
+      const isStory = isStoryAttachmentType(attachment.type);
+      return {
+        type: attachment.type || "file",
+        url,
+        image_url: url,
+        title: attachment.title || attachment.type || "",
+        metadata: {
+          sticker_id: attachment.payload?.sticker_id || "",
+          ...(isStory
+            ? {
+                story_kind: toText(attachment.type).toLowerCase() === "story_mention" ? "story_mention" : "story_reply",
+                story_id: toText(attachment.payload?.id || attachment.payload?.story_id || storyReply?.story_id || ""),
+                story_url: url,
+              }
+            : {}),
+        },
+      };
+    })
     .filter((attachment) => attachment.url || attachment.metadata.sticker_id);
+  if (!storyReply || mapped.some((attachment) => isStoryAttachmentType(attachment.type))) return mapped;
+  // The story is the context for the customer's text, so it leads the list — the
+  // transcript renders the first story attachment as a quote above the message.
+  return [
+    {
+      type: storyReply.kind,
+      url: storyReply.url,
+      image_url: storyReply.url,
+      // normalizeAttachments drops an attachment with neither url nor title, and
+      // Meta can hand us a story id whose signed CDN link has already expired.
+      title: storyReply.url ? "" : storyReply.kind,
+      metadata: { story_kind: storyReply.kind, story_id: storyReply.story_id, story_url: storyReply.url },
+    },
+    ...mapped,
+  ];
+};
 
 const messengerWebhookPreviewMask = (value, depth = 0) => {
   if (value == null) return value;
@@ -733,6 +792,9 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
         read: event?.read ?? null,
         delivery: event?.delivery ?? null,
         reaction: event?.reaction ?? null,
+        // Instagram documents `reply_to.story`; Facebook's exact story shape is
+        // only observable in production, so log it raw rather than guess.
+        reply_to_story: event?.message?.reply_to?.story ?? null,
         optin: event?.optin ?? null,
         referral: event?.referral ?? null,
         timestamp: event?.timestamp ?? null,
@@ -804,6 +866,7 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
           recipient_page_id: recipientId,
           reply_to_message_id: replyToMessageId,
           reply_to: event.message?.reply_to || event.message?.reply_to_message || event.message?.replied_message || event.message?.context || null,
+          story_context: findStoryAttachment(attachments)?.metadata || null,
           quick_reply_payload: event.message?.quick_reply?.payload || "",
           postback_payload: event.postback?.payload || "",
           direction: isPageOrigin ? "outbound" : "inbound",

@@ -7,6 +7,7 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
 import {
   debugMessengerProfileForConversation,
+  enrichStoryAttachments,
   getAiInboxConversationDebug,
   refreshMessengerProfileForConversation,
   sendInstagramInboxReaction,
@@ -1837,6 +1838,9 @@ router.post("/channels/meta/webhook", async (req, res) => {
         messageId,
         attachments: message.attachments,
       });
+      // Same story resolution as /api/meta/webhook, so a story reply reads the
+      // same on both intake routes instead of only on the production one.
+      message.attachments = await enrichStoryAttachments({ tenantId, attachments: message.attachments });
       const attachmentLabel = inboundAttachmentLabel(message.attachments);
       const isProviderOutbound = message.from_me === true || message.direction === "outbound";
       if (isProviderOutbound) {

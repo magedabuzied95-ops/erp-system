@@ -73,6 +73,11 @@ const EXTENSION_BY_TYPE = {
   ptt: "ogg",
   document: "bin",
   file: "bin",
+  // A story frame is a JPEG; the CDN link carries no extension and Meta's
+  // response occasionally arrives without a content type.
+  story: "jpg",
+  story_reply: "jpg",
+  story_mention: "jpg",
 };
 
 export const inboundMediaExtension = (mimeType = "", mediaType = "") => {
@@ -122,6 +127,10 @@ const inboundAttachmentMime = (attachment = {}) => text(
 export const inboundAttachmentLabel = (attachments = []) => {
   const types = asArray(attachments).map((attachment) => inboundAttachmentType(attachment));
   if (!types.length) return "";
+  // The story label leads, because "📷 صورة" on a story reply reads in the
+  // conversation list as a photo the customer sent us.
+  if (types.includes("story_mention")) return "📸 منشن في استوري";
+  if (types.some((type) => ["story_reply", "story"].includes(type))) return "📸 رد على استوري";
   if (types.some((type) => IMAGE_TYPES.includes(type))) return types.includes("sticker") ? "🌟 ملصق" : "📷 صورة";
   if (types.some((type) => VIDEO_TYPES.includes(type))) return "🎥 فيديو";
   if (types.some((type) => AUDIO_TYPES.includes(type))) return "🎤 رسالة صوتية";

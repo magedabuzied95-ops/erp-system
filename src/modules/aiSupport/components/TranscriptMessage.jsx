@@ -1,11 +1,11 @@
 ﻿import { memo, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Bot, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
+import { Bot, Camera, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
 import ProductCardMessage from "./ProductCardMessage";
-import MessageMedia, { messageMediaGroups } from "./MessageMedia.jsx";
+import MessageMedia, { messageMediaGroups, messageStoryContext } from "./MessageMedia.jsx";
 import DeliveryTicks, { deliveryStatusLabel as sharedDeliveryStatusLabel, isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 
@@ -545,6 +545,74 @@ function LinkifiedText({ text = "", className = "" }) {
   );
 }
 
+// A story reply used to land in the transcript as a bare line of text: the
+// customer answers one of our stories with "بكام؟" and nothing on screen says
+// which story they were looking at. The frame is quoted above the message the
+// way the platform itself shows it, and names the product whenever the webhook
+// could match the story id back to one of our published stories.
+const STORY_TONES = {
+  desktop: {
+    shell: "border-white/10 bg-white/[0.05]",
+    bar: "bg-fuchsia-400",
+    label: "text-fuchsia-200",
+    title: "text-white",
+    link: "text-fuchsia-200 hover:text-fuchsia-100",
+  },
+  pwa: {
+    shell: "border-black/10 bg-black/[0.04]",
+    bar: "bg-fuchsia-500",
+    label: "text-fuchsia-700",
+    title: "text-slate-900",
+    link: "text-fuchsia-700 hover:text-fuchsia-800",
+  },
+};
+
+function StoryContext({ story, variant = "desktop" }) {
+  const { t } = useTranslation();
+  // The story frame is a signed CDN link when we could not resolve the story to
+  // one of ours, so it can be dead by the time the operator opens the thread.
+  // The quote still has to say what the message is about, so the label stays.
+  const [imageFailed, setImageFailed] = useState(false);
+  if (!story) return null;
+  const tone = STORY_TONES[variant] || STORY_TONES.desktop;
+  const label = story.kind === "story_mention"
+    ? t("aiSupport.inbox.message.storyMention")
+    : t("aiSupport.inbox.message.storyReply");
+  const details = [story.productName, story.color].filter(Boolean).join(" · ");
+  return (
+    <div className={`mt-2 flex items-stretch gap-2 overflow-hidden rounded-xl border ${tone.shell}`}>
+      <span className={`w-1 shrink-0 ${tone.bar}`} aria-hidden="true" />
+      {story.url && !imageFailed ? (
+        <img
+          src={story.url}
+          alt={label}
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+          className="my-1.5 h-14 w-10 shrink-0 rounded-md object-cover"
+        />
+      ) : null}
+      <div className="min-w-0 flex-1 px-1 py-1.5">
+        <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.label}`}>
+          <Camera className="h-3 w-3" />
+          <span>{label}</span>
+        </div>
+        {details ? <p dir="auto" className={`mt-0.5 truncate text-[12px] font-bold ${tone.title}`}>{details}</p> : null}
+        {story.productUrl ? (
+          <a
+            href={story.productUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold ${tone.link}`}
+          >
+            <ExternalLink className="h-3 w-3" />
+            {t("aiSupport.inbox.message.storyOpenProduct")}
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function TranscriptMessage({
   row = null,
   variant = "desktop",
@@ -561,6 +629,7 @@ function TranscriptMessage({
   const message = safeRow.message || {};
   const cards = asArray(safeRow.cards);
   const media = useMemo(() => messageMediaGroups(message), [message]);
+  const story = useMemo(() => messageStoryContext(message), [message]);
   const isVoiceTranscript = Boolean(message.voice_transcript);
   const bodyText = useMemo(() => {
     const rendered = media.images.length || media.videos.length || media.audios.length || media.documents.length;
@@ -620,6 +689,7 @@ function TranscriptMessage({
             <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
             <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
             <div className="ai-pwa-message-body">
+              {story ? <StoryContext story={story} variant="pwa" /> : null}
               <LinkifiedText text={bodyText(message.customer_message)} className="text-[14px] leading-5.5" />
               {message.delivery_status === "failed" ? <span className="text-[11px] text-rose-500"> · Failed</span> : null}
               {message.delivery_status === "failed" && message.delivery_error ? (
@@ -735,6 +805,7 @@ function TranscriptMessage({
               <span>/</span>
               <span>{createdAt}</span>
             </div>
+            {story ? <StoryContext story={story} variant="desktop" /> : null}
             <LinkifiedText text={bodyText(message.customer_message)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageMedia message={message} groups={media} tone="customer" variant="desktop" />
           </div>

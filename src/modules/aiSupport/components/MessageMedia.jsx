@@ -104,6 +104,43 @@ const messageAttachments = (message = {}) => [
   ...asArray(message.channel_metadata?.attachments),
 ];
 
+/* ── Story context ───────────────────────────────────────────────────────── */
+
+// Meta states "this message is about a story" twice over: a story reply arrives
+// as `reply_to.story`, a story mention as an attachment of type `story_mention`.
+// The webhook folds both into one attachment carrying `story_kind`, so the two
+// shapes are one thing by the time they reach here.
+const STORY_TYPES = ["story_reply", "story_mention", "story"];
+
+const storyAttachmentKind = (attachment = {}) => {
+  const declared = clean(attachment.metadata?.story_kind || attachment.story_kind || "").toLowerCase();
+  const type = declared || rawAttachmentType(attachment);
+  if (!STORY_TYPES.includes(type)) return "";
+  return type === "story_mention" ? "story_mention" : "story_reply";
+};
+
+/**
+ * The story this message is about, if any: the frame the customer replied to,
+ * plus the product the webhook resolved it to among our own published stories.
+ */
+export const messageStoryContext = (message = {}) => {
+  for (const attachment of messageAttachments(message)) {
+    const kind = storyAttachmentKind(attachment);
+    if (!kind) continue;
+    const metadata = attachment.metadata && typeof attachment.metadata === "object" ? attachment.metadata : {};
+    return {
+      kind,
+      url: attachmentUrl(attachment) || clean(metadata.story_asset_url),
+      storyId: clean(metadata.story_id),
+      productId: metadata.story_product_id || null,
+      productName: clean(metadata.story_product_name),
+      color: clean(metadata.story_color),
+      productUrl: clean(metadata.story_product_url),
+    };
+  }
+  return null;
+};
+
 // The message row itself carries loose media columns that predate the attachment
 // array, so they are folded in as synthetic attachments rather than handled by a
 // second code path that has to be kept in step with this one.
@@ -133,6 +170,9 @@ export const messageMediaGroups = (message = {}) => {
   const groups = { images: [], audios: [], videos: [], documents: [] };
   const seen = new Set();
   for (const attachment of [...looseMessageMedia(message), ...messageAttachments(message)]) {
+    // A story is context for the message, not a photo the customer sent us, so
+    // the bubble quotes it above the text instead of tiling it in the gallery.
+    if (storyAttachmentKind(attachment)) continue;
     const url = attachmentUrl(attachment);
     if (!url || seen.has(url)) continue;
     seen.add(url);

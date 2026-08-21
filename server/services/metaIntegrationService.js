@@ -4,7 +4,7 @@ import iconv from "iconv-lite";
 
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { getPublicAppUrl, getMetaWebhookUrl } from "../utils/publicUrl.js";
+import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import { emitToRooms } from "../utils/socket.js";
 import { emitMetaReviewerInboundEvent, normalizeMetaReviewerChannel } from "./metaReviewerAccessService.js";
@@ -9954,6 +9954,120 @@ const webhookAccountIdsFromBody = (body = {}) => {
     pageIds: [...pageIds].map(text).filter(Boolean),
     instagramBusinessAccountIds: [...instagramIds].map(text).filter(Boolean),
   };
+};
+
+const absoluteStoryAssetUrl = (value = "") => {
+  const url = text(value);
+  if (!url) return "";
+  const scheme = url.slice(0, 8).toLowerCase();
+  if (scheme.startsWith("http://") || scheme.startsWith("https://")) return url;
+  // A stored /uploads path is served by the backend origin. The app origin
+  // answers it with the SPA's html, so a relative link renders as a dead image.
+  const base = text(getPublicBackendUrl());
+  if (!base) return "";
+  const origin = base.toLowerCase().endsWith("/api") ? base.slice(0, -4) : base;
+  return `${origin}${url.startsWith("/") ? "" : "/"}${url}`;
+};
+
+// A story reply hands us Meta's story id and nothing else, so on its own the
+// inbox can only say "this is about a story". Our own stories are published from
+// ai_marketing_content_queue, which keeps the platform ids it got back — so that
+// id resolves to the product the customer is actually asking about, and to our
+// own rendered asset, which (unlike Meta's signed CDN link) never expires.
+const resolvePublishedStoryContext = async ({ tenantId, storyId } = {}) => {
+  const id = text(storyId);
+  if (!tenantId || !id) return null;
+  try {
+    const result = await db.query(
+      `
+      SELECT
+        q.id AS queue_id,
+        q.product_id,
+        q.variant_id,
+        q.title,
+        q.color,
+        q.size,
+        q.product_url,
+        q.final_asset_url,
+        q.story_image_url,
+        q.rendered_image_url,
+        q.image_url,
+        q.published_at,
+        p.name AS product_name
+      FROM ai_marketing_content_queue q
+      LEFT JOIN products p ON p.id = q.product_id
+      WHERE q.tenant_id = $1::bigint
+        AND q.created_at > NOW() - INTERVAL '90 days'
+        AND (
+          -- One platform's id lands in the column; every platform's id lands in
+          -- the results blob, and the autopilot mirrors them into metadata.
+          $2::text = ANY(string_to_array(COALESCE(q.platform_post_id, ''), ','))
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_each(
+              CASE WHEN jsonb_typeof(q.platform_publish_results) = 'object' THEN q.platform_publish_results ELSE '{}'::jsonb END
+            ) AS platform(name, payload)
+            WHERE jsonb_typeof(payload) = 'object'
+              AND $2::text IN (payload->>'platform_story_id', payload->>'platform_post_id', payload->>'id')
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_each_text(
+              CASE WHEN jsonb_typeof(q.metadata->'platform_ids') = 'object' THEN q.metadata->'platform_ids' ELSE '{}'::jsonb END
+            ) AS ids(name, value)
+            WHERE value = $2::text
+          )
+        )
+      ORDER BY q.published_at DESC NULLS LAST, q.id DESC
+      LIMIT 1
+      `,
+      [tenantId, id]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      story_queue_id: row.queue_id || null,
+      story_product_id: row.product_id || null,
+      story_variant_id: row.variant_id || null,
+      story_product_name: text(row.product_name || row.title || ""),
+      story_color: text(row.color || ""),
+      story_size: text(row.size || ""),
+      story_product_url: text(row.product_url || ""),
+      story_asset_url: absoluteStoryAssetUrl(row.final_asset_url || row.story_image_url || row.rendered_image_url || row.image_url || ""),
+      story_published_at: row.published_at || null,
+    };
+  } catch (error) {
+    // A story we cannot resolve still renders as a story; never fail intake over it.
+    console.warn("[meta-story-context] lookup failed", { tenant_id: tenantId || null, message: error?.message || "" });
+    return null;
+  }
+};
+
+// Story attachments arrive with the platform's story id and a link that expires.
+// Both are replaced here by what we already know about our own story.
+export const enrichStoryAttachments = async ({ tenantId, attachments = [] } = {}) => {
+  const list = Array.isArray(attachments) ? attachments : [];
+  if (!list.some((attachment) => text(attachment?.metadata?.story_kind))) return list;
+  return Promise.all(list.map(async (attachment) => {
+    const storyKind = text(attachment?.metadata?.story_kind);
+    if (!storyKind) return attachment;
+    const resolved = await resolvePublishedStoryContext({ tenantId, storyId: attachment?.metadata?.story_id });
+    console.info("[meta-story-context]", {
+      tenant_id: tenantId || null,
+      story_kind: storyKind,
+      story_id: text(attachment?.metadata?.story_id) || null,
+      resolved_queue_id: resolved?.story_queue_id || null,
+      resolved_product_id: resolved?.story_product_id || null,
+    });
+    if (!resolved) return attachment;
+    return {
+      ...attachment,
+      // Meta's link is signed and short-lived; our own asset outlives the thread.
+      url: text(attachment.url) || resolved.story_asset_url,
+      image_url: text(attachment.image_url) || resolved.story_asset_url,
+      metadata: { ...(attachment.metadata || {}), ...resolved },
+    };
+  }));
 };
 
 const logIncomingToInbox = async ({ message, config }) => {
@@ -23497,6 +23611,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
     message.attachments = await materializeInboundAttachments({
       channel: channelAlias(message.channel) || text(message.channel),
       messageId: text(message.external_message_id || message.dedupe_key || ""),
+      attachments: message.attachments,
+    });
+    // The story behind a story reply is resolved before the transcript row is
+    // written, so the row carries the product itself and nothing has to look it
+    // up again at render time.
+    message.attachments = await enrichStoryAttachments({
+      tenantId: config.tenant_id,
       attachments: message.attachments,
     });
     assignInboundMessageLifecycle(message);
