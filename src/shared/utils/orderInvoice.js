@@ -259,6 +259,13 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
       remainingCustomerCredit: Math.max(0, exchangeCredit - newItemsTotal),
     },
     currency: firstText(options.currency, order.currency, order.currency_code, order.store?.currency),
+    // Review links the ORDER carries win over the template's, because a store that
+    // stamps a per-order link means it.
+    socialOverrides: {
+      google_review_url: firstText(order.google_review_url, order.googleReviewUrl),
+      facebook_review_url: firstText(order.facebook_review_url, order.facebookReviewUrl),
+      instagram_url: firstText(order.instagram_url, order.instagramUrl),
+    },
     publicUrl: firstText(order.public_invoice_url, order.invoice_public_url, order.public_invoice_short_url, order.short_invoice_url, options.publicUrl),
   };
 };

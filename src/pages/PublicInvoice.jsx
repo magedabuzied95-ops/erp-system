@@ -5,12 +5,9 @@ import {
   ArrowLeft,
   Download,
   ExternalLink,
-  Globe,
   Loader2,
   Printer,
-  ShieldCheck,
   Star,
-  Smartphone,
 } from "lucide-react";
 
 import { api } from "../shared/api/api";
@@ -45,15 +42,6 @@ const normalizePublicUrl = (value) => {
   const baseUrl = getPublicAppUrl();
   if (baseUrl) return new URL(raw, baseUrl).toString();
   return raw;
-};
-
-// Egypt local number -> international wa.me form. Derived from the number the footer
-// already shows, so there is one source of truth for the phone. The template can carry
-// a separate WhatsApp number for stores whose chat line is not their landline.
-const whatsappHref = (tpl) => {
-  const number = String(tpl?.social?.whatsapp_number || tpl?.identity?.phone || "").replace(/[^\d+]/g, "");
-  if (!number) return "";
-  return `https://wa.me/2${number.replace(/^0+/, "")}`;
 };
 
 const getSocialLinks = (invoice, tpl) => {
@@ -157,16 +145,6 @@ export default function PublicInvoice() {
   // file. They now come from the invoice template, whose defaults are those same
   // constants — so an unconfigured store still sees exactly this page.
   const tpl = useInvoiceTemplate();
-  const storePhone = tpl.identity.phone;
-  const storeWebsiteText = tpl.identity.website_text;
-  const storeWebsiteHref = tpl.identity.website_url;
-  const returnPolicyLines = useMemo(() => {
-    if (!tpl.footer.return_policy_enabled) return [];
-    const text = printLanguage === "en" && tpl.footer.return_policy_en
-      ? tpl.footer.return_policy_en
-      : tpl.footer.return_policy_ar;
-    return String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
-  }, [tpl.footer.return_policy_enabled, tpl.footer.return_policy_ar, tpl.footer.return_policy_en, printLanguage]);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -267,23 +245,8 @@ export default function PublicInvoice() {
     () => socialLinks.filter((link) => link.key === "google" || link.key === "facebook"),
     [socialLinks]
   );
-  const instagramLink = useMemo(
-    () => socialLinks.find((link) => link.key === "instagram") || null,
-    [socialLinks]
-  );
-  // Mobile-only bottom row: the store's Facebook page and a direct WhatsApp
-  // chat, which are what a customer on a phone actually wants after reading the
-  // invoice. The Facebook URL is the store's own page link already used for the
-  // review action — there is no separate page URL in the invoice payload.
-  const mobileContactLinks = useMemo(() => {
-    if (!tpl.social.enabled) return [];
-    const facebookUrl = normalizePublicUrl(invoice?.facebook_review_url || tpl.social.facebook_review_url);
-    const whatsappUrl = whatsappHref(tpl);
-    return [
-      facebookUrl ? { key: "facebookPage", label: invoicePrintLabel("facebookPage", "صفحتنا على فيسبوك"), url: facebookUrl } : null,
-      whatsappUrl ? { key: "whatsapp", label: invoicePrintLabel("whatsapp", "تواصل معنا واتساب"), url: whatsappUrl } : null,
-    ].filter(Boolean);
-  }, [invoice, tpl]);
+  // The Instagram button and the mobile contact row moved into the `social` block, so
+  // the page no longer assembles its own copies of them.
 
   if (loading) {
     return (
@@ -357,58 +320,17 @@ export default function PublicInvoice() {
           </div>
         </div>
 
+        {/* The policy, the review buttons and the store footer used to be page-level
+            JSX here. They are blocks now, so the card draws them in whatever order the
+            studio put them in — which is the whole point of being able to move them. */}
         <OrderInvoiceCard
           invoice={normalizedInvoice}
           template={tpl}
+          output="public"
           luxury
           publicView
           className="print:rounded-none print:border-0 print:shadow-none"
         />
-
-        {returnPolicyLines.length ? (
-          <div className="mt-5 rounded-[1.5rem] border border-amber-200/80 bg-[#fffaf0] p-4 text-xs font-bold leading-6 text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none sm:p-5">
-            <div className="flex items-start gap-3 text-start">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <div className="space-y-1">
-                {returnPolicyLines.map((line) => (
-                  <div key={line}>{line}</div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-        <div className="mx-auto mt-3 h-px max-w-3xl bg-gradient-to-r from-transparent via-emerald-700/55 to-transparent" />
-
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          {/* The two review buttons moved to the top on mobile, so this row now
-              carries the follow/contact actions instead. Desktop keeps the
-              original three. */}
-          {mobileContactLinks.map((link) => (
-            <SocialButton key={`bottom-${link.key}`} link={link} className="inline-flex sm:hidden" />
-          ))}
-          {reviewLinks.map((link) => (
-            <SocialButton key={`bottom-desktop-${link.key}`} link={link} className="hidden sm:inline-flex" />
-          ))}
-          {instagramLink ? <SocialButton link={instagramLink} /> : null}
-        </div>
-
-        <footer className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-xs font-bold text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4" dir="ltr">
-            {storeWebsiteHref && storeWebsiteText ? (
-              <a href={storeWebsiteHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-emerald-300">
-                <Globe className="h-3.5 w-3.5 text-emerald-400" />
-                {storeWebsiteText}
-              </a>
-            ) : null}
-            {storeWebsiteHref && storeWebsiteText && storePhone ? <span className="hidden text-slate-500 sm:inline">/</span> : null}
-            {storePhone ? (
-              <a href={`tel:${storePhone}`} className="inline-flex items-center gap-1.5 hover:text-emerald-300" dir={printDir}>
-                <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
-                {storePhone} - خدمة العملاء
-              </a>
-            ) : null}
-          </div>
-        </footer>
       </div>
     </div>
   );

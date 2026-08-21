@@ -22,11 +22,14 @@ test("the store's own details live in the template, not in the page", () => {
   assert.doesNotMatch(publicInvoiceSource, /const PUBLIC_RETURN_POLICY_LINES\s*=/);
   assert.doesNotMatch(publicInvoiceSource, /const DEFAULT_SOCIAL_LINKS\s*=/);
   assert.doesNotMatch(publicInvoiceSource, /01000659301/);
-  // The page reads them off the resolved template instead.
+  // The page resolves the template and hands it to the card, which now draws the
+  // policy, the review buttons and the store footer as blocks.
   assert.match(publicInvoiceSource, /const tpl = useInvoiceTemplate\(\)/);
-  assert.match(publicInvoiceSource, /tpl\.identity\.phone/);
-  assert.match(publicInvoiceSource, /tpl\.footer\.return_policy_(ar|en)/);
-  assert.match(publicInvoiceSource, /tpl\.social\.(google|facebook|instagram)/);
+  assert.match(publicInvoiceSource, /output="public"/);
+  const blockView = fs.readFileSync(new URL("../src/shared/components/invoices/InvoiceBlockView.jsx", import.meta.url), "utf8");
+  assert.match(blockView, /template\?\.identity\?\.phone/);
+  assert.match(blockView, /template\.footer\.return_policy_(ar|en)/);
+  assert.match(blockView, /template\.social\.(google|facebook|instagram)/);
 });
 
 test("the defaults are the values the page used to hardcode", () => {

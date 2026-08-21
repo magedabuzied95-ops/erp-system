@@ -11,11 +11,17 @@ const read = (relativePath) => fs.readFileSync(new URL(relativePath, import.meta
 
 const card = read("../src/shared/components/invoices/OrderInvoiceCard.jsx");
 
-test("the invoice card resolves the template and folds in the card output", () => {
+test("the invoice card resolves the template and renders it as blocks", () => {
   assert.match(card, /useInvoiceTemplate\(\{ enabled: !template \}\)/);
-  assert.match(card, /invoiceTemplateForOutput\(template \|\| resolvedTemplate, "card"\)/);
+  assert.match(card, /invoiceTemplateForOutput\(template \|\| resolvedTemplate/);
   // A host that already has the config passes it down instead of refetching.
   assert.match(card, /export default function OrderInvoiceCard\(\{[^}]*template = null[^}]*\}\)/);
+  // The layout is data: the card maps the ordered list rather than hardcoding sequence.
+  assert.match(card, /const layoutBlocks = blocksForOutput\(tpl\.blocks, layoutOutput\)/);
+  assert.match(card, /\{layoutBlocks\.map\(\(block\) => \(/);
+  assert.match(card, /<InvoiceBlockView/);
+  // The customer's link and the in-app preview are not the same document.
+  assert.match(card, /output \|\| \(publicView \? "public" : "card"\)/);
 });
 
 test("the card's identity gates are attached", () => {
