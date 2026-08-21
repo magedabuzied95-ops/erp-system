@@ -112,6 +112,35 @@ test("the order page hands one resolved template to all three of its surfaces", 
   assert.match(details, /buildOrderInvoiceWhatsappText\([\s\S]{0,200}?\{ template: invoiceTemplate \}\)/, "the WhatsApp message");
 });
 
+test("the studio previews through the real renderers, not lookalikes", () => {
+  const studio = read("../src/modules/settings/pages/InvoiceStudio.jsx");
+  // The card tab mounts the component the customer's link renders, and the print tabs
+  // build the same HTML the print path opens — both fed the unsaved draft.
+  assert.match(studio, /<OrderInvoiceCard invoice=\{previewInvoice\} template=\{draft\}/);
+  assert.match(studio, /buildInvoicePreviewHtml\(/);
+  assert.match(studio, /buildOrderInvoiceWhatsappText\(SAMPLE_ORDER, null, \{ template: draft \}\)/);
+  assert.match(studio, /output === "thermal" \? "thermal" : "a4"/);
+  // Saving has to reach the renderers' cached config or the change shows here only.
+  assert.match(studio, /resetInvoiceTemplateCache\(\)/);
+  // Editing is gated on the permission the route does not check.
+  assert.match(studio, /hasPermission\("settings\.edit"\)/);
+});
+
+test("the studio is routed and its copy is translated", () => {
+  const app = read("../src/App.jsx");
+  assert.match(app, /path="settings\/invoice"/);
+  assert.match(app, /lazy\(\(\) => import\("\.\/modules\/settings\/pages\/InvoiceStudio"\)\)/);
+  const ar = JSON.parse(read("../src/locales/ar/settings.json"));
+  const en = JSON.parse(read("../src/locales/en/settings.json"));
+  assert.ok(ar.settings.invoiceStudio, "Arabic copy exists");
+  assert.ok(en.settings.invoiceStudio, "English copy exists");
+  assert.deepEqual(
+    Object.keys(ar.settings.invoiceStudio).sort(),
+    Object.keys(en.settings.invoiceStudio).sort(),
+    "both locales carry the same studio keys"
+  );
+});
+
 test("resolving the template never logs a 404 as an error", () => {
   // The frontend ships ahead of the API often enough that a missing endpoint is a
   // normal state; logging it would put one console error on every invoice view.

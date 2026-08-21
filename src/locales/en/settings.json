@@ -193,6 +193,127 @@
     },
     "preview": {
       "homepage": "Homepage"
+    },
+    "invoiceStudio": {
+      "eyebrow": "Invoice",
+      "title": "Invoice Studio",
+      "subtitle": "Everything the customer sees on their invoice — printed, cashier receipt, public link and WhatsApp — from one place.",
+      "loading": "Loading...",
+      "loadFailed": "Could not load invoice templates.",
+      "saveFailed": "Could not save the template.",
+      "saved": "Template saved.",
+      "created": "Template created.",
+      "duplicated": "Template duplicated.",
+      "deleted": "Template deleted.",
+      "new": "New template",
+      "newName": "New template",
+      "defaultName": "Invoice template",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "save": "Save",
+      "saveNew": "Save as template",
+      "readOnly": "You have view-only access, so the fields are disabled.",
+      "noTemplatesNote": "No template saved yet. What you see is how every invoice already prints today — edit, then save to pin it.",
+      "identity": {
+        "title": "Store identity",
+        "subtitle": "Leave a field empty to inherit it from company settings.",
+        "storeName": "Store name",
+        "logoUrl": "Logo URL",
+        "phone": "Support phone",
+        "websiteText": "Website (displayed text)",
+        "websiteUrl": "Website link",
+        "address": "Address",
+        "taxNumber": "Tax number",
+        "commercialRegister": "Commercial register",
+        "showLogo": "Show logo",
+        "inherit": "From company settings",
+        "urlHint": "Only an http/https link is accepted."
+      },
+      "fields": {
+        "title": "Fields",
+        "subtitle": "What appears in the invoice header and on product lines.",
+        "orderDate": "Order date",
+        "customerName": "Customer name",
+        "customerPhone": "Customer phone",
+        "customerAddress": "Customer address",
+        "orderStatus": "Order status",
+        "paymentMethod": "Payment method",
+        "productImage": "Product image",
+        "productVariant": "Colour and size",
+        "sku": "SKU",
+        "unitPrice": "Unit price",
+        "lineTotal": "Line total",
+        "sellerName": "Seller name",
+        "cashierName": "Cashier name"
+      },
+      "totals": {
+        "title": "Totals",
+        "subtitle": "The rows in the summary box at the bottom.",
+        "subtotal": "Subtotal",
+        "discount": "Discount",
+        "shipping": "Shipping",
+        "tax": "Tax",
+        "grandTotal": "Grand total",
+        "paid": "Paid",
+        "remaining": "Remaining",
+        "paymentBreakdown": "Payment breakdown"
+      },
+      "footer": {
+        "title": "Footer and policy",
+        "subtitle": "Each line in the policy box starts on a new line.",
+        "policyEnabled": "Show the return and exchange policy",
+        "policyAr": "Policy (Arabic)",
+        "policyEn": "Policy (English)",
+        "policyEnHint": "Used when the invoice prints in English. Leave empty to use the Arabic text.",
+        "thankYouAr": "Thank-you message (Arabic)",
+        "thankYouEn": "Thank-you message (English)",
+        "termsAr": "Extra terms (Arabic)"
+      },
+      "social": {
+        "title": "Reviews and contact",
+        "subtitle": "The buttons under the invoice the customer opens.",
+        "enabled": "Show the review and follow buttons",
+        "google": "Google review link",
+        "facebook": "Facebook link",
+        "instagram": "Instagram link",
+        "whatsapp": "WhatsApp number",
+        "whatsappHint": "Leave empty to use the support phone."
+      },
+      "outputs": {
+        "title": "Per-output settings",
+        "subtitle": "The differences that belong to one paper or channel.",
+        "print": "A4 print",
+        "printSku": "Print the SKU",
+        "thermal": "Thermal receipt",
+        "paperWidth": "Paper width (mm)",
+        "thermalImage": "Product image",
+        "thermalPrice": "Unit price",
+        "whatsapp": "WhatsApp message",
+        "waItems": "Product list",
+        "waTotals": "Totals",
+        "waLink": "Invoice link"
+      },
+      "scope": {
+        "title": "Template scope",
+        "subtitle": "Which invoices this template applies to.",
+        "name": "Template name",
+        "channel": "Channel",
+        "isDefault": "Default template",
+        "defaultHint": "The default cannot be cleared directly — make another template the default instead.",
+        "channels": {
+          "all": "All channels",
+          "website": "Website",
+          "pos": "Point of sale",
+          "manual": "Manual order"
+        }
+      },
+      "preview": {
+        "note": "Previewed on a sample order, through the same components the customer actually receives.",
+        "card": "Invoice",
+        "print": "A4 print",
+        "thermal": "Thermal 80mm",
+        "whatsapp": "WhatsApp"
+      }
     }
   }
 }

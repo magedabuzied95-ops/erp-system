@@ -53,7 +53,8 @@
     "pdfDownloadError": "فشل تحميل PDF",
     "print": "طباعة",
     "whatsapp": "تواصل معنا واتساب",
-    "facebookPage": "صفحتنا على فيسبوك"
+    "facebookPage": "صفحتنا على فيسبوك",
+    "sku": "كود الصنف"
   },
   "purchase": {
     "purchaseInvoice": "فاتورة شراء",

@@ -53,7 +53,8 @@
     "pdfDownloadError": "PDF download failed",
     "print": "Print",
     "whatsapp": "Contact us on WhatsApp",
-    "facebookPage": "Our Facebook page"
+    "facebookPage": "Our Facebook page",
+    "sku": "SKU"
   },
   "purchase": {
     "purchaseInvoice": "Purchase invoice",

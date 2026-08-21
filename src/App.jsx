@@ -230,6 +230,7 @@ const Billing = lazy(() => import("./modules/saas/pages/Billing"));
 const AdminTenants = lazy(() => import("./modules/saas/pages/AdminTenants"));
 
 const SettingsCenter = lazy(() => import("./modules/settings/pages/SettingsCenter"));
+const InvoiceStudio = lazy(() => import("./modules/settings/pages/InvoiceStudio"));
 const NotificationsCenter = lazy(() => import("./modules/notifications/pages/NotificationsCenter"));
 const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportConsole"));
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
@@ -983,6 +984,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
               <SettingsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/invoice"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <InvoiceStudio />
             </ProtectedRoute>
           }
         />

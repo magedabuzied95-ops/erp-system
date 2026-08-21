@@ -9,6 +9,7 @@ import {
   getPrintDirection,
   normalizePrintLanguage,
   openPrintHtml,
+  tPrint,
   wrapPrintableHtml,
 } from "./printLocalization";
 import { getInvoiceTemplateConfig } from "../hooks/useInvoiceTemplate";
@@ -174,7 +175,7 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
     .join("");
   const rows = items.map((item) => `
     <tr>
-      <td>${!thermal && show.show_product_image ? `<img src="${escapeHtml(item.image || DEFAULT_PRODUCT_PLACEHOLDER)}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PRODUCT_PLACEHOLDER}'" style="width:42px;height:42px;object-fit:cover;border-radius:10px;background:#f1f5f9;margin-inline-end:8px;vertical-align:middle" />` : ""}<strong>${escapeHtml(item.name)}</strong>${show.show_product_variant ? `<br><small class="muted">${escapeHtml(item.variant)}</small>` : ""}${show.show_sku && item.sku ? `<br><small class="muted">SKU ${escapeHtml(item.sku)}</small>` : ""}</td>
+      <td>${!thermal && show.show_product_image ? `<img src="${escapeHtml(item.image || DEFAULT_PRODUCT_PLACEHOLDER)}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PRODUCT_PLACEHOLDER}'" style="width:42px;height:42px;object-fit:cover;border-radius:10px;background:#f1f5f9;margin-inline-end:8px;vertical-align:middle" />` : ""}<strong>${escapeHtml(item.name)}</strong>${show.show_product_variant ? `<br><small class="muted">${escapeHtml(item.variant)}</small>` : ""}${show.show_sku && item.sku ? `<br><small class="muted">${escapeHtml(tPrint("print.invoice.sku", "SKU"))} ${escapeHtml(item.sku)}</small>` : ""}</td>
       ${thermal || !show.show_product_variant ? "" : `<td>${escapeHtml(item.variant)}</td>`}
       <td class="number">${escapeHtml(item.quantity)}</td>
       ${thermal || !show.show_unit_price ? "" : `<td class="amount">${escapeHtml(formatInvoiceItemMoney(item.price))}</td>`}
@@ -253,6 +254,12 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
     </main>`;
   return wrapPrintableHtml({ title: invoice.invoiceNumber || "فاتورة طلب", body, language: normalized, thermal });
 };
+
+// The studio previews the real printed sheet rather than a lookalike, so it builds
+// the same HTML the print path opens. Kept as a named export so the preview can never
+// drift from what a customer actually receives.
+export const buildInvoicePreviewHtml = (invoice = {}, format = "a4", language, template = null) =>
+  buildInvoicePrintHtml(invoice, format, language, template);
 
 const openFallbackWindow = (html, format = "a4") => openPrintHtml(html, { width: format === "thermal" ? 420 : 980, height: 1200 });
 
