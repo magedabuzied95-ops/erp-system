@@ -22,6 +22,14 @@ test("recovered outbound messages never claim a human reviewed the thread", () =
   assert.doesNotMatch(insert.slice(0, 1400), /END,\s*\n\s*r\.from_me,/);
 });
 
+test("opening a conversation cannot hang on the WhatsApp gateway", () => {
+  // The transcript endpoint imports the chat history before it answers, and every
+  // conversation nobody has opened yet pays that on first click. Unbounded, a slow
+  // gateway means the thread never opens at all.
+  const historyFetch = gatewaySource.slice(gatewaySource.indexOf("/chat/findMessages/"));
+  assert.match(historyFetch.slice(0, 400), /timeoutMs: EVOLUTION_CONVERSATION_HISTORY_FETCH_TIMEOUT_MS/);
+});
+
 test("both inbox queries expose unread for a conversation with no imported messages", () => {
   const selections = agentSource.match(/\$\{unreadFromChatPreviewSql\("[^"]+"\)\}/g) || [];
   assert.equal(selections.length, 2, "summary and full inbox queries must both select it");

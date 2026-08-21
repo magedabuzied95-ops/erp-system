@@ -43,6 +43,11 @@ const EVOLUTION_PROFILE_PICTURE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const EVOLUTION_PROFILE_PICTURE_EMPTY_TTL_MS = 30 * 60 * 1000;
 const EVOLUTION_INBOX_RECOVERY_TTL_MS = 60 * 1000;
 const EVOLUTION_INBOX_RECOVERY_FETCH_TIMEOUT_MS = 4000;
+// Opening a conversation blocks on this fetch: the transcript endpoint imports the chat
+// history before it answers. Unbounded, a slow gateway means the thread never opens at
+// all — and every conversation the operator has not opened yet pays this on first click.
+// Bounded, the worst case is a thread that opens without its history.
+const EVOLUTION_CONVERSATION_HISTORY_FETCH_TIMEOUT_MS = 8000;
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
@@ -392,6 +397,7 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
   const payload = await evolutionFetch(`/chat/findMessages/${encodeURIComponent(instanceName())}`, {
     method: "POST",
     body: JSON.stringify({ where: { key: { remoteJid } }, page: 1, offset: safeLimit }),
+    timeoutMs: EVOLUTION_CONVERSATION_HISTORY_FETCH_TIMEOUT_MS,
   });
   const rows = Array.isArray(payload)
     ? payload
