@@ -7545,8 +7545,8 @@ export default function AiInbox({ reviewerMode = false }) {
       // selectMode (AI single-product identity disambiguation "Change product") stays SINGLE-select.
       allowMultiple: options.allowMultiple !== undefined ? Boolean(options.allowMultiple) : !selectMode,
       selectMode,
-      // restockMode: the pick names the variant to watch for a back-in-stock
-      // request. Single-select — a request is one customer waiting on one size.
+      // restockMode: each pick names a variant to watch for a back-in-stock
+      // request; the drawer creates one request per picked line.
       restockMode: Boolean(options.restockMode),
     });
   }, []);
@@ -7582,10 +7582,11 @@ export default function AiInbox({ reviewerMode = false }) {
       return Promise.resolve();
     }
     if (productCardPickerConfig.restockMode) {
-      const first = asArray(cards)[0];
-      // A fresh object every time: the drawer keys its "a pick arrived" effect on
-      // identity, so re-picking the same variant must still register.
-      if (first) setRestockPick({ ...normalizeChosenSuggestionCard(first) });
+      // Same hand-over shape as the order composer: a batch of cards under a fresh
+      // object every time, because the drawer keys its "picks arrived" effect on
+      // identity and appends (re-picking the same variant must still register).
+      const picked = asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.product_id);
+      if (picked.length) setRestockPick({ batch: performance.now(), cards: picked });
       closeProductCardPicker();
       return Promise.resolve();
     }
@@ -10428,7 +10429,7 @@ export default function AiInbox({ reviewerMode = false }) {
         title={t("aiSupport.inbox.ui.customer360")}
         portalTarget={fullscreenOverlayTarget}
         restockPick={restockPick}
-        onRequestRestockPick={() => openProductCardPicker({ restockMode: true, allowMultiple: false })}
+        onRequestRestockPick={() => openProductCardPicker({ restockMode: true, allowMultiple: true })}
         onClearRestockPick={() => setRestockPick(null)}
       />
       <InboxOrderComposer

@@ -1813,7 +1813,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {restockMode
-                    ? t("aiSupport.inbox.picker.restockConfirm")
+                    ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.restockConfirmCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.restockConfirm"))
                     : orderMode
                       ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.order.pickerAddCountToOrder", { count: selectedProducts.length }) : t("aiSupport.inbox.order.pickerAddToOrder"))
                       : (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.sendSelectedCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.sendProduct"))}

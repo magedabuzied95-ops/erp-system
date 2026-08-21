@@ -13,16 +13,20 @@ import {
   Loader2,
   MessageCircle,
   MessageSquareText,
+  Plus,
   ShoppingBag,
   Sparkles,
   User,
   Users2,
   X,
+  XCircle,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import "./Customer360Drawer.css";
+// The restock form reuses the order composer's products section (ai-order__*).
+import "../pages/AiInboxOrderComposer.m1.css";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -208,7 +212,8 @@ export default function Customer360Drawer({
   const [restockIntents, setRestockIntents] = useState([]);
   const [restockLoading, setRestockLoading] = useState(false);
   const [restockMsg, setRestockMsg] = useState("");
-  const [restockCreate, setRestockCreate] = useState({ open: false, picked: null, busy: false });
+  const [restockCreate, setRestockCreate] = useState({ open: false, lines: [], busy: false });
+  const restockLineKey = (line = {}) => `${line.product_id || ""}:${line.variant_id || ""}:${clean(line.color)}:${clean(line.size)}`;
 
   const restockPhone = clean(profileData.phone || customer?.phone || context?.phone || "");
   const loadRestockIntents = async () => {
@@ -229,30 +234,56 @@ export default function Customer360Drawer({
     catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to cancel"); }
   };
   // Explicit, human-confirmed create. Variant is REQUIRED (no fake exact intent). Never autonomous.
+  // One request per line, like the order composer's cart: the backend has no batch
+  // endpoint, so the lines go one by one and a failed line stays in the form.
   const submitRestockCreate = async () => {
-    const productId = Number(restockCreate.picked?.product_id), variantId = Number(restockCreate.picked?.variant_id);
+    const lines = restockCreate.lines;
     // The variant is what makes the request actionable — it names the size to
     // watch. The picker can hand back a product with no colour/size chosen, so
     // this stays a hard gate rather than falling back to a product-level row.
-    if (!productId || !variantId) { setRestockMsg(t("aiSupport.inbox.customer360.restockNeedsVariant")); return; }
+    if (!lines.length || lines.some((line) => !Number(line.product_id) || !Number(line.variant_id))) { setRestockMsg(t("aiSupport.inbox.customer360.restockNeedsVariant")); return; }
     if (!restockPhone) { setRestockMsg("This customer has no phone on record."); return; }
     setRestockCreate((s) => ({ ...s, busy: true })); setRestockMsg("");
-    try {
-      const res = await api.post(`/ai-studio/restock-intents`, { productId, variantId, phone: restockPhone, source: "ai_inbox" }, { suppressErrorStatuses: [400, 403, 404, 409, 500] });
-      if (res?.available_now) setRestockMsg("المقاس متوفر بالفعل — no request created.");
-      else setRestockMsg(res?.reused ? "Request already existed (reused)." : "Restock request created.");
-      setRestockCreate({ open: false, picked: null, busy: false });
+    const failed = [];
+    let created = 0, reused = 0, availableNow = 0;
+    for (const line of lines) {
+      try {
+        const res = await api.post(`/ai-studio/restock-intents`, { productId: Number(line.product_id), variantId: Number(line.variant_id), phone: restockPhone, source: "ai_inbox" }, { suppressErrorStatuses: [400, 403, 404, 409, 500] });
+        if (res?.available_now) availableNow += 1;
+        else if (res?.reused) reused += 1;
+        else created += 1;
+      } catch (e) {
+        failed.push({ line, message: e?.responseBody?.message || "" });
+      }
+    }
+    const parts = [];
+    if (created) parts.push(t("aiSupport.inbox.customer360.restockCreatedCount", { count: created }));
+    if (reused) parts.push(t("aiSupport.inbox.customer360.restockReusedCount", { count: reused }));
+    if (availableNow) parts.push(t("aiSupport.inbox.customer360.restockAvailableNowCount", { count: availableNow }));
+    if (failed.length) parts.push(`${t("aiSupport.inbox.customer360.restockFailedCount", { count: failed.length })}${failed[0].message ? ` — ${failed[0].message}` : ""}`);
+    setRestockMsg(parts.join(" · "));
+    if (failed.length) {
+      setRestockCreate({ open: true, lines: failed.map((f) => f.line), busy: false });
+    } else {
+      setRestockCreate({ open: false, lines: [], busy: false });
       onClearRestockPick?.();
-      await loadRestockIntents();
-    } catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to create request"); setRestockCreate((s) => ({ ...s, busy: false })); }
+    }
+    await loadRestockIntents();
   };
 
   // A pick arriving from the inbox picker also re-opens the create form: the
   // picker covers the drawer, so collapsing it on the way back would drop the
-  // product the user just chose.
+  // product the user just chose. Picks append (deduped per variant) so the form
+  // fills up the way the order composer's cart does.
   useEffect(() => {
     if (!restockPick) return;
-    setRestockCreate((current) => ({ ...current, open: true, picked: restockPick }));
+    const incoming = safeArray(restockPick.cards ?? (restockPick.product_id ? [restockPick] : []));
+    if (!incoming.length) return;
+    setRestockCreate((current) => {
+      const seen = new Set(current.lines.map(restockLineKey));
+      const appended = incoming.filter((card) => { const key = restockLineKey(card); if (seen.has(key)) return false; seen.add(key); return true; });
+      return { ...current, open: true, lines: [...current.lines, ...appended] };
+    });
     setRestockMsg("");
   }, [restockPick]);
 
@@ -658,27 +689,43 @@ export default function Customer360Drawer({
                      * The catalogue picker returns both, with the colour and size
                      * chosen visually.
                      */}
-                    {restockCreate.picked ? (
-                      <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2">
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-soft)]">
-                          {restockCreate.picked.image_url ? <img src={restockCreate.picked.image_url} alt="" className="h-full w-full object-contain" /> : null}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-black text-[var(--text)]">{clean(restockCreate.picked.product_name) || `#${restockCreate.picked.product_id}`}</div>
-                          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-                            {[clean(restockCreate.picked.color), clean(restockCreate.picked.size) ? `مقاس ${clean(restockCreate.picked.size)}` : ""].filter(Boolean).join(" · ") || t("aiSupport.inbox.customer360.restockPickVariant")}
-                          </div>
-                        </div>
-                        <button type="button" onClick={() => onRequestRestockPick?.()} className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 py-1.5 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.restockChange")}</button>
+                    {/* Same products section as the order composer (ai-order__* classes) so
+                        staff meet one cart UI: add from the catalogue, pick several, remove a line. */}
+                    <div className="ai-order__group p-3">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div className="ai-order__group-title flex items-center gap-2"><ShoppingBag className="ai-order__group-icon h-4 w-4" />{t("aiSupport.inbox.order.productsSection")}</div>
+                        <button type="button" onClick={() => onRequestRestockPick?.()} className="ai-order__add inline-flex items-center gap-2 px-3">
+                          <Plus className="h-4 w-4" />{t("aiSupport.inbox.order.addProduct")}
+                        </button>
                       </div>
-                    ) : (
-                      <button type="button" onClick={() => onRequestRestockPick?.()} className="w-full rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-4 text-xs font-black text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
-                        {t("aiSupport.inbox.customer360.restockChooseFromCatalog")}
-                      </button>
-                    )}
+                      {restockCreate.lines.length === 0 ? (
+                        <button type="button" onClick={() => onRequestRestockPick?.()} className="ai-order__empty w-full p-6 text-center">
+                          {t("aiSupport.inbox.customer360.restockChooseFromCatalog")}
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          {restockCreate.lines.map((line) => (
+                            <div key={restockLineKey(line)} className="ai-order__line flex items-center gap-3 p-2">
+                              <div className="ai-order__line-thumb h-12 w-12 shrink-0 overflow-hidden">
+                                {line.image_url ? <img src={line.image_url} alt="" className="h-full w-full object-contain" /> : null}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="ai-order__line-name truncate">{clean(line.product_name) || `#${line.product_id}`}</div>
+                                <div className={`ai-order__line-meta truncate${line.variant_id ? "" : " text-amber-600"}`}>
+                                  {line.variant_id ? [clean(line.color), clean(line.size)].filter(Boolean).join(" / ") || "—" : t("aiSupport.inbox.customer360.restockPickVariant")}
+                                </div>
+                              </div>
+                              <button type="button" aria-label={t("aiSupport.inbox.order.removeLine")} onClick={() => setRestockCreate((s) => ({ ...s, lines: s.lines.filter((item) => restockLineKey(item) !== restockLineKey(line)) }))} className="ai-order__line-remove grid h-9 w-9 shrink-0 place-items-center">
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => { setRestockCreate({ open: false, picked: null, busy: false }); onClearRestockPick?.(); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">{t("aiSupport.inbox.customer360.cancel")}</button>
-                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy || !restockCreate.picked?.variant_id} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{t("aiSupport.inbox.customer360.confirmCreate")}</button>
+                      <button type="button" onClick={() => { setRestockCreate({ open: false, lines: [], busy: false }); onClearRestockPick?.(); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">{t("aiSupport.inbox.customer360.cancel")}</button>
+                      <button type="button" onClick={submitRestockCreate} disabled={restockCreate.busy || !restockCreate.lines.length || restockCreate.lines.some((line) => !line.variant_id)} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{restockCreate.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{restockCreate.lines.length > 1 ? t("aiSupport.inbox.customer360.confirmCreateCount", { count: restockCreate.lines.length }) : t("aiSupport.inbox.customer360.confirmCreate")}</button>
                     </div>
                   </div>
                 ) : null}
