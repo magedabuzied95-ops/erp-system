@@ -78,6 +78,14 @@ test("a read-filtered page is never written to or served from the channel cache"
   assert.match(inboxSource, /if \(listCacheEnabled\) inboxCache\.saveList\(channelPages\[index\], backendChannel\);/);
 });
 
+test("switching the read filter shows a spinner, not a blank panel", () => {
+  // The filter refetches and the conversations already in state do not match it, so a
+  // spinner gated on `conversations.length` never appears: no rows, no spinner, no empty
+  // state for the whole round trip.
+  assert.match(inboxSource, /\{loading && !filteredConversations\.length \? <LoadingBlock/);
+  assert.match(inboxSource, /\) : !loading \? <EmptyBlock text=\{emptyConversationsText\} \/> : null\}/);
+});
+
 test("the empty conversation list names the filter that emptied it", () => {
   assert.match(inboxSource, /if \(readFilter === "unread"\) return t\("aiSupport\.inbox\.ui\.emptyUnread"\);/);
   assert.match(inboxSource, /<EmptyBlock text=\{emptyConversationsText\} \/>/);

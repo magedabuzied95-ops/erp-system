@@ -9909,7 +9909,12 @@ export default function AiInbox({ reviewerMode = false }) {
 	            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 	              {inboxSection === "conversations" ? (
 	                <>
-	                  {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
+	                  {/* Gate the spinner on what this list can SHOW, not on whether any
+	                      conversation is loaded. Switching the read filter refetches, and the
+	                      conversations already in state do not match it, so gating on
+	                      `conversations.length` rendered a blank panel — no rows, no spinner,
+	                      no empty state — for the whole round trip. */}
+	                  {loading && !filteredConversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
 	                  {filteredConversations.length ? (
 	                    <div className="space-y-1.5 pr-1">
 	                      {filteredConversations.map((item) => {
