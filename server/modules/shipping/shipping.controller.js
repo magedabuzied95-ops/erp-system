@@ -2,14 +2,14 @@ import {
   cancelBostaShipmentForOrder,
   createBostaShipmentForOrder,
   getBostaIntegrationStatus,
-  getBostaSettings,
+  listShippingProviders,
   listShippingCities,
   listShippingDistricts,
   listShippingZones,
   previewBostaWebhookPayload,
   processBostaWebhook,
   refreshBostaShipmentForOrder,
-  saveBostaSettings,
+  saveShippingProviderSettings,
   searchShippingLocations,
   syncBostaLocations,
   testBostaWebhookPayload,
@@ -28,11 +28,11 @@ const sendError = (res, error, fallback = "Shipping request failed") => {
   });
 };
 
-export const getBostaProviderSettings = async (_req, res) => {
+export const listShippingProvidersController = async (_req, res) => {
   try {
-    return res.json({ success: true, settings: await getBostaSettings() });
+    return res.json({ success: true, providers: await listShippingProviders() });
   } catch (error) {
-    return sendError(res, error);
+    return sendError(res, error, "Failed to load shipping providers");
   }
 };
 
@@ -44,9 +44,10 @@ export const getBostaProviderStatus = async (req, res) => {
   }
 };
 
-export const updateBostaProviderSettings = async (req, res) => {
+export const updateShippingProviderSettings = async (req, res) => {
   try {
-    const provider = await saveBostaSettings({
+    const provider = await saveShippingProviderSettings({
+      code: req.params?.code,
       enabled: req.body?.enabled ?? req.body?.is_enabled,
       apiKey: req.body?.api_key ?? req.body?.apiKey,
       apiBaseUrl: req.body?.api_base_url ?? req.body?.apiBaseUrl,

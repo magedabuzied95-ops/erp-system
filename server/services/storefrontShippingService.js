@@ -114,7 +114,6 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
   provider_district_id: text(zone.provider_district_id || zone.providerDistrictId),
   provider_zone_id: text(zone.provider_zone_id || zone.providerZoneId),
   price: number(zone.price ?? zone.shipping_price),
-  cod_allowed: bool(zone.cod_allowed ?? zone.codAllowed, true),
   requires_shipping_proof: bool(zone.requires_shipping_proof ?? zone.requiresShippingProof, true),
   estimated_delivery_text: text(zone.estimated_delivery_text || zone.estimatedDeliveryText || zone.eta),
   delivery_min_days: optionalNumber(zone.delivery_min_days ?? zone.deliveryMinDays),
@@ -126,16 +125,16 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
   provider: normalizeShippingProviderKey(zone.provider || zone.shipping_provider || "in_store_delivery"),
   provider_id: normalizeShippingProviderKey(zone.provider_id || zone.shipping_provider_id || zone.provider || zone.shipping_provider || "in_store_delivery"),
   free_shipping_threshold: number(zone.free_shipping_threshold ?? zone.freeShippingThreshold, 0),
-  minimum_order_for_cod: number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod, 0),
   active: bool(zone.active, true),
 });
 
 export const loadShippingZones = async () => {
-  const [defaultPrice, zones, defaultProvider, locations] = await Promise.all([
+  const [defaultPrice, zones, defaultProvider, locations, codAllowed] = await Promise.all([
     getSetting("storefront.default_shipping_price", 60),
     getSetting("storefront.shipping_zones", []),
     getSetting("orders.shipping_provider", "in_store_delivery"),
     getSetting("storefront.shipping_locations", []),
+    getSetting("orders.allow_cod", true),
   ]);
   const locationList = Array.isArray(locations) ? locations : [];
   const locationByNames = new Map(locationList.map((location) => [
@@ -170,12 +169,13 @@ export const loadShippingZones = async () => {
   return {
     defaultPrice: number(defaultPrice, 0),
     defaultProvider: normalizeShippingProviderKey(defaultProvider),
+    codAllowed: bool(codAllowed, true),
     zones: (Array.isArray(zones) ? zones : []).map(enrichZone).filter((zone) => zone.governorate && zone.active),
   };
 };
 
 export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0 } = {}) => {
-  const { defaultPrice, defaultProvider, zones } = await loadShippingZones();
+  const { defaultPrice, defaultProvider, zones, codAllowed } = await loadShippingZones();
   const ids = {
     governorate_id: text(governorate_id),
     city_id: text(city_id),
@@ -223,7 +223,10 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
   return {
     price,
     shipping_price: price,
-    cod_allowed: true,
+    // Store-wide switch, not per-zone: zones lost their own toggle when checkout
+    // started accepting COD from every address. Carrying the global flag here is what
+    // stops the storefront offering COD all the way to submit and then 403-ing.
+    cod_allowed: codAllowed,
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
     provider: match?.provider || defaultProvider,
@@ -237,7 +240,6 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     provider_district_id: match?.provider_district_id || "",
     provider_zone_id: match?.provider_zone_id || "",
     free_shipping_threshold: freeShippingThreshold,
-    minimum_order_for_cod: match ? number(match.minimum_order_for_cod, 0) : 0,
     match_level: match ? (match.zone_id || zoneZone(match) ? "zone" : match.district_id || zoneDistrict(match) ? "district" : zoneCity(match) ? "city" : "governorate") : "default",
     zone: match || null,
     original_price: matchedPrice,

@@ -56,6 +56,10 @@ test("the Bosta webhook secret is settable from the shipping settings", () => {
   assert.match(shippingServiceSource, /has_webhook_secret: Boolean\(await webhookSecret\(\)\)/);
   assert.match(shippingControllerSource, /webhookSecret: req\.body\?\.webhook_secret \?\? req\.body\?\.webhookSecret/);
   assert.match(settingsRegistrySource, /"orders\.bosta_webhook_secret", "shipping", "secret"/);
-  assert.match(settingsCenterSource, /webhook_secret: settings\.webhook_secret === "\*{8}" \? undefined : settings\.webhook_secret/);
+  // The mask stands in for a stored secret the API never returns, so saving it verbatim
+  // would overwrite a working secret with asterisks. Both fields are asserted.
+  assert.match(settingsCenterSource, /const SECRET_PLACEHOLDER = "\*{8}"/);
+  assert.match(settingsCenterSource, /webhook_secret: draft\.webhook_secret === SECRET_PLACEHOLDER \? undefined : draft\.webhook_secret/);
+  assert.match(settingsCenterSource, /api_key: draft\.api_key === SECRET_PLACEHOLDER \? undefined : draft\.api_key/);
   assert.match(settingsCenterSource, /\["Webhook Secret", status\?\.webhook_secret_configured\]/);
 });

@@ -183,7 +183,7 @@
     "apartmentNumber": "Apartment number",
     "apartmentNumberPlaceholder": "Apartment number",
     "completePurchase": "Complete purchase",
-    "codUnavailableForAddress": "Cash on delivery is not available for this address.",
+    "codUnavailable": "Cash on delivery is not available right now.",
     "lineTotal": "Total",
     "quantity": "Quantity"
   },

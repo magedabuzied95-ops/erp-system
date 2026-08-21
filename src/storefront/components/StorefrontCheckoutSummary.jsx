@@ -199,7 +199,7 @@ export default function StorefrontCheckoutSummary({
           </span>
         ) : null}
         <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>
-        {governorate && shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailableForAddress", "الدفع عند الاستلام غير متاح لهذا العنوان.")}</span> : null}
+        {shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailable", "الدفع عند الاستلام غير متاح حالياً.")}</span> : null}
         <span className="rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.12)] px-3 py-2 text-[#f3d77a]">{t("storefront.checkout.shippingProvidersReady", "بيانات الشحن جاهزة لـ Bosta / Mylerz / ShipBlu / التسليم داخل المتجر عند تفعيل شركة الشحن.")}</span>
       </div>
       <div className="mt-4 hidden md:block">

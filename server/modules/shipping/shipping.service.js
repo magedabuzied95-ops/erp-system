@@ -391,6 +391,73 @@ const getProvider = async (client, code = "bosta") => {
   return upsertShippingProvider(client, { code, name: code === "bosta" ? "Bosta" : code, is_enabled: false });
 };
 
+// One row per carrier the ERP knows about. `integrated` is the honest bit: only Bosta
+// has an API client behind it, so a card that lets you save a Mylerz key must still say
+// the key books nothing. Hiding that is how a shipment nobody created gets waited on.
+export const SHIPPING_PROVIDER_CATALOG = [
+  { code: "bosta", name: "Bosta", integrated: true, supports_webhook: true, default_base_url: "https://app.bosta.co/api/v2" },
+  { code: "mylerz", name: "Mylerz", integrated: false, supports_webhook: false, default_base_url: "" },
+  { code: "aramex", name: "Aramex", integrated: false, supports_webhook: false, default_base_url: "" },
+  { code: "shipblu", name: "ShipBlu", integrated: false, supports_webhook: false, default_base_url: "" },
+];
+
+const providerCatalogEntry = (code) => SHIPPING_PROVIDER_CATALOG.find((entry) => entry.code === text(code).toLowerCase()) || null;
+
+export const listShippingProviders = async () => {
+  await ensureShippingSchema();
+  const { rows } = await db.query("SELECT * FROM shipping_providers");
+  const byCode = new Map(rows.map((row) => [row.code, row]));
+  const bostaFallbackKey = (await getSetting("orders.bosta_api_key", "")) || process.env.BOSTA_API_KEY || "";
+  const bostaFallbackBaseUrl = (await getSetting("orders.bosta_api_base_url", "")) || process.env.BOSTA_API_BASE_URL || "";
+  const bostaSecret = await webhookSecret();
+  return SHIPPING_PROVIDER_CATALOG.map((entry) => {
+    const row = byCode.get(entry.code) || {};
+    const isBosta = entry.code === "bosta";
+    return {
+      code: entry.code,
+      name: entry.name,
+      integrated: entry.integrated,
+      supports_webhook: entry.supports_webhook,
+      enabled: Boolean(row.is_enabled),
+      api_base_url: row.api_base_url || (isBosta ? bostaFallbackBaseUrl : "") || entry.default_base_url,
+      has_api_key: Boolean(row.api_key || (isBosta && bostaFallbackKey)),
+      has_webhook_secret: isBosta ? Boolean(bostaSecret) : false,
+      last_locations_sync_at: row.last_locations_sync_at || null,
+      last_locations_sync_counts: row.last_locations_sync_counts || {},
+    };
+  });
+};
+
+export const saveShippingProviderSettings = async ({ code, enabled, apiKey, apiBaseUrl, webhookSecret: nextWebhookSecret, updatedBy } = {}) => {
+  const entry = providerCatalogEntry(code);
+  if (!entry) {
+    const error = new Error(`شركة شحن غير معروفة: ${text(code) || "(فارغ)"}`);
+    error.status = 400;
+    error.code = "SHIPPING_PROVIDER_UNKNOWN";
+    throw error;
+  }
+  // Bosta keeps its own path: it also mirrors the key into the legacy settings rows and
+  // owns the webhook secret, and dropping that would silently unhook live shipments.
+  if (entry.code === "bosta") {
+    return saveBostaSettings({ enabled, apiKey, apiBaseUrl, webhookSecret: nextWebhookSecret, updatedBy });
+  }
+  await ensureShippingSchema();
+  const client = await db.connect();
+  try {
+    const provider = await upsertShippingProvider(client, {
+      code: entry.code,
+      name: entry.name,
+      is_enabled: Boolean(enabled),
+      api_base_url: text(apiBaseUrl),
+      api_key: text(apiKey),
+    });
+    const { api_key: _apiKey, api_key_encrypted: _apiKeyEncrypted, ...safeProvider } = provider;
+    return { ...safeProvider, has_api_key: Boolean(provider.api_key), has_webhook_secret: false };
+  } finally {
+    client.release();
+  }
+};
+
 export const getBostaSettings = async () => {
   await ensureShippingSchema();
   const provider = await getProvider(db, "bosta");

@@ -43,7 +43,6 @@ import {
   Truck,
   Undo2,
   Upload,
-  WalletCards,
   Warehouse,
   X,
 } from "lucide-react";
@@ -180,7 +179,7 @@ const navDescriptions = {
   general: "Company profile and locale",
   orders: "Lifecycle and fulfillment",
   storefront: "Public shop and catalog",
-  shipping: "Zones, COD, proof, providers",
+  shipping: "Zones, prices, proof, providers",
   payments: "COD, wallets, gateways",
   pos: "Cashier defaults",
   inventory: "Stock and warehouse rules",
@@ -219,9 +218,8 @@ const sectionMap = {
     ["Shipping Zones", ["storefront.shipping_zones"]],
     ["Governorates & Cities", ["storefront.shipping_zones"]],
     ["Free Shipping Rules", ["storefront.shipping_zones"]],
-    ["COD Rules", ["storefront.shipping_zones"]],
     ["Shipping Proof Rules", ["storefront.shipping_zones"]],
-    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package", "orders.mylerz_api_key", "orders.shipblu_api_key"]],
+    ["Shipping Providers", ["orders.shipping_provider", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package"]],
   ],
   payments: [
     ["Cash on Delivery", ["orders.allow_cod"]],
@@ -375,6 +373,9 @@ const headingText = "text-text";
 const bodyText = "text-text-muted";
 const mutedText = "text-[var(--text-tertiary)]";
 const inputClass = "w-full rounded-2xl border border-border bg-surface px-3.5 py-3 text-sm font-semibold text-text outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-primary focus:ring-4 focus:ring-[color:var(--focus-ring)]";
+// Mirrors the server mask: a saved secret is never sent back, so this stands in for one
+// in the field and is stripped on save. Submitting it verbatim would store the asterisks.
+const SECRET_PLACEHOLDER = "********";
 
 class SettingsCenterErrorBoundary extends Component {
   constructor(props) {
@@ -1504,7 +1505,6 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const defaultProvider = normalizeProviderKey(value("orders.shipping_provider"));
   const [activeTab, setActiveTab] = useState("overview");
   const activeZones = zones.filter((zone) => zone.active).length;
-  const codZones = zones.filter((zone) => zone.cod_allowed).length;
   const proofZones = zones.filter((zone) => zone.requires_shipping_proof).length;
   const freeShippingRules = zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0).length;
   const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
@@ -1515,19 +1515,16 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
     ["overview", copy.tabOverview, Truck],
     ["locations", copy.tabLocations, MapPin],
     ["zones", copy.tabZones, Layers3],
-    ["cod", copy.tabCod, WalletCards],
     ["free", copy.tabFree, Package],
     ["providers", copy.tabProviders, ShieldCheck],
-    ["integrations", copy.tabIntegrations, Database],
     ["advanced", copy.tabAdvanced, SlidersHorizontal],
   ];
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-3 lg:grid-cols-5">
+      <div className="grid gap-3 lg:grid-cols-4">
         <SummaryTile icon={Truck} label={copy.defaultPrice} value={`${defaultPrice.toLocaleString()} EGP`} />
         <SummaryTile icon={Check} label={copy.activeZones} value={activeZones} />
-        <SummaryTile icon={WalletCards} label={copy.codZones} value={codZones} />
         <SummaryTile icon={ShieldCheck} label={copy.proofZones} value={proofZones} />
         <SummaryTile icon={Package} label={copy.freeRules} value={freeShippingRules} />
       </div>
@@ -1612,7 +1609,6 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
             <div className="grid gap-4 xl:grid-cols-2">
               {renderField(setting("storefront.default_shipping_price"), true)}
-              {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
             </div>
           </VisualSection>
           <ShippingQuickSetup zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
@@ -1633,44 +1629,30 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
         </VisualSection>
       ) : null}
 
-      {activeTab === "cod" ? (
-        <VisualSection icon={WalletCards} title={copy.codTitle} description={copy.codDescription}>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <p className={`rounded-2xl p-4 text-sm leading-6 ${fieldSurface} ${bodyText}`}>{copy.codBody}</p>
-            <ZonePolicyList zones={zones.filter((zone) => zone.cod_allowed || Number(zone.minimum_order_for_cod || 0) > 0)} empty={copy.emptyCod} mode="cod" onChange={(next) => updateValue("storefront.shipping_zones", next)} allZones={zones} />
-          </div>
-        </VisualSection>
-      ) : null}
-
       {activeTab === "free" ? (
         <VisualSection icon={Package} title={copy.freeTitle} description={copy.freeDescription}>
-          <ZonePolicyList zones={zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0)} empty={copy.emptyFree} mode="free" onChange={(next) => updateValue("storefront.shipping_zones", next)} allZones={zones} />
+          <ZonePolicyList zones={zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0)} empty={copy.emptyFree} onChange={(next) => updateValue("storefront.shipping_zones", next)} allZones={zones} />
         </VisualSection>
       ) : null}
 
       {activeTab === "providers" ? (
-        <VisualSection icon={ShieldCheck} title={copy.providersTitle} description={copy.providersDescription}>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <ProviderBadgePicker value={defaultProvider} onChange={(next) => updateValue("orders.shipping_provider", next)} />
-            {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
-            {renderField(setting("orders.bosta_enabled"), true)}
-            {renderField(setting("orders.bosta_api_base_url"), true)}
-            {renderField(setting("orders.bosta_api_key"), true)}
-            {renderField(setting("orders.bosta_allow_open_package"), true)}
-            {renderField(setting("orders.mylerz_api_key"), true)}
-            {renderField(setting("orders.shipblu_api_key"), true)}
-          </div>
-        </VisualSection>
-      ) : null}
-
-      {activeTab === "integrations" ? (
-        <BostaIntegrationPanel copy={copy} />
+        <div className="grid gap-5">
+          <ShippingProvidersCenter
+            copy={copy}
+            defaultProvider={defaultProvider}
+            onDefaultProviderChange={(next) => updateValue("orders.shipping_provider", next)}
+          />
+          <VisualSection icon={Package} title={copy.providerPolicyTitle} description={copy.providerPolicyDescription}>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {renderField(setting("orders.bosta_allow_open_package"), true)}
+            </div>
+          </VisualSection>
+        </div>
       ) : null}
 
       {activeTab === "advanced" ? (
         <VisualSection icon={SlidersHorizontal} title={copy.advancedTitle} description={copy.advancedDescription}>
           <div className="grid gap-4 xl:grid-cols-2">
-            {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
             {renderField(setting("orders.shipping_provider"), true)}
             {renderField(setting("storefront.shipping_locations"), true)}
             {renderField(setting("storefront.shipping_zones"), true)}
@@ -1687,15 +1669,22 @@ function SummaryTile({ icon: Icon, label, value }) {
   );
 }
 
-function ProviderBadgePicker({ value, onChange }) {
+// `carriers` comes from the server catalogue so the picker can never offer a carrier the
+// backend does not know, or miss one it does. The static list is the pre-fetch fallback
+// and supplies the two non-carrier options the catalogue has no row for.
+function ProviderBadgePicker({ value, onChange, carriers = [] }) {
   const { t } = useTranslation();
   const activeProvider = normalizeProviderKey(value);
+  const localOptions = shippingProviderOptions.filter((provider) => ["manual", "in_store_delivery"].includes(provider.id));
+  const options = carriers.length
+    ? [...carriers.map((carrier) => ({ id: carrier.code, label: carrier.name })), ...localOptions]
+    : shippingProviderOptions;
   return (
     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
       <h3 className={`m1-section-title ${headingText}`}>{t("settings.shipping.defaultProvider")}</h3>
       <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.shipping.defaultProviderHint")}</p>
       <select value={activeProvider} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-4 max-w-sm`}>
-        {shippingProviderOptions.map((provider) => (
+        {options.map((provider) => (
           <option key={provider.id} value={provider.id}>{provider.label}</option>
         ))}
       </select>
@@ -1703,41 +1692,108 @@ function ProviderBadgePicker({ value, onChange }) {
   );
 }
 
-function BostaIntegrationPanel({ copy }) {
+function ProviderCredentialsCard({ provider, draft, onChange, onSave, saving, copy, t }) {
+  const secretPlaceholder = t("settings.shipping.apiKeyPlaceholder");
+  return (
+    <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className={`m1-section-title ${headingText}`}>{provider.name}</h3>
+          <p className={`mt-1 text-xs leading-5 ${bodyText}`}>
+            {provider.integrated
+              ? copy.providerIntegrated || "Live integration: creates shipments, labels, and status updates."
+              : copy.providerNotWired || "Credentials are stored, but no shipments are booked yet - the API is not wired."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange({ enabled: !draft.enabled })}
+          className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black ${draft.enabled ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}
+        >
+          {draft.enabled ? copy.enabled || "Enabled" : copy.disabled || "Disabled"}
+        </button>
+      </div>
+
+      {provider.integrated ? null : (
+        <p className="mt-3 rounded-xl border border-amber-300/40 bg-amber-50 px-3 py-2 text-[11px] font-black leading-5 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
+          {copy.providerPlaceholderWarning || "No API client exists for this carrier yet. Enabling it will not create shipments."}
+        </p>
+      )}
+
+      <div className="mt-4 grid gap-3">
+        <label>
+          <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.baseUrl")}</span>
+          <input value={draft.api_base_url} onChange={(event) => onChange({ api_base_url: event.target.value })} className={inputClass} />
+        </label>
+        <label>
+          <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.apiKey")}</span>
+          <input type="password" value={draft.api_key} onChange={(event) => onChange({ api_key: event.target.value })} className={inputClass} placeholder={secretPlaceholder} />
+        </label>
+        {provider.supports_webhook ? (
+          <label>
+            <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.bostaWebhookSecret || "Webhook secret"}</span>
+            <input type="password" value={draft.webhook_secret} onChange={(event) => onChange({ webhook_secret: event.target.value })} className={inputClass} placeholder={secretPlaceholder} />
+            <span className={`mt-2 block text-[11px] leading-5 ${bodyText}`}>{copy.bostaWebhookSecretHint || "Paste the same value into the carrier dashboard webhook. Without it every status callback is rejected."}</span>
+          </label>
+        ) : null}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onSave}
+          className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 dark:bg-white dark:text-[var(--primary-contrast)]"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {copy.saveBosta || "Save settings"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+// One place for every carrier: the credentials each one stores, plus Bosta's operational
+// panels. Splitting these across two tabs is what let the same key be typed in two fields
+// with different precedence, so the tab that lost is the one that was silently ignored.
+function ShippingProvidersCenter({ copy, defaultProvider, onDefaultProviderChange }) {
   const { t } = useTranslation();
-  const [settings, setSettings] = useState({ enabled: false, api_base_url: "https://app.bosta.co/api/v2", api_key: "", webhook_secret: "" });
+  const [providers, setProviders] = useState([]);
+  const [drafts, setDrafts] = useState({});
+  const [savingCode, setSavingCode] = useState("");
   const [status, setStatus] = useState(null);
   const [syncState, setSyncState] = useState({ loading: false, counts: null, error: "" });
   const [locations, setLocations] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const loadProviders = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.get("/shipping/providers");
+      const list = Array.isArray(data.providers) ? data.providers : [];
+      setProviders(list);
+      setDrafts(list.reduce((acc, provider) => {
+        acc[provider.code] = {
+          enabled: Boolean(provider.enabled),
+          api_base_url: provider.api_base_url || "",
+          // A stored secret never comes back from the API, so the mask stands in for it
+          // and is stripped on save -- typing nothing must not wipe a working key.
+          api_key: provider.has_api_key ? SECRET_PLACEHOLDER : "",
+          webhook_secret: provider.has_webhook_secret ? SECRET_PLACEHOLDER : "",
+        };
+        return acc;
+      }, {}));
+    } catch (error) {
+      toast.error(error.message || "Failed to load shipping providers");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const loadStatus = useCallback(async () => {
     try {
       const data = await api.get("/shipping/providers/bosta/status");
       setStatus(data.status || null);
     } catch {
       setStatus(null);
-    }
-  }, []);
-
-  const loadSettings = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await api.get("/shipping/providers/bosta/settings");
-      const next = data.settings || {};
-      setSettings({
-        enabled: Boolean(next.enabled),
-        api_base_url: next.api_base_url || "https://app.bosta.co/api/v2",
-        api_key: next.has_api_key ? "********" : "",
-        webhook_secret: next.has_webhook_secret ? "********" : "",
-        last_locations_sync_at: next.last_locations_sync_at || "",
-        last_locations_sync_counts: next.last_locations_sync_counts || {},
-      });
-      setSyncState((current) => ({ ...current, counts: next.last_locations_sync_counts || null }));
-    } catch (error) {
-      toast.error(error.message || "Failed to load Bosta settings");
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -1751,27 +1807,37 @@ function BostaIntegrationPanel({ copy }) {
   }, []);
 
   useEffect(() => {
-    loadSettings();
+    loadProviders();
     loadStatus();
     loadLocations("");
-  }, [loadSettings, loadLocations, loadStatus]);
+  }, [loadProviders, loadStatus, loadLocations]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => loadLocations(query), 250);
     return () => window.clearTimeout(timer);
   }, [query, loadLocations]);
 
-  const save = async () => {
-    const payload = {
-      enabled: settings.enabled,
-      api_base_url: settings.api_base_url,
-      api_key: settings.api_key === "********" ? undefined : settings.api_key,
-      webhook_secret: settings.webhook_secret === "********" ? undefined : settings.webhook_secret,
-    };
-    await api.put("/shipping/providers/bosta/settings", payload);
-    toast.success(copy.bostaSaved || "Bosta settings saved");
-    loadSettings();
-    loadStatus();
+  const patchDraft = (code, patch) => setDrafts((current) => ({ ...current, [code]: { ...current[code], ...patch } }));
+
+  const saveProvider = async (code) => {
+    const draft = drafts[code];
+    if (!draft) return;
+    try {
+      setSavingCode(code);
+      await api.put(`/shipping/providers/${code}/settings`, {
+        enabled: draft.enabled,
+        api_base_url: draft.api_base_url,
+        api_key: draft.api_key === SECRET_PLACEHOLDER ? undefined : draft.api_key,
+        webhook_secret: draft.webhook_secret === SECRET_PLACEHOLDER ? undefined : draft.webhook_secret,
+      });
+      toast.success(copy.bostaSaved || "Shipping provider saved");
+      await loadProviders();
+      if (code === "bosta") loadStatus();
+    } catch (error) {
+      toast.error(error.message || "Failed to save shipping provider");
+    } finally {
+      setSavingCode("");
+    }
   };
 
   const sync = async () => {
@@ -1780,7 +1846,7 @@ function BostaIntegrationPanel({ copy }) {
       const data = await api.post("/shipping/bosta/sync-locations", {});
       setSyncState({ loading: false, counts: data.counts || null, error: "" });
       toast.success(copy.bostaSynced || "Bosta locations synced");
-      loadSettings();
+      loadProviders();
       loadStatus();
       loadLocations(query);
     } catch (error) {
@@ -1789,68 +1855,64 @@ function BostaIntegrationPanel({ copy }) {
     }
   };
 
-  const counts = syncState.counts || settings.last_locations_sync_counts || {};
+  const bosta = providers.find((provider) => provider.code === "bosta") || null;
+  const counts = syncState.counts || bosta?.last_locations_sync_counts || {};
   const statusItems = [
     ["API Connected", status?.api_connected],
     ["Locations Synced", status?.locations_synced],
     ["Webhook Secret", status?.webhook_secret_configured],
     ["Last Webhook Received", Boolean(status?.last_webhook_received_at), status?.last_webhook_received_at ? new Date(status.last_webhook_received_at).toLocaleString() : "No events yet"],
-    // Bosta states the ERP does not track are now recorded rather than rejected, so this
+    // Bosta states the ERP does not track are recorded rather than rejected, so this
     // row is the evidence list to map from. Green means nothing unknown has arrived.
     ["Unmapped Bosta Statuses", !(status?.webhook_untracked_statuses || []).length, (status?.webhook_untracked_statuses || []).join(", ") || "None"],
-    ["Last Sync Date", Boolean(status?.last_locations_sync_at || settings.last_locations_sync_at), status?.last_locations_sync_at || settings.last_locations_sync_at ? new Date(status?.last_locations_sync_at || settings.last_locations_sync_at).toLocaleString() : "Not synced"],
+    ["Last Sync Date", Boolean(status?.last_locations_sync_at || bosta?.last_locations_sync_at), status?.last_locations_sync_at || bosta?.last_locations_sync_at ? new Date(status?.last_locations_sync_at || bosta?.last_locations_sync_at).toLocaleString() : "Not synced"],
   ];
+
   return (
     <div className="grid gap-5">
-      <VisualSection icon={Truck} title={copy.bostaTitle || "Bosta Integration"} description={copy.bostaDescription || "Sync Bosta cities, zones, and districts, then create deliveries from ERP orders."}>
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className={`m1-section-title ${headingText}`}>{copy.bostaConnection || "Connection"}</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaConnectionHint || "Use your production Bosta API token. The key is never shown after saving."}</p>
-              </div>
-              <button type="button" onClick={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} className={`rounded-full px-3 py-1.5 text-xs font-black ${settings.enabled ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}>
-                {settings.enabled ? copy.enabled || "Enabled" : copy.disabled || "Disabled"}
-              </button>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <label>
-                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.baseUrl")}</span>
-                <input value={settings.api_base_url} onChange={(event) => setSettings((current) => ({ ...current, api_base_url: event.target.value }))} className={inputClass} />
-              </label>
-              <label>
-                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{t("settings.shipping.apiKey")}</span>
-                <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder={t("settings.shipping.apiKeyPlaceholder")} />
-              </label>
-              <label>
-                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.bostaWebhookSecret || "Webhook secret"}</span>
-                <input type="password" value={settings.webhook_secret} onChange={(event) => setSettings((current) => ({ ...current, webhook_secret: event.target.value }))} className={inputClass} placeholder={t("settings.shipping.apiKeyPlaceholder")} />
-                <span className={`mt-2 block text-[11px] leading-5 ${bodyText}`}>{copy.bostaWebhookSecretHint || "Paste the same value into the Bosta dashboard webhook. Without it every status callback is rejected."}</span>
-              </label>
-              <button type="button" disabled={loading} onClick={save} className="inline-flex h-[var(--control-height-lg)] w-fit items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60 dark:bg-white dark:text-[var(--primary-contrast)]">
-                <Save className="h-4 w-4" />
-                {copy.saveBosta || "Save settings"}
-              </button>
-            </div>
-          </article>
+      <ProviderBadgePicker value={defaultProvider} onChange={onDefaultProviderChange} carriers={providers} />
 
-          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
-            <h3 className={`m1-section-title ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
-            <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint || "Imports Bosta City -> Zone -> District master locations. Checkout only shows dropoff-available rows."}</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <TesterMetric label={t("settings.shipping.cities")} value={counts.citiesSynced ?? counts.cities ?? 0} />
-              <TesterMetric label={t("settings.shipping.zones")} value={counts.zonesSynced ?? counts.zones ?? 0} />
-              <TesterMetric label={t("settings.shipping.districts")} value={counts.districtsSynced ?? counts.districts ?? 0} />
-            </div>
-            {settings.last_locations_sync_at ? <p className={`mt-3 text-xs font-bold ${mutedText}`}>{t("settings.shipping.lastSync")} {new Date(settings.last_locations_sync_at).toLocaleString()}</p> : null}
-            {syncState.error ? <p className="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200">{syncState.error}</p> : null}
-            <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
-              {syncState.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {copy.syncNow || "Sync now"}
-            </button>
-          </article>
+      <VisualSection icon={ShieldCheck} title={copy.providersTitle} description={copy.providersDescription}>
+        {loading && !providers.length ? (
+          <div className={`rounded-2xl p-6 text-sm font-bold ${fieldSurface} ${bodyText}`}>
+            <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+            {copy.loadingProviders || "Loading providers..."}
+          </div>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {providers.map((provider) => (
+              <ProviderCredentialsCard
+                key={provider.code}
+                provider={provider}
+                draft={drafts[provider.code] || { enabled: false, api_base_url: "", api_key: "", webhook_secret: "" }}
+                onChange={(patch) => patchDraft(provider.code, patch)}
+                onSave={() => saveProvider(provider.code)}
+                saving={savingCode === provider.code}
+                copy={copy}
+                t={t}
+              />
+            ))}
+          </div>
+        )}
+      </VisualSection>
+
+      <VisualSection icon={Database} title={copy.bostaTitle || "Bosta operations"} description={copy.bostaDescription || "Sync Bosta cities, zones, and districts, then create deliveries from ERP orders."}>
+        <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+          <h3 className={`m1-section-title ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
+          <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint || "Imports Bosta City -> Zone -> District master locations. Checkout only shows dropoff-available rows."}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <TesterMetric label={t("settings.shipping.cities")} value={counts.citiesSynced ?? counts.cities ?? 0} />
+            <TesterMetric label={t("settings.shipping.zones")} value={counts.zonesSynced ?? counts.zones ?? 0} />
+            <TesterMetric label={t("settings.shipping.districts")} value={counts.districtsSynced ?? counts.districts ?? 0} />
+          </div>
+          {bosta?.last_locations_sync_at ? <p className={`mt-3 text-xs font-bold ${mutedText}`}>{t("settings.shipping.lastSync")} {new Date(bosta.last_locations_sync_at).toLocaleString()}</p> : null}
+          {syncState.error ? <p className="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200">{syncState.error}</p> : null}
+          <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
+            {syncState.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {copy.syncNow || "Sync now"}
+          </button>
         </div>
+
         <article className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -1986,7 +2048,7 @@ function ShippingQuickSetup({ zones, defaultPrice, copy, onChange }) {
 
 function ShippingTemplates({ zones, defaultPrice, copy, onChange }) {
   const templates = [
-    ["egypt_standard", copy.templateEgypt, "Balanced nationwide prices with local Damietta COD.", () => applyEgyptStandardTemplate(zones, { damietta: 45, cairoGiza: 70, alexandria: 75, rest: defaultPrice || 80 })],
+    ["egypt_standard", copy.templateEgypt, "Balanced nationwide prices with a local Damietta rate.", () => applyEgyptStandardTemplate(zones, { damietta: 45, cairoGiza: 70, alexandria: 75, rest: defaultPrice || 80 })],
     ["local_store", copy.templateLocal, "Prioritizes Damietta and in-store delivery while keeping Egypt fallback zones.", () => applyNamedShippingTemplate("local_store", zones, defaultPrice)],
     ["fast_delivery", copy.templateFast, "Shorter ETA copy and carrier-ready defaults.", () => applyNamedShippingTemplate("fast_delivery", zones, defaultPrice)],
     ["free_campaign", copy.templateFree, "Adds free shipping thresholds for campaign periods.", () => applyNamedShippingTemplate("free_campaign", zones, defaultPrice)],
@@ -2043,7 +2105,6 @@ function ShippingRuleTester({ zones, defaultPrice, defaultProvider, copy }) {
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <TesterMetric label={copy.shippingCost} value={`${Number(result.price || 0).toLocaleString()} EGP`} />
-            <TesterMetric label={copy.codAllowed} value={result.cod_allowed ? copy.yes : copy.no} />
             <TesterMetric label={copy.proofRequired} value={result.requires_shipping_proof ? copy.yes : copy.no} />
             <TesterMetric label={copy.eta} value={result.estimated_delivery_text || copy.noEta} />
           </div>
@@ -2076,8 +2137,7 @@ function TesterMetric({ label, value }) {
   );
 }
 
-function ZonePolicyList({ zones, allZones, mode, empty, onChange }) {
-  const { t } = useTranslation();
+function ZonePolicyList({ zones, allZones, empty, onChange }) {
   const patchRow = (id, patch) => onChange(allZones.map((zone) => (zone.id === id ? normalizeShippingZoneRow({ ...zone, ...patch }) : zone)));
   if (!zones.length) return <div className={`rounded-2xl p-4 text-sm font-bold ${fieldSurface} ${bodyText}`}>{empty}</div>;
   return (
@@ -2086,9 +2146,9 @@ function ZonePolicyList({ zones, allZones, mode, empty, onChange }) {
         <div key={zone.id} className={`grid gap-3 rounded-2xl p-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center ${fieldSurface}`}>
           <div className="min-w-0">
             <div className={`truncate text-sm font-black ${headingText}`}>{zoneLabel(zone)}</div>
-            <div className={`mt-1 text-xs ${bodyText}`}>{mode === "cod" ? `COD ${zone.cod_allowed ? "enabled" : "disabled"} / min ${Number(zone.minimum_order_for_cod || 0).toLocaleString()} EGP` : `Free over ${Number(zone.free_shipping_threshold || 0).toLocaleString()} EGP`}</div>
+            <div className={`mt-1 text-xs ${bodyText}`}>{`Free over ${Number(zone.free_shipping_threshold || 0).toLocaleString()} EGP`}</div>
           </div>
-          <input type="number" min="0" value={mode === "cod" ? zone.minimum_order_for_cod : zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { [mode === "cod" ? "minimum_order_for_cod" : "free_shipping_threshold"]: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} />
+          <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} />
         </div>
       ))}
     </div>
@@ -2099,16 +2159,13 @@ const shippingUi = {
   en: {
     defaultPrice: "Default shipping price",
     activeZones: "Active zones",
-    codZones: "COD zones",
     proofZones: "Proof required",
     freeRules: "Free shipping rules",
     tabOverview: "Overview",
     tabLocations: "Locations",
     tabZones: "Zones",
-    tabCod: "COD Rules",
     tabFree: "Free Shipping",
     tabProviders: "Providers",
-    tabIntegrations: "Integrations",
     tabAdvanced: "Advanced",
     overviewTitle: "Shipping Overview",
     overviewDescription: "Default fallback and operational rules used by storefront checkout.",
@@ -2135,7 +2192,6 @@ const shippingUi = {
     orderSubtotal: "Order subtotal",
     matchedZone: "Matched zone",
     shippingCost: "Shipping cost",
-    codAllowed: "COD allowed",
     proofRequired: "Proof required",
     eta: "ETA",
     yes: "Yes",
@@ -2145,10 +2201,6 @@ const shippingUi = {
     locationsDescription: "Structured Egypt governorate, city/markaz, and area catalog for zones and checkout.",
     zonesTitle: "Shipping Zones",
     zonesDescription: "Exact area rows win first, then city/markaz rows, then governorate rows, then the default price.",
-    codTitle: "COD Rules",
-    codDescription: "Global COD availability plus per-zone COD controls in the zone matrix.",
-    codBody: "Global cash-on-delivery is configured in Payments. Zone-level COD exceptions are controlled directly inside Shipping Zones.",
-    emptyCod: "No COD-specific rules yet. Enable COD or set minimum COD amounts from Zones.",
     freeTitle: "Free Shipping",
     freeDescription: "Campaign thresholds by governorate, city, or district.",
     emptyFree: "No free shipping thresholds yet. Add thresholds from Zones or apply a campaign template.",
@@ -2156,7 +2208,13 @@ const shippingUi = {
     proofDescription: "Use the per-zone proof toggle to require or skip shipping payment proof for each area.",
     proofBody: "Proof rules are controlled directly inside Shipping Zones so Damietta, city, and district exceptions stay visible beside their prices.",
     providersTitle: "Shipping Providers",
-    providersDescription: "Default provider and carrier credentials for future automatic shipment creation.",
+    providersDescription: "Every carrier the ERP knows, its credentials, and whether it can actually book a shipment.",
+    providerIntegrated: "Live integration: creates shipments, labels, and status updates.",
+    providerNotWired: "Credentials are stored, but no shipments are booked yet - the API is not wired.",
+    providerPlaceholderWarning: "No API client exists for this carrier yet. Enabling it will not create shipments.",
+    loadingProviders: "Loading providers...",
+    providerPolicyTitle: "Delivery policy",
+    providerPolicyDescription: "Rules the carrier applies to the parcel itself.",
     advancedTitle: "Advanced",
     advancedDescription: "Raw registry fields for compatibility and troubleshooting.",
     search: "Search governorate, city, area, provider",
@@ -2182,8 +2240,6 @@ const shippingUi = {
     createArea: "Governorate + city + area",
     bulkPrice: "Set selected price",
     bulkEstimate: "Set delivery estimate",
-    enableCod: "Enable COD",
-    disableCod: "Disable COD",
     requireProof: "Require proof",
     skipProof: "Proof not required",
     deleteSelected: "Delete selected",
@@ -2196,26 +2252,28 @@ const shippingUi = {
     duplicatePrevented: "Duplicate identical shipping rule was not added.",
     empty: "No shipping zones match the current filters.",
     seeded: "Egypt governorates added",
-    headers: ["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "ETA", "Provider", "Free over", "Min COD", "Active", ""],
+    headers: ["Governorate", "City / Markaz", "Area / District", "Price", "Proof", "ETA", "Provider", "Free over", "Active", ""],
   },
   ar: {
     defaultPrice: "سعر الشحن الافتراضي",
     activeZones: "المناطق النشطة",
-    codZones: "مناطق الدفع عند الاستلام",
     proofZones: "مناطق إثبات الدفع",
     freeRules: "قواعد الشحن المجاني",
     overviewTitle: "ملخص الشحن",
     overviewDescription: "سعر افتراضي وقواعد تشغيل يستخدمها المتجر في خطوة الدفع.",
     zonesTitle: "مناطق الشحن",
     zonesDescription: "يتم التطابق حسب المنطقة أولاً، ثم المدينة/المركز، ثم المحافظة، ثم السعر الافتراضي.",
-    codTitle: "قواعد الدفع عند الاستلام",
-    codDescription: "إعداد عام للدفع عند الاستلام مع استثناءات خاصة بكل منطقة.",
-    codBody: "الإعداد العام يوجد في قسم المدفوعات، بينما تظهر الاستثناءات الخاصة بكل منطقة داخل جدول الشحن.",
     proofTitle: "قواعد إثبات دفع الشحن",
     proofDescription: "استخدم هذا المفتاح لتحديد ما إذا كانت صورة التحويل مطلوبة لكل منطقة.",
     proofBody: "تظهر قواعد إثبات الدفع داخل مناطق الشحن حتى تبقى الاستثناءات واضحة بجانب السعر.",
     providersTitle: "شركات الشحن",
-    providersDescription: "شركة الشحن الافتراضية وبيانات التكامل اللازمة لإنشاء الشحنات لاحقاً.",
+    providersDescription: "كل شركة شحن يعرفها النظام، وبيانات ربطها، وهل تقدر تنشئ شحنة فعلاً.",
+    providerIntegrated: "تكامل شغّال: ينشئ الشحنات والملصقات ويتابع الحالة.",
+    providerNotWired: "البيانات بتتحفظ، لكن مفيش شحنات بتتعمل — الـ API مش مربوط.",
+    providerPlaceholderWarning: "مفيش ربط برمجي للشركة دي لسه. تفعيلها مش هينشئ شحنات.",
+    loadingProviders: "جارٍ تحميل الشركات...",
+    providerPolicyTitle: "سياسة التسليم",
+    providerPolicyDescription: "قواعد بتطبقها شركة الشحن على الطرد نفسه.",
     search: "ابحث بالمحافظة أو المدينة أو المنطقة أو شركة الشحن",
     allGovernorates: "إضافة كل محافظات مصر",
     addZone: "إضافة منطقة",
@@ -2231,65 +2289,61 @@ const shippingUi = {
     createArea: "محافظة + مدينة + منطقة",
     bulkPrice: "تحديث السعر للمحدد",
     bulkEstimate: "تحديث مدة التوصيل",
-    enableCod: "تفعيل COD",
-    disableCod: "إيقاف COD",
     requireProof: "إلزام بإثبات",
     skipProof: "بدون إثبات",
     deleteSelected: "حذف المحدد",
     empty: "لا توجد مناطق شحن مطابقة للفلاتر الحالية.",
     seeded: "تمت إضافة محافظات مصر",
-    headers: ["المحافظة", "المدينة / المركز", "المنطقة / الحي", "السعر", "COD", "إثبات", "المدة", "الشركة", "مجاني بعد", "حد COD", "مفعل", ""],
+    headers: ["المحافظة", "المدينة / المركز", "المنطقة / الحي", "السعر", "إثبات", "المدة", "الشركة", "مجاني بعد", "مفعل", ""],
   },
 };
 
 const egyptGovernorates = [
-  ["cairo", "Cairo", "القاهرة", 70, false, true, "2-4 business days"],
-  ["giza", "Giza", "الجيزة", 70, false, true, "2-4 business days"],
-  ["alexandria", "Alexandria", "الإسكندرية", 75, false, true, "2-5 business days"],
-  ["dakahlia", "Dakahlia", "الدقهلية", 75, false, true, "2-5 business days"],
-  ["red-sea", "Red Sea", "البحر الأحمر", 90, false, true, "3-6 business days"],
-  ["beheira", "Beheira", "البحيرة", 75, false, true, "2-5 business days"],
-  ["fayoum", "Fayoum", "الفيوم", 80, false, true, "2-5 business days"],
-  ["gharbia", "Gharbia", "الغربية", 75, false, true, "2-5 business days"],
-  ["ismailia", "Ismailia", "الإسماعيلية", 75, false, true, "2-5 business days"],
-  ["menofia", "Menofia", "المنوفية", 75, false, true, "2-5 business days"],
-  ["minya", "Minya", "المنيا", 85, false, true, "3-6 business days"],
-  ["qalyubia", "Qalyubia", "القليوبية", 70, false, true, "2-4 business days"],
-  ["new-valley", "New Valley", "الوادي الجديد", 95, false, true, "4-7 business days"],
-  ["suez", "Suez", "السويس", 75, false, true, "2-5 business days"],
-  ["aswan", "Aswan", "أسوان", 90, false, true, "3-6 business days"],
-  ["assiut", "Assiut", "أسيوط", 85, false, true, "3-6 business days"],
-  ["beni-suef", "Beni Suef", "بني سويف", 80, false, true, "2-5 business days"],
-  ["port-said", "Port Said", "بورسعيد", 75, false, true, "2-5 business days"],
-  ["damietta", "Damietta", "دمياط", 45, true, false, "1-2 business days"],
-  ["sharqia", "Sharqia", "الشرقية", 75, false, true, "2-5 business days"],
-  ["south-sinai", "South Sinai", "جنوب سيناء", 95, false, true, "4-7 business days"],
-  ["kafr-el-sheikh", "Kafr El Sheikh", "كفر الشيخ", 75, false, true, "2-5 business days"],
-  ["matrouh", "Matrouh", "مطروح", 90, false, true, "3-6 business days"],
-  ["luxor", "Luxor", "الأقصر", 90, false, true, "3-6 business days"],
-  ["qena", "Qena", "قنا", 90, false, true, "3-6 business days"],
-  ["north-sinai", "North Sinai", "شمال سيناء", 95, false, true, "4-7 business days"],
-  ["sohag", "Sohag", "سوهاج", 90, false, true, "3-6 business days"],
+  ["cairo", "Cairo", "القاهرة", 70, true, "2-4 business days"],
+  ["giza", "Giza", "الجيزة", 70, true, "2-4 business days"],
+  ["alexandria", "Alexandria", "الإسكندرية", 75, true, "2-5 business days"],
+  ["dakahlia", "Dakahlia", "الدقهلية", 75, true, "2-5 business days"],
+  ["red-sea", "Red Sea", "البحر الأحمر", 90, true, "3-6 business days"],
+  ["beheira", "Beheira", "البحيرة", 75, true, "2-5 business days"],
+  ["fayoum", "Fayoum", "الفيوم", 80, true, "2-5 business days"],
+  ["gharbia", "Gharbia", "الغربية", 75, true, "2-5 business days"],
+  ["ismailia", "Ismailia", "الإسماعيلية", 75, true, "2-5 business days"],
+  ["menofia", "Menofia", "المنوفية", 75, true, "2-5 business days"],
+  ["minya", "Minya", "المنيا", 85, true, "3-6 business days"],
+  ["qalyubia", "Qalyubia", "القليوبية", 70, true, "2-4 business days"],
+  ["new-valley", "New Valley", "الوادي الجديد", 95, true, "4-7 business days"],
+  ["suez", "Suez", "السويس", 75, true, "2-5 business days"],
+  ["aswan", "Aswan", "أسوان", 90, true, "3-6 business days"],
+  ["assiut", "Assiut", "أسيوط", 85, true, "3-6 business days"],
+  ["beni-suef", "Beni Suef", "بني سويف", 80, true, "2-5 business days"],
+  ["port-said", "Port Said", "بورسعيد", 75, true, "2-5 business days"],
+  ["damietta", "Damietta", "دمياط", 45, false, "1-2 business days"],
+  ["sharqia", "Sharqia", "الشرقية", 75, true, "2-5 business days"],
+  ["south-sinai", "South Sinai", "جنوب سيناء", 95, true, "4-7 business days"],
+  ["kafr-el-sheikh", "Kafr El Sheikh", "كفر الشيخ", 75, true, "2-5 business days"],
+  ["matrouh", "Matrouh", "مطروح", 90, true, "3-6 business days"],
+  ["luxor", "Luxor", "الأقصر", 90, true, "3-6 business days"],
+  ["qena", "Qena", "قنا", 90, true, "3-6 business days"],
+  ["north-sinai", "North Sinai", "شمال سيناء", 95, true, "4-7 business days"],
+  ["sohag", "Sohag", "سوهاج", 90, true, "3-6 business days"],
 ];
 
 const shippingZonePresets = [
-  ...egyptGovernorates.map(([id, governorate, arabic_alias, price, cod_allowed, requires_shipping_proof, estimated_delivery_text]) => ({
+  ...egyptGovernorates.map(([id, governorate, arabic_alias, price, requires_shipping_proof, estimated_delivery_text]) => ({
     id,
     governorate,
     arabic_alias,
     city: "",
     area: "",
     price,
-    cod_allowed,
     requires_shipping_proof,
     estimated_delivery_text,
     provider: "in_store_delivery",
     provider_id: "in_store_delivery",
     free_shipping_threshold: 0,
-    minimum_order_for_cod: 0,
     active: true,
   })),
-  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
+  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, active: true },
 ];
 
 const normalizeZoneKey = (value = "") => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -2301,13 +2355,21 @@ const shippingProviderOptions = [
   { id: "manual", get label() { return tt("settings.shipping.manual"); } },
   { id: "in_store_delivery", get label() { return tt("settings.shipping.inStoreDelivery"); } },
 ];
+// Every carrier code the UI must round-trip. Names are the server catalogue's job; this
+// list only has to RECOGNISE a saved value, because anything it does not know is rewritten
+// to in_store_delivery on the next render -- silently losing the carrier that was picked.
+const SHIPPING_PROVIDER_CODES = ["bosta", "mylerz", "aramex", "shipblu", "manual", "in_store_delivery"];
+
+const titleCaseCode = (code = "") => code.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
 const normalizeProviderKey = (value = "") => {
   const key = String(value || "in_store_delivery").trim().toLowerCase();
   if (key === "store_pickup" || key === "in-store-delivery") return "in_store_delivery";
-  return shippingProviderOptions.some((provider) => provider.id === key) ? key : "in_store_delivery";
+  return SHIPPING_PROVIDER_CODES.includes(key) ? key : "in_store_delivery";
 };
 const providerMeta = (value = "") => {
-  const provider = shippingProviderOptions.find((item) => item.id === normalizeProviderKey(value)) || shippingProviderOptions[3];
+  const key = normalizeProviderKey(value);
+  const provider = shippingProviderOptions.find((item) => item.id === key) || { id: key, label: titleCaseCode(key) };
   const styles = {
     bosta: ["border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-500/12 dark:text-rose-100", "border-rose-500 bg-rose-600 text-white shadow-sm dark:border-rose-300 dark:bg-rose-500", "bg-rose-500"],
     mylerz: ["border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-400/25 dark:bg-indigo-500/12 dark:text-indigo-100", "border-indigo-500 bg-indigo-600 text-white shadow-sm dark:border-indigo-300 dark:bg-indigo-500", "bg-indigo-500"],
@@ -2364,7 +2426,7 @@ const ensureTemplateRow = (rows, row) => {
 
 const applyEgyptStandardTemplate = (zones, prices) => {
   const rows = (Array.isArray(zones) ? zones : []).map(normalizeShippingZoneRow);
-  return egyptGovernorates.reduce((nextRows, [id, governorate, arabic_alias, basePrice, cod_allowed, requires_shipping_proof, estimated_delivery_text]) => {
+  return egyptGovernorates.reduce((nextRows, [id, governorate, arabic_alias, basePrice, requires_shipping_proof, estimated_delivery_text]) => {
     const price = governorate === "Damietta"
       ? prices.damietta
       : ["Cairo", "Giza"].includes(governorate)
@@ -2379,8 +2441,7 @@ const applyEgyptStandardTemplate = (zones, prices) => {
       city: "",
       area: "",
       price,
-      cod_allowed,
-      requires_shipping_proof,
+        requires_shipping_proof,
       estimated_delivery_text,
       provider: "in_store_delivery",
       provider_id: "in_store_delivery",
@@ -2396,10 +2457,9 @@ const applyNamedShippingTemplate = (name, zones, defaultPrice) => {
       ...zone,
       provider: "in_store_delivery",
       provider_id: "in_store_delivery",
-      cod_allowed: normalizeZoneKey(zone.governorate) === "damietta" ? true : zone.cod_allowed,
       requires_shipping_proof: normalizeZoneKey(zone.governorate) === "damietta" ? false : zone.requires_shipping_proof,
     }));
-    rows = ensureTemplateRow(rows, { id: "new-damietta", governorate: "Damietta", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", active: true });
+    rows = ensureTemplateRow(rows, { id: "new-damietta", governorate: "Damietta", city: "New Damietta", area: "", price: 40, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", active: true });
   }
   if (name === "fast_delivery") {
     rows = rows.map((zone) => normalizeShippingZoneRow({
@@ -2448,7 +2508,6 @@ const resolveShippingPreview = (zones, { governorate = "", city = "", area = "",
   const orderSubtotal = Number(subtotal || 0);
   return {
     price: threshold > 0 && orderSubtotal >= threshold ? 0 : matchedPrice,
-    cod_allowed: match ? Boolean(match.cod_allowed) : true,
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
     provider: match?.provider || defaultProvider,
@@ -2476,7 +2535,6 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   provider_district_id: String(zone.provider_district_id || zone.providerDistrictId || "").trim(),
   provider_zone_id: String(zone.provider_zone_id || zone.providerZoneId || "").trim(),
   price: Number.isFinite(Number(zone.price ?? zone.shipping_price)) ? Number(zone.price ?? zone.shipping_price) : 0,
-  cod_allowed: zone.cod_allowed !== false,
   requires_shipping_proof: zone.requires_shipping_proof !== false,
   estimated_delivery_text: String(zone.estimated_delivery_text || zone.estimatedDeliveryText || "").trim(),
   delivery_min_days: zone.delivery_min_days === "" || zone.delivery_min_days === null || zone.delivery_min_days === undefined ? "" : Number(zone.delivery_min_days),
@@ -2489,7 +2547,6 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   provider: normalizeProviderKey(zone.provider || zone.shipping_provider || zone.provider_id || zone.shipping_provider_id),
   provider_id: normalizeProviderKey(zone.provider_id || zone.shipping_provider_id || zone.provider || zone.shipping_provider),
   free_shipping_threshold: Number.isFinite(Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold)) ? Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold) : 0,
-  minimum_order_for_cod: Number.isFinite(Number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod)) ? Number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod) : 0,
   active: zone.active !== false,
 });
 
@@ -2898,7 +2955,6 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
       provider_district_id: scope === "area" ? draft.provider_district_id || "" : "",
       provider_zone_id: scope === "area" ? draft.provider_zone_id || "" : "",
       price: Number.isFinite(Number(draft.price)) ? Number(draft.price) : defaultPrice || 0,
-      cod_allowed: governorate === "Damietta",
       requires_shipping_proof: governorate !== "Damietta",
       estimated_delivery_text: governorate === "Damietta" ? "1-2 business days" : "2-5 business days",
       provider: draft.provider || "in_store_delivery",
@@ -3001,14 +3057,12 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
           provider_district_id: row.provider_district_id || row.bosta_district_id,
           provider_zone_id: row.provider_zone_id || row.bosta_zone_id || row.zone_code,
           price: row.price || row.shipping_price,
-          cod_allowed: !["false", "0", "no"].includes(String(row.cod_allowed || "").toLowerCase()),
           requires_shipping_proof: !["false", "0", "no"].includes(String(row.requires_shipping_proof || "").toLowerCase()),
           estimated_delivery_text: row.estimated_delivery_text || row.eta,
           arabic_alias: row.arabic_alias || row.alias_ar,
           provider: normalizeProviderKey(row.provider || row.shipping_provider),
           provider_id: normalizeProviderKey(row.provider_id || row.shipping_provider_id || row.provider || row.shipping_provider),
           free_shipping_threshold: row.free_shipping_threshold,
-          minimum_order_for_cod: row.minimum_order_for_cod,
           active: !["false", "0", "no"].includes(String(row.active || "").toLowerCase()),
         });
       });
@@ -3034,7 +3088,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
               <th className={`${frozen ? "sticky left-0 z-20 bg-inherit" : ""} w-10 px-3 py-3 text-start`}></th>
               <th className={`${frozen ? "sticky left-10 z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>{t("settings.locations.governorate")}</th>
               <th className={`${frozen ? "sticky left-[11.5rem] z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>{t("settings.locations.city")}</th>
-              {["Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
+              {["Area", "Provider", "Shipping Cost", "Proof", "ETA", "Active", ""].map((header) => (
                 <th key={header} className="px-3 py-3 text-start">{header}</th>
               ))}
             </tr>
@@ -3147,8 +3201,6 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
             <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-white dark:text-[var(--primary-contrast)]">{copy.bulkEstimate}</button>
           </div>
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.enableCod}</button>
-            <button type="button" onClick={() => applyToSelected({ cod_allowed: false })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.disableCod}</button>
             <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: true })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.requireProof}</button>
             <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: false })} disabled={!selectedCount} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.skipProof}</button>
           </div>
@@ -3335,7 +3387,6 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.freeOver")} />
-        <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.minCod")} />
         <input type="number" min="0" value={zone.delivery_min_days} onChange={(event) => onPatch({ delivery_min_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.deliveryMinDays")} />
         <input type="number" min="0" value={zone.delivery_max_days} onChange={(event) => onPatch({ delivery_max_days: event.target.value === "" ? "" : Number(event.target.value) })} className={`${inputClass} h-[var(--control-height-md)] rounded-[var(--radius-control)] text-center`} placeholder={t("settings.zones.deliveryMaxDays")} />
         <label className={`sm:col-span-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black dark:border-white/10 ${bodyText}`}>
@@ -3392,7 +3443,6 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         </td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>{providerSelect}</td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-[var(--radius-control)] text-center ${inputText}`} /></td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label={t("settings.zones.proof")} checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} ${inputHeight} min-w-36 rounded-[var(--radius-control)] ${inputText}`} placeholder="ETA" /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label={t("settings.zones.active")} checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>

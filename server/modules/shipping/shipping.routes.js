@@ -8,18 +8,18 @@ import {
   getShippingCenterSummaryController,
 } from "./shipping.center.controller.js";
 import {
-  getBostaProviderSettings,
   getBostaProviderStatus,
   getShipmentNotificationSettings,
   getShippingCities,
   getShippingDistricts,
   getShippingZones,
   handleBostaWebhook,
+  listShippingProvidersController,
   searchLocations,
   syncBostaLocationsController,
   testBostaWebhook,
-  updateBostaProviderSettings,
   updateShipmentNotificationSettings,
+  updateShippingProviderSettings,
 } from "./shipping.controller.js";
 
 const router = express.Router();
@@ -39,9 +39,9 @@ router.get("/zones", getShippingZones);
 router.get("/districts", getShippingDistricts);
 router.get("/locations/search", searchLocations);
 
-router.get("/providers/bosta/settings", protect, permit("settings", "view"), getBostaProviderSettings);
+router.get("/providers", protect, permit("settings", "view"), listShippingProvidersController);
+router.put("/providers/:code/settings", protect, permit("settings", "edit"), updateShippingProviderSettings);
 router.get("/providers/bosta/status", protect, permit("settings", "view"), getBostaProviderStatus);
-router.put("/providers/bosta/settings", protect, permit("settings", "edit"), updateBostaProviderSettings);
 router.post("/bosta/sync-locations", protect, permit("settings", "edit"), syncBostaLocationsController);
 router.post("/bosta/webhook", handleBostaWebhook);
 router.post("/bosta/webhook/test", protect, permit("settings", "view"), testBostaWebhook);

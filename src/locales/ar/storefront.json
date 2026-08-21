@@ -475,7 +475,7 @@
     "finalCostNote": "التكلفة النهائية تظهر في صفحة الدفع حسب المحافظة.",
     "finalShippingAtCheckout": "يُحتسب الشحن النهائي عند الدفع",
     "completePurchase": "إتمام الشراء",
-    "codUnavailableForAddress": "الدفع عند الاستلام غير متاح لهذا العنوان.",
+    "codUnavailable": "الدفع عند الاستلام غير متاح حالياً.",
     "lineTotal": "الإجمالي",
     "quantity": "الكمية"
   },
