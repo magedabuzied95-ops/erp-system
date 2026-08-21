@@ -43,7 +43,11 @@ export function analyzeConversation(input: ConversationAnalysisInput): Conversat
   const buyingSignals = analyzeBuyingSignals(text);
   const objections = analyzeObjections(text);
   const mood = analyzeMood(text);
-  const meaningfulMessages = conversation.filter((message) => String(message.text || message.message || message.content || "").trim().length >= 8).length;
+  // Same defence as normalizeConversation: a null row in the merged history
+  // must not decide whether this conversation gets analysed at all.
+  const meaningfulMessages = conversation.filter((message) =>
+    message && typeof message === "object" &&
+    String(message.text || message.message || message.content || "").trim().length >= 8).length;
   const completedOrders = orders.filter((order) => completedStatuses.has(String(order.status || "").toLowerCase())).length;
   const leadScore = analyzeLeadScore({ messageCount: conversation.length, meaningfulMessages, buyingSignals, ordersCount: orders.length, crm: input.crmIntelligence });
   const { priority, urgency } = analyzePriority(leadScore, mood, intents);

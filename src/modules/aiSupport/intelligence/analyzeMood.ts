@@ -1,3 +1,4 @@
+import { arabicAwareBoundary } from "./conversationRules";
 import type { CustomerMood } from "./conversationTypes";
 
 /**
@@ -10,10 +11,20 @@ import type { CustomerMood } from "./conversationTypes";
  * effectively returned "Neutral" for almost everyone, while looking like it worked
  * whenever anyone tested it in English.
  */
-const boundary = (alternatives: string) =>
-  new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives})(?![\\p{L}\\p{N}])`, "iu");
+// One boundary definition for the whole intelligence layer: it folds Arabic
+// letter variants and tolerates the definite article. See conversationRules.
+const boundary = arabicAwareBoundary;
 
-const ANGRY = boundary("angry|unacceptable|terrible|furious|غاضب|سيء جدا|مش مقبول|نصاب|نصابين|زبالة|زباله|مش راضي|مستاء");
+/*
+ * Anger in Egyptian Arabic is usually a rhetorical question or a complaint about
+ * being ignored, not the word "غاضب" — which nobody types. The list below is
+ * what customers actually write when an order is late and no one answered.
+ *
+ * This matters beyond the label: analyzePriority only returns Critical when the
+ * mood is Angry AND the intent is a Complaint or Payment, so an unrecognised
+ * temper leaves a furious customer sitting at Low priority.
+ */
+const ANGRY = boundary("angry|unacceptable|terrible|furious|this is ridiculous|غاضب|سيء جدا|سيئ جدا|مش مقبول|نصاب|نصابين|زبالة|زباله|مش راضي|مستاء|ده كلام يتقال|ايه ده|إيه ده|معقولة|معقوله|مش معقول|حرام عليكم|زهقت|قرفت|هبلغ|هشتكي|كفاية كده|كفايه كده");
 const URGENT = boundary("urgent|asap|immediately|now|ضروري|حالا|حالاً|بسرعة|بسرعه|النهاردة|النهارده");
 const EXCITED = boundary("excited|can't wait|amazing|love it|متحمس|تحفة|تحفه|عجبني جدا|جامد");
 const CONFUSED = boundary("confused|don't understand|which one|مش فاهم|محتار|مش عارف");

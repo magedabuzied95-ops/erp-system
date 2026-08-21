@@ -19,11 +19,17 @@ class FeatureFlagService {
 
   refresh = () => {
     const stored = readStored();
+    // `import.meta.env` only exists under Vite. The service is constructed at
+    // import time, so reading through it unguarded made this module throw the
+    // moment anything outside the bundler touched it — a test, a script, a
+    // server-side render. Absent env just means "no override", which is what
+    // DEFAULTS already says.
+    const env = import.meta.env || {};
     const environment = {
-      AI_ENABLED: import.meta.env.VITE_AI_ENABLED,
-      COPILOT_ENABLED: import.meta.env.VITE_COPILOT_ENABLED,
-      DECISION_ENABLED: import.meta.env.VITE_DECISION_ENABLED,
-      LEARNING_ENABLED: import.meta.env.VITE_LEARNING_ENABLED,
+      AI_ENABLED: env.VITE_AI_ENABLED,
+      COPILOT_ENABLED: env.VITE_COPILOT_ENABLED,
+      DECISION_ENABLED: env.VITE_DECISION_ENABLED,
+      LEARNING_ENABLED: env.VITE_LEARNING_ENABLED,
     };
     const next = Object.fromEntries(FLAG_NAMES.map((name) => [name, parseBoolean(this.#runtime[name] ?? stored[name] ?? environment[name] ?? DEFAULTS[name])]));
     if (!next.AI_ENABLED) Object.assign(next, { COPILOT_ENABLED: false, DECISION_ENABLED: false, LEARNING_ENABLED: false });

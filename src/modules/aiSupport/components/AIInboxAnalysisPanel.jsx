@@ -2,6 +2,12 @@ import { memo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles } from "lucide-react";
 
+// The engines speak canonical English to each other; the operator reads their
+// own language. These bridge the two at render time — see
+// src/modules/aiSupport/lib/analysisLabels.js for why the labels are not
+// translated at the source.
+import { translateAnalysisLabel, translateAnalysisLabels } from "../lib/analysisLabels";
+
 const AIInboxAnalysisPanel = memo(function AIInboxAnalysisPanel({ analysis, copilot, loading, cacheHit, onTrack, flags }) {
   const { t } = useTranslation();
   const viewedRef = useRef(new Set());
@@ -24,12 +30,13 @@ const AIInboxAnalysisPanel = memo(function AIInboxAnalysisPanel({ analysis, copi
     <section className="mb-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" aria-label={t("aiSupport.inbox.analysis.intelligence")}>
       {intelligence ? (
         <div className="flex flex-wrap gap-1.5 text-[10px] font-black text-slate-700">
-          <span className="rounded-full bg-slate-100 px-2 py-1">{intelligence.intent.join(" · ")}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-1">{intelligence.customerMood}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">{translateAnalysisLabels(t, "intent", intelligence.intent).join(" · ")}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">{translateAnalysisLabel(t, "mood", intelligence.customerMood)}</span>
           <span className="rounded-full bg-slate-100 px-2 py-1">{t("aiSupport.inbox.analysis.leadScore", { score: intelligence.leadScore })}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-1">{intelligence.priority}</span>
-          {intelligence.buyingSignals.map((signal) => <span key={signal} className="rounded-full bg-slate-100 px-2 py-1">{signal}</span>)}
-          {intelligence.objections.map((objection) => <span key={objection} className="rounded-full bg-slate-100 px-2 py-1">{t("aiSupport.inbox.analysis.objection", { objection })}</span>)}
+          <span className="rounded-full bg-slate-100 px-2 py-1">{translateAnalysisLabel(t, "priority", intelligence.priority)}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1">{translateAnalysisLabel(t, "stage", intelligence.salesStage)}</span>
+          {intelligence.buyingSignals.map((signal) => <span key={signal} className="rounded-full bg-slate-100 px-2 py-1">{translateAnalysisLabel(t, "signal", signal)}</span>)}
+          {intelligence.objections.map((objection) => <span key={objection} className="rounded-full bg-slate-100 px-2 py-1">{t("aiSupport.inbox.analysis.objection", { objection: translateAnalysisLabel(t, "objection", objection) })}</span>)}
         </div>
       ) : null}
       {flags.COPILOT_ENABLED && copilot ? (
