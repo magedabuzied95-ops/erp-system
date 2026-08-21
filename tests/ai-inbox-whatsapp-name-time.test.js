@@ -72,7 +72,18 @@ test("older-message pagination uses an exact timestamp and id cursor", () => {
 test("loading older messages does not put the send button into a loading state", () => {
   const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
   assert.match(source, /const \[replySending, setReplySending\]/);
-  assert.match(source, /leadActionLoading \|\| replySending \|\| productCardSending/);
+  // The composer's loading expression may grow clauses — it later gained one for
+  // an in-flight attachment upload. What it must never contain is the
+  // older-message loader, which would grey the send button out while history
+  // pages in behind the operator.
+  const loadingProps = source.match(/loading=\{Boolean\([^}]*\)\}/g) || [];
+  assert.ok(loadingProps.length >= 2, "expected the composer loading props");
+  for (const prop of loadingProps) {
+    assert.match(prop, /leadActionLoading/);
+    assert.match(prop, /replySending/);
+    assert.match(prop, /productCardSending/);
+    assert.doesNotMatch(prop, /olderLoading|isLoadingOlder/);
+  }
 });
 
 test("PWA keeps older-message loading separate from reply sending", () => {

@@ -13,7 +13,11 @@ const composerSource = source.slice(
 
 test("desktop AI Inbox composer renders as one unified surface", () => {
   assert.match(composerSource, /data-ai-inbox-composer-shell="true"/);
-  assert.match(composerSource, /data-ai-inbox-composer-shell="true"[\s\S]*?rounded-2xl border border-slate-300 bg-slate-50/);
+  // The shell now switches chrome between reply and internal-note mode, so the
+  // classes live in a template. What this guards is unchanged: one rounded
+  // surface, and the reply branch keeps the omnichannel footer's own tokens.
+  assert.match(composerSource, /data-ai-inbox-composer-shell="true"[\s\S]*?flex min-w-0 items-end rounded-2xl border p-1\.5/);
+  assert.match(composerSource, /data-ai-inbox-composer-shell="true"[\s\S]*?border-slate-300 bg-slate-50/);
   assert.match(composerSource, /data-ai-inbox-composer="true"[\s\S]*?border-0 bg-transparent/);
   assert.doesNotMatch(composerSource, /bg-\[#eefaf8\]/);
 });
@@ -25,5 +29,7 @@ test("desktop AI Inbox send action belongs to the same composer shell", () => {
 
   assert.ok(shellStart >= 0);
   assert.ok(sendButton > shellStart && sendButton < nextComponent);
-  assert.match(source.slice(sendButton, nextComponent), /h-10 w-10[\s\S]*?rounded-xl bg-amber-500/);
+  // Note mode paints the button amber-600; reply mode keeps amber-500.
+  assert.match(source.slice(sendButton, nextComponent), /h-10 w-10[\s\S]*?rounded-xl text-white/);
+  assert.match(source.slice(sendButton, nextComponent), /"bg-amber-500 hover:bg-amber-600"/);
 });

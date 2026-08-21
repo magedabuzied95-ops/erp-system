@@ -72,7 +72,11 @@ test("frontend: AI suggestion has INLINE editing inside the card, separate from 
 });
 
 test("frontend: assisted approval does NOT optimistically take over; manual reply does", () => {
-  assert.match(inboxSrc, /conversation_status: assistedApproval \? \(conversation\.conversation_status \|\| "ai_active"\) : "human_takeover"/);
+  // An internal note joined assisted approval on the non-takeover side: it is
+  // staff-only text that never reaches the customer, so writing one must not
+  // pause the AI. A MANUAL reply is still the one thing that takes over.
+  assert.match(inboxSrc, /conversation_status: isNote \|\| assistedApproval \? \(conversation\.conversation_status \|\| "ai_active"\) : "human_takeover"/);
+  assert.match(inboxSrc, /ai_paused: isNote \|\| assistedApproval \? Boolean\(conversation\.ai_paused\) : true/);
 });
 
 test("frontend: card Approve sends the INLINE-edited text and flags assisted", () => {

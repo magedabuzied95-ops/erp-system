@@ -1,8 +1,11 @@
 import express from "express";
+import { unlink } from "node:fs/promises";
+
 import db from "../database/db.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import inboxAttachmentUpload, { INBOX_ATTACHMENT_URL_PREFIX } from "../config/inboxAttachmentUpload.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
 import {
@@ -133,7 +136,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendImageMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -147,6 +150,43 @@ import {
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
 
 const router = express.Router();
+
+/*
+ * AI Inbox authorization.
+ *
+ * Every conversation route in this file used to run on permit("settings", ...).
+ * That is the wrong gate in both directions: a user granted the inbox and
+ * nothing else was refused by the API while the page still rendered, and
+ * anybody holding settings:edit — a broad administrative permission — could
+ * send WhatsApp and Messenger messages as the business, take conversations
+ * over, and open orders.
+ *
+ * The inbox now runs on its own permission. The mapping is mechanical and
+ * preserves the STRENGTH of each gate exactly: a route that required
+ * settings:view now requires ai_inbox_messenger:view, and a route that
+ * required settings:edit now requires ai_inbox_messenger:reply. No route
+ * becomes easier to reach.
+ *
+ * Effective access is preserved by a one-time backfill in
+ * permissionMiddleware.js: every role that already held settings:view/edit is
+ * granted the matching inbox permission once. From then on the two are
+ * independent and the inbox is revocable on its own.
+ *
+ * Genuine configuration routes — channel credentials, AI settings, quick-reply
+ * CRUD, analytics, event logs — deliberately stay on `settings`. Reading the
+ * inbox is not the same act as reconfiguring the channel it reads from.
+ *
+ * Both gates pass `{ strict: true }`. Canonical matching is now the default for
+ * the whole ERP, so this is no longer what makes them hold — it means these two
+ * gates opt OUT of the PERMISSION_LEGACY_ALIASES rollback switch. That is safe
+ * here and nowhere else: the backfill below grants ai_inbox_messenger to every
+ * role that could reach the inbox before, so there is no access for a rollback
+ * to restore, and reverting them would hand message-sending back to every
+ * settings administrator.
+ */
+const inboxView = () => permit("ai_inbox_messenger", "view", { strict: true });
+const inboxReply = () => permit("ai_inbox_messenger", "reply", { strict: true });
+
 const whatsappProfileSyncState = new Map();
 const WHATSAPP_PROFILE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
@@ -1182,7 +1222,7 @@ router.get("/logs", protect, permit("settings", "view"), (req, res) => {
   });
 });
 
-router.get("/quick-replies", protect, permit("settings", "view"), async (req, res) => {
+router.get("/quick-replies", protect, inboxView(), async (req, res) => {
   try {
     const quickReplies = await listAiInboxQuickReplies({
       tenantId: toTenantId(req),
@@ -1435,8 +1475,8 @@ const handleAISuggestedReplies = async (req, res) => {
   }
 };
 
-router.post("/suggested-replies", protect, permit("settings", "view"), handleAISuggestedReplies);
-router.post("/sugested-replies", protect, permit("settings", "view"), handleAISuggestedReplies);
+router.post("/suggested-replies", protect, inboxView(), handleAISuggestedReplies);
+router.post("/sugested-replies", protect, inboxView(), handleAISuggestedReplies);
 
 router.post("/orders/draft", async (req, res) => {
   try {
@@ -2628,7 +2668,7 @@ const kickEvolutionInboxSync = (tenantId) => {
   ]);
 };
 
-router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
+router.get("/inbox", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     await kickEvolutionInboxSync(tenantId);
@@ -2646,7 +2686,7 @@ router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
   }
 });
 
-router.get("/conversations", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     await kickEvolutionInboxSync(tenantId);
@@ -2661,6 +2701,11 @@ router.get("/conversations", protect, permit("settings", "view"), async (req, re
       // all | unread | read. Applied in SQL: the row cap below would otherwise decide
       // the queue for us — see readFilterClauseSql.
       readFilter: String(req.query?.read_filter || ""),
+      // Same reasoning for favourites, and for the keyset cursor that lets the
+      // list reach past the newest page at all.
+      favoriteOnly: ["1", "true", "yes"].includes(String(req.query?.favorite_only || "").toLowerCase()),
+      beforeActivityAt: String(req.query?.before_activity_at || ""),
+      beforeSessionId: String(req.query?.before_session_id || ""),
     });
     scheduleMissingWhatsappProfileSync({ tenantId, conversations: inbox.conversations });
     return res.json({ success: true, ...inbox });
@@ -2673,7 +2718,7 @@ router.get("/debug-ping", (req, res) => {
   return res.json({ ok: true, version: "ai-debug-v1" });
 });
 
-router.get("/conversations/:conversationId/messages", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/messages", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const requestedConversationId = decodeRouteId(req.params.conversationId);
@@ -2821,7 +2866,7 @@ router.get("/debug/regression-lookup", protect, permit("settings", "view"), asyn
   }
 });
 
-router.get("/social-comments/recent", protect, permit("settings", "view"), async (req, res) => {
+router.get("/social-comments/recent", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 50) || 50));
@@ -2875,7 +2920,7 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
   }
 });
 
-router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/comments/:commentId/reply", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const commentId = decodeRouteId(req.params.commentId);
   const replyText = envText(req.body?.reply_text || req.body?.replyText || req.body?.message || "");
@@ -3017,7 +3062,7 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
   }
 });
 
-router.post("/comments/:commentId/like", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/comments/:commentId/like", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const commentId = decodeRouteId(req.params.commentId);
   if (!tenantId || !commentId) {
@@ -3062,7 +3107,7 @@ router.post("/comments/:commentId/like", protect, permit("settings", "edit"), as
   }
 });
 
-router.post("/comments/:commentId/private-message", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/comments/:commentId/private-message", protect, inboxReply(), async (req, res) => {
   res.setHeader("X-Social-Private-Route", "comment-id-v1");
   const tenantId = toTenantId(req);
   const uiResolvedId = decodeRouteId(req.params.commentId);
@@ -3267,7 +3312,7 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   }
 });
 
-router.post("/inbox/:conversationId/private-message", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/private-message", protect, inboxReply(), async (req, res) => {
   res.setHeader("X-Social-Private-Route", "aiAgentOrders-v2");
   console.warn("[social-comments:private-message-actual-route-entry]", {
     tenantId: toTenantId(req),
@@ -3511,7 +3556,7 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
   }
 });
 
-router.get("/conversations/:conversationId/ai-debug", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/ai-debug", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = decodeRouteId(req.params.conversationId);
@@ -3526,7 +3571,7 @@ router.get("/conversations/:conversationId/ai-debug", protect, permit("settings"
   }
 });
 
-router.get("/conversations/:conversationId/ai-trace", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/ai-trace", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = decodeRouteId(req.params.conversationId);
@@ -3543,7 +3588,7 @@ router.get("/conversations/:conversationId/ai-trace", protect, permit("settings"
   }
 });
 
-router.post("/conversations/:conversationId/reset-ai-state", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/reset-ai-state", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = decodeRouteId(req.params.conversationId);
@@ -3608,7 +3653,7 @@ router.post("/conversations/:conversationId/reset-ai-state", protect, permit("se
   }
 });
 
-router.post("/conversations/:conversationId/sync-messenger-profile", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/sync-messenger-profile", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.params.conversationId);
   try {
@@ -3625,7 +3670,7 @@ router.post("/conversations/:conversationId/sync-messenger-profile", protect, pe
   }
 });
 
-router.post("/messenger-profile/refresh", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/messenger-profile/refresh", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.body?.conversation_id || req.body?.conversationId || "");
   const pageId = String(req.body?.page_id || req.body?.pageId || "").trim();
@@ -3647,7 +3692,7 @@ router.post("/messenger-profile/refresh", protect, permit("settings", "edit"), a
   }
 });
 
-router.post("/conversations/:conversationId/debug-messenger-profile", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/debug-messenger-profile", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.params.conversationId);
   try {
@@ -3662,7 +3707,7 @@ router.post("/conversations/:conversationId/debug-messenger-profile", protect, p
   }
 });
 
-router.get("/conversations/:conversationId/debug-messenger-profile", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/debug-messenger-profile", protect, inboxView(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.params.conversationId);
   try {
@@ -3710,7 +3755,7 @@ router.get("/conversations/:conversationId/debug-messenger-profile", protect, pe
   }
 });
 
-router.get("/conversations/:conversationId/recommendations", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/recommendations", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const recommendations = await loadAiInboxRecommendations({
@@ -3778,8 +3823,8 @@ const handleMarkConversationRead = async (req, res) => {
   }
 };
 
-router.post("/conversations/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
-router.post("/inbox/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
+router.post("/conversations/:conversationId/read", protect, inboxReply(), handleMarkConversationRead);
+router.post("/inbox/:conversationId/read", protect, inboxReply(), handleMarkConversationRead);
 
 const handleMarkConversationUnread = async (req, res) => {
   try {
@@ -3832,8 +3877,8 @@ const handleMarkConversationUnread = async (req, res) => {
   }
 };
 
-router.post("/conversations/:conversationId/unread", protect, permit("settings", "edit"), handleMarkConversationUnread);
-router.post("/inbox/:conversationId/unread", protect, permit("settings", "edit"), handleMarkConversationUnread);
+router.post("/conversations/:conversationId/unread", protect, inboxReply(), handleMarkConversationUnread);
+router.post("/inbox/:conversationId/unread", protect, inboxReply(), handleMarkConversationUnread);
 
 const handleMarkAllConversationsRead = async (req, res) => {
   try {
@@ -3861,10 +3906,10 @@ const handleMarkAllConversationsRead = async (req, res) => {
   }
 };
 
-router.post("/conversations/read-all", protect, permit("settings", "edit"), handleMarkAllConversationsRead);
-router.post("/inbox/read-all", protect, permit("settings", "edit"), handleMarkAllConversationsRead);
+router.post("/conversations/read-all", protect, inboxReply(), handleMarkAllConversationsRead);
+router.post("/inbox/read-all", protect, inboxReply(), handleMarkAllConversationsRead);
 
-router.get("/conversations/:conversationId/sales-closer", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/sales-closer", protect, inboxView(), async (req, res) => {
   const tenantId = toTenantId(req);
   const rawRouteId = envText(req.params.conversationId);
   const conversationId = decodeRouteId(rawRouteId);
@@ -4561,7 +4606,7 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
 
 // "My addresses" for the order composer: every address this phone has ordered to
 // before, most recent first. Keyed by phone so it follows the customer across channels.
-router.get("/customer-addresses", protect, permit("settings", "edit"), async (req, res) => {
+router.get("/customer-addresses", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const addresses = await listCustomerSavedAddresses({ tenantId, phone: req.query?.phone || "" });
@@ -4574,7 +4619,7 @@ router.get("/customer-addresses", protect, permit("settings", "edit"), async (re
 // What the order composer shows as shipping before the seller saves. It calls
 // the same resolver the order itself is priced through, so the previewed figure
 // and the invoiced figure cannot disagree.
-router.get("/shipping-quote", protect, permit("settings", "edit"), async (req, res) => {
+router.get("/shipping-quote", protect, inboxReply(), async (req, res) => {
   try {
     const shipping = await resolveAiOrderShipping({
       governorate: req.query?.governorate || "",
@@ -4596,7 +4641,7 @@ router.get("/shipping-quote", protect, permit("settings", "edit"), async (req, r
   }
 });
 
-router.post("/conversations/:conversationId/create-draft-order", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/create-draft-order", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   try {
@@ -4847,7 +4892,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
   }
 });
 
-router.post("/conversations/:conversationId/ai-reply", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/ai-reply", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const result = await generateAiInboxReply({
@@ -4868,7 +4913,7 @@ router.post("/conversations/:conversationId/ai-reply", protect, permit("settings
   }
 });
 
-router.get("/conversations/:conversationId/ai-harness", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/ai-harness", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -4901,7 +4946,7 @@ router.get("/conversations/:conversationId/ai-harness", protect, permit("setting
   }
 });
 
-router.get("/conversations/:conversationId/ai-validation", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/ai-validation", protect, inboxView(), async (req, res) => {
   try {
     if (!isSuperAdminUser(req.user)) {
       return sendError(res, Object.assign(new Error("Admin access required"), { status: 403, code: "FORBIDDEN" }), "Admin access required");
@@ -4951,7 +4996,7 @@ router.get("/conversations/:conversationId/ai-validation", protect, permit("sett
   }
 });
 
-router.get("/conversations/:conversationId/ai-confidence", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/ai-confidence", protect, inboxView(), async (req, res) => {
   try {
     if (!isSuperAdminUser(req.user)) {
       return sendError(res, Object.assign(new Error("Admin access required"), { status: 403, code: "FORBIDDEN" }), "Admin access required");
@@ -5017,7 +5062,7 @@ router.get("/conversations/:conversationId/ai-confidence", protect, permit("sett
   }
 });
 
-router.get("/conversations/:conversationId/ai-pipeline-debug", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/ai-pipeline-debug", protect, inboxView(), async (req, res) => {
   try {
     if (!isSuperAdminUser(req.user)) {
       return sendError(res, Object.assign(new Error("Admin access required"), { status: 403, code: "FORBIDDEN" }), "Admin access required");
@@ -5107,7 +5152,7 @@ router.get("/conversations/:conversationId/ai-pipeline-debug", protect, permit("
   }
 });
 
-router.post("/conversations/:conversationId/messages/:messageId/correction", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/messages/:messageId/correction", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -5173,7 +5218,7 @@ router.post("/conversations/:conversationId/messages/:messageId/correction", pro
   }
 });
 
-router.get("/conversations/:conversationId/corrections", protect, permit("settings", "view"), async (req, res) => {
+router.get("/conversations/:conversationId/corrections", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -5188,7 +5233,7 @@ router.get("/conversations/:conversationId/corrections", protect, permit("settin
   }
 });
 
-router.get("/corrections/search", protect, permit("settings", "view"), async (req, res) => {
+router.get("/corrections/search", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const query = envText(req.query?.q || req.query?.query || "");
@@ -5225,7 +5270,7 @@ const resolveAddressRequestSession = async ({ tenantId, conversationId }) => {
   return conversation ? { session_id: conversation.session_id, channel: conversation.channel || conversation.source || "" } : null;
 };
 
-router.post("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/address-request", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const session = await resolveAddressRequestSession({ tenantId, conversationId: envText(req.params.conversationId) });
@@ -5246,7 +5291,7 @@ router.post("/conversations/:conversationId/address-request", protect, permit("s
   }
 });
 
-router.get("/conversations/:conversationId/address-request", protect, permit("settings", "edit"), async (req, res) => {
+router.get("/conversations/:conversationId/address-request", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     // Polled every few seconds while the composer is open: a single indexed
@@ -5258,9 +5303,13 @@ router.get("/conversations/:conversationId/address-request", protect, permit("se
   }
 });
 
-router.post("/conversations/:conversationId/reply", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/reply", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    // This route stores a staff-only note; it never reaches the channel. The
+    // response has always said "internal_note", but the row was written as an
+    // ordinary staff reply, so the note came back as a sent message on the next
+    // refresh. `internalNote` makes the stored row match the contract.
     const message = await appendManualAiSupportReply({
       tenantId,
       sessionId: req.params.conversationId,
@@ -5268,6 +5317,7 @@ router.post("/conversations/:conversationId/reply", protect, permit("settings", 
       message: req.body?.message || req.body?.reply || "",
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),
+      internalNote: true,
     });
     return res.status(201).json({ success: true, message, delivery_status: "internal_note" });
   } catch (error) {
@@ -5275,7 +5325,7 @@ router.post("/conversations/:conversationId/reply", protect, permit("settings", 
   }
 });
 
-router.post("/conversations/:conversationId/reaction", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/reaction", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const requestedConversationId = envText(req.params.conversationId);
@@ -5399,7 +5449,7 @@ router.post("/conversations/:conversationId/reaction", protect, permit("settings
 // of silently rewriting only our copy of the thread.
 const EDITABLE_MESSAGE_TYPES = new Set(["", "text", "private_message"]);
 
-router.post("/conversations/:conversationId/message/edit", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/message/edit", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const requestedConversationId = envText(req.params.conversationId);
@@ -5532,7 +5582,7 @@ router.post("/conversations/:conversationId/message/edit", protect, permit("sett
   }
 });
 
-router.post("/conversations/:conversationId/send", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/send", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const requestedConversationId = envText(req.params.conversationId);
   let conversationId = requestedConversationId;
@@ -6002,7 +6052,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
   }
 });
 
-router.post("/conversations/:conversationId/product-card/send", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/product-card/send", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const mockDelivery = regressionMockDeliveryRequested(req);
@@ -6348,7 +6398,163 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
   }
 });
 
-router.post("/conversations/:conversationId/test-meta-send", protect, permit("settings", "edit"), async (req, res) => {
+/*
+ * Send an image an operator picked from their own machine.
+ *
+ * Until now the inbox could send TEXT on every channel and IMAGES only as part
+ * of a product card, so answering "ابعتلي صورة المقاس من قريب" meant leaving the
+ * ERP and using the phone. The channel senders all already accept media; what
+ * was missing was a way to get an operator's file to them.
+ *
+ * All three transports fetch the media by URL rather than accepting an upload,
+ * so the file is stored under /uploads/inbox first and sent by its public URL.
+ * That is also why the upload and the send are ONE request: a file uploaded but
+ * never sent is an orphan on disk that nothing will ever clean up.
+ */
+router.post(
+  "/conversations/:conversationId/attachment",
+  protect,
+  inboxReply(),
+  (req, res, next) => {
+    inboxAttachmentUpload.single("file")(req, res, (error) => {
+      if (!error) return next();
+      return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
+        success: false,
+        message: error.code === "LIMIT_FILE_SIZE" ? "The image is larger than the channel will accept." : (error.message || "Attachment upload rejected"),
+        code: error.code === "LIMIT_FILE_SIZE" ? "ATTACHMENT_TOO_LARGE" : "ATTACHMENT_REJECTED",
+      });
+    });
+  },
+  async (req, res) => {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const caption = envText(req.body?.caption || "");
+    if (!req.file) {
+      return sendError(res, Object.assign(new Error("An image file is required"), { status: 400 }), "An image file is required");
+    }
+    const relativeUrl = `${INBOX_ATTACHMENT_URL_PREFIX}/${req.file.filename}`;
+    const discardUpload = () => unlink(req.file.path).catch(() => {});
+
+    try {
+      const resolved = await resolveProductCardSendConversation({ tenantId, conversationId });
+      const conversation = resolved.conversation;
+      if (!conversation) {
+        await discardUpload();
+        throw Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), {
+          status: 404,
+          code: "AI_INBOX_CONVERSATION_NOT_FOUND",
+        });
+      }
+
+      const channel = envText(conversation.channel || conversation.source || "");
+      const normalizedChannel = normalizeProductCardSendChannel(channel);
+      const safeChannel = normalizedChannel || channel || AI_AGENT_CHANNELS.WEB_CHAT;
+      const channelMetadata = conversation.channel_metadata || {};
+      const sessionId = envText(conversation.session_id || conversation.external_conversation_id || conversationId);
+      const conversationRecipientId = recipientIdFromConversationKey({ conversationId: sessionId, channel: normalizedChannel });
+      const recipientId = envText(
+        normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP
+          ? whatsappRecipient({ conversation, channelMetadata }) || conversationRecipientId
+          : (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
+            channelMetadata.customer_psid ||
+            channelMetadata.sender_psid ||
+            channelMetadata.resolved_customer_id ||
+            conversation.external_customer_id ||
+            conversationRecipientId ||
+            ""
+      );
+
+      let sendResult = null;
+      let deliveryStatus = "";
+      let deliveryError = "";
+
+      if (normalizedChannel === AI_AGENT_CHANNELS.WEB_CHAT || !normalizedChannel) {
+        // Web chat has no outbound transport; the transcript row IS the delivery.
+        sendResult = { sent: true, delivery_status: "stored" };
+      } else if (!recipientId) {
+        sendResult = { sent: false, delivery_status: "failed", delivery_error: "The conversation has no reachable recipient id." };
+      } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
+        sendResult = await sendImageMessage({ phone: recipientId, imageUrl: relativeUrl, caption }).catch((error) => ({
+          sent: false,
+          delivery_status: "failed",
+          delivery_error: error?.message || "WhatsApp did not accept the image",
+          error_code: error?.code || "WHATSAPP_IMAGE_SEND_FAILED",
+        }));
+      } else if (normalizedChannel === TELEGRAM_CHANNEL) {
+        sendResult = await sendTelegramMedia({ chatId: recipientId, mediaUrl: relativeUrl, mediaType: "photo", caption }).catch((error) => ({
+          sent: false,
+          delivery_status: "failed",
+          delivery_error: error?.message || "Telegram did not accept the image",
+          error_code: error?.code || "TELEGRAM_MEDIA_SEND_FAILED",
+        }));
+      } else {
+        sendResult = await sendMetaInboxOutboundMessage({
+          tenantId,
+          channel: normalizedChannel,
+          recipientId,
+          messageText: caption,
+          conversationId: sessionId,
+          attachments: [{ type: "image", image_url: relativeUrl }],
+          facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+          instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+        }).catch((error) => ({
+          sent: false,
+          delivery_status: "failed",
+          delivery_error: error?.message || "Meta did not accept the image",
+          error_code: error?.code || "META_IMAGE_SEND_FAILED",
+        }));
+      }
+
+      deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
+      if (deliveryStatus === "failed") {
+        deliveryError = sendResult?.delivery_error || sendResult?.message || "The image was not delivered";
+      }
+
+      // The transcript row is written whether or not the channel accepted it, so
+      // a failed send is visible in the thread instead of vanishing. The file
+      // stays on disk for the same reason: the bubble points at it.
+      const message = await appendManualAiSupportReply({
+        tenantId,
+        sessionId,
+        clientRequestId: requestClientRequestId(req),
+        message: caption,
+        messageType: "image",
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: safeChannel,
+        channel: safeChannel,
+        deliveryStatus,
+        deliveryError,
+        errorCode: sendResult?.error_code || "",
+        externalMessageId: sendResult?.message_id || "",
+        providerMessageId: sendResult?.message_id || "",
+        remoteJid: normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP ? recipientId : "",
+        visualAttachments: [{
+          type: "image",
+          url: relativeUrl,
+          mime_type: req.file.mimetype || "",
+          file_name: req.file.originalname || req.file.filename,
+          file_size: Number(req.file.size || 0),
+        }],
+      });
+
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: sessionId, message, at: new Date().toISOString() });
+
+      return res.status(201).json({
+        success: true,
+        message,
+        url: relativeUrl,
+        delivery_status: deliveryStatus,
+        delivery_error: deliveryError,
+      });
+    } catch (error) {
+      await discardUpload();
+      return sendError(res, error, "Failed to send the attachment");
+    }
+  }
+);
+
+router.post("/conversations/:conversationId/test-meta-send", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.params.conversationId);
   const outboundTestMessage = "\u0627\u062e\u062a\u0628\u0627\u0631 \u0625\u0631\u0633\u0627\u0644 \u0645\u0646 \u0627\u0644\u0633\u064a\u0633\u062a\u0645 \u2705";
@@ -6455,7 +6661,7 @@ router.post("/conversations/:conversationId/test-meta-send", protect, permit("se
   }
 });
 
-router.post("/conversations/:conversationId/force-send-last-ai-reply", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/force-send-last-ai-reply", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.params.conversationId);
   let conversation = null;
@@ -6556,7 +6762,7 @@ router.post("/conversations/:conversationId/force-send-last-ai-reply", protect, 
   }
 });
 
-router.post("/conversations/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/takeover", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6575,7 +6781,7 @@ router.post("/conversations/:conversationId/takeover", protect, permit("settings
   }
 });
 
-router.post("/conversations/:conversationId/return-to-ai", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/return-to-ai", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6632,7 +6838,7 @@ router.post("/conversations/:conversationId/return-to-ai", protect, permit("sett
   }
 });
 
-router.post("/conversations/:conversationId/reopen", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/conversations/:conversationId/reopen", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6683,7 +6889,7 @@ router.post("/conversations/:conversationId/reopen", protect, permit("settings",
   }
 });
 
-router.patch("/conversations/:conversationId/ai-enabled", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/conversations/:conversationId/ai-enabled", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6714,7 +6920,7 @@ router.patch("/conversations/:conversationId/ai-enabled", protect, permit("setti
   }
 });
 
-router.patch("/inbox/:conversationId/favorite", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/inbox/:conversationId/favorite", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6753,7 +6959,7 @@ router.patch("/inbox/:conversationId/favorite", protect, permit("settings", "edi
   }
 });
 
-router.post("/inbox/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/takeover", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6772,7 +6978,7 @@ router.post("/inbox/:conversationId/takeover", protect, permit("settings", "edit
   }
 });
 
-router.post("/inbox/:conversationId/return-to-ai", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/return-to-ai", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6829,7 +7035,7 @@ router.post("/inbox/:conversationId/return-to-ai", protect, permit("settings", "
   }
 });
 
-router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/reopen", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6880,7 +7086,7 @@ router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit")
   }
 });
 
-router.patch("/inbox/:conversationId/ai-enabled", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/inbox/:conversationId/ai-enabled", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
@@ -6911,7 +7117,7 @@ router.patch("/inbox/:conversationId/ai-enabled", protect, permit("settings", "e
   }
 });
 
-router.post("/inbox/:conversationId/reply", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/reply", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const message = await appendManualAiSupportReply({
@@ -6935,7 +7141,7 @@ router.post("/inbox/:conversationId/reply", protect, permit("settings", "edit"),
   }
 });
 
-router.post("/inbox/:conversationId/suggest-reply", protect, permit("settings", "view"), async (req, res) => {
+router.post("/inbox/:conversationId/suggest-reply", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const suggestions = await generateAiSuggestedReplies({
@@ -6949,7 +7155,7 @@ router.post("/inbox/:conversationId/suggest-reply", protect, permit("settings", 
   }
 });
 
-router.patch("/inbox/:conversationId/assign", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/inbox/:conversationId/assign", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const assignedUserId = req.body?.assigned_user_id ?? req.body?.assignedUserId ?? null;
@@ -6984,7 +7190,7 @@ router.patch("/inbox/:conversationId/assign", protect, permit("settings", "edit"
   }
 });
 
-router.post("/inbox/:conversationId/create-customer", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/create-customer", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -7082,7 +7288,7 @@ router.post("/inbox/:conversationId/create-customer", protect, permit("settings"
   }
 });
 
-router.post("/inbox/:conversationId/create-opportunity", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/inbox/:conversationId/create-opportunity", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -7184,7 +7390,7 @@ router.post("/inbox/:conversationId/create-opportunity", protect, permit("settin
   }
 });
 
-router.patch("/inbox/:conversationId/lead-status", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/inbox/:conversationId/lead-status", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -7246,7 +7452,7 @@ router.patch("/inbox/:conversationId/lead-status", protect, permit("settings", "
   }
 });
 
-router.patch("/inbox/:conversationId/labels", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/inbox/:conversationId/labels", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -7331,7 +7537,7 @@ router.patch("/inbox/:conversationId/labels", protect, permit("settings", "edit"
   }
 });
 
-router.patch("/inbox/:conversationId/close", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/inbox/:conversationId/close", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversation = await updateAiSupportConversationState({
@@ -7346,7 +7552,7 @@ router.patch("/inbox/:conversationId/close", protect, permit("settings", "edit")
   }
 });
 
-router.get("/followups", protect, permit("settings", "view"), async (req, res) => {
+router.get("/followups", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const payload = await listAiFollowups({
@@ -7360,7 +7566,7 @@ router.get("/followups", protect, permit("settings", "view"), async (req, res) =
   }
 });
 
-router.post("/followups/:id/send-manual", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/followups/:id/send-manual", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const result = await sendAiFollowupManual({
@@ -7377,7 +7583,7 @@ router.post("/followups/:id/send-manual", protect, permit("settings", "edit"), a
   }
 });
 
-router.patch("/followups/:id/snooze", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/followups/:id/snooze", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const followup = await snoozeAiFollowup({
@@ -7393,7 +7599,7 @@ router.patch("/followups/:id/snooze", protect, permit("settings", "edit"), async
   }
 });
 
-router.patch("/followups/:id/cancel", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/followups/:id/cancel", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const followup = await cancelAiFollowup({
@@ -7408,7 +7614,7 @@ router.patch("/followups/:id/cancel", protect, permit("settings", "edit"), async
   }
 });
 
-router.patch("/followups/:id/done", protect, permit("settings", "edit"), async (req, res) => {
+router.patch("/followups/:id/done", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const followup = await completeAiFollowup({

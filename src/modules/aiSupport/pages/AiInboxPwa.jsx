@@ -40,6 +40,7 @@ import { FaFacebookMessenger, FaInstagram, FaTelegramPlane, FaWhatsapp } from "r
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
+import usePermission from "../../permissions/hooks/usePermission";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
@@ -67,9 +68,34 @@ import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import "./AiInboxPwa.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
+import {
+  ENABLE_SOCIAL_FAST_CENTER,
+  GENERIC_CUSTOMER_NAMES,
+  MESSAGE_LIKE_NAME_KEYWORDS,
+  aiAgentInboxEndpoint,
+  aiInboxConversationEndpoint,
+  aiReplyCorrectionEndpoint,
+  asArray,
+  buildClientRequestId,
+  clean,
+  encodeConversationId,
+  firstUsefulCustomerName,
+  getConversationThreadMetadata,
+  isConversationAiEnabled,
+  isFromMeMessage,
+  isGenericCustomerName,
+  isLikelyMessengerExternalId,
+  isSocialPostSummary,
+  isUsefulCommenterName,
+  looksLikeMessageName,
+  messageIdentityKeys,
+  normalizeProductCardsValue,
+  normalizeValidationSummary,
+  transcriptDayKey,
+  transcriptDayLabel,
+  transcriptRowTime,
+} from "../lib/conversationHelpers";
 
-const asArray = (value) => (Array.isArray(value) ? value : []);
-const clean = (value = "") => String(value || "").trim();
 const isWhatsappChannel = (value = "") => clean(value).toLowerCase().includes("whatsapp");
 const SOCIAL_COMMENTS_CACHE_PREFIX = "m1:ai-inbox-pwa:social-posts";
 const socialCommentsCacheKey = (tenantId = "") =>
@@ -94,68 +120,12 @@ const writeSocialCommentsCache = (tenantId = "", items = []) => {
     // Storage can be unavailable in private mode; the live list still works normally.
   }
 };
-const GENERIC_CUSTOMER_NAMES = new Set([
-  "customer",
-  "customers",
-  "client",
-  "guest",
-  "unknown",
-  "anonymous",
-  "user",
-  "lead",
-  "عميل",
-  "العميل",
-  "زائر",
-  "مستخدم",
-  "غير معروف",
-  ".",
-  "-",
-  "n/a",
-  "null",
-  "undefined",
-]);
-const isGenericCustomerName = (value = "") => {
-  const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
-  return !normalized || GENERIC_CUSTOMER_NAMES.has(normalized);
-};
 // A brand-new Messenger conversation can land with customer_name set to the customer's
 // first message (e.g. "ممكن صور جوردن فور") before the Facebook profile is fetched. Detect
 // that so we can trigger a profile sync and replace it with the real name + avatar. Mirrors
 // the backend messenger-name-repair heuristic. False positives only cost one extra profile
 // fetch (gated per conversation), so this can be a little aggressive.
-const MESSAGE_LIKE_NAME_KEYWORDS = /(السلام عليكم|سلام عليكم|عليكم السلام|ممكن|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|بكام|بكاام|وريني|ورينى|ابعت|ابعتلي|ابعتلى|هاتلي|هاتلى|فين|متاح|السعر|سعر|المقاس|مقاس|اللون|لون|صوره|صور|عندكم|عندكو|available|price|size|color)/i;
-const looksLikeMessageName = (value = "") => {
-  const normalized = clean(value);
-  if (!normalized) return false;
-  if (normalized.length > 40) return true;
-  if (/[?!؟…]/.test(normalized)) return true;
-  return MESSAGE_LIKE_NAME_KEYWORDS.test(normalized);
-};
 // Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026").
-const transcriptDayKey = (value) => {
-  const date = new Date(value || 0);
-  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
-};
-const transcriptDayLabel = (value) => {
-  const date = new Date(value || 0);
-  if (!Number.isFinite(date.getTime()) || date.getTime() <= 0) return "";
-  const key = transcriptDayKey(value);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (key === transcriptDayKey(today)) return "اليوم";
-  if (key === transcriptDayKey(yesterday)) return "أمس";
-  try {
-    return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
-  } catch {
-    return date.toLocaleDateString();
-  }
-};
-const transcriptRowTime = (row = {}) =>
-  row.created_at || row.createdAt || row.timestamp || row.sent_at || row.message_created_at || row.created || row.time || "";
-const firstUsefulCustomerName = (...values) =>
-  values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
-
 /*
  * Order composition is owned by EnhancedPwaOrderComposer below. The two former
  * inline implementations duplicated the same UI, were unreachable, and kept a
@@ -359,7 +329,6 @@ const cleanMessageText = (value, depth = 0) => {
   }
   return "";
 };
-const ENABLE_SOCIAL_FAST_CENTER = true;
 const truthy = (value) => ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 const DEBUG_SOCIAL_PERF = truthy(import.meta.env?.VITE_DEBUG_SOCIAL_PERF) || truthy(import.meta.env?.VITE_SOCIAL_PERF_DEBUG);
 const firstNonEmpty = (...values) => {
@@ -372,32 +341,6 @@ const firstNonEmpty = (...values) => {
 };
 const money = (value) => formatCurrency(Number(value || 0));
 const normalizeKey = (value = "") => clean(value).toLowerCase();
-const normalizeValidationSummary = (value = {}) => {
-  const validation = value && typeof value === "object" ? value : {};
-  const violations = asArray(validation.violations || validation.issues || []);
-  const warnings = asArray(validation.warnings || []);
-  const violationsCount = Number(validation.violations_count ?? validation.violationsCount ?? violations.length ?? 0) || 0;
-  const warningsCount = Number(validation.warnings_count ?? validation.warningsCount ?? warnings.length ?? 0) || 0;
-  const confidence = Number(validation.confidence ?? validation.confidence_pct ?? 0);
-  const confidencePercent = Number.isFinite(confidence) ? Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence)) : 0;
-  const hasErrors = violations.some((item) => clean(item?.severity || "").toLowerCase() === "error");
-  const status =
-    clean(validation.status || validation.state || "") ||
-    (violationsCount > 0 ? (hasErrors ? "خطر / تحقق قبل الإرسال" : "يحتاج مراجعة") : warningsCount > 0 ? "يحتاج مراجعة" : "آمن");
-  const details = [
-    ...violations.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
-    ...warnings.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
-  ].filter(Boolean).slice(0, 3);
-  return {
-    confidencePercent,
-    violationsCount,
-    warningsCount,
-    status,
-    details,
-    violations,
-    warnings,
-  };
-};
 const normalizeConfidenceEngineSummary = (value = {}) => {
   const engine = value && typeof value === "object" ? value : {};
   const scoreValue = Number(engine.score ?? engine.confidence_score ?? 0);
@@ -513,15 +456,6 @@ const usePageVisible = () => {
   return visible;
 };
 
-const encodeConversationId = (value = "") => {
-  const raw = clean(value);
-  try {
-    return encodeURIComponent(decodeURIComponent(raw));
-  } catch {
-    return encodeURIComponent(raw);
-  }
-};
-
 const CONVERSATION_CHANNEL_PREFIXES = new Map([
   ["facebook_messenger", "facebook_messenger"],
   ["facebook", "facebook_messenger"],
@@ -579,27 +513,11 @@ const normalizeConversationSessionId = (value = "", channel = "") => {
   return `${detectedPrefix}:${baseSessionId}`;
 };
 
-const buildClientRequestId = () => {
-  if (typeof crypto !== "undefined" && crypto?.randomUUID) return crypto.randomUUID();
-  return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
-
 const buildMessageIdentityKey = ({ tenantId = "", sessionId = "", direction = "outbound", clientRequestId = "", providerMessageId = "", externalMessageId = "" } = {}) => {
   const canonicalSessionId = normalizeConversationSessionId(sessionId);
   const stableKey = clean(clientRequestId || providerMessageId || externalMessageId);
   return stableKey && canonicalSessionId ? `msg:${clean(tenantId)}|${canonicalSessionId}|${clean(direction || "outbound")}|${stableKey}` : "";
 };
-
-const messageIdentityKeys = (message = {}) =>
-  [
-    clean(message.message_identity_key || message.messageIdentityKey || ""),
-    clean(message.client_request_id || message.clientRequestId || ""),
-    clean(message.idempotency_key || message.idempotencyKey || ""),
-    clean(message.dedupe_key || message.dedupeKey || ""),
-    clean(message.provider_message_id || message.providerMessageId || ""),
-    clean(message.external_message_id || message.externalMessageId || ""),
-    clean(message.id || ""),
-  ].filter(Boolean);
 
 const messagePrimaryKey = (message = {}) => messageIdentityKeys(message)[0] || "";
 
@@ -644,9 +562,6 @@ const conversationIdentifiers = (conversation = {}) => {
   };
 };
 
-const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
-  `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
-
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(
     conversation.channel ||
@@ -666,22 +581,6 @@ const normalizeConversationChannel = (conversation = {}) => {
 };
 
 const conversationKey = (conversation = {}) => conversationIdentifiers(conversation).conversationKey;
-
-const normalizeProductCardsValue = (value) => {
-  if (Array.isArray(value)) return value;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return [];
-    try {
-      const parsed = JSON.parse(trimmed);
-      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-    } catch {
-      return [];
-    }
-  }
-  if (value && typeof value === "object") return [value];
-  return [];
-};
 
 const normalizeMessageProductCards = (message = {}) =>
   normalizeProductCardsValue(
@@ -715,11 +614,6 @@ const messageDisplayText = (message = {}) => {
   }
   return "";
 };
-
-const isFromMeMessage = (message = {}) =>
-  message?.from_me === true ||
-  message?.fromMe === true ||
-  message?.is_from_me === true;
 
 const normalizeMessageDirection = (message = {}) => {
   const senderType = clean(message.sender_type || message.senderType || "").toLowerCase();
@@ -803,8 +697,6 @@ const normalizeInboxMessage = (message = {}) => {
   };
 };
 
-const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
-
 const conversationWorkflowStatus = (conversation = {}) =>
   clean(conversation?.conversation_status || conversation?.status || "").toLowerCase();
 
@@ -814,11 +706,6 @@ const needsHumanAttention = (conversation = {}) =>
   conversation?.conversation_status === "human_takeover" ||
   conversation?.needs_human_support === true ||
   Boolean(clean(conversation?.escalation_reason || conversation?.ai_escalation_reason));
-
-const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
-  `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
-const aiReplyCorrectionEndpoint = (sessionId = "", messageId = "") =>
-  aiAgentInboxEndpoint(sessionId, `/messages/${encodeConversationId(messageId)}/correction`);
 
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
@@ -839,12 +726,6 @@ const isCommentConversation = (conversation = {}) => {
   const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
   const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind || "").toLowerCase();
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
-};
-
-const getConversationThreadMetadata = (item = {}) => {
-  const channelMetadata = item?.channel_metadata && typeof item.channel_metadata === "object" && !Array.isArray(item.channel_metadata) ? item.channel_metadata : {};
-  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
-  return { channelMetadata, metadata };
 };
 
 const isSocialCommentThread = (item = {}) => {
@@ -922,11 +803,6 @@ const latestCommentMessage = (conversation = {}) =>
     clean(message?.thread_kind).toLowerCase() === "comment" ||
     clean(message?.commenter_name)
   ) || conversation?.latest_comment || conversation?.last_comment || conversation?.comment || {};
-
-const isUsefulCommenterName = (value = "") => {
-  const name = clean(value);
-  return Boolean(name) && !/^\d+$/.test(name) && !["customer", "unknown", "guest", "anonymous", "commenter", "عميل", "العميل"].includes(name.toLowerCase());
-};
 
 const commentThreadCommenterName = (conversation = {}) => {
   const message = latestCommentMessage(conversation);
@@ -1312,13 +1188,6 @@ const conversationHydrationState = (conversation = {}) => {
   const messages = uniqueMessages(conversation.messages);
   return messages.length > 1 || conversation.older_messages_available === false;
 };
-
-const isSocialPostSummary = (item = {}) =>
-  Object.prototype.hasOwnProperty.call(item, "comments_count") ||
-  Object.prototype.hasOwnProperty.call(item, "new_comments_count") ||
-  Object.prototype.hasOwnProperty.call(item, "last_comment_text") ||
-  Object.prototype.hasOwnProperty.call(item, "post_full_picture") ||
-  Object.prototype.hasOwnProperty.call(item, "full_picture");
 
 const normalizedSocialPlatform = (item = {}) => {
   const value = clean(
@@ -1755,10 +1624,6 @@ const channelMeta = (value = "") => {
   return { labelKey: "aiSupport.inbox.pwa.web", icon: Globe, tone: "text-slate-500" };
 };
 
-const isLikelyMessengerExternalId = (value = "") => {
-  const candidate = clean(value).replace(/\s+/g, "");
-  return Boolean(candidate) && /^\d{5,}$/.test(candidate);
-};
 // Instagram Direct conversation (not a comment thread). Used to keep the raw
 // Instagram-scoped user id out of the displayed name and to pick a safe label.
 const isInstagramDmConversation = (conversation = {}) => {
@@ -3379,6 +3244,7 @@ export default function AiInboxPwa() {
   const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
   const lastRequestedMessagePlatformRef = useRef("all");
   const [leadFilter, setLeadFilter] = useState("new");
+  const canReply = usePermission("ai_inbox_messenger.reply");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
@@ -3473,6 +3339,8 @@ export default function AiInboxPwa() {
   // state) so a rapid double-click cannot start a second send before the first
   // render commits — preventing duplicate outbound messages.
   const manualSendInFlightRef = useRef(false);
+  // Its own guard: an upload takes seconds, and the picker can fire twice.
+  const attachmentSendingRef = useRef(false);
   const previousConversationKeyRef = useRef("");
   const previousLatestMessageKeyRef = useRef("");
   const markReadSignatureRef = useRef("");
@@ -5566,12 +5434,59 @@ export default function AiInboxPwa() {
     window.requestAnimationFrame(() => editor?.focus());
   }, []);
 
-  const handleImageAttachmentChange = useCallback((event) => {
+  /*
+   * The picker used to open, take a file, and answer "not supported" — the
+   * button existed but nothing behind it did. The channel senders all accept
+   * media by URL, so the file is uploaded and sent in one request; see
+   * POST /conversations/:id/attachment.
+   */
+  const handleImageAttachmentChange = useCallback(async (event) => {
     const file = event.target.files?.[0] || null;
+    // Reset before the await: picking the same file twice must fire onChange
+    // again, and it will not while the value is still set.
     event.target.value = "";
-    if (!file) return;
-    toast.error(t("aiSupport.inbox.pwa.imageSendingUnsupported"));
-  }, []);
+    const sessionId = selectedConversation?.session_id;
+    if (!file || !sessionId) return;
+    if (attachmentSendingRef.current) return;
+    attachmentSendingRef.current = true;
+    const canonicalSessionId = selectedConversationRouteId || sessionId;
+    const caption = cleanMessageText(composerText);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("tenant_id", String(tenantId || ""));
+    if (caption) form.append("caption", caption);
+    form.append("client_request_id", buildClientRequestId());
+    setSending(true);
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(canonicalSessionId, "/attachment"),
+        form,
+        { headers, perfComponent: "AiInboxPwa.sendAttachment" }
+      );
+      if (payload?.message) {
+        patchConversation(selectedConversation.conversation_key || sessionId, (conversation) => ({
+          ...conversation,
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
+          latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
+          last_activity_at: payload.message.created_at || new Date().toISOString(),
+          updated_at: payload.message.created_at || new Date().toISOString(),
+        }));
+      }
+      setComposerText("");
+      // The transcript row is written even when the channel refused it, so the
+      // 201 is not by itself proof of delivery.
+      if (payload?.delivery_status === "failed") {
+        toast.error(payload?.delivery_error || t("aiSupport.inbox.composer.imageSendFailed"));
+      } else {
+        toast.success(t("aiSupport.inbox.composer.imageSent"));
+      }
+    } catch (error) {
+      toast.error(error?.message || t("aiSupport.inbox.composer.imageSendFailed"));
+    } finally {
+      attachmentSendingRef.current = false;
+      setSending(false);
+    }
+  }, [composerText, headers, patchConversation, selectedConversation, selectedConversationRouteId, t, tenantId]);
 
   const toggleConversationAi = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
@@ -6120,7 +6035,10 @@ export default function AiInboxPwa() {
   const drawerAnalysisCustomerId = clean(customerDrawer.customerId || customerDrawer.customer?.customer_profile_id || customerDrawer.customer?.customerProfileId || customerDrawer.customer?.external_customer_id || customerDrawer.customer?.customer_profile?.id || customerDrawer.customer?.id || "");
   const customerDrawerAnalysis = selectedAnalysisCustomerId && selectedAnalysisCustomerId === drawerAnalysisCustomerId ? aiIntegration.analysis : null;
   const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen);
-  const showComposer = contentScreen;
+  // The API gates sending on ai_inbox_messenger:reply, separately from the
+  // :view grant that opens this screen. Hide the composer for a read-only
+  // operator instead of letting every send collect a 403.
+  const showComposer = contentScreen && canReply;
   const selectedMetaLabel = getConversationSourceLabel(selectedConversation || {}, t);
   const SelectedChannelIcon = getConversationSourceIcon(selectedConversation || {});
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});

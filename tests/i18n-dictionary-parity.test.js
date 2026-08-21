@@ -118,15 +118,43 @@ test("no manifest branch is declared twice", () => {
   assert.deepEqual(duplicates, [], `Duplicate resource branches silently drop a whole bundle: ${duplicates.join(", ")}`);
 });
 
+/*
+ * Plural categories are a property of the LANGUAGE, not of the dictionary.
+ *
+ * English has two (`one`, `other`); Arabic has six, and supplying only the two
+ * English ones makes i18next fall through to the English string at counts 2, 3
+ * and 11 — the counts an inbox actually shows. So `key_few` existing in Arabic
+ * and not in English is correct, and demanding parity on it would push authors
+ * toward the broken two-form spelling.
+ *
+ * What still has to match is the BASE key: every plural family must exist in
+ * both locales, each with at least the forms its own language requires.
+ */
+const PLURAL_SUFFIXES = ["zero", "one", "two", "few", "many", "other"];
+const REQUIRED_PLURAL_FORMS = { en: ["one", "other"], ar: ["one", "other"] };
+const pluralBase = (key) => {
+  for (const suffix of PLURAL_SUFFIXES) {
+    if (key.endsWith(`_${suffix}`)) return key.slice(0, -(suffix.length + 1));
+  }
+  return "";
+};
+const hasPluralFamily = (tree, base, locale) =>
+  (REQUIRED_PLURAL_FORMS[locale] || ["other"]).every((suffix) => tree.has(`${base}_${suffix}`));
+
 test("Arabic and English dictionaries expose the same keys", () => {
   const [first, ...rest] = SUPPORTED_LOCALES;
   const problems = [];
+  const satisfied = (key, tree, locale) => {
+    if (tree.has(key) || exemptKeys.has(key)) return true;
+    const base = pluralBase(key);
+    return Boolean(base) && hasPluralFamily(tree, base, locale);
+  };
   for (const other of rest) {
     for (const key of trees[first].keys()) {
-      if (!trees[other].has(key) && !exemptKeys.has(key)) problems.push(`missing in ${other}: ${key}`);
+      if (!satisfied(key, trees[other], other)) problems.push(`missing in ${other}: ${key}`);
     }
     for (const key of trees[other].keys()) {
-      if (!trees[first].has(key) && !exemptKeys.has(key)) problems.push(`missing in ${first}: ${key}`);
+      if (!satisfied(key, trees[first], first)) problems.push(`missing in ${first}: ${key}`);
     }
   }
   assert.deepEqual(

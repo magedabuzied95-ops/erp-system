@@ -579,8 +579,24 @@
       "availableProducts": "المنتجات المتاحة",
       "sendNowMeta": "إرسال الآن عبر Meta",
       "closedConversation": "المحادثة مغلقة. تم تعطيل الرد اليدوي.",
+      "readOnly": "صلاحيتك في صندوق الوارد قراءة فقط. اطلب من المسؤول صلاحية الرد عشان تقدر تبعت رسائل.",
       "takeoverWarning": "إرسال رد يدوي سيستحوذ على المحادثة ويوقف أتمتة الذكاء الاصطناعي.",
-      "editing": "جاري التعديل"
+      "editing": "جاري التعديل",
+      "modeGroup": "وضع الكتابة",
+      "modeReply": "رد",
+      "modeNote": "ملاحظة داخلية",
+      "writeInternalNote": "ملاحظة داخلية — العميل مش هيشوفها",
+      "saveNote": "حفظ الملاحظة",
+      "saveNoteTitle": "حفظ ملاحظة للموظفين فقط على المحادثة دي",
+      "sendNow": "إرسال الآن",
+      "sendCommentReply": "إرسال الرد",
+      "sendCommentReplyTitle": "إرسال رد علني على الكومنت",
+      "noteSaved": "تم حفظ الملاحظة الداخلية.",
+      "attachImage": "إرسال صورة",
+      "attachImageNoteMode": "ارجع لوضع الرد عشان تبعت صورة",
+      "imagePreview": "📷 صورة",
+      "imageSent": "تم إرسال الصورة.",
+      "imageSendFailed": "الصورة لم تُسلَّم."
     },
     "delivery": {
       "sending": "جاري الإرسال",
@@ -1019,7 +1035,25 @@
       "fmtImageLink": "صورة + لينك",
       "fmtTextLink": "نص + لينك المنتج",
       "fmtLink": "لينك المنتج",
-      "templateHint": "نص القالب باستخدام {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
+      "templateHint": "نص القالب باستخدام {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}",
+      "markAllReadConfirm_zero": "تحديد {{count}} محادثة كمقروءة في {{scope}}؟ غير المقروء معناه في انتظار رد، فده هيشيلهم من الطابور.",
+      "markAllReadConfirm_one": "تحديد محادثة واحدة كمقروءة في {{scope}}؟ غير المقروء معناه في انتظار رد، فده هيشيلها من الطابور.",
+      "markAllReadConfirm_two": "تحديد محادثتين كمقروءتين في {{scope}}؟ غير المقروء معناه في انتظار رد، فده هيشيلهم من الطابور.",
+      "markAllReadConfirm_few": "تحديد {{count}} محادثات كمقروءة في {{scope}}؟ غير المقروء معناه في انتظار رد، فده هيشيلهم من الطابور.",
+      "markAllReadConfirm_many": "تحديد {{count}} محادثة كمقروءة في {{scope}}؟ غير المقروء معناه في انتظار رد، فده هيشيلهم من الطابور.",
+      "markAllReadConfirm_other": "تحديد {{count}} محادثة كمقروءة في {{scope}}؟ غير المقروء معناه في انتظار رد، فده هيشيلهم من الطابور.",
+      "markAllReadScopeAll": "كل القنوات",
+      "markAllReadDone_zero": "تم تحديد {{count}} محادثة كمقروءة.",
+      "markAllReadDone_one": "تم تحديد محادثة واحدة كمقروءة.",
+      "markAllReadDone_two": "تم تحديد محادثتين كمقروءتين.",
+      "markAllReadDone_few": "تم تحديد {{count}} محادثات كمقروءة.",
+      "markAllReadDone_many": "تم تحديد {{count}} محادثة كمقروءة.",
+      "markAllReadDone_other": "تم تحديد {{count}} محادثة كمقروءة.",
+      "markAllReadFailed": "فشل تحديد المحادثات كمقروءة.",
+      "loadMore": "تحميل محادثات أقدم",
+      "loadingMore": "جارٍ التحميل…",
+      "emptyLeadFilterWindowed": "مفيش نتائج في المحادثات المحمّلة لحد دلوقتي. حمّل محادثات أقدم عشان توسّع البحث.",
+      "emptyMetaConversations": "لا توجد محادثات Meta بعد. سيظهر النشاط هنا مع بدء استقبال الرسائل والتعليقات."
     },
     "emoji": {
       "choose": "اختر إيموجي",
@@ -1201,7 +1235,68 @@
       "leadScore": "تقييم العميل المحتمل {{score}}",
       "objection": "الاعتراض: {{objection}}",
       "copilot": "المساعد الذكي",
-      "debug": "تصحيح الذكاء"
+      "debug": "تصحيح الذكاء",
+      "labels": {
+        "intent": {
+          "price_inquiry": "سؤال عن السعر",
+          "size_inquiry": "سؤال عن المقاس",
+          "availability": "توافر",
+          "delivery": "التوصيل",
+          "exchange": "استبدال أو إرجاع",
+          "complaint": "شكوى",
+          "payment": "الدفع",
+          "order_tracking": "تتبع الطلب",
+          "purchase_ready": "جاهز للشراء",
+          "greeting": "تحية",
+          "spam": "رسالة مزعجة",
+          "support": "دعم"
+        },
+        "signal": {
+          "asked_price": "سأل عن السعر",
+          "asked_size": "سأل عن المقاس",
+          "asked_colors": "سأل عن الألوان",
+          "asked_payment": "سأل عن الدفع",
+          "asked_shipping": "سأل عن الشحن",
+          "asked_availability": "سأل عن التوافر",
+          "asked_invoice": "طلب فاتورة",
+          "asked_discount": "طلب خصم"
+        },
+        "objection": {
+          "price": "السعر",
+          "trust": "الثقة",
+          "delivery": "التوصيل",
+          "availability": "التوافر",
+          "payment": "الدفع",
+          "size": "المقاس",
+          "color": "اللون"
+        },
+        "mood": {
+          "happy": "راضٍ",
+          "neutral": "محايد",
+          "confused": "محتار",
+          "urgent": "مستعجل",
+          "angry": "غاضب",
+          "excited": "متحمس",
+          "price_sensitive": "حساس للسعر"
+        },
+        "priority": {
+          "low": "أولوية منخفضة",
+          "medium": "أولوية متوسطة",
+          "high": "أولوية عالية",
+          "critical": "حرجة"
+        },
+        "stage": {
+          "new_lead": "عميل محتمل جديد",
+          "interested": "مهتم",
+          "comparing": "بيقارن",
+          "negotiating": "بيفاوض",
+          "ready_to_buy": "جاهز للشراء",
+          "purchased": "اشترى",
+          "returning_customer": "عميل عائد",
+          "support": "دعم",
+          "lost": "ضائع"
+        }
+      }
     },
     "customer360": {
       "title": "ملف العميل 360",

@@ -55,7 +55,8 @@ test("desktop workspace keeps search while channel filters stay out of the top b
 test("desktop message composer matches the omnichannel footer in light and dark modes", () => {
   assert.match(desktopSource, /data-ai-inbox-composer="true"/);
   // Localized: the live/internal-note split is what this guards, not the copy.
-  assert.match(desktopSource, /placeholder=\{canSendLive \? t\("aiSupport\.inbox\.composer\.placeholder"\)/);
+  // Note mode takes precedence over both, so it reads first in the chain.
+  assert.match(desktopSource, /placeholder=\{noteMode \? t\("aiSupport\.inbox\.composer\.writeInternalNote"\) : canSendLive \? t\("aiSupport\.inbox\.composer\.placeholder"\)/);
   assert.match(desktopSource, /<Paperclip className="h-5 w-5"/);
   assert.match(desktopSource, /<Smile className="h-5 w-5"/);
   assert.match(desktopSource, /<FileText className="h-5 w-5"/);

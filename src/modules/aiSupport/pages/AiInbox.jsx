@@ -75,6 +75,9 @@ import {
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { emitRealtime, subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
+import usePermission from "../../permissions/hooks/usePermission";
+import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
+import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
@@ -97,61 +100,52 @@ import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLa
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
-import { channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
+import { backendChannelFilter, channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import "./AiInboxOrderComposer.m1.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
+import {
+  ENABLE_SOCIAL_FAST_CENTER,
+  GENERIC_CUSTOMER_NAMES,
+  MESSAGE_LIKE_NAME_KEYWORDS,
+  aiAgentInboxEndpoint,
+  aiInboxConversationEndpoint,
+  aiReplyCorrectionEndpoint,
+  asArray,
+  buildClientRequestId,
+  clean,
+  encodeConversationId,
+  firstUsefulCustomerName,
+  getConversationThreadMetadata,
+  isConversationAiEnabled,
+  isFromMeMessage,
+  isGenericCustomerName,
+  isLikelyMessengerExternalId,
+  isSocialPostSummary,
+  isUsefulCommenterName,
+  looksLikeMessageName,
+  messageIdentityKeys,
+  normalizeProductCardsValue,
+  normalizeValidationSummary,
+  transcriptDayKey,
+  transcriptDayLabel,
+  transcriptRowTime,
+} from "../lib/conversationHelpers";
 
 // Loaded on demand: the integrations center pulls in the whole Meta/marketing
 // API surface, which the inbox itself never touches.
 const IntegrationsCenter = lazy(() => import("../components/integrations/IntegrationsCenter.jsx"));
 const INTEGRATION_TAB_KEYS = new Set(["overview", "meta", "whatsapp", "tiktok"]);
 
-const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
-const clean = (value = "") => String(value || "").trim();
-const GENERIC_CUSTOMER_NAMES = new Set([
-  "customer",
-  "customers",
-  "client",
-  "guest",
-  "unknown",
-  "anonymous",
-  "user",
-  "lead",
-  "عميل",
-  "العميل",
-  "زائر",
-  "مستخدم",
-  "غير معروف",
-  ".",
-  "-",
-  "n/a",
-  "null",
-  "undefined",
-]);
-const isGenericCustomerName = (value = "") => {
-  const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
-  return !normalized || GENERIC_CUSTOMER_NAMES.has(normalized);
-};
 // A brand-new Messenger conversation can land with customer_name set to the customer's
 // first message (e.g. "ممكن صور جوردن فور") before the Facebook profile is fetched. Detect
 // that so we can trigger a profile sync and replace it with the real name + avatar. Mirrors
 // the backend messenger-name-repair heuristic. False positives only cost one extra profile
 // fetch (gated per conversation), so this can be a little aggressive.
-const MESSAGE_LIKE_NAME_KEYWORDS = /(السلام عليكم|سلام عليكم|عليكم السلام|ممكن|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|بكام|بكاام|وريني|ورينى|ابعت|ابعتلي|ابعتلى|هاتلي|هاتلى|فين|متاح|السعر|سعر|المقاس|مقاس|اللون|لون|صوره|صور|عندكم|عندكو|available|price|size|color)/i;
-const looksLikeMessageName = (value = "") => {
-  const normalized = clean(value);
-  if (!normalized) return false;
-  if (normalized.length > 40) return true;
-  if (/[?!؟…]/.test(normalized)) return true;
-  return MESSAGE_LIKE_NAME_KEYWORDS.test(normalized);
-};
-const firstUsefulCustomerName = (...values) =>
-  values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 const customerIdentifier = (...values) => {
   const value = values.map((item) => clean(item)).find(Boolean) || "";
   return value.replace(/^whatsapp:/i, "").replace(/@(?:s\.whatsapp\.net|c\.us|lid)$/i, "").trim();
@@ -205,33 +199,6 @@ const socialDebugLog = (...args) => {
 
   console.log(...args);
 };
-const ENABLE_SOCIAL_FAST_CENTER = true;
-const normalizeValidationSummary = (value = {}) => {
-  const validation = value && typeof value === "object" ? value : {};
-  const violations = asArray(validation.violations || validation.issues || []);
-  const warnings = asArray(validation.warnings || []);
-  const violationsCount = Number(validation.violations_count ?? validation.violationsCount ?? violations.length ?? 0) || 0;
-  const warningsCount = Number(validation.warnings_count ?? validation.warningsCount ?? warnings.length ?? 0) || 0;
-  const confidence = Number(validation.confidence ?? validation.confidence_pct ?? 0);
-  const confidencePercent = Number.isFinite(confidence) ? Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence)) : 0;
-  const hasErrors = violations.some((item) => clean(item?.severity || "").toLowerCase() === "error");
-  const status =
-    clean(validation.status || validation.state || "") ||
-    (violationsCount > 0 ? (hasErrors ? "خطر / تحقق قبل الإرسال" : "يحتاج مراجعة") : warningsCount > 0 ? "يحتاج مراجعة" : "آمن");
-  const details = [
-    ...violations.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
-    ...warnings.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
-  ].filter(Boolean).slice(0, 3);
-  return {
-    confidencePercent,
-    violationsCount,
-    warningsCount,
-    status,
-    details,
-    violations,
-    warnings,
-  };
-};
 const normalizeConfidenceEngineSummary = (value = {}) => {
   const engine = value && typeof value === "object" ? value : {};
   const score = Number(engine.score ?? engine.confidence_score ?? 0);
@@ -258,40 +225,11 @@ const normalizeConfidenceEngineSummary = (value = {}) => {
     riskFlagsCount: Object.values(riskFlags).filter(Boolean).length,
   };
 };
-const normalizeProductCardsValue = (value) => {
-  if (Array.isArray(value)) return value;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return [];
-    try {
-      const parsed = JSON.parse(trimmed);
-      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-    } catch {
-      return [];
-    }
-  }
-  if (value && typeof value === "object") return [value];
-  return [];
-};
-const encodeConversationId = (value = "") => {
-  const raw = clean(value);
-  try {
-    return encodeURIComponent(decodeURIComponent(raw));
-  } catch {
-    return encodeURIComponent(raw);
-  }
-};
-const buildClientRequestId = () => {
-  if (typeof crypto !== "undefined" && crypto?.randomUUID) return crypto.randomUUID();
-  return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
 const buildMessageIdentityKey = ({ tenantId = "", sessionId = "", direction = "outbound", clientRequestId = "", providerMessageId = "", externalMessageId = "" } = {}) => {
   const canonicalSessionId = encodeConversationId(sessionId);
   const stableKey = clean(clientRequestId || providerMessageId || externalMessageId);
   return stableKey && canonicalSessionId ? `msg:${clean(tenantId)}|${canonicalSessionId}|${clean(direction || "outbound")}|${stableKey}` : "";
 };
-const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
-  `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
 const metaReviewerChannel = (value = "") => clean(value).toLowerCase().includes("instagram") ? "instagram" : "messenger";
 const metaReviewerConversationEndpoint = (channel = "messenger", conversationRef = "", suffix = "") =>
   `/meta-reviewer/inbox/channels/${metaReviewerChannel(channel)}/conversations${conversationRef ? `/${encodeConversationId(conversationRef)}` : ""}${suffix}`;
@@ -324,10 +262,6 @@ const normalizeMetaReviewerMessage = (message = {}) => ({
   manual_message: message.sender_type !== "customer",
   visual_attachments: asArray(message.attachments),
 });
-const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
-  `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
-const aiReplyCorrectionEndpoint = (sessionId = "", messageId = "") =>
-  aiAgentInboxEndpoint(sessionId, `/messages/${encodeConversationId(messageId)}/correction`);
 const replyCorrectionTypes = [
   { value: "wrong_price", label: "wrong_price" },
   { value: "wrong_stock", label: "wrong_stock" },
@@ -589,13 +523,6 @@ const normalizeSocialCommentThreadComment = (raw) => {
   };
 };
 
-const isSocialPostSummary = (item = {}) =>
-  Object.prototype.hasOwnProperty.call(item, "comments_count") ||
-  Object.prototype.hasOwnProperty.call(item, "new_comments_count") ||
-  Object.prototype.hasOwnProperty.call(item, "last_comment_text") ||
-  Object.prototype.hasOwnProperty.call(item, "post_full_picture") ||
-  Object.prototype.hasOwnProperty.call(item, "full_picture");
-
 const labelMatchesFilter = (item = {}, filter = "all") => {
   if (filter === "all") return true;
   if (isSocialPostSummary(item)) {
@@ -660,6 +587,11 @@ const COMMENT_PLATFORM_FILTERS = [
   { key: "instagram", label: "Instagram" },
   { key: "tiktok", label: "TikTok" },
 ];
+
+// Module scope so the reference is stable: useAIInboxAnalysis keys its memo on
+// the arguments, and a fresh [] each render would recompute the analysis on
+// every keystroke.
+const EMPTY_PRODUCTS = [];
 
 const leadFilters = [
   { key: "all", labelKey: "aiSupport.inbox.lead.all" },
@@ -872,7 +804,6 @@ const channelBadgeLabel = (value = "") => {
   if (key.includes("web")) return "ويب";
   return "الكل";
 };
-const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
 const conversationChannelAliases = ["whatsapp", "telegram", "facebook_messenger", "messenger", "instagram", "instagram_dm", "web_chat", "web"];
 const socialCommentChannelAliases = ["facebook_comment", "instagram_comment"];
 const isSocialCommentChannel = (value = "") => {
@@ -959,10 +890,6 @@ const customerAvatarUrl = (item = {}) => {
   );
 };
 const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
-const isLikelyMessengerExternalId = (value = "") => {
-  const candidate = clean(value).replace(/\s+/g, "");
-  return Boolean(candidate) && /^\d{5,}$/.test(candidate);
-};
 const messengerIdentityKey = (conversation = {}) => clean(
   conversation.external_customer_id ||
   conversation.sender_psid ||
@@ -1055,12 +982,6 @@ const isCommentConversation = (conversation = {}) => {
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
 };
 
-const getConversationThreadMetadata = (item = {}) => {
-  const channelMetadata = item?.channel_metadata && typeof item.channel_metadata === "object" && !Array.isArray(item.channel_metadata) ? item.channel_metadata : {};
-  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
-  return { channelMetadata, metadata };
-};
-
 const isSocialCommentThread = (item = {}) => {
   const { channelMetadata, metadata } = getConversationThreadMetadata(item);
   const channel = normalizeConversationChannel(item);
@@ -1140,11 +1061,6 @@ const latestCommentMessage = (conversation = {}) =>
     clean(message?.thread_kind).toLowerCase() === "comment" ||
     clean(message?.commenter_name)
   ) || conversation?.latest_comment || conversation?.last_comment || conversation?.comment || {};
-
-const isUsefulCommenterName = (value = "") => {
-  const name = clean(value);
-  return Boolean(name) && !/^\d+$/.test(name) && !["customer", "unknown", "guest", "anonymous", "commenter", "عميل", "العميل"].includes(name.toLowerCase());
-};
 
 const commentThreadCommenterName = (conversation = {}) => {
   const message = latestCommentMessage(conversation);
@@ -1569,17 +1485,6 @@ const needsHumanAttention = (conversation = {}) =>
   conversation?.conversation_status === "human_takeover" ||
   Boolean(clean(conversation?.escalation_reason || conversation?.ai_escalation_reason)) ||
   conversation?.needs_human_support === true;
-const messageIdentityKeys = (message = {}) =>
-  [
-    clean(message.message_identity_key || message.messageIdentityKey || ""),
-    clean(message.client_request_id || message.clientRequestId || ""),
-    clean(message.idempotency_key || message.idempotencyKey || ""),
-    clean(message.dedupe_key || message.dedupeKey || ""),
-    clean(message.provider_message_id || message.providerMessageId || ""),
-    clean(message.external_message_id || message.externalMessageId || ""),
-    clean(message.id || ""),
-  ].filter(Boolean);
-
 const messageKey = (message = {}) =>
   String(
     message.message_identity_key ||
@@ -1591,11 +1496,6 @@ const messageKey = (message = {}) =>
       message.id ||
       `${message.sender_type || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || ""}`
   );
-
-const isFromMeMessage = (message = {}) =>
-  message?.from_me === true ||
-  message?.fromMe === true ||
-  message?.is_from_me === true;
 
 const normalizeTranscriptMessage = (message = {}) => {
   const fromMe = isFromMeMessage(message);
@@ -2740,28 +2640,6 @@ function InboxChatHeader({
 
 // Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026"), matching
 // the portal chat. Styled for the AI Inbox dark theme so it stays consistent.
-const transcriptDayKey = (value) => {
-  const date = new Date(value || 0);
-  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
-};
-const transcriptDayLabel = (value) => {
-  const date = new Date(value || 0);
-  if (!Number.isFinite(date.getTime()) || date.getTime() <= 0) return "";
-  const key = transcriptDayKey(value);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (key === transcriptDayKey(today)) return "اليوم";
-  if (key === transcriptDayKey(yesterday)) return "أمس";
-  try {
-    return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
-  } catch {
-    return date.toLocaleDateString();
-  }
-};
-const transcriptRowTime = (row = {}) =>
-  row.created_at || row.createdAt || row.timestamp || row.sent_at || row.message_created_at || row.created || row.time || "";
-
 const Transcript = memo(function Transcript({
   conversation = null,
   rows = [],
@@ -3402,12 +3280,28 @@ function ManualReplyComposer({
   onDismissAiSuggestion,
   quickReplies = [],
   quickReplyCustomerName = "",
+  canReply = true,
+  composerMode = "reply",
+  onComposerModeChange,
+  onAttachImage,
 }) {
   const { t } = useTranslation();
+  const imageInputRef = useRef(null);
   const status = conversation?.conversation_status || conversation?.status || "ai_active";
   const canSendLive = conversation?.live_sending_available === true || isCommentConversation;
-  const submitLabel = isCommentConversation ? "إرسال الرد" : "إرسال الآن";
-  const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
+  // A note never touches the channel, so channel availability is irrelevant to
+  // it — an operator can record one on a conversation they cannot reply to.
+  const noteMode = composerMode === "note" && !isCommentConversation;
+  const submitLabel = noteMode
+    ? t("aiSupport.inbox.composer.saveNote")
+    : isCommentConversation
+      ? t("aiSupport.inbox.composer.sendCommentReply")
+      : t("aiSupport.inbox.composer.sendNow");
+  const submitTitle = noteMode
+    ? t("aiSupport.inbox.composer.saveNoteTitle")
+    : isCommentConversation
+      ? t("aiSupport.inbox.composer.sendCommentReplyTitle")
+      : t("aiSupport.inbox.composer.sendNowMeta");
   const textareaRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -3450,6 +3344,16 @@ function ManualReplyComposer({
   if (!conversation) return null;
   if (status === "closed") {
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{t("aiSupport.inbox.composer.closedConversation")}</div>;
+  }
+  // ai_inbox_messenger:view opens the inbox; :reply is what sends. Without the
+  // second one the API refuses every send, so say so here rather than letting
+  // the operator type a reply and collect a 403.
+  if (!canReply) {
+    return (
+      <div className="sticky bottom-0 w-full border-t border-slate-200/80 bg-white/95 p-4 text-sm font-bold text-slate-500 backdrop-blur dark:border-white/10 dark:bg-[#20231f]/95 dark:text-slate-400">
+        {t("aiSupport.inbox.composer.readOnly")}
+      </div>
+    );
   }
   return (
     <div className="sticky bottom-0 w-full border-t border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#20231f]/95">
@@ -3499,10 +3403,32 @@ function ManualReplyComposer({
         value={value}
         onUse={(message) => onChange(message)}
       />
+      {isCommentConversation ? null : (
+        <div className="mb-1.5 flex items-center gap-1" role="group" aria-label={t("aiSupport.inbox.composer.modeGroup")}>
+          {[["reply", t("aiSupport.inbox.composer.modeReply")], ["note", t("aiSupport.inbox.composer.modeNote")]].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onComposerModeChange?.(key)}
+              aria-pressed={composerMode === key}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-black transition ${composerMode === key
+                ? key === "note"
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-200"
+                  : "bg-slate-200 text-slate-800 dark:bg-white/10 dark:text-slate-100"
+                : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         dir="ltr"
         data-ai-inbox-composer-shell="true"
-        className="flex min-w-0 items-end rounded-2xl border border-slate-300 bg-slate-50 p-1.5 shadow-[0_2px_8px_rgba(15,23,42,0.10)] transition focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-white/15 dark:bg-[#181b18] dark:shadow-none dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10"
+        data-composer-mode={noteMode ? "note" : "reply"}
+        className={`flex min-w-0 items-end rounded-2xl border p-1.5 shadow-[0_2px_8px_rgba(15,23,42,0.10)] transition dark:shadow-none ${noteMode
+          ? "border-amber-400/70 bg-amber-50 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-amber-300/40 dark:bg-[#241f14]"
+          : "border-slate-300 bg-slate-50 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-white/15 dark:bg-[#181b18] dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10"}`}
       >
         <div className="flex min-h-10 min-w-0 flex-1 items-end">
           <button
@@ -3515,6 +3441,33 @@ function ManualReplyComposer({
           >
             <Paperclip className="h-5 w-5" />
           </button>
+          {/* The paperclip attaches a PRODUCT; this attaches a file. Two
+              different acts, so two different controls — the desktop workspace
+              previously had no way to send a photo at all. */}
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={loading || noteMode || !canSendLive}
+            title={noteMode ? t("aiSupport.inbox.composer.attachImageNoteMode") : t("aiSupport.inbox.composer.attachImage")}
+            aria-label={t("aiSupport.inbox.composer.attachImage")}
+            className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
+          >
+            <ImageIcon className="h-5 w-5" />
+          </button>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            aria-hidden="true"
+            onChange={(event) => {
+              const file = event.target.files?.[0] || null;
+              // Reset first: picking the SAME file twice must fire onChange
+              // again, and it will not if the value is still set.
+              event.target.value = "";
+              if (file) onAttachImage?.(file);
+            }}
+          />
           <textarea
             ref={textareaRef}
             data-ai-inbox-composer="true"
@@ -3533,7 +3486,7 @@ function ManualReplyComposer({
               }
             }}
             rows={1}
-            placeholder={canSendLive ? t("aiSupport.inbox.composer.placeholder") : t("aiSupport.inbox.composer.notePlaceholder")}
+            placeholder={noteMode ? t("aiSupport.inbox.composer.writeInternalNote") : canSendLive ? t("aiSupport.inbox.composer.placeholder") : t("aiSupport.inbox.composer.notePlaceholder")}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
           <button ref={emojiButtonRef} type="button" onClick={() => setEmojiPickerOpen((current) => !current)} title={t("aiSupport.inbox.composer.emoji")} aria-label={t("aiSupport.inbox.composer.emoji")} aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
@@ -3560,12 +3513,12 @@ function ManualReplyComposer({
         <button
           type="button"
           onClick={submit}
-          disabled={loading || !clean(value) || slashCommandActive || !canSendLive}
+          disabled={loading || !clean(value) || slashCommandActive || (!noteMode && !canSendLive)}
           title={submitTitle}
           aria-label={submitLabel}
-          className="ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-45"
+          className={`ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white transition disabled:cursor-not-allowed disabled:opacity-45 ${noteMode ? "bg-amber-600 hover:bg-amber-700" : "bg-amber-500 hover:bg-amber-600"}`}
         >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : noteMode ? <Pencil className="h-5 w-5" /> : <Send className="h-5 w-5" />}
         </button>
       </div>
     </div>
@@ -5506,6 +5459,14 @@ export default function AiInbox({ reviewerMode = false }) {
   // inbox with no automatic update path at all.
   const [reviewerRealtimeReady, setReviewerRealtimeReady] = useState(false);
   const socketHealthy = socketConnected && (!reviewerMode || reviewerRealtimeReady);
+  // Reading the inbox and answering it are separate grants on the API. Mirror
+  // that here so a read-only operator is told, rather than discovering it when
+  // the send button returns 403.
+  const canReply = usePermission("ai_inbox_messenger.reply");
+  // "reply" goes to the customer; "note" is staff-only and never leaves the ERP.
+  // The PWA has had this since the composer was written; the desktop workspace —
+  // where the notes are actually typed — had no way to record one at all.
+  const [composerMode, setComposerMode] = useState("reply");
   const [filter, setFilter] = useState("all");
   const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
   const [commentPlatformFilter, setCommentPlatformFilter] = useState("all");
@@ -5623,6 +5584,11 @@ export default function AiInbox({ reviewerMode = false }) {
   const [resettingAiState, setResettingAiState] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [replySending, setReplySending] = useState(false);
+  const [attachmentSending, setAttachmentSending] = useState(false);
+  // Where each channel's page ended, so the list can continue past it. Empty
+  // means "no further pages", which is what the load-more control reads.
+  const [listCursors, setListCursors] = useState({});
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
   const [correctionModal, setCorrectionModal] = useState({ open: false, draft: buildReplyCorrectionDraft() });
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
@@ -5651,6 +5617,10 @@ export default function AiInbox({ reviewerMode = false }) {
   const lastListLoadAtRef = useRef(0);
   // In-flight guards for send (double-click must produce exactly one request).
   const sendingReplyRef = useRef(false);
+  // Same double-click guard as the text send: an upload takes seconds, and a
+  // second click during it would send the image twice.
+  const attachmentSendingRef = useRef(false);
+  const loadingMoreRef = useRef(false);
   const sendingProductCardsRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
   const isAppendingNewMessageRef = useRef(false);
@@ -5808,6 +5778,10 @@ export default function AiInbox({ reviewerMode = false }) {
       // This is still one logical refresh: the in-flight guard and the freshness
       // window above already gate the whole block, so mount/visibility/focus/
       // socket/SWR cannot multiply these into duplicate rounds.
+      // A refresh restarts paging: the filters that define the result set may
+      // have changed, so a cursor taken against the previous set would page into
+      // a list that no longer exists.
+      setListCursors({});
       const fetchChannelPage = (backendChannel) => reviewerMode
         ? api.get(metaReviewerConversationEndpoint(backendChannel), {
             params: { search: debouncedSearch || deepLinkConversationId, limit: channelWindow(backendChannel) },
@@ -5824,10 +5798,18 @@ export default function AiInbox({ reviewerMode = false }) {
           // newest N per channel, so a quiet unread conversation never arrives and the
           // client-side filter can only ever report "nothing unread".
           read_filter: readFilter,
+          // Same reasoning: a starred conversation older than this page would
+          // never arrive, so "starred" would silently mean "starred and recent".
+          ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
         },
         headers,
         perfComponent: `AiInbox.conversations.${backendChannel}`,
-      }).then((payload) => asArray(payload?.conversations));
+      }).then((payload) => {
+        // Remember where this channel's page ended so the list can continue past
+        // it. Without this the window IS the inbox — see AI_INBOX_CHANNEL_WINDOW.
+        setListCursors((current) => ({ ...current, [backendChannel]: payload?.has_more ? payload?.next_cursor || null : null }));
+        return asArray(payload?.conversations);
+      });
 
       const requestedChannels = warmChannels;
       const settled = await Promise.allSettled(requestedChannels.map(fetchChannelPage));
@@ -6309,11 +6291,16 @@ export default function AiInbox({ reviewerMode = false }) {
     if (readFilter === "unread") return t("aiSupport.inbox.ui.emptyUnread");
     if (readFilter === "read") return t("aiSupport.inbox.ui.emptyRead");
     if (favoriteFilter !== "all") return t("aiSupport.inbox.ui.emptyFavorites");
+    // Lead temperature is derived from the AI's last reply, not stored on the
+    // conversation, so it is the one filter that still runs over the loaded
+    // window rather than in SQL. Say so instead of implying the tenant has no
+    // hot leads at all — there may be plenty, further down the list.
+    if (leadFilter !== "all" && hasMoreConversations) return t("aiSupport.inbox.ui.emptyLeadFilterWindowed");
     if (leadFilter !== "all" || filter !== "all" || channelFilter !== "all" || clean(search)) {
       return t("aiSupport.inbox.ui.emptyFiltered");
     }
     return t("aiSupport.inbox.ui.emptyNoConversations");
-  }, [channelFilter, favoriteFilter, filter, leadFilter, readFilter, search, t]);
+  }, [channelFilter, favoriteFilter, filter, hasMoreConversations, leadFilter, readFilter, search, t]);
   const visibleSocialComments = useMemo(() => {
     if (inboxSection !== "social_comments") return [];
     const normalizedCaption = (value = "") => clean(value)
@@ -6505,6 +6492,22 @@ export default function AiInbox({ reviewerMode = false }) {
       ? (selectedConversationThread || visibleConversations[0] || null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
+  /*
+   * The AI analysis layer — src/modules/aiSupport/{core,intelligence,decision,
+   * copilot,learning} — was reachable only from the PWA, so ~15k lines of
+   * conversation intelligence could not be evaluated on the surface the team
+   * actually works in. Wiring it here does not turn it on: every flag defaults
+   * to false, the hook short-circuits before it constructs an orchestrator, and
+   * the engines are dynamic imports so a disabled inbox still pays no bundle
+   * cost. What changes is that the keep-or-delete decision can now be made from
+   * evidence rather than from the fact that nobody could see it.
+   *
+   * Products are deliberately empty: opening the desktop inbox loads no catalog
+   * (tests/ai-inbox-erp-thread-cache.test.js asserts that), and pulling one in
+   * to feed the recommender would undo that.
+   */
+  const currentAgent = useMemo(() => getCurrentUser?.() || {}, []);
+  const aiIntegration = useAIInboxAnalysis(selectedConversation, EMPTY_PRODUCTS, currentAgent);
   const selectedSocialCommentPost = useMemo(
     () => normalizeSocialCommentPost(selectedSocialComment || {}),
     [selectedSocialComment]
@@ -7076,32 +7079,51 @@ export default function AiInbox({ reviewerMode = false }) {
   const markAllConversationsRead = useCallback(async () => {
     const readAt = new Date().toISOString();
     const previousConversations = asArray(inbox?.conversations);
-    const hadUnread = previousConversations.some((conversation) => Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true);
-    if (!hadUnread) return;
+    // Unread now means "waiting for a reply", so this button discards the whole
+    // work queue. Two things follow: it must SAY what it is about to clear, and
+    // it must clear only what the operator can actually see. Firing it while a
+    // channel tab is selected used to wipe every other channel too.
+    const scopeChannel = backendChannelFilter(channelFilter);
+    const inScope = (conversation) =>
+      !scopeChannel || backendChannelFilter(normalizeConversationChannel(conversation)) === scopeChannel;
+    const isUnread = (conversation) =>
+      Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
+
+    const targets = previousConversations.filter((conversation) => inScope(conversation) && isUnread(conversation));
+    if (!targets.length) return;
+
+    const scopeLabel = scopeChannel ? channelLabel(scopeChannel) : t("aiSupport.inbox.ui.markAllReadScopeAll");
+    if (!window.confirm(t("aiSupport.inbox.ui.markAllReadConfirm", { count: targets.length, scope: scopeLabel }))) return;
+
+    const targetKeys = new Set(targets.map((conversation) => conversationKey(conversation)));
     setInbox((current) => ({
       ...current,
-      conversations: asArray(current.conversations).map((conversation) => ({
-        ...conversation,
-        unread_count: 0,
-        unseen_count: 0,
-        pending_count: 0,
-        unread: false,
-        manually_unread: false,
-        read_at: readAt,
-      })),
+      conversations: asArray(current.conversations).map((conversation) =>
+        targetKeys.has(conversationKey(conversation))
+          ? {
+            ...conversation,
+            unread_count: 0,
+            unseen_count: 0,
+            pending_count: 0,
+            unread: false,
+            manually_unread: false,
+            read_at: readAt,
+          }
+          : conversation
+      ),
     }));
     try {
       await api.post(
         "/ai-inbox/conversations/read-all",
-        { tenant_id: tenantId },
+        { tenant_id: tenantId, ...(scopeChannel ? { channel: scopeChannel } : {}) },
         { headers, perfComponent: "AiInbox.markAllRead" }
       );
-      setToast({ tone: "emerald", text: "تم تحديد كل المحادثات كمقروءة." });
+      setToast({ tone: "emerald", text: t("aiSupport.inbox.ui.markAllReadDone", { count: targets.length }) });
     } catch (err) {
       setInbox((current) => ({ ...current, conversations: previousConversations }));
-      setToast({ tone: "rose", text: err?.message || "فشل تحديد الكل كمقروء." });
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.ui.markAllReadFailed") });
     }
-  }, [api, headers, inbox, setInbox, setToast, tenantId]);
+  }, [api, channelFilter, headers, inbox, setInbox, setToast, t, tenantId]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
@@ -8270,13 +8292,18 @@ export default function AiInbox({ reviewerMode = false }) {
   const sendManualReply = async (overrideText = "", options = {}) => {
     const message = clean(overrideText || replyText);
     if (!selectedConversation?.session_id || !message) return { ok: false };
+    // An internal note is staff-only: it is never transmitted on the channel, so
+    // it must not take the conversation over, must not raise a "this reply looks
+    // risky" prompt about text the customer will never see, and must not be
+    // recorded as a correction to the AI's draft.
+    const isNote = options.mode === "note" || (!options.mode && composerMode === "note");
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const clientRequestId = buildClientRequestId();
     const messageIdentityKey = buildMessageIdentityKey({
       tenantId,
       sessionId,
-      direction: "outbound",
+      direction: isNote ? "note" : "outbound",
       clientRequestId,
     });
     const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
@@ -8312,7 +8339,7 @@ export default function AiInbox({ reviewerMode = false }) {
       confidenceReasonsCount: confidenceState.reasonsCount,
       confidenceRiskFlagsCount: confidenceState.riskFlagsCount,
     });
-    if (warningCount > 0) {
+    if (!isNote && warningCount > 0) {
       const confirmed = window.confirm(sendWarnings.join("\n"));
       if (!confirmed) return { ok: false };
     }
@@ -8338,20 +8365,25 @@ export default function AiInbox({ reviewerMode = false }) {
       customer_message: "",
       ai_answer: "",
       staff_message: message,
-      sender_type: "staff",
+      message_text: message,
+      sender_type: isNote ? "note" : "staff",
+      message_type: isNote ? "internal_note" : "manual_reply",
       manual_message: true,
       staff_user_name: "Staff",
-      delivery_status: "sending",
+      delivery_status: isNote ? "internal_note" : "sending",
       created_at: now,
     };
     patchConversation(conversationIdentifier, (conversation) => ({
       ...conversation,
       messages: [...asArray(conversation.messages), optimistic],
       // Phase 11.2 A/B — assisted approval keeps the conversation assisted; only a manual reply takes over.
-      conversation_status: assistedApproval ? (conversation.conversation_status || "ai_active") : "human_takeover",
-      status: assistedApproval ? (conversation.status || "ai_active") : "human_takeover",
-      ai_paused: assistedApproval ? Boolean(conversation.ai_paused) : true,
-      latest_message_preview: message,
+      // A note is not a reply at all, so it leaves the AI state exactly as it was.
+      conversation_status: isNote || assistedApproval ? (conversation.conversation_status || "ai_active") : "human_takeover",
+      status: isNote || assistedApproval ? (conversation.status || "ai_active") : "human_takeover",
+      ai_paused: isNote || assistedApproval ? Boolean(conversation.ai_paused) : true,
+      // The list preview is what the customer last saw. A staff-only note must
+      // not overwrite it, or the inbox row starts advertising private text.
+      ...(isNote ? {} : { latest_message_preview: message }),
       last_activity_at: now,
       updated_at: now,
     }));
@@ -8359,9 +8391,26 @@ export default function AiInbox({ reviewerMode = false }) {
     setReplySending(true);
     setError("");
     try {
-      const payload = reviewerMode
-        ? await api.post(metaReviewerConversationEndpoint(selectedConversation?.channel || selectedConversation?.source, selectedConversationRouteId || sessionId, "/send"), { message }, { perfComponent: "AiInbox.reviewerSend" })
-        : await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval, product_id: correctionMetadata?.product_id || null, product_disposition: correctionMetadata?.product_disposition || null }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = isNote
+        ? await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/reply"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.internalNote" })
+        : reviewerMode
+          ? await api.post(metaReviewerConversationEndpoint(selectedConversation?.channel || selectedConversation?.source, selectedConversationRouteId || sessionId, "/send"), { message }, { perfComponent: "AiInbox.reviewerSend" })
+          : await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey, assisted_approval: assistedApproval, product_id: correctionMetadata?.product_id || null, product_disposition: correctionMetadata?.product_disposition || null }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      if (isNote) {
+        // The note route stores the message and returns it; there is no draft to
+        // clear, no correction to learn from, and no preview to update.
+        const storedNote = payload?.message
+          ? { ...payload.message, message_type: payload.message.message_type || "internal_note", sender_type: payload.message.sender_type || "note" }
+          : { ...optimistic, id: `note:${clientRequestId}`, delivery_status: "internal_note" };
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), storedNote]),
+          last_activity_at: storedNote.created_at || now,
+          updated_at: storedNote.created_at || now,
+        }));
+        setToast({ tone: "emerald", text: t("aiSupport.inbox.composer.noteSaved") });
+        return { ok: true, message: storedNote };
+      }
       if (payload.message) {
         const sentMessage = reviewerMode ? normalizeMetaReviewerMessage(payload.message) : payload.message;
         patchConversation(conversationIdentifier, (conversation) => ({
@@ -8444,6 +8493,113 @@ export default function AiInbox({ reviewerMode = false }) {
       setReplySending(false);
     }
   };
+
+  /*
+   * Fetch the next page of conversations.
+   *
+   * One request per channel that still has a cursor, so a channel that has run
+   * out does not keep asking. The pages merge through mergeConversationPages,
+   * the same function the first load uses — identity is the channel-scoped
+   * conversation key, so a conversation that moved between pages (a message
+   * arrived mid-scroll) collapses instead of appearing twice.
+   */
+  const pagedChannels = useMemo(
+    () => channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id)),
+    [channelFilter, listCursors]
+  );
+  const hasMoreConversations = !reviewerMode && pagedChannels.length > 0;
+  const loadMoreConversations = useCallback(async () => {
+    if (loadingMoreRef.current) return;
+    const channels = channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id));
+    if (!channels.length) return;
+    loadingMoreRef.current = true;
+    setLoadingMoreConversations(true);
+    try {
+      const pages = await Promise.all(channels.map((backendChannel) => api.get("/ai-inbox/conversations", {
+        params: {
+          tenant_id: tenantId,
+          filter,
+          channel_filter: backendChannel,
+          search: debouncedSearch,
+          limit: channelWindow(backendChannel),
+          read_filter: readFilter,
+          ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+          before_activity_at: listCursors[backendChannel].activity_at,
+          before_session_id: listCursors[backendChannel].session_id,
+        },
+        headers,
+        perfComponent: `AiInbox.conversationsPage.${backendChannel}`,
+      }).then((payload) => {
+        setListCursors((current) => ({ ...current, [backendChannel]: payload?.has_more ? payload?.next_cursor || null : null }));
+        return asArray(payload?.conversations);
+      }).catch((err) => {
+        // One channel running out of pages must not stop the others.
+        console.warn("[ai-inbox] next page failed", backendChannel, err?.message || err);
+        setListCursors((current) => ({ ...current, [backendChannel]: null }));
+        return [];
+      })));
+      setInbox((current) => ({
+        ...current,
+        conversations: mergeConversationPages([asArray(current.conversations), ...pages], conversationKey)
+          .map((item) => ({ ...item, conversation_key: item.conversation_key || conversationKey(item) })),
+      }));
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMoreConversations(false);
+    }
+  }, [api, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, readFilter, setInbox, tenantId]);
+
+  /*
+   * Send a file the operator picked. Upload and send are one request: the
+   * channel senders fetch the media by URL, so a file uploaded without a send
+   * is an orphan nothing will clean up.
+   *
+   * The composer text rides along as the caption and is cleared on success, so
+   * "here it is 👇" plus a photo is one action rather than two messages.
+   */
+  const sendAttachment = useCallback(async (file) => {
+    const sessionId = selectedConversation?.session_id;
+    if (!file || !sessionId) return;
+    if (attachmentSendingRef.current) return;
+    attachmentSendingRef.current = true;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const caption = clean(replyText);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("tenant_id", String(tenantId || ""));
+    if (caption) form.append("caption", caption);
+    form.append("client_request_id", buildClientRequestId());
+    setAttachmentSending(true);
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/attachment"),
+        form,
+        { headers, perfComponent: "AiInbox.sendAttachment" }
+      );
+      if (payload?.message) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
+          latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
+          last_activity_at: payload.message.created_at || new Date().toISOString(),
+          updated_at: payload.message.created_at || new Date().toISOString(),
+        }));
+      }
+      setReplyText("");
+      // The row is written even when the channel refused it, so report the
+      // delivery status rather than assuming the 201 means delivered.
+      if (payload?.delivery_status === "failed") {
+        setToast({ tone: "rose", text: payload?.delivery_error || t("aiSupport.inbox.composer.imageSendFailed") });
+      } else {
+        setToast({ tone: "emerald", text: t("aiSupport.inbox.composer.imageSent") });
+      }
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.composer.imageSendFailed") });
+    } finally {
+      attachmentSendingRef.current = false;
+      setAttachmentSending(false);
+    }
+  }, [api, headers, patchConversation, replyText, selectedConversation, selectedConversationRouteId, setToast, t, tenantId]);
 
   const sendCurrentReply = async (overrideText = "", options = {}) => {
     if (isCommentConversation(selectedConversation || {})) {
@@ -9936,6 +10092,11 @@ export default function AiInbox({ reviewerMode = false }) {
 	                          />
 	                        );
 	                      })}
+	                      <LoadMoreConversations
+	                        visible={hasMoreConversations}
+	                        loading={loadingMoreConversations}
+	                        onLoadMore={loadMoreConversations}
+	                      />
 	                    </div>
 	                  ) : !loading ? <EmptyBlock text={emptyConversationsText} /> : null}
 	                </>
@@ -10146,11 +10307,24 @@ export default function AiInbox({ reviewerMode = false }) {
                       />
                     </div>
                     <div className="z-20 shrink-0 border-t border-slate-200 bg-[#eefaf8] p-1.5 dark:border-white/10 dark:bg-[#20231f]">
+                      <AIInboxAnalysisPanel
+                        key={selectedConversation?.session_id || selectedConversation?.conversation_key}
+                        analysis={aiIntegration.analysis}
+                        copilot={aiIntegration.copilot}
+                        loading={aiIntegration.loading}
+                        cacheHit={aiIntegration.cacheHit}
+                        onTrack={aiIntegration.track}
+                        flags={aiIntegration.flags}
+                      />
                       <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
                         onChange={setReplyText}
                         onSend={() => sendCurrentReply()}
+                        canReply={canReply}
+                        composerMode={composerMode}
+                        onComposerModeChange={setComposerMode}
+                        onAttachImage={sendAttachment}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                         onCreateCustomer={createLeadCustomer}
@@ -10158,7 +10332,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
-                        loading={Boolean(leadActionLoading || replySending || productCardSending || availableBySizeSending)}
+                        loading={Boolean(leadActionLoading || replySending || attachmentSending || productCardSending || availableBySizeSending)}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
                         aiSuggestionText={activeAiSuggestionText}
@@ -10656,11 +10830,24 @@ export default function AiInbox({ reviewerMode = false }) {
                         </div>
                       </div>
                       <div className="sticky bottom-0 z-20">
-                        <ManualReplyComposer
+                        <AIInboxAnalysisPanel
+                        key={selectedConversation?.session_id || selectedConversation?.conversation_key}
+                        analysis={aiIntegration.analysis}
+                        copilot={aiIntegration.copilot}
+                        loading={aiIntegration.loading}
+                        cacheHit={aiIntegration.cacheHit}
+                        onTrack={aiIntegration.track}
+                        flags={aiIntegration.flags}
+                      />
+                      <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
                         onChange={setReplyText}
                         onSend={() => sendCurrentReply()}
+                        canReply={canReply}
+                        composerMode={composerMode}
+                        onComposerModeChange={setComposerMode}
+                        onAttachImage={sendAttachment}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                         onCreateCustomer={createLeadCustomer}
@@ -10668,7 +10855,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
-                        loading={Boolean(leadActionLoading || replySending || productCardSending || availableBySizeSending)}
+                        loading={Boolean(leadActionLoading || replySending || attachmentSending || productCardSending || availableBySizeSending)}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
                         aiSuggestionText={activeAiSuggestionText}
@@ -10764,8 +10951,13 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            />
                         );
                       })}
+                      <LoadMoreConversations
+                        visible={hasMoreConversations}
+                        loading={loadingMoreConversations}
+                        onLoadMore={loadMoreConversations}
+                      />
                     </div>
-                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد محادثات Meta بعد. سيظهر النشاط هنا مع بدء استقبال الرسائل والتعليقات." : "لا توجد محادثات مطابقة للفلاتر الحالية."} /> : null}
+                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? t("aiSupport.inbox.ui.emptyMetaConversations") : t("aiSupport.inbox.ui.emptyFiltered")} /> : null}
                 </div>
               </>
             ) : null}
@@ -10811,4 +11003,28 @@ function LoadingBlock({ text }) {
 
 function EmptyBlock({ text }) {
   return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{text}</div>;
+}
+
+/*
+ * The end of the loaded window.
+ *
+ * The list is a bounded page per channel, so without this the inbox silently
+ * stops at the newest 150 WhatsApp conversations and every browser-side filter
+ * describes only that slice. Rendering nothing when there is no next page is
+ * deliberate: an always-visible control that does nothing reads as broken.
+ */
+function LoadMoreConversations({ visible, loading, onLoadMore }) {
+  const { t } = useTranslation();
+  if (!visible) return null;
+  return (
+    <button
+      type="button"
+      onClick={onLoadMore}
+      disabled={loading}
+      className="mt-1.5 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2.5 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
+      {loading ? t("aiSupport.inbox.ui.loadingMore") : t("aiSupport.inbox.ui.loadMore")}
+    </button>
+  );
 }

@@ -579,8 +579,24 @@
       "availableProducts": "Available products",
       "sendNowMeta": "Send now through Meta",
       "closedConversation": "This conversation is closed. Manual replies are disabled.",
+      "readOnly": "You have read-only access to the inbox. Ask an administrator for the reply permission to send messages.",
       "takeoverWarning": "Sending a staff reply will take over this conversation and pause AI automation.",
-      "editing": "Editing"
+      "editing": "Editing",
+      "modeGroup": "Composer mode",
+      "modeReply": "Reply",
+      "modeNote": "Internal note",
+      "writeInternalNote": "Internal note — the customer never sees this",
+      "saveNote": "Save note",
+      "saveNoteTitle": "Save a staff-only note on this conversation",
+      "sendNow": "Send now",
+      "sendCommentReply": "Send reply",
+      "sendCommentReplyTitle": "Post a public reply on the comment",
+      "noteSaved": "Internal note saved.",
+      "attachImage": "Send an image",
+      "attachImageNoteMode": "Switch to Reply to send an image",
+      "imagePreview": "📷 Image",
+      "imageSent": "Image sent.",
+      "imageSendFailed": "The image was not delivered."
     },
     "delivery": {
       "sending": "Sending",
@@ -1019,7 +1035,17 @@
       "fmtImageLink": "Image + link",
       "fmtTextLink": "Text + product link",
       "fmtLink": "Product link",
-      "templateHint": "Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}"
+      "templateHint": "Template text using {customer_name}, {product_name}, {price}, {sale_price}, {sizes}, {colors}, {product_link}, {post_link}, {store_address}, {shipping_time}",
+      "markAllReadConfirm_other": "Mark {{count}} conversations as read in {{scope}}? Unread means waiting for a reply, so this clears them from the queue.",
+      "markAllReadScopeAll": "all channels",
+      "markAllReadDone_other": "{{count}} conversations marked as read.",
+      "markAllReadFailed": "Could not mark the conversations as read.",
+      "markAllReadConfirm_one": "Mark {{count}} conversation as read in {{scope}}? Unread means waiting for a reply, so this clears them from the queue.",
+      "markAllReadDone_one": "{{count}} conversation marked as read.",
+      "loadMore": "Load older conversations",
+      "loadingMore": "Loading…",
+      "emptyLeadFilterWindowed": "Nothing matches in the conversations loaded so far. Load older conversations to widen the search.",
+      "emptyMetaConversations": "No Meta conversations yet. Activity appears here once messages and comments start arriving."
     },
     "emoji": {
       "choose": "Choose emoji",
@@ -1201,7 +1227,68 @@
       "leadScore": "Lead {{score}}",
       "objection": "Objection: {{objection}}",
       "copilot": "Copilot",
-      "debug": "AI DEBUG"
+      "debug": "AI DEBUG",
+      "labels": {
+        "intent": {
+          "price_inquiry": "Price inquiry",
+          "size_inquiry": "Size inquiry",
+          "availability": "Availability",
+          "delivery": "Delivery",
+          "exchange": "Exchange or return",
+          "complaint": "Complaint",
+          "payment": "Payment",
+          "order_tracking": "Order tracking",
+          "purchase_ready": "Ready to buy",
+          "greeting": "Greeting",
+          "spam": "Spam",
+          "support": "Support"
+        },
+        "signal": {
+          "asked_price": "Asked the price",
+          "asked_size": "Asked about size",
+          "asked_colors": "Asked about colours",
+          "asked_payment": "Asked about payment",
+          "asked_shipping": "Asked about shipping",
+          "asked_availability": "Asked what is in stock",
+          "asked_invoice": "Asked for an invoice",
+          "asked_discount": "Asked for a discount"
+        },
+        "objection": {
+          "price": "Price",
+          "trust": "Trust",
+          "delivery": "Delivery",
+          "availability": "Availability",
+          "payment": "Payment",
+          "size": "Size",
+          "color": "Colour"
+        },
+        "mood": {
+          "happy": "Happy",
+          "neutral": "Neutral",
+          "confused": "Confused",
+          "urgent": "In a hurry",
+          "angry": "Angry",
+          "excited": "Excited",
+          "price_sensitive": "Price sensitive"
+        },
+        "priority": {
+          "low": "Low priority",
+          "medium": "Medium priority",
+          "high": "High priority",
+          "critical": "Critical"
+        },
+        "stage": {
+          "new_lead": "New lead",
+          "interested": "Interested",
+          "comparing": "Comparing",
+          "negotiating": "Negotiating",
+          "ready_to_buy": "Ready to buy",
+          "purchased": "Purchased",
+          "returning_customer": "Returning customer",
+          "support": "Support",
+          "lost": "Lost"
+        }
+      }
     },
     "customer360": {
       "title": "Customer 360",

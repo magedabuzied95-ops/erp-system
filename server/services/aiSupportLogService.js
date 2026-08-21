@@ -339,6 +339,9 @@ const persistOutboundTranscriptRow = async ({
   staffMessage = "",
   direction = "outbound",
   preserveExistingOnProviderMatch = false,
+  // The row is recorded against the session but must not mutate the session's
+  // workflow status or its customer-facing preview. Used by internal notes.
+  preserveSessionState = false,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeChannel = toText(channel || "web_chat");
@@ -445,12 +448,19 @@ const persistOutboundTranscriptRow = async ({
           END,
           status = CASE
             WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status
+            -- A staff-only row (an internal note) reports on the conversation; it
+            -- does not participate in it. It must leave both the workflow status
+            -- and the customer-facing preview exactly as it found them.
+            WHEN $10::boolean THEN ai_support_sessions.status
             WHEN EXCLUDED.status = 'human_takeover' THEN 'human_takeover'
             ELSE COALESCE(NULLIF(EXCLUDED.status, ''), ai_support_sessions.status, 'ai_active')
           END,
           channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
           customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
-          last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
+          last_message = CASE
+            WHEN $10::boolean THEN ai_support_sessions.last_message
+            ELSE COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message)
+          END,
           assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
           assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
           takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, EXCLUDED.takeover_started_at),
@@ -468,6 +478,7 @@ const persistOutboundTranscriptRow = async ({
           safeSessionCustomerName,
           safeMessage || safeStaffMessage || safeAnswer,
           toText(staffUserName),
+          preserveSessionState === true,
         ]
       );
       sessionRefId = sessionResult.rows[0]?.id || null;
@@ -1542,16 +1553,43 @@ export const markAllAiSupportConversationsRead = async ({
   await ensureAiSupportLogSchema();
   const readAt = new Date().toISOString();
 
+  // The channel filter has to reach BOTH tables. It used to constrain only
+  // ai_channel_conversations below, so "mark all WhatsApp read" still cleared
+  // every Messenger, Instagram and Telegram session on the tenant — the caller
+  // asked to clear one channel and silently lost the whole queue.
+  //
+  // Channel identity is resolved the same way loadAiInbox resolves it for
+  // display: the channel row wins, then the session's own channel, then its
+  // source. Anything else would mark a conversation read that the list still
+  // shows under a different tab.
   const sessionResult = await db.query(
     `
-    UPDATE ai_support_sessions
+    UPDATE ai_support_sessions s
     SET read_at = $2::timestamp,
         manually_unread = FALSE
-    WHERE tenant_id = $1::bigint
-      AND (read_at IS NULL OR manually_unread = TRUE OR read_at < $2::timestamp)
-    RETURNING session_id
+    WHERE s.tenant_id = $1::bigint
+      AND (s.read_at IS NULL OR s.manually_unread = TRUE OR s.read_at < $2::timestamp)
+      AND (
+        $3::text = ''
+        OR COALESCE(
+             (
+               SELECT c.channel
+               FROM ai_channel_conversations c
+               WHERE c.tenant_id = s.tenant_id
+                 AND c.external_conversation_id = s.session_id
+               ORDER BY
+                 CASE WHEN c.channel = s.channel THEN 0 ELSE 1 END,
+                 COALESCE(c.last_message_at, c.updated_at) DESC,
+                 c.id DESC
+               LIMIT 1
+             ),
+             s.channel,
+             s.source
+           ) = $3::text
+      )
+    RETURNING s.session_id
     `,
-    [safeTenantId, readAt]
+    [safeTenantId, readAt, safeChannel || ""]
   ).catch((error) => {
     logSqlError("markAllAiSupportConversationsRead.session", error, { tenantId: safeTenantId, channel: safeChannel });
     return { rows: [], rowCount: 0 };
@@ -1798,6 +1836,9 @@ export const appendManualAiSupportReply = async ({
   message,
   messageType = "text",
   productCards = [],
+  // Media the operator attached. Rendered by MessageMedia from the stored row,
+  // so an image bubble survives a reload the same way a text bubble does.
+  visualAttachments = [],
   previewMessage = "",
   staffUserId = null,
   staffUserName = "",
@@ -1818,6 +1859,18 @@ export const appendManualAiSupportReply = async ({
   preserveExactMessage = false,
   upsertSession = true,
   redactSessionInLogs = false,
+  /*
+   * An internal note is staff-only: it is never transmitted on the channel.
+   *
+   * It used to be written through this function unchanged, which meant three
+   * things the caller never asked for. It was stored as an ordinary staff reply
+   * (sender_type 'staff', message_type 'text'), so the note looked like a note
+   * in the composer and like a message sent to the customer after a refresh. It
+   * flipped the session to human_takeover, so jotting a note silently paused the
+   * AI. And it overwrote ai_support_sessions.last_message, so the private text
+   * became the conversation's preview in the inbox list.
+   */
+  internalNote = false,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -1841,14 +1894,14 @@ export const appendManualAiSupportReply = async ({
     tenantId: safeTenantId,
     sessionId: safeSessionId,
     message: safeMessage,
-    messageType,
-    senderType: "staff",
+    messageType: internalNote ? "internal_note" : messageType,
+    senderType: internalNote ? "note" : "staff",
     manualMessage: true,
     staffUserId,
     staffUserName,
     source,
     channel,
-    deliveryStatus,
+    deliveryStatus: internalNote ? "internal_note" : deliveryStatus,
     deliveryError,
     errorCode,
     externalMessageId,
@@ -1861,9 +1914,13 @@ export const appendManualAiSupportReply = async ({
     resolvedPhone,
     externalReplyId,
     productCards,
+    visualAttachments,
     preserveExactMessage,
     upsertSession,
-    sessionStatus: "human_takeover",
+    // A note is not a reply, so it must not take the conversation over and must
+    // not overwrite the list preview with private text.
+    sessionStatus: internalNote ? "ai_active" : "human_takeover",
+    preserveSessionState: internalNote,
     sessionSource: source,
     sessionChannel: channel || "web_chat",
     sessionCustomerName: "",
@@ -1877,7 +1934,10 @@ export const appendManualAiSupportReply = async ({
     channel: toText(channel, "web_chat"),
     message_id: result?.id || null,
   });
-  if (upsertSession && safeTenantId && safeSessionId) {
+  // The upsert above already wrote last_message for a real reply; this second
+  // statement exists to force it past the COALESCE. An internal note must skip
+  // it, or the private text lands in the conversation list preview anyway.
+  if (upsertSession && !internalNote && safeTenantId && safeSessionId) {
     await db.query(
       `
       UPDATE ai_support_sessions

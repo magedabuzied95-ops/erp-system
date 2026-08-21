@@ -124,7 +124,9 @@ test("a rapid double-click sends exactly one product-card message", () => {
 });
 
 test("text send still shows a pending bubble immediately and reconciles", () => {
-  assert.match(src, /delivery_status: "sending"/);
+  // A reply is "sending" until the provider acknowledges. An internal note is
+  // never transmitted, so it has no pending state to reconcile.
+  assert.match(src, /delivery_status: isNote \? "internal_note" : "sending"/);
   assert.match(src, /delivery_status: "failed"/);
 });
 

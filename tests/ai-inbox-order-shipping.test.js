@@ -48,7 +48,10 @@ test("the order is priced through the same resolver the preview calls", () => {
   assert.match(serviceSource, /const \{ cost: shippingCost, quote: shippingQuote \} = await resolveAiOrderShipping\(/);
   assert.equal(serviceSource.match(/resolveStorefrontShippingQuote\(\{/g)?.length, 1);
 
-  assert.match(routeSource, /router\.get\("\/shipping-quote", protect, permit\("settings", "edit"\)/);
+  // Quoting shipping is part of composing an order from a conversation, so it
+  // runs on the inbox reply gate — the same strength as the settings:edit gate
+  // it replaced, just no longer reachable through shop settings.
+  assert.match(routeSource, /router\.get\("\/shipping-quote", protect, inboxReply\(\)/);
   assert.match(routeSource, /const shipping = await resolveAiOrderShipping\(\{/);
 });
 

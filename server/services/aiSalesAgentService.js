@@ -2257,7 +2257,24 @@ const readFilterClauseSql = (readFilter, latestMessageCreatedAt) => {
   return normalized === "unread" ? unread : `NOT ${unread}`;
 };
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "" } = {}) => {
+/*
+ * Keyset cursor for the conversation list.
+ *
+ * The list is ordered by activity DESC, and the client fetches one bounded page
+ * per channel. Without a cursor that page IS the inbox: WhatsApp is capped at
+ * 150 rows and conversation 151 is unreachable except by search, while every
+ * browser-side filter silently means "among the newest 150".
+ *
+ * Offsets are wrong here — a message arriving between pages shifts every row —
+ * so the cursor is the last row's activity timestamp plus its session id as a
+ * tiebreak, matching the ORDER BY exactly.
+ */
+const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
+    ${activityExpression} < ${activityIdx}::timestamp
+    OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
+  )`;
+
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, beforeActivityAt = "", beforeSessionId = "" } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2355,8 +2372,24 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
 
     clauses.push(`(${[...nameMatches, ...identifierMatches].join(" OR ")})`);
   }
+  // Favourites are a stored column, so filtering them here rather than in the
+  // browser makes "starred" mean every starred conversation instead of the
+  // starred ones that happen to be in the newest page.
+  if (favoriteOnly === true) clauses.push("COALESCE(s.is_favorite, FALSE) = TRUE");
+
+  const summaryActivitySql = "COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at)";
+  const cursorActivityAt = text(beforeActivityAt);
+  const cursorSessionId = text(beforeSessionId);
+  const hasCursor = Boolean(cursorActivityAt && cursorSessionId);
+
   if (summaryOnly) {
     const summaryStartedAt = Date.now();
+    if (hasCursor) {
+      params.push(cursorActivityAt);
+      const activityIdx = `$${params.length}`;
+      params.push(cursorSessionId);
+      clauses.push(inboxCursorClauseSql(summaryActivitySql, activityIdx, `$${params.length}`));
+    }
     const summaryQuery = `
     SELECT
       s.session_id,
@@ -2466,6 +2499,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       FROM ai_support_messages msg
       WHERE msg.tenant_id = s.tenant_id
         AND msg.session_id = s.session_id
+        -- Internal notes are staff-only. They are stored against the session so
+        -- the transcript can show them, but they are not part of the exchange
+        -- with the customer: letting one become the "latest message" would
+        -- publish private text into the conversation list preview.
+        AND COALESCE(msg.message_type, '') <> 'internal_note'
+        AND COALESCE(msg.sender_type, '') <> 'note'
       ORDER BY msg.created_at DESC, msg.id DESC
       LIMIT 1
     ) m ON TRUE
@@ -2497,7 +2536,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
-      s.updated_at DESC
+      s.updated_at DESC,
+      -- Stable tiebreak. Keyset pagination needs the sort to be a total order,
+      -- or two rows with the same activity timestamp can straddle a page
+      -- boundary and one of them is never returned.
+      s.session_id DESC
     LIMIT $2
     `;
     const summaryResult = await db.query(summaryQuery, params);
@@ -2768,7 +2811,30 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         total_duration_ms: Date.now() - loadAiInboxStartedAt,
       },
     });
-    return { conversations, followups: [], anyFullMessages: false };
+    /*
+     * The cursor is built from the last row the QUERY returned, not the last
+     * row after normalizeAndMergeInboxConversations — that step can merge two
+     * rows into one, and paging from a merged row would skip whatever sat
+     * between them.
+     */
+    const lastRow = summaryResult.rows[summaryResult.rows.length - 1] || null;
+    const requestedLimit = params[1];
+    const nextCursor = summaryResult.rows.length >= requestedLimit && lastRow?.last_message_at
+      ? {
+        activity_at: new Date(lastRow.last_message_at).toISOString(),
+        session_id: String(lastRow.session_id || ""),
+      }
+      : null;
+    return {
+      conversations,
+      followups: [],
+      anyFullMessages: false,
+      // A full page is not proof that more exist, but a short page IS proof
+      // that none do — which is the direction that matters for a "load more"
+      // control that must never lie about having reached the end.
+      has_more: Boolean(nextCursor?.session_id),
+      next_cursor: nextCursor?.session_id ? nextCursor : null,
+    };
   }
   const result = await db.query(
     `
@@ -2878,6 +2944,10 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       FROM ai_support_messages msg
       WHERE msg.tenant_id = s.tenant_id
         AND msg.session_id = s.session_id
+        -- Same rule as the inbox list: a staff-only note is not the
+        -- conversation's latest message.
+        AND COALESCE(msg.message_type, '') <> 'internal_note'
+        AND COALESCE(msg.sender_type, '') <> 'note'
       ORDER BY msg.created_at DESC, msg.id DESC
       LIMIT 1
     ) m ON TRUE

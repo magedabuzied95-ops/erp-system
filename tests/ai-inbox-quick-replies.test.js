@@ -14,7 +14,10 @@ const components = read("src/modules/aiSupport/components/QuickReplies.jsx");
 const arabicDefaultsMigration = read("server/database/migrations/2026-08-14-arabic-ai-inbox-quick-replies.sql");
 
 test("Quick Replies expose tenant-protected CRUD and reorder endpoints", () => {
-  assert.match(routes, /router\.get\("\/quick-replies", protect, permit\("settings", "view"\)/);
+  // Reading and writing are gated differently on purpose: the composer needs to
+  // LIST quick replies for anyone who can open the inbox, while authoring them
+  // is shop configuration and stays on `settings`.
+  assert.match(routes, /router\.get\("\/quick-replies", protect, inboxView\(\)/);
   assert.match(routes, /router\.post\("\/quick-replies", protect, permit\("settings", "edit"\)/);
   assert.match(routes, /router\.patch\("\/quick-replies\/:id", protect, permit\("settings", "edit"\)/);
   assert.match(routes, /router\.delete\("\/quick-replies\/:id", protect, permit\("settings", "edit"\)/);
