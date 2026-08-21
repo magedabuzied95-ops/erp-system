@@ -48,10 +48,18 @@ test("payment_status is only a fallback, and its POS spellings all resolve", () 
   );
 });
 
-test("the stored remaining_amount outranks total - paid", () => {
+test("the outstanding balance follows the same precedence as the orders dashboard", () => {
+  // A stored remaining_amount above zero wins over total - paid.
   assert.equal(getOrderRemainingAmount({ total: 500, paid_amount: 100, remaining_amount: 250 }), 250);
+  // ...and total - paid covers a row that has no stored value.
   assert.equal(getOrderRemainingAmount({ total: 500, paid_amount: 100 }), 400);
+  // A fully collected invoice is never due, whatever the denormalized column holds.
+  assert.equal(getOrderRemainingAmount({ total: 500, paid_amount: 500, remaining_amount: 120 }), 0);
   assert.equal(getOrderRemainingAmount({ total: 500, paid_amount: 900, remaining_amount: -40 }), 0);
+  // Old credit rows were left at remaining_amount = 0 while the whole total is owed;
+  // reading the column literally would badge them as paid.
+  assert.equal(getOrderRemainingAmount({ total: 500, paid_amount: 0, remaining_amount: 0 }), 500);
+  assert.equal(resolveOrderPaymentState({ total: 500, paid_amount: 0, remaining_amount: 0 }), "unpaid");
 });
 
 test("a row with no amounts reports no outstanding balance instead of the full total", () => {

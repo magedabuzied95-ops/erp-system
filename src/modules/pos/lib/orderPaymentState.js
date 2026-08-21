@@ -26,12 +26,18 @@ const getOrderTotalAmount = (order = {}) =>
 const getOrderPaidAmount = (order = {}) =>
   Math.max(0, toAmount(order.paid_amount) ?? toAmount(order.paidAmount) ?? 0);
 
-// `remaining_amount` is denormalized on the order row and is what every other reader
-// trusts, so prefer it over total - paid and only compute when the row omits it.
+// Same precedence as `dueAmountOf` in the orders dashboard: a fully collected
+// invoice is never due whatever the denormalized column says, a stored
+// `remaining_amount` above zero wins next, and total - paid is the last resort -
+// which is what rescues the old credit rows that were left at remaining_amount = 0.
 export const getOrderRemainingAmount = (order = {}) => {
+  const total = getOrderTotalAmount(order);
+  const paid = getOrderPaidAmount(order);
+  if (total > 0 && paid >= total - MONEY_EPSILON) return 0;
   const stored = toAmount(order.remaining_amount) ?? toAmount(order.remainingAmount);
-  if (stored !== null) return Math.max(0, stored);
-  return Math.max(0, getOrderTotalAmount(order) - getOrderPaidAmount(order));
+  if (stored !== null && stored > 0) return stored;
+  if (total > 0 && paid < total) return Number((total - paid).toFixed(2));
+  return 0;
 };
 
 const hasMoneySignal = (order = {}) =>
