@@ -6284,6 +6284,15 @@ export default function AiInbox({ reviewerMode = false }) {
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
   );
+  // Which channels still have a cursor, and therefore whether the list is a
+  // window onto more conversations. Declared here rather than beside
+  // loadMoreConversations below, because the empty-state message underneath is
+  // its first reader and a const cannot be read before its own declaration runs.
+  const pagedChannels = useMemo(
+    () => channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id)),
+    [channelFilter, listCursors]
+  );
+  const hasMoreConversations = !reviewerMode && pagedChannels.length > 0;
   // An empty list has to name the filter that emptied it. The old copy only looked at
   // leadFilter/filter, so hiding every conversation behind "unread" or "favorites"
   // still claimed no real messages had arrived at all.
@@ -8503,11 +8512,6 @@ export default function AiInbox({ reviewerMode = false }) {
    * conversation key, so a conversation that moved between pages (a message
    * arrived mid-scroll) collapses instead of appearing twice.
    */
-  const pagedChannels = useMemo(
-    () => channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id)),
-    [channelFilter, listCursors]
-  );
-  const hasMoreConversations = !reviewerMode && pagedChannels.length > 0;
   const loadMoreConversations = useCallback(async () => {
     if (loadingMoreRef.current) return;
     const channels = channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id));
