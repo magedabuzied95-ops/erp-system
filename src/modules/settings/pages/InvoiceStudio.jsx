@@ -18,6 +18,7 @@ import {
   Plus,
   Printer,
   Receipt,
+  LayoutList,
   Save,
   Share2,
   ShieldCheck,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
+import InvoiceLayoutEditor from "../components/InvoiceLayoutEditor";
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "../../../shared/utils/orderInvoice";
 import { buildInvoicePreviewHtml } from "../../../shared/utils/invoicePdf";
 import {
@@ -379,6 +381,10 @@ export default function InvoiceStudio() {
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
             <div className="flex flex-col gap-5">
+              <Section icon={LayoutList} title={tr("layout.title", "ترتيب الفاتورة")} subtitle={tr("layout.subtitle", "اسحب العناصر لترتيبها، وأضف ما تريد بينها.")}>
+                <InvoiceLayoutEditor blocks={draft.blocks} disabled={disabled} onChange={(blocks) => patch({ blocks })} />
+              </Section>
+
               <Section icon={Store} title={tr("identity.title", "هوية المحل")} subtitle={tr("identity.subtitle", "اتركه فارغًا ليأخذ القيمة من إعدادات الشركة.")}>
                 <div className="grid gap-3 md:grid-cols-2">
                   <TextField label={tr("identity.storeName", "اسم المحل")} value={identity.store_name} disabled={disabled} onChange={(value) => patch({ identity: { store_name: value } })} placeholder={tr("identity.inherit", "من إعدادات الشركة")} />
@@ -524,7 +530,7 @@ export default function InvoiceStudio() {
 
                 <div className="max-h-[70vh] overflow-auto rounded-[var(--radius-card)] bg-slate-950/50 p-3">
                   {output === "card" ? (
-                    <OrderInvoiceCard invoice={previewInvoice} template={draft} luxury publicView />
+                    <OrderInvoiceCard invoice={previewInvoice} template={draft} output="public" luxury publicView />
                   ) : null}
                   {output === "print" || output === "thermal" ? (
                     <iframe

@@ -313,6 +313,94 @@
         "print": "A4 print",
         "thermal": "Thermal 80mm",
         "whatsapp": "WhatsApp"
+      },
+      "layout": {
+        "title": "Invoice layout",
+        "subtitle": "Drag the sections into the order you want, and add anything between them.",
+        "note": "Drag a section to move it. The order is shared by every output; hide a section from one output without hiding it everywhere.",
+        "builtInNote": "Built-in sections move and hide but cannot be deleted — hiding one from every output is the same thing.",
+        "add": "Add block",
+        "edit": "Edit",
+        "close": "Close",
+        "up": "Move up",
+        "down": "Move down",
+        "textAr": "Text (Arabic)",
+        "textEn": "Text (English)",
+        "size": "Text size",
+        "align": "Alignment",
+        "bold": "Bold",
+        "boxed": "Boxed",
+        "imageUrl": "Image URL",
+        "width": "Width %",
+        "qrSource": "Code contents",
+        "qrValue": "Link",
+        "qrSize": "Size (px)",
+        "qrCaption": "Caption under the code",
+        "barcodeSource": "Barcode value",
+        "barcodeValue": "Value",
+        "rowLabelAr": "Label (Arabic)",
+        "rowLabelEn": "Label (English)",
+        "rowSource": "Value from",
+        "rowValue": "Value",
+        "height": "Height (px)",
+        "sizes": {
+          "sm": "Small",
+          "md": "Normal",
+          "lg": "Large"
+        },
+        "aligns": {
+          "start": "Line start",
+          "center": "Centre",
+          "end": "Line end"
+        },
+        "qrSources": {
+          "public_url": "Invoice link",
+          "custom": "Custom link"
+        },
+        "barcodeSources": {
+          "invoice_number": "Invoice number",
+          "custom": "Custom value"
+        },
+        "rowSources": {
+          "custom": "A value I type",
+          "invoice_number": "Invoice number",
+          "order_date": "Order date",
+          "customer_name": "Customer name",
+          "customer_phone": "Customer phone",
+          "customer_address": "Customer address",
+          "payment_method": "Payment method",
+          "order_status": "Order status",
+          "seller_name": "Seller name",
+          "subtotal": "Subtotal",
+          "discount": "Discount",
+          "shipping": "Shipping",
+          "grand_total": "Grand total",
+          "paid": "Paid",
+          "remaining": "Remaining"
+        }
+      },
+      "blocks": {
+        "brand": "Logo and store name",
+        "order_meta": "Invoice number and date",
+        "customer_meta": "Customer details",
+        "items_table": "Products table",
+        "totals": "Totals",
+        "policy": "Return policy",
+        "social": "Review buttons",
+        "store_contact": "Store footer",
+        "text": "Free text",
+        "image": "Image",
+        "qr": "QR code",
+        "barcode": "Barcode",
+        "field_row": "Data row",
+        "divider": "Divider",
+        "spacer": "Spacer"
+      },
+      "outputsShort": {
+        "card": "In app",
+        "public": "Customer link",
+        "print": "A4 print",
+        "thermal": "Thermal"
       }
     }
   }
