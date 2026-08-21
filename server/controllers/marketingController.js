@@ -5008,9 +5008,13 @@ export const publishNowAiCenterDraft = async (req, res) => {
         tenantId,
       ]
     );
-    res.status(status === "published" ? 200 : 502).json({
+    // 502 for a refused publish never reaches the browser: the proxy owns that
+    // status class and swaps in an error page with no CORS header, so the UI only
+    // ever saw a NetworkError. Report the refusal with a status that survives.
+    const failureMessage = published.error_message || published.story_error_message || "Publish request completed";
+    res.status(status === "published" ? 200 : 422).json({
       success: status === "published",
-      message: published.error_message || published.story_error_message || "Publish request completed",
+      message: failureMessage,
       data: normalizeContentDraftRow(updated.rows[0]),
       post: published,
     });

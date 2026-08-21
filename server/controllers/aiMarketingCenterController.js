@@ -34,6 +34,12 @@ const parseQueueItemId = (value) => {
   return Number.isInteger(id) && id > 0 ? id : null;
 };
 
+// Meta answers an app-level throttle with HTTP 400 and "(#4) Application request
+// limit reached", so the only way to tell a throttle from a rejection here is the
+// message the publish persisted.
+const isMetaRateLimitMessage = (message = "") =>
+  /\(#4\)|\(#17\)|application request limit|rate ?limit|too many calls/i.test(String(message || ""));
+
 const sendError = (res, error, fallback = "AI marketing center request failed") => {
   const status = Number(error?.status || error?.statusCode || 500);
   res.status(status).json({ success: false, message: error?.message || fallback });
@@ -186,15 +192,38 @@ export const publishAutonomousAiMarketingQueueItemNow = async (req, res) => {
     const item = await publishAiMarketingQueueItemNow(tenantScope(req), id);
     if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
     const platformResults = item.platform_publish_results || {};
-    const failedPlatforms = Object.entries(platformResults)
+    const platformEntries = Object.entries(platformResults);
+    const failedPlatforms = platformEntries
       .filter(([, result]) => result?.status && !["published", "skipped"].includes(String(result.status).toLowerCase()))
+      .map(([platform]) => platform);
+    const publishedPlatforms = platformEntries
+      .filter(([, result]) => String(result?.status || "").toLowerCase() === "published")
       .map(([platform]) => platform);
     const publishStatus = String(item.publish_status || item.status || "").toLowerCase();
     const published = publishStatus === "published" && failedPlatforms.length === 0;
-    const message = published
-      ? "Content published successfully"
-      : item.platform_error_message || item.publish_error || item.error_message || `Publishing failed${failedPlatforms.length ? ` on ${failedPlatforms.join(", ")}` : ""}`;
-    return res.status(published ? 200 : 502).json({ success: published, item, message });
+    const partial = !published && publishedPlatforms.length > 0;
+    const failureMessage =
+      item.platform_error_message || item.publish_error || item.error_message || `Publishing failed${failedPlatforms.length ? ` on ${failedPlatforms.join(", ")}` : ""}`;
+    const message = published ? "Content published successfully" : failureMessage;
+    /*
+      A publish that Meta refused is NOT a gateway failure. This used to answer
+      502, and 502 never reached the browser as an answer: the proxy in front of
+      the API owns that status class and replaces the body with an error page
+      that carries no CORS header, so the console showed
+      "blocked by CORS policy" + a bare NetworkError and the real reason — the
+      rate limit, the rejected media — was nowhere to be seen. Same lesson the
+      social publisher route already learned. The outcome belongs in the payload,
+      and a total failure is reported with a 4xx the proxy passes through.
+    */
+    const status = published || partial ? 200 : isMetaRateLimitMessage(failureMessage) ? 429 : 422;
+    return res.status(status).json({
+      success: published,
+      partial,
+      published_platforms: publishedPlatforms,
+      failed_platforms: failedPlatforms,
+      item,
+      message,
+    });
   } catch (error) {
     return sendError(res, error, "Failed to publish queue item");
   }

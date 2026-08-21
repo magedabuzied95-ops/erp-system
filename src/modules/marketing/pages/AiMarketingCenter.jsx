@@ -392,6 +392,16 @@ const groupedBySchedule = (items = []) => {
   return order.map((label) => ({ label, items: groups.get(label) || [] })).filter((group) => group.items.length);
 };
 
+const PLATFORM_LABELS = {
+  facebook: "فيسبوك",
+  instagram: "إنستجرام",
+  whatsapp: "واتساب",
+  tiktok: "تيك توك",
+};
+
+const platformNames = (platforms = []) =>
+  (Array.isArray(platforms) ? platforms : []).map((platform) => PLATFORM_LABELS[platform] || platform).join("، ");
+
 const platformLabel = (item = {}) => {
   const design = item.design_json || {};
   const value = item.channel || design.channel || design.platform || design.platform_hint || (item.content_type === "story" ? "instagram/facebook" : "facebook/instagram");
@@ -701,9 +711,25 @@ function AiMarketingCenter() {
         if (statusInfo.normalizedStatus === "pending_approval") {
           await approveAutonomousAiMarketingQueueItem(id);
         }
-        await publishAutonomousAiMarketingQueueItemNow(id);
+        const publishResult = await publishAutonomousAiMarketingQueueItemNow(id);
         const { isStoryContent } = getPreviewContentFlags(targetItem);
-        toast.success(isStoryContent ? "تم نشر الاستوري بنجاح" : "تم نشر المحتوى بنجاح");
+        if (publishResult?.partial) {
+          // Published somewhere, refused somewhere else. Saying "تم النشر بنجاح"
+          // here hides a platform that never went out.
+          const succeeded = platformNames(publishResult.published_platforms);
+          const failed = platformNames(publishResult.failed_platforms);
+          toast(
+            [
+              `${isStoryContent ? "تم نشر الاستوري" : "تم نشر المحتوى"}${succeeded ? ` على ${succeeded}` : ""} فقط.`,
+              failed ? `فشل على ${failed}.` : "",
+              publishResult.message || "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          );
+        } else {
+          toast.success(isStoryContent ? "تم نشر الاستوري بنجاح" : "تم نشر المحتوى بنجاح");
+        }
       }
       if (action === "delete") {
         if (!targetItem?.confirmedDelete) {

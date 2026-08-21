@@ -90,7 +90,9 @@ export const syncAutonomousAiMarketingInsights = async () => unwrapItem(await ap
 export const approveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/approve`, {}));
 export const generateAutonomousAiMarketingQueueStoryAsset = async (id) =>
   api.post(`/marketing/ai-center/queue/${id}/generate-story-asset`, { force: true });
-export const publishAutonomousAiMarketingQueueItemNow = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/publish-now`, {}));
+// The whole envelope, not just the item: a publish can come back partially done
+// (one platform live, another refused) and the caller has to be able to tell.
+export const publishAutonomousAiMarketingQueueItemNow = async (id) => api.post(`/marketing/ai-center/queue/${id}/publish-now`, {});
 export const archiveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/archive`, {}));
 export const restoreAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/restore`, {}));
 export const duplicateAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/duplicate`, {}));

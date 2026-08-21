@@ -2,6 +2,7 @@ const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 import { validateMetaToken } from "./metaTokenService.js";
+import { ensureMetaCompatibleImageUrls } from "./metaImageCompatService.js";
 
 const trimString = (value) => String(value || "").trim();
 const trimSlashes = (value = "") => String(value).replace(/^\/+|\/+$/g, "");
@@ -364,7 +365,10 @@ const publishAllChannels = async ({ post, settings, accessToken }) => {
 export const publishInstagramPost = async ({ post, settings, accessToken }) => {
   const instagramAccountId = getInstagramAccountId(settings);
   const message = buildMessage(post);
-  const imageUrls = getPostImageUrls(post);
+  // Instagram reads JPEG only. The catalogue's .webp masters come back as
+  // "Only photo or video can be accepted as media type", which reads like a
+  // broken file rather than an unsupported format.
+  const imageUrls = await ensureMetaCompatibleImageUrls(getPostImageUrls(post));
   const mediaType = getPostMediaType(post);
 
   console.log("[instagram] ig account id", { instagram_account_id: instagramAccountId || null });
@@ -623,7 +627,9 @@ export const publishFacebookPost = async ({ post, settings, accessToken }) => {
     return { success: false, status: "failed", error_message: "Facebook page ID is not configured.", external_post_id: null, platform_post_id: null, published_at: null };
   }
 
-  const imageUrls = getPostImageUrls(post);
+  // Same WebP wall as Instagram: the Page endpoints answer "Missing or invalid
+  // image file" for a format they simply cannot read.
+  const imageUrls = await ensureMetaCompatibleImageUrls(getPostImageUrls(post));
 
   try {
     if (mediaType === "video" && imageUrls.length === 1) {

@@ -1,6 +1,7 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { publishRequestWindow } from "../middleware/publishRequestWindow.js";
 import {
   archiveAutonomousAiMarketingQueueItem,
   approveAutonomousAiMarketingQueueItem,
@@ -63,7 +64,7 @@ router.post("/queue/:id/approve", protect, permit("marketing", "update"), approv
 router.get("/queue/:id/timeline", protect, permit("marketing", "view"), getAutonomousAiMarketingQueueTimeline);
 router.post("/queue/:id/generate-story-asset", protect, permit("marketing", "create"), generateAutonomousAiMarketingQueueStoryAsset);
 console.log("[route] generate-story-asset registered");
-router.post("/queue/:id/publish-now", protect, permit("marketing", "publish"), publishAutonomousAiMarketingQueueItemNow);
+router.post("/queue/:id/publish-now", protect, permit("marketing", "publish"), publishRequestWindow, publishAutonomousAiMarketingQueueItemNow);
 router.post("/queue/:id/archive", protect, permit("marketing", "update"), archiveAutonomousAiMarketingQueueItem);
 router.post("/queue/:id/restore", protect, permit("marketing", "update"), restoreAutonomousAiMarketingQueueItem);
 router.post("/queue/:id/duplicate", protect, permit("marketing", "create"), duplicateAutonomousAiMarketingQueueItem);

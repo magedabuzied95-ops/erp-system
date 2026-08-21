@@ -52,7 +52,11 @@ test("publish now prepares and validates the immutable story asset before callin
 
 test("publish-now endpoint only reports success after platform publication succeeds", () => {
   assert.match(controllerSource, /failedPlatforms\.length === 0/);
-  assert.match(controllerSource, /res\.status\(published \? 200 : 502\)/);
+  assert.match(controllerSource, /success: published,/);
+  // The refusal used to travel as 502, which the proxy in front of the API
+  // replaced with an error page the browser could only read as a CORS failure.
+  // See publish-now-failure-surface.test.js.
+  assert.match(controllerSource, /published \|\| partial \? 200 : isMetaRateLimitMessage\(failureMessage\) \? 429 : 422/);
 });
 
 test("story publishing uses the current Meta Graph API and direct story endpoints", () => {

@@ -65,6 +65,7 @@ server/services/*
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
 !server/services/metaGraphRateLimiter.js
+!server/services/metaImageCompatService.js
 # Surveillance Center. Same shape as the analytics package above: the directory
 # itself must be un-ignored before anything inside it can be matched, and the
 # nested provider/transport/media/repository folders need the `**` to survive.
@@ -112,6 +113,7 @@ server/services/*
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
 !server/services/metaGraphRateLimiter.js
+!server/services/metaImageCompatService.js
 # Surveillance Center. Same shape as the analytics package above: the directory
 # itself must be un-ignored before anything inside it can be matched, and the
 # nested provider/transport/media/repository folders need the `**` to survive.

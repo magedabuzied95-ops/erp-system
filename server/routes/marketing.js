@@ -1,6 +1,7 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { publishRequestWindow } from "../middleware/publishRequestWindow.js";
 import {
   createCampaign,
   approveAiCenterDraft,
@@ -134,7 +135,7 @@ router.post("/ai-center/generate/monthly", protect, permit("marketing", "create"
 router.post("/ai-center/queue/:id/approve", protect, permit("marketing", "update"), approveAutonomousAiMarketingQueueItem);
 router.get("/ai-center/queue/:id/timeline", protect, permit("marketing", "view"), getAutonomousAiMarketingQueueTimeline);
 router.post("/ai-center/queue/:id/generate-story-asset", protect, permit("marketing", "create"), generateAutonomousAiMarketingQueueStoryAsset);
-router.post("/ai-center/queue/:id/publish-now", protect, permit("marketing", "publish"), publishAutonomousAiMarketingQueueItemNow);
+router.post("/ai-center/queue/:id/publish-now", protect, permit("marketing", "publish"), publishRequestWindow, publishAutonomousAiMarketingQueueItemNow);
 router.post("/ai-center/queue/:id/archive", protect, permit("marketing", "update"), archiveAutonomousAiMarketingQueueItem);
 router.post("/ai-center/queue/:id/restore", protect, permit("marketing", "update"), restoreAutonomousAiMarketingQueueItem);
 router.post("/ai-center/queue/:id/duplicate", protect, permit("marketing", "create"), duplicateAutonomousAiMarketingQueueItem);
@@ -149,7 +150,7 @@ router.patch("/ai-center/drafts/:id", protect, permit("marketing", "update"), up
 router.post("/ai-center/drafts/:id/approve", protect, permit("marketing", "update"), approveAiCenterDraft);
 router.post("/ai-center/drafts/:id/reject", protect, permit("marketing", "update"), rejectAiCenterDraft);
 router.post("/ai-center/drafts/:id/schedule", protect, permit("marketing", "update"), scheduleAiCenterDraft);
-router.post("/ai-center/drafts/:id/publish-now", protect, permit("marketing", "publish"), publishNowAiCenterDraft);
+router.post("/ai-center/drafts/:id/publish-now", protect, permit("marketing", "publish"), publishRequestWindow, publishNowAiCenterDraft);
 router.post("/ai-center/generate-weekly-pack", protect, permit("marketing", "create"), generateAiCenterWeeklyPack);
 router.get("/ai-center/automation-settings", protect, permit("marketing", "view"), getAiCenterAutomationSettings);
 router.get("/ai-center/automation-logs", protect, permit("marketing", "view"), getAiCenterAutomationLogs);
