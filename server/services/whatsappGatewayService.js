@@ -426,6 +426,13 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
   });
   if (!records.length) return { scanned: rows.length, synced: 0 };
 
+  // Evolution hands back the SAME message more than once — one provider id, several of
+  // its own rows. The dedupe key is built from that provider id, so an unfiltered batch
+  // collides with itself inside a single INSERT and Postgres rejects the whole statement:
+  // one duplicate meant zero messages imported for the conversation, and the thread
+  // opened empty. Collapse by provider id here; ON CONFLICT below covers the rest.
+  const uniqueRecords = [...new Map(records.map((record) => [record.provider_message_id, record])).values()];
+
   await ensureAiSupportLogSchema();
   const result = await db.query(
     `
@@ -467,9 +474,10 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
         AND existing.remote_jid = $4
         AND existing.provider_message_id = r.provider_message_id
     )
+    ON CONFLICT DO NOTHING
     RETURNING id
     `,
-    [safeTenantId, sessionId, instanceName(), remoteJid, phone, JSON.stringify(records)]
+    [safeTenantId, sessionId, instanceName(), remoteJid, phone, JSON.stringify(uniqueRecords)]
   );
   const synced = result.rowCount || 0;
   console.info("[whatsapp:conversation-history-sync]", { tenantId: safeTenantId, sessionId, scanned: rows.length, synced });

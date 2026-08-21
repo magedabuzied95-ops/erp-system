@@ -22,6 +22,15 @@ test("recovered outbound messages never claim a human reviewed the thread", () =
   assert.doesNotMatch(insert.slice(0, 1400), /END,\s*\n\s*r\.from_me,/);
 });
 
+test("a repeated provider message id cannot sink the whole history import", () => {
+  // Evolution returns the same message under several of its own rows. The dedupe key is
+  // built from the provider id, so an unfiltered batch collides with itself and Postgres
+  // rejects the entire INSERT — one duplicate meant zero messages for that conversation.
+  assert.match(gatewaySource, /const uniqueRecords = \[\.\.\.new Map\(records\.map\(\(record\) => \[record\.provider_message_id, record\]\)\)\.values\(\)\]/);
+  assert.match(gatewaySource, /ON CONFLICT DO NOTHING\s*\n\s*RETURNING id/);
+  assert.match(gatewaySource, /JSON\.stringify\(uniqueRecords\)/);
+});
+
 test("opening a conversation cannot hang on the WhatsApp gateway", () => {
   // The transcript endpoint imports the chat history before it answers, and every
   // conversation nobody has opened yet pays that on first click. Unbounded, a slow
