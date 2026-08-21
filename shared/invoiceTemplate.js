@@ -1,23 +1,25 @@
 // Customer-facing invoice template — THE canonical shape of "what the customer sees".
 // ----------------------------------------------------------------------------------
-// Operator surface: Invoice Studio (planned: /settings/invoice)
+// Operator surface: Invoice Studio (/settings/invoice)
 // Storage:          invoice_templates.config (jsonb), tenant-scoped, many rows per tenant
 // API:              /api/invoice-templates (server/routes/invoiceTemplates.js)
 //
-// Today the invoice is rendered FOUR separate times, each with its own copy of the
-// labels, the store phone, and the return policy:
+// The invoice is drawn by FOUR renderers, each of which used to carry its own copy of
+// the labels, the store phone and the return policy. They all read this config now:
 //   1. src/shared/components/invoices/OrderInvoiceCard.jsx  (order details, public link, storefront)
 //   2. src/shared/utils/invoicePdf.js                       (A4 + thermal PDF/print)
 //   3. ReceiptPreview in src/modules/pos/components/CartSidebar.jsx (80mm cashier receipt)
 //   4. buildOrderInvoiceWhatsappText in src/shared/utils/orderInvoice.js (WhatsApp text)
-// This module is the single config those four will eventually read from. Nothing reads
-// it yet — it ships first so the defaults can be proven to reproduce today's output
-// byte for byte before any renderer is switched over.
+//
+// `fields`/`totals` here are per-element visibility; `blocks` is the layout — what
+// appears, in what order, and anything the operator added.
 //
 // DEFAULTS ARE NOT A DESIGN CHOICE. Every value below is transcribed from what the code
 // already renders, so an un-configured tenant sees exactly what it sees today. When a
 // field is meant to inherit from somewhere else (tenant branding, the phone), the
 // default is "" and the renderer keeps its existing fallback chain.
+
+import { DEFAULT_INVOICE_BLOCKS, normalizeInvoiceBlocks } from "./invoiceBlocks.js";
 
 export const INVOICE_TEMPLATE_CONFIG_VERSION = 1;
 
@@ -49,6 +51,11 @@ export const DEFAULT_RETURN_POLICY_AR = [
 
 export const INVOICE_TEMPLATE_DEFAULTS = Object.freeze({
   version: INVOICE_TEMPLATE_CONFIG_VERSION,
+
+  // The document itself: which sections appear, in what order, and anything the operator
+  // added between them. See shared/invoiceBlocks.js — the default list reproduces the
+  // layout the renderers had written into them.
+  blocks: DEFAULT_INVOICE_BLOCKS,
 
   // Empty string means "keep the renderer's existing fallback" — for name and logo that
   // is getTenantBranding() in src/shared/utils/orderInvoice.js, which already reads
@@ -207,6 +214,9 @@ export const normalizeInvoiceTemplateConfig = (config = {}) => {
 
   return {
     version: INVOICE_TEMPLATE_CONFIG_VERSION,
+    // Absent blocks mean "the layout was never touched", which normalizeInvoiceBlocks
+    // answers with the default list rather than an empty invoice.
+    blocks: normalizeInvoiceBlocks(input.blocks),
     identity: {
       store_name: toText(identity.store_name, defaults.identity.store_name, 160),
       logo_url: toPublicUrl(identity.logo_url, defaults.identity.logo_url),
@@ -267,6 +277,9 @@ export const mergeInvoiceTemplateConfig = (base = {}, patch = {}) => {
   });
 
   return normalizeInvoiceTemplateConfig({
+    // Blocks are an ordered list, not a keyed group: a patch that carries one replaces
+    // the layout wholesale, because "merging" two orderings has no sensible meaning.
+    blocks: Array.isArray(incoming.blocks) ? incoming.blocks : current.blocks,
     identity: group("identity"),
     fields: group("fields"),
     totals: group("totals"),
