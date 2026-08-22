@@ -1645,6 +1645,8 @@
       "noColor": "لا يوجد لون محدد",
       "size": "المقاس",
       "availableSizesOnly": "المقاسات المتاحة فقط",
+      "allSizesForRestock": "كل المقاسات — حتى الناقصة",
+      "sizeSoldOut": "ناقص",
       "noSizesForColor": "لا توجد مقاسات متاحة لهذا اللون",
       "clearSelection": "إلغاء التحديد",
       "sendSelectedCount": "إرسال المنتجات المحددة ({{count}})",

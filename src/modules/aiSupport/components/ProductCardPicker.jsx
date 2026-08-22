@@ -129,10 +129,14 @@ const variantBarcode = (variant = {}) =>
 const productColors = (product = {}) =>
   uniqueTextValues(asArray(product.variants).map((variant) => variant.color || variant.color_name || variant.variant_color));
 
-const productSizes = (product = {}, color = "") => {
+const variantStock = (variant = {}) => Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0);
+
+// includeOutOfStock: a restock request exists precisely because the size is
+// gone, so that mode lists every size the product was ever cut in.
+const productSizes = (product = {}, color = "", includeOutOfStock = false) => {
   const normalizedColor = lower(color);
   const variants = asArray(product.variants).filter((variant) => {
-    if (Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0) <= 0) return false;
+    if (!includeOutOfStock && variantStock(variant) <= 0) return false;
     if (!normalizedColor) return true;
     return lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor;
   });
@@ -274,12 +278,12 @@ const buildAvailableBySizeMessage = ({
     .join("\n");
 };
 
-const findMatchingVariant = (product = {}, color = "", size = "") => {
+const findMatchingVariant = (product = {}, color = "", size = "", includeOutOfStock = false) => {
   const variants = asArray(product.variants);
   if (!variants.length) return null;
   const normalizedColor = lower(color);
   const normalizedSize = lower(size);
-  const availableVariants = variants.filter((variant) => Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0) > 0);
+  const availableVariants = includeOutOfStock ? variants : variants.filter((variant) => variantStock(variant) > 0);
   const searchVariants = availableVariants.length ? availableVariants : variants;
   const exactMatch = searchVariants.find((variant) => {
     const variantColor = lower(variant.color || variant.color_name || variant.variant_color);
@@ -430,7 +434,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const [manufacturer, setManufacturer] = useState([]);
   const filterColor = "all";
   const filterSize = "all";
-  const stockFilter = "in_stock";
+  // A restock request is about a size that is NOT in stock: show sold-out
+  // products and sizes there, everywhere else the picker only offers what can ship.
+  const stockFilter = restockMode ? "all" : "in_stock";
   // Filters the SERVER applies across the whole catalog. Previously every POS
   // smart filter ran client-side over the current page, so a filter could only
   // ever match among the 24 rows that happened to be fetched — picking a brand
@@ -971,14 +977,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const colors = productColors(selectedProduct);
     const initialColor = colors.includes(selectedColor) ? selectedColor : colors[0] || "";
     if (initialColor !== selectedColor) setSelectedColor(initialColor);
-    const sizes = productSizes(selectedProduct, initialColor);
+    const sizes = productSizes(selectedProduct, initialColor, restockMode);
     const initialSize = sizes.includes(selectedSize) ? selectedSize : sizes[0] || "";
     if (initialSize !== selectedSize) setSelectedSize(initialSize);
     if (!colors.length && selectedColor) setSelectedColor("");
     if (!sizes.length && selectedSize) setSelectedSize("");
-  }, [selectedProduct, selectedColor, selectedSize]);
+  }, [restockMode, selectedProduct, selectedColor, selectedSize]);
 
-  const activeVariant = useMemo(() => findMatchingVariant(selectedProduct || {}, selectedColor, selectedSize), [selectedColor, selectedProduct, selectedSize]);
+  const activeVariant = useMemo(() => findMatchingVariant(selectedProduct || {}, selectedColor, selectedSize, restockMode), [restockMode, selectedColor, selectedProduct, selectedSize]);
   const activeColorVariant = useMemo(() => findMatchingColorVariant(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
   const activeCard = useMemo(() => (selectedProduct ? buildProductCardPayload(selectedProduct, activeVariant) : null), [activeVariant, selectedProduct]);
 
@@ -1030,7 +1036,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return resolveProductImageUrl(selectedImage || productImage(selectedProduct || {}, activeVariant));
   }, [activeColorVariant, activeVariant, selectedProduct]);
   const activeColors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
-  const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
+  const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor, restockMode), [restockMode, selectedColor, selectedProduct]);
+  const outOfStockSizes = useMemo(() => {
+    if (!restockMode) return new Set();
+    const inStock = new Set(productSizes(selectedProduct || {}, selectedColor).map(lower));
+    return new Set(activeSizes.filter((size) => !inStock.has(lower(size))));
+  }, [activeSizes, restockMode, selectedColor, selectedProduct]);
   const activePrice = Number(activeCard?.price || 0);
   const selectedProducts = useMemo(() => {
     if (allowMultiple && selectedProductIds.length) {
@@ -1593,7 +1604,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     const previewImage = productImage(product, previewVariant);
                     const previewPrice = Number(previewVariant?.price ?? product.final_price ?? product.price ?? 0);
                     const previewColors = productColors(product).slice(0, 3);
-                    const previewSizes = productSizes(product, previewColors[0] || "").slice(0, 3);
+                    const previewSizes = productSizes(product, previewColors[0] || "", restockMode).slice(0, 3);
                     if (posPickerMode) {
                       return (
                         <div
@@ -1773,7 +1784,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             type="button"
                             onClick={() => {
                               setSelectedColor(color);
-                              const nextSizes = productSizes(selectedProduct, color);
+                              const nextSizes = productSizes(selectedProduct, color, restockMode);
                               if (nextSizes.length) {
                                 setSelectedSize((current) => (nextSizes.some((item) => lower(item) === lower(current)) ? current : nextSizes[0]));
                               } else {
@@ -1797,22 +1808,24 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 <div className="rounded-2xl border border-white/10 bg-[#22221e] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-black text-white">{t("aiSupport.inbox.picker.size")}</div>
-                    <div className="text-[11px] font-bold text-slate-500">{t("aiSupport.inbox.picker.availableSizesOnly")}</div>
+                    <div className="text-[11px] font-bold text-slate-500">{restockMode ? t("aiSupport.inbox.picker.allSizesForRestock") : t("aiSupport.inbox.picker.availableSizesOnly")}</div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {activeSizes.length ? (
                       activeSizes.map((size) => {
                         const active = lower(selectedSize) === lower(size);
+                        const soldOut = outOfStockSizes.has(size);
                         return (
                           <button
                             key={size}
                             type="button"
                             onClick={() => setSelectedSize(size)}
                             className={`min-h-12 rounded-2xl border px-3 py-2 text-start transition ${
-                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
+                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : soldOut ? "border-dashed border-rose-300/40 bg-rose-400/5 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                             }`}
                           >
                             <div className="text-xl font-black leading-none">{size}</div>
+                            {soldOut ? <div className={`mt-1 text-[10px] font-black ${active ? "text-[#171714]/70" : "text-rose-300"}`}>{t("aiSupport.inbox.picker.sizeSoldOut")}</div> : null}
                           </button>
                         );
                       })

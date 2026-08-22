@@ -1637,6 +1637,8 @@
       "noColor": "No colour selected",
       "size": "Size",
       "availableSizesOnly": "Available sizes only",
+      "allSizesForRestock": "All sizes — including sold out",
+      "sizeSoldOut": "Sold out",
       "noSizesForColor": "No sizes are available for this colour",
       "clearSelection": "Clear selection",
       "sendSelectedCount": "Send selected products ({{count}})",
