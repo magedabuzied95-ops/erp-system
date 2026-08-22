@@ -2755,18 +2755,21 @@ export default function ManagerPortal() {
                 </button>
               </div>
 
-              <Card title={tt("managerPortal.filters.title")} subtitle={tt("managerPortal.filters.title")} icon={Search} tone="slate">
-                <div className="grid gap-2 md:grid-cols-4">
+              <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-white/[0.02]">
+                  <span className="inline-flex shrink-0 items-center gap-1 px-1 text-xs font-black text-slate-500 dark:text-slate-400">
+                    <Search className="h-3.5 w-3.5" />
+                    {tt("managerPortal.filters.title")}
+                  </span>
                   <input
                     value={taskFilters.query}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, query: event.target.value }))}
                     placeholder={tt("managerPortal.filters.searchPlaceholder")}
-                    className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                    className="min-w-[9rem] flex-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   />
                   <select
                     value={taskFilters.status}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, status: event.target.value }))}
-                    className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                    className="min-w-[8rem] flex-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   >
                     <option value="all">{tt("managerPortal.filters.allStatuses")}</option>
                     <option value="open">{tt("managerPortal.stats.openTasks")}</option>
@@ -2781,18 +2784,17 @@ export default function ManagerPortal() {
                   <select
                     value={taskFilters.employee}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, employee: event.target.value }))}
-                    className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                    className="min-w-[8rem] flex-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   >
                     <option value="">{tt("managerPortal.filters.allEmployees")}</option>
                     {employeeFilterOptions.map((employee) => (
                       <option key={employee.value || employee.label} value={employee.value || employee.label}>{employee.label}</option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => setTaskFilters({ status: "all", employee: "", query: "" })} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  <button type="button" onClick={() => setTaskFilters({ status: "all", employee: "", query: "" })} className="shrink-0 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     {tt("managerPortal.filters.clear")}
                   </button>
-                </div>
-              </Card>
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <Card title={formatNumber(taskCounts.open)} subtitle={tt("managerPortal.stats.openTasks")} icon={ClipboardList} tone="gold" />
