@@ -54,6 +54,7 @@ import toast from "react-hot-toast";
 // The chat (list, composer, recorder, media viewer, ring) only loads when the
 // tab is opened; a manager on attendance never downloads it.
 const SharedPortalChat = lazy(() => import("../../../shared/chat/SharedPortalChat"));
+import { chatCacheScope } from "../../../shared/chat/chatCache";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl, resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { SOCKET_URL } from "../../../shared/constants/app";
@@ -3170,6 +3171,7 @@ export default function ManagerPortal() {
             <Suspense fallback={<div className="theme-card flex min-h-[24rem] items-center justify-center text-sm font-bold text-[var(--muted)]">{tt("common.loading")}</div>}>
             <SharedPortalChat
               apiAdapter={managerChatApiAdapter}
+              cacheScope={chatCacheScope(token)}
               employees={staffList}
               selectedEmployeeId={queryEmployeeId}
               onThreadChange={setManagerChatState}

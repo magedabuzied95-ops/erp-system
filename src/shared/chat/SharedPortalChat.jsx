@@ -13,6 +13,7 @@ import { allowedPortalChatAttachment, portalChatMessagePreview } from "./portalC
 import ChatRingOverlay, { ChatRingStatus } from "./ChatRingOverlay";
 import ChatThreadRow from "./ChatThreadRow";
 import ChatMediaViewer from "./ChatMediaViewer";
+import chatCache from "./chatCache";
 import useChatRing from "./useChatRing";
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
@@ -121,6 +122,7 @@ export default function SharedPortalChat({
   managerPanel = null,
   pollMs = 12000,
   allowReply = true,
+  cacheScope = "", // non-empty enables the IndexedDB warm-open cache, namespaced by this key
   // eslint-disable-next-line no-unused-vars -- retained for callers; the composer is always an auto-growing textarea now
   useTextareaComposer = false,
   mobileFullScreen = false,
@@ -346,6 +348,13 @@ export default function SharedPortalChat({
   useEffect(() => {
     messagesByThreadRef.current = messagesByThread;
   }, [messagesByThread]);
+  useEffect(() => {
+    if (!cacheScope || !activeThreadId) return undefined;
+    const rows = messagesByThread[String(activeThreadId)];
+    if (!rows?.length) return undefined;
+    const timer = window.setTimeout(() => { void chatCache.saveThread(cacheScope, activeThreadId, rows); }, 400);
+    return () => window.clearTimeout(timer);
+  }, [cacheScope, activeThreadId, messagesByThread]);
 
   useEffect(() => {
     draftsByThreadRef.current = draftsByThread;
@@ -409,6 +418,7 @@ export default function SharedPortalChat({
       const response = await apiAdapter.listThreads();
       const nextThreads = dedupeChatThreads(safeArray(response?.threads));
       setThreads((current) => mergeChatThreads(current, nextThreads));
+      if (cacheScope) void chatCache.saveThreads(cacheScope, nextThreads);
       return response;
     } catch (err) {
       setError(failure(err, "employeePortal.chat.admin.errors.loadThreads"));
@@ -416,7 +426,8 @@ export default function SharedPortalChat({
     } finally {
       setLoadingThreads(false);
     }
-  }, [apiAdapter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiAdapter, cacheScope]);
 
   const loadThread = useCallback(async (threadId, { silent = false, beforeId = null } = {}) => {
     const resolvedThreadId = String(threadId || "");
@@ -479,9 +490,25 @@ export default function SharedPortalChat({
     }
   }, [loadThread, loadingOlder]);
 
+  const cachePrimedRef = useRef(false);
   useEffect(() => {
-    void loadThreads();
-  }, [loadThreads]);
+    let cancelled = false;
+    const run = async () => {
+      if (cacheScope && !cachePrimedRef.current) {
+        cachePrimedRef.current = true;
+        const cached = await chatCache.loadThreads(cacheScope);
+        if (!cancelled && cached?.length) {
+          // Paint from disk; the network merges over it and stays authoritative.
+          setThreads((current) => (current.length ? current : dedupeChatThreads(cached)));
+          setLoadingThreads(false);
+        }
+        void chatCache.sweep(cacheScope);
+      }
+      if (!cancelled) void loadThreads();
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [cacheScope, loadThreads]);
 
   useEffect(() => {
     const externalId = String(initialSelectedEmployeeId || employeeRecordId(selectedEmployee) || "");
@@ -510,12 +537,30 @@ export default function SharedPortalChat({
       return;
     }
     setBodyState(draftsByThreadRef.current[nextThreadId] || "");
-    if (messagesByThreadRef.current[nextThreadId]?.length) {
+    const inMemory = Boolean(messagesByThreadRef.current[nextThreadId]?.length);
+    if (inMemory) {
       setThread(threadMap.get(String(selectedEmployeeId)) || null);
+      void loadThread(nextThreadId, { silent: true });
+      return;
     }
-    void loadThread(nextThreadId, { silent: Boolean(messagesByThreadRef.current[nextThreadId]?.length) });
+    if (!cacheScope) {
+      void loadThread(nextThreadId, { silent: false });
+      return;
+    }
+    // Warm open: cached newest page first, then the network replaces the window.
+    let cancelled = false;
+    (async () => {
+      const cached = await chatCache.loadThread(cacheScope, nextThreadId);
+      if (cancelled) return;
+      if (cached?.length && !messagesByThreadRef.current[nextThreadId]?.length) {
+        setMessagesByThread((current) => (current[nextThreadId]?.length ? current : { ...current, [nextThreadId]: cached }));
+        setThread(threadMap.get(String(selectedEmployeeId)) || null);
+      }
+      void loadThread(nextThreadId, { silent: Boolean(cached?.length) });
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadThread, selectedEmployeeId, mappedThreadId]);
+  }, [loadThread, selectedEmployeeId, mappedThreadId, cacheScope]);
 
   useEffect(() => {
     onSelectedEmployeeChange?.(selectedEmployeeRecord);
