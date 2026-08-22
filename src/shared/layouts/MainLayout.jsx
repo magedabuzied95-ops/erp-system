@@ -65,7 +65,6 @@ const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "
 const SETTINGS_CENTER_SIDEBAR_HIDE_ROUTES = new Set([
   "/settings/company",
   "/settings/currencies",
-  "/settings/appearance",
   "/settings/storefront",
   "/settings/shipping",
   "/settings/payments",
@@ -74,7 +73,6 @@ const SETTINGS_CENTER_ACTIVE_ROUTES = new Set([
   "/settings",
   "/settings/company",
   "/settings/currencies",
-  "/settings/appearance",
   "/settings/storefront",
   "/settings/shipping",
   "/settings/payments",

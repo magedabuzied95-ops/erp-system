@@ -420,7 +420,6 @@ function SettingsCenterContent({ debugMode = false }) {
   const categoryFromPath = {
     "/settings/company": "general",
     "/settings/currencies": "general",
-    "/settings/appearance": "general",
     "/settings/storefront": "storefront",
     "/settings/shipping": "shipping",
     "/settings/payments": "payments",
@@ -462,7 +461,7 @@ function SettingsCenterContent({ debugMode = false }) {
     : "lg:grid-cols-[20rem_minmax(0,1fr)]";
 
   const definitions = useMemo(() => settingsByCategory[activeCategory] || [], [activeCategory]);
-  const siteSettingKeys = useMemo(() => new Set(["general.company_name", "general.company_logo_url", "general.favicon_url"]), []);
+  const siteSettingKeys = useMemo(() => new Set(["general.company_name", "general.company_logo_url", "general.favicon_url", "general.appearance_profile"]), []);
   const recordMap = useMemo(() => mapByKey(records), [records]);
   const definitionMap = useMemo(() => mapByKey(definitions), [definitions]);
 

@@ -83,10 +83,16 @@ export const resolveInitialLanguage = () => {
   return getStoredLanguage() || getBrowserLanguage();
 };
 
+// --app-font is written INLINE on <html>/<body> here, so it outranks every
+// stylesheet rule. It must therefore track the --font-ar/--font-en tokens that
+// ThemeProvider (and the Appearance Studio) own, not freeze a literal stack —
+// a literal would silently revert the user's font choice on every language
+// switch. The literals remain only as a fallback for the instant before the
+// provider has written the tokens.
 const resolveFontFamily = (language) =>
   normalizeLanguage(language) === "ar"
-    ? '"Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif'
-    : '"Inter", "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif';
+    ? 'var(--font-ar, "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif)'
+    : 'var(--font-en, "Inter", "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif)';
 
 export const applyDocumentLanguage = (language) => {
   if (typeof document === "undefined") return;

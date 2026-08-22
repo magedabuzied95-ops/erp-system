@@ -58,6 +58,29 @@
           // and which ThemeProvider never clears — that is why the canvas kept
           // painting the pre-refresh #f3f3f1 long after the theme changed.
           root.style.background = "var(--bg)";
+          // Appearance seed (fonts). src/theme/appearanceStore.js stores the
+          // resolved CSS stacks and Google Fonts URLs next to the profile so
+          // this script can apply them without knowing the font catalogue.
+          if (!isStorefrontHost) {
+            try {
+              var storedAppearance = JSON.parse(localStorage.getItem("erp.appearance") || "null");
+              var resolved = storedAppearance && storedAppearance.resolved;
+              if (resolved && typeof resolved.fontAr === "string" && typeof resolved.fontEn === "string") {
+                root.style.setProperty("--font-ar", resolved.fontAr);
+                root.style.setProperty("--font-en", resolved.fontEn);
+                (resolved.links || []).forEach(function (href) {
+                  if (typeof href !== "string" || href.indexOf("https://fonts.googleapis.com/") !== 0) return;
+                  var link = document.createElement("link");
+                  link.rel = "stylesheet";
+                  link.href = href;
+                  link.setAttribute("data-erp-font-seed", "1");
+                  document.head.appendChild(link);
+                });
+              }
+            } catch (appearanceError) {
+              // A malformed record must never block boot; the provider re-applies.
+            }
+          }
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute("content", dark ? "#131211" : "#eae7e0");
         } catch (error) {

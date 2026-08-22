@@ -22,6 +22,7 @@ import { isStorefrontBootPath } from "./i18n/loadLocaleScope";
 import { api } from "./shared/api/api";
 import { getPublicSettings } from "./shared/api/publicSettings";
 import { setCurrency } from "./shared/lib/currency";
+import { useTheme } from "./theme/useTheme";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
 
 /* ======================================================
@@ -234,6 +235,7 @@ const AdminTenants = lazy(() => import("./modules/saas/pages/AdminTenants"));
 
 const SettingsCenter = lazy(() => import("./modules/settings/pages/SettingsCenter"));
 const InvoiceStudio = lazy(() => import("./modules/settings/pages/InvoiceStudio"));
+const AppearanceStudio = lazy(() => import("./modules/settings/pages/AppearanceStudio"));
 const NotificationsCenter = lazy(() => import("./modules/notifications/pages/NotificationsCenter"));
 const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportConsole"));
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
@@ -346,6 +348,7 @@ function ErpMainRoute() {
 function App() {
   useTranslation();
   const location = useLocation();
+  const { setTenantAppearanceDefault } = useTheme();
   const [, setAuthRevision] = useState(0);
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
@@ -396,6 +399,8 @@ function App() {
           ? M1_FAVICON_URL
           : settings["general.favicon_url"] || M1_FAVICON_URL;
         if (code || symbol) setCurrency({ code, symbol });
+        // Store-wide appearance default; a browser that chose its own keeps it.
+        setTenantAppearanceDefault(settings["general.appearance_profile"] || null);
         if (typeof document !== "undefined") {
           let link = document.querySelector('link[rel="icon"]');
           if (!link) {
@@ -411,7 +416,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isEmployeeAppRoute]);
+  }, [isEmployeeAppRoute, setTenantAppearanceDefault]);
 
   if (isEmployeeAppRoute) {
     console.debug("[employee-app-route-hit]", employeeAppToken);
@@ -1022,7 +1027,7 @@ function App() {
           path="settings/appearance"
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
-              <SettingsCenter />
+              <AppearanceStudio />
             </ProtectedRoute>
           }
         />

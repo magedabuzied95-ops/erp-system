@@ -74,6 +74,10 @@ const definitions = [
   ["general.company_logo_url", "general", "url", "", "Company logo", "شعار الشركة", "Public logo URL used by customer-facing views.", "رابط الشعار المستخدم في الواجهات العامة.", { isPublic: true, usedBy: ["Invoices", "Storefront"] }],
   ["general.favicon_url", "general", "url", "", "Favicon", "أيقونة الموقع", "Public favicon URL used by browser tabs.", "رابط الأيقونة الظاهرة في المتصفح.", { isPublic: true, usedBy: ["Storefront", "ERP"] }],
   ["general.default_language", "general", "select", "ar", "Default language", "اللغة الافتراضية", "Default ERP language for new sessions.", "لغة النظام الافتراضية للجلسات الجديدة.", { options: [option("ar", "Arabic", "العربية"), option("en", "English", "الإنجليزية")], isPublic: true, usedBy: ["ERP", "Storefront"] }],
+  // Store-wide appearance default (fonts + shape + control size). Edited only
+  // from /settings/appearance — the Settings Center hides it from the General
+  // form. Public so every client can apply it before login.
+  ["general.appearance_profile", "general", "json", null, "Appearance profile", "ملف المظهر", "Default fonts, corner radius, and control size for every ERP user who has not chosen their own.", "الخطوط والزوايا وحجم العناصر الافتراضية لكل مستخدم لم يختر مظهره الخاص.", { isPublic: true, usedBy: ["ERP"] }],
   ["general.default_direction", "general", "select", "auto", "Default direction", "اتجاه العرض", "Controls RTL/LTR behavior when language is not explicit.", "يتحكم في RTL/LTR عند عدم تحديد اللغة.", { options: [option("auto", "Auto", "تلقائي"), option("rtl", "RTL", "يمين لليسار"), option("ltr", "LTR", "يسار لليمين")], isPublic: true, usedBy: ["ERP", "Storefront"] }],
   ["general.default_currency", "general", "text", "EGP", "Default currency", "العملة الافتراضية", "Primary currency code.", "كود العملة الأساسي.", { validation: { maxLength: 8 }, isPublic: true, usedBy: ["POS", "Orders", "Accounting"] }],
   ["general.currency_symbol", "general", "text", "ج.م", "Currency symbol", "رمز العملة", "Displayed beside money amounts.", "يعرض بجانب المبالغ.", { validation: { maxLength: 8 }, isPublic: true, usedBy: ["POS", "Payroll", "Storefront"] }],
