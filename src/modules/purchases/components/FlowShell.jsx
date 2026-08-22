@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { PackageSearch } from "lucide-react";
 
-function FlowShell({ title, subtitle, actions, tabs = [], children, compact = false, shellRef = null }) {
+function FlowShell({ title, subtitle, actions, tabs = [], children, compact = false, shellRef = null, hideHeader = false, floatingActions = null }) {
   const { t } = useTranslation();
   // `compact` is a DENSITY variant, not a colour scheme. It used to hardcode a
   // near-black shell — a raw hex page background, a near-black header card,
@@ -14,6 +14,9 @@ function FlowShell({ title, subtitle, actions, tabs = [], children, compact = fa
   return (
     <div ref={shellRef} className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <div className={`mx-auto flex w-full flex-col px-3 sm:px-4 lg:px-5 ${compact ? "gap-2 py-2" : "gap-4 py-4"}`}>
+        {hideHeader ? (
+          floatingActions ? <div className="fixed end-3 top-3 z-40 flex items-center gap-2">{floatingActions}</div> : null
+        ) : (
         <div className={`rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] ${compact ? "p-2.5" : "p-4"}`}>
           <div className={`flex flex-col xl:flex-row xl:items-center xl:justify-between ${compact ? "gap-2" : "gap-4"}`}>
             <div>
@@ -47,6 +50,7 @@ function FlowShell({ title, subtitle, actions, tabs = [], children, compact = fa
             </div>
           ) : null}
         </div>
+        )}
         {children}
       </div>
     </div>

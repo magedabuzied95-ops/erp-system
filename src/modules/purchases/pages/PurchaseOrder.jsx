@@ -2303,6 +2303,18 @@ function PurchaseOrder() {
     <FlowShell
       compact
       shellRef={purchaseShellRef}
+      hideHeader={isFullscreen}
+      floatingActions={
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          aria-label={isArabic ? "الخروج من ملء الشاشة" : "Exit fullscreen"}
+          title={isArabic ? "الخروج من ملء الشاشة" : "Exit fullscreen"}
+          className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/90 text-zinc-200 shadow-lg backdrop-blur hover:bg-white/10"
+        >
+          <Minimize2 className="h-4 w-4" />
+        </button>
+      }
       title={t("purchases.create.title")}
       subtitle={t("purchases.create.subtitle")}
       actions={
