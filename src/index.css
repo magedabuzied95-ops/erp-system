@@ -6952,3 +6952,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 .chat-ring-pulse { animation: chat-ring-pulse 1.4s ease-out infinite; }
+
+/* Employee / manager portals: stop iOS focus-zoom. Safari zooms when a
+   focused field is under 16px, so on touch devices the fields there are never
+   smaller than that — visually close to text-sm, and no zoom jump.
+   Unlayered on purpose: it must beat Tailwind text-sm/text-xs utilities. */
+@media (hover: none) and (pointer: coarse) {
+  html[data-portal-touch] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    font-size: max(16px, 1em);
+  }
+}

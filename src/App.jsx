@@ -370,6 +370,16 @@ function App() {
     void whenLocalesReady();
   }, [location.pathname]);
 
+  // iOS Safari zooms the page when a focused field renders below 16px. The
+  // portals are phone-first and their fields are text-sm, so flag the route on
+  // <html> and let index.css lift field font-size on touch devices there.
+  useEffect(() => {
+    const path = location.pathname || "";
+    const isPortal = /^\/(employee-app|employee\/portal|manager-portal|manager\/)/.test(path);
+    if (isPortal) document.documentElement.setAttribute("data-portal-touch", "1");
+    else document.documentElement.removeAttribute("data-portal-touch");
+  }, [location.pathname]);
+
   useEffect(() => {
     if (!enableErpAppRoutes || isEmployeeAppRoute || !getToken()) return undefined;
     let cancelled = false;
