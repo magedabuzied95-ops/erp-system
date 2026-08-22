@@ -34,7 +34,7 @@ import {
 import { ensureWhatsappShippingSchema, sendShipmentCreated } from "../services/whatsappShippingService.js";
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
-import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
+import { issueFirstOrderCoupons, redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
@@ -5258,6 +5258,11 @@ export const createWebsiteOrder = async (req, res) => {
       orderId: order?.id,
       message: error?.message || String(error),
     }));
+    if (customer?.id) {
+      issueFirstOrderCoupons({ tenantId, customerId: customer.id, orderId: order.id }).catch((error) => {
+        console.warn("[coupons] first-order auto-issue skipped", { orderId: order?.id, message: error?.message || String(error) });
+      });
+    }
     sendOrderConfirmation({ ...order, items: normalizedItems }).catch((error) => {
       console.warn("[whatsapp:order-confirmation-send-skipped]", {
         orderId: order?.id,

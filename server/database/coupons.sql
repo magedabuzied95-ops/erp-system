@@ -83,3 +83,6 @@ ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS code_mode VARCHA
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS shared_code VARCHAR(80);
 ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP NULL;
 CREATE INDEX IF NOT EXISTS idx_coupons_assigned_customer ON coupons (assigned_customer_id);
+
+-- Phase 3.1: auto-issue a coupon after a customer's first order
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS auto_issue_on_first_order BOOLEAN NOT NULL DEFAULT FALSE;

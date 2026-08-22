@@ -97,6 +97,7 @@ const normalizeCampaignInput = (body = {}) => {
     first_order_only: parseBoolean(body.first_order_only ?? body.firstOrderOnly, false),
     code_mode: codeMode,
     shared_code: sharedCode,
+    auto_issue_on_first_order: parseBoolean(body.auto_issue_on_first_order ?? body.autoIssueOnFirstOrder, false),
   };
 };
 
@@ -173,9 +174,10 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       tenant_id, name, code_prefix, discount_type, discount_value, minimum_order_amount,
       max_discount_amount, usage_limit_per_coupon, total_coupons, starts_at, expires_at,
       channel, is_active, created_by, applies_to_shipping,
-      usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only, code_mode, shared_code
+      usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only, code_mode, shared_code,
+      auto_issue_on_first_order
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
     RETURNING *
     `,
     [
@@ -201,6 +203,7 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       campaign.first_order_only,
       campaign.code_mode,
       campaign.shared_code,
+      campaign.auto_issue_on_first_order,
     ]
   );
   const created = result.rows[0];
@@ -256,7 +259,8 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
         is_active = $${offset + 11}, applies_to_shipping = $${offset + 12},
         usage_limit_per_customer = $${offset + 13}, scope = $${offset + 14}::jsonb, stack_policy = $${offset + 15},
         budget_cap = $${offset + 16}, first_order_only = $${offset + 17},
-        code_mode = $${offset + 18}, shared_code = $${offset + 19}, updated_at = NOW()
+        code_mode = $${offset + 18}, shared_code = $${offset + 19},
+        auto_issue_on_first_order = $${offset + 20}, updated_at = NOW()
     WHERE id = $${offset} ${tenantId === null ? "" : "AND (tenant_id = $1 OR tenant_id IS NULL)"}
     RETURNING *
     `,
@@ -281,6 +285,7 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
       campaign.first_order_only,
       campaign.code_mode,
       campaign.shared_code,
+      campaign.auto_issue_on_first_order,
     ]
   );
   const updated = result.rows[0] || null;
@@ -884,6 +889,58 @@ export const assignCouponToCustomer = async ({ tenantId = null, campaignId, cust
   } finally {
     client.release();
   }
+};
+
+/**
+ * Phase 3.1 — after a customer's FIRST order, hand them a coupon from every campaign flagged
+ * auto_issue_on_first_order. Called post-commit, fire-and-forget: it never throws into checkout.
+ * Idempotent — assignCouponToCustomer reuses an unused coupon already assigned to that customer.
+ */
+export const issueFirstOrderCoupons = async ({ tenantId = null, customerId, orderId = null } = {}) => {
+  const safeCustomerId = Number.parseInt(customerId, 10);
+  if (!safeCustomerId) return { issued: [] };
+  await ensureCouponsSchema();
+
+  // "First order" = this one is the only non-cancelled order the customer has.
+  const orderCount = await db.query(
+    `SELECT COUNT(*)::int AS n FROM orders
+     WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')`,
+    [safeCustomerId]
+  );
+  if (Number(orderCount.rows[0]?.n || 0) > 1) return { issued: [], reason: "not_first_order" };
+
+  const params = [];
+  let tenantSql = "";
+  if (tenantId !== null && tenantId !== undefined) {
+    params.push(tenantId);
+    tenantSql = ` AND (tenant_id = $${params.length} OR tenant_id IS NULL)`;
+  }
+  const campaigns = await db.query(
+    `SELECT id, name FROM coupon_campaigns
+     WHERE auto_issue_on_first_order = TRUE
+       AND is_active = TRUE
+       AND (starts_at IS NULL OR starts_at <= NOW())
+       AND (expires_at IS NULL OR expires_at >= NOW())
+       ${tenantSql}
+     ORDER BY id ASC`,
+    params
+  );
+  const issued = [];
+  for (const campaign of campaigns.rows) {
+    try {
+      const assignment = await assignCouponToCustomer({ tenantId, campaignId: campaign.id, customerId: safeCustomerId });
+      issued.push({ campaign_id: campaign.id, campaign_name: campaign.name, ...assignment });
+      console.log("[coupons] auto-issued after first order", {
+        campaign_id: campaign.id,
+        customer_id: safeCustomerId,
+        order_id: orderId,
+        code: assignment?.coupon?.code,
+      });
+    } catch (error) {
+      console.error("[coupons] auto-issue failed", { campaign_id: campaign.id, customer_id: safeCustomerId, message: error?.message });
+    }
+  }
+  return { issued };
 };
 
 /** Redemption log for one coupon or a whole campaign (manager UI). */

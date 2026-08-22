@@ -145,6 +145,8 @@
         "withInvoice": "Only with invoice discount"
       },
       "firstOrderOnly": "First order only",
+      "autoIssue": "Auto-issue after first order",
+      "autoIssueHint": "The coupon is assigned automatically — sending stays manual via Assign to customer",
       "scope": {
         "title": "Product scope",
         "hint": "Leave empty to cover every product. With brands or products selected, the discount applies to matching lines only.",

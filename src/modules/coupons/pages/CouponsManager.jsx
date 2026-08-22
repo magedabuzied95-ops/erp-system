@@ -31,6 +31,7 @@ const emptyForm = {
   scope: { product_ids: [], category_ids: [], brand_ids: [], exclude_on_sale: false },
   code_mode: "unique",
   shared_code: "",
+  auto_issue_on_first_order: false,
 };
 
 const normalizeScopeForForm = (scope) => {
@@ -205,6 +206,7 @@ export default function CouponsManager() {
       scope: normalizeScopeForForm(campaign.scope),
       code_mode: campaign.code_mode === "shared" ? "shared" : "unique",
       shared_code: campaign.shared_code || "",
+      auto_issue_on_first_order: Boolean(campaign.auto_issue_on_first_order),
     });
     setModalOpen(true);
   };
@@ -665,6 +667,13 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
             <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
               <input type="checkbox" checked={Boolean(form.first_order_only)} onChange={(e) => update("first_order_only", e.target.checked)} />
               {cText("rules.firstOrderOnly", "أول طلب للعميل فقط")}
+            </label>
+            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
+              <input type="checkbox" checked={Boolean(form.auto_issue_on_first_order)} onChange={(e) => update("auto_issue_on_first_order", e.target.checked)} />
+              <span>
+                {cText("rules.autoIssue", "إصدار تلقائي بعد أول طلب")}
+                <span className="block text-[11px] font-normal text-white/50">{cText("rules.autoIssueHint", "يُخصَّص الكوبون للعميل تلقائياً — الإرسال يدوي من زر تخصيص لعميل")}</span>
+              </span>
             </label>
           </div>
           <ScopeEditor scope={form.scope} onChange={(scope) => update("scope", scope)} cText={cText} />

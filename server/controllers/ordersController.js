@@ -12,7 +12,7 @@ import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, 
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
-import { redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, validateCoupon } from "../services/couponsService.js";
+import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
@@ -2780,6 +2780,20 @@ const runPostOrderSideEffects = async ({
         entity_id: order.id,
         metadata: { order_id: order.id, discount_amount: totalDiscount, subtotal: computedSubtotal },
       });
+    },
+    async () => {
+      // Welcome coupon for a first-time customer. Assigned only — the manager still sends it.
+      if (!resolvedCustomerId || isPersonalTransaction) return;
+      const { issued } = await issueFirstOrderCoupons({ tenantId, customerId: resolvedCustomerId, orderId });
+      for (const assignment of issued) {
+        io.emit("dashboard:activity", {
+          type: "coupon_issued",
+          title: assignment.campaign_name,
+          code: assignment.coupon?.code || "",
+          customer: assignment.customer?.name || "",
+          created_at: new Date().toISOString(),
+        });
+      }
     },
     async () => {
       io.emit("new_order", order);
