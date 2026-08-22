@@ -47,6 +47,7 @@ import { socket } from "../socket";
 import LiveActivityFeed from "../components/activity/LiveActivityFeed";
 import { api } from "../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../shared/auth/authStorage";
+import { hasPermission } from "../modules/permissions/lib/rbacStore";
 import { formatCurrency } from "../shared/lib/currency";
 import { safeSetLocalStorage } from "../utils/safeStorage";
 import { normalizeSaleModeSettings, resolveSaleModePrice } from "../shared/lib/saleMode";
@@ -267,6 +268,10 @@ function Dashboard() {
   const tenant = getCurrentTenant();
   const role = roleKey(getRole(user));
   const isCashier = role === "cashier";
+  // A KPI tile may only link to a page the viewer is actually allowed to open.
+  // Without this, the net-sales tile handed every cashier the enterprise
+  // Reports Center — company revenue, expenses, profit, payroll, customers.
+  const canOpenReports = hasPermission("reports.view", user);
   const [data, setData] = React.useState(emptyDashboard);
   const [loading, setLoading] = React.useState(true);
   const [lastUpdated, setLastUpdated] = React.useState(null);
@@ -516,7 +521,7 @@ function Dashboard() {
   // 7 primary KPIs — all from authoritative overview data; comparison shown only
   // where a real yesterday figure exists (net sales, invoices).
   const executiveCards = [
-    { label: L("صافي مبيعات اليوم", "Net sales today"), value: formatCurrency(k.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: salesGrowth >= 0 ? "emerald" : "rose", detail: grText(salesGrowth), deltaTone: gr(salesGrowth), to: "/reports" },
+    { label: L("صافي مبيعات اليوم", "Net sales today"), value: formatCurrency(k.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: salesGrowth >= 0 ? "emerald" : "rose", detail: grText(salesGrowth), deltaTone: gr(salesGrowth), to: canOpenReports ? "/reports" : null },
     { label: L("عدد فواتير اليوم", "Invoices today"), value: number(k.todayOrders?.value ?? overview.today?.orders), icon: ReceiptText, tone: "slate", detail: grText(ordersGrowth), deltaTone: gr(ordersGrowth), to: "/orders" },
     { label: L("متوسط قيمة الفاتورة", "Avg invoice value"), value: formatCurrency(k.averageOrderValue?.value || 0), icon: ShoppingCart, tone: "slate", detail: L("لكل فاتورة", "per invoice") },
     { label: L("القطع المباعة اليوم", "Units sold today"), value: number(k.unitsSold?.value || 0), icon: Boxes, tone: "slate", detail: L("إجمالي القطع", "total units") },

@@ -335,7 +335,11 @@ export const DEFAULT_ROLES = [
     description: "POS and order-taking access with print and cashbox actions.",
     builtIn: true,
     permissions: [
-      ...allow(["dashboard", "pos", "orders", "reports"], ["view", "create", "print"]),
+      // No `reports` here on purpose: the server-side Cashier preset
+      // (server/services/rolesService.js) grants no reports permission, and
+      // reports.view unlocks the whole Reports Center — company revenue,
+      // expenses, profit, payroll and customer intelligence.
+      ...allow(["dashboard", "pos", "orders"], ["view", "create", "print"]),
       "orders.edit",
       "orders.delete",
       "customers.view",

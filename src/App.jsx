@@ -1562,7 +1562,11 @@ function App() {
 
         <Route
           path="reports"
-          element={<Reports />}
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <Reports />
+            </ProtectedRoute>
+          }
         />
 
         <Route

@@ -33,7 +33,11 @@ test("the inventory route is additive and permission gated", async () => {
   for (const route of ['path="reports/overview"', 'path="reports/sales"']) {
     assert.ok(app.includes(route), `${route} must remain`);
   }
-  assert.match(app, /path="reports"\s*\n\s*element=\{<Reports \/>\}/, "the legacy route must remain");
+  // The legacy route must remain — but gated. It used to render <Reports /> bare,
+  // so any signed-in user, cashiers included, could open the whole Reports Center.
+  const legacy = app.slice(app.indexOf('path="reports"'), app.indexOf('path="reports"') + 260);
+  assert.match(legacy, /<Reports \/>/, "the legacy route must remain");
+  assert.match(legacy, /ProtectedRoute[\s\S]*reports\.view/, "the legacy route must require reports.view");
 
   const block = app.slice(app.indexOf('path="reports/inventory"') - 300, app.indexOf('path="reports/inventory"') + 300);
   assert.match(block, /reports\.view/, "the route must require reports.view");
