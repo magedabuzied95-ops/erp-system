@@ -6,6 +6,7 @@ import {
   exportPdf,
   generateCampaignCoupons,
   getCampaignCoupons,
+  getCampaignRedemptions,
   getCampaigns,
   getStats,
   postCampaign,
@@ -69,6 +70,7 @@ router.delete("/campaigns/:id", protect, requireCouponManager, permit("marketing
 router.post("/campaigns/:id/generate", protect, requireCouponManager, permit("marketing", "create"), generateCampaignCoupons);
 router.get("/campaigns/:id/coupons", protect, permit("marketing", "view"), getCampaignCoupons);
 router.get("/campaigns/:id/stats", protect, permit("marketing", "view"), getStats);
+router.get("/campaigns/:id/redemptions", protect, permit("marketing", "view"), getCampaignRedemptions);
 
 router.get("/export/pdf", protect, requireCouponManager, permit("marketing", "view"), exportPdf);
 router.post("/export/pdf/email", protect, requireCouponManager, permit("marketing", "view"), emailPdf);

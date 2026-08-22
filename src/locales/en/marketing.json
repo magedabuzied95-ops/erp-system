@@ -151,6 +151,19 @@
         "excludeOnSale": "Exclude discounted products (line price below the list selling price)"
       }
     },
+    "sources": { "pos": "POS", "website": "Website", "manual": "Manual" },
+    "log": {
+      "title": "Redemption log",
+      "showForCoupon": "Show this coupon's redemptions",
+      "filteredByCoupon": "Filtered to one coupon — click the code again to see the whole campaign",
+      "allCampaign": "Every redemption in this campaign, including reversed ones",
+      "clearFilter": "Clear filter",
+      "headers": { "coupon": "Code", "customer": "Customer", "order": "Order", "source": "Channel", "discount": "Discount", "when": "When" },
+      "of": "of",
+      "reversed": "Reversed",
+      "reversal": { "order_cancelled": "Order cancelled", "order_deleted": "Order deleted", "order_fully_returned": "Fully returned" },
+      "empty": "No coupon has been used yet."
+    },
     "actions": {
       "generate": "Generate",
       "edit": "Edit",

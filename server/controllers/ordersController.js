@@ -12,7 +12,7 @@ import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, 
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
-import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
+import { redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
@@ -7007,6 +7007,7 @@ export const cancelOrder = async (req, res) => {
       ...updateResult.rows[0],
       userId: req.user?.id || null,
     });
+    await releaseCouponForOrder({ client, orderId: loaded.order.id, reason: "order_cancelled" });
 
     try {
       await postReturnEntry(client, {
@@ -7127,6 +7128,7 @@ export const deleteOrder = async (req, res) => {
       ...updateResult.rows[0],
       userId: req.user?.id || null,
     });
+    await releaseCouponForOrder({ client, orderId: loaded.order.id, reason: "order_deleted" });
 
     await logActivity(
       client,
@@ -7689,6 +7691,7 @@ export const returnOrder = async (req, res) => {
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:after", returnId: returnRow.id, financialAccountId, refundMethod });
     }
 
+    await releaseCouponIfFullyReturned({ client, orderId: loaded.order.id });
     logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
     // Goods walking back out of the shop is the event a manager most wants pushed to
@@ -8245,6 +8248,7 @@ export const createReturn = async (req, res) => {
       logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:after", returnId: returnRow.id, financialAccountId, refundMethod });
     }
 
+    await releaseCouponIfFullyReturned({ client, orderId });
     logReturnFlowStep(routeName, { orderId, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
     sendManagerOrderOperationPush({

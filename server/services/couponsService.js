@@ -675,6 +675,81 @@ export const redeemCoupon = async ({ tenantId = null, code, orderId = null, cust
   }
 };
 
+/**
+ * Phase 2 — lifecycle. A cancelled / deleted / fully returned order gives its coupon back:
+ * the redemption row is kept (audit) but marked reversed, the coupon's usage_count drops, and
+ * the order's coupon columns are cleared so reports stop counting the discount.
+ */
+export const releaseCouponForOrder = async ({ client = db, orderId, reason = "order_cancelled" } = {}) => {
+  const safeOrderId = Number.parseInt(orderId, 10);
+  if (!safeOrderId) return { released: 0 };
+  const redemptions = await client.query(
+    `UPDATE coupon_redemptions
+     SET reversed_at = NOW(), reversal_reason = $2
+     WHERE order_id = $1 AND reversed_at IS NULL
+     RETURNING id, coupon_id, campaign_id, discount_amount`,
+    [safeOrderId, String(reason || "order_cancelled").slice(0, 80)]
+  );
+  for (const row of redemptions.rows) {
+    await client.query(
+      `UPDATE coupons
+       SET usage_count = GREATEST(0, usage_count - 1),
+           used_order_id = CASE WHEN used_order_id = $2 THEN NULL ELSE used_order_id END,
+           used_at = CASE WHEN GREATEST(0, usage_count - 1) = 0 THEN NULL ELSE used_at END,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [row.coupon_id, safeOrderId]
+    );
+  }
+  if (redemptions.rowCount) {
+    console.log("[coupons] released", { orderId: safeOrderId, reason, redemptions: redemptions.rowCount });
+  }
+  return { released: redemptions.rowCount, redemptions: redemptions.rows };
+};
+
+/** After a return is recorded: if every line of the order is now returned, give the coupon back. */
+export const releaseCouponIfFullyReturned = async ({ client = db, orderId } = {}) => {
+  const safeOrderId = Number.parseInt(orderId, 10);
+  if (!safeOrderId) return { released: 0 };
+  const remaining = await client.query(
+    `SELECT COALESCE(SUM(GREATEST(0, COALESCE(quantity, 0) - COALESCE(returned_quantity, 0))), 0)::int AS remaining
+     FROM order_items WHERE order_id = $1`,
+    [safeOrderId]
+  );
+  if (Number(remaining.rows[0]?.remaining || 0) > 0) return { released: 0 };
+  return releaseCouponForOrder({ client, orderId: safeOrderId, reason: "order_fully_returned" });
+};
+
+/** Redemption log for one coupon or a whole campaign (manager UI). */
+export const listRedemptions = async ({ tenantId = null, campaignId = null, couponId = null, limit = 200 } = {}) => {
+  await ensureCouponsSchema();
+  const params = [];
+  const where = [];
+  if (campaignId) { params.push(campaignId); where.push(`r.campaign_id = $${params.length}`); }
+  if (couponId) { params.push(couponId); where.push(`r.coupon_id = $${params.length}`); }
+  if (tenantId !== null && tenantId !== undefined) { params.push(tenantId); where.push(`(r.tenant_id = $${params.length} OR r.tenant_id IS NULL)`); }
+  params.push(Math.min(1000, Math.max(1, Number(limit) || 200)));
+  const result = await db.query(
+    `
+    SELECT r.id, r.coupon_id, r.campaign_id, r.order_id, r.customer_id, r.source, r.order_total, r.discount_amount,
+           r.final_total, r.used_at, r.reversed_at, r.reversal_reason,
+           cp.code AS coupon_code,
+           o.invoice_number, o.public_order_number, o.status AS order_status,
+           COALESCE(NULLIF(cu.name, ''), NULLIF(o.customer_name, ''), '') AS customer_name,
+           COALESCE(NULLIF(cu.phone, ''), NULLIF(o.customer_phone, ''), '') AS customer_phone
+    FROM coupon_redemptions r
+    JOIN coupons cp ON cp.id = r.coupon_id
+    LEFT JOIN orders o ON o.id = r.order_id
+    LEFT JOIN customers cu ON cu.id = r.customer_id
+    ${where.length ? "WHERE " + where.join(" AND ") : ""}
+    ORDER BY r.used_at DESC
+    LIMIT $${params.length}
+    `,
+    params
+  );
+  return result.rows;
+};
+
 export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
   await ensureCouponsSchema();
   const params = [campaignId];

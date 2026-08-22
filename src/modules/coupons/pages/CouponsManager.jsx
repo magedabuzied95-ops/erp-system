@@ -108,6 +108,9 @@ export default function CouponsManager() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
   const [exportBusy, setExportBusy] = useState("");
+  const [logCouponId, setLogCouponId] = useState(null);
+  const [redemptions, setRedemptions] = useState([]);
+  const [redemptionsLoading, setRedemptionsLoading] = useState(false);
 
   const selectedCampaign = useMemo(
     () => campaigns.find((campaign) => String(campaign.id) === String(selectedId)) || campaigns[0] || null,
@@ -159,6 +162,23 @@ export default function CouponsManager() {
   useEffect(() => {
     loadCoupons();
   }, [selectedCampaign?.id, search, status]);
+
+  useEffect(() => {
+    setLogCouponId(null);
+  }, [selectedCampaign?.id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedCampaign?.id) { setRedemptions([]); return undefined; }
+    setRedemptionsLoading(true);
+    const query = new URLSearchParams();
+    if (logCouponId) query.set("coupon_id", String(logCouponId));
+    api.get(`/coupons/campaigns/${selectedCampaign.id}/redemptions?${query.toString()}`)
+      .then((response) => { if (active) setRedemptions(response.redemptions || []); })
+      .catch(() => { if (active) setRedemptions([]); })
+      .finally(() => { if (active) setRedemptionsLoading(false); });
+    return () => { active = false; };
+  }, [selectedCampaign?.id, logCouponId, stats?.total_redemptions]);
 
   const openCreate = () => {
     setEditing(null);
@@ -435,9 +455,9 @@ export default function CouponsManager() {
                   Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse border-t border-white/5 bg-white/[0.025]" />)
                 ) : coupons.length ? (
                   coupons.map((coupon) => (
-                    <div key={coupon.id} className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm">
-                      <div className="font-black text-white">{coupon.code}</div>
-                      <div className="text-zinc-300">{coupon.discount_type === "percentage" ? `${Number(coupon.discount_value)}%` : formatCurrency(coupon.discount_value)}</div>
+                    <div key={coupon.id} className={`grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${String(logCouponId) === String(coupon.id) ? "bg-violet-400/10" : ""}`}>
+                      <button type="button" onClick={() => setLogCouponId((current) => (String(current) === String(coupon.id) ? null : coupon.id))} title={cText("log.showForCoupon", "عرض سجل استخدام هذا الكوبون")} className="text-start font-black text-white hover:text-violet-200">{coupon.code}</button>
+                      <div className="text-zinc-300">{coupon.discount_type === "percentage" ? `${Number(coupon.discount_value)}%` : coupon.discount_type === "free_shipping" ? cText("types.freeShipping", "شحن مجاني") : formatCurrency(coupon.discount_value)}</div>
                       <div className="text-zinc-300">{number(coupon.usage_count)} / {number(coupon.usage_limit)}</div>
                       <div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? cText("active", "نشط") : cText("inactive", "متوقف")}</span></div>
                       <div className="text-zinc-400">{coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : "-"}</div>
@@ -448,6 +468,46 @@ export default function CouponsManager() {
                   ))
                 ) : (
                   <EmptyState label={cText("emptyFiltered", "لا توجد كوبونات تطابق هذا المرشح.")} />
+                )}
+              </div>
+
+              <div className="mt-5 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03]">
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{cText("log.title", "سجل الاستخدام")}</div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      {logCouponId
+                        ? cText("log.filteredByCoupon", "مرشّح على كوبون واحد — اضغط الكود مرة أخرى لعرض الحملة كلها")
+                        : cText("log.allCampaign", "كل عمليات الاستخدام في هذه الحملة، بما فيها الملغاة")}
+                    </div>
+                  </div>
+                  {logCouponId ? (
+                    <button type="button" onClick={() => setLogCouponId(null)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-zinc-200">{cText("log.clearFilter", "إلغاء الترشيح")}</button>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-[1fr_1fr_1fr_0.8fr_0.8fr_0.9fr] gap-3 border-t border-white/10 bg-white/[0.02] px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+                  <div>{cText("log.headers.coupon", "الكود")}</div>
+                  <div>{cText("log.headers.customer", "العميل")}</div>
+                  <div>{cText("log.headers.order", "الطلب")}</div>
+                  <div>{cText("log.headers.source", "القناة")}</div>
+                  <div>{cText("log.headers.discount", "الخصم")}</div>
+                  <div>{cText("log.headers.when", "التاريخ")}</div>
+                </div>
+                {redemptionsLoading ? (
+                  <div className="h-12 animate-pulse bg-white/[0.025]" />
+                ) : redemptions.length ? (
+                  redemptions.map((row) => (
+                    <div key={row.id} className={`grid grid-cols-[1fr_1fr_1fr_0.8fr_0.8fr_0.9fr] items-center gap-3 border-t border-white/5 px-4 py-2.5 text-xs ${row.reversed_at ? "text-zinc-500 line-through decoration-rose-400/50" : "text-zinc-200"}`}>
+                      <div className="font-black">{row.coupon_code}</div>
+                      <div>{row.customer_name || "-"}{row.customer_phone ? <span className="block text-[10px] text-zinc-500 no-underline">{row.customer_phone}</span> : null}</div>
+                      <div>{row.invoice_number || row.public_order_number || (row.order_id ? `#${row.order_id}` : "-")}{row.reversed_at ? <span className="ms-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-black text-rose-200 no-underline">{cText(`log.reversal.${row.reversal_reason || "reversed"}`, cText("log.reversed", "مُلغى"))}</span> : null}</div>
+                      <div>{cText(`sources.${row.source}`, row.source)}</div>
+                      <div>{formatCurrency(row.discount_amount)}<span className="block text-[10px] text-zinc-500">{cText("log.of", "من")} {formatCurrency(row.order_total)}</span></div>
+                      <div className="text-zinc-400">{row.used_at ? new Date(row.used_at).toLocaleString() : "-"}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-6 text-center text-xs font-semibold text-zinc-500">{cText("log.empty", "لم يُستخدم أي كوبون بعد.")}</div>
                 )}
               </div>
             </>

@@ -151,6 +151,19 @@
         "excludeOnSale": "استثناء المنتجات المخفّضة (سعرها أقل من سعر البيع الأساسي)"
       }
     },
+    "sources": { "pos": "نقطة البيع", "website": "الموقع", "manual": "يدوي" },
+    "log": {
+      "title": "سجل الاستخدام",
+      "showForCoupon": "عرض سجل استخدام هذا الكوبون",
+      "filteredByCoupon": "مرشّح على كوبون واحد — اضغط الكود مرة أخرى لعرض الحملة كلها",
+      "allCampaign": "كل عمليات الاستخدام في هذه الحملة، بما فيها الملغاة",
+      "clearFilter": "إلغاء الترشيح",
+      "headers": { "coupon": "الكود", "customer": "العميل", "order": "الطلب", "source": "القناة", "discount": "الخصم", "when": "التاريخ" },
+      "of": "من",
+      "reversed": "مُلغى",
+      "reversal": { "order_cancelled": "الطلب أُلغي", "order_deleted": "الطلب حُذف", "order_fully_returned": "مرتجع كامل" },
+      "empty": "لم يُستخدم أي كوبون بعد."
+    },
     "actions": {
       "generate": "توليد",
       "edit": "تعديل",

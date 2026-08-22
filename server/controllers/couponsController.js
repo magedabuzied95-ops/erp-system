@@ -7,6 +7,7 @@ import {
   getCampaignStats,
   listCampaigns,
   listCoupons,
+  listRedemptions,
   redeemCoupon,
   updateCampaign,
   validateCoupon,
@@ -116,6 +117,20 @@ export const validate = async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Unable to validate coupon");
+  }
+};
+
+export const getCampaignRedemptions = async (req, res) => {
+  try {
+    const rows = await listRedemptions({
+      tenantId: scopedTenantId(req),
+      campaignId: req.params.id,
+      couponId: req.query.coupon_id || req.query.couponId || null,
+      limit: req.query.limit,
+    });
+    return res.json({ success: true, redemptions: rows });
+  } catch (error) {
+    return sendError(res, error, "Failed to load coupon redemptions");
   }
 };
 
