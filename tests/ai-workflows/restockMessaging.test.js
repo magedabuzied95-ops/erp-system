@@ -24,14 +24,15 @@ test("deterministic draft is grounded, needs no LLM, invents nothing", () => {
   assert.match(d, /أحمد/);
   assert.match(d, /Nike Air Max/);
   assert.match(d, /مقاس 44/);
-  assert.match(d, /رجع متوفر/);
+  assert.match(d, /أبيض/);
+  assert.match(d, /اتوفر/);
   // never fabricate discount/price/reservation/urgency/expiry
   assert.doesNotMatch(d, /خصم|جنيه|EGP|احجز|النهارده فقط|ينتهي|سعر/);
 });
 
 test("draft with unknown customer uses a neutral greeting (no fake name)", () => {
   const d = N.buildDeterministicDraft({ productName: "Shoe", size: "40" });
-  assert.match(d, /^أهلاً 👋/);
+  assert.match(d, /^ازيك حضرتك؟/);
   assert.doesNotMatch(d, /undefined|null/);
 });
 

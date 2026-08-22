@@ -110,12 +110,18 @@ export const setMessagingMode = async (tenantId, mode, userId) => {
 
 // ---- Pure: grounded draft (deterministic Arabic fallback; invents nothing) ----
 // facts must be verified upstream. Optional LLM rewrite happens elsewhere and may NOT alter facts.
+// The wording is the owner's: it travels as the caption of the colour photo, so
+// "اللون ده" points at the image; the colour name is still written out for the
+// text-only fallback when no photo exists.
 export const buildDeterministicDraft = (facts = {}) => {
   const name = (facts.customerName || "").toString().trim();
-  const greeting = name ? `أهلاً ${name} 👋` : "أهلاً 👋";
-  const item = [facts.productName, facts.color, facts.size ? `مقاس ${facts.size}` : ""].filter(Boolean).join(" ");
-  const back = item ? `${item} اللي كنت مستنيه رجع متوفر.` : "المنتج اللي كنت مستنيه رجع متوفر.";
-  return `${greeting}\n${back}\nلو حابب تكمل الطلب ابعتلنا تأكيد.`;
+  const greeting = name ? `ازيك يا ${name}؟` : "ازيك حضرتك؟";
+  const product = (facts.productName || "").toString().trim();
+  const color = (facts.color || "").toString().trim();
+  const size = (facts.size || "").toString().trim();
+  const which = [product, color ? `اللون ده (${color})` : "اللون ده"].filter(Boolean).join(" ");
+  const asked = `حضرتك قولتلنا نبلغ حضرتك لو ${which} اتوفر${size ? ` مقاس ${size}` : ""}.`;
+  return `${greeting}\n${asked}\nالمقاس اتوفر حاليًا، نوّرنا في أي وقت، ولو حابب نشحنه لحضرتك بلّغنا.`;
 };
 
 // Verified facts snapshot for an intent + current stock (no invented fields).
@@ -131,7 +137,30 @@ const buildFacts = async ({ tenantId, intent }) => {
   } catch { /* facts stay from the intent snapshot */ }
   let customerName = null;
   if (intent.customer_id) { const c = await db.query(`SELECT name FROM customers WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [intent.customer_id, tenantId]); customerName = c.rows[0]?.name || null; }
-  return { customerName, productName, size, color, available, requestedAt: intent.created_at };
+  const imageUrl = await resolveVariantColorImage({ tenantId, productId: intent.product_id, variantId: intent.variant_id, color });
+  return { customerName, productName, size, color, available, imageUrl, requestedAt: intent.created_at };
+};
+
+// The photo of the colour the customer asked for: the variant's own image, else
+// any sibling variant in the same colour that has one, else the product image.
+const resolveVariantColorImage = async ({ tenantId, productId, variantId = null, color = "" }) => {
+  try {
+    const r = await db.query(
+      `SELECT v.id, v.color, NULLIF(TRIM(COALESCE(v.image_url, v.image, '')), '') AS variant_image,
+              NULLIF(TRIM(COALESCE(p.image_url, p.image, '')), '') AS product_image
+         FROM product_variants v JOIN products p ON p.id = v.product_id
+        WHERE v.product_id = $1 AND p.tenant_id = $2 AND v.deleted_at IS NULL
+        ORDER BY (v.id = $3) DESC, v.id ASC`,
+      [productId, tenantId, variantId || null]
+    );
+    const rows = r.rows || [];
+    const own = rows.find((row) => String(row.id) === String(variantId) && row.variant_image);
+    if (own) return own.variant_image;
+    const wanted = String(color || "").trim().toLowerCase();
+    const sibling = wanted ? rows.find((row) => String(row.color || "").trim().toLowerCase() === wanted && row.variant_image) : null;
+    if (sibling) return sibling.variant_image;
+    return rows[0]?.product_image || null;
+  } catch { return null; }
 };
 
 // ---- Eligibility: resolve a SAFE sendable channel from EXISTING identity (never guess IG/Messenger) ----
@@ -229,9 +258,21 @@ export const rejectNotification = async (tenantId, id, { userId, reason = "" } =
 
 // ---- Approved send adapter (SENSITIVE). Idempotent. Real provider send injectable for tests. ----
 // Default deps.sender is the audited canonical WhatsApp sender, lazy-imported only when actually sending.
-const defaultSender = async ({ channel, recipientId, text, tenantId, conversationId }) => {
+const defaultSender = async ({ channel, recipientId, text, tenantId, conversationId, imageUrl = "" }) => {
   if (channel === "whatsapp") {
-    const { sendTextMessage } = await import("./whatsappGatewayService.js");
+    const { sendTextMessage, sendImageMessage } = await import("./whatsappGatewayService.js");
+    // The colour photo carries the text as its caption — one message, not two.
+    // If the provider refuses the media, the text still goes out on its own so a
+    // bad image can never cost the customer the notification.
+    if (imageUrl) {
+      try {
+        const res = await sendImageMessage({ phone: recipientId, imageUrl, caption: text });
+        const providerId = res?.result?.key?.id || res?.message_id || res?.key?.id || null;
+        if (res?.success ?? res?.sent ?? providerId) return { ok: true, providerMessageId: providerId, raw: { delivery_status: res?.delivery_status, with_image: true } };
+      } catch (e) {
+        console.warn("[restock-notification] image send failed, falling back to text", { error: String(e?.message || e).slice(0, 200) });
+      }
+    }
     const res = await sendTextMessage({ phone: recipientId, message: text });
     const providerId = res?.result?.key?.id || res?.message_id || res?.key?.id || null;
     return { ok: Boolean(res?.success ?? res?.sent ?? providerId), providerMessageId: providerId, raw: { delivery_status: res?.delivery_status } };
@@ -325,7 +366,7 @@ export const sendApprovedRestockNotification = async ({ tenantId, notificationId
 
   let result;
   try {
-    result = await sender({ channel: notif.channel, recipientId: notif.recipient_reference, text, tenantId, conversationId: notif.conversation_id });
+    result = await sender({ channel: notif.channel, recipientId: notif.recipient_reference, text, tenantId, conversationId: notif.conversation_id, imageUrl: notif.facts?.imageUrl || "" });
   } catch (e) {
     await db.query(`UPDATE restock_notifications SET status='failed', failed_at=NOW(), failure_reason=$3, updated_at=NOW() WHERE id=$1 AND tenant_id=$2`, [notificationId, tenantId, String(e?.message || e).slice(0, 300)]);
     await writeAudit({ tenantId, userId: approvedBy, action: auditAction("send_failed"), entityType: "restock_notification", entityId: notificationId, details: { error: String(e?.message || e).slice(0, 200) } });
