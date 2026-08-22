@@ -2140,7 +2140,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
   const salesCommission = await import("./salesCommissionService.js");
   // A month still in progress must not count its remaining days as absence:
   // cap the payroll window at today so the preview reflects what has happened.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const previewEnd = range.end > todayIso ? todayIso : range.end;
 
   const ordersReady = async () => (await tableExists("orders")) && (await columnExists("orders", "sales_employee_id"));
