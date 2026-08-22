@@ -6958,7 +6958,8 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
    smaller than that — visually close to text-sm, and no zoom jump.
    Unlayered on purpose: it must beat Tailwind text-sm/text-xs utilities. */
 @media (hover: none) and (pointer: coarse) {
-  html[data-portal-touch] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  html[data-portal-touch] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
+  .portal-chat-root :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
     font-size: max(16px, 1em);
   }
 }

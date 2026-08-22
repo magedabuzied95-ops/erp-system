@@ -304,6 +304,42 @@ export default function SharedPortalChat({
     };
   }, [mobileConversationOpen, mobileFullScreen]);
 
+  // iOS keyboard: Safari keeps the layout viewport tall and scrolls the page
+  // so the focused composer shows, which pushes the chat header off-screen.
+  // Size the fixed chat to the *visual* viewport and pin it to its top instead,
+  // so the header stays put like WhatsApp and only the message list shrinks.
+  const chatRootRef = useRef(null);
+  useEffect(() => {
+    if (!mobileFullScreen || !mobileConversationOpen || typeof window === "undefined") return undefined;
+    const vv = window.visualViewport;
+    const root = chatRootRef.current;
+    if (!vv || !root) return undefined;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      const node = chatRootRef.current;
+      if (!node) return;
+      node.style.height = `${Math.round(vv.height)}px`;
+      node.style.minHeight = "0";
+      node.style.top = `${Math.round(vv.offsetTop)}px`;
+      node.style.bottom = "auto";
+      if (window.scrollY) window.scrollTo(0, 0);
+    };
+    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(apply); };
+    apply();
+    vv.addEventListener("resize", schedule);
+    vv.addEventListener("scroll", schedule);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      vv.removeEventListener("resize", schedule);
+      vv.removeEventListener("scroll", schedule);
+      root.style.height = "";
+      root.style.minHeight = "";
+      root.style.top = "";
+      root.style.bottom = "";
+    };
+  }, [mobileConversationOpen, mobileFullScreen]);
+
   const loadThreads = useCallback(async () => {
     if (!apiAdapter?.listThreads) return;
     setLoadingThreads(true);
@@ -958,7 +994,8 @@ export default function SharedPortalChat({
     <>
     <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpen} onReply={answerRingAndOpen} onDismiss={chatRing.dismissIncoming} />
     <section
-      className={`theme-card flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
+      ref={chatRootRef}
+      className={`theme-card portal-chat-root flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
       dir={i18nInstance.dir()}
       data-mobile-conversation-open={mobileConversationOpen ? "true" : "false"}
     >
