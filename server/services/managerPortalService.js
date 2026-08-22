@@ -2138,6 +2138,10 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const range = monthRange(month);
   const salesCommission = await import("./salesCommissionService.js");
+  // A month still in progress must not count its remaining days as absence:
+  // cap the payroll window at today so the preview reflects what has happened.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const previewEnd = range.end > todayIso ? todayIso : range.end;
 
   const ordersReady = async () => (await tableExists("orders")) && (await columnExists("orders", "sales_employee_id"));
   const orderParams = [tenantId, employee.id, range.start, range.end];
@@ -2185,7 +2189,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       [employee.id, tenantId, range.start, range.end],
       []
     ),
-    salesCommission.getPayrollPreview({ tenantId, employeeId: employee.id, filters: { month: range.month } })
+    salesCommission.getPayrollPreview({ tenantId, employeeId: employee.id, filters: { month: range.month, startDate: range.start, endDate: previewEnd } })
       .catch((error) => {
         console.warn("[manager-portal] payroll preview skipped", error?.message || error);
         return null;
