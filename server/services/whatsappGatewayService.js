@@ -823,6 +823,54 @@ export const syncWhatsappCustomerProfilePictures = async ({ tenantId = null, lim
   };
 };
 
+// A stored WhatsApp picture URL is a cache that silently dies (the browser
+// gets a 404 and shows a broken image). The list sync above only fills EMPTY
+// avatars, so a dead one would never be replaced. The UI reports the broken
+// image here and we re-ask Evolution for the current URL of that one chat.
+export const refreshWhatsappConversationAvatar = async ({ tenantId = null, conversationId = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeConversationId = text(conversationId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeConversationId) return { found: false, updated: false, avatar_url: "" };
+  await ensureAiSupportLogSchema();
+  const result = await db.query(
+    `
+    SELECT external_conversation_id, external_customer_id, customer_avatar_url, metadata
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1 AND channel = 'whatsapp' AND external_conversation_id = $2
+    LIMIT 1
+    `,
+    [safeTenantId, safeConversationId]
+  );
+  const row = result.rows?.[0];
+  if (!row) return { found: false, updated: false, avatar_url: "" };
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  const phone = normalizeEgyptPhone(row.external_customer_id || metadata.resolved_phone || metadata.phone || "");
+  const previous = text(row.customer_avatar_url);
+  const avatarUrl = phone ? await fetchWhatsappCustomerProfilePicture({ phone, instance: metadata.instance, force: true }) : "";
+  // Either a fresh URL, or an empty one: a dead link is worse than no link
+  // because the UI renders it as a broken image.
+  if (avatarUrl !== previous) {
+    await Promise.all([
+      db.query(
+        `UPDATE ai_channel_conversations SET customer_avatar_url = $1 WHERE tenant_id = $2 AND channel = 'whatsapp' AND external_conversation_id = $3`,
+        [avatarUrl, safeTenantId, row.external_conversation_id]
+      ),
+      db.query(`UPDATE ai_support_sessions SET customer_avatar_url = $1 WHERE tenant_id = $2 AND session_id = $3`, [
+        avatarUrl,
+        safeTenantId,
+        row.external_conversation_id,
+      ]),
+    ]);
+    if (avatarUrl && phone) {
+      await autoRegisterWhatsappCustomer({ tenantId: safeTenantId, phone, whatsappName: "", avatarUrl, avatarSource: "whatsapp" }).catch((error) => {
+        console.warn("[whatsapp:customer-avatar-refresh-failed]", { tenantId: safeTenantId, phoneSuffix: phone.slice(-4), message: error?.message || String(error) });
+      });
+    }
+  }
+  console.info("[whatsapp:conversation-avatar-refresh]", { tenantId: safeTenantId, phoneSuffix: phone.slice(-4), hadAvatar: Boolean(previous), hasAvatar: Boolean(avatarUrl), changed: avatarUrl !== previous });
+  return { found: true, updated: avatarUrl !== previous, avatar_url: avatarUrl };
+};
+
 export const getStatus = async () => {
   const current = config();
   if (current.provider !== "evolution" || !current.apiUrl || !current.apiKeyConfigured || !current.instanceName) {

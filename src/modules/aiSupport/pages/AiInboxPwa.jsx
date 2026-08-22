@@ -2107,15 +2107,33 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
   );
 }
 
+// WhatsApp picture URLs expire: the stored one can 404 and the browser paints
+// a broken-image glyph. Remember dead URLs for the session so a re-render does
+// not retry them, and ask the backend once to fetch the current URL.
+const deadAvatarUrls = new Set();
+const avatarRefreshRequested = new Set();
+const reportDeadAvatar = (conversation, url) => {
+  deadAvatarUrls.add(url);
+  const channel = String(conversation?.channel || conversation?.source || "").toLowerCase();
+  if (channel !== "whatsapp") return;
+  const { sessionId, conversationId } = conversationIdentifiers(conversation);
+  const target = conversationId || sessionId;
+  if (!target || avatarRefreshRequested.has(target)) return;
+  avatarRefreshRequested.add(target);
+  api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), {}).catch(() => {});
+};
+
 function ConversationListItem({ conversation, active, onSelect }) {
   const { t, i18n } = useTranslation();
+  const [, forceAvatarFallback] = useState(0);
   const isSocialComment = isSocialCommentThread(conversation);
   const inboxKind = getInboxItemKind(conversation);
   const sourceLabel = getConversationSourceLabel(conversation, t);
   const SourceIcon = getConversationSourceIcon(conversation);
   const unreadCount = conversationUnreadCount(conversation);
   const isCommentThread = isCommentConversation(conversation) || isSocialComment;
-  const avatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation) : customerAvatarUrl(conversation);
+  const rawAvatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation) : customerAvatarUrl(conversation);
+  const avatar = rawAvatar && !deadAvatarUrls.has(rawAvatar) ? rawAvatar : "";
   const postImage = isCommentThread ? commentThreadPostImageUrl(conversation) : "";
   const title = isCommentThread ? commentThreadCommenterName(conversation) : conversationName(conversation);
   const commenterName = isCommentThread ? commentThreadCommenterName(conversation) : "";
@@ -2157,6 +2175,10 @@ function ConversationListItem({ conversation, active, onSelect }) {
               alt={title}
               className="h-full w-full object-cover"
               loading="lazy"
+              onError={() => {
+                reportDeadAvatar(conversation, avatar);
+                forceAvatarFallback((value) => value + 1);
+              }}
             />
             {isCommentThread ? <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" /> : null}
           </div>

@@ -136,7 +136,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendImageMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendImageMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -3667,6 +3667,38 @@ router.post("/conversations/:conversationId/sync-messenger-profile", protect, in
     return res.json({ success: true, ...result, conversation });
   } catch (error) {
     return sendError(res, error, "Could not fetch Messenger profile");
+  }
+});
+
+// The inbox list calls this when a stored avatar <img> fails to load.
+// Per-conversation throttle so a dead URL cannot hammer Evolution on every render.
+const avatarRefreshRecent = new Map();
+const AVATAR_REFRESH_COOLDOWN_MS = 10 * 60 * 1000;
+router.post("/conversations/:conversationId/refresh-avatar", protect, inboxView(), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.params.conversationId);
+  const key = `${tenantId}|${conversationId}`;
+  const now = Date.now();
+  if (now - Number(avatarRefreshRecent.get(key) || 0) < AVATAR_REFRESH_COOLDOWN_MS) {
+    return res.json({ success: true, throttled: true, updated: false });
+  }
+  avatarRefreshRecent.set(key, now);
+  if (avatarRefreshRecent.size > 5000) {
+    for (const [k, at] of avatarRefreshRecent) if (now - at > AVATAR_REFRESH_COOLDOWN_MS) avatarRefreshRecent.delete(k);
+  }
+  try {
+    const result = await refreshWhatsappConversationAvatar({ tenantId, conversationId });
+    if (result.updated) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+        tenant_id: tenantId,
+        reason: "whatsapp_avatar_refreshed",
+        conversation_id: conversationId,
+        at: new Date().toISOString(),
+      });
+    }
+    return res.json({ success: true, throttled: false, ...result });
+  } catch (error) {
+    return sendError(res, error, "Could not refresh WhatsApp avatar");
   }
 });
 
