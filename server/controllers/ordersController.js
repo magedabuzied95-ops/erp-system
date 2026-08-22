@@ -4305,11 +4305,17 @@ const getPosRecentOrders = async (req, res) => {
     const offset = Math.max(0, Number.isFinite(requestedOffset) ? requestedOffset : 0);
     const search = String(req.query.search || req.query.q || "").trim();
 
-    const [orderColumns, hasCustomersTable] = await Promise.all([
+    const [orderColumns, hasCustomersTable, hasSalesEmployeesTable, hasEmployeesTable] = await Promise.all([
       getTableColumnSet(db, "orders"),
       tableExists(db, "customers"),
+      tableExists(db, "sales_employees"),
+      tableExists(db, "employees"),
     ]);
-    const customerColumns = hasCustomersTable ? await getTableColumnSet(db, "customers") : new Set();
+    const [customerColumns, salesEmployeeColumns, employeeColumns] = await Promise.all([
+      hasCustomersTable ? getTableColumnSet(db, "customers") : Promise.resolve(new Set()),
+      hasSalesEmployeesTable ? getTableColumnSet(db, "sales_employees") : Promise.resolve(new Set()),
+      hasEmployeesTable ? getTableColumnSet(db, "employees") : Promise.resolve(new Set()),
+    ]);
 
     const invoiceExpr = orderColumns.has("invoice_number") ? "o.invoice_number" : "'INV-' || o.id::text";
     const totalExpr = orderColumns.has("total_amount")
@@ -4323,6 +4329,42 @@ const getPosRecentOrders = async (req, res) => {
     const paymentStatusExpr = orderColumns.has("payment_status") ? "o.payment_status" : "''";
     const paymentMethodExpr = orderColumns.has("payment_method") ? "o.payment_method" : "''";
     const paidExpr = orderColumns.has("paid_amount") ? "o.paid_amount" : "0";
+
+    // Seller resolution mirrors the detail/list paths: the assigned employee record
+    // first, then the sales_employees row, then the names stored on the order itself.
+    const sellerNameExpr = orderColumns.has("seller_name") ? "o.seller_name" : "''";
+    const salespersonNameExpr = orderColumns.has("salesperson_name") ? "o.salesperson_name" : "''";
+    const salesEmployeeIdColumns = ["sales_employee_id", "salesperson_id", "assigned_seller_id", "seller_employee_id"]
+      .filter((column) => orderColumns.has(column))
+      .map((column) => `o.${column}`);
+    const salesEmployeeIdExpr =
+      salesEmployeeIdColumns.length > 1
+        ? `COALESCE(${salesEmployeeIdColumns.join(", ")})`
+        : salesEmployeeIdColumns[0] || "NULL";
+    const salesEmployeeNameColumn = firstExistingColumn(salesEmployeeColumns, ["name", "full_name", "employee_name"]);
+    const employeeNameColumn = firstExistingColumn(employeeColumns, ["full_name", "name", "employee_name"]);
+    const employeeDeletedFilter = employeeColumns.has("is_deleted") ? "AND seller_employee.is_deleted IS DISTINCT FROM TRUE" : "";
+    const employeeSellerJoin = hasEmployeesTable && employeeNameColumn && salesEmployeeIdColumns.length > 0
+      ? `
+        LEFT JOIN employees seller_employee ON seller_employee.id = ${salesEmployeeIdExpr}
+          ${employeeDeletedFilter}
+      `
+      : "";
+    const salesEmployeeJoin = hasSalesEmployeesTable && salesEmployeeNameColumn && salesEmployeeIdColumns.length > 0
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT se.${salesEmployeeNameColumn} AS name
+          FROM sales_employees se
+          WHERE se.id = ${salesEmployeeIdExpr}
+             OR ${salesEmployeeColumns.has("employee_id") ? `se.employee_id = ${salesEmployeeIdExpr}` : "FALSE"}
+          ORDER BY se.id ASC
+          LIMIT 1
+        ) se ON TRUE
+      `
+      : "";
+    const salesEmployeeExpr = salesEmployeeJoin ? "COALESCE(se.name, '')" : "''";
+    const employeeSellerExpr = employeeSellerJoin ? `COALESCE(seller_employee.${employeeNameColumn}, '')` : "''";
+    const resolvedSellerExpr = `COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(${sellerNameExpr}, ''), NULLIF(${salespersonNameExpr}, ''), '')`;
     // `remaining_amount` is the denormalized outstanding balance the rest of the app
     // reads; only compute total - paid when the column is not there.
     const remainingExpr = orderColumns.has("remaining_amount")
@@ -4384,6 +4426,8 @@ const getPosRecentOrders = async (req, res) => {
         COALESCE(NULLIF(${orderCustomerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_phone,
         ${createdExpr} AS created_at,
         ${returnedExpr} AS returned_at,
+        ${salesEmployeeIdExpr} AS assigned_seller_id,
+        ${resolvedSellerExpr} AS seller_name,
         (
           ${returnedExpr} IS NOT NULL
           OR LOWER(COALESCE(${statusExpr}, '')) IN ('returned', 'refunded', 'partially_refunded')
@@ -4395,6 +4439,8 @@ const getPosRecentOrders = async (req, res) => {
         ) AS is_refunded
       FROM orders o
       ${customerJoin}
+      ${employeeSellerJoin}
+      ${salesEmployeeJoin}
       ${whereSql}
       ORDER BY ${createdExpr} DESC, o.id DESC
       LIMIT ${addParam(probeLimit)}
@@ -4448,6 +4494,10 @@ const getPosRecentOrders = async (req, res) => {
       customer_phone: order.customer_phone || "",
       created_at: order.created_at,
       returned_at: order.returned_at || null,
+      assigned_seller_id: order.assigned_seller_id || null,
+      seller_name: order.seller_name || "",
+      sales_employee_name: order.seller_name || "",
+      assigned_seller_name: order.seller_name || "",
       is_returned: Boolean(order.is_returned),
       is_refunded: Boolean(order.is_refunded),
       refund_summary: order.is_refunded ? "refunded" : order.is_returned ? "returned" : "active",
