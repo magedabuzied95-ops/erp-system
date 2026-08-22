@@ -613,6 +613,7 @@
     "changeCustomer": "Change",
     "searchCustomer": "Search by name or phone",
     "noMatches": "No customer matches — create them from the New customer button on the main screen.",
-    "phoneRequired": "This customer has no phone number — a restock request needs one to notify them."
+    "phoneRequired": "This customer has no phone number — a restock request needs one to notify them.",
+    "searching": "Searching all customers..."
   }
 }

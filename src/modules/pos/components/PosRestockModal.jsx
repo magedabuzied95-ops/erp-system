@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { BellRing, Search, X } from "lucide-react";
+import { BellRing, Loader2, Search, X } from "lucide-react";
 
+import { api } from "../../../shared/api/api";
 import RestockRequestsPanel from "../../aiSupport/components/RestockRequestsPanel";
 import ProductCardPicker from "../../aiSupport/components/ProductCardPicker";
 import { matchesPhoneSearch, normalizePhone } from "../lib/phoneSearch";
@@ -22,6 +23,8 @@ export default function PosRestockModal({ open = false, onClose = null, customer
   const [search, setSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [restockPick, setRestockPick] = useState(null);
+  const [remote, setRemote] = useState({ term: "", rows: [], loading: false });
+  const remoteTimer = useRef(null);
 
   // Re-seed from the POS selection each time the modal opens.
   useEffect(() => {
@@ -39,11 +42,38 @@ export default function PosRestockModal({ open = false, onClose = null, customer
     return () => window.removeEventListener("keydown", onKey);
   }, [open, pickerOpen, onClose]);
 
+  // The POS preloads only ~200 customers; the rest live server-side, so the
+  // search asks /customers the way the POS header does and merges the answer.
+  useEffect(() => {
+    const term = text(search);
+    if (remoteTimer.current) clearTimeout(remoteTimer.current);
+    if (term.length < 2) { setRemote({ term: "", rows: [], loading: false }); return undefined; }
+    setRemote((current) => ({ ...current, loading: true }));
+    remoteTimer.current = setTimeout(async () => {
+      try {
+        const data = await api.get("/customers", { params: { limit: 30, page: 1, search: term }, suppressErrorStatuses: [400, 403, 404, 500] });
+        const payload = data?.data ?? data;
+        const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.customers) ? payload.customers : [];
+        setRemote({ term, rows, loading: false });
+      } catch {
+        setRemote({ term, rows: [], loading: false });
+      }
+    }, 250);
+    return () => { if (remoteTimer.current) clearTimeout(remoteTimer.current); };
+  }, [search]);
+
   const matches = useMemo(() => {
     const needle = text(search).toLowerCase();
     if (!needle) return [];
     const digits = normalizePhone(search).replace(/\D/g, "");
-    return (Array.isArray(customers) ? customers : [])
+    const seen = new Set();
+    const pool = [...(Array.isArray(customers) ? customers : []), ...(remote.term === text(search) ? remote.rows : [])].filter((item) => {
+      const key = String(item?.id || item?.customer_id || customerPhone(item) || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return pool
       .filter((item) => {
         const haystack = `${item?.name || ""} ${item?.phone || ""} ${item?.mobile || ""} ${item?.whatsapp || ""}`.toLowerCase();
         if (haystack.includes(needle)) return true;
@@ -51,7 +81,7 @@ export default function PosRestockModal({ open = false, onClose = null, customer
         return [item?.phone, item?.mobile, item?.whatsapp].some((value) => matchesPhoneSearch(value, search));
       })
       .slice(0, 8);
-  }, [customers, search]);
+  }, [customers, remote, search]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -105,7 +135,9 @@ export default function PosRestockModal({ open = false, onClose = null, customer
                         </button>
                       ))}
                     </div>
-                  ) : text(search) ? (
+                  ) : remote.loading ? (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("pos.restock.searching")}</div>
+                  ) : text(search).length >= 2 ? (
                     <div className="mt-2 text-xs text-[var(--muted)]">{t("pos.restock.noMatches")}</div>
                   ) : null}
                 </div>
