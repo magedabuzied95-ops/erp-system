@@ -748,7 +748,12 @@ const isCodPayment = (value = "") => {
 
 // Money that has already moved. Only a recorded electronic payment lets a parcel
 // leave with nothing to collect.
-const PREPAID_PAYMENT_KEYS = ["instapay", "vodafone_cash", "paymob", "fawry", "valu", "visa", "mastercard", "credit_card", "debit_card", "card", "bank_transfer", "transfer", "wallet", "online", "electronic"];
+// "apple_pay"/"google_pay" are spelled out because the matcher is substring
+// based and neither contains "card" — without them a wallet order that never
+// got paid would fall through to "still owed" and quietly ship as cash on
+// delivery, surprising a customer who chose to pay online. Like "card", an
+// unpaid wallet order must block instead.
+const PREPAID_PAYMENT_KEYS = ["instapay", "vodafone_cash", "paymob", "fawry", "valu", "visa", "mastercard", "credit_card", "debit_card", "card", "apple_pay", "google_pay", "bank_transfer", "transfer", "wallet", "online", "electronic"];
 
 const isPrepaidPayment = (value = "") => {
   const key = normalizeKey(value);

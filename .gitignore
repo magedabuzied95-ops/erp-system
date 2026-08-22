@@ -157,3 +157,8 @@ mediamtx.yml
 # Customer address-request links (AI inbox → public storefront page).
 !server/services/conversationAddressRequestService.js
 >>>>>>> origin/main
+
+# Paymob online checkout (Intention API + Apple Pay). `server/services/*` above
+# ignores the whole directory, so this needs an explicit allowlist entry or the
+# service never reaches the server.
+!server/services/paymobOnlineService.js

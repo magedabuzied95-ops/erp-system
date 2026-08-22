@@ -8,6 +8,8 @@ import {
   accountByPhone,
   createShipment,
   createWebsiteOrder,
+  getStorefrontPaymentStatus,
+  restartStorefrontPaymentSession,
   getProduct,
   getProductByToken,
   getShippingQuote,
@@ -632,6 +634,11 @@ router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) =
   }
 });
 router.post("/checkout", checkoutUpload, createWebsiteOrder);
+// Both are addressed by the order's unguessable public token. The confirmation
+// page polls the first after Paymob redirects back, and calls the second when
+// the customer closed the hosted page and wants to pay again.
+router.get("/checkout/:token/payment", getStorefrontPaymentStatus);
+router.post("/checkout/:token/payment-session", restartStorefrontPaymentSession);
 router.get("/track", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
   const resolvedPhone = resolveStorefrontCustomerPhone(req);

@@ -2277,6 +2277,13 @@ const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = {
     amount: 75,
     label: "Shipping confirmation amount",
   },
+  // Paymob hosted checkout. Driven entirely by server config, so it stays off
+  // until the backend reports the keys and integration ids are present.
+  online: {
+    enabled: false,
+    card: false,
+    applePay: false,
+  },
 };
 const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS) => [
   {
@@ -2345,6 +2352,13 @@ const normalizeStorefrontPaymentSettings = (settings = {}) => {
       amount: number(settings["storefront.payment_methods.shipping_confirmation_amount"], 75),
       label: sfText("storefront.checkout.transfer.amountDueNow"),
     },
+    // Server-computed from the Paymob env config, never from a settings row —
+    // an operator cannot switch this on without the keys actually being there.
+    online: {
+      enabled: Boolean(settings.storefront?.online_payment?.enabled),
+      card: Boolean(settings.storefront?.online_payment?.card),
+      applePay: Boolean(settings.storefront?.online_payment?.apple_pay),
+    },
   };
 };
 const rawOptionValue = (value, fallback = "") => {
@@ -2353,7 +2367,15 @@ const rawOptionValue = (value, fallback = "") => {
   }
   return String(value ?? fallback ?? "").trim();
 };
-const normalizeCheckoutPaymentMethod = (value) => (rawOptionValue(value).toLowerCase() === "cod" ? "cod" : "shipping_confirmation");
+// Three buckets, not two: without the gateway case, "card" falls through to
+// "shipping_confirmation" and the reconciliation effect below drags the
+// customer straight back out of the online payment mode they just picked.
+const normalizeCheckoutPaymentMethod = (value) => {
+  const raw = rawOptionValue(value).toLowerCase();
+  if (raw === "cod") return "cod";
+  if (["card", "apple_pay", "paymob"].includes(raw)) return "card";
+  return "shipping_confirmation";
+};
 const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
 const normalizeShippingQuote = (quote = {}) => ({
   loading: false,
@@ -7323,7 +7345,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
   const codAvailable = shippingQuote.cod_allowed !== false;
-  const normalizedFormPaymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
+  const normalizedFormPaymentMethod = paymentMode === "cod"
+    ? "cod"
+    : paymentMode === "online"
+      ? "card"
+      : "shipping_confirmation";
+  const isOnlineGatewayPayment = paymentMode === "online";
   const isShippingConfirmation = paymentMode === "electronic";
   const shippingProofRequired = isShippingConfirmation;
   const hasShippingPaymentProof = Boolean(shippingPaymentFile);
@@ -7340,8 +7367,19 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       : shippingProofRequired
         ? t("storefront.checkout.actions.uploadProofAndConfirm")
         : t("storefront.checkout.actions.confirmOrder");
-  const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
+  // Nothing is collected on delivery for a gateway order — the whole total is
+  // captured up front, so leaving the manual-transfer arithmetic in place here
+  // would print a courier-collect amount the courier must never ask for.
+  const codAmount = normalizedFormPaymentMethod === "cod"
+    ? total
+    : isOnlineGatewayPayment
+      ? 0
+      : Math.max(0, total - deliveryFee);
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
+  // Declared after storefrontPaymentSettings on purpose — a const referenced
+  // above its declaration is a render-time TDZ crash, not a lint error.
+  const onlinePaymentAvailable = Boolean(storefrontPaymentSettings.online?.enabled);
+  const applePayAvailable = Boolean(storefrontPaymentSettings.online?.applePay);
   const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
   const locationCities = useMemo(() => uniqueCheckoutLocations(shippingLocations, "city_id", (item) => !form.governorate_id || item.governorate_id === form.governorate_id), [shippingLocations, form.governorate_id]);
   const locationAreas = useMemo(() => uniqueCheckoutLocations(shippingLocations, "area_id", (item) => !form.city_id || item.city_id === form.city_id), [shippingLocations, form.city_id]);
@@ -8142,11 +8180,22 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (normalizedPaymentMethod === "cod") {
       if (paymentMode !== "cod") setPaymentMode("cod");
       if (showElectronicPaymentMethods) setShowElectronicPaymentMethods(false);
+    } else if (normalizedPaymentMethod === "card") {
+      // The gateway can disappear between page load and checkout (keys pulled,
+      // Paymob disabled), so never strand the customer on an option the server
+      // will now reject — drop them back to cash on delivery.
+      if (!onlinePaymentAvailable) {
+        setPaymentMode("cod");
+        setForm((current) => ({ ...current, payment_method: "cod" }));
+      } else if (paymentMode !== "online") {
+        setPaymentMode("online");
+        if (showElectronicPaymentMethods) setShowElectronicPaymentMethods(false);
+      }
     } else if (paymentMode !== "electronic") {
       setPaymentMode("electronic");
     }
     return undefined;
-  }, [codAvailable, form.payment_method, paymentMode, showElectronicPaymentMethods]);
+  }, [codAvailable, form.payment_method, onlinePaymentAvailable, paymentMode, setForm, showElectronicPaymentMethods]);
 
   useEffect(() => {
     if (!shippingProofRequired) {
@@ -8339,9 +8388,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const couponCodeToSend = activeCouponValidation?.valid ? String(activeCouponValidation.coupon?.code || activeCouponCode).trim().toUpperCase() : "";
       const couponDiscountToSend = activeCouponValidation?.valid ? Math.max(0, Number(activeCouponValidation.discount_amount || 0)) : 0;
       const cleanPhone = form.primary_phone.replace(/\s/g, "");
-      const paymentMethod = paymentMode === "cod" ? "cod" : (visibleTransferMethods.some((method) => method.id === shippingTransferMethod) ? shippingTransferMethod : (visibleTransferMethods[0]?.id || "instapay"));
-      const shippingPaymentMethod = paymentMode === "cod" ? "" : paymentMethod;
-      const paidAmount = amountDueNow;
+      const paymentMethod = paymentMode === "cod"
+        ? "cod"
+        : isOnlineGatewayPayment
+          ? "card"
+          : (visibleTransferMethods.some((method) => method.id === shippingTransferMethod) ? shippingTransferMethod : (visibleTransferMethods[0]?.id || "instapay"));
+      const shippingPaymentMethod = paymentMode === "cod" || isOnlineGatewayPayment ? "" : paymentMethod;
+      // A gateway order carries no money yet — the webhook is what records the
+      // payment, so claiming an amount here would be rejected by the server.
+      const paidAmount = isOnlineGatewayPayment ? 0 : amountDueNow;
       const selectedShippingProvider = bostaMode && form.shipping_city_id ? "bosta" : (shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery");
       const shippingProviderAddress = {
         country: "EG",
@@ -8478,7 +8533,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         detailed_address: form.detailed_address,
         landmark: form.landmark,
       });
+      // The order is already committed and its stock reserved, so the cart is
+      // cleared either way — leaving it filled would let a customer who bounces
+      // off the payment page place the same order twice.
       clearCart();
+      if (isOnlineGatewayPayment) {
+        if (data.payment?.checkout_url) {
+          // Full page navigation, not react-router: the hosted page is on
+          // Paymob's origin and Apple Pay only renders in a top-level document.
+          window.location.assign(data.payment.checkout_url);
+          return;
+        }
+        toast.error(sfText("storefront.checkout.online.sessionFailed"));
+        navigate(`/shop/confirm/${encodeURIComponent(data.track_token || "")}`, { state: successPayload });
+        return;
+      }
       playSuccess();
       navigate(`/success/${encodeURIComponent(publicNumber)}?phone=${encodeURIComponent(cleanPhone)}`, { state: successPayload });
     } catch (error) {
@@ -8621,6 +8690,31 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           {checkoutStep === 3 ? (
             <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment")}>
               <div className="checkout-payment-clean mx-auto w-full max-w-[680px]">
+                {/* Full width rather than a third column: at 680px three cards
+                    leave ~187px of text each, which wraps this label to five
+                    lines. A promoted row also suits the method we want chosen. */}
+                {onlinePaymentAvailable ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMode("online");
+                      setShowElectronicPaymentMethods(false);
+                      // A gateway order never carries a transfer screenshot; a
+                      // stale one left here would be uploaded alongside it.
+                      setShippingPaymentFile(null);
+                      setPaymentProofUploaded(false);
+                      setForm((current) => ({ ...current, payment_method: "card" }));
+                    }}
+                    className={`checkout-payment-choice mb-3 flex w-full min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "online" ? "border-sky-300/35 bg-sky-400/12 shadow-[0_16px_34px_rgba(56,189,248,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
+                  >
+                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.online.title")}</span>
+                    <span className="mt-1 text-xs font-semibold leading-5 text-white/56">
+                      {applePayAvailable
+                        ? sfText("storefront.checkout.payment.online.textWithApplePay")
+                        : sfText("storefront.checkout.payment.online.text")}
+                    </span>
+                  </button>
+                ) : null}
                 <div className="grid gap-3 md:grid-cols-2">
                   <button
                     type="button"
@@ -8650,6 +8744,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.shippingConfirmation.text")}</span>
                   </button>
                 </div>
+                {isOnlineGatewayPayment ? (
+                  <div className="checkout-payment-amount mt-3">
+                    <div className="text-sm font-black text-white/66">{sfText("storefront.checkout.online.amountLabel")}</div>
+                    <div className="mt-2 flex items-end justify-between gap-3">
+                      <div className="text-3xl font-black tracking-tight text-white">{money(total)}</div>
+                      <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.online.redirectHelper")}</div>
+                    </div>
+                    {applePayAvailable ? (
+                      <div className="mt-3 text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.online.applePayNote")}</div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {showElectronicPaymentMethods && isShippingConfirmation ? (
                   <div className="grid gap-3">
                     {storefrontPaymentSettings.shippingConfirmation.enabled ? (

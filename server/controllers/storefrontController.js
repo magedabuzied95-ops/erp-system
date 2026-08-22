@@ -53,10 +53,17 @@ import {
 } from "../utils/invoiceNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
+import { createPaymentIntention, isPaymobOnlineReady, paymobOnlineConfig } from "../services/paymobOnlineService.js";
+import { ensurePaymentTransactionsSchema } from "../services/paymobPosService.js";
 import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
 
 export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
+// Checkout values that mean "pay now through Paymob" rather than "transfer the
+// money yourself and upload a screenshot". They all collapse to the stored
+// method "card"; the webhook rewrites it to apple_pay when Paymob reports the
+// wallet, so reporting can tell the instruments apart.
+const GATEWAY_PAYMENT_METHODS = new Set(["card", "apple_pay", "paymob"]);
 // The storefront's "آخر مقاسات" chip counts a card as a last piece up to 3 units.
 const STOREFRONT_LAST_PIECE_MAX_STOCK = 3;
 const isEnabledSetting = (value) => value === true || value === 1 || ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
@@ -4721,6 +4728,177 @@ export const getShippingQuote = async (req, res) => {
   }
 };
 
+/**
+ * Open a Paymob hosted-checkout session for an already-committed order.
+ *
+ * Runs outside the checkout transaction on purpose: the order insert holds row
+ * locks on the variants it just decremented, and parking those behind a call to
+ * Paymob would turn every slow gateway response into stock-lock contention.
+ * The cost is that a failure here leaves a real order in "pending_payment" with
+ * no session — recoverable, because the caller can start a fresh session for
+ * that order without touching stock again.
+ */
+const startPaymobCheckoutSession = async ({ order, tenantId, items = [], checkout = {}, customer = null }) => {
+  const amountCents = Math.round(Number(order?.total_amount ?? order?.total ?? 0) * 100);
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    const error = new Error("Order total is not payable");
+    error.status = 400;
+    throw error;
+  }
+  const trackToken = order?.public_token || "";
+  const intention = await createPaymentIntention({
+    tenantId,
+    orderId: order.id,
+    amountCents,
+    items,
+    billing: {
+      full_name: checkout.full_name || order.customer_name,
+      email: checkout.email || customer?.email || order.customer_email,
+      phone: order.customer_phone || checkout.primary_phone,
+      street: checkout.street_address || checkout.detailed_address,
+      building: checkout.building_number,
+      floor: checkout.floor_number,
+      apartment: checkout.apartment_number,
+      city: checkout.city_area || checkout.city,
+      state: checkout.governorate,
+      country: "EG",
+    },
+    // Paymob appends its own result params to this URL. The storefront reads
+    // the token to look the order up rather than trusting those params.
+    redirectionUrl: trackToken
+      ? `${paymobOnlineConfig().storefrontUrl}/shop/confirm/${encodeURIComponent(trackToken)}`
+      : undefined,
+  });
+
+  const client = await db.connect();
+  try {
+    await ensurePaymentTransactionsSchema(client);
+    await client.query(
+      `
+      INSERT INTO payment_transactions
+        (tenant_id, order_id, provider, provider_order_id, amount_cents, currency, status, request_payload, response_payload)
+      VALUES ($1, $2, 'paymob', NULLIF($3, ''), $4, $5, 'sent', $6::jsonb, $7::jsonb)
+      `,
+      [
+        tenantId,
+        order.id,
+        intention.providerOrderId || "",
+        amountCents,
+        paymobOnlineConfig().currency,
+        JSON.stringify({ ...intention.requestPayload, channel: "storefront" }),
+        JSON.stringify({ intention_id: intention.intentionId, special_reference: intention.specialReference }),
+      ]
+    );
+  } finally {
+    client.release();
+  }
+
+  return {
+    checkout_url: intention.checkoutUrl,
+    special_reference: intention.specialReference,
+    provider: "paymob",
+  };
+};
+
+const loadOrderByPublicToken = async (token) => {
+  const value = toText(token);
+  if (!value) return null;
+  const result = await db.query(
+    `SELECT * FROM orders WHERE public_token = $1 LIMIT 1`,
+    [value]
+  );
+  return result.rows[0] || null;
+};
+
+const publicPaymentView = (order = {}) => {
+  const total = Number(order.total_amount ?? order.total ?? order.total_price ?? 0);
+  const paid = Number(order.paid_amount || 0);
+  return {
+    order_id: order.id,
+    public_order_number: order.public_order_number || order.invoice_number || "",
+    payment_status: order.payment_status || "unpaid",
+    payment_method: order.payment_method || "",
+    status: normalizeOrderLifecycleStatus(order.status),
+    total,
+    paid_amount: paid,
+    // Denormalized column is the authority elsewhere in the app, so prefer it
+    // over recomputing total - paid here.
+    remaining_amount: Number(order.remaining_amount ?? Math.max(0, total - paid)),
+    is_paid: String(order.payment_status || "").toLowerCase() === "paid",
+  };
+};
+
+/**
+ * Payment state for one order, addressed by its unguessable public token.
+ *
+ * The storefront polls this after Paymob redirects the customer back, because
+ * the redirect carries Paymob's own result params and those are attacker
+ * controllable — the webhook is the only thing that may mark an order paid.
+ */
+export const getStorefrontPaymentStatus = async (req, res) => {
+  try {
+    const order = await loadOrderByPublicToken(req.params?.token);
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    return res.json({ success: true, payment: publicPaymentView(order) });
+  } catch (error) {
+    console.error("[storefront] payment status", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "Failed to load payment status" });
+  }
+};
+
+/**
+ * Mint a fresh Paymob session for an order that is still awaiting payment —
+ * the customer closed the hosted page, or the session creation failed at
+ * checkout time. Stock was already reserved when the order was created, so
+ * this never touches inventory.
+ */
+export const restartStorefrontPaymentSession = async (req, res) => {
+  try {
+    const order = await loadOrderByPublicToken(req.params?.token);
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    if (String(order.payment_status || "").toLowerCase() === "paid") {
+      return res.status(409).json({ success: false, message: "Order is already paid", payment: publicPaymentView(order) });
+    }
+    if (!GATEWAY_PAYMENT_METHODS.has(String(order.payment_method || "").toLowerCase())) {
+      return res.status(400).json({ success: false, message: "Order is not an online card payment" });
+    }
+    if (!isPaymobOnlineReady()) {
+      return res.status(503).json({ success: false, message: "Online card payment is unavailable right now" });
+    }
+    const itemsResult = await db.query(
+      `SELECT product_name, variant_name, sku, quantity, sale_price AS price FROM order_items WHERE order_id = $1`,
+      [order.id]
+    );
+    const session = await startPaymobCheckoutSession({
+      order,
+      tenantId: order.tenant_id,
+      items: itemsResult.rows || [],
+      checkout: {
+        full_name: order.customer_name,
+        email: order.customer_email,
+        primary_phone: order.customer_phone,
+        street_address: order.street_address,
+        building_number: order.building_number,
+        floor_number: order.floor_number,
+        apartment_number: order.apartment_number,
+        city_area: order.city_area,
+        governorate: order.governorate,
+      },
+    });
+    return res.json({ success: true, payment: { ...session, status: "ready" } });
+  } catch (error) {
+    console.error("[storefront] restart payment session", {
+      token: toText(req.params?.token).slice(0, 6),
+      status: error?.status || null,
+      message: error?.message || String(error),
+    });
+    return res.status(error?.status && error.status < 500 ? error.status : 502).json({
+      success: false,
+      message: "Failed to start the payment session",
+    });
+  }
+};
+
 export const createWebsiteOrder = async (req, res) => {
   const client = await db.connect();
   let checkoutStep = "start";
@@ -4971,22 +5149,33 @@ export const createWebsiteOrder = async (req, res) => {
     const requestedShippingPaymentMethod = toText(checkout.shipping_payment_method || req.body?.shipping_payment_method || "").toLowerCase();
     const requestedPaymentMethod = toText(checkout.payment_method || checkout.payment_type || "shipping_confirmation").toLowerCase();
     const requestedPaymentType = toText(checkout.payment_type || checkout.payment_method || "shipping_confirmation").toLowerCase();
-    const supportedPaymentMethods = new Set(["cod", "cash", "shipping_confirmation", "instapay", "vodafone_cash", "electronic", "online", "transfer"]);
+    const supportedPaymentMethods = new Set(["cod", "cash", "shipping_confirmation", "instapay", "vodafone_cash", "electronic", "online", "transfer", ...GATEWAY_PAYMENT_METHODS]);
     if (![requestedPaymentMethod, requestedPaymentType].some((value) => supportedPaymentMethods.has(value))) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Unsupported payment method", "payment_method", { payment_method: requestedPaymentMethod, payment_type: requestedPaymentType });
     }
-    const paymentMethod = requestedPaymentMethod === "cod" || requestedPaymentMethod === "cash"
-      ? "cod"
-      : requestedPaymentMethod === "instapay" || requestedPaymentMethod === "vodafone_cash"
-        ? requestedPaymentMethod
-        : requestedPaymentType === "instapay" || requestedPaymentType === "vodafone_cash"
-          ? requestedPaymentType
-          : requestedShippingPaymentMethod === "vodafone_cash"
-            ? "vodafone_cash"
-            : "instapay";
+    // A gateway request has to be caught before the manual-transfer ladder
+    // below, which funnels anything it does not recognise into "instapay".
+    const isGatewayCheckout = [requestedPaymentMethod, requestedPaymentType].some((value) => GATEWAY_PAYMENT_METHODS.has(value));
+    if (isGatewayCheckout && !isPaymobOnlineReady()) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(503, "Online card payment is unavailable right now", "payment_method", { payment_method: requestedPaymentMethod });
+    }
+    const paymentMethod = isGatewayCheckout
+      ? "card"
+      : requestedPaymentMethod === "cod" || requestedPaymentMethod === "cash"
+        ? "cod"
+        : requestedPaymentMethod === "instapay" || requestedPaymentMethod === "vodafone_cash"
+          ? requestedPaymentMethod
+          : requestedPaymentType === "instapay" || requestedPaymentType === "vodafone_cash"
+            ? requestedPaymentType
+            : requestedShippingPaymentMethod === "vodafone_cash"
+              ? "vodafone_cash"
+              : "instapay";
     const paymentType = paymentMethod;
-    const shippingPaymentMethod = paymentMethod === "cod" ? "" : paymentMethod;
+    // Only manual transfers carry a shipping payment method — it is the field
+    // the proof-review screens key off, and a gateway order has no proof.
+    const shippingPaymentMethod = paymentMethod === "cod" || isGatewayCheckout ? "" : paymentMethod;
     const zoneShippingProviderId = normalizeShippingProviderKey(shippingQuote.provider_id || shippingQuote.provider || orderSettings.defaultShippingProvider);
     const requestedShippingMethod = normalizeShippingProviderKey(checkout.shipping_method || checkout.shipping_provider || zoneShippingProviderId);
     const shippingMethod = shippingProviders[requestedShippingMethod] ? requestedShippingMethod : zoneShippingProviderId;
@@ -5017,7 +5206,9 @@ export const createWebsiteOrder = async (req, res) => {
       });
     }
     const requestedPaidAmount = toNumber(checkout.paid_amount, 0);
-    const expectedPaidAmount = paymentMethod === "cod" ? 0 : total;
+    // A gateway order is not paid yet at this point — the money only exists
+    // once Paymob's webhook lands, so it starts at zero like a COD order.
+    const expectedPaidAmount = paymentMethod === "cod" || isGatewayCheckout ? 0 : total;
     if (roundMoney(requestedPaidAmount) !== roundMoney(expectedPaidAmount)) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Paid amount must equal the order total for electronic payments", "paid_amount", {
@@ -5032,7 +5223,10 @@ export const createWebsiteOrder = async (req, res) => {
       return checkoutValidationResponse(403, "Cash on delivery is disabled", "payment_method", { payment_method: paymentMethod });
     }
 
-    if (paymentMethod !== "cod" && shippingQuote.requires_shipping_proof !== false && !shippingPaymentFile) {
+    // Manual transfers are proven by a screenshot a human reviews. A gateway
+    // payment is proven by the webhook, so demanding a screenshot here would
+    // block the one method we can actually verify.
+    if (paymentMethod !== "cod" && !isGatewayCheckout && shippingQuote.requires_shipping_proof !== false && !shippingPaymentFile) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { payment_method: paymentMethod });
     }
@@ -5041,15 +5235,20 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { mimetype: shippingPaymentFile.mimetype, size: shippingPaymentFile.size });
     }
-    const paidAmount = paymentMethod === "cod" ? 0 : total;
+    const paidAmount = paymentMethod === "cod" || isGatewayCheckout ? 0 : total;
     const remainingAmount = Math.max(0, total - paidAmount);
-    const paymentStatus = paymentMethod === "cod" ? "unpaid" : remainingAmount > 0 ? "partially_paid" : "paid";
-    const orderStatus = paymentMethod === "cod"
-      ? "pending_confirmation"
-      : orderSettings.autoConfirmWebsiteOrders
-        ? "confirmed"
-        : orderSettings.defaultWebsiteStatus;
-    const transferProofStatus = paymentMethod === "cod" ? null : "pending";
+    const paymentStatus = paymentMethod === "cod" || isGatewayCheckout ? "unpaid" : remainingAmount > 0 ? "partially_paid" : "paid";
+    // "pending_payment" is an established alias that normalizes to "pending",
+    // so it stays readable everywhere while keeping the raw value distinct from
+    // a COD order that is merely waiting on a human to confirm it.
+    const orderStatus = isGatewayCheckout
+      ? "pending_payment"
+      : paymentMethod === "cod"
+        ? "pending_confirmation"
+        : orderSettings.autoConfirmWebsiteOrders
+          ? "confirmed"
+          : orderSettings.defaultWebsiteStatus;
+    const transferProofStatus = paymentMethod === "cod" || isGatewayCheckout ? null : "pending";
     const codAmount = paymentMethod === "cod" ? total : 0;
     const token = publicToken();
     const invoiceNumber = buildTemporaryInvoiceNumber();
@@ -5327,11 +5526,38 @@ export const createWebsiteOrder = async (req, res) => {
       items: normalizedItems,
       shippingQuote,
     }).catch(() => null);
+    // The order is committed either way. If Paymob cannot hand us a session the
+    // customer still has a real order sitting in pending_payment, so report the
+    // failure inline instead of 500-ing and leaving them with no order id.
+    let paymentSession = null;
+    let paymentSessionError = "";
+    if (isGatewayCheckout) {
+      try {
+        paymentSession = await startPaymobCheckoutSession({
+          order,
+          tenantId,
+          items: normalizedItems,
+          checkout,
+          customer,
+        });
+      } catch (error) {
+        paymentSessionError = error?.message || String(error);
+        console.error("[paymob-online-session-failed]", {
+          order_id: order?.id,
+          public_order_number: order?.public_order_number,
+          status: error?.status || null,
+          message: paymentSessionError,
+        });
+      }
+    }
     res.status(201).json({
       success: true,
       order: withPaymentProofAliases(order),
       items: normalizedItems,
       track_token: token,
+      ...(isGatewayCheckout
+        ? { payment: paymentSession ? { ...paymentSession, status: "ready" } : { status: "failed", message: paymentSessionError } }
+        : {}),
       ...(customerReviews ? { customer_reviews: customerReviews } : {}),
     });
   } catch (error) {

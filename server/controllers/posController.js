@@ -18,6 +18,7 @@ import {
   normalizePaymobError,
   verifyPaymobHmac,
 } from "../services/paymobPosService.js";
+import { detectPaymobInstrument } from "../services/paymobOnlineService.js";
 import {
   ensureSalesCommissionSchema,
   getSalesSettings,
@@ -479,8 +480,58 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
     ]
   );
 
+  // A storefront order uses the website fulfilment vocabulary, not the POS one.
+  // The generic branch below writes status = 'Paid'/'Partial', which is correct
+  // for a POS sale but would put a website order outside ORDER_LIFECYCLE_STATUSES.
+  const orderChannel = transaction.order_id
+    ? String(
+        (await client.query("SELECT COALESCE(channel, source, '') AS channel FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]))
+          .rows[0]?.channel || ""
+      ).toLowerCase()
+    : "";
+  const isStorefrontOrder = ["storefront", "website"].includes(orderChannel);
+
   let order = null;
-  if (nextStatus === "success" && transaction.order_id) {
+  if (nextStatus === "success" && transaction.order_id && isStorefrontOrder) {
+    const confirmedAmount = money(confirmedCents / 100);
+    // Paymob reports Apple Pay as a card transaction with a wallet marker, so
+    // without this the sale would be recorded as a plain card payment.
+    const instrument = detectPaymobInstrument(normalized.payload || {});
+    const orderResult = await client.query(
+      `
+      UPDATE orders
+      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
+          card_amount = COALESCE(card_amount, 0) + $2::numeric,
+          remaining_amount = GREATEST(
+            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
+            0
+          ),
+          payment_status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
+            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
+            ELSE COALESCE(payment_status, 'unpaid')
+          END,
+          payment_method = $3::text,
+          payment_type = $3::text,
+          status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'confirmed'
+            ELSE status
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+      `,
+      [transaction.order_id, confirmedAmount, instrument]
+    );
+    order = orderResult.rows[0] || null;
+    console.log("[paymob-online-confirm]", {
+      order_id: transaction.order_id,
+      instrument,
+      amount: confirmedAmount,
+      payment_status: order?.payment_status || "",
+      status: order?.status || "",
+    });
+  } else if (nextStatus === "success" && transaction.order_id) {
     const confirmedAmount = money(confirmedCents / 100);
     const orderResult = await client.query(
       `

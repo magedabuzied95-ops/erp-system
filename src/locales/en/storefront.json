@@ -46,6 +46,11 @@
       "shippingConfirmation": {
         "title": "Shipping confirmation",
         "text": "Pay the shipping fee now to confirm the order, and the rest on delivery."
+      },
+      "online": {
+        "title": "Pay online",
+        "text": "Pay securely by card now and confirm your order instantly.",
+        "textWithApplePay": "Pay by card or Apple Pay now and confirm your order instantly."
       }
     },
     "chooseGovernorate": "Choose governorate",
@@ -194,7 +199,16 @@
     "completePurchase": "Complete purchase",
     "codUnavailable": "Cash on delivery is not available right now.",
     "lineTotal": "Total",
-    "quantity": "Quantity"
+    "quantity": "Quantity",
+    "online": {
+      "amountLabel": "Amount due now",
+      "redirectHelper": "You will be taken to a secure payment page to finish.",
+      "applePayNote": "The Apple Pay button appears automatically on iPhone and Mac in Safari.",
+      "sessionFailed": "Your order was placed but the payment page could not be opened. You can retry from the order page.",
+      "retry": "Retry payment",
+      "awaitingPayment": "Waiting for payment confirmation",
+      "paid": "Payment received"
+    }
   },
   "invoice": {
     "unavailable": "Unavailable",

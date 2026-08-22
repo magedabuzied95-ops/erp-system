@@ -17,6 +17,7 @@ import { getTenantId } from "../utils/requestScope.js";
 import { normalizeSettingsCategory, settingsByCategory } from "../../shared/settingsRegistry.js";
 import { refreshOpenAiCredentialOverrides } from "../services/openaiCredentials.js";
 import { refreshAttendanceTimeZone } from "../utils/attendanceTimezone.js";
+import { paymobOnlineAvailability } from "../services/paymobOnlineService.js";
 
 const router = express.Router();
 
@@ -44,6 +45,9 @@ router.get("/public", async (req, res) => {
         sale_mode_enabled: saleModeEnabled ?? settings?.storefront?.sale_mode_enabled,
         global_sale_enabled: websiteSettings?.global_sale_enabled ?? saleModeEnabled ?? settings?.storefront?.global_sale_enabled,
         sale_prices_enabled: websiteSettings?.sale_prices_enabled ?? saleModeEnabled ?? settings?.storefront?.sale_prices_enabled,
+        // Booleans only — this endpoint is unauthenticated, so the Paymob keys
+        // themselves must never be reflected here.
+        online_payment: paymobOnlineAvailability(),
       },
     };
     res.json({ success: true, settings: mergedSettings });

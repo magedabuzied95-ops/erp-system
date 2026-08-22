@@ -7,6 +7,10 @@ const NON_COLLECTED_METHODS = new Set(["credit_sale", "exchange_credit", "return
 export const normalizePaymentMethodKey = (value = "") => {
   const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (key === "visa") return "card";
+  // Wallet rails ride on a card token but stay distinct so reporting can show
+  // how much of the card volume actually came through Apple Pay.
+  if (["applepay", "apple"].includes(key)) return "apple_pay";
+  if (["googlepay", "google"].includes(key)) return "google_pay";
   if (key === "vodafone") return "vodafone_cash";
   if (key === "insta_pay") return "instapay";
   if (["deferred_sale", "deferred", "due_sale", "due"].includes(key)) return "credit_sale";
@@ -53,6 +57,8 @@ export const deriveStoredPaymentMethod = ({ requestedMethod = "", paymentBreakdo
 const AR_LABELS = {
   cash: "نقدي",
   card: "فيزا",
+  apple_pay: "Apple Pay",
+  google_pay: "Google Pay",
   instapay: "InstaPay",
   vodafone_cash: "Vodafone Cash",
   wallet: "محفظة",
@@ -65,6 +71,8 @@ const AR_LABELS = {
 const EN_LABELS = {
   cash: "Cash",
   card: "Card",
+  apple_pay: "Apple Pay",
+  google_pay: "Google Pay",
   instapay: "InstaPay",
   vodafone_cash: "Vodafone Cash",
   wallet: "Wallet",
