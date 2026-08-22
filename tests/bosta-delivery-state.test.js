@@ -52,3 +52,14 @@ test("a plain string status still works", () => {
   const result = normalizeBostaDeliveryResponse({ data: { _id: "x", trackingNumber: "1", status: "Delivered" } });
   assert.equal(result.status, "delivered");
 });
+
+test("numeric Bosta webhook state resolves via the code table, then the description", () => {
+  assert.equal(normalizeBostaStatus(45, "Delivered"), "delivered");
+  assert.equal(normalizeBostaStatus("45"), "delivered");
+  assert.equal(normalizeBostaStatus(99, "Delivered"), "delivered");
+  assert.equal(normalizeBostaStatus(99, "Something new"), "something_new");
+  assert.equal(normalizeBostaStatus(99), "99");
+  const parsed = normalizeBostaDeliveryResponse({ _id: "x", trackingNumber: "266980385", state: 45, description: "Delivered" });
+  assert.equal(parsed.status, "delivered");
+  assert.equal(parsed.status_parsed, true);
+});

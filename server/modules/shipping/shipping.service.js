@@ -139,7 +139,10 @@ const extractBostaWebhook = (payload = {}) => {
   // Bosta sends state as `{code, value}` on some events and as a plain string on
   // others; unwrap before matching or every object-shaped event reads as unsupported.
   const rawStatus = bostaStateText(rawStatusValue);
-  const aliased = normalizeBostaStatus(rawStatusValue);
+  // Live Bosta callbacks carry `state: 45` plus `description: "Delivered"` — the
+  // number alone matches nothing, so the description rides along as the fallback.
+  const rawDescription = text(pickFirst(source, ["description", "stateDescription", "statusDescription", "data.description", "delivery.description"]));
+  const aliased = normalizeBostaStatus(rawStatusValue, rawDescription);
   const mappedStatus = (ERP_SHIPPING_STATUSES.has(aliased) ? aliased : "") ||
     BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(rawStatus)] ||
     BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(payload?.event)] ||

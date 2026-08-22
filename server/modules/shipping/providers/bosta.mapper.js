@@ -108,9 +108,41 @@ const BOSTA_STATE_ALIASES = {
 // Bosta's own vocabulary reduced to the statuses the ERP tracks. An unknown state is
 // returned normalized rather than dropped, so a new Bosta state shows up as itself
 // instead of silently becoming "created".
-export const normalizeBostaStatus = (value) => {
+// Bosta's webhook sends the state as a bare numeric code (`"state": 45`) next to a
+// human `description` ("Delivered"). Verified 2026-08-22 from a live callback for
+// INV-516: the ERP read "45", matched nothing, and the delivered parcel sat at
+// "في الطريق" until someone pressed تحديث الحالة. Codes from Bosta's delivery-states
+// table; anything unlisted falls through to the description text.
+export const BOSTA_STATE_CODES = {
+  10: "shipment_created", // Pickup requested
+  11: "shipment_created", // Waiting for route
+  20: "shipment_created", // Route assigned
+  21: "picked_up", // Picked up
+  22: "in_transit", // Received at warehouse
+  23: "in_transit", // In transit between hubs
+  24: "in_transit", // Received at destination hub
+  25: "in_transit", // Fulfilled
+  26: "in_transit", // Ready to pickup
+  30: "in_transit", // In transit
+  40: "out_for_delivery",
+  41: "out_for_delivery", // Out for delivery
+  45: "delivered", // Delivered
+  46: "returned", // Returned to business
+  47: "failed_delivery", // Exception
+  48: "cancelled", // Terminated
+  49: "cancelled", // Cancelled
+  50: "failed_delivery", // Lost / damaged
+};
+
+// `description` is the second argument so a numeric code the table does not know still
+// resolves from Bosta's own wording instead of being recorded as an opaque number.
+export const normalizeBostaStatus = (value, description = "") => {
   const key = bostaStateText(value).toLowerCase().replace(/[\s-]+/g, "_");
-  if (!key) return "";
+  if (!key) return description ? normalizeBostaStatus(description) : "";
+  if (/^\d+$/.test(key)) {
+    if (BOSTA_STATE_CODES[Number(key)]) return BOSTA_STATE_CODES[Number(key)];
+    return (description ? normalizeBostaStatus(description) : "") || key;
+  }
   return BOSTA_STATE_ALIASES[key] || key;
 };
 
@@ -124,7 +156,10 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
   // refresh it is a silent lie: an unreadable response would overwrite a real status
   // with "created" and stamp a fresh sync time, which on screen is indistinguishable
   // from "the courier has not moved it yet".
-  const parsedStatus = normalizeBostaStatus(pick(data, ["status", "state", "deliveryStatus"]));
+  const parsedStatus = normalizeBostaStatus(
+    pick(data, ["status", "state", "deliveryStatus"]),
+    text(pick(data, ["description", "stateDescription", "statusDescription"])),
+  );
   return {
     status_parsed: Boolean(parsedStatus),
     success: payload?.success !== false && !payload?.errorCode && !errorPayload?.errorCode,
