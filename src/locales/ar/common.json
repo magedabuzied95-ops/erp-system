@@ -763,7 +763,9 @@
       "password": "كلمة المرور",
       "workspace": "مساحة العمل / معرف الشركة"
     },
-    "yesterday": "أمس"
+    "yesterday": "أمس",
+    "zoomIn": "تكبير",
+    "zoomOut": "تصغير"
   },
   "sidebar": {
     "main": "الرئيسية",

@@ -763,7 +763,9 @@
       "password": "Password",
       "workspace": "Workspace / company slug"
     },
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
   "sidebar": {
     "main": "Main",

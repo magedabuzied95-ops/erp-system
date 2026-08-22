@@ -6,6 +6,27 @@ import { normalizeAudioDuration } from "../lib/chatAttachments";
 
 const WAVEFORM_BARS = [4, 8, 13, 7, 16, 10, 19, 14, 6, 15, 18, 9, 13, 5, 17, 12, 8, 15, 19, 11, 6, 16, 13, 7, 18, 10, 15, 5, 12, 19, 9, 14, 6, 16, 11, 13, 4, 15, 18, 8, 12, 6, 17, 10, 14, 7, 16, 5];
 
+const SPEEDS = [1, 1.5, 2];
+const SPEED_KEY = "m1.chat.voiceSpeed";
+const readSpeed = () => {
+  try { const value = Number(window.localStorage.getItem(SPEED_KEY)); return SPEEDS.includes(value) ? value : 1; } catch { return 1; }
+};
+const LISTENED_KEY = "m1.chat.voiceListened";
+const readListened = () => { try { return new Set(JSON.parse(window.localStorage.getItem(LISTENED_KEY) || "[]")); } catch { return new Set(); } };
+const markListened = (src) => {
+  try {
+    const set = readListened(); set.add(src);
+    window.localStorage.setItem(LISTENED_KEY, JSON.stringify([...set].slice(-400)));
+  } catch { /* private mode */ }
+};
+// Play the next voice note automatically when one ends (WhatsApp does).
+const playNextVoiceNote = (current) => {
+  const all = [...document.querySelectorAll("[data-voice-note]")];
+  const index = all.indexOf(current);
+  const next = all[index + 1];
+  next?.querySelector?.("[data-voice-play]")?.click?.();
+};
+
 const formatDuration = (seconds = 0) => {
   const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
   const minutes = Math.floor(safeSeconds / 60);
@@ -30,6 +51,17 @@ export default function WhatsAppVoiceMessage({
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(fallbackDuration);
   const [currentTime, setCurrentTime] = useState(0);
+  const [speed, setSpeed] = useState(readSpeed);
+  const [listened, setListened] = useState(() => readListened().has(String(src || "")));
+  const rootRef = useRef(null);
+  const cycleSpeed = (event) => {
+    event.stopPropagation();
+    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    setSpeed(next);
+    try { window.localStorage.setItem(SPEED_KEY, String(next)); } catch { /* private mode */ }
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+  useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = speed; }, [speed]);
 
   const progress = useMemo(() => {
     if (!duration) return 0;
@@ -89,12 +121,19 @@ export default function WhatsAppVoiceMessage({
     setPlaying(false);
     handleTimeUpdate();
   };
+  const handleEnded = () => {
+    handlePlaybackStopped();
+    if (!listened) { setListened(true); markListened(String(src || "")); }
+    playNextVoiceNote(rootRef.current);
+  };
 
   const togglePlayback = () => {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
+      audio.playbackRate = speed;
       audio.play().catch(() => setPlaying(false));
+      if (!listened) { setListened(true); markListened(String(src || "")); }
     } else {
       audio.pause();
     }
@@ -112,7 +151,7 @@ export default function WhatsAppVoiceMessage({
   };
 
   return (
-    <div className={`flex w-full min-w-0 flex-col ${className}`} dir="ltr">
+    <div ref={rootRef} data-voice-note="" className={`flex w-full min-w-0 flex-col ${className}`} dir="ltr">
       <audio
         ref={audioRef}
         src={src}
@@ -123,13 +162,14 @@ export default function WhatsAppVoiceMessage({
         onTimeUpdate={handleTimeUpdate}
         onPlay={() => setPlaying(true)}
         onPause={handlePlaybackStopped}
-        onEnded={handlePlaybackStopped}
+        onEnded={handleEnded}
       />
       <div className="flex h-8 min-w-0 items-center gap-1.5">
         <button
           type="button"
+          data-voice-play=""
           onClick={togglePlayback}
-          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${ outgoing ? "bg-[var(--chat-chrome)] text-[var(--chat-text)]" : "bg-[var(--chat-chrome)] text-[var(--chat-text)]" }`}
+          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 bg-[var(--chat-chrome)] ${listened ? "text-[var(--chat-muted)]" : "text-[var(--primary)]"}`}
           aria-label={playing ? t("employeePortal.chrome.pauseVoiceMessage") : t("employeePortal.chrome.playVoiceMessage")}
         >
           {playing ? <Pause className="h-[15px] w-[15px] fill-current" /> : <Play className="h-[15px] w-[15px] fill-current ps-0.5" />}
@@ -153,9 +193,13 @@ export default function WhatsAppVoiceMessage({
             );
           })}
         </button>
-        <span className={`w-8 shrink-0 text-right text-[10px] font-medium leading-none tabular-nums ${outgoing ? "text-[var(--chat-tick)]" : "text-[var(--chat-tick)]"}`}>
-          {formatDuration(duration)}
-        </span>
+        {playing ? (
+          <button type="button" onClick={cycleSpeed} className="h-6 shrink-0 rounded-full bg-[var(--chat-input)] px-1.5 text-[10px] font-black tabular-nums text-[var(--chat-text)]" aria-label={`${speed}x`}>{speed}x</button>
+        ) : (
+          <span className="w-8 shrink-0 text-right text-[10px] font-medium leading-none tabular-nums text-[var(--chat-tick)]">
+            {formatDuration(playing ? currentTime : duration)}
+          </span>
+        )}
       </div>
       {(timeText || showChecks) ? (
         <div className={`mt-0 flex h-3 items-center justify-end gap-px text-[9px] font-medium leading-none ${outgoing ? "text-[var(--chat-tick)]" : "text-[var(--chat-tick)]"}`}>

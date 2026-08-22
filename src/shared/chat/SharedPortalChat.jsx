@@ -11,6 +11,7 @@ import PortalChatContactInfo from "./PortalChatContactInfo";
 import { allowedPortalChatAttachment, portalChatMessagePreview } from "./portalChatUtils";
 import ChatRingOverlay, { ChatRingStatus } from "./ChatRingOverlay";
 import ChatThreadRow from "./ChatThreadRow";
+import ChatMediaViewer from "./ChatMediaViewer";
 import useChatRing from "./useChatRing";
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
@@ -1298,14 +1299,14 @@ export default function SharedPortalChat({
           </aside>
         ) : null}
       </div>
-      {imagePreview ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <button type="button" onClick={() => setImagePreview("")} className="absolute end-4 top-4 flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-[var(--chat-input)] text-[var(--chat-text)]">
-            <X className="h-5 w-5" />
-          </button>
-          <img src={imagePreview} alt="" className="max-h-full max-w-full object-contain" />
-        </div>
-      ) : null}
+      <ChatMediaViewer
+        open={Boolean(imagePreview)}
+        initialUrl={imagePreview}
+        messages={messages}
+        onClose={() => setImagePreview("")}
+        senderLabel={(message) => (message.sender_type === "admin" ? t("employeePortal.chat.admin.management") : (selectedEmployeeRecord?.full_name || selectedEmployeeRecord?.employee_name || t("employeePortal.chat.admin.employee")))}
+        timeFormatter={formatChatDateTime}
+      />
       {forwardMessage ? (
         <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" dir={i18nInstance.dir()}>
           <button type="button" className="absolute inset-0" onClick={() => !forwarding && setForwardMessage(null)} aria-label={t("common.close")} />
