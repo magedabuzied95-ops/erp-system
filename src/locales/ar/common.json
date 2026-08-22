@@ -686,6 +686,24 @@
     "uncategorized": "بدون فئة",
     "viewAll": "عرض الكل",
     "done": "تم",
+    "chatRing": {
+      "management": "الإدارة",
+      "someone": "أحدهم",
+      "incoming": "نداء وارد",
+      "incomingHint": "حد محتاجك دلوقتي — اضغط للرد أو افتح الشات",
+      "expiresIn": "ينتهي خلال {{seconds}} ث",
+      "answer": "تم",
+      "reply": "رد بالشات",
+      "silence": "كتم الرنين",
+      "answeredBy": "تم الرد بواسطة {{name}} بعد {{seconds}} ث",
+      "missed": "النداء فات — مفيش رد",
+      "ringing": "جارٍ الرنين… في انتظار الرد",
+      "dismiss": "إخفاء",
+      "ringButton": "نداء",
+      "ringTitle": "نداء فوري — يرنّ عند الطرف الآخر لحد ما يرد",
+      "ringPending": "فيه نداء لسه مستني رد",
+      "ringFailed": "تعذر إرسال النداء"
+    },
     "realtimeFeedback": {
       "events": {
         "newOrder": "طلب جديد",

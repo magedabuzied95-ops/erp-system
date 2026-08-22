@@ -33,8 +33,10 @@ import {
   upsertInventoryCountItem,
 } from "../services/inventoryCountService.js";
 import {
+  answerEmployeeChatRing,
   deleteEmployeeChatMessage,
   getEmployeeChat,
+  sendEmployeeChatRing,
   reactEmployeeChatMessage,
   sendEmployeeChatMessage,
   updateEmployeeChatMessage,
@@ -1045,6 +1047,26 @@ router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeCh
   } catch (error) {
     console.error("[employee-payroll-portal] chat message error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
+  }
+});
+
+router.post("/:token/chat/ring", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await sendEmployeeChatRing({ employee: req.employeePortalEmployee });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[employee-payroll-portal] chat ring error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to ring" });
+  }
+});
+
+router.post("/:token/chat/ring/:messageId/answer", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await answerEmployeeChatRing({ employee: req.employeePortalEmployee, messageId: req.params.messageId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[employee-payroll-portal] chat ring answer error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to answer ring" });
   }
 });
 

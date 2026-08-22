@@ -38,6 +38,7 @@ import {
   WalletCards,
   Printer,
   X,
+  PhoneCall,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -56,6 +57,12 @@ import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
 import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import PortalChatContactInfo from "../../../shared/chat/PortalChatContactInfo";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
+import ChatRingOverlay, { ChatRingStatus } from "../../../shared/chat/ChatRingOverlay";
+import useChatRing from "../../../shared/chat/useChatRing";
+import i18n from "../../../i18n/i18n";
+
+// The portal has its own label table; ring copy is shared across surfaces and lives in the i18n bundle.
+const ringText = (key) => i18n.t(`common.chatRing.${key}`);
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
 import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
@@ -1532,6 +1539,25 @@ export default function EmployeePayrollPortal() {
   const [chatSaving, setChatSaving] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatError, setChatError] = useState("");
+  /*
+   * Ring ("نداء") from management. Handlers live in a ref because the portal
+   * socket below is rebuilt whenever its deps change; the socket effect forwards
+   * to whatever handlers are current, so a rebuild never drops the ring.
+   */
+  const ringHandlersRef = useRef({});
+  const ringSubscribe = useCallback((handlers) => {
+    ringHandlersRef.current = handlers || {};
+    return () => {
+      ringHandlersRef.current = {};
+    };
+  }, []);
+  const ringAnswer = useCallback(
+    (ring) => api.post(`/employee-portal/${encodeURIComponent(token)}/chat/ring/${encodeURIComponent(ring.message.id)}/answer`, {}),
+    [token]
+  );
+  const ringIsIncoming = useCallback((payload) => String(payload?.sender_type || payload?.message?.sender_type || "") === "admin", []);
+  const chatRing = useChatRing({ subscribe: ringSubscribe, answer: ringAnswer, isIncoming: ringIsIncoming });
+  const [ringSending, setRingSending] = useState(false);
   const [chatBody, setChatBody] = useState("");
   const [chatAttachment, setChatAttachment] = useState(null);
   const [chatAttachmentDuration, setChatAttachmentDuration] = useState(0);
@@ -2447,7 +2473,11 @@ export default function EmployeePayrollPortal() {
     requestSocket.on("employee_portal:request_updated", onRequestUpdated);
     requestSocket.on("employee_portal:notification", onPortalNotification);
     requestSocket.on("employee_portal:display_refill_alert", onDisplayRefillAlert);
+    const onRing = (payload = {}) => ringHandlersRef.current?.onRing?.(payload);
+    const onRingAnswered = (payload = {}) => ringHandlersRef.current?.onRingAnswered?.(payload);
     requestSocket.on("employee-chat:new-message", onIncomingChatMessage);
+    requestSocket.on("employee-chat:ring", onRing);
+    requestSocket.on("employee-chat:ring-answered", onRingAnswered);
     requestSocket.connect();
 
     return () => {
@@ -2455,6 +2485,8 @@ export default function EmployeePayrollPortal() {
       requestSocket.off("employee_portal:notification", onPortalNotification);
       requestSocket.off("employee_portal:display_refill_alert", onDisplayRefillAlert);
       requestSocket.off("employee-chat:new-message", onIncomingChatMessage);
+      requestSocket.off("employee-chat:ring", onRing);
+      requestSocket.off("employee-chat:ring-answered", onRingAnswered);
       requestSocket.disconnect();
       if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
     };
@@ -2853,6 +2885,26 @@ export default function EmployeePayrollPortal() {
     window.scrollTo(0, 0);
     window.dispatchEvent(new Event("resize"));
   }, []);
+
+  const ringManagement = useCallback(async () => {
+    if (!token || ringSending) return;
+    setRingSending(true);
+    setChatError("");
+    try {
+      const data = await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/ring`, {});
+      chatRing.registerOutgoing(data);
+    } catch (error) {
+      const code = error?.responseBody?.code || "";
+      setChatError(code === "ring_pending" ? ringText("ringPending") : error?.responseBody?.message || ringText("ringFailed"));
+    } finally {
+      setRingSending(false);
+    }
+  }, [chatRing, ringSending, token]);
+
+  const answerRingAndOpenChat = useCallback(async () => {
+    await chatRing.answerIncoming();
+    setChatOpen(true);
+  }, [chatRing]);
 
   const closeEmployeeChat = useCallback(() => {
     document.activeElement?.blur?.();
@@ -3453,6 +3505,7 @@ export default function EmployeePayrollPortal() {
 
   return (
     <main dir={direction} className="employee-portal-shell employee-portal-min-screen overflow-x-hidden bg-slate-100 px-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-slate-950">
+      <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpenChat} onReply={answerRingAndOpenChat} onDismiss={chatRing.dismissIncoming} />
       <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
         <header className="flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
@@ -4472,6 +4525,16 @@ export default function EmployeePayrollPortal() {
                   <h2 className="m1-section-title truncate text-[16px]">M1 Store</h2>
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">{text.businessAccount}</p>
                 </button>
+                <button
+                  type="button"
+                  onClick={ringManagement}
+                  disabled={ringSending || chatRing.outgoing?.status === "ringing"}
+                  title={ringText("ringTitle")}
+                  aria-label={ringText("ringButton")}
+                  className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full bg-amber-400 text-zinc-950 transition disabled:opacity-50"
+                >
+                  <PhoneCall className={`h-5 w-5 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
+                </button>
                 <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label={text.searchMessages}>
                   {chatSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </button>
@@ -4485,6 +4548,7 @@ export default function EmployeePayrollPortal() {
                   </label>
                 </div>
               ) : null}
+              {chatRing.outgoing ? <div className="mx-4 my-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div> : null}
               {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
             <PortalChatMessageList

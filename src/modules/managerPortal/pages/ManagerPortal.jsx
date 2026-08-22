@@ -1014,6 +1014,8 @@ export default function ManagerPortal() {
     getThread: (threadId) => managerPortalApi.chatThread(token, threadId),
     sendMessage: (threadId, formData) => managerPortalApi.sendChatMessage(token, threadId, formData),
     markRead: (threadId) => managerPortalApi.markChatRead(token, threadId),
+    ring: (threadId) => managerPortalApi.ringChat(token, threadId),
+    answerRing: (threadId, messageId) => managerPortalApi.answerChatRing(token, threadId, messageId),
     emitTyping: (payload) => socketRef.current?.emit?.("employee-chat:typing", payload),
     emitStopTyping: (payload) => socketRef.current?.emit?.("employee-chat:stop-typing", payload),
     subscribe: (handlers = {}) => {
@@ -1025,6 +1027,8 @@ export default function ManagerPortal() {
         ["employee-chat:read", handlers.onRead],
         ["employee-chat:typing", handlers.onTyping],
         ["employee-chat:stop-typing", handlers.onStopTyping],
+        ["employee-chat:ring", handlers.onRing],
+        ["employee-chat:ring-answered", handlers.onRingAnswered],
       ].filter(([, handler]) => typeof handler === "function");
       bindings.forEach(([eventName, handler]) => activeSocket.on(eventName, handler));
       return () => bindings.forEach(([eventName, handler]) => activeSocket.off(eventName, handler));

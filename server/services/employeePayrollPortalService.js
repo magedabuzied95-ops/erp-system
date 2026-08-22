@@ -363,6 +363,10 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(160) NULL`);
+  // Ring ("نداء"): an attention call that carries no audio; answered state lives on the row.
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS message_kind VARCHAR(20) NOT NULL DEFAULT 'text'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_by VARCHAR(160) NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL`);
   await clientOrPool.query(`

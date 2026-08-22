@@ -47,6 +47,8 @@ export default function UnifiedEmployeeChatInbox({
     editMessage: (threadId, messageId, payload) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, payload),
     deleteMessage: (threadId, messageId) => api.delete(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`),
     markRead: (threadId) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/read`, {}),
+    ring: (threadId) => api.post(`/employees/chat/threads/${encodeURIComponent(threadId)}/ring`, {}),
+    answerRing: (threadId, messageId) => api.post(`/employees/chat/threads/${encodeURIComponent(threadId)}/ring/${encodeURIComponent(messageId)}/answer`, {}),
     emitTyping: (payload) => socket.emit("employee-chat:typing", payload),
     emitStopTyping: (payload) => socket.emit("employee-chat:stop-typing", payload),
     subscribe: (handlers = {}) => {
@@ -58,6 +60,8 @@ export default function UnifiedEmployeeChatInbox({
         subscribeRealtime("employee-chat:message-deleted", handlers.onMutation),
         subscribeRealtime("employee-chat:typing", handlers.onTyping),
         subscribeRealtime("employee-chat:stop-typing", handlers.onStopTyping),
+        subscribeRealtime("employee-chat:ring", handlers.onRing),
+        subscribeRealtime("employee-chat:ring-answered", handlers.onRingAnswered),
       ];
       return () => subscriptions.forEach((unsubscribe) => unsubscribe?.());
     },

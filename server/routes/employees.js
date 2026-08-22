@@ -1,6 +1,13 @@
 import express from "express";
 import employeeChatUpload from "../config/employeeChatUpload.js";
-import { getBranchPosChat, sendBranchPosChatMessage } from "../services/employeeChatService.js";
+import {
+  answerAdminChatRing,
+  answerBranchPosChatRing,
+  getBranchPosChat,
+  sendAdminChatRing,
+  sendBranchPosChatMessage,
+  sendBranchPosChatRing,
+} from "../services/employeeChatService.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -145,6 +152,47 @@ router.post("/chat/pos/messages", protect, uploadEmployeeChatAttachment, async (
   } catch (error) {
     if (!error.status) console.error("[employees] pos channel send error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
+  }
+});
+
+const chatFailure = (res, error, fallback) => {
+  if (!error.status) console.error("[employees] chat error", error);
+  return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || fallback });
+};
+
+router.post("/chat/pos/ring", protect, async (req, res) => {
+  try {
+    const result = await sendBranchPosChatRing({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req), userId: req.user?.id || null, senderName: posChannelSenderName(req) });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to ring");
+  }
+});
+
+router.post("/chat/pos/ring/:messageId/answer", protect, async (req, res) => {
+  try {
+    const result = await answerBranchPosChatRing({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req), messageId: req.params.messageId, answeredBy: posChannelSenderName(req) });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to answer ring");
+  }
+});
+
+router.post("/chat/threads/:threadId/ring", protect, permit("employees", "edit"), async (req, res) => {
+  try {
+    const result = await sendAdminChatRing({ tenantId: req.tenantId || null, threadId: req.params.threadId, userId: req.user?.id || null, senderName: posChannelSenderName(req) });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to ring");
+  }
+});
+
+router.post("/chat/threads/:threadId/ring/:messageId/answer", protect, permit("employees", "edit"), async (req, res) => {
+  try {
+    const result = await answerAdminChatRing({ tenantId: req.tenantId || null, messageId: req.params.messageId, answeredBy: posChannelSenderName(req) });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to answer ring");
   }
 });
 

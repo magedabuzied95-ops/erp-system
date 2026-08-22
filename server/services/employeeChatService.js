@@ -22,6 +22,9 @@ const messageSelect = `
     m.sender_employee_id,
     m.sender_user_id,
     m.sender_name,
+    m.message_kind,
+    m.ring_answered_at,
+    m.ring_answered_by,
     m.body,
     m.attachment_url,
     m.attachment_type,
@@ -82,6 +85,8 @@ export const parseBranchPosChannelKey = (value = "") => {
   return match ? Number(match[1]) : null;
 };
 const isBranchPosThread = (thread = {}) => String(thread?.channel_type || "") === BRANCH_POS_CHANNEL;
+const threadChannelEmployeeId = (thread = {}) =>
+  isBranchPosThread(thread) ? branchPosChannelKey(thread.branch_id) : thread?.employee_id ?? null;
 const threadCashierRooms = (thread = {}) =>
   isBranchPosThread(thread) ? [branchPosChatRoom(thread.branch_id)] : thread?.employee_id ? [employeeChatRoom(thread.employee_id)] : [];
 const BRANCH_POS_NAME_PREFIX = "كاشير فرع ";
@@ -637,6 +642,190 @@ export const sendBranchPosChatMessage = async ({ tenantId = null, branchId, user
   }));
   return { thread: updatedThread || thread, message };
 };
+
+/* ------------------------------------------------------------------------
+ * Ring ("نداء"): an attention call with no audio. It is a chat row of
+ * message_kind 'ring', so every list and thread already shows it; answering
+ * rewrites the body and fans out message-updated, so every surface refreshes
+ * through the handlers it already has.
+ * ---------------------------------------------------------------------- */
+export const RING_PENDING_MS = 120000;
+const RING_RETRY_DELAYS_MS = [30000, 60000];
+const RING_BODY = "📞 نداء";
+const ringError = () => chatError("A ring is already pending", 409, "ring_pending");
+
+const ringTargetRooms = (thread, senderType) =>
+  senderType === "admin" ? threadCashierRooms(thread) : [adminChatRoom(thread.tenant_id)];
+
+const loadRingMessage = async (messageId) => {
+  const result = await db.query(
+    `SELECT m.*, t.tenant_id, t.employee_id AS thread_employee_id, t.branch_id, t.channel_type
+     FROM employee_chat_messages m
+     JOIN employee_chat_threads t ON t.id = m.thread_id
+     WHERE m.id = $1 AND m.message_kind = 'ring'
+     LIMIT 1`,
+    [messageId]
+  );
+  return result.rows[0] || null;
+};
+
+const ringIsOpen = (ring) => ring && !ring.ring_answered_at && Date.now() - new Date(ring.created_at).getTime() < RING_PENDING_MS;
+
+const scheduleRingPushRetries = (messageId, sendAttempt) => {
+  RING_RETRY_DELAYS_MS.forEach((delay, index) => {
+    const timer = setTimeout(async () => {
+      try {
+        const ring = await loadRingMessage(messageId);
+        if (!ringIsOpen(ring)) return;
+        await sendAttempt(index + 1);
+      } catch (error) {
+        console.warn("[employee-chat] ring retry failed", { messageId, message: error?.message || error });
+      }
+    }, delay);
+    if (typeof timer.unref === "function") timer.unref();
+  });
+};
+
+const createChatRing = async ({ thread, senderType, senderUserId = null, senderEmployeeId = null, senderName = "" } = {}) => {
+  const pending = await db.query(
+    `SELECT id FROM employee_chat_messages
+     WHERE thread_id = $1 AND sender_type = $2 AND message_kind = 'ring'
+       AND ring_answered_at IS NULL AND deleted_at IS NULL
+       AND created_at > NOW() - ($3::int * INTERVAL '1 millisecond')
+     LIMIT 1`,
+    [thread.id, senderType, RING_PENDING_MS]
+  );
+  if (pending.rows[0]) throw ringError();
+  const inserted = await db.query(
+    `INSERT INTO employee_chat_messages (thread_id, sender_type, sender_employee_id, sender_user_id, sender_name, message_kind, body, read_at, created_at)
+     VALUES ($1, $2, $3, $4, $5, 'ring', $6, NULL, NOW())
+     RETURNING id`,
+    [thread.id, senderType, senderEmployeeId, senderUserId, clean(senderName).slice(0, 160) || null, RING_BODY]
+  );
+  await db.query(`UPDATE employee_chat_threads SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`, [thread.id]);
+  const updatedThread = await loadThreadSummary(thread.id);
+  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(inserted.rows[0].id));
+  const everyone = [...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)];
+  emitChatEvent(everyone, "employee-chat:new-message", { thread: updatedThread, message });
+  emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", { thread: updatedThread });
+  emitChatEvent(ringTargetRooms(thread, senderType), "employee-chat:ring", {
+    thread: updatedThread,
+    message,
+    thread_id: thread.id,
+    employee_id: updatedThread?.employee_id ?? threadChannelEmployeeId(thread),
+    sender_type: senderType,
+    sender_name: clean(senderName),
+    expires_at: new Date(Date.now() + RING_PENDING_MS).toISOString(),
+  });
+  return { thread: updatedThread, message };
+};
+
+const answerChatRing = async ({ messageId, answererType, answeredBy = "", tenantId = null, employeeId = null, branchId = null } = {}) => {
+  const ring = await loadRingMessage(messageId);
+  if (!ring) throw chatError("Ring not found", 404, "ring_not_found");
+  if (tenantId != null && ring.tenant_id != null && Number(ring.tenant_id) !== Number(tenantId)) throw chatError("Ring not found", 404, "ring_not_found");
+  if (employeeId != null && Number(ring.thread_employee_id) !== Number(employeeId)) throw chatError("Ring not found", 404, "ring_not_found");
+  if (branchId != null && (ring.channel_type !== BRANCH_POS_CHANNEL || Number(ring.branch_id) !== Number(branchId))) throw chatError("Ring not found", 404, "ring_not_found");
+  if (ring.sender_type === answererType) throw chatError("You cannot answer your own ring", 400, "ring_own");
+  const thread = { id: ring.thread_id, tenant_id: ring.tenant_id, employee_id: ring.thread_employee_id, branch_id: ring.branch_id, channel_type: ring.channel_type };
+  if (ring.ring_answered_at) {
+    return { thread, message: (await loadMessages(thread.id)).find((item) => String(item.id) === String(ring.id)), already: true };
+  }
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(ring.created_at).getTime()) / 1000));
+  const by = clean(answeredBy).slice(0, 160) || null;
+  await db.query(
+    `UPDATE employee_chat_messages
+     SET ring_answered_at = NOW(), ring_answered_by = $2, read_at = COALESCE(read_at, NOW()),
+         body = $3
+     WHERE id = $1`,
+    [ring.id, by, `${RING_BODY} — تم الرد${by ? ` (${by})` : ""} بعد ${seconds} ث`]
+  );
+  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(ring.id));
+  const everyone = [...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)];
+  emitChatEvent(everyone, "employee-chat:ring-answered", {
+    thread_id: thread.id,
+    message_id: ring.id,
+    message,
+    answered_by: by,
+    answerer_type: answererType,
+    answered_at: message?.ring_answered_at || new Date().toISOString(),
+    seconds,
+  });
+  emitChatEvent(everyone, "employee-chat:message-updated", { thread_id: thread.id, message });
+  return { thread, message };
+};
+
+// Admin / manager → employee or branch cashier
+export const sendAdminChatRing = async ({ tenantId = null, threadId, userId = null, senderName = "" } = {}) => {
+  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false });
+  const result = await createChatRing({ thread, senderType: "admin", senderUserId: userId, senderName });
+  if (!isBranchPosThread(thread) && thread.employee_record_id) {
+    const attempt = (n) =>
+      sendEmployeePortalPush({
+        tenantId: thread.tenant_id || thread.employee_tenant_id || tenantId || null,
+        employeeId: thread.employee_record_id,
+        title: "📞 نداء من الإدارة",
+        body: senderName ? `${senderName} بينده عليك — افتح التطبيق للرد` : "الإدارة بتنده عليك — افتح التطبيق للرد",
+        url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
+        tag: `employee-ring-${result.message.id}-${n}`,
+        data: { event: "employee_chat_ring", thread_id: thread.id, message_id: result.message.id, tab: "chat" },
+        persist: n === 0,
+        deliverPush: true,
+      });
+    attempt(0).catch((error) => console.warn("[employee-chat] ring push failed", error?.message || error));
+    scheduleRingPushRetries(result.message.id, attempt);
+  }
+  return result;
+};
+export const answerAdminChatRing = ({ tenantId = null, messageId, answeredBy = "" } = {}) =>
+  answerChatRing({ messageId, answererType: "admin", answeredBy, tenantId });
+
+// Employee (token app) → management
+export const sendEmployeeChatRing = async ({ employee } = {}) => {
+  const thread = await getOrCreateEmployeeChatThread(employee);
+  const name = employee.full_name || employee.employee_name || employee.employee_code || "موظف";
+  const result = await createChatRing({ thread, senderType: "employee", senderEmployeeId: employee.id, senderName: name });
+  const attempt = (n) =>
+    sendManagerEmployeeChatPush({
+      tenantId: employee.tenant_id || null,
+      branchId: employee.branch_id || null,
+      employee,
+      employeeId: employee.id,
+      employeeName: name,
+      threadId: thread.id,
+      message: result.message,
+      kind: "ring",
+      attempt: n,
+    });
+  attempt(0).catch((error) => console.warn("[manager-push:ring] failed", error?.message || error));
+  scheduleRingPushRetries(result.message.id, attempt);
+  return result;
+};
+export const answerEmployeeChatRing = ({ employee, messageId } = {}) =>
+  answerChatRing({ messageId, answererType: "employee", answeredBy: employee?.full_name || "", employeeId: employee?.id || null });
+
+// Branch POS cashier → management
+export const sendBranchPosChatRing = async ({ tenantId = null, branchId, userId = null, senderName = "" } = {}) => {
+  const { thread, branch } = await getOrCreateBranchPosThread({ tenantId, branchId });
+  const channelName = `${BRANCH_POS_NAME_PREFIX}${branch.name}`;
+  const result = await createChatRing({ thread, senderType: "employee", senderUserId: userId, senderName });
+  const attempt = (n) =>
+    sendManagerEmployeeChatPush({
+      tenantId: thread.tenant_id || null,
+      branchId: thread.branch_id || null,
+      employeeName: senderName ? `${channelName} (${senderName})` : channelName,
+      threadId: thread.id,
+      message: result.message,
+      channelKey: branchPosChannelKey(thread.branch_id),
+      kind: "ring",
+      attempt: n,
+    });
+  attempt(0).catch((error) => console.warn("[manager-push:ring] failed", error?.message || error));
+  scheduleRingPushRetries(result.message.id, attempt);
+  return result;
+};
+export const answerBranchPosChatRing = ({ tenantId = null, branchId, messageId, answeredBy = "" } = {}) =>
+  answerChatRing({ messageId, answererType: "employee", answeredBy, tenantId, branchId: Number(branchId || 0) || null });
 
 export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } = {}) => {
   await ensureEmployeePayrollPortalSchema(db);

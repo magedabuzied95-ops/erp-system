@@ -25,6 +25,8 @@ import {
   reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
+  sendManagerPortalChatRing,
+  answerManagerPortalChatRing,
   markManagerPortalNotificationRead,
   markManagerPortalNotificationsRead,
   noteManagerPortalTask,
@@ -555,6 +557,30 @@ router.get("/:token/chat/:threadId", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] chat thread error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load chat thread" });
+  }
+});
+
+router.post("/:token/chat/:threadId/ring", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await sendManagerPortalChatRing({ manager, threadId: req.params.threadId });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[manager-portal] chat ring error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to ring" });
+  }
+});
+
+router.post("/:token/chat/:threadId/ring/:messageId/answer", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await answerManagerPortalChatRing({ manager, messageId: req.params.messageId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[manager-portal] chat ring answer error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to answer ring" });
   }
 });
 

@@ -388,7 +388,8 @@ const chatPreview = (message = {}) => {
   return "ملف";
 };
 
-export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = null, employee = {}, employeeId = null, employeeName = "", threadId = null, message = {}, channelKey = "" } = {}) => {
+export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = null, employee = {}, employeeId = null, employeeName = "", threadId = null, message = {}, channelKey = "", kind = "message", attempt = 0 } = {}) => {
+  const isRing = kind === "ring";
   const resolvedEmployeeId = numberOrNull(employeeId || employee.id || message.sender_employee_id);
   // A branch POS channel has no employee; the portal selects it by its "pos-branch-<id>" key.
   const selectionKey = text(channelKey) || String(resolvedEmployeeId || "");
@@ -415,11 +416,12 @@ export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = 
     buildPayload: (row) => {
       const url = `/manager-portal/${encodeURIComponent(row.portal_token)}?tab=chat&employee_id=${encodeURIComponent(selectionKey)}&thread_id=${encodeURIComponent(String(resolvedThreadId || ""))}`;
       return {
-        title: `رسالة جديدة من ${name}`,
-        body: chatPreview(message),
-        tag: `manager-chat-${resolvedThreadId || resolvedEmployeeId || "thread"}`,
+        title: isRing ? `📞 نداء من ${name}` : `رسالة جديدة من ${name}`,
+        body: isRing ? "افتح البوابة للرد على النداء" : chatPreview(message),
+        // A ring retry must surface as a NEW notification, so its tag carries the attempt.
+        tag: isRing ? `manager-ring-${message.id || resolvedThreadId}-${attempt}` : `manager-chat-${resolvedThreadId || resolvedEmployeeId || "thread"}`,
         data: {
-          type: "employee_chat",
+          type: isRing ? "employee_chat_ring" : "employee_chat",
           thread_id: resolvedThreadId,
           employee_id: selectionKey || resolvedEmployeeId,
           message_id: message.id || null,

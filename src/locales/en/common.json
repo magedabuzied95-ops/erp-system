@@ -686,6 +686,24 @@
     "uncategorized": "Uncategorized",
     "viewAll": "View all",
     "done": "Done",
+    "chatRing": {
+      "management": "Management",
+      "someone": "Someone",
+      "incoming": "Incoming ring",
+      "incomingHint": "Someone needs you now — answer or open the chat",
+      "expiresIn": "Expires in {{seconds}}s",
+      "answer": "Got it",
+      "reply": "Reply in chat",
+      "silence": "Silence",
+      "answeredBy": "Answered by {{name}} after {{seconds}}s",
+      "missed": "Missed — no answer",
+      "ringing": "Ringing… waiting for an answer",
+      "dismiss": "Dismiss",
+      "ringButton": "Ring",
+      "ringTitle": "Instant ring — keeps ringing on the other side until answered",
+      "ringPending": "A ring is still waiting for an answer",
+      "ringFailed": "Could not send the ring"
+    },
     "realtimeFeedback": {
       "events": {
         "newOrder": "New order",

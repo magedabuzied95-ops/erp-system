@@ -6,6 +6,8 @@ import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution
 import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
 import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment, updateStaffTaskDetails, deleteStaffTask } from "./staffTasksService.js";
 import {
+  answerAdminChatRing,
+  sendAdminChatRing,
   listEmployeeChatThreads,
   getAdminEmployeeChatThread,
   sendAdminEmployeeChatMessage,
@@ -2012,6 +2014,16 @@ export const sendManagerPortalChat = async ({ manager = {}, threadId, body = "",
     replyToMessageId,
     attachmentDurationSeconds,
   });
+};
+
+export const sendManagerPortalChatRing = async ({ manager = {}, threadId } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  return sendAdminChatRing({ tenantId, threadId, userId: manager.user_id || null, senderName: manager.full_name || manager.name || "" });
+};
+
+export const answerManagerPortalChatRing = async ({ manager = {}, messageId } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  return answerAdminChatRing({ tenantId, messageId, answeredBy: manager.full_name || manager.name || "" });
 };
 
 export const markManagerPortalChatRead = async ({ manager = {}, threadId } = {}) => {

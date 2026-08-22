@@ -31,6 +31,8 @@ export const managerPortalApi = {
   chatThread: (token, threadId, options = {}) => api.get(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}`, options),
   sendChatMessage: (token, threadId, formData) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/messages`, formData),
   markChatRead: (token, threadId) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/read`),
+  ringChat: (token, threadId) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/ring`, {}),
+  answerChatRing: (token, threadId, messageId) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/ring/${encodeURIComponent(messageId)}/answer`, {}),
   createTask: (token, payload) => api.post(`${tokenPath(token)}/tasks`, payload),
   updateTask: (token, id, payload = {}) => api.patch(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}`, payload),
   deleteTask: (token, id) => api.delete(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}`),

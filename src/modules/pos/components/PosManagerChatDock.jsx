@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquareText, Send, Volume2, X } from "lucide-react";
+import { MessageSquareText, PhoneCall, Send, Volume2, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { emitRealtime, subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
@@ -13,6 +13,8 @@ import {
   portalChatAttachmentUrl,
   portalChatMessagePreview,
 } from "../../../shared/chat/portalChatUtils";
+import ChatRingOverlay, { ChatRingStatus } from "../../../shared/chat/ChatRingOverlay";
+import useChatRing from "../../../shared/chat/useChatRing";
 
 /*
  * Management → cashier channel inside the POS: "كاشير فرع X".
@@ -66,6 +68,26 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(false);
+  const [ringSending, setRingSending] = useState(false);
+
+  // Ring ("نداء"): manager → this branch rings here; cashier → manager rings the portal.
+  const ringSubscribe = useCallback((handlers) => {
+    const offRing = subscribeRealtime("employee-chat:ring", handlers.onRing);
+    const offAnswered = subscribeRealtime("employee-chat:ring-answered", handlers.onRingAnswered);
+    return () => {
+      offRing();
+      offAnswered();
+    };
+  }, []);
+  const ringAnswer = useCallback(
+    (ring) => api.post(`/employees/chat/pos/ring/${encodeURIComponent(ring.message.id)}/answer`, { branch_id: branchKey }),
+    [branchKey]
+  );
+  const ringIsIncoming = useCallback(
+    (payload) => String(payload?.sender_type || payload?.message?.sender_type || "") === "admin" && (!threadIdRef.current || String(payload?.thread_id || payload?.thread?.id || "") === threadIdRef.current),
+    []
+  );
+  const chatRing = useChatRing({ subscribe: ringSubscribe, answer: ringAnswer, isIncoming: ringIsIncoming });
 
   const openRef = useRef(false);
   const threadIdRef = useRef("");
@@ -164,7 +186,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
       if (!message?.id || !mine(payload)) return;
       if (payload?.thread?.id && !threadIdRef.current) threadIdRef.current = String(payload.thread.id);
       setMessages((list) => mergeMessage(list, message));
-      if (!isAdminMessage(message)) return;
+      if (!isAdminMessage(message) || String(message.message_kind || "") === "ring") return;
 
       const visibleNow = openRef.current && typeof document !== "undefined" && !document.hidden;
       emitRealtimeFeedback("employee_chat_message", {
@@ -260,6 +282,27 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
     [send]
   );
 
+  const ringManager = useCallback(async () => {
+    if (!branchKey || ringSending) return;
+    setRingSending(true);
+    setError("");
+    try {
+      await unlockRealtimeFeedbackAudio();
+      const data = await api.post("/employees/chat/pos/ring", { branch_id: branchKey });
+      chatRing.registerOutgoing(data);
+    } catch (err) {
+      const code = err?.responseBody?.code || "";
+      setError(code === "ring_pending" ? t("common.chatRing.ringPending") : err?.responseBody?.message || t("common.chatRing.ringFailed"));
+    } finally {
+      setRingSending(false);
+    }
+  }, [branchKey, chatRing, ringSending, t]);
+
+  const answerRingAndOpen = useCallback(async () => {
+    await chatRing.answerIncoming();
+    setOpen(true);
+  }, [chatRing]);
+
   const testSound = useCallback(async () => {
     await unlockRealtimeFeedbackAudio();
     playRealtimeSound("staffChat", { priority: "critical", key: `test-staff-chat-${Date.now()}` });
@@ -274,6 +317,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
 
   return (
     <>
+      <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpen} onReply={answerRingAndOpen} onDismiss={chatRing.dismissIncoming} />
       <button
         type="button"
         onClick={() => {
@@ -322,6 +366,17 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
                 <span className="truncate">{connected ? t("pos.managerChat.connected") : t("pos.managerChat.reconnecting")}</span>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={ringManager}
+              disabled={ringSending || chatRing.outgoing?.status === "ringing"}
+              title={t("common.chatRing.ringTitle")}
+              aria-label={t("common.chatRing.ringButton")}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-400 px-2.5 text-xs font-black text-zinc-950 disabled:opacity-50"
+            >
+              <PhoneCall className={`h-4 w-4 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
+              {t("common.chatRing.ringButton")}
+            </button>
             <button
               type="button"
               onClick={testSound}
@@ -395,6 +450,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
             )}
           </div>
 
+          {chatRing.outgoing ? <div className="border-t border-white/10 px-3 py-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div> : null}
           {error ? <div className="border-t border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-200">{error}</div> : null}
 
           <footer className="flex items-end gap-2 border-t border-white/10 p-3">

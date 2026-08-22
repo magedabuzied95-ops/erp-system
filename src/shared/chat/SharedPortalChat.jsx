@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Loader2, MessageCircle, RefreshCw, Search, UserRound, X } from "lucide-react";
+import { ArrowRight, Loader2, MessageCircle, PhoneCall, RefreshCw, Search, UserRound, X } from "lucide-react";
 
 import i18n from "../../i18n/i18n";
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
@@ -9,6 +9,8 @@ import PortalChatComposer from "./PortalChatComposer";
 import PortalChatMessageList from "./PortalChatMessageList";
 import PortalChatContactInfo from "./PortalChatContactInfo";
 import { allowedPortalChatAttachment, portalChatMessagePreview } from "./portalChatUtils";
+import ChatRingOverlay, { ChatRingStatus } from "./ChatRingOverlay";
+import useChatRing from "./useChatRing";
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const employeeRecordId = (item = {}) => String(item?.employee_id || item?.employeeId || item?.id || "");
@@ -135,6 +137,19 @@ export default function SharedPortalChat({
    */
   const [error, setError] = useState({ key: "", text: "" });
   const clearError = useCallback(() => setError({ key: "", text: "" }), []);
+  const [ringSending, setRingSending] = useState(false);
+  /*
+   * Ring ("نداء"): the adapter owns transport; this component only decides
+   * that rings from the cashier/employee side are "incoming" here and that
+   * answering jumps to the ringing thread.
+   */
+  const ringSubscribe = useCallback(
+    (handlers) => (typeof apiAdapter?.subscribe === "function" ? apiAdapter.subscribe(handlers) : () => {}),
+    [apiAdapter]
+  );
+  const ringAnswer = useCallback((ring) => apiAdapter?.answerRing?.(ring.thread_id, ring.message?.id), [apiAdapter]);
+  const ringIsIncoming = useCallback((payload) => String(payload?.sender_type || payload?.message?.sender_type || "") !== "admin", []);
+  const chatRing = useChatRing({ subscribe: ringSubscribe, answer: ringAnswer, isIncoming: ringIsIncoming });
   const failure = useCallback(
     (err, key) => ({ key: err?.responseBody?.message || err?.message ? "" : key, text: err?.responseBody?.message || err?.message || "" }),
     []
@@ -433,6 +448,26 @@ export default function SharedPortalChat({
     setBodyState(value);
     const key = activeThreadId || `employee:${selectedEmployeeId || ""}`;
     if (key) setDraftsByThread((current) => ({ ...current, [key]: value }));
+  };
+
+  const ringThread = async () => {
+    if (!activeThreadId || !apiAdapter?.ring || ringSending) return;
+    setRingSending(true);
+    clearError();
+    try {
+      const response = await apiAdapter.ring(activeThreadId);
+      chatRing.registerOutgoing(response);
+    } catch (err) {
+      const code = err?.responseBody?.code || "";
+      setError(code === "ring_pending" ? { key: "common.chatRing.ringPending", text: "" } : failure(err, "common.chatRing.ringFailed"));
+    } finally {
+      setRingSending(false);
+    }
+  };
+  const answerRingAndOpen = async () => {
+    const ring = chatRing.incoming;
+    await chatRing.answerIncoming();
+    if (ring?.employee_id) chooseEmployee(String(ring.employee_id), ring.thread_id);
   };
 
   const chooseEmployee = (employeeId, threadId = "") => {
@@ -740,6 +775,8 @@ export default function SharedPortalChat({
     : managerPanel;
 
   return (
+    <>
+    <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpen} onReply={answerRingAndOpen} onDismiss={chatRing.dismissIncoming} />
     <section
       className={`theme-card flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
       dir={i18nInstance.dir()}
@@ -852,6 +889,19 @@ export default function SharedPortalChat({
                       <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}</div>
                     </div>
                   </button>
+                  {apiAdapter?.ring && activeThreadId ? (
+                    <button
+                      type="button"
+                      onClick={ringThread}
+                      disabled={ringSending || chatRing.outgoing?.status === "ringing"}
+                      title={t("common.chatRing.ringTitle")}
+                      aria-label={t("common.chatRing.ringButton")}
+                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-amber-400 px-3 text-xs font-black text-zinc-950 shadow-[0_8px_20px_rgba(245,158,11,0.3)] disabled:opacity-50"
+                    >
+                      <PhoneCall className={`h-4 w-4 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
+                      <span className="hidden sm:inline">{t("common.chatRing.ringButton")}</span>
+                    </button>
+                  ) : null}
                   <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
                     <Search className="h-4 w-4 shrink-0" />
                     <input ref={messageSearchRef} value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchMessages")} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
@@ -862,6 +912,9 @@ export default function SharedPortalChat({
               <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
                 {resolvedSecureNotice}
               </div>
+              {chatRing.outgoing && String(chatRing.outgoing.thread_id) === String(activeThreadId) ? (
+                <div className="px-3 pt-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div>
+              ) : null}
               <PortalChatMessageList
                 messages={visibleMessages}
                 loading={loadingThread}
@@ -990,5 +1043,6 @@ export default function SharedPortalChat({
         </div>
       ) : null}
     </section>
+    </>
   );
 }
