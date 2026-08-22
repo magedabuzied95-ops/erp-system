@@ -601,5 +601,18 @@
       "history": "Invoice history",
       "noHistory": "No history is available for this invoice"
     }
+  },
+  "restock": {
+    "title": "Back-in-stock request",
+    "button": "Notify when available",
+    "subtitle": "The same restock requests as the AI Inbox — the customer is notified when the size returns, per the settings.",
+    "close": "Close",
+    "customer": "Customer",
+    "unnamed": "Unnamed",
+    "noPhone": "No phone",
+    "changeCustomer": "Change",
+    "searchCustomer": "Search by name or phone",
+    "noMatches": "No customer matches — create them from the New customer button on the main screen.",
+    "phoneRequired": "This customer has no phone number — a restock request needs one to notify them."
   }
 }

@@ -41,6 +41,29 @@ import { createIntent, listIntents, cancelIntent, markIntentFulfilled, deleteInt
 import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode, getMessageTemplate, setMessageTemplate, renderMessageTemplate } from "../services/restockNotificationService.js";
 
 // Sample facts for the template preview shown in the inbox gear.
+
+// Restock intents are created from the POS as well as AI Studio, so a cashier
+// with an orders permission must reach them without the settings module. permit()
+// answers a denial by writing the 403 itself, so each candidate runs against a
+// capturing stand-in and the first one that calls next() wins; the last denial is
+// what the client sees when none does.
+const permitAnyOf = (...pairs) => async (req, res, next) => {
+  let lastDenial = null;
+  for (const [moduleName, action] of pairs) {
+    // eslint-disable-next-line no-await-in-loop
+    const outcome = await new Promise((resolve) => {
+      const stand = { status: (code) => ({ json: (body) => resolve({ denied: true, code, body }) }) };
+      Promise.resolve(permit(moduleName, action)(req, stand, (err) => resolve({ denied: false, err }))).catch((err) => resolve({ denied: true, code: 500, body: { success: false, message: err?.message || "Permission check failed" } }));
+    });
+    if (!outcome.denied) return outcome.err ? next(outcome.err) : next();
+    lastDenial = outcome;
+  }
+  return res.status(lastDenial?.code || 403).json(lastDenial?.body || { success: false, message: "Forbidden" });
+};
+const permitRestockView = permitAnyOf(["settings", "view"], ["orders", "view"]);
+const permitRestockEdit = permitAnyOf(["settings", "edit"], ["orders", "create"]);
+
+// Sample facts for the template preview shown in the inbox gear.
 const TEMPLATE_PREVIEW_FACTS = Object.freeze({ customerName: "ماجد", productName: "Alexander Mcqueen Sneakers", color: "White", size: "38" });
 import { getDeliveryCounts, listUnmatchedDeliveryEvents } from "../services/messageDeliveryReconciliationService.js";
 import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, isInboundWorkflowsEnabled, getInboundAiChannels, setInboundAiChannel, ASSISTED_CHANNELS } from "../services/aiInboundIntakeService.js";
@@ -98,7 +121,7 @@ router.post("/restock-recovery/seed-template", protect, permit("settings", "edit
 });
 
 // ---- Phase 7: Restock Intents (variant-level explicit requests) ----
-router.get("/restock-intents", protect, permit("settings", "view"), async (req, res) => {
+router.get("/restock-intents", protect, permitRestockView, async (req, res) => {
   try {
     const filter = { status: req.query.status || null, limit: req.query.limit, phone: req.query.phone || null, customerId: req.query.customerId || null };
     const [intents, counts] = await Promise.all([listIntents(tid(req), filter), getIntentCounts(tid(req))]);
@@ -106,20 +129,20 @@ router.get("/restock-intents", protect, permit("settings", "view"), async (req, 
   } catch (error) { fail(res, error); }
 });
 // Employee-created intent (e.g. from AI Inbox) — EXPLICIT action, never autonomous. `source` records origin.
-router.post("/restock-intents", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/restock-intents", protect, permitRestockEdit, async (req, res) => {
   try {
     const b = req.body || {};
     const r = await createIntent({ tenantId: tid(req), customerId: b.customerId || b.customer_id || null, phone: b.phone || null, productId: Number(b.productId ?? b.product_id), variantId: (b.variantId ?? b.variant_id) ? Number(b.variantId ?? b.variant_id) : null, source: b.source === "ai_inbox" ? "ai_inbox" : "admin", sourceReference: b.sourceReference || b.source_reference || null });
     res.status(r.created ? 201 : 200).json({ success: true, ...r });
   } catch (error) { fail(res, error); }
 });
-router.post("/restock-intents/:id/cancel", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/restock-intents/:id/cancel", protect, permitRestockEdit, async (req, res) => {
   try { res.json({ success: true, intent: await cancelIntent(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
 });
-router.post("/restock-intents/:id/fulfil", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/restock-intents/:id/fulfil", protect, permitRestockEdit, async (req, res) => {
   try { res.json({ success: true, intent: await markIntentFulfilled(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
 });
-router.delete("/restock-intents/:id", protect, permit("settings", "edit"), async (req, res) => {
+router.delete("/restock-intents/:id", protect, permitRestockEdit, async (req, res) => {
   try { res.json({ success: true, intent: await deleteIntent(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
 });
 

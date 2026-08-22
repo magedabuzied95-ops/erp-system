@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   BadgeCheck,
   Clock3,
+  BellRing,
   History,
   ShieldCheck,
   ShoppingBag,
@@ -126,6 +127,9 @@ import BarcodeScanner, { barcodeScannerMessages } from "../../../components/Barc
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar from "../components/CartSidebar";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
+// Restock requests: the same panel + catalogue picker the AI Inbox uses, so the
+// feature evolves in one place. Lazy — it pulls the inbox picker bundle.
+const PosRestockModal = lazy(() => import("../components/PosRestockModal"));
 import SmartPosFilters from "../components/SmartPosFilters";
 import QuickPosFilters from "../components/QuickPosFilters";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
@@ -1899,6 +1903,7 @@ function POSPro() {
   const [paymobTerminalState, setPaymobTerminalState] = useState(null);
   const [paymobTerminalLoading, setPaymobTerminalLoading] = useState(false);
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
+  const [restockModalOpen, setRestockModalOpen] = useState(false);
   const [quickExpense, setQuickExpense] = useState(quickExpenseDefaults);
   const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
   const isVariantModalOpen = Boolean(barcodeShopProduct);
@@ -8075,6 +8080,16 @@ function POSPro() {
               <History className="h-4 w-4" />
               العمليات الأخيرة
             </button>
+            <button
+              type="button"
+              onClick={() => setRestockModalOpen(true)}
+              className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-2.5 text-xs font-black text-[#f1dc9a] transition hover:border-[#d4af37]/55 hover:bg-[#d4af37]/15"
+              title={t("pos.restock.title")}
+              aria-label={t("pos.restock.title")}
+            >
+              <BellRing className="h-4 w-4" />
+              <span className="hidden xl:inline">{t("pos.restock.button")}</span>
+            </button>
             {canCreatePosExpense ? (
               <button
                 type="button"
@@ -9092,6 +9107,12 @@ function POSPro() {
               <div className="hidden sm:hidden" />
             </div>
           </div>
+        ) : null}
+
+        {restockModalOpen ? (
+          <Suspense fallback={null}>
+            <PosRestockModal open customers={customers} initialCustomer={customer} onClose={() => setRestockModalOpen(false)} />
+          </Suspense>
         ) : null}
 
         {isVariantModalOpen ? (
