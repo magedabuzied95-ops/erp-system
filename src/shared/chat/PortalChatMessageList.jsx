@@ -161,7 +161,7 @@ const MessageBubble = memo(function MessageBubble({
   );
 
   return (
-    <div id={`${messageIdPrefix}-${message.id}`} className={groupStart ? "mt-2" : "mt-0.5"}>
+    <div id={`${messageIdPrefix}-${message.id || message.client_id}`} className={groupStart ? "mt-2" : "mt-0.5"}>
       <div dir="ltr" className={`group/bubble flex items-end gap-1.5 ${outgoing ? "justify-end" : "justify-start"}`}>
         {outgoing && failed ? (
           <button type="button" onClick={() => handlers.current.retry?.(message)} className="mb-1 inline-flex h-7 items-center gap-1 rounded-full border border-[var(--danger)]/40 px-2 text-[11px] font-black text-[var(--danger)]" title={labels.retry}>

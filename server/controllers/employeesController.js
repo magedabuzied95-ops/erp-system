@@ -367,7 +367,8 @@ export const getEmployeeChatThreads = async (req, res) => {
 export const getEmployeeChatThreadRecord = async (req, res) => {
   try {
     const { tenantId } = getTenantContext(req);
-    const chat = await getAdminEmployeeChatThread({ tenantId, threadId: req.params.threadId, markRead: true });
+    const beforeId = req.query?.before || req.query?.before_id || null;
+    const chat = await getAdminEmployeeChatThread({ tenantId, threadId: req.params.threadId, markRead: !beforeId, beforeId, limit: req.query?.limit || undefined });
     return res.json({ success: true, ...chat });
   } catch (error) {
     console.error("[employees] chat thread load error", error);

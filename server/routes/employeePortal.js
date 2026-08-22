@@ -39,6 +39,7 @@ import {
   sendEmployeeChatRing,
   reactEmployeeChatMessage,
   sendEmployeeChatMessage,
+  markEmployeeChatDelivered,
   updateEmployeeChatMessage,
 } from "../services/employeeChatService.js";
 import {
@@ -609,7 +610,7 @@ router.get("/:token/chat", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    const chat = await getEmployeeChat({ employee });
+    const chat = await getEmployeeChat({ employee, beforeId: req.query?.before || req.query?.before_id || null, limit: req.query?.limit || null });
     return res.json({ success: true, ...chat });
   } catch (error) {
     console.error("[employee-payroll-portal] chat load error", error);
@@ -1042,11 +1043,22 @@ router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeCh
       file: req.file || null,
       replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
       attachmentDurationSeconds: req.body?.attachment_duration_seconds || req.body?.duration || null,
+      clientId: req.body?.client_id || req.body?.clientId || null,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
     console.error("[employee-payroll-portal] chat message error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
+  }
+});
+
+router.post("/:token/chat/delivered", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await markEmployeeChatDelivered({ employee: req.employeePortalEmployee, upToMessageId: req.body?.up_to_message_id || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[employee-payroll-portal] chat delivered error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to mark delivered" });
   }
 });
 

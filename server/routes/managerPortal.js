@@ -25,6 +25,7 @@ import {
   reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
+  markManagerPortalChatDelivered,
   sendManagerPortalChatRing,
   answerManagerPortalChatRing,
   markManagerPortalNotificationRead,
@@ -540,7 +541,7 @@ router.get("/:token/chat", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const chat = await getManagerPortalChat({ manager, threadId: req.query?.thread_id || req.query?.threadId || null });
+    const chat = await getManagerPortalChat({ manager, threadId: req.query?.thread_id || req.query?.threadId || null, beforeId: req.query?.before || req.query?.before_id || null, limit: req.query?.limit || null });
     return res.json({ success: true, ...chat });
   } catch (error) {
     console.error("[manager-portal] chat load error", error);
@@ -552,7 +553,7 @@ router.get("/:token/chat/:threadId", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const chat = await getManagerPortalChatThread({ manager, threadId: req.params.threadId });
+    const chat = await getManagerPortalChatThread({ manager, threadId: req.params.threadId, beforeId: req.query?.before || req.query?.before_id || null, limit: req.query?.limit || null });
     return res.json({ success: true, ...chat });
   } catch (error) {
     console.error("[manager-portal] chat thread error", error);
@@ -584,6 +585,18 @@ router.post("/:token/chat/:threadId/ring/:messageId/answer", async (req, res) =>
   }
 });
 
+router.post("/:token/chat/:threadId/delivered", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await markManagerPortalChatDelivered({ manager, threadId: req.params.threadId, upToMessageId: req.body?.up_to_message_id || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[manager-portal] chat delivered error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark delivered" });
+  }
+});
+
 router.post("/:token/chat/:threadId/read", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
@@ -606,6 +619,7 @@ router.post("/:token/chat/:threadId/messages", verifyManagerPortalToken, uploadM
       file: req.file || null,
       replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
       attachmentDurationSeconds: req.body?.attachment_duration_seconds || req.body?.duration || null,
+      clientId: req.body?.client_id || req.body?.clientId || null,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {

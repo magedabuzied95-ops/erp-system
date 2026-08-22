@@ -367,6 +367,11 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS message_kind VARCHAR(20) NOT NULL DEFAULT 'text'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_by VARCHAR(160) NULL`);
+  // P1: optimistic send + delivery ladder. client_id makes a retried send idempotent;
+  // delivered_at is stamped when the other side's device receives the message.
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS client_id VARCHAR(64) NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP NULL`);
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_chat_messages_client_id ON employee_chat_messages (thread_id, client_id) WHERE client_id IS NOT NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL`);
   await clientOrPool.query(`

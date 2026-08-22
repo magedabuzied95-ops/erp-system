@@ -130,6 +130,12 @@ export default function SharedPortalChat({
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [sending, setSending] = useState(false);
+  // P1: cursor pagination + "new messages below" counter for the jump button.
+  const [hasOlderByThread, setHasOlderByThread] = useState({});
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [unseenBelow, setUnseenBelow] = useState(0);
+  const liveEventAtRef = useRef(0);
+  const pendingSendsRef = useRef(new Map());
   /*
    * The banner holds either OUR translation key or the raw `text` of a server
    * message, which is not ours to translate. Keeping our half unresolved is what
@@ -314,29 +320,66 @@ export default function SharedPortalChat({
     }
   }, [apiAdapter]);
 
-  const loadThread = useCallback(async (threadId, { silent = false } = {}) => {
+  const loadThread = useCallback(async (threadId, { silent = false, beforeId = null } = {}) => {
     const resolvedThreadId = String(threadId || "");
     if (!resolvedThreadId || !apiAdapter?.getThread) return null;
-    if (!silent) setLoadingThread(true);
+    if (!silent && !beforeId) setLoadingThread(true);
     try {
       clearError();
-      const response = await apiAdapter.getThread(resolvedThreadId);
+      const response = await apiAdapter.getThread(resolvedThreadId, beforeId ? { beforeId } : {});
       const nextThread = response?.thread || null;
-      const nextMessages = dedupeChatMessages(safeArray(response?.messages), nextThread);
-      if (nextThread) {
+      const pageMessages = dedupeChatMessages(safeArray(response?.messages), nextThread);
+      if (nextThread && !beforeId) {
         setThread(nextThread);
         setThreads((current) => mergeChatThreads(current, [{ ...nextThread, unread_count: 0 }]));
       }
-      setMessagesByThread((current) => ({ ...current, [resolvedThreadId]: nextMessages }));
-      await apiAdapter.markRead?.(resolvedThreadId);
+      setMessagesByThread((current) => {
+        const existing = current[resolvedThreadId] || [];
+        if (beforeId) return { ...current, [resolvedThreadId]: mergeChatMessages(existing, pageMessages, nextThread) };
+        // Newest page: keep older pages already loaded, and keep optimistic rows
+        // the server has not confirmed yet.
+        const oldestId = Number(pageMessages[0]?.id || 0);
+        const retained = existing.filter((item) => (oldestId && Number(item.id || 0) < oldestId) || item.status === "pending" || item.status === "failed");
+        return { ...current, [resolvedThreadId]: mergeChatMessages(retained, pageMessages, nextThread) };
+      });
+      if (beforeId) {
+        setHasOlderByThread((current) => ({ ...current, [resolvedThreadId]: Boolean(response?.has_more) }));
+      } else {
+        setHasOlderByThread((current) => (current[resolvedThreadId] === undefined || !messagesByThreadRef.current[resolvedThreadId]?.length
+          ? { ...current, [resolvedThreadId]: Boolean(response?.has_more) }
+          : current));
+        const newestIncoming = [...pageMessages].reverse().find((item) => item.sender_type !== "admin");
+        if (newestIncoming && !newestIncoming.delivered_at && !newestIncoming.read_at) void apiAdapter.markDelivered?.(resolvedThreadId, newestIncoming.id);
+        await apiAdapter.markRead?.(resolvedThreadId);
+      }
       return response;
     } catch (err) {
       setError(failure(err, "employeePortal.chat.admin.errors.openThread"));
       return null;
     } finally {
-      if (!silent) setLoadingThread(false);
+      if (!silent && !beforeId) setLoadingThread(false);
     }
   }, [apiAdapter]);
+
+  const loadOlder = useCallback(async () => {
+    const threadId = String(selectedThreadIdRef.current || "");
+    const rows = messagesByThreadRef.current[threadId] || [];
+    const oldest = rows.find((item) => item.id);
+    if (!threadId || !oldest || loadingOlder) return;
+    const node = messagesRef.current;
+    const previousHeight = node?.scrollHeight || 0;
+    const previousTop = node?.scrollTop || 0;
+    setLoadingOlder(true);
+    try {
+      await loadThread(threadId, { silent: true, beforeId: oldest.id });
+      // Anchor: keep the message the reader was looking at where it was.
+      window.requestAnimationFrame(() => {
+        if (node) node.scrollTop = previousTop + (node.scrollHeight - previousHeight);
+      });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [loadThread, loadingOlder]);
 
   useEffect(() => {
     void loadThreads();
@@ -353,8 +396,15 @@ export default function SharedPortalChat({
     if (firstEmployeeId) setSelectedEmployeeId(firstEmployeeId);
   }, [selectedEmployeeId, sidebarRows]);
 
+  /*
+   * Depends on the resolved thread ID, not on threadMap: every loadThread merges
+   * the thread back into the list, which rebuilt the map, which re-ran this
+   * effect, which called loadThread again - an open network loop (GET + read
+   * POST every few hundred ms) for as long as the tab stayed open.
+   */
+  const mappedThreadId = selectedEmployeeId ? String(threadMap.get(String(selectedEmployeeId))?.id || "") : "";
   useEffect(() => {
-    const nextThreadId = selectedEmployeeId ? String(threadMap.get(String(selectedEmployeeId))?.id || "") : "";
+    const nextThreadId = mappedThreadId;
     setSelectedThreadId((current) => (String(current || "") === nextThreadId ? current : nextThreadId));
     if (!nextThreadId) {
       setThread(null);
@@ -366,7 +416,8 @@ export default function SharedPortalChat({
       setThread(threadMap.get(String(selectedEmployeeId)) || null);
     }
     void loadThread(nextThreadId, { silent: Boolean(messagesByThreadRef.current[nextThreadId]?.length) });
-  }, [loadThread, selectedEmployeeId, threadMap]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadThread, selectedEmployeeId, mappedThreadId]);
 
   useEffect(() => {
     onSelectedEmployeeChange?.(selectedEmployeeRecord);
@@ -376,14 +427,27 @@ export default function SharedPortalChat({
     onThreadChange?.({ thread: selectedThread, messages, employee: selectedEmployeeRecord });
   }, [messages, onThreadChange, selectedEmployeeRecord, selectedThread]);
 
+  /*
+   * Polling is the fallback, not the transport. While the socket is connected
+   * AND has delivered an event recently, the poll is skipped; "connected" alone
+   * is not trusted (a socket can be connected and receive nothing), so a
+   * quiet socket still polls every LIVE_POLL_MS. A hidden tab never polls.
+   */
   useEffect(() => {
     if (!pollMs) return undefined;
+    const LIVE_POLL_MS = 60000;
+    let lastPollAt = Date.now();
     const timer = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      const now = Date.now();
+      const socketAlive = apiAdapter?.isLive?.() && now - liveEventAtRef.current < LIVE_POLL_MS;
+      if (socketAlive && now - lastPollAt < LIVE_POLL_MS) return;
+      lastPollAt = now;
       void loadThreads();
       if (selectedThreadIdRef.current) void loadThread(selectedThreadIdRef.current, { silent: true });
     }, pollMs);
     return () => window.clearInterval(timer);
-  }, [loadThread, loadThreads, pollMs]);
+  }, [apiAdapter, loadThread, loadThreads, pollMs]);
 
   useEffect(() => {
     if (!apiAdapter?.subscribe) return undefined;
@@ -396,29 +460,80 @@ export default function SharedPortalChat({
       }
     };
 
+    const stampLive = () => { liveEventAtRef.current = Date.now(); };
+    const nearBottom = () => {
+      const node = messagesRef.current;
+      return !node || node.scrollHeight - node.scrollTop - node.clientHeight < 160;
+    };
     return apiAdapter.subscribe({
       onMessage: (payload = {}) => {
+        stampLive();
         const nextThread = payload?.thread || null;
         const nextMessage = payload?.message || null;
         const threadId = eventThreadId(payload);
+        const isActive = threadId === String(selectedThreadIdRef.current || "");
         if (nextThread) {
           setThreads((current) => mergeChatThreads(current, [nextThread]));
-          if (threadId === String(selectedThreadIdRef.current || "")) setThread(nextThread);
+          if (isActive) setThread(nextThread);
         }
         if (threadId && nextMessage) {
           setMessagesByThread((current) => ({
             ...current,
             [threadId]: mergeChatMessages(current[threadId] || [], [nextMessage]),
           }));
-          if (threadId === String(selectedThreadIdRef.current || "")) void apiAdapter.markRead?.(threadId);
+          const incoming = nextMessage.sender_type !== "admin";
+          if (incoming && isActive) {
+            // Our device has it: tell the sender (single tick -> double tick).
+            void apiAdapter.markDelivered?.(threadId, nextMessage.id);
+            const visible = typeof document === "undefined" || document.visibilityState === "visible";
+            if (visible && nearBottom()) void apiAdapter.markRead?.(threadId);
+            else setUnseenBelow((count) => count + 1);
+          } else if (incoming) {
+            void apiAdapter.markDelivered?.(threadId, nextMessage.id);
+          }
         }
       },
       onThread: (payload = {}) => {
+        stampLive();
         const nextThread = payload?.thread || payload;
         if (nextThread?.id) setThreads((current) => mergeChatThreads(current, [nextThread]));
       },
-      onRead: refreshActiveThread,
-      onMutation: refreshActiveThread,
+      onRead: (payload = {}) => {
+        stampLive();
+        const threadId = eventThreadId(payload);
+        if (!threadId) return;
+        // The other side read our messages: flip every unread outgoing row in place.
+        const readAt = payload?.at || new Date().toISOString();
+        setMessagesByThread((current) => {
+          const rows = current[threadId];
+          if (!rows?.length) return current;
+          return { ...current, [threadId]: rows.map((item) => (item.sender_type === "admin" && !item.read_at ? { ...item, read_at: readAt } : item)) };
+        });
+      },
+      onDelivered: (payload = {}) => {
+        stampLive();
+        const threadId = eventThreadId(payload);
+        const ids = new Set(safeArray(payload?.message_ids).map(String));
+        if (!threadId || !ids.size) return;
+        const deliveredAt = payload?.delivered_at || new Date().toISOString();
+        setMessagesByThread((current) => {
+          const rows = current[threadId];
+          if (!rows?.length) return current;
+          return { ...current, [threadId]: rows.map((item) => (ids.has(String(item.id)) && !item.delivered_at ? { ...item, delivered_at: deliveredAt } : item)) };
+        });
+      },
+      onMutation: (payload = {}) => {
+        stampLive();
+        const threadId = eventThreadId(payload);
+        const nextMessage = payload?.message || null;
+        if (threadId && nextMessage?.id) {
+          setMessagesByThread((current) => (current[threadId]?.length
+            ? { ...current, [threadId]: mergeChatMessages(current[threadId], [nextMessage]) }
+            : current));
+          return;
+        }
+        refreshActiveThread(payload);
+      },
       onTyping: (payload = {}) => {
         const threadId = eventThreadId(payload);
         if (threadId && threadId === String(selectedThreadIdRef.current || "")) {
@@ -432,11 +547,25 @@ export default function SharedPortalChat({
     });
   }, [apiAdapter, loadThread]);
 
+  const lastMessageKey = messages.length ? String(messages[messages.length - 1]?.client_id || messages[messages.length - 1]?.id || "") : "";
+  const lastOwn = messages.length ? messages[messages.length - 1]?.sender_type === "admin" : false;
+  const scrolledThreadRef = useRef("");
   useEffect(() => {
-    window.setTimeout(() => {
-      if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    const node = messagesRef.current;
+    if (!node) return undefined;
+    const threadChanged = scrolledThreadRef.current !== String(activeThreadId || selectedEmployeeId || "");
+    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 160;
+    // A new message only pulls the view down when the reader is already at the
+    // bottom or wrote it; otherwise the jump button counts it.
+    if (!threadChanged && !nearBottom && !lastOwn) return undefined;
+    const timer = window.setTimeout(() => {
+      node.scrollTop = node.scrollHeight;
+      scrolledThreadRef.current = String(activeThreadId || selectedEmployeeId || "");
+      setUnseenBelow(0);
     }, 50);
-  }, [messages.length, selectedEmployeeId]);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessageKey, activeThreadId, selectedEmployeeId]);
 
   useEffect(() => () => {
     if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
@@ -477,6 +606,7 @@ export default function SharedPortalChat({
     const nextThreadId = String(threadId || threadMap.get(nextEmployeeId)?.id || "");
     setSelectedEmployeeId(nextEmployeeId);
     setSelectedThreadId(nextThreadId);
+    setUnseenBelow(0);
     setReplyTo(null);
     setEditingMessage(null);
     setMessageSearch("");
@@ -526,37 +656,89 @@ export default function SharedPortalChat({
       return;
     }
     if ((!text && !attachment) || !activeThreadId || !apiAdapter?.sendMessage) return;
+    const draft = { text, attachment, attachmentDuration, replyTo };
+    setBody("");
+    setAttachment(null);
+    setAttachmentDuration(0);
+    setReplyTo(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    void dispatchSend(activeThreadId, draft);
+  };
+
+  /*
+   * Optimistic send: the bubble appears at once with a clock, carrying a
+   * client_id the server echoes back, so the confirmed row replaces it in
+   * place (mergeChatMessages keys on client_id). A failure keeps the bubble
+   * with a retry; the same client_id makes the retry idempotent server-side.
+   */
+  const buildSendFormData = (draft) => {
     const formData = new FormData();
-    if (text) formData.append("body", text);
-    if (attachment) formData.append("attachment", attachment);
-    if (attachment && attachmentDuration > 0) formData.append("attachment_duration_seconds", String(attachmentDuration));
-    if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
+    if (draft.text) formData.append("body", draft.text);
+    if (draft.attachment) formData.append("attachment", draft.attachment);
+    if (draft.attachment && draft.attachmentDuration > 0) formData.append("attachment_duration_seconds", String(draft.attachmentDuration));
+    if (draft.replyTo?.id) formData.append("reply_to_message_id", draft.replyTo.id);
+    formData.append("client_id", draft.clientId);
+    return formData;
+  };
+
+  const dispatchSend = async (threadId, draft, existingClientId = "") => {
+    const clientId = existingClientId || `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const fullDraft = { ...draft, clientId };
+    pendingSendsRef.current.set(clientId, fullDraft);
+    const attachmentType = draft.attachment
+      ? (draft.attachment.type?.startsWith("image/") ? "image" : draft.attachment.type?.startsWith("audio/") ? "audio" : draft.attachment.type?.startsWith("video/") ? "video" : "file")
+      : null;
+    const optimistic = {
+      client_id: clientId,
+      thread_id: threadId,
+      sender_type: "admin",
+      body: draft.text || "",
+      attachment_type: attachmentType,
+      attachment_name: draft.attachment?.name || null,
+      attachment_url: draft.attachment ? URL.createObjectURL(draft.attachment) : null,
+      attachment_duration_seconds: draft.attachmentDuration || null,
+      reply_to_message_id: draft.replyTo?.id || null,
+      reply_sender_type: draft.replyTo?.sender_type || null,
+      reply_body: draft.replyTo?.body || null,
+      reply_attachment_type: draft.replyTo?.attachment_type || null,
+      created_at: new Date().toISOString(),
+      status: "pending",
+      reactions: [],
+    };
+    setMessagesByThread((current) => ({
+      ...current,
+      [threadId]: mergeChatMessages(current[threadId] || [], [optimistic], threadRef.current),
+    }));
+    setSending(true);
+    clearError();
     try {
-      setSending(true);
-      clearError();
-      setBody("");
-      setAttachment(null);
-      setAttachmentDuration(0);
-      setReplyTo(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      const response = await apiAdapter.sendMessage(activeThreadId, formData);
+      const response = await apiAdapter.sendMessage(threadId, buildSendFormData(fullDraft));
+      pendingSendsRef.current.delete(clientId);
       if (response?.thread) {
-        setThread(response.thread);
+        setThread((current) => (String(current?.id) === String(threadId) ? response.thread : current));
         setThreads((current) => mergeChatThreads(current, [response.thread]));
       }
       if (response?.message) {
         setMessagesByThread((current) => ({
           ...current,
-          [activeThreadId]: mergeChatMessages(current[activeThreadId] || [], [response.message], response?.thread || threadRef.current),
+          [threadId]: mergeChatMessages(current[threadId] || [], [{ ...response.message, client_id: response.message.client_id || clientId }], response?.thread || threadRef.current),
         }));
       }
-      await loadThread(activeThreadId, { silent: true });
-      await loadThreads();
     } catch (err) {
+      setMessagesByThread((current) => ({
+        ...current,
+        [threadId]: (current[threadId] || []).map((item) => (item.client_id === clientId ? { ...item, status: "failed" } : item)),
+      }));
       setError(failure(err, "employeePortal.chat.sendFailed"));
     } finally {
       setSending(false);
     }
+  };
+
+  const retrySend = (message) => {
+    const draft = pendingSendsRef.current.get(message?.client_id);
+    if (!draft || !message?.thread_id) return;
+    void dispatchSend(String(message.thread_id), draft, message.client_id);
   };
 
   const beginEditMessage = (message) => {
@@ -633,12 +815,19 @@ export default function SharedPortalChat({
     if (!messagesRef.current) return;
     messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     setShowJump(false);
+    setUnseenBelow(0);
+    if (activeThreadId) void apiAdapter?.markRead?.(activeThreadId);
   };
 
   const onMessagesScroll = () => {
     const node = messagesRef.current;
     if (!node) return;
-    setShowJump(node.scrollHeight - node.scrollTop - node.clientHeight > 140);
+    const away = node.scrollHeight - node.scrollTop - node.clientHeight > 140;
+    setShowJump((current) => (current === away ? current : away));
+    if (!away && unseenBelow) {
+      setUnseenBelow(0);
+      if (activeThreadId) void apiAdapter?.markRead?.(activeThreadId);
+    }
   };
 
   const scrollToMessage = (messageId) => {
@@ -746,23 +935,13 @@ export default function SharedPortalChat({
     try {
       const recording = await stopVoiceRecording({ capture: true });
       if (!recording?.blob?.size) return;
-      const formData = new FormData();
-      formData.append("attachment", new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" }));
-      formData.append("attachment_duration_seconds", String(recording.durationSeconds));
-      if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
-      const response = await apiAdapter.sendMessage(activeThreadId, formData);
+      const file = new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" });
+      const draft = { text: "", attachment: file, attachmentDuration: recording.durationSeconds, replyTo };
       setBody("");
       setAttachment(null);
       setAttachmentDuration(0);
       setReplyTo(null);
-      if (response?.message) {
-        setMessagesByThread((current) => ({
-          ...current,
-          [activeThreadId]: mergeChatMessages(current[activeThreadId] || [], [response.message], response?.thread || threadRef.current),
-        }));
-      }
-      await loadThread(activeThreadId, { silent: true });
-      await loadThreads();
+      await dispatchSend(activeThreadId, draft);
     } catch (err) {
       setError(failure(err, "employeePortal.chat.sendFailed"));
     } finally {
@@ -935,7 +1114,12 @@ export default function SharedPortalChat({
                 messagesRef={messagesRef}
                 onScroll={onMessagesScroll}
                 showJump={showJump}
+                jumpCount={unseenBelow}
                 onJumpToBottom={scrollToBottom}
+                onRetry={retrySend}
+                onLoadOlder={loadOlder}
+                hasOlder={Boolean(hasOlderByThread[String(activeThreadId)])}
+                loadingOlder={loadingOlder}
                 typingLabel={typingLabel}
                 onImageClick={setImagePreview}
                 onReply={allowReply ? setReplyTo : null}

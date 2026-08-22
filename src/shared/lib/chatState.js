@@ -14,6 +14,9 @@ const threadKey = (item = {}) => {
 };
 
 const messageKey = (item = {}, fallbackThread = null) => {
+  // An optimistic message and the server row it becomes share client_id, so
+  // they merge into one entry instead of showing twice for a frame.
+  if (item?.client_id) return `client:${String(item.client_id)}`;
   const id = item?.id || item?.message_id;
   if (id) return `message:${String(id)}`;
   const sender = normalizeKeyPart(item?.sender_type || item?.sender || "");
@@ -36,7 +39,10 @@ const mergeByKey = (current = [], incoming = [], getKey) => {
       rows.push(item);
       continue;
     }
-    rows[existingIndex] = { ...rows[existingIndex], ...item };
+    const merged = { ...rows[existingIndex], ...item };
+    // A server row (has an id) supersedes the optimistic pending/failed status.
+    if (item?.id && !item?.status && (merged.status === "pending" || merged.status === "failed")) delete merged.status;
+    rows[existingIndex] = merged;
   }
 
   return rows;

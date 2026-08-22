@@ -1012,9 +1012,11 @@ export default function ManagerPortal() {
   const queryEmployeeId = searchParams.get("employee_id") || searchParams.get("employeeId") || "";
   const managerChatApiAdapter = useMemo(() => ({
     listThreads: () => managerPortalApi.chat(token),
-    getThread: (threadId) => managerPortalApi.chatThread(token, threadId),
+    getThread: (threadId, { beforeId = null, limit = null } = {}) => managerPortalApi.chatThread(token, threadId, { params: { ...(beforeId ? { before: beforeId } : {}), ...(limit ? { limit } : {}) } }),
     sendMessage: (threadId, formData) => managerPortalApi.sendChatMessage(token, threadId, formData),
     markRead: (threadId) => managerPortalApi.markChatRead(token, threadId),
+    markDelivered: (threadId, upToMessageId) => managerPortalApi.markChatDelivered(token, threadId, upToMessageId),
+    isLive: () => Boolean(socketRef.current?.connected),
     ring: (threadId) => managerPortalApi.ringChat(token, threadId),
     answerRing: (threadId, messageId) => managerPortalApi.answerChatRing(token, threadId, messageId),
     emitTyping: (payload) => socketRef.current?.emit?.("employee-chat:typing", payload),
@@ -1026,6 +1028,9 @@ export default function ManagerPortal() {
         ["employee-chat:new-message", handlers.onMessage],
         ["employee-chat:thread-updated", handlers.onThread],
         ["employee-chat:read", handlers.onRead],
+        ["employee-chat:delivered", handlers.onDelivered],
+        ["employee-chat:message-updated", handlers.onMutation],
+        ["employee-chat:message-deleted", handlers.onMutation],
         ["employee-chat:typing", handlers.onTyping],
         ["employee-chat:stop-typing", handlers.onStopTyping],
         ["employee-chat:ring", handlers.onRing],

@@ -4,6 +4,8 @@ import {
   answerAdminChatRing,
   answerBranchPosChatRing,
   getBranchPosChat,
+  markBranchPosChatDelivered,
+  markAdminEmployeeChatThreadDelivered,
   sendAdminChatRing,
   sendBranchPosChatMessage,
   sendBranchPosChatRing,
@@ -128,7 +130,7 @@ const posChannelSenderName = (req) => String(req.user?.name || req.user?.full_na
 
 router.get("/chat/pos", protect, async (req, res) => {
   try {
-    const chat = await getBranchPosChat({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req) });
+    const chat = await getBranchPosChat({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req), beforeId: req.query?.before || req.query?.before_id || null, limit: req.query?.limit || null });
     return res.json({ success: true, ...chat });
   } catch (error) {
     if (!error.status) console.error("[employees] pos channel load error", error);
@@ -147,6 +149,7 @@ router.post("/chat/pos/messages", protect, uploadEmployeeChatAttachment, async (
       file: req.file || null,
       replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
       attachmentDurationSeconds: req.body?.attachment_duration_seconds || req.body?.duration || null,
+      clientId: req.body?.client_id || req.body?.clientId || null,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
@@ -193,6 +196,24 @@ router.post("/chat/threads/:threadId/ring/:messageId/answer", protect, permit("e
     return res.json({ success: true, ...result });
   } catch (error) {
     return chatFailure(res, error, "Failed to answer ring");
+  }
+});
+
+router.post("/chat/pos/delivered", protect, async (req, res) => {
+  try {
+    const result = await markBranchPosChatDelivered({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req), upToMessageId: req.body?.up_to_message_id || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to mark delivered");
+  }
+});
+
+router.post("/chat/threads/:threadId/delivered", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const result = await markAdminEmployeeChatThreadDelivered({ tenantId: req.tenantId || null, threadId: req.params.threadId, upToMessageId: req.body?.up_to_message_id || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to mark delivered");
   }
 });
 

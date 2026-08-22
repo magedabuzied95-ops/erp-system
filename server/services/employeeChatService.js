@@ -39,9 +39,11 @@ const messageSelect = `
     rm.attachment_type AS reply_attachment_type,
     rm.attachment_name AS reply_attachment_name,
     m.read_at,
+    m.delivered_at,
     m.edited_at,
     m.deleted_at,
     m.created_at,
+    m.client_id,
     COALESCE(rx.reactions, '[]'::json) AS reactions
   FROM employee_chat_messages m
   LEFT JOIN employee_chat_messages rm ON rm.id = m.reply_to_message_id
@@ -262,22 +264,60 @@ export const getOrCreateEmployeeChatThread = async (employee, clientOrPool = db)
   return created.rows[0];
 };
 
-const loadMessages = async (threadId, clientOrPool = db) => {
+export const DEFAULT_MESSAGE_PAGE = 60;
+const MAX_MESSAGE_PAGE = 200;
+const normalizePageLimit = (value) => Math.min(Math.max(Number(value) || DEFAULT_MESSAGE_PAGE, 1), MAX_MESSAGE_PAGE);
+const normalizeCursor = (value) => {
+  const id = Number(value);
+  return Number.isFinite(id) && id > 0 ? Math.floor(id) : null;
+};
+
+/*
+ * Cursor pagination, newest page first: the newest `limit` rows (or the `limit`
+ * rows before `beforeId`), returned in ascending order for rendering, plus
+ * whether anything older exists. Opening a thread used to pull 300 rows with
+ * the reaction and reply joins for every one of them.
+ */
+const loadMessagePage = async (threadId, { beforeId = null, limit = DEFAULT_MESSAGE_PAGE } = {}, clientOrPool = db) => {
+  const safeLimit = normalizePageLimit(limit);
+  const cursor = normalizeCursor(beforeId);
   const result = await clientOrPool.query(
     `
     ${messageSelect}
     WHERE m.thread_id = $1
-    ORDER BY m.created_at ASC, m.id ASC
-    LIMIT 300
+      AND ($2::bigint IS NULL OR m.id < $2::bigint)
+    ORDER BY m.created_at DESC, m.id DESC
+    LIMIT $3
     `,
-    [threadId]
+    [threadId, cursor, safeLimit + 1]
   );
-  return result.rows;
+  const hasMore = result.rows.length > safeLimit;
+  const rows = (hasMore ? result.rows.slice(0, safeLimit) : result.rows).reverse();
+  return { messages: rows, hasMore };
 };
 
-export const getEmployeeChat = async ({ employee } = {}) => {
+const loadMessages = async (threadId, clientOrPool = db) => (await loadMessagePage(threadId, {}, clientOrPool)).messages;
+
+const loadMessage = async (messageId, clientOrPool = db) => {
+  const result = await clientOrPool.query(`${messageSelect} WHERE m.id = $1 LIMIT 1`, [messageId]);
+  return result.rows[0] || null;
+};
+
+const normalizeClientId = (value = null) => {
+  const id = clean(value).slice(0, 64);
+  return /^[A-Za-z0-9_.:-]+$/.test(id) ? id : null;
+};
+
+// A retried send with the same client_id returns the row the first attempt created.
+const findMessageByClientId = async (threadId, clientId) => {
+  if (!clientId) return null;
+  const result = await db.query(`SELECT id FROM employee_chat_messages WHERE thread_id = $1 AND client_id = $2 LIMIT 1`, [threadId, clientId]);
+  return result.rows[0] ? loadMessage(result.rows[0].id) : null;
+};
+
+export const getEmployeeChat = async ({ employee, beforeId = null, limit = DEFAULT_MESSAGE_PAGE } = {}) => {
   const thread = await getOrCreateEmployeeChatThread(employee);
-  const readResult = await db.query(
+  const readResult = beforeId ? { rowCount: 0 } : await db.query(
     `
     UPDATE employee_chat_messages
     SET read_at = COALESCE(read_at, NOW())
@@ -295,25 +335,28 @@ export const getEmployeeChat = async ({ employee } = {}) => {
       read_count: readResult.rowCount,
     });
   }
-  const messages = await loadMessages(thread.id);
-  return { thread, messages };
+  const { messages, hasMore } = await loadMessagePage(thread.id, { beforeId, limit });
+  return { thread, messages, has_more: hasMore };
 };
 
-export const sendEmployeeChatMessage = async ({ employee, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+export const sendEmployeeChatMessage = async ({ employee, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null, clientId = null } = {}) => {
   const attachment = attachmentFromUpload(file, attachmentDurationSeconds);
   const text = validateMessageInput({ body, attachment });
   const thread = await getOrCreateEmployeeChatThread(employee);
+  const safeClientId = normalizeClientId(clientId);
+  const existing = await findMessageByClientId(thread.id, safeClientId);
+  if (existing) return { thread: await loadThreadSummary(thread.id), message: existing, duplicate: true };
   const replyTo = normalizeReplyId(replyToMessageId);
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, body,
       attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime, attachment_duration_seconds,
-      reply_to_message_id, read_at, created_at
+      reply_to_message_id, read_at, created_at, client_id
     )
     VALUES ($1, 'employee', $2, NULL, $3, $4, $5, $6, $7, $8, $9,
       (SELECT id FROM employee_chat_messages WHERE id = $10 AND thread_id = $1),
-      NULL, NOW())
+      NULL, NOW(), $11)
     RETURNING *
     `,
     [
@@ -327,6 +370,7 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
       attachment?.attachment_mime || null,
       attachment?.attachment_duration_seconds || null,
       replyTo,
+      safeClientId,
     ]
   );
   await db.query(
@@ -338,7 +382,7 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     [thread.id, employee.branch_id || null, employee.tenant_id || null]
   );
   const updatedThread = await loadThreadSummary(thread.id);
-  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
+  const message = (await loadMessage(result.rows[0]?.id)) || result.rows[0];
   console.info("[manager-push:chat-trigger-entered]", {
     employee_id: employee.id,
     thread_id: thread.id,
@@ -491,7 +535,7 @@ const reactToEmployeeChatMessage = async ({ messageId, actorType, actorId, emplo
       [messageId, actorType, actorId, normalizedEmoji]
     );
   }
-  const message = (await loadMessages(current.thread_id)).find((item) => String(item.id) === String(messageId));
+  const message = await loadMessage(messageId);
   return emitMessageMutation({ ...message, employee_id: current.employee_id, tenant_id: current.tenant_id }, "employee-chat:message-updated");
 };
 
@@ -543,9 +587,9 @@ export const getOrCreateBranchPosThread = async ({ tenantId = null, branchId } =
   return { thread: raced.rows[0], branch };
 };
 
-export const getBranchPosChat = async ({ tenantId = null, branchId } = {}) => {
+export const getBranchPosChat = async ({ tenantId = null, branchId, beforeId = null, limit = DEFAULT_MESSAGE_PAGE } = {}) => {
   const { thread, branch } = await getOrCreateBranchPosThread({ tenantId, branchId });
-  const readResult = await db.query(
+  const readResult = beforeId ? { rowCount: 0 } : await db.query(
     `
     UPDATE employee_chat_messages
     SET read_at = COALESCE(read_at, NOW())
@@ -563,29 +607,33 @@ export const getBranchPosChat = async ({ tenantId = null, branchId } = {}) => {
       read_count: readResult.rowCount,
     });
   }
-  const messages = await loadMessages(thread.id);
+  const { messages, hasMore } = await loadMessagePage(thread.id, { beforeId, limit });
   return {
     thread: { ...thread, employee_id: branchPosChannelKey(branch.id), branch_name: branch.name, employee_name: `${BRANCH_POS_NAME_PREFIX}${branch.name}` },
     branch,
     messages,
+    has_more: hasMore,
   };
 };
 
-export const sendBranchPosChatMessage = async ({ tenantId = null, branchId, userId = null, senderName = "", body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+export const sendBranchPosChatMessage = async ({ tenantId = null, branchId, userId = null, senderName = "", body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null, clientId = null } = {}) => {
   const attachment = attachmentFromUpload(file, attachmentDurationSeconds);
   const text = validateMessageInput({ body, attachment });
   const { thread } = await getOrCreateBranchPosThread({ tenantId, branchId });
+  const safeClientId = normalizeClientId(clientId);
+  const existing = await findMessageByClientId(thread.id, safeClientId);
+  if (existing) return { thread: await loadThreadSummary(thread.id), message: existing, duplicate: true };
   const replyTo = normalizeReplyId(replyToMessageId);
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, sender_name, body,
       attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime, attachment_duration_seconds,
-      reply_to_message_id, read_at, created_at
+      reply_to_message_id, read_at, created_at, client_id
     )
     VALUES ($1, 'employee', NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10,
       (SELECT id FROM employee_chat_messages WHERE id = $11 AND thread_id = $1),
-      NULL, NOW())
+      NULL, NOW(), $12)
     RETURNING *
     `,
     [
@@ -600,11 +648,12 @@ export const sendBranchPosChatMessage = async ({ tenantId = null, branchId, user
       attachment?.attachment_mime || null,
       attachment?.attachment_duration_seconds || null,
       replyTo,
+      safeClientId,
     ]
   );
   await db.query(`UPDATE employee_chat_threads SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`, [thread.id]);
   const updatedThread = await loadThreadSummary(thread.id);
-  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
+  const message = (await loadMessage(result.rows[0]?.id)) || result.rows[0];
   emitChatEvent([branchPosChatRoom(thread.branch_id), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
     thread: updatedThread,
     message,
@@ -704,7 +753,7 @@ const createChatRing = async ({ thread, senderType, senderUserId = null, senderE
   );
   await db.query(`UPDATE employee_chat_threads SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`, [thread.id]);
   const updatedThread = await loadThreadSummary(thread.id);
-  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(inserted.rows[0].id));
+  const message = await loadMessage(inserted.rows[0].id);
   const everyone = [...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)];
   emitChatEvent(everyone, "employee-chat:new-message", { thread: updatedThread, message });
   emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", { thread: updatedThread });
@@ -729,7 +778,7 @@ const answerChatRing = async ({ messageId, answererType, answeredBy = "", tenant
   if (ring.sender_type === answererType) throw chatError("You cannot answer your own ring", 400, "ring_own");
   const thread = { id: ring.thread_id, tenant_id: ring.tenant_id, employee_id: ring.thread_employee_id, branch_id: ring.branch_id, channel_type: ring.channel_type };
   if (ring.ring_answered_at) {
-    return { thread, message: (await loadMessages(thread.id)).find((item) => String(item.id) === String(ring.id)), already: true };
+    return { thread, message: await loadMessage(ring.id), already: true };
   }
   const seconds = Math.max(0, Math.round((Date.now() - new Date(ring.created_at).getTime()) / 1000));
   const by = clean(answeredBy).slice(0, 160) || null;
@@ -740,7 +789,7 @@ const answerChatRing = async ({ messageId, answererType, answeredBy = "", tenant
      WHERE id = $1`,
     [ring.id, by, `${RING_BODY} — تم الرد${by ? ` (${by})` : ""} بعد ${seconds} ث`]
   );
-  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(ring.id));
+  const message = await loadMessage(ring.id);
   const everyone = [...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)];
   emitChatEvent(everyone, "employee-chat:ring-answered", {
     thread_id: thread.id,
@@ -757,7 +806,7 @@ const answerChatRing = async ({ messageId, answererType, answeredBy = "", tenant
 
 // Admin / manager → employee or branch cashier
 export const sendAdminChatRing = async ({ tenantId = null, threadId, userId = null, senderName = "" } = {}) => {
-  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false });
+  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false, withMessages: false });
   const result = await createChatRing({ thread, senderType: "admin", senderUserId: userId, senderName });
   if (!isBranchPosThread(thread) && thread.employee_record_id) {
     const attempt = (n) =>
@@ -872,7 +921,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
   return result.rows;
 };
 
-export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, markRead = true } = {}) => {
+export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, markRead = true, beforeId = null, limit = DEFAULT_MESSAGE_PAGE, withMessages = true } = {}) => {
   await ensureEmployeePayrollPortalSchema(db);
   const threadResult = await db.query(
     `
@@ -897,7 +946,8 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
   const thread = threadResult.rows[0];
   if (!thread) throw chatError("Thread not found", 404, "thread_not_found");
 
-  if (markRead) {
+  // Older pages never mark anything read; only the newest page counts as "seen".
+  if (markRead && !beforeId) {
     const readResult = await db.query(
       `
       UPDATE employee_chat_messages
@@ -918,25 +968,76 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
     }
   }
 
-  const messages = await loadMessages(thread.id);
-  return { thread, messages };
+  if (!withMessages) return { thread, messages: [], has_more: false };
+  const { messages, hasMore } = await loadMessagePage(thread.id, { beforeId, limit });
+  return { thread, messages, has_more: hasMore };
 };
 
-export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, attachmentOverride = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+/*
+ * "Delivered": the reader's device has the message (it arrived over the socket
+ * or in a fetch), which is not yet "read". Stamps every undelivered message
+ * from the OTHER side in the thread and tells the sender's rooms, so the
+ * sender's single tick becomes two.
+ */
+export const markChatMessagesDelivered = async ({ thread, readerType, upToMessageId = null } = {}) => {
+  if (!thread?.id || !readerType) return { count: 0 };
+  const senderType = readerType === "admin" ? "employee" : "admin";
+  const result = await db.query(
+    `
+    UPDATE employee_chat_messages
+    SET delivered_at = NOW()
+    WHERE thread_id = $1 AND sender_type = $2 AND delivered_at IS NULL AND read_at IS NULL
+      AND ($3::bigint IS NULL OR id <= $3::bigint)
+    RETURNING id
+    `,
+    [thread.id, senderType, normalizeCursor(upToMessageId)]
+  );
+  if (result.rowCount > 0) {
+    const rooms = readerType === "admin" ? [...threadCashierRooms(thread)] : [adminChatRoom(thread.tenant_id)];
+    emitChatEvent(rooms, "employee-chat:delivered", {
+      thread_id: thread.id,
+      employee_id: thread.employee_id,
+      reader_type: readerType,
+      message_ids: result.rows.map((row) => row.id),
+      delivered_at: new Date().toISOString(),
+    });
+  }
+  return { count: result.rowCount };
+};
+
+export const markAdminEmployeeChatThreadDelivered = async ({ tenantId = null, threadId, upToMessageId = null } = {}) => {
+  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false, withMessages: false });
+  return markChatMessagesDelivered({ thread, readerType: "admin", upToMessageId });
+};
+
+export const markEmployeeChatDelivered = async ({ employee, upToMessageId = null } = {}) => {
+  const thread = await getOrCreateEmployeeChatThread(employee);
+  return markChatMessagesDelivered({ thread, readerType: "employee", upToMessageId });
+};
+
+export const markBranchPosChatDelivered = async ({ tenantId = null, branchId, upToMessageId = null } = {}) => {
+  const { thread } = await getOrCreateBranchPosThread({ tenantId, branchId });
+  return markChatMessagesDelivered({ thread, readerType: "employee", upToMessageId });
+};
+
+export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, attachmentOverride = null, replyToMessageId = null, attachmentDurationSeconds = null, clientId = null } = {}) => {
   const attachment = attachmentOverride || attachmentFromUpload(file, attachmentDurationSeconds);
   const text = validateMessageInput({ body, attachment });
-  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
+  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true, withMessages: false });
+  const safeClientId = normalizeClientId(clientId);
+  const existing = await findMessageByClientId(thread.id, safeClientId);
+  if (existing) return { thread: await loadThreadSummary(thread.id), message: existing, duplicate: true };
   const replyTo = normalizeReplyId(replyToMessageId);
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, body,
       attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime, attachment_duration_seconds,
-      reply_to_message_id, read_at, created_at
+      reply_to_message_id, read_at, created_at, client_id
     )
     VALUES ($1, 'admin', NULL, $2, $3, $4, $5, $6, $7, $8, $9,
       (SELECT id FROM employee_chat_messages WHERE id = $10 AND thread_id = $1),
-      NULL, NOW())
+      NULL, NOW(), $11)
     RETURNING *
     `,
     [
@@ -950,6 +1051,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
       attachment?.attachment_mime || null,
       attachment?.attachment_duration_seconds || null,
       replyTo,
+      safeClientId,
     ]
   );
   await db.query(
@@ -961,7 +1063,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
     [thread.id]
   );
   const updatedThread = await loadThreadSummary(thread.id);
-  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
+  const message = (await loadMessage(result.rows[0]?.id)) || result.rows[0];
   emitChatEvent([...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
     thread: updatedThread,
     message,
@@ -1028,7 +1130,7 @@ export const forwardAdminEmployeeChatMessage = async ({ tenantId = null, sourceM
 };
 
 export const markAdminEmployeeChatThreadRead = async ({ tenantId = null, threadId } = {}) => {
-  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false });
+  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false, withMessages: false });
   const readResult = await db.query(
     `
     UPDATE employee_chat_messages

@@ -29,6 +29,7 @@ export const managerPortalApi = {
   markAllNotificationsRead: (token) => api.post(`${tokenPath(token)}/notifications/read-all`),
   chat: (token, threadId = null, options = {}) => api.get(`${tokenPath(token)}/chat`, { ...options, params: threadId ? { thread_id: threadId } : {} }),
   chatThread: (token, threadId, options = {}) => api.get(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}`, options),
+  markChatDelivered: (token, threadId, upToMessageId = null) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/delivered`, { up_to_message_id: upToMessageId }),
   sendChatMessage: (token, threadId, formData) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/messages`, formData),
   markChatRead: (token, threadId) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/read`),
   ringChat: (token, threadId) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/ring`, {}),

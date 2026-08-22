@@ -12,6 +12,7 @@ import {
   getAdminEmployeeChatThread,
   sendAdminEmployeeChatMessage,
   markAdminEmployeeChatThreadRead,
+  markAdminEmployeeChatThreadDelivered,
 } from "./employeeChatService.js";
 import { getUnreadCount, listNotifications, markAsRead, markAllAsRead, createNotification } from "./notificationsService.js";
 import {
@@ -1981,14 +1982,15 @@ export const markManagerPortalNotificationsRead = async ({ manager = {} } = {}) 
   });
 };
 
-export const getManagerPortalChat = async ({ manager = {}, threadId = null } = {}) => {
+export const getManagerPortalChat = async ({ manager = {}, threadId = null, beforeId = null, limit = null } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   if (threadId) {
-    const thread = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
+    const thread = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true, beforeId, limit: limit || undefined });
     return {
       thread: thread.thread || null,
       messages: thread.messages || [],
+      has_more: Boolean(thread.has_more),
     };
   }
   const threads = await listEmployeeChatThreads({ tenantId, limit: 200 });
@@ -1998,12 +2000,17 @@ export const getManagerPortalChat = async ({ manager = {}, threadId = null } = {
   };
 };
 
-export const getManagerPortalChatThread = async ({ manager = {}, threadId } = {}) => {
+export const getManagerPortalChatThread = async ({ manager = {}, threadId, beforeId = null, limit = null } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
-  return getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
+  return getAdminEmployeeChatThread({ tenantId, threadId, markRead: !beforeId, beforeId, limit: limit || undefined });
 };
 
-export const sendManagerPortalChat = async ({ manager = {}, threadId, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+export const markManagerPortalChatDelivered = async ({ manager = {}, threadId, upToMessageId = null } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  return markAdminEmployeeChatThreadDelivered({ tenantId, threadId, upToMessageId });
+};
+
+export const sendManagerPortalChat = async ({ manager = {}, threadId, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null, clientId = null } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   return sendAdminEmployeeChatMessage({
     tenantId,
@@ -2013,6 +2020,7 @@ export const sendManagerPortalChat = async ({ manager = {}, threadId, body = "",
     file,
     replyToMessageId,
     attachmentDurationSeconds,
+    clientId,
   });
 };
 
