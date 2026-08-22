@@ -2020,14 +2020,37 @@ export const markManagerPortalChatRead = async ({ manager = {}, threadId } = {})
 };
 
 export const createManagerPortalTask = async ({ manager = {}, data = {} } = {}) => {
-  return createStaffTask(data, {
+  const actor = {
     id: manager.user_id || null,
     tenant_id: manager.tenant_id || null,
     source: "manager_portal",
     role: manager.role || "manager",
     branch_id: manager.branch_id || null,
     employee_id: manager.id || null,
+  };
+  // The daily dedupe index keys manual tasks on (date, type, assignee,
+  // source_ref). With no source_ref a manager could only create ONE manual
+  // task per employee per day — the second silently came back "duplicate".
+  // Every portal task gets its own ref so each one is distinct.
+  const withRef = (payload) => ({
+    ...payload,
+    source_ref_type: payload.source_ref_type || "manager_portal",
+    source_ref_id: payload.source_ref_id || `mp-${Date.now()}-${randomBytes(4).toString("hex")}`,
   });
+  const rawIds = Array.isArray(data.current_assignee_ids) ? data.current_assignee_ids : Array.isArray(data.assignee_ids) ? data.assignee_ids : null;
+  const assigneeIds = [...new Set((rawIds || []).map((id) => numberOrNull(id)).filter(Boolean))];
+  if (assigneeIds.length > 1) {
+    // One task per employee: the task model is single-assignee.
+    const { current_assignee_ids: _ids, assignee_ids: _ids2, ...base } = data;
+    const results = [];
+    for (const employeeId of assigneeIds) {
+      results.push(await createStaffTask(withRef({ ...base, current_assignee_id: employeeId }), actor));
+    }
+    const created = results.map((r) => r?.task).filter(Boolean);
+    return { duplicate: created.length === 0, task: created[0] || null, tasks: created, created_count: created.length, requested_count: assigneeIds.length };
+  }
+  const single = assigneeIds.length === 1 ? { ...data, current_assignee_id: assigneeIds[0] } : data;
+  return createStaffTask(withRef(single), actor);
 };
 
 export const approveManagerPortalTask = async ({ manager = {}, taskId, note = "" } = {}) => {

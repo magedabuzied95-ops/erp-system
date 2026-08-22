@@ -131,7 +131,11 @@
     "delete": "Delete",
     "saveChanges": "Save changes",
     "cancelEdit": "Cancel",
-    "deleteConfirm": "Delete task \"{{title}}\" permanently?"
+    "deleteConfirm": "Delete task \"{{title}}\" permanently?",
+    "assigneesCount": "{{count}} employees selected",
+    "selectAll": "Select all",
+    "clearAll": "Clear",
+    "duplicate": "This task already exists for that employee today"
   },
   "payment": {
     "cash": "Cash",
@@ -256,7 +260,8 @@
     "taskCreated": "Task created",
     "advanceApproved": "Advance approved and added to the employee",
     "advanceRejected": "Advance request rejected",
-    "taskDeleted": "Task deleted"
+    "taskDeleted": "Task deleted",
+    "tasksCreated": "{{count}} tasks created"
   },
   "push": {
     "unsupportedDetail": "This browser does not support web push notifications.",

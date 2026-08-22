@@ -131,7 +131,11 @@
     "delete": "حذف",
     "saveChanges": "حفظ التعديل",
     "cancelEdit": "إلغاء",
-    "deleteConfirm": "هل تريد حذف المهمة \"{{title}}\" نهائيًا؟"
+    "deleteConfirm": "هل تريد حذف المهمة \"{{title}}\" نهائيًا؟",
+    "assigneesCount": "{{count}} موظف محدد",
+    "selectAll": "تحديد الكل",
+    "clearAll": "إلغاء التحديد",
+    "duplicate": "المهمة موجودة بالفعل لنفس الموظف اليوم"
   },
   "payment": {
     "cash": "كاش",
@@ -256,7 +260,8 @@
     "taskCreated": "تم إنشاء المهمة",
     "advanceApproved": "تم اعتماد السلفة وإضافتها للموظف",
     "advanceRejected": "تم رفض طلب السلفة",
-    "taskDeleted": "تم حذف المهمة"
+    "taskDeleted": "تم حذف المهمة",
+    "tasksCreated": "تم إنشاء {{count}} مهام"
   },
   "push": {
     "unsupportedDetail": "هذا المتصفح لا يدعم إشعارات الويب الفورية.",

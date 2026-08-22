@@ -913,7 +913,7 @@ export default function ManagerPortal() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [managerChatState, setManagerChatState] = useState({ employee: null, thread: null, messages: [] });
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [taskDraft, setTaskDraft] = useState({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
+  const [taskDraft, setTaskDraft] = useState({ title: "", description: "", assigned_employee_id: "", assigned_employee_ids: [], priority: "medium" });
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [taskNotes, setTaskNotes] = useState({});
   const [taskFilters, setTaskFilters] = useState({ status: "all", employee: "", query: "" });
@@ -1848,7 +1848,7 @@ export default function ManagerPortal() {
   };
 
   const resetTaskDraft = () => {
-    setTaskDraft({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
+    setTaskDraft({ title: "", description: "", assigned_employee_id: "", assigned_employee_ids: [], priority: "medium" });
     setEditingTaskId(null);
   };
 
@@ -1861,17 +1861,25 @@ export default function ManagerPortal() {
       title: taskDraft.title,
       description: taskDraft.description,
       current_assignee_id: taskDraft.assigned_employee_id || null,
+      current_assignee_ids: editingTaskId ? undefined : taskDraft.assigned_employee_ids,
       priority: taskDraft.priority,
     };
     try {
+      let createdCount = 1;
       if (editingTaskId) {
         await managerPortalApi.updateTask(token, editingTaskId, payload);
       } else {
-        await managerPortalApi.createTask(token, payload);
+        const response = await managerPortalApi.createTask(token, payload);
+        const result = response?.task || {};
+        if (result.duplicate && !result.task) {
+          toast.error(tt("managerPortal.tasks.duplicate"));
+          return;
+        }
+        createdCount = Number(result.created_count || 1);
       }
       resetTaskDraft();
       await reloadTabData("tasks", { force: true });
-      toast.success(editingTaskId ? tt("managerPortal.toasts.taskUpdated") : tt("managerPortal.toasts.taskCreated"));
+      toast.success(editingTaskId ? tt("managerPortal.toasts.taskUpdated") : createdCount > 1 ? tt("managerPortal.toasts.tasksCreated", { count: createdCount }) : tt("managerPortal.toasts.taskCreated"));
     } catch (taskError) {
       toast.error(taskError?.responseBody?.message || taskError?.message || tt("managerPortal.errors.createTask"));
     }
@@ -1885,6 +1893,7 @@ export default function ManagerPortal() {
       title: task.title || task.title_ar || "",
       description: task.description || task.description_ar || "",
       assigned_employee_id: String(task.current_assignee_id || task.assignee_id || task.employee_id || ""),
+      assigned_employee_ids: [],
       priority: task.priority || "medium",
     });
     if (typeof document !== "undefined") {
@@ -2718,10 +2727,56 @@ export default function ManagerPortal() {
               <Card title={tt("managerPortal.tasks.create")} subtitle={tt("managerPortal.chrome.createTask")} icon={Plus} tone="gold">
                 <div className="grid gap-2 md:grid-cols-2">
                   <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder={tt("managerPortal.tasks.titleField")} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
-                  <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
-                    <option value="">{tt("managerPortal.tasks.optionalAssignee")}</option>
-                    {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
-                  </select>
+                  {editingTaskId ? (
+                    <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
+                      <option value="">{tt("managerPortal.tasks.optionalAssignee")}</option>
+                      {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
+                    </select>
+                  ) : (
+                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-black text-slate-500">
+                          {taskDraft.assigned_employee_ids.length
+                            ? tt("managerPortal.tasks.assigneesCount", { count: taskDraft.assigned_employee_ids.length })
+                            : tt("managerPortal.tasks.optionalAssignee")}
+                        </span>
+                        {staffList.length ? (
+                          <button
+                            type="button"
+                            onClick={() => setTaskDraft((current) => ({
+                              ...current,
+                              assigned_employee_ids: current.assigned_employee_ids.length === staffList.length ? [] : staffList.map((employee) => String(employee.employee_id)),
+                            }))}
+                            className="text-[11px] font-black text-primary"
+                          >
+                            {taskDraft.assigned_employee_ids.length === staffList.length ? tt("managerPortal.tasks.clearAll") : tt("managerPortal.tasks.selectAll")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {staffList.map((employee) => {
+                          const id = String(employee.employee_id);
+                          const active = taskDraft.assigned_employee_ids.includes(id);
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              aria-pressed={active}
+                              data-testid={`task-assignee-${id}`}
+                              onClick={() => setTaskDraft((current) => ({
+                                ...current,
+                                assigned_employee_ids: active ? current.assigned_employee_ids.filter((item) => item !== id) : [...current.assigned_employee_ids, id],
+                              }))}
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black transition ${active ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"}`}
+                            >
+                              {active ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                              {portalText(employee.employee_name)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                     <option value="low">{tt("managerPortal.priority.low")}</option>
                     <option value="medium">{tt("managerPortal.priority.medium")}</option>
