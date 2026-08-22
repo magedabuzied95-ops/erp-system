@@ -556,6 +556,19 @@ router.get("/:token/chat", async (req, res) => {
   }
 });
 
+// Literal path before the :threadId parameter, or "starred" is parsed as a thread id.
+router.get("/:token/chat/starred", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const messages = await listManagerPortalStarredMessages({ manager });
+    return res.json({ success: true, messages });
+  } catch (error) {
+    if (!error.status) console.error("[manager-portal] starred list error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load starred messages" });
+  }
+});
+
 router.get("/:token/chat/:threadId", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
@@ -589,18 +602,6 @@ router.post("/:token/chat/:threadId/ring/:messageId/answer", async (req, res) =>
   } catch (error) {
     if (!error.status) console.error("[manager-portal] chat ring answer error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to answer ring" });
-  }
-});
-
-router.get("/:token/chat/starred", async (req, res) => {
-  try {
-    const manager = await loadVerifiedManager(req, res);
-    if (!manager) return;
-    const messages = await listManagerPortalStarredMessages({ manager });
-    return res.json({ success: true, messages });
-  } catch (error) {
-    if (!error.status) console.error("[manager-portal] starred list error", error);
-    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load starred messages" });
   }
 });
 
