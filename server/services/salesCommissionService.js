@@ -14,7 +14,6 @@ const DEFAULT_SETTINGS = {
 
 const ACTIVE_ADVANCE_STATUSES = ["pending", "partial", "partially_deducted", "included_in_payroll"];
 const PENALTY_STATUSES = ["pending", "approved", "cancelled"];
-const QR_ATTENDANCE_SOURCES = ["qr", "qr_branch", "branch_qr", "employee_portal"];
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -812,7 +811,7 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     `
     SELECT
       attendance_date,
-      COUNT(*)::int AS qr_records_count,
+      COUNT(*)::int AS attendance_records_count,
       MAX(GREATEST(
         COALESCE(work_minutes, 0),
         COALESCE(worked_hours, 0) * 60,
@@ -831,13 +830,12 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
       AND attendance_date BETWEEN $3::date AND $4::date
       AND ($5::text IS NULL OR branch_id::text = $5::text)
-      AND LOWER(COALESCE(attendance_source, '')) = ANY($6::text[])
     GROUP BY attendance_date
     `,
-    [employeeId, tenantId, periodStart, periodEnd, attendanceBranchId, QR_ATTENDANCE_SOURCES]
+    [employeeId, tenantId, periodStart, periodEnd, attendanceBranchId]
   );
   const attendanceByDate = new Map(attendanceResult.rows.map((row) => [dateKey(row.attendance_date), row]));
-  const qrRecordsCount = attendanceResult.rows.reduce((sum, row) => sum + Number(row.qr_records_count || 0), 0);
+  const qrRecordsCount = attendanceResult.rows.reduce((sum, row) => sum + Number(row.attendance_records_count || 0), 0);
   const openAttendanceResult = await db.query(
     `
     SELECT
@@ -851,12 +849,11 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
       AND attendance_date BETWEEN $3::date AND $4::date
       AND ($5::text IS NULL OR branch_id::text = $5::text)
-      AND LOWER(COALESCE(attendance_source, '')) = ANY($6::text[])
       AND COALESCE(check_in_at, check_in) IS NOT NULL
       AND COALESCE(check_out_at, check_out) IS NULL
     ORDER BY attendance_date ASC, id ASC
     `,
-    [employeeId, tenantId, periodStart, periodEnd, attendanceBranchId, QR_ATTENDANCE_SOURCES]
+    [employeeId, tenantId, periodStart, periodEnd, attendanceBranchId]
   );
   let absenceDays = 0;
   let missingHours = 0;

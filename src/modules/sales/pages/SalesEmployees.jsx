@@ -1881,7 +1881,7 @@ function PayrollFinancialSummary({
     { label: t("sales.payroll.expectedWorkingDays", "أيام العمل المتوقعة"), value: numberValue(payroll.expected_working_days) },
     { label: t("sales.payroll.attendedDays", "أيام الحضور"), value: numberValue(payroll.attended_days) },
     { label: t("sales.payroll.absentDays", "أيام الغياب"), value: numberValue(payroll.absent_working_days ?? payroll.absence_days) },
-    { label: t("sales.payroll.qrRecords", "بصمات QR"), value: numberValue(payroll.qr_records_count) },
+    { label: t("sales.payroll.qrRecords", "سجلات الحضور"), value: numberValue(payroll.qr_records_count) },
     { label: t("sales.payroll.lateHours", "ساعات التأخير"), value: numberValue(payroll.late_hours ?? 0) },
     { label: t("sales.payroll.latePermissionMinutes", "دقائق تأخير مصرح بها"), value: numberValue(payroll.late_permission_minutes ?? 0) },
     { label: t("sales.payroll.earlyLeaveHours", "ساعات الخروج المبكر"), value: numberValue(payroll.early_leave_hours ?? 0) },
