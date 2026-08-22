@@ -2,6 +2,8 @@ import express from "express";
 import employeeChatUpload from "../config/employeeChatUpload.js";
 import {
   approveManagerPortalTask,
+  updateManagerPortalTask,
+  deleteManagerPortalTask,
   createManagerPortalTask,
   getManagerPortalChat,
   getManagerPortalChatThread,
@@ -554,6 +556,28 @@ router.post("/:token/tasks", verifyManagerPortalToken, async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] task create error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create task" });
+  }
+});
+
+router.patch("/:token/tasks/:id", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const task = await updateManagerPortalTask({ manager: req.managerPortalManager, taskId: req.params.id, data: req.body || {} });
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+    return res.json({ success: true, task });
+  } catch (error) {
+    console.error("[manager-portal] task update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update task" });
+  }
+});
+
+router.delete("/:token/tasks/:id", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const task = await deleteManagerPortalTask({ manager: req.managerPortalManager, taskId: req.params.id });
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+    return res.json({ success: true, task });
+  } catch (error) {
+    console.error("[manager-portal] task delete error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete task" });
   }
 });
 

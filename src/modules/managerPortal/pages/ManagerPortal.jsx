@@ -5,6 +5,7 @@ import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
   MoreVertical,
+  Trash2,
   ArrowLeftRight,
   ArrowUpRight,
   Bell,
@@ -913,6 +914,7 @@ export default function ManagerPortal() {
   const [managerChatState, setManagerChatState] = useState({ employee: null, thread: null, messages: [] });
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskDraft, setTaskDraft] = useState({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
+  const [editingTaskId, setEditingTaskId] = useState(null);
   const [taskNotes, setTaskNotes] = useState({});
   const [taskFilters, setTaskFilters] = useState({ status: "all", employee: "", query: "" });
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
@@ -1845,23 +1847,60 @@ export default function ManagerPortal() {
     }
   };
 
+  const resetTaskDraft = () => {
+    setTaskDraft({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
+    setEditingTaskId(null);
+  };
+
   const createTask = async () => {
     if (!taskDraft.title.trim()) {
       toast.error(tt("managerPortal.tasks.titleRequired"));
       return;
     }
+    const payload = {
+      title: taskDraft.title,
+      description: taskDraft.description,
+      current_assignee_id: taskDraft.assigned_employee_id || null,
+      priority: taskDraft.priority,
+    };
     try {
-      await managerPortalApi.createTask(token, {
-        title: taskDraft.title,
-        description: taskDraft.description,
-        current_assignee_id: taskDraft.assigned_employee_id || null,
-        priority: taskDraft.priority,
-      });
-      setTaskDraft({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
+      if (editingTaskId) {
+        await managerPortalApi.updateTask(token, editingTaskId, payload);
+      } else {
+        await managerPortalApi.createTask(token, payload);
+      }
+      resetTaskDraft();
       await reloadTabData("tasks", { force: true });
-      toast.success(tt("managerPortal.toasts.taskCreated"));
+      toast.success(editingTaskId ? tt("managerPortal.toasts.taskUpdated") : tt("managerPortal.toasts.taskCreated"));
     } catch (taskError) {
       toast.error(taskError?.responseBody?.message || taskError?.message || tt("managerPortal.errors.createTask"));
+    }
+  };
+
+  // Edit reuses the create form at the top of the tab: load the task into it
+  // and switch the submit into "save changes".
+  const startEditTask = (task) => {
+    setEditingTaskId(task.id);
+    setTaskDraft({
+      title: task.title || task.title_ar || "",
+      description: task.description || task.description_ar || "",
+      assigned_employee_id: String(task.current_assignee_id || task.assignee_id || task.employee_id || ""),
+      priority: task.priority || "medium",
+    });
+    if (typeof document !== "undefined") {
+      document.querySelector('[data-testid="create-task-button"]')?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const deleteTask = async (task) => {
+    if (!window.confirm(tt("managerPortal.tasks.deleteConfirm", { title: task.title_ar || task.title || "" }))) return;
+    try {
+      await managerPortalApi.deleteTask(token, task.id);
+      if (String(editingTaskId) === String(task.id)) resetTaskDraft();
+      await reloadTabData("tasks", { force: true });
+      toast.success(tt("managerPortal.toasts.taskDeleted"));
+    } catch (taskError) {
+      toast.error(taskError?.responseBody?.message || taskError?.message || tt("managerPortal.errors.deleteTask"));
     }
   };
 
@@ -1922,6 +1961,24 @@ export default function ManagerPortal() {
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
               {tt("managerPortal.tasks.reopen")}
+            </button>
+            <button
+              type="button"
+              data-testid={`task-edit-${task.id}`}
+              onClick={() => startEditTask(task)}
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-800"
+            >
+              <SquarePen className="h-3.5 w-3.5" />
+              {tt("managerPortal.tasks.edit")}
+            </button>
+            <button
+              type="button"
+              data-testid={`task-delete-${task.id}`}
+              onClick={() => void deleteTask(task)}
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-200 bg-white px-3 text-xs font-black text-rose-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {tt("managerPortal.tasks.delete")}
             </button>
             {!completed ? (
               <>
@@ -2042,6 +2099,14 @@ export default function ManagerPortal() {
           <button type="button" data-testid={`task-note-${task.id}`} onClick={() => void sendTaskAction(task.id, "note", { note })} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
             <SquarePen className="h-4 w-4" />
             {tt("managerPortal.tasks.addNote")}
+          </button>
+          <button type="button" data-testid={`task-edit-${task.id}`} onClick={() => startEditTask(task)} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+            <SquarePen className="h-4 w-4" />
+            {tt("managerPortal.tasks.edit")}
+          </button>
+          <button type="button" data-testid={`task-delete-${task.id}`} onClick={() => void deleteTask(task)} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-rose-200 bg-white px-4 py-3 text-sm font-black text-rose-700 dark:border-rose-500/40 dark:bg-white/[0.03]">
+            <Trash2 className="h-4 w-4" />
+            {tt("managerPortal.tasks.delete")}
           </button>
         </div>
         <textarea value={note} onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))} placeholder={tt("managerPortal.tasks.managerNote")} rows={2} className="mt-2 w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
@@ -2663,10 +2728,18 @@ export default function ManagerPortal() {
                     <option value="high">{tt("managerPortal.priority.high")}</option>
                     <option value="critical">{tt("managerPortal.priority.critical")}</option>
                   </select>
-                  <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
-                    <Plus className="h-4 w-4" />
-                    {tt("managerPortal.actions.create")}
-                  </button>
+                  <div className="flex gap-2">
+                    <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
+                      {editingTaskId ? <SquarePen className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {editingTaskId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.actions.create")}
+                    </button>
+                    {editingTaskId ? (
+                      <button type="button" onClick={resetTaskDraft} className="inline-flex items-center justify-center gap-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                        <X className="h-4 w-4" />
+                        {tt("managerPortal.tasks.cancelEdit")}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder={tt("managerPortal.common.description")} rows={3} className="mt-2 w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
               </Card>

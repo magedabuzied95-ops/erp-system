@@ -4,7 +4,7 @@ import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
-import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment } from "./staffTasksService.js";
+import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment, updateStaffTaskDetails, deleteStaffTask } from "./staffTasksService.js";
 import {
   listEmployeeChatThreads,
   getAdminEmployeeChatThread,
@@ -2311,3 +2311,18 @@ export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
   error.status = 400;
   throw error;
 };
+
+const managerTaskActor = (manager = {}) => ({
+  id: manager.user_id || null,
+  tenant_id: manager.tenant_id || null,
+  source: "manager_portal",
+  role: manager.role || "manager",
+  branch_id: manager.branch_id || null,
+  employee_id: manager.id || null,
+});
+
+export const updateManagerPortalTask = async ({ manager = {}, taskId, data = {} } = {}) =>
+  updateStaffTaskDetails(taskId, data, managerTaskActor(manager));
+
+export const deleteManagerPortalTask = async ({ manager = {}, taskId } = {}) =>
+  deleteStaffTask(taskId, managerTaskActor(manager));

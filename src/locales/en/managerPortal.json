@@ -126,7 +126,12 @@
     "completedEmpty": "No completed tasks",
     "completedEmptyHint": "Completed tasks will appear here with a proof preview.",
     "overdueListTitle": "Overdue task list",
-    "needsAttention": "Needs attention"
+    "needsAttention": "Needs attention",
+    "edit": "Edit",
+    "delete": "Delete",
+    "saveChanges": "Save changes",
+    "cancelEdit": "Cancel",
+    "deleteConfirm": "Delete task \"{{title}}\" permanently?"
   },
   "payment": {
     "cash": "Cash",
@@ -239,7 +244,8 @@
     "updateTask": "Unable to update the task",
     "createTask": "Unable to create the task",
     "updateAdvance": "Unable to update the advance request",
-    "partialLoad": "Some data could not be loaded"
+    "partialLoad": "Some data could not be loaded",
+    "deleteTask": "Could not delete task"
   },
   "toasts": {
     "copied": "Copied",
@@ -249,7 +255,8 @@
     "taskUpdated": "Task updated",
     "taskCreated": "Task created",
     "advanceApproved": "Advance approved and added to the employee",
-    "advanceRejected": "Advance request rejected"
+    "advanceRejected": "Advance request rejected",
+    "taskDeleted": "Task deleted"
   },
   "push": {
     "unsupportedDetail": "This browser does not support web push notifications.",

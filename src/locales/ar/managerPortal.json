@@ -126,7 +126,12 @@
     "completedEmpty": "لا توجد مهام مكتملة",
     "completedEmptyHint": "المهام المكتملة ستظهر هنا مع معاينة الإثبات.",
     "overdueListTitle": "قائمة المهام المتأخرة",
-    "needsAttention": "تحتاج انتباه"
+    "needsAttention": "تحتاج انتباه",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "saveChanges": "حفظ التعديل",
+    "cancelEdit": "إلغاء",
+    "deleteConfirm": "هل تريد حذف المهمة \"{{title}}\" نهائيًا؟"
   },
   "payment": {
     "cash": "كاش",
@@ -239,7 +244,8 @@
     "updateTask": "تعذر تحديث المهمة",
     "createTask": "تعذر إنشاء المهمة",
     "updateAdvance": "تعذر تحديث طلب السلفة",
-    "partialLoad": "تعذر تحميل بعض البيانات"
+    "partialLoad": "تعذر تحميل بعض البيانات",
+    "deleteTask": "تعذر حذف المهمة"
   },
   "toasts": {
     "copied": "تم النسخ",
@@ -249,7 +255,8 @@
     "taskUpdated": "تم تحديث المهمة",
     "taskCreated": "تم إنشاء المهمة",
     "advanceApproved": "تم اعتماد السلفة وإضافتها للموظف",
-    "advanceRejected": "تم رفض طلب السلفة"
+    "advanceRejected": "تم رفض طلب السلفة",
+    "taskDeleted": "تم حذف المهمة"
   },
   "push": {
     "unsupportedDetail": "هذا المتصفح لا يدعم إشعارات الويب الفورية.",

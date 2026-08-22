@@ -30,6 +30,8 @@ export const managerPortalApi = {
   sendChatMessage: (token, threadId, formData) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/messages`, formData),
   markChatRead: (token, threadId) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/read`),
   createTask: (token, payload) => api.post(`${tokenPath(token)}/tasks`, payload),
+  updateTask: (token, id, payload = {}) => api.patch(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}`, payload),
+  deleteTask: (token, id) => api.delete(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}`),
   approveTask: (token, id, payload = {}) => api.patch(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}/approve`, payload),
   rejectTask: (token, id, payload = {}) => api.patch(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}/reject`, payload),
   reopenTask: (token, id, payload = {}) => api.patch(`${tokenPath(token)}/tasks/${encodeURIComponent(id)}/reopen`, payload),
