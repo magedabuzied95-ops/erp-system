@@ -158,6 +158,46 @@ export const generateAutonomousAiMarketingDaily = generate("daily");
 export const generateAutonomousAiMarketingWeekly = generate("weekly");
 export const generateAutonomousAiMarketingMonthly = generate("monthly");
 
+// A sized plan: "N days × stories/day × posts/day", every day pinned exactly.
+// `align_autopilot` also points the story autopilot at the queue's own
+// scheduled_at times (queue_schedule) and widens its per-day cap and minimum
+// gap so the plan can actually go out — otherwise the autopilot keeps
+// publishing FIFO at its three fixed slots and the calendar is decoration.
+export const generateAutonomousAiMarketingPlan = async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const tenantId = tenantScope(req);
+    const plan = {
+      days: body.days,
+      stories_per_day: body.stories_per_day,
+      posts_per_day: body.posts_per_day,
+      start_tomorrow: body.start_tomorrow,
+    };
+    const result = await enqueueAiMarketingBatchGeneration({ tenantId, runType: "plan", plan });
+    let autopilot = null;
+    if (body.align_autopilot === true || body.align_autopilot === "true") {
+      const current = await getStoryAutopilotSettings(tenantId);
+      const storiesPerDay = Math.max(1, Number(result.plan?.stories_per_day) || 1);
+      const [startH, startM] = String(current.window_start || "09:00").split(":").map(Number);
+      const [endH, endM] = String(current.window_end || "23:30").split(":").map(Number);
+      const windowMinutes = Math.max(60, endH * 60 + endM - (startH * 60 + startM));
+      // Leave room for the generator's own spread: the gap must let N stories
+      // fit in the window with slack, or the tail of each day dies to catch-up grace.
+      const fittingGap = Math.max(5, Math.floor(windowMinutes / (storiesPerDay * 2)));
+      autopilot = await updateStoryAutopilotSettings(tenantId, {
+        enabled: true,
+        schedule_mode: "queue_schedule",
+        max_per_day: Math.max(Number(current.max_per_day) || 0, storiesPerDay),
+        min_gap_minutes: Math.min(Number(current.min_gap_minutes) || 45, fittingGap),
+        catchup_grace_minutes: Math.max(Number(current.catchup_grace_minutes) || 0, 240),
+      });
+    }
+    res.status(202).json({ success: true, message: "Generation plan queued", ...result, autopilot });
+  } catch (error) {
+    sendError(res, error, "Failed to generate AI marketing plan");
+  }
+};
+
 const generateVideos = (runType) => async (req, res) => {
   try {
     const result = await generateAiMarketingVideoBatch({

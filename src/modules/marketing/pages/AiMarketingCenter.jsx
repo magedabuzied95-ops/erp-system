@@ -44,6 +44,7 @@ import {
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
 import StoryAutopilotSettingsModal from "../components/StoryAutopilotSettingsModal";
+import GenerationPlanModal from "../components/GenerationPlanModal";
 import StoryThemeCalendar from "../components/StoryThemeCalendar";
 import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
 import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
@@ -452,6 +453,7 @@ function AiMarketingCenter() {
   const canUpdateMarketing = hasPermission("marketing.update");
   const canPublishMarketing = hasPermission("marketing.publish");
   const [autopilotOpen, setAutopilotOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
 
   const storiesAll = useMemo(() => queue.filter((item) => {
     const flags = getPreviewContentFlags(item);
@@ -983,7 +985,7 @@ function AiMarketingCenter() {
             <Check className="h-4 w-4" />
             Save
           </button>
-          <button type="button" onClick={() => runGeneration("daily")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-primary`}>
+          <button type="button" onClick={() => setPlanOpen(true)} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-primary`} title="إنشاء كمية من القصص وجدولتها على أيام">
             <Wand2 className="h-4 w-4" />
             {running ? "في الطابور..." : canCreateMarketing ? "إنشاء الطابور" : "لا توجد صلاحية إنشاء"}
           </button>
@@ -1123,6 +1125,15 @@ function AiMarketingCenter() {
         onClose={() => setAutopilotOpen(false)}
         canUpdate={canUpdateMarketing}
         canPublish={canPublishMarketing}
+      />
+
+      <GenerationPlanModal
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        onQueued={() => load()}
+        canCreate={canCreateMarketing}
+        selectionMode={settings.story_selection_mode}
+        defaults={{ stories_per_day: settings.stories_per_day, posts_per_day: settings.posts_per_day }}
       />
 
       {preview ? (

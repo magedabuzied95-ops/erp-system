@@ -4018,6 +4018,59 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const daysForRunType = (runType) => (runType === "monthly" ? 30 : runType === "weekly" ? 7 : 1);
 
+// A generation plan is "N days × stories/day × posts/day". The legacy run types
+// (daily/weekly/monthly) are fixed plans read from the engine settings; the
+// `plan` run type lets the operator size the batch and pins every day's quota
+// exactly (see `plan_day_offset`) instead of trusting the weighted day picker
+// to even out 300 items by accident.
+export const GENERATION_PLAN_LIMITS = Object.freeze({
+  max_days: 31,
+  max_stories_per_day: 40,
+  max_posts_per_day: 10,
+  max_total_stories: 500,
+  max_total_posts: 120,
+});
+
+const hasOwnNumber = (source, key) =>
+  Boolean(source) && source[key] !== undefined && source[key] !== null && source[key] !== "";
+
+export const resolveGenerationPlan = ({ runType = "daily", overrides = null, settings = {} } = {}) => {
+  const custom = overrides && typeof overrides === "object" ? overrides : null;
+  const quotaStories = (settings.daily_content_quotas || []).reduce(
+    (sum, row) => sum + (row.active === false ? 0 : positiveInt(row.stories_per_day, 0)),
+    0
+  );
+  const quotaPosts = (settings.daily_content_quotas || []).reduce(
+    (sum, row) => sum + (row.active === false ? 0 : positiveInt(row.posts_per_day, 0)),
+    0
+  );
+  const defaultStories = quotaStories || positiveInt(settings.stories_per_day, 12);
+  const defaultPosts = quotaPosts || positiveInt(settings.posts_per_day, 3);
+  const days = custom
+    ? Math.max(1, Math.min(GENERATION_PLAN_LIMITS.max_days, positiveInt(custom.days, daysForRunType(runType))))
+    : daysForRunType(runType);
+  const storiesPerDay = hasOwnNumber(custom, "stories_per_day")
+    ? Math.max(0, Math.min(GENERATION_PLAN_LIMITS.max_stories_per_day, positiveInt(custom.stories_per_day, 0)))
+    : defaultStories;
+  const postsPerDay = hasOwnNumber(custom, "posts_per_day")
+    ? Math.max(0, Math.min(GENERATION_PLAN_LIMITS.max_posts_per_day, positiveInt(custom.posts_per_day, 0)))
+    : defaultPosts;
+  // 1 = leave today alone and start the plan tomorrow. A plan built late in
+  // the evening would otherwise pin its first day into hours already gone.
+  const startOffset = custom && [true, "true", 1, "1"].includes(custom.start_tomorrow) ? 1 : 0;
+  return {
+    run_type: custom ? "plan" : runType,
+    days,
+    stories_per_day: storiesPerDay,
+    posts_per_day: postsPerDay,
+    requested_stories: Math.min(GENERATION_PLAN_LIMITS.max_total_stories, storiesPerDay * days),
+    requested_posts: Math.min(GENERATION_PLAN_LIMITS.max_total_posts, postsPerDay * days),
+    start_offset: startOffset,
+    horizon_days: days + startOffset,
+    pin_days: Boolean(custom) && days > 1,
+  };
+};
+
 const normalizePostingWindow = (window = {}, index = 0) => {
   const start = Math.max(0, Math.min(23 * 60 + 55, Math.round(numberValue(window.start, 0))));
   const end = Math.max(start + 20, Math.min(24 * 60 - 1, Math.round(numberValue(window.end, start + 90))));
@@ -4605,7 +4658,8 @@ const candidateDayOffsets = (state) => Array.from({ length: Math.max(1, state.da
 // Theme calendar items already know which day of the run they belong to, so the
 // weighted day picker must not move them. Time of day is still insight-driven.
 const forcedThemeDayOffset = (item = {}, state = {}) => {
-  const raw = item?.metadata?.theme_day_offset;
+  const metadata = item?.metadata || {};
+  const raw = metadata.theme_day_offset ?? metadata.plan_day_offset;
   if (raw === undefined || raw === null || raw === "") return null;
   const offset = Math.trunc(numberValue(raw, -1));
   if (offset < 0) return null;
@@ -4658,13 +4712,13 @@ const randomMinuteInWindow = (window = {}, rng = Math.random) => {
   return Math.min(end - 3, Math.max(start + 3, Math.round(min + rng() * (max - min))));
 };
 
-const createScheduleState = (runType = "daily", insights = null) => {
+const createScheduleState = (runType = "daily", insights = null, days = null) => {
   const baseDate = new Date();
   baseDate.setHours(0, 0, 0, 0);
   const useInsights = insights?.source && insights.source !== "fallback";
   return {
     baseDate,
-    days: daysForRunType(runType),
+    days: Math.max(1, positiveInt(days, 0) || daysForRunType(runType)),
     usedMinutes: new Set(),
     hourCounts: new Map(),
     dayCounts: new Map(),
@@ -4690,7 +4744,7 @@ const scheduledTimeFor = (index, runType, item = {}, state = createScheduleState
     const minutesOfDay = randomMinuteInWindow(window, rng);
     const date = scheduleDateAtMinutes(state.baseDate, dayOffset, minutesOfDay);
 
-    if (runType === "daily") {
+    if ((state.days || 1) <= 1) {
       const minimum = new Date(Date.now() + 30 * 60 * 1000);
       if (date.getTime() < minimum.getTime()) {
         const minimumMinutes = minimum.getHours() * 60 + minimum.getMinutes();
@@ -5259,11 +5313,11 @@ const loadThemeCycleState = async (tenantId, block, pool) => {
   return { cycle, previousSignatures, queue: orderThemePool(remaining, previousSignatures) };
 };
 
-const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, settings }) => {
+const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, settings, days: planDays = null, startOffset = 0 }) => {
   const calendar = activeThemeBlocks(settings);
   if (!calendar.length) return [];
   const eligible = eligibleCatalogProducts(products);
-  const days = daysForRunType(runType);
+  const days = Math.max(1, positiveInt(planDays, 0) || daysForRunType(runType));
   const baseDate = new Date();
   baseDate.setHours(0, 0, 0, 0);
 
@@ -5281,7 +5335,7 @@ const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, s
 
   const items = [];
   let index = 0;
-  for (let dayOffset = 0; dayOffset < days; dayOffset += 1) {
+  for (let dayOffset = Math.max(0, positiveInt(startOffset, 0)); dayOffset < Math.max(0, positiveInt(startOffset, 0)) + days; dayOffset += 1) {
     const dayOfWeek = new Date(baseDate.getTime() + dayOffset * 86400000).getDay();
     for (const block of calendar.filter((row) => row.days.includes(dayOfWeek))) {
       const pool = pools.get(block.key) || [];
@@ -5329,16 +5383,16 @@ const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, s
   return items;
 };
 
-const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
+const buildGenerationPlan = async ({ tenantId, runType, settings, plan: sizing = null }) => {
   const products = await loadProducts(tenantId);
   const cooldownState = buildCooldownState(await loadCooldownRows(tenantId));
   const quota = (settings.daily_content_quotas || []).find((row) => row.active !== false) || DEFAULT_QUOTAS[0];
-  const runMultiplier = runType === "monthly" ? 30 : runType === "weekly" ? 7 : 1;
-  const storyLimit = Math.max(1, Math.min(positiveInt(settings.stories_per_day, 12) * runMultiplier, 360));
-  const postLimit = Math.max(0, Math.min(positiveInt(settings.posts_per_day, 3) * runMultiplier, 90));
+  const resolved = sizing || resolveGenerationPlan({ runType, settings });
+  const storyLimit = Math.max(1, resolved.requested_stories);
+  const postLimit = Math.max(0, resolved.requested_posts);
   const activeStrategies = normalizeFocusedStrategies(settings.active_strategies || {});
   const storyCandidates = settings.story_selection_mode === "theme_calendar"
-    ? await buildThemeCalendarStories({ tenantId, products, quota, runType, settings })
+    ? await buildThemeCalendarStories({ tenantId, products, quota, runType, settings, days: resolved.days, startOffset: resolved.start_offset })
     : settings.story_selection_mode === "newest_only"
     ? interleaveStoryTemplateVariants([
         ...buildOfferStories(products, quota, storyLimit),
@@ -5371,36 +5425,46 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
   return plan;
 };
 
-export const enqueueAiMarketingBatchGeneration = async ({ tenantId, runType = "daily" } = {}) => {
+const planRunMetadata = (plan) => ({
+  plan_days: plan.days,
+  plan_stories_per_day: plan.stories_per_day,
+  plan_posts_per_day: plan.posts_per_day,
+  plan_pinned_days: plan.pin_days,
+  plan_start_offset: plan.start_offset,
+});
+
+export const enqueueAiMarketingBatchGeneration = async ({ tenantId, runType = "daily", plan: overrides = null } = {}) => {
   await ensureAiMarketingCenterSchema();
   const settings = await getAiMarketingSettings(tenantId);
-  const requestedStories = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.stories_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
-  const requestedPosts = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.posts_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
+  const plan = resolveGenerationPlan({ runType, overrides, settings });
+  const requestedStories = plan.requested_stories;
+  const requestedPosts = plan.requested_posts;
   const run = await db.query(
     `
     INSERT INTO ai_marketing_generation_runs (tenant_id, run_type, status, requested_stories, requested_posts, metadata)
     VALUES ($1,$2,'queued',$3,$4,$5::jsonb)
     RETURNING *
     `,
-    [tenantId, runType, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id, queue_stage: "queued" })]
+    [tenantId, plan.run_type, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id, queue_stage: "queued", ...planRunMetadata(plan) })]
   );
   const runId = run.rows[0].id;
   const queueState = enqueueGenerationJob({
     type: "batch",
     tenantId,
     runId,
-    label: `AI marketing ${runType} batch`,
-    run: () => generateAiMarketingBatch({ tenantId, runType, runId }),
+    label: `AI marketing ${plan.run_type} batch`,
+    run: () => generateAiMarketingBatch({ tenantId, runType, runId, plan: overrides }),
   });
-  return { run_id: runId, run_status: "queued", requested_stories: requestedStories, requested_posts: requestedPosts, ...queueState };
+  return { run_id: runId, run_status: "queued", requested_stories: requestedStories, requested_posts: requestedPosts, plan, ...queueState };
 };
 
-export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", runId: existingRunId = null } = {}) => {
+export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", runId: existingRunId = null, plan: overrides = null } = {}) => {
   await ensureAiMarketingCenterSchema();
   await clearInvalidLastPieceQueueItems(tenantId);
   const settings = await getAiMarketingSettings(tenantId);
-  const requestedStories = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.stories_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
-  const requestedPosts = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.posts_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
+  const plan = resolveGenerationPlan({ runType, overrides, settings });
+  const requestedStories = plan.requested_stories;
+  const requestedPosts = plan.requested_posts;
   let runId = existingRunId;
   if (runId) {
     await db.query(
@@ -5419,23 +5483,34 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
       VALUES ($1,$2,'running',$3,$4,$5::jsonb)
       RETURNING *
       `,
-      [tenantId, runType, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id })]
+      [tenantId, plan.run_type, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id, ...planRunMetadata(plan) })]
     );
     runId = run.rows[0].id;
   }
 
   try {
-    const plan = await buildGenerationPlan({ tenantId, runType, settings });
+    const planItems = await buildGenerationPlan({ tenantId, runType, settings, plan });
     const status = "ready";
     const inserted = [];
     const postingInsights = await syncAiMarketingPostingInsights({ tenantId });
-    const scheduleState = createScheduleState(runType, postingInsights);
-    for (let index = 0; index < plan.length; index += 1) {
-      let item = plan[index];
+    const scheduleState = createScheduleState(runType, postingInsights, plan.horizon_days);
+    const pinnedCounts = { story: 0, post: 0 };
+    for (let index = 0; index < planItems.length; index += 1) {
+      let item = planItems[index];
       if (item.strategy_type === "last_size") {
         const validation = await validateLastPieceQueueItem(tenantId, item);
         if (!validation.valid) continue;
         item = applyCurrentLastPieceStock(item, validation.stock);
+      }
+      // A sized plan means "exactly N a day": the k-th story of its type lands on
+      // day floor(k / N). Theme items already carry their own day and keep it.
+      if (plan.pin_days && (item.metadata?.theme_day_offset === undefined || item.metadata?.theme_day_offset === null)) {
+        const bucket = item.content_type === "post" ? "post" : "story";
+        const perDay = bucket === "post" ? plan.posts_per_day : plan.stories_per_day;
+        const ordinal = pinnedCounts[bucket];
+        pinnedCounts[bucket] += 1;
+        const dayOffset = plan.start_offset + (perDay > 0 ? Math.min(plan.days - 1, Math.floor(ordinal / perDay)) : 0);
+        item = { ...item, metadata: { ...(item.metadata || {}), plan_day_offset: dayOffset } };
       }
       const scheduledAt = scheduledTimeFor(index, runType, item, scheduleState);
       console.log("[ai-center-schedule-assignment]", {

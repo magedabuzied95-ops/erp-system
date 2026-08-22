@@ -10,6 +10,7 @@ import {
   duplicateAutonomousAiMarketingQueueItem,
   generateAutonomousAiMarketingDaily,
   generateAutonomousAiMarketingMonthly,
+  generateAutonomousAiMarketingPlan,
   generateAutonomousAiMarketingQueueStoryAsset,
   generateAutonomousAiMarketingVideosDaily,
   generateAutonomousAiMarketingVideosMonthly,
@@ -57,6 +58,7 @@ router.get("/queue", protect, permit("marketing", "view"), getAutonomousAiMarket
 router.post("/generate/daily", protect, permit("marketing", "create"), generateAutonomousAiMarketingDaily);
 router.post("/generate/weekly", protect, permit("marketing", "create"), generateAutonomousAiMarketingWeekly);
 router.post("/generate/monthly", protect, permit("marketing", "create"), generateAutonomousAiMarketingMonthly);
+router.post("/generate/plan", protect, permit("marketing", "create"), generateAutonomousAiMarketingPlan);
 router.post("/videos/generate/daily", protect, permit("marketing", "create"), generateAutonomousAiMarketingVideosDaily);
 router.post("/videos/generate/weekly", protect, permit("marketing", "create"), generateAutonomousAiMarketingVideosWeekly);
 router.post("/videos/generate/monthly", protect, permit("marketing", "create"), generateAutonomousAiMarketingVideosMonthly);

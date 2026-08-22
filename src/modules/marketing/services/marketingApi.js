@@ -83,6 +83,7 @@ export const getAutonomousAiMarketingQueue = async (params = {}, options = {}) =
 export const generateAutonomousAiMarketingDaily = async () => api.post("/marketing/ai-center/generate/daily", {});
 export const generateAutonomousAiMarketingWeekly = async () => api.post("/marketing/ai-center/generate/weekly", {});
 export const generateAutonomousAiMarketingMonthly = async () => api.post("/marketing/ai-center/generate/monthly", {});
+export const generateAutonomousAiMarketingPlan = async (body = {}) => api.post("/marketing/ai-center/generate/plan", body);
 export const generateAutonomousAiMarketingVideosDaily = async (body = {}) => api.post("/marketing/ai-center/videos/generate/daily", body);
 export const generateAutonomousAiMarketingVideosWeekly = async (body = {}) => api.post("/marketing/ai-center/videos/generate/weekly", body);
 export const generateAutonomousAiMarketingVideosMonthly = async (body = {}) => api.post("/marketing/ai-center/videos/generate/monthly", body);
