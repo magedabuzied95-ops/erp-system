@@ -148,7 +148,8 @@ const run = async () => {
 
   console.log(
     `\nRevoked ${result.rowCount} grant(s) from ${flagged.length} role(s) (${affectedUsers} user(s)).` +
-      `\nAffected users must sign out and back in — the permission list is baked into the login payload.`
+      `\nAffected users pick this up on their next page load: the app re-reads /auth/me on mount.` +
+      `\nAn already-open tab keeps the stale permission list until it reloads.`
   );
 };
 
