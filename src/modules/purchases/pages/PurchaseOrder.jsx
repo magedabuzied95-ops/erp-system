@@ -545,7 +545,9 @@ const normalizeVariantOption = (product, variant = null) => {
     gender: firstText(product?.gender, product?.audience, variant?.gender, variant?.audience),
     product_type: firstText(product?.product_type, product?.productType, variant?.product_type, variant?.productType),
     productType: firstText(product?.productType, product?.product_type, variant?.productType, variant?.product_type),
-    grade: firstText(product?.grade, variant?.grade),
+    grade: firstText(product?.grade, product?.product_grade, variant?.grade, variant?.product_grade),
+    manufacturer_id: product?.manufacturer_id ?? product?.manufacturerId ?? variant?.manufacturer_id ?? variant?.variant_manufacturer_id ?? null,
+    manufacturer_name: firstText(product?.manufacturer_name, product?.manufacturerName, product?.manufacturer, variant?.manufacturer_name, variant?.manufacturer),
     is_pos_favorite: product?.is_pos_favorite === true || product?.isPosFavorite === true,
     isPosFavorite: product?.isPosFavorite === true || product?.is_pos_favorite === true,
     matched_variant_id: product?.matched_variant_id ?? product?.matchedVariantId ?? null,
@@ -687,11 +689,6 @@ const makeCountOptions = (items = [], getId, getName = getId) => {
 };
 
 const purchaseFilterMatches = (item = {}, filters = {}) => {
-  if (filters.category !== "all") {
-    const categoryIds = [item.category_id, item.main_category_id, item.sub_category_id, item.child_category_id].map((value) => text(value)).filter(Boolean);
-    const categoryNames = [item.category, item.category_name, item.main_category_name, item.sub_category_name, item.child_category_name].map(normalizeFilterValue).filter(Boolean);
-    if (!categoryIds.includes(String(filters.category)) && !categoryNames.includes(normalizeFilterValue(filters.category))) return false;
-  }
   if (filters.brand !== "all") {
     const brandIds = [item.brand_id].map((value) => text(value)).filter(Boolean);
     const brandNames = [item.brand, item.brand_name].map(normalizeFilterValue).filter(Boolean);
@@ -699,10 +696,12 @@ const purchaseFilterMatches = (item = {}, filters = {}) => {
   }
   if (filters.gender !== "all" && !productMatchesAudience(item, filters.gender)) return false;
   if (filters.productType !== "all" && ![item.product_type, item.productType].map(normalizeFilterValue).includes(normalizeFilterValue(filters.productType))) return false;
-  if (filters.color !== "all" && normalizeFilterValue(item.color) !== normalizeFilterValue(filters.color)) return false;
-  if (filters.size !== "all" && normalizeFilterValue(item.size) !== normalizeFilterValue(filters.size)) return false;
-  if (filters.stock === "available" && money(item.stock) <= 0) return false;
-  if (filters.favorite === "favorites" && !(item.is_pos_favorite === true || item.isPosFavorite === true)) return false;
+  if (filters.grade !== "all" && normalizeFilterValue(item.grade) !== normalizeFilterValue(filters.grade)) return false;
+  if (filters.manufacturer !== "all") {
+    const manufacturerIds = [item.manufacturer_id].map((value) => text(value)).filter(Boolean);
+    const manufacturerNames = [item.manufacturer_name].map(normalizeFilterValue).filter(Boolean);
+    if (!manufacturerIds.includes(String(filters.manufacturer)) && !manufacturerNames.includes(normalizeFilterValue(filters.manufacturer))) return false;
+  }
   return true;
 };
 
@@ -739,14 +738,11 @@ function PurchaseOrder() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [purchaseFilters, setPurchaseFilters] = useState({
-    category: "all",
-    brand: "all",
     gender: "all",
     productType: "all",
-    color: "all",
-    size: "all",
-    stock: "all",
-    favorite: "all",
+    grade: "all",
+    brand: "all",
+    manufacturer: "all",
   });
   const status = "received";
   const [discount, setDiscount] = useState(0);
@@ -1247,11 +1243,6 @@ function PurchaseOrder() {
 
   const filterSource = debouncedSearch.trim().length >= 2 && searchProducts.length ? searchProducts : products;
   const purchaseFilterOptions = useMemo(() => ({
-    category: makeCountOptions(
-      filterSource,
-      (item) => optionId(item.category_id, item.main_category_id, normalizeFilterValue(firstText(item.category_name, item.category, item.main_category_name))),
-      (item) => firstText(item.category_name, item.category, item.main_category_name)
-    ),
     brand: makeCountOptions(
       filterSource,
       (item) => optionId(item.brand_id, normalizeFilterValue(firstText(item.brand_name, item.brand))),
@@ -1263,36 +1254,29 @@ function PurchaseOrder() {
       (item) => item.audience
     ),
     productType: makeCountOptions(filterSource, (item) => normalizeFilterValue(firstText(item.product_type, item.productType)), (item) => firstText(item.product_type, item.productType)),
-    color: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.color), (item) => item.color),
-    size: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.size), (item) => item.size),
+    grade: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.grade), (item) => item.grade),
+    manufacturer: makeCountOptions(
+      filterSource,
+      (item) => optionId(item.manufacturer_id, normalizeFilterValue(item.manufacturer_name)),
+      (item) => item.manufacturer_name
+    ),
   }), [filterSource]);
 
   const purchaseSmartFilterOptions = useMemo(
     () => ({
       gender: purchaseFilterOptions.gender,
       productType: purchaseFilterOptions.productType,
-      grade: [],
+      grade: purchaseFilterOptions.grade,
     }),
-    [purchaseFilterOptions.gender, purchaseFilterOptions.productType]
-  );
-  const purchaseStockOptions = useMemo(
-    () => [{ id: "available", name: isArabic ? "متاح فقط" : "Available only", count: filterSource.filter((item) => money(item.stock) > 0).length }],
-    [filterSource, isArabic]
-  );
-  const purchaseFavoriteOptions = useMemo(
-    () => [{ id: "favorites", name: isArabic ? "المفضلة فقط" : "Favorites only", count: filterSource.filter((item) => item.is_pos_favorite).length }],
-    [filterSource, isArabic]
+    [purchaseFilterOptions.gender, purchaseFilterOptions.productType, purchaseFilterOptions.grade]
   );
   const setPurchaseFilter = (key, value) => setPurchaseFilters((current) => ({ ...current, [key]: value }));
   const resetPurchaseFilters = () => setPurchaseFilters({
-    category: "all",
-    brand: "all",
     gender: "all",
     productType: "all",
-    color: "all",
-    size: "all",
-    stock: "all",
-    favorite: "all",
+    grade: "all",
+    brand: "all",
+    manufacturer: "all",
   });
 
   const variantsByProduct = useMemo(() => {
@@ -2380,34 +2364,19 @@ function PurchaseOrder() {
         open={filtersOpen}
         panelRef={filtersPanelRef}
         portalTarget={typeof document !== "undefined" ? document.fullscreenElement || document.body : undefined}
-        categoryOptions={purchaseFilterOptions.category}
-        selectedCategoryId={purchaseFilters.category}
-        onCategoryChange={(value) => setPurchaseFilter("category", value)}
         smartFilterOptions={purchaseSmartFilterOptions}
         selectedGender={purchaseFilters.gender}
         onGenderChange={(value) => setPurchaseFilter("gender", value)}
         selectedProductType={purchaseFilters.productType}
         onProductTypeChange={(value) => setPurchaseFilter("productType", value)}
-        selectedGrade="all"
-        onGradeChange={() => {}}
+        selectedGrade={purchaseFilters.grade}
+        onGradeChange={(value) => setPurchaseFilter("grade", value)}
         brandOptions={purchaseFilterOptions.brand}
         selectedBrandId={purchaseFilters.brand}
         onBrandChange={(value) => setPurchaseFilter("brand", value)}
-        manufacturerOptions={[]}
-        selectedManufacturerId="all"
-        onManufacturerChange={() => {}}
-        colorOptions={purchaseFilterOptions.color}
-        selectedColor={purchaseFilters.color}
-        onColorChange={(value) => setPurchaseFilter("color", value)}
-        sizeOptions={purchaseFilterOptions.size}
-        selectedSize={purchaseFilters.size}
-        onSizeChange={(value) => setPurchaseFilter("size", value)}
-        stockOptions={purchaseStockOptions}
-        selectedStock={purchaseFilters.stock}
-        onStockChange={(value) => setPurchaseFilter("stock", value)}
-        favoriteOptions={purchaseFavoriteOptions}
-        selectedFavorite={purchaseFilters.favorite}
-        onFavoriteChange={(value) => setPurchaseFilter("favorite", value)}
+        manufacturerOptions={purchaseFilterOptions.manufacturer}
+        selectedManufacturerId={purchaseFilters.manufacturer}
+        onManufacturerChange={(value) => setPurchaseFilter("manufacturer", value)}
         activeSmartFilterCount={activePurchaseFilterCount}
         onReset={resetPurchaseFilters}
         onClose={() => setFiltersOpen(false)}
