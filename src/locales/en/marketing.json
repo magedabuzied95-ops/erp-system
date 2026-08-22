@@ -170,6 +170,11 @@
       "copyFailed": "Copy failed",
       "copyCode": "Copy code",
       "copyMessage": "Copy message",
+      "send": "Send",
+      "sending": "Sending...",
+      "sent": "Coupon sent",
+      "sentToInbox": "Sent — it is in the AI Inbox thread",
+      "sendFailed": "Could not send",
       "openWhatsApp": "Open in WhatsApp"
     },
     "log": {

@@ -170,6 +170,11 @@
       "copyFailed": "تعذر النسخ",
       "copyCode": "نسخ الكود",
       "copyMessage": "نسخ الرسالة",
+      "send": "ابعت",
+      "sending": "جارٍ الإرسال...",
+      "sent": "تم إرسال الكوبون",
+      "sentToInbox": "اتبعت وظهر في صندوق الذكاء",
+      "sendFailed": "تعذر الإرسال",
       "openWhatsApp": "فتح في واتساب"
     },
     "log": {

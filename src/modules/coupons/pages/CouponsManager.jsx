@@ -345,6 +345,17 @@ export default function CouponsManager() {
     ],
   ];
 
+  const sendCouponToCustomer = async (customer, message) => {
+    if (!selectedCampaign?.id || !customer?.id) return null;
+    const response = await api.post(`/coupons/campaigns/${selectedCampaign.id}/send`, {
+      customer_id: customer.id,
+      message: message || "",
+    });
+    setAssignResult((current) => ({ ...(current || {}), ...response }));
+    loadCoupons();
+    return response;
+  };
+
   const assignCoupon = async (customer) => {
     if (!selectedCampaign?.id || !customer?.id) return;
     try {
@@ -569,6 +580,7 @@ export default function CouponsManager() {
           campaign={selectedCampaign}
           result={assignResult}
           onAssign={assignCoupon}
+          onSend={sendCouponToCustomer}
           onClose={() => { setAssignOpen(false); setAssignResult(null); }}
           cText={cText}
         />
@@ -687,11 +699,33 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
   );
 }
 
-function AssignCouponDialog({ campaign, result, onAssign, onClose, cText }) {
+function AssignCouponDialog({ campaign, result, onAssign, onSend, onClose, cText }) {
   const [term, setTerm] = useState("");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
+  const sent = Boolean(result?.sent);
+  useEffect(() => {
+    // Follow the server's message only until the manager starts editing it.
+    if (result?.message) setDraft((current) => (current ? current : result.message));
+  }, [result?.message]);
+  const send = async () => {
+    if (!result?.customer || sending) return;
+    setSending(true);
+    setSendFailed(false);
+    try {
+      await onSend?.(result.customer, draft);
+      toast.success(cText("assign.sent", "تم إرسال الكوبون"));
+    } catch (error) {
+      setSendFailed(true);
+      toast.error(error?.responseBody?.message || error.message || cText("assign.sendFailed", "تعذر الإرسال"));
+    } finally {
+      setSending(false);
+    }
+  };
   useEffect(() => {
     const q = term.trim();
     if (q.length < 2) { setRows([]); return undefined; }
@@ -731,16 +765,38 @@ function AssignCouponDialog({ campaign, result, onAssign, onClose, cText }) {
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200/80">{result.customer?.name} · {result.customer?.phone || "-"}</div>
               <div className="mt-2 font-mono text-2xl font-black tracking-widest text-white">{result.coupon?.code}</div>
             </div>
-            <textarea readOnly value={result.message || ""} rows={5} className="w-full rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-200 outline-none" />
-            <div className="flex flex-wrap justify-end gap-2">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              readOnly={sent}
+              rows={5}
+              className="w-full rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-200 outline-none"
+            />
+            {sent ? (
+              <div className="rounded-[var(--radius-card)] border border-emerald-300/25 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-100">
+                {cText("assign.sentToInbox", "اتبعت وظهر في صندوق الذكاء")}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button type="button" onClick={() => copy(result.coupon?.code || "")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold">{cText("assign.copyCode", "نسخ الكود")}</button>
-              <button type="button" onClick={() => copy(result.message || "")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold">{cText("assign.copyMessage", "نسخ الرسالة")}</button>
-              {result.whatsapp_url ? (
-                <a href={result.whatsapp_url} target="_blank" rel="noreferrer" className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/20 px-3 text-sm font-black text-emerald-50">
+              <button type="button" onClick={() => copy(draft)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold">{cText("assign.copyMessage", "نسخ الرسالة")}</button>
+              {sendFailed && result.whatsapp_url ? (
+                <a href={result.whatsapp_url} target="_blank" rel="noreferrer" className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-zinc-200">
                   <MessageCircle className="h-4 w-4" />
                   {cText("assign.openWhatsApp", "فتح في واتساب")}
                 </a>
               ) : null}
+              {sent ? null : (
+                <button
+                  type="button"
+                  onClick={send}
+                  disabled={sending || !draft.trim()}
+                  className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/20 px-4 text-sm font-black text-emerald-50 disabled:opacity-50"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                  {sending ? cText("assign.sending", "جارٍ الإرسال...") : cText("assign.send", "ابعت")}
+                </button>
+              )}
             </div>
           </div>
         ) : (

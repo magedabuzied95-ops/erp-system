@@ -892,6 +892,88 @@ export const assignCouponToCustomer = async ({ tenantId = null, campaignId, cust
 };
 
 /**
+ * Send an assigned coupon to the customer over WhatsApp and drop the message into the AI Inbox
+ * thread, so the coupon hand-off lives in the same conversation history as everything else.
+ *
+ * Human-initiated only (a manager clicks Send). It deliberately does NOT consult the restock
+ * messaging mode: that gate governs unattended/AI messaging, and this is the manual path —
+ * the same policy as a manual reply typed in the Inbox.
+ *
+ * Assignment is idempotent, so pressing Send twice re-sends the SAME code rather than minting
+ * a second one. Persistence follows the canonical outbound-by-phone path used by restock
+ * notifications, and runs only after the provider confirms the send — no ghost messages.
+ */
+export const sendAssignedCouponToCustomer = async ({ tenantId = null, campaignId, customerId, userId = null, message: overrideMessage = "" } = {}) => {
+  const assignment = await assignCouponToCustomer({ tenantId, campaignId, customerId, userId });
+  const phone = String(assignment.customer?.phone || "").trim();
+  if (!phone) {
+    const error = new Error("This customer has no phone number on file");
+    error.status = 400;
+    error.code = "CUSTOMER_PHONE_MISSING";
+    throw error;
+  }
+  const text = String(overrideMessage || assignment.message || "").trim();
+  if (!text) {
+    const error = new Error("Message body is required");
+    error.status = 400;
+    throw error;
+  }
+
+  const { sendTextMessage } = await import("./whatsappGatewayService.js");
+  const result = await sendTextMessage({ phone, message: text });
+  const providerMessageId = result?.result?.key?.id || result?.message_id || result?.key?.id || null;
+  const sent = Boolean(result?.success ?? result?.sent ?? providerMessageId);
+  if (!sent) {
+    const error = new Error("WhatsApp did not accept the message");
+    error.status = 502;
+    error.code = "WHATSAPP_SEND_FAILED";
+    throw error;
+  }
+
+  // Best-effort: a delivered coupon must never be reported as failed because the Inbox row did not write.
+  try {
+    const { normalizeWhatsappSessionId, normalizeWhatsappPhone } = await import("../utils/whatsappIdentity.js");
+    const { appendChannelOutboundSupportReply } = await import("./aiSupportLogService.js");
+    const canonicalPhone = normalizeWhatsappPhone(phone) || phone;
+    const sessionId = normalizeWhatsappSessionId(phone, canonicalPhone) || `whatsapp:${canonicalPhone}`;
+    await appendChannelOutboundSupportReply({
+      tenantId,
+      channel: "whatsapp",
+      sessionId,
+      resolvedPhone: canonicalPhone,
+      message: text,
+      providerMessageId,
+      externalMessageId: providerMessageId,
+      deliveryStatus: "sent",
+      senderType: "system",
+      source: "coupon_assignment",
+      sessionSource: "coupon_assignment",
+      sourcePath: "coupon_assignment",
+      insertSource: "coupon_assignment",
+    });
+    const { upsertChannelConversationMapping } = await import("./aiChannelAdapterService.js");
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel: "whatsapp",
+      externalConversationId: sessionId,
+      externalCustomerId: canonicalPhone,
+      lastMessageAt: new Date(),
+    });
+  } catch (error) {
+    console.error("[coupons] inbox persist failed after a confirmed send", String(error?.message || error).slice(0, 160));
+  }
+
+  console.log("[coupons] sent to customer", {
+    campaign_id: campaignId,
+    customer_id: assignment.customer?.id,
+    code: assignment.coupon?.code,
+    provider_message_id: providerMessageId,
+    by_user: userId,
+  });
+  return { ...assignment, sent: true, provider_message_id: providerMessageId, message: text };
+};
+
+/**
  * Phase 3.1 — after a customer's FIRST order, hand them a coupon from every campaign flagged
  * auto_issue_on_first_order. Called post-commit, fire-and-forget: it never throws into checkout.
  * Idempotent — assignCouponToCustomer reuses an unused coupon already assigned to that customer.
