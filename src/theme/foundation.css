@@ -144,6 +144,23 @@
     background-size: 18px 18px;
   }
 
+  @keyframes chat-typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  .chat-typing-dot { animation: chat-typing-bounce 1.1s ease-in-out infinite; }
+
+  /* Jump-to-quoted-message highlight. */
+  @keyframes chat-bubble-flash {
+    0%, 100% { background-color: transparent; }
+    25% { background-color: var(--primary-soft); }
+  }
+  .chat-bubble-flash { animation: chat-bubble-flash 1.4s ease-out; border-radius: var(--radius-control); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chat-typing-dot, .chat-bubble-flash { animation: none; }
+  }
+
   .m1-page { min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--app-font); font-size: 14px; line-height: 1.55; }
   .m1-container { width: min(100%, var(--content-max)); margin-inline: auto; padding-inline: var(--page-inline); }
   .m1-surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }

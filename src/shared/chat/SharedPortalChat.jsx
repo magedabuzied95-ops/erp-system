@@ -797,7 +797,7 @@ export default function SharedPortalChat({
         {errorMessage ? <div className="mt-3 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-sm font-bold text-[var(--danger)]" dir="auto">{errorMessage}</div> : null}
       </div>
 
-      <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "xl:grid-cols-[22rem_1fr_20rem] md:grid-cols-[20rem_1fr]" : "md:grid-cols-[22rem_1fr]"}`}>
+      <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] 2xl:grid-cols-[20rem_minmax(0,1fr)_18rem]" : "md:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]"}`}>
         <aside className={`${mobileFullScreen && mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l`}>
           <label className="mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-[var(--muted)]">
             <Search className="h-4 w-4 shrink-0" />
@@ -1006,7 +1006,7 @@ export default function SharedPortalChat({
         </div>
 
         {currentPanel ? (
-          <aside className="hidden min-h-0 overflow-y-auto border-r border-[var(--border)] bg-[var(--card)] p-3 xl:block">
+          <aside className="hidden min-h-0 overflow-y-auto border-r border-[var(--border)] bg-[var(--card)] p-3 2xl:block">
             {currentPanel}
           </aside>
         ) : null}

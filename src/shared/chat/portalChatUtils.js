@@ -279,3 +279,17 @@ export const isPortalChatImageMessage = (message = {}) =>
 
 export const isPortalChatVideoMessage = (message = {}) =>
   portalChatAttachmentType(message) === "video";
+
+/*
+ * Delivery state of an outgoing message, WhatsApp's ladder: pending (clock) ->
+ * sent (one tick) -> delivered (two ticks) -> read (two ticks, accent) - plus
+ * failed. `status` is the client-side optimistic field; the *_at columns are
+ * the server's.
+ */
+export const messageDeliveryState = (message = {}) => {
+  if (message.status === "failed") return "failed";
+  if (message.status === "pending" || message.pending) return "pending";
+  if (message.read_at) return "read";
+  if (message.delivered_at) return "delivered";
+  return "sent";
+};
