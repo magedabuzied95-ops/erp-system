@@ -14,7 +14,7 @@
 import db from "../database/db.js";
 import { getInventoryFacts } from "./aiBusinessToolsService.js";
 import { createStaffTask } from "./staffTasksService.js";
-import { findWaitingIntents, markIntentRecoveryCreated } from "./restockIntentService.js";
+import { findWaitingIntents, findWaitingCriteriaIntents, bindCriteriaIntentToVariant, markIntentRecoveryCreated } from "./restockIntentService.js";
 
 export const RECOVERY_DEFAULT_LIMIT = 25;
 export const RECOVERY_MAX_LIMIT = 100;
@@ -148,6 +148,33 @@ export const findWaitingCustomersForRestock = async ({ tenantId, productId, vari
     color: r.color || null,
     createdAt: r.created_at,
   }));
+
+  // 1b) Criteria intents ("men's mirror sneakers in 45") that this restocked variant
+  // satisfies. Binding rewrites the row into an exact-variant intent, so the draft,
+  // photo and template downstream need no special case. Bound only on a variant event.
+  if (variantId && intentCandidates.length < cap) {
+    const criteriaRows = await findWaitingCriteriaIntents({ tenantId, productId, variantId, limit: cap - intentCandidates.length });
+    for (const row of criteriaRows) {
+      // eslint-disable-next-line no-await-in-loop
+      const bound = await bindCriteriaIntentToVariant(tenantId, row.id, { productId, variantId, restockEventId: null }).catch(() => null);
+      if (!bound) continue;
+      intentCandidates.push({
+        source: "restock_intent",
+        matchQuality: "EXACT_VARIANT",
+        requestId: Number(bound.id),
+        intentId: Number(bound.id),
+        customerId: bound.customer_id != null ? Number(bound.customer_id) : null,
+        phone: bound.phone || null,
+        customerName: row.customer_name || null,
+        productId: Number(bound.product_id),
+        variantId: Number(bound.variant_id),
+        size: bound.size || null,
+        color: bound.color || null,
+        createdAt: bound.created_at,
+        criteria: row.criteria || null,
+      });
+    }
+  }
 
   // 2) Legacy product-only wishlist fallback (never claims to know the requested size).
   const remaining = Math.max(0, cap - intentCandidates.length);

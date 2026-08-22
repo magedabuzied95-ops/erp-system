@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Plus, Settings, ShoppingBag, XCircle } from "lucide-react";
+import { Loader2, Plus, Settings, ShoppingBag, SlidersHorizontal, Tags, XCircle } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import RestockWorkflowSettings from "./RestockWorkflowSettings.jsx";
+import { useProductClassifications } from "../../products/hooks/useProductClassifications";
+import { classificationGroupsToFieldOptions } from "../../products/lib/productClassifications";
 // The create form reuses the order composer's products section (ai-order__*),
 // the thumbnail hover-zoom lives in the drawer stylesheet.
 import "../pages/AiInboxOrderComposer.m1.css";
@@ -123,6 +125,65 @@ export default function RestockRequestsPanel({
     await loadRestockIntents();
   };
 
+  // ---- Criteria requests: "any men's mirror sneakers in 45", no product yet ----
+  // The backend binds the row to the real variant when matching stock arrives.
+  const CRITERIA_KEYS = ["gender", "product_type", "grade", "brand"];
+  const CRITERIA_LABEL_KEY = { gender: "aiSupport.inbox.customer360.criteria_gender", product_type: "aiSupport.inbox.customer360.criteria_product_type", grade: "aiSupport.inbox.customer360.criteria_grade", brand: "aiSupport.inbox.customer360.criteria_brand" };
+  const emptyCriteria = { gender: "", product_type: "", grade: "", brand: "", size: "" };
+  const [criteriaForm, setCriteriaForm] = useState({ open: false, editingId: null, values: emptyCriteria, busy: false });
+  const [criteriaOptions, setCriteriaOptions] = useState(null);
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
+  const classificationLabels = useMemo(() => {
+    const fields = classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: true, includeCurrentValue: false });
+    const map = { gender: new Map(), product_type: new Map(), grade: new Map() };
+    const fill = (key, list) => (list || []).forEach((o) => { const v = String(o.value || o.id || "").trim().toLowerCase(); if (v) map[key].set(v, o.label_ar || o.label_en || o.label || v); });
+    fill("gender", fields.gender); fill("product_type", fields.productType); fill("grade", fields.grade);
+    return map;
+  }, [classificationGroups]);
+  const criteriaLabel = (key, value) => {
+    const v = String(value || "").trim().toLowerCase();
+    if (!v) return "";
+    if (key === "brand") return String(value || "").trim();
+    return classificationLabels[key]?.get(v) || String(value || "").trim();
+  };
+  const describeCriteria = (criteria = {}) =>
+    [criteriaLabel("gender", criteria.gender), criteriaLabel("product_type", criteria.product_type), criteriaLabel("grade", criteria.grade), criteriaLabel("brand", criteria.brand), criteria.size ? `مقاس ${criteria.size}` : ""].filter(Boolean).join(" · ");
+  const openCriteriaForm = (intent = null) => {
+    setRestockMsg("");
+    setCriteriaForm({ open: true, editingId: intent?.id || null, values: { ...emptyCriteria, ...(intent?.criteria || {}) }, busy: false });
+    if (!criteriaOptions) {
+      api.get("/ai-studio/restock-intents/criteria-options", { suppressErrorStatuses: [400, 403, 404, 500] })
+        .then((res) => setCriteriaOptions({ gender: safeArray(res?.gender), product_type: safeArray(res?.product_type), grade: safeArray(res?.grade), brand: safeArray(res?.brand), sizes: safeArray(res?.sizes) }))
+        .catch(() => setCriteriaOptions({ gender: [], product_type: [], grade: [], brand: [], sizes: [] }));
+    }
+  };
+  const setCriteriaValue = (key, value) => setCriteriaForm((f) => ({ ...f, values: { ...f.values, [key]: f.values[key] === value ? "" : value } }));
+  const criteriaValid = Boolean(clean(criteriaForm.values.size)) && CRITERIA_KEYS.some((key) => clean(criteriaForm.values[key]));
+  const submitCriteria = async () => {
+    if (!criteriaValid) { setRestockMsg(t("aiSupport.inbox.customer360.criteriaNeedsSizeAndOne")); return; }
+    if (!restockPhone) { setRestockMsg("This customer has no phone on record."); return; }
+    setCriteriaForm((f) => ({ ...f, busy: true })); setRestockMsg("");
+    try {
+      const criteria = Object.fromEntries(Object.entries(criteriaForm.values).filter(([, v]) => clean(v)));
+      const res = await api.post("/ai-studio/restock-intents", { criteria, phone: restockPhone, customerId: customerId || null, source, sourceReference }, { suppressErrorStatuses: [400, 403, 404, 409, 500] });
+      if (res?.success === false) { setRestockMsg(res?.message || "Failed"); setCriteriaForm((f) => ({ ...f, busy: false })); return; }
+      if (res?.available_now) {
+        const sample = safeArray(res?.matches).slice(0, 3).map((m) => `${clean(m.product_name)} (${[m.color, m.size].filter(Boolean).join(" / ")}) ×${m.stock}`).join("، ");
+        setRestockMsg(`${t("aiSupport.inbox.customer360.criteriaAvailableNow")} ${sample}`);
+        setCriteriaForm((f) => ({ ...f, busy: false }));
+        return;
+      }
+      if (criteriaForm.editingId) {
+        await api.post(`/ai-studio/restock-intents/${encodeURIComponent(criteriaForm.editingId)}/cancel`, {}, { suppressErrorStatuses: [400, 403, 404, 500] });
+        setRestockMsg(t("aiSupport.inbox.customer360.restockEdited"));
+      } else {
+        setRestockMsg(res?.reused ? t("aiSupport.inbox.customer360.restockReusedCount", { count: 1 }) : t("aiSupport.inbox.customer360.restockCreatedCount", { count: 1 }));
+      }
+      setCriteriaForm({ open: false, editingId: null, values: emptyCriteria, busy: false });
+      await loadRestockIntents();
+    } catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to create request"); setCriteriaForm((f) => ({ ...f, busy: false })); }
+  };
+
   // A pick arriving from the inbox picker also re-opens the create form: the
   // picker covers the drawer, so collapsing it on the way back would drop the
   // product the user just chose. Picks append (deduped per variant) so the form
@@ -156,10 +217,60 @@ export default function RestockRequestsPanel({
             <Settings className="h-3.5 w-3.5" />
           </button>
         </div>
-        <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.createRestockRequest")}</button>
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => (criteriaForm.open ? setCriteriaForm((f) => ({ ...f, open: false })) : openCriteriaForm())} className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-[11px] font-black transition ${criteriaForm.open ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]"}`}>
+            <SlidersHorizontal className="h-3.5 w-3.5" />{t("aiSupport.inbox.customer360.createCriteriaRequest")}
+          </button>
+          <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.createRestockRequest")}</button>
+        </div>
       </div>
       <RestockWorkflowSettings open={restockSettingsOpen} onClose={() => setRestockSettingsOpen(false)} />
       {restockMsg ? <div className="mt-2 rounded-xl bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">{restockMsg}</div> : null}
+      {criteriaForm.open ? (
+        <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
+          <div className="text-xs text-[var(--muted)]">{t("aiSupport.inbox.customer360.criteriaHint")}</div>
+          {!criteriaOptions ? (
+            <div className="flex items-center gap-2 p-2 text-sm text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" />{t("aiSupport.inbox.customer360.loading")}</div>
+          ) : (
+            <>
+              {CRITERIA_KEYS.map((key) => (
+                <div key={key} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--muted)]">{t(CRITERIA_LABEL_KEY[key])}</div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {safeArray(criteriaOptions[key]).length === 0 ? <span className="text-[11px] text-[var(--muted)]">—</span> : null}
+                    {safeArray(criteriaOptions[key]).map((option) => {
+                      const active = clean(criteriaForm.values[key]).toLowerCase() === option.value;
+                      return (
+                        <button key={option.value} type="button" onClick={() => setCriteriaValue(key, option.value)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-black transition ${active ? "border-[var(--primary)] bg-[var(--primary)] text-[#171714]" : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] hover:border-[var(--primary)]"}`}>
+                          {criteriaLabel(key, option.value)}<span className={`ms-1 text-[9px] ${active ? "text-[#171714]/70" : "text-[var(--muted)]"}`}>{option.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--muted)]">{t("aiSupport.inbox.customer360.criteria_size")} *</div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {safeArray(criteriaOptions.sizes).map((size) => {
+                    const active = clean(criteriaForm.values.size).toLowerCase() === String(size).toLowerCase();
+                    return (
+                      <button key={size} type="button" onClick={() => setCriteriaForm((f) => ({ ...f, values: { ...f.values, size: active ? "" : size } }))} className={`min-w-10 rounded-lg border px-2 py-1 text-center text-[12px] font-black transition ${active ? "border-[var(--primary)] bg-[var(--primary)] text-[#171714]" : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] hover:border-[var(--primary)]"}`}>{size}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-black text-[var(--text)]">
+                {describeCriteria(criteriaForm.values) || t("aiSupport.inbox.customer360.criteriaEmptySummary")}
+              </div>
+            </>
+          )}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setCriteriaForm({ open: false, editingId: null, values: emptyCriteria, busy: false })} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">{t("aiSupport.inbox.customer360.cancel")}</button>
+            <button type="button" onClick={submitCriteria} disabled={criteriaForm.busy || !criteriaValid || !criteriaOptions} className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)] bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-black text-[var(--primary)] disabled:opacity-50">{criteriaForm.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{criteriaForm.editingId ? t("aiSupport.inbox.customer360.restockEdit") : t("aiSupport.inbox.customer360.confirmCreate")}</button>
+          </div>
+        </div>
+      ) : null}
       {restockCreate.open ? (
         <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
           <div className="text-xs text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockHint")}</div>
@@ -219,16 +330,18 @@ export default function RestockRequestsPanel({
         ) : restockIntents.map((i) => {
           const intentImage = resolveProductImageUrl(i.image_url || "");
           const intentActive = ["waiting", "recovery_created"].includes(i.status);
+          const isCriteria = Boolean(i.criteria) && !i.product_id;
+          const wasCriteria = Boolean(i.criteria) && Boolean(i.product_id);
           return (
           <div key={i.id} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-2.5">
             <div className="m1-restock-thumb h-14 w-14 shrink-0 overflow-visible rounded-xl border border-[var(--border)] bg-[var(--surface)]">
-              {intentImage ? <img src={intentImage} alt="" loading="lazy" /> : null}
+              {intentImage ? <img src={intentImage} alt="" loading="lazy" /> : isCriteria ? <div className="grid h-full w-full place-items-center text-[var(--muted)]"><Tags className="h-5 w-5" /></div> : null}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-black text-[var(--text)]">{clean(i.product_name) || `Product #${i.product_id}`}</div>
-              <div className="mt-0.5 text-xs text-[var(--muted)]">{i.variant_id ? [i.color, i.size ? `Size ${i.size}` : ""].filter(Boolean).join(" · ") || `Variant #${i.variant_id}` : "Product-level — requested size unknown"} · {formatDateTime(i.created_at)}</div>
+              <div className="truncate text-sm font-black text-[var(--text)]">{isCriteria ? describeCriteria(i.criteria) : clean(i.product_name) || `Product #${i.product_id}`}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">{isCriteria ? t("aiSupport.inbox.customer360.criteriaWaitingHint") : i.variant_id ? [i.color, i.size ? `Size ${i.size}` : ""].filter(Boolean).join(" · ") || `Variant #${i.variant_id}` : "Product-level — requested size unknown"}{wasCriteria ? ` · ${t("aiSupport.inbox.customer360.criteriaMatchedFrom", { criteria: describeCriteria(i.criteria) })}` : ""} · {formatDateTime(i.created_at)}</div>
               <div className="mt-0.5 flex items-center gap-1.5">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${i.variant_id ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{i.variant_id ? "Exact variant" : "Legacy product-level"}</span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${isCriteria ? "bg-sky-100 text-sky-700" : i.variant_id ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{isCriteria ? t("aiSupport.inbox.customer360.criteriaBadge") : i.variant_id ? "Exact variant" : "Legacy product-level"}</span>
                 <span className="text-[10px] font-bold text-[var(--text-secondary)]">{i.status}</span>
                 <span className="text-[10px] text-[var(--muted)]">{i.source}</span>
               </div>
@@ -236,7 +349,7 @@ export default function RestockRequestsPanel({
             <div className="flex shrink-0 flex-col gap-1">
               {intentActive ? (
                 <>
-                  <button type="button" onClick={() => editRestockIntent(i)} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.restockEdit")}</button>
+                  <button type="button" onClick={() => (isCriteria ? openCriteriaForm(i) : editRestockIntent(i))} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.restockEdit")}</button>
                   <button type="button" onClick={() => cancelRestockIntent(i.id)} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">{t("aiSupport.inbox.customer360.cancel")}</button>
                 </>
               ) : (

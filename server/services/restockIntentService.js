@@ -53,6 +53,15 @@ export const ensureRestockIntentSchema = async (client = db) => {
       WHERE status IN ('waiting','recovery_created','customer_notified')`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_restock_intents_match ON restock_intents (tenant_id, product_id, variant_id, status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_restock_intents_tenant ON restock_intents (tenant_id, created_at DESC)`);
+    // Criteria intents: "any men's mirror sneakers in 45" — no product yet. product_id
+    // stays NULL until a restock event binds the row to the real variant, after which
+    // it is an ordinary exact-variant intent for everything downstream.
+    await client.query(`ALTER TABLE restock_intents ALTER COLUMN product_id DROP NOT NULL`);
+    await client.query(`ALTER TABLE restock_intents ADD COLUMN IF NOT EXISTS criteria JSONB NULL`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_restock_intents_active_criteria
+      ON restock_intents (tenant_id, COALESCE(phone, ''), md5(criteria::text))
+      WHERE criteria IS NOT NULL AND product_id IS NULL AND status IN ('waiting','recovery_created','customer_notified')`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_restock_intents_criteria ON restock_intents (tenant_id, status) WHERE criteria IS NOT NULL AND product_id IS NULL`);
   })().catch((e) => { schemaReady = null; throw e; });
   return schemaReady;
 };
@@ -231,4 +240,163 @@ export const getIntentCounts = async (tenantId) => {
     [tenantId]
   );
   return r.rows[0] || { waiting: 0, waiting_exact_variant: 0, recovery_created: 0, customer_notified: 0, fulfilled: 0, cancelled: 0 };
+};
+
+// ---------------------------------------------------------------------------
+// Criteria intents — a request by attributes instead of by product.
+// ---------------------------------------------------------------------------
+export const CRITERIA_ATTRIBUTE_KEYS = Object.freeze(["gender", "product_type", "grade", "brand"]);
+const lowerTrim = (value = "") => String(value ?? "").trim().toLowerCase();
+
+// Normalised, key-sorted, so the same request always hashes the same (dedup index).
+export const normalizeCriteria = (input = {}) => {
+  const out = {};
+  for (const key of CRITERIA_ATTRIBUTE_KEYS) { const v = lowerTrim(input?.[key]); if (v && v !== "all") out[key] = v; }
+  const size = String(input?.size ?? "").trim();
+  if (!size) throw err("criteria.size is required");
+  if (!Object.keys(out).length) throw err("at least one of gender / product_type / grade / brand is required");
+  out.size = size;
+  return Object.fromEntries(Object.keys(out).sort().map((k) => [k, out[k]]));
+};
+
+// SQL fragment + params matching products/variants against a criteria object.
+// Attribute matches are case-insensitive equality on the product columns; size is
+// compared on the variant. `p` is the products alias, `v` the variant alias.
+const criteriaWhere = (criteria, params, { p = "p", v = "v" } = {}) => {
+  const parts = [];
+  for (const key of CRITERIA_ATTRIBUTE_KEYS) {
+    if (!criteria[key]) continue;
+    params.push(criteria[key]);
+    parts.push(`LOWER(TRIM(COALESCE(${p}.${key}, ''))) = $${params.length}`);
+  }
+  params.push(lowerTrim(criteria.size));
+  parts.push(`LOWER(TRIM(COALESCE(${v}.size, ''))) = $${params.length}`);
+  return parts.join(" AND ");
+};
+
+// What is sellable RIGHT NOW for these criteria (so the cashier can sell instead of waiting).
+export const findCriteriaMatchesInStock = async ({ tenantId, criteria, limit = 5 } = {}) => {
+  const params = [tenantId];
+  const where = criteriaWhere(criteria, params);
+  params.push(Math.min(Math.max(1, Number(limit) || 5), 20));
+  const r = await db.query(
+    `SELECT p.id AS product_id, p.name AS product_name, v.id AS variant_id, v.color, v.size, v.stock
+       FROM product_variants v JOIN products p ON p.id = v.product_id
+      WHERE p.tenant_id = $1 AND v.deleted_at IS NULL AND v.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(v.stock, 0) > 0 AND ${where}
+      ORDER BY v.stock DESC, p.id ASC LIMIT $${params.length}`,
+    params
+  );
+  return r.rows;
+};
+
+export const createCriteriaIntent = async ({ tenantId, customerId = null, phone = null, criteria: rawCriteria = {}, source = "admin", sourceReference = null } = {}) => {
+  await ensureRestockIntentSchema();
+  if (!tenantId) throw err("tenantId is required");
+  if (!INTENT_SOURCES.includes(source)) source = "admin";
+  const normPhone = phone ? normalizePhone(String(phone)) : null;
+  if (!normPhone && !customerId) throw err("a phone or customer identity is required");
+  const criteria = normalizeCriteria(rawCriteria);
+
+  // Same rule as a variant intent: if something matching is on the shelf, sell it —
+  // the request is for what is NOT here.
+  const inStock = await findCriteriaMatchesInStock({ tenantId, criteria, limit: 5 });
+  if (inStock.length) return { available_now: true, intent: null, matches: inStock };
+
+  const findActive = () => db.query(
+    `SELECT * FROM restock_intents WHERE tenant_id = $1 AND COALESCE(phone,'') = $2 AND product_id IS NULL AND criteria IS NOT NULL
+        AND md5(criteria::text) = md5($3::jsonb::text) AND status IN ('waiting','recovery_created','customer_notified') LIMIT 1`,
+    [tenantId, normPhone || "", JSON.stringify(criteria)]
+  );
+  const existing = await findActive();
+  if (existing.rows[0]) return { reused: true, intent: existing.rows[0] };
+  try {
+    const ins = await db.query(
+      `INSERT INTO restock_intents (tenant_id, customer_id, phone, product_id, variant_id, size, color, criteria, status, source, source_reference)
+       VALUES ($1,$2,$3,NULL,NULL,$4,NULL,$5::jsonb,'waiting',$6,$7) RETURNING *`,
+      [tenantId, customerId || null, normPhone, criteria.size, JSON.stringify(criteria), source, sourceReference]
+    );
+    return { created: true, intent: ins.rows[0] };
+  } catch (e) {
+    if (String(e?.code) === "23505") {
+      const again = await findActive();
+      if (again.rows[0]) return { reused: true, intent: again.rows[0] };
+    }
+    throw e;
+  }
+};
+
+// Waiting criteria intents that the restocked variant satisfies.
+export const findWaitingCriteriaIntents = async ({ tenantId, productId, variantId, limit } = {}) => {
+  await ensureRestockIntentSchema();
+  if (!tenantId || !productId || !variantId) return [];
+  const cap = Math.min(Math.max(1, Number(limit) || INTENT_DEFAULT_LIMIT), INTENT_MAX_LIMIT);
+  const r = await db.query(
+    `SELECT ri.*, c.name AS customer_name
+       FROM restock_intents ri
+       JOIN products p ON p.id = $2 AND p.tenant_id = ri.tenant_id
+       JOIN product_variants v ON v.id = $3 AND v.product_id = p.id
+       LEFT JOIN customers c ON c.id = ri.customer_id AND c.tenant_id = ri.tenant_id
+      WHERE ri.tenant_id = $1 AND ri.status = 'waiting' AND ri.product_id IS NULL AND ri.criteria IS NOT NULL
+        AND (ri.criteria->>'gender' IS NULL OR LOWER(TRIM(COALESCE(p.gender,''))) = ri.criteria->>'gender')
+        AND (ri.criteria->>'product_type' IS NULL OR LOWER(TRIM(COALESCE(p.product_type,''))) = ri.criteria->>'product_type')
+        AND (ri.criteria->>'grade' IS NULL OR LOWER(TRIM(COALESCE(p.grade,''))) = ri.criteria->>'grade')
+        AND (ri.criteria->>'brand' IS NULL OR LOWER(TRIM(COALESCE(p.brand,''))) = ri.criteria->>'brand')
+        AND LOWER(TRIM(COALESCE(v.size,''))) = LOWER(TRIM(COALESCE(ri.criteria->>'size','')))
+      ORDER BY ri.created_at ASC LIMIT $4`,
+    [tenantId, productId, variantId, cap]
+  );
+  return r.rows;
+};
+
+// Turn a matched criteria intent into an exact-variant intent. Returns the bound row,
+// or null when the customer already holds an active intent on that very variant (the
+// criteria row is then cancelled as a duplicate rather than messaging them twice).
+export const bindCriteriaIntentToVariant = async (tenantId, intentId, { productId, variantId, size = null, color = null, restockEventId = null } = {}) => {
+  await ensureRestockIntentSchema();
+  try {
+    const r = await db.query(
+      `UPDATE restock_intents
+          SET product_id = $3, variant_id = $4, size = COALESCE($5, size), color = $6,
+              metadata = metadata || jsonb_build_object('criteria_bound_at', NOW(), 'criteria_bound_event', $7::text),
+              updated_at = NOW()
+        WHERE tenant_id = $1 AND id = $2 AND product_id IS NULL AND status = 'waiting' RETURNING *`,
+      [tenantId, intentId, productId, variantId, size, color, restockEventId]
+    );
+    return r.rows[0] || null;
+  } catch (e) {
+    if (String(e?.code) === "23505") {
+      await db.query(
+        `UPDATE restock_intents SET status = 'cancelled', cancelled_at = NOW(), metadata = metadata || '{"cancel_reason":"duplicate_of_variant_intent"}'::jsonb, updated_at = NOW() WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, intentId]
+      );
+      return null;
+    }
+    throw e;
+  }
+};
+
+// Vocabulary for the criteria form: the attribute values products actually carry,
+// plus every size any variant was ever cut in.
+export const getCriteriaOptions = async (tenantId) => {
+  const [attrs, sizes] = await Promise.all([
+    db.query(
+      `SELECT 'gender' AS key, LOWER(TRIM(gender)) AS value, COUNT(*)::int AS count FROM products WHERE tenant_id = $1 AND COALESCE(TRIM(gender),'') <> '' GROUP BY 2
+       UNION ALL SELECT 'product_type', LOWER(TRIM(product_type)), COUNT(*)::int FROM products WHERE tenant_id = $1 AND COALESCE(TRIM(product_type),'') <> '' GROUP BY 2
+       UNION ALL SELECT 'grade', LOWER(TRIM(grade)), COUNT(*)::int FROM products WHERE tenant_id = $1 AND COALESCE(TRIM(grade),'') <> '' GROUP BY 2
+       UNION ALL SELECT 'brand', LOWER(TRIM(brand)), COUNT(*)::int FROM products WHERE tenant_id = $1 AND COALESCE(TRIM(brand),'') <> '' GROUP BY 2`,
+      [tenantId]
+    ),
+    db.query(
+      `SELECT DISTINCT TRIM(v.size) AS size FROM product_variants v JOIN products p ON p.id = v.product_id
+        WHERE p.tenant_id = $1 AND v.deleted_at IS NULL AND COALESCE(TRIM(v.size),'') <> ''`,
+      [tenantId]
+    ),
+  ]);
+  const out = { gender: [], product_type: [], grade: [], brand: [], sizes: [] };
+  for (const row of attrs.rows) if (out[row.key]) out[row.key].push({ value: row.value, count: row.count });
+  for (const key of CRITERIA_ATTRIBUTE_KEYS) out[key].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  const numeric = (s) => { const n = parseFloat(String(s).replace(/[^\d.]/g, "")); return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY; };
+  out.sizes = sizes.rows.map((r) => r.size).sort((a, b) => numeric(a) - numeric(b) || String(a).localeCompare(String(b)));
+  return out;
 };

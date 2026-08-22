@@ -37,7 +37,7 @@ import {
 } from "../services/aiWorkflowService.js";
 import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecoveryService.js";
-import { createIntent, listIntents, cancelIntent, markIntentFulfilled, deleteIntent, getIntentCounts } from "../services/restockIntentService.js";
+import { createIntent, createCriteriaIntent, getCriteriaOptions, listIntents, cancelIntent, markIntentFulfilled, deleteIntent, getIntentCounts } from "../services/restockIntentService.js";
 import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode, getMessageTemplate, setMessageTemplate, renderMessageTemplate } from "../services/restockNotificationService.js";
 
 // Sample facts for the template preview shown in the inbox gear.
@@ -121,6 +121,9 @@ router.post("/restock-recovery/seed-template", protect, permit("settings", "edit
 });
 
 // ---- Phase 7: Restock Intents (variant-level explicit requests) ----
+router.get("/restock-intents/criteria-options", protect, permitRestockView, async (req, res) => {
+  try { res.json({ success: true, ...(await getCriteriaOptions(tid(req))) }); } catch (error) { fail(res, error); }
+});
 router.get("/restock-intents", protect, permitRestockView, async (req, res) => {
   try {
     const filter = { status: req.query.status || null, limit: req.query.limit, phone: req.query.phone || null, customerId: req.query.customerId || null };
@@ -132,6 +135,11 @@ router.get("/restock-intents", protect, permitRestockView, async (req, res) => {
 router.post("/restock-intents", protect, permitRestockEdit, async (req, res) => {
   try {
     const b = req.body || {};
+    // A criteria request carries no product: "{ gender, product_type, grade, brand, size }".
+    if (b.criteria && typeof b.criteria === "object") {
+      const rc = await createCriteriaIntent({ tenantId: tid(req), customerId: b.customerId || b.customer_id || null, phone: b.phone || null, criteria: b.criteria, source: b.source === "ai_inbox" ? "ai_inbox" : "admin", sourceReference: b.sourceReference || b.source_reference || null });
+      return res.status(rc.created ? 201 : 200).json({ success: true, ...rc });
+    }
     const r = await createIntent({ tenantId: tid(req), customerId: b.customerId || b.customer_id || null, phone: b.phone || null, productId: Number(b.productId ?? b.product_id), variantId: (b.variantId ?? b.variant_id) ? Number(b.variantId ?? b.variant_id) : null, source: b.source === "ai_inbox" ? "ai_inbox" : "admin", sourceReference: b.sourceReference || b.source_reference || null });
     res.status(r.created ? 201 : 200).json({ success: true, ...r });
   } catch (error) { fail(res, error); }
