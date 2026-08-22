@@ -4,7 +4,7 @@ import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
-import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment, updateStaffTaskDetails, deleteStaffTask } from "./staffTasksService.js";
+import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment, updateStaffTaskDetails, deleteStaffTask, listStaffTaskTemplates, saveStaffTaskTemplate, setStaffTaskTemplateActive, deleteStaffTaskTemplate, getStaffTaskTemplateCompliance, generateDueTaskInstancesFromTemplates } from "./staffTasksService.js";
 import {
   answerAdminChatRing,
   sendAdminChatRing,
@@ -2440,3 +2440,98 @@ export const updateManagerPortalTask = async ({ manager = {}, taskId, data = {} 
 
 export const deleteManagerPortalTask = async ({ manager = {}, taskId } = {}) =>
   deleteStaffTask(taskId, managerTaskActor(manager));
+
+// ---- Recurring task templates (daily / weekly fixed tasks) ----
+// The portal manages the tenant's templates scoped to the manager's branch
+// (or all branches for an all-scope manager). Compliance is the trailing
+// 7-day window so the manager sees whether the routine actually happens.
+
+export const getManagerPortalTaskTemplates = async ({ manager = {} } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const [templates, compliance] = await Promise.all([
+    listStaffTaskTemplates({ tenantId, branchId, template_kind: "daily,weekly", limit: 300 }, managerTaskActor(manager)),
+    getStaffTaskTemplateCompliance({ tenantId, branchId, days: 7 }),
+  ]);
+  const employeeIds = [...new Set(templates.map((template) => numberOrNull(template.fixed_employee_id)).filter(Boolean))];
+  const employeeNames = employeeIds.length
+    ? await safeQuery(`SELECT id, full_name AS name FROM employees WHERE id = ANY($1::bigint[])`, [employeeIds])
+    : [];
+  const nameById = new Map(employeeNames.map((row) => [String(row.id), row.name]));
+  return repairManagerPortalPayload(
+    templates.map((template) => {
+      const stats = compliance[String(template.id)] || { generated: 0, completed: 0, late: 0, last_completed_at: null };
+      return {
+        id: template.id,
+        title: template.title_ar || template.title,
+        description: template.description_ar || template.description,
+        template_kind: template.template_kind,
+        frequency: template.frequency,
+        weekdays: Array.isArray(template.weekdays) ? template.weekdays : [],
+        due_time: template.recurring_rule?.due_time || null,
+        priority: template.priority,
+        branch_id: template.branch_id,
+        is_active: template.is_active !== false,
+        fixed_employee_id: numberOrNull(template.fixed_employee_id),
+        fixed_employee_name: nameById.get(String(template.fixed_employee_id)) || null,
+        auto_assign_enabled: Boolean(template.auto_assign_enabled),
+        assignment_strategy: template.assignment_strategy,
+        checklist_items: Array.isArray(template.checklist_items) ? template.checklist_items : [],
+        requires_photo: Boolean(template.requires_photo || template.photo_required),
+        compliance: {
+          generated: Number(stats.generated) || 0,
+          completed: Number(stats.completed) || 0,
+          late: Number(stats.late) || 0,
+          rate: Number(stats.generated) ? Math.round((Number(stats.completed) / Number(stats.generated)) * 100) : null,
+          last_completed_at: stats.last_completed_at || null,
+        },
+      };
+    })
+  );
+};
+
+export const saveManagerPortalTaskTemplate = async ({ manager = {}, templateId = null, data = {} } = {}) => {
+  const actor = managerTaskActor(manager);
+  const kind = String(data.template_kind || data.kind || "daily").toLowerCase() === "weekly" ? "weekly" : "daily";
+  const fixedEmployeeId = numberOrNull(data.fixed_employee_id ?? data.employee_id);
+  const template = await saveStaffTaskTemplate(
+    {
+      template_id: numberOrNull(templateId),
+      tenant_id: manager.tenant_id || null,
+      title: data.title,
+      description: data.description,
+      title_ar: data.title,
+      description_ar: data.description,
+      priority: data.priority || "medium",
+      template_kind: kind,
+      frequency: kind,
+      weekdays: Array.isArray(data.weekdays) ? data.weekdays : [],
+      due_time: data.due_time || null,
+      branch_id: numberOrNull(data.branch_id) ?? (manager.branch_scope === "all" ? null : numberOrNull(manager.branch_id)),
+      fixed_employee_id: fixedEmployeeId,
+      // "Least busy at check-in" is the only auto mode; a named employee
+      // disables it.
+      auto_assign_enabled: !fixedEmployeeId && Boolean(data.auto_assign_enabled),
+      assignment_strategy: data.assignment_strategy || "least_tasks_today",
+      checklist_items: Array.isArray(data.checklist_items) ? data.checklist_items.map((item) => String(item || "").trim()).filter(Boolean) : [],
+      requires_photo: Boolean(data.requires_photo),
+      default_deadline_minutes: data.default_deadline_minutes || 480,
+    },
+    actor
+  );
+  if (!template) return null;
+  // A brand-new template that is due today should show up today, not
+  // tomorrow at the next timer tick.
+  if (!templateId) {
+    await generateDueTaskInstancesFromTemplates({ tenantId: template.tenant_id, templateId: template.id, actor }).catch((error) => {
+      console.warn("[manager-portal] template first-day generation skipped", error.message);
+    });
+  }
+  return template;
+};
+
+export const setManagerPortalTaskTemplateActive = async ({ manager = {}, templateId, isActive } = {}) =>
+  setStaffTaskTemplateActive(templateId, isActive, managerTaskActor(manager));
+
+export const deleteManagerPortalTaskTemplate = async ({ manager = {}, templateId } = {}) =>
+  deleteStaffTaskTemplate(templateId, managerTaskActor(manager));

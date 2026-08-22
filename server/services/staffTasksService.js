@@ -64,6 +64,43 @@ const normalizeDayOfMonth = (value) => {
   const day = Number(value);
   return Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
 };
+// "HH:MM" in the attendance timezone, or null. A template's fixed due time of
+// day; the generator turns it into due_at for each generated instance.
+const normalizeDueTime = (value) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(text(value));
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+};
+// Resolve "YYYY-MM-DD" + "HH:MM" in the attendance timezone to a UTC Date.
+// Two-pass offset correction handles DST edges without a tz library.
+const zonedDateTimeToUtc = (dateKeyValue, dueTime) => {
+  const [year, month, day] = String(dateKeyValue).split("-").map(Number);
+  const [hours, minutes] = String(dueTime).split(":").map(Number);
+  if (![year, month, day, hours, minutes].every(Number.isFinite)) return null;
+  const timeZone = getAttendanceTimeZone();
+  const asUtc = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+  const offsetAt = (utcMillis) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(new Date(utcMillis));
+    const values = Object.fromEntries(parts.map((part) => [part.type, Number(part.value)]));
+    const local = Date.UTC(values.year, values.month - 1, values.day, values.hour, values.minute, values.second);
+    return local - utcMillis;
+  };
+  let guess = asUtc - offsetAt(asUtc);
+  guess = asUtc - offsetAt(guess);
+  return new Date(guess);
+};
 const jsonObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 const jsonArray = (value) => (Array.isArray(value) ? value : []);
 const priorityWeight = (priority = "medium") => ({ low: 1, medium: 2, high: 3, critical: 4 }[priority] || 2);
@@ -1371,6 +1408,7 @@ const templatePayloadFromTaskPayload = (payload = {}, actor = {}) => {
     autoAssignMode,
     fixedEmployeeId: numberOrNull(payload.fixed_employee_id ?? payload.fixedEmployeeId ?? payload.employee_id ?? payload.employeeId),
     checklistItems: jsonArray(payload.checklist_items ?? payload.checklistItems),
+    dueTime: normalizeDueTime(payload.due_time ?? payload.dueTime ?? payload.recurring_rule?.due_time ?? payload.recurringRule?.dueTime),
     createdBy: actor?.id || payload.created_by || null,
   };
 };
@@ -1387,6 +1425,10 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
     assignment_strategy: data.assignmentStrategy,
     auto_assign_mode: data.autoAssignMode,
     fixed_employee_id: data.fixedEmployeeId,
+    due_time: data.dueTime,
+    // Opt-in for the background scheduler. Templates saved before the
+    // scheduler existed stay manual (button-driven) until they are re-saved.
+    auto_generate: true,
   };
   const id = numberOrNull(payload.template_id ?? payload.templateId);
   const result = id
@@ -1547,13 +1589,80 @@ export const deleteStaffTaskTemplate = async (templateId, actor = {}) => {
   return template;
 };
 
+export const setStaffTaskTemplateActive = async (templateId, isActive, actor = {}) => {
+  await ensureStaffTasksSchema();
+  const tenantId = resolveTaskTenantId(actor);
+  const result = await db.query(
+    `
+    UPDATE staff_task_templates
+    SET is_active = $3::boolean, updated_at = NOW()
+    WHERE id = $1::bigint
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    RETURNING *
+    `,
+    [numberOrNull(templateId), tenantId, Boolean(isActive)]
+  );
+  return result.rows[0] || null;
+};
+
+// Per-template adherence over the trailing window: how many instances were
+// generated, how many of those closed as completed, and how many are still
+// open past their due time. Drives the "fixed tasks" panel in the portal.
+export const getStaffTaskTemplateCompliance = async ({ tenantId = null, branchId = null, days = 7 } = {}) => {
+  await ensureStaffTasksSchema();
+  const window = Math.min(Math.max(Number(days) || 7, 1), 90);
+  const result = await db.query(
+    `
+    SELECT
+      t.template_id,
+      COUNT(*)::int AS generated,
+      COUNT(*) FILTER (WHERE t.status = 'completed')::int AS completed,
+      COUNT(*) FILTER (WHERE t.status IN ('overdue') OR (t.status IN ('pending','in_progress','reassigned') AND t.due_at IS NOT NULL AND t.due_at < NOW()))::int AS late,
+      MAX(t.completed_at) AS last_completed_at
+    FROM staff_task_assignments t
+    WHERE t.template_id IS NOT NULL
+      AND ($1::bigint IS NULL OR t.tenant_id = $1::bigint)
+      AND ($2::bigint IS NULL OR t.branch_id = $2::bigint OR t.branch_id IS NULL)
+      AND COALESCE(t.assigned_date, t.created_at::date) >= (CURRENT_DATE - ($3::int - 1))
+    GROUP BY t.template_id
+    `,
+    [numberOrNull(tenantId), numberOrNull(branchId), window]
+  );
+  return Object.fromEntries(result.rows.map((row) => [String(row.template_id), row]));
+};
+
+// Timer entry point: materialise today's instances for every tenant. Cheap
+// when nothing is due — the generator skips existing instances before the
+// create path — so it is safe to call every few minutes and survives
+// restarts without missing a day.
+let recurringGenerationInFlight = false;
+export const generateRecurringTasksForToday = async () => {
+  if (recurringGenerationInFlight) return { skipped: true, reason: "in_flight" };
+  recurringGenerationInFlight = true;
+  try {
+    const today = dateKey();
+    const result = await generateDueTaskInstancesFromTemplates({ tenantId: null, dueDate: today, actor: { source: "scheduler" }, onlyAutoGenerate: true });
+    if (result.created.length) {
+      console.info("[recurring-tasks] generated", { date: today, created: result.created.length });
+    }
+    return result;
+  } finally {
+    recurringGenerationInFlight = false;
+  }
+};
+
 const isTemplateDueOnDate = (template = {}, dueDate = dateKey()) => {
   const templateKind = normalizeTemplateKind(template.template_kind || template.metadata?.template_kind);
   const frequency = normalizeFrequency(template.frequency || template.recurrence);
+  const date = new Date(`${dueDate}T12:00:00`);
+  const pinnedWeekdays = normalizeWeekdays(template.weekdays || template.recurring_rule?.weekdays);
+  // A template with explicit weekdays only fires on those days, whatever its
+  // kind. Without weekdays the legacy behaviour stands: daily every day,
+  // weekly once per week (keyed on the week start).
+  if (pinnedWeekdays.length) return pinnedWeekdays.includes(date.getDay());
   if (templateKind === "daily") return true;
   if (templateKind === "weekly") return true;
   if (frequency === "one_time") return false;
-  const date = new Date(`${dueDate}T12:00:00`);
   if (frequency === "daily") return true;
   if (frequency === "weekly") {
     const weekdays = normalizeWeekdays(template.weekdays || template.recurring_rule?.weekdays);
@@ -1566,9 +1675,9 @@ const isTemplateDueOnDate = (template = {}, dueDate = dateKey()) => {
   return false;
 };
 
-export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, dueDate = dateKey(), templateId = null, actor = null } = {}) => {
+export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, dueDate = dateKey(), templateId = null, actor = null, onlyAutoGenerate = false } = {}) => {
   await ensureStaffTasksSchema();
-  const params = [tenantId, dueDate, numberOrNull(templateId)];
+  const params = [tenantId, dueDate, numberOrNull(templateId), Boolean(onlyAutoGenerate)];
   const templatesResult = await db.query(
     `
     SELECT *, $2::date AS generation_due_date
@@ -1577,6 +1686,7 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       AND ($3::bigint IS NULL OR id = $3::bigint)
       AND is_active IS DISTINCT FROM FALSE
       AND COALESCE(frequency, recurrence, 'one_time') <> 'one_time'
+      AND ($4::boolean IS FALSE OR COALESCE(recurring_rule->>'auto_generate', 'false') = 'true')
     ORDER BY id ASC
     `,
     params
@@ -1590,10 +1700,30 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
     }
     const templateKind = normalizeTemplateKind(template.template_kind || template.metadata?.template_kind);
     const isOpeningDayTask = Boolean(template.is_opening_day_task || template.metadata?.is_opening_day_task);
-    const scheduleDate = templateKind === "weekly" ? weekStartKey(dueDate) : dateKey(dueDate);
+    const pinnedWeekdays = normalizeWeekdays(template.weekdays || template.recurring_rule?.weekdays);
+    // Weekday-pinned weekly templates are keyed on the actual day so two
+    // pinned days in one week produce two instances; legacy weekly stays
+    // keyed on the week start (one per week).
+    const scheduleDate = templateKind === "weekly" && !pinnedWeekdays.length ? weekStartKey(dueDate) : dateKey(dueDate);
     const sourceRefType = templateKind === "daily" ? "daily_task_template" : templateKind === "weekly" ? "weekly_task_template" : "task_template";
+    const sourceRefId = `${template.id}:${scheduleDate}`;
+    // The generator runs on a timer now; skip cheaply before going through the
+    // full create path (and its logging) for an instance that already exists.
+    const existing = await db.query(
+      `SELECT 1 FROM staff_task_assignments WHERE template_id = $1::bigint AND source_ref_id = $2::text LIMIT 1`,
+      [template.id, sourceRefId]
+    );
+    if (existing.rows[0]) {
+      skipped.push({ template_id: template.id, reason: "exists" });
+      continue;
+    }
     const taskType = templateKind === "daily" ? (isOpeningDayTask ? "opening_day" : "daily") : templateKind === "weekly" ? "weekly" : template.task_type;
-    const autoAssignEnabled = Boolean(template.auto_assign_enabled);
+    const fixedEmployeeId = numberOrNull(template.fixed_employee_id ?? template.recurring_rule?.fixed_employee_id);
+    // A fixed assignee wins over attendance-driven auto-assign: the manager
+    // named the person, so the instance is theirs from the moment it exists.
+    const autoAssignEnabled = Boolean(template.auto_assign_enabled) && !fixedEmployeeId;
+    const dueTime = normalizeDueTime(template.recurring_rule?.due_time);
+    const dueAt = dueTime ? zonedDateTimeToUtc(scheduleDate, dueTime)?.toISOString() || null : null;
     const metadata = {
       recurring_template: true,
       template_kind: templateKind,
@@ -1611,14 +1741,17 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       checklist_items: jsonArray(template.checklist_items),
       assignment_strategy: template.assignment_strategy,
       auto_assign_mode: normalizeAutoAssignMode(template.auto_assign_mode || template.assignment_strategy),
-      assignment_state: autoAssignEnabled ? "waiting_for_eligible_employee" : "unassigned",
+      assignment_state: fixedEmployeeId ? "assigned" : autoAssignEnabled ? "waiting_for_eligible_employee" : "unassigned",
       waiting_reason: autoAssignEnabled ? "waiting_for_attendance_qr" : null,
-      assignment_source: null,
+      assignment_source: fixedEmployeeId ? "template_fixed_employee" : null,
+      due_time: dueTime,
     };
     const result = await createStaffTask({
       tenantId: template.tenant_id,
       template_id: template.id,
       branch_id: template.branch_id,
+      current_assignee_id: fixedEmployeeId,
+      due_at: dueAt,
       allow_unassigned: true,
       title: template.title,
       description: template.description,
@@ -1627,7 +1760,7 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       task_type: taskType,
       source_module: templateKind === "daily" || templateKind === "weekly" ? ATTENDANCE_TASK_SOURCE : "recurring_task_template",
       source_ref_type: sourceRefType,
-      source_ref_id: `${template.id}:${scheduleDate}`,
+      source_ref_id: sourceRefId,
       assigned_date: scheduleDate,
       priority: template.priority,
       default_deadline_minutes: template.default_deadline_minutes,
@@ -2334,6 +2467,35 @@ export const updateStaffTaskStatus = async (taskId, payload = {}, actor = {}) =>
     const nextPriority = TASK_PRIORITIES.has(text(payload.priority).toLowerCase()) ? text(payload.priority).toLowerCase() : task.priority;
     const dueAt = payload.due_at || payload.dueAt || task.due_at;
     const metadata = operationalMetadataFromPayload(payload, task.metadata);
+    // Completion proof. The employee portal sends what it collected; the
+    // template flags decide what is mandatory. Checked items persist as a
+    // list of indexes so the manager sees exactly what was ticked.
+    if (Array.isArray(payload.checklist_done ?? payload.checklistDone)) {
+      metadata.checklist_done = (payload.checklist_done ?? payload.checklistDone)
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item >= 0);
+    }
+    const completionPhotoUrl = nullableText(payload.completion_photo_url ?? payload.completionPhotoUrl);
+    if (completionPhotoUrl) {
+      metadata.completion_photo_url = completionPhotoUrl;
+      metadata.completion_photo_at = new Date().toISOString();
+    }
+    if (nextStatus === "completed" && actor?.source === "employee_portal") {
+      const checklist = jsonArray(metadata.checklist_items);
+      const done = new Set(jsonArray(metadata.checklist_done));
+      if (checklist.length && checklist.some((_, index) => !done.has(index))) {
+        const error = new Error("Checklist incomplete");
+        error.statusCode = 409;
+        error.code = "TASK_CHECKLIST_INCOMPLETE";
+        throw error;
+      }
+      if (metadata.photo_required && !metadata.completion_photo_url) {
+        const error = new Error("Completion photo required");
+        error.statusCode = 409;
+        error.code = "TASK_PHOTO_REQUIRED";
+        throw error;
+      }
+    }
     const result = await client.query(
       `
       UPDATE staff_task_assignments

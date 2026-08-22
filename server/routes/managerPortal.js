@@ -5,6 +5,10 @@ import {
   approveManagerPortalTask,
   updateManagerPortalTask,
   deleteManagerPortalTask,
+  getManagerPortalTaskTemplates,
+  saveManagerPortalTaskTemplate,
+  setManagerPortalTaskTemplateActive,
+  deleteManagerPortalTaskTemplate,
   createManagerPortalTask,
   getManagerPortalChat,
   getManagerPortalChatThread,
@@ -649,6 +653,61 @@ router.post("/:token/tasks", verifyManagerPortalToken, async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] task create error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create task" });
+  }
+});
+
+router.get("/:token/task-templates", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const templates = await getManagerPortalTaskTemplates({ manager });
+    return res.json({ success: true, templates });
+  } catch (error) {
+    console.error("[manager-portal] task templates error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load task templates" });
+  }
+});
+
+router.post("/:token/task-templates", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const template = await saveManagerPortalTaskTemplate({ manager: req.managerPortalManager, data: req.body || {} });
+    return res.status(201).json({ success: true, template });
+  } catch (error) {
+    console.error("[manager-portal] task template create error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create task template" });
+  }
+});
+
+router.put("/:token/task-templates/:id", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const template = await saveManagerPortalTaskTemplate({ manager: req.managerPortalManager, templateId: req.params.id, data: req.body || {} });
+    if (!template) return res.status(404).json({ success: false, message: "Template not found" });
+    return res.json({ success: true, template });
+  } catch (error) {
+    console.error("[manager-portal] task template update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update task template" });
+  }
+});
+
+router.patch("/:token/task-templates/:id/active", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const template = await setManagerPortalTaskTemplateActive({ manager: req.managerPortalManager, templateId: req.params.id, isActive: req.body?.is_active !== false });
+    if (!template) return res.status(404).json({ success: false, message: "Template not found" });
+    return res.json({ success: true, template });
+  } catch (error) {
+    console.error("[manager-portal] task template toggle error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update task template" });
+  }
+});
+
+router.delete("/:token/task-templates/:id", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const template = await deleteManagerPortalTaskTemplate({ manager: req.managerPortalManager, templateId: req.params.id });
+    if (!template) return res.status(404).json({ success: false, message: "Template not found" });
+    return res.json({ success: true, template });
+  } catch (error) {
+    console.error("[manager-portal] task template delete error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete task template" });
   }
 });
 

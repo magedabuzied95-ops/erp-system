@@ -135,7 +135,30 @@
     "assigneesCount": "{{count}} employees selected",
     "selectAll": "Select all",
     "clearAll": "Clear",
-    "duplicate": "This task already exists for that employee today"
+    "duplicate": "This task already exists for that employee today",
+    "kind": {
+      "once": "One-off",
+      "daily": "Fixed daily",
+      "weekly": "Fixed weekly"
+    },
+    "dueTime": "Due time",
+    "weekdaysWeekly": "Weekdays (pick one or more)",
+    "weekdaysDaily": "Specific days",
+    "everyDay": "Every day",
+    "weekdayRequired": "Pick at least one weekday",
+    "checklistPlaceholder": "Checklist — one item per line (optional)",
+    "requiresPhoto": "Proof photo on completion",
+    "fixedTitle": "Fixed tasks",
+    "fixedSubtitle": "{{count}} routines · last 7 days adherence",
+    "addFixed": "Add routine",
+    "autoAssign": "Least busy at check-in",
+    "pause": "Pause",
+    "resume": "Resume",
+    "noRuns": "Not generated yet",
+    "complianceLabel": "{{rate}}% ({{completed}}/{{generated}})",
+    "fixedEmpty": "No fixed tasks",
+    "fixedEmptyBody": "Add a daily or weekly routine and it will be generated automatically every day.",
+    "deleteTemplateConfirm": "Delete routine “{{title}}”? Already generated tasks stay."
   },
   "payment": {
     "cash": "Cash",
@@ -261,7 +284,10 @@
     "advanceApproved": "Advance approved and added to the employee",
     "advanceRejected": "Advance request rejected",
     "taskDeleted": "Task deleted",
-    "tasksCreated": "{{count}} tasks created"
+    "tasksCreated": "{{count}} tasks created",
+    "templateCreated": "Routine saved; it will generate automatically",
+    "templateUpdated": "Routine updated",
+    "templateDeleted": "Routine deleted"
   },
   "push": {
     "unsupportedDetail": "This browser does not support web push notifications.",
@@ -671,5 +697,14 @@
     "attendanceSaveError": "Could not save attendance",
     "cancel": "Cancel",
     "corrected": "Manually corrected"
+  },
+  "weekdays": {
+    "0": "Sun",
+    "1": "Mon",
+    "2": "Tue",
+    "3": "Wed",
+    "4": "Thu",
+    "5": "Fri",
+    "6": "Sat"
   }
 }

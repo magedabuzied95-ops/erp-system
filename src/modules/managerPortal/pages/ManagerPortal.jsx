@@ -18,6 +18,9 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Camera,
+  Repeat,
+  Power,
   ClipboardCheck,
   ClipboardList,
   Copy,
@@ -228,6 +231,37 @@ const warnSuspiciousManagerPortalPayload = (label, value) => {
 const portalText = (value, fallback = "-") => {
   const safe = value === undefined || value === null || value === "" ? fallback : value;
   return safe;
+};
+// kind: "once" is a one-off task; "daily" / "weekly" are fixed routines saved
+// as templates. weekdays is empty for "every day" on a daily routine.
+const emptyTaskDraft = () => ({
+  kind: "once",
+  title: "",
+  description: "",
+  assigned_employee_id: "",
+  assigned_employee_ids: [],
+  priority: "medium",
+  due_at: "",
+  due_time: "",
+  weekdays: [],
+  checklist_text: "",
+  requires_photo: false,
+});
+const WEEKDAY_ORDER = [6, 0, 1, 2, 3, 4, 5]; // Saturday-first, the local work week
+const weekdayLabel = (day) => tt(`managerPortal.weekdays.${day}`);
+// <input type="datetime-local"> value → ISO; empty stays null.
+// ISO → <input type="datetime-local"> value in the browser zone.
+const isoToLocalInput = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+};
+const localInputToIso = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
 const normalizeManagerPortalPayload = (label, value) => {
   const normalized = normalizeManagerPortalValue(value);
@@ -919,7 +953,12 @@ export default function ManagerPortal() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [managerChatState, setManagerChatState] = useState({ employee: null, thread: null, messages: [] });
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [taskDraft, setTaskDraft] = useState({ title: "", description: "", assigned_employee_id: "", assigned_employee_ids: [], priority: "medium" });
+  const [taskDraft, setTaskDraft] = useState(() => emptyTaskDraft());
+  // Fixed (recurring) task templates: daily / weekly routines the manager
+  // defines once and the server materialises every day.
+  const [taskTemplates, setTaskTemplates] = useState([]);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [templateBusyId, setTemplateBusyId] = useState(null);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskNotes, setTaskNotes] = useState({});
@@ -1317,11 +1356,12 @@ export default function ManagerPortal() {
 
   const loadDeferredData = useCallback(async () => {
     if (!token) return;
-    const [staffRes, tasksRes, salesRes, stockRes] = await Promise.allSettled([
+    const [staffRes, tasksRes, salesRes, stockRes, templatesRes] = await Promise.allSettled([
       managerPortalApi.staff(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.tasks(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.sales(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.stockAlerts(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+      managerPortalApi.taskTemplates(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
     ]);
 
     const now = Date.now();
@@ -1330,6 +1370,8 @@ export default function ManagerPortal() {
 
     const nextTasks = settledValue(tasksRes);
     if (nextTasks) { setTasks(normalizeManagerPortalPayload("tasks", nextTasks?.tasks || null)); tabFetchedAtRef.current.tasks = now; }
+    const nextTemplates = settledValue(templatesRes);
+    if (nextTemplates) setTaskTemplates(Array.isArray(nextTemplates?.templates) ? nextTemplates.templates : []);
 
     const nextSales = settledValue(salesRes);
     if (nextSales) { setSales(normalizeManagerPortalPayload("sales", nextSales?.sales || null)); tabFetchedAtRef.current.sales = now; }
@@ -1530,8 +1572,12 @@ export default function ManagerPortal() {
         setStaff(normalizeManagerPortalPayload("staffReload", response?.staff || null));
       }
       if (tab === "tasks") {
-        const response = await managerPortalApi.tasks(token);
+        const [response, templatesRes] = await Promise.all([
+          managerPortalApi.tasks(token),
+          managerPortalApi.taskTemplates(token).catch(() => null),
+        ]);
         setTasks(normalizeManagerPortalPayload("tasksReload", response?.tasks || null));
+        if (templatesRes) setTaskTemplates(Array.isArray(templatesRes?.templates) ? templatesRes.templates : []);
       }
       if (tab === "sales") {
         const response = await managerPortalApi.sales(token);
@@ -1866,8 +1912,9 @@ export default function ManagerPortal() {
   };
 
   const resetTaskDraft = () => {
-    setTaskDraft({ title: "", description: "", assigned_employee_id: "", assigned_employee_ids: [], priority: "medium" });
+    setTaskDraft(emptyTaskDraft());
     setEditingTaskId(null);
+    setEditingTemplateId(null);
     setTaskModalOpen(false);
   };
 
@@ -1876,14 +1923,50 @@ export default function ManagerPortal() {
       toast.error(tt("managerPortal.tasks.titleRequired"));
       return;
     }
-    const payload = {
-      title: taskDraft.title,
-      description: taskDraft.description,
-      current_assignee_id: taskDraft.assigned_employee_id || null,
-      current_assignee_ids: editingTaskId ? undefined : taskDraft.assigned_employee_ids,
-      priority: taskDraft.priority,
-    };
+    const isRecurring = taskDraft.kind === "daily" || taskDraft.kind === "weekly";
     try {
+      if (isRecurring) {
+        if (taskDraft.kind === "weekly" && !taskDraft.weekdays.length) {
+          toast.error(tt("managerPortal.tasks.weekdayRequired"));
+          return;
+        }
+        const base = {
+          template_kind: taskDraft.kind,
+          title: taskDraft.title,
+          description: taskDraft.description,
+          priority: taskDraft.priority,
+          due_time: taskDraft.due_time || null,
+          weekdays: taskDraft.weekdays,
+          checklist_items: taskDraft.checklist_text.split("\n").map((line) => line.trim()).filter(Boolean),
+          requires_photo: Boolean(taskDraft.requires_photo),
+        };
+        if (editingTemplateId) {
+          await managerPortalApi.updateTaskTemplate(token, editingTemplateId, {
+            ...base,
+            fixed_employee_id: taskDraft.assigned_employee_id || null,
+            auto_assign_enabled: !taskDraft.assigned_employee_id,
+          });
+        } else {
+          // One template per named employee; none named ⇒ one template that
+          // auto-assigns to the least-busy employee at check-in.
+          const ids = taskDraft.assigned_employee_ids.length ? taskDraft.assigned_employee_ids : [null];
+          for (const employeeId of ids) {
+            await managerPortalApi.createTaskTemplate(token, { ...base, fixed_employee_id: employeeId, auto_assign_enabled: !employeeId });
+          }
+        }
+        resetTaskDraft();
+        await reloadTabData("tasks", { force: true });
+        toast.success(editingTemplateId ? tt("managerPortal.toasts.templateUpdated") : tt("managerPortal.toasts.templateCreated"));
+        return;
+      }
+      const payload = {
+        title: taskDraft.title,
+        description: taskDraft.description,
+        current_assignee_id: taskDraft.assigned_employee_id || null,
+        current_assignee_ids: editingTaskId ? undefined : taskDraft.assigned_employee_ids,
+        priority: taskDraft.priority,
+        due_at: localInputToIso(taskDraft.due_at) || undefined,
+      };
       let createdCount = 1;
       if (editingTaskId) {
         await managerPortalApi.updateTask(token, editingTaskId, payload);
@@ -1904,16 +1987,65 @@ export default function ManagerPortal() {
     }
   };
 
+  const startEditTemplate = (template) => {
+    setEditingTaskId(null);
+    setEditingTemplateId(template.id);
+    setTaskDraft({
+      ...emptyTaskDraft(),
+      kind: template.template_kind === "weekly" ? "weekly" : "daily",
+      title: template.title || "",
+      description: template.description || "",
+      assigned_employee_id: template.fixed_employee_id ? String(template.fixed_employee_id) : "",
+      priority: template.priority || "medium",
+      due_time: template.due_time || "",
+      weekdays: Array.isArray(template.weekdays) ? template.weekdays : [],
+      checklist_text: (template.checklist_items || []).join("\n"),
+      requires_photo: Boolean(template.requires_photo),
+    });
+    setTaskModalOpen(true);
+  };
+
+  const toggleTemplate = async (template) => {
+    try {
+      setTemplateBusyId(template.id);
+      await managerPortalApi.setTaskTemplateActive(token, template.id, !template.is_active);
+      setTaskTemplates((current) => current.map((item) => (item.id === template.id ? { ...item, is_active: !template.is_active } : item)));
+    } catch (templateError) {
+      toast.error(templateError?.responseBody?.message || templateError?.message || tt("managerPortal.errors.updateTask"));
+    } finally {
+      setTemplateBusyId(null);
+    }
+  };
+
+  const deleteTemplate = async (template) => {
+    if (!window.confirm(tt("managerPortal.tasks.deleteTemplateConfirm", { title: template.title || "" }))) return;
+    try {
+      setTemplateBusyId(template.id);
+      await managerPortalApi.deleteTaskTemplate(token, template.id);
+      setTaskTemplates((current) => current.filter((item) => item.id !== template.id));
+      if (String(editingTemplateId) === String(template.id)) resetTaskDraft();
+      toast.success(tt("managerPortal.toasts.templateDeleted"));
+    } catch (templateError) {
+      toast.error(templateError?.responseBody?.message || templateError?.message || tt("managerPortal.errors.updateTask"));
+    } finally {
+      setTemplateBusyId(null);
+    }
+  };
+
   // Edit reuses the create form at the top of the tab: load the task into it
   // and switch the submit into "save changes".
   const startEditTask = (task) => {
     setEditingTaskId(task.id);
+    setEditingTemplateId(null);
     setTaskDraft({
+      ...emptyTaskDraft(),
+      kind: "once",
       title: task.title || task.title_ar || "",
       description: task.description || task.description_ar || "",
       assigned_employee_id: String(task.current_assignee_id || task.assignee_id || task.employee_id || ""),
       assigned_employee_ids: [],
       priority: task.priority || "medium",
+      due_at: isoToLocalInput(task.due_at),
     });
     setTaskModalOpen(true);
   };
@@ -2814,6 +2946,80 @@ export default function ManagerPortal() {
                 ))}
               </div>
 
+              <Card
+                title={tt("managerPortal.tasks.fixedTitle")}
+                subtitle={tt("managerPortal.tasks.fixedSubtitle", { count: taskTemplates.length })}
+                icon={Repeat}
+                tone="slate"
+                compact
+                headerAction={(
+                  <button
+                    type="button"
+                    onClick={() => { resetTaskDraft(); setTaskDraft({ ...emptyTaskDraft(), kind: "daily" }); setTaskModalOpen(true); }}
+                    className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2.5 py-1.5 text-xs font-black text-text"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {tt("managerPortal.tasks.addFixed")}
+                  </button>
+                )}
+              >
+                {taskTemplates.length ? (
+                  <div className="space-y-2">
+                    {taskTemplates.map((template) => {
+                      const rate = template.compliance?.rate;
+                      const rateTone = rate === null || rate === undefined ? "bg-slate-300" : rate >= 80 ? "bg-emerald-500" : rate >= 50 ? "bg-amber-500" : "bg-rose-500";
+                      const busy = templateBusyId === template.id;
+                      const schedule = template.template_kind === "weekly" || template.weekdays.length
+                        ? template.weekdays.map((day) => weekdayLabel(day)).join("، ")
+                        : tt("managerPortal.tasks.everyDay");
+                      return (
+                        <div key={template.id} className={`rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2 ${template.is_active ? "" : "opacity-60"}`}>
+                          <div className="flex items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${template.template_kind === "weekly" ? "bg-sky-500/15 text-sky-600 dark:text-sky-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300"}`}>
+                                  {tt(`managerPortal.tasks.kind.${template.template_kind === "weekly" ? "weekly" : "daily"}`)}
+                                </span>
+                                {template.due_time ? <span className="inline-flex items-center gap-1 text-[11px] font-black text-text-muted"><Clock3 className="h-3 w-3" />{template.due_time}</span> : null}
+                                {template.requires_photo ? <Camera className="h-3.5 w-3.5 text-text-muted" /> : null}
+                                {template.checklist_items?.length ? <span className="inline-flex items-center gap-1 text-[11px] font-black text-text-muted"><ClipboardCheck className="h-3 w-3" />{template.checklist_items.length}</span> : null}
+                              </div>
+                              <div className="mt-1 truncate text-sm font-black text-text">{portalText(template.title)}</div>
+                              <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">
+                                {schedule} · {template.fixed_employee_name ? portalText(template.fixed_employee_name) : tt("managerPortal.tasks.autoAssign")}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button type="button" disabled={busy} aria-label={template.is_active ? tt("managerPortal.tasks.pause") : tt("managerPortal.tasks.resume")} title={template.is_active ? tt("managerPortal.tasks.pause") : tt("managerPortal.tasks.resume")} onClick={() => toggleTemplate(template)} className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${template.is_active ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-border bg-surface-soft text-text-muted"}`}>
+                                <Power className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" disabled={busy} aria-label={tt("managerPortal.tasks.edit")} onClick={() => startEditTemplate(template)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-soft text-text">
+                                <SquarePen className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" disabled={busy} aria-label={tt("managerPortal.tasks.delete")} onClick={() => deleteTemplate(template)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-600">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-soft">
+                              <div className={`h-full rounded-full ${rateTone}`} style={{ width: `${rate ?? 0}%` }} />
+                            </div>
+                            <span className="shrink-0 text-[11px] font-black text-text-muted">
+                              {rate === null || rate === undefined
+                                ? tt("managerPortal.tasks.noRuns")
+                                : tt("managerPortal.tasks.complianceLabel", { rate, completed: template.compliance.completed, generated: template.compliance.generated })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState title={tt("managerPortal.tasks.fixedEmpty")} body={tt("managerPortal.tasks.fixedEmptyBody")} />
+                )}
+              </Card>
+
               <Card title={tt("managerPortal.tasks.openListTitle")} subtitle={tt("managerPortal.tasks.runList")} icon={ClipboardList} tone="gold">
                 {openTasks.length ? <div className="space-y-3">{openTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title={tt("managerPortal.tasks.openEmpty")} body={tt("managerPortal.tasks.noMatch")} />}
               </Card>
@@ -3528,7 +3734,7 @@ export default function ManagerPortal() {
                                   <div className="mt-1 space-y-1">
                                     {operation.items_out.map((item, index) => (
                                       <div key={`out-${index}`} className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName>{item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[12px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null} × {formatNumber(item.quantity)}</span>
+                                        {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-9 w-9 shrink-0 rounded-lg border border-slate-700/40 bg-white object-cover" loading="lazy" /> : null}<span className="min-w-0 flex-1 truncate"><InlineName>{portalText(item.name)}</InlineName>{item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[12px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null} × {formatNumber(item.quantity)}</span>
                                         <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
                                       </div>
                                     ))}
@@ -3542,7 +3748,7 @@ export default function ManagerPortal() {
                                   <div className="mt-1 space-y-1">
                                     {operation.items_in.map((item, index) => (
                                       <div key={`in-${index}`} className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName>{item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[12px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null} × {formatNumber(item.quantity)}</span>
+                                        {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-9 w-9 shrink-0 rounded-lg border border-slate-700/40 bg-white object-cover" loading="lazy" /> : null}<span className="min-w-0 flex-1 truncate"><InlineName>{portalText(item.name)}</InlineName>{item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[12px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null} × {formatNumber(item.quantity)}</span>
                                         <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
                                       </div>
                                     ))}
@@ -3837,16 +4043,35 @@ export default function ManagerPortal() {
             <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-black leading-5 text-text-muted">{tt("managerPortal.chrome.createTask")}</div>
-                <h2 className="m1-section-title mt-1 text-text">{editingTaskId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.tasks.create")}</h2>
+                <h2 className="m1-section-title mt-1 text-text">{editingTaskId || editingTemplateId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.tasks.create")}</h2>
               </div>
               <button type="button" aria-label={tt("managerPortal.tasks.cancelEdit")} onClick={resetTaskDraft} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="max-h-[calc(92dvh-5rem)] overflow-y-auto px-4 py-4">
+                {!editingTaskId && !editingTemplateId ? (
+                  <div className="mb-3 grid grid-cols-3 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft p-1" role="tablist">
+                    {["once", "daily", "weekly"].map((kind) => {
+                      const active = taskDraft.kind === kind;
+                      return (
+                        <button
+                          key={kind}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setTaskDraft((current) => ({ ...current, kind, weekdays: kind === "weekly" ? current.weekdays : [] }))}
+                          className={`rounded-[calc(var(--radius-control)-2px)] px-2 py-2 text-xs font-black transition ${active ? "bg-primary text-[var(--primary-contrast)] shadow-sm" : "text-text-muted"}`}
+                        >
+                          {tt(`managerPortal.tasks.kind.${kind}`)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <div className="grid gap-2 md:grid-cols-2">
                   <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder={tt("managerPortal.tasks.titleField")} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
-                  {editingTaskId ? (
+                  {editingTaskId || editingTemplateId ? (
                     <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                       <option value="">{tt("managerPortal.tasks.optionalAssignee")}</option>
                       {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
@@ -3902,12 +4127,72 @@ export default function ManagerPortal() {
                     <option value="high">{tt("managerPortal.priority.high")}</option>
                     <option value="critical">{tt("managerPortal.priority.critical")}</option>
                   </select>
+                  {taskDraft.kind === "once" ? (
+                    <label className="flex items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 dark:border-white/10 dark:bg-white/[0.03]">
+                      <Clock3 className="h-4 w-4 shrink-0" />
+                      <span className="shrink-0">{tt("managerPortal.tasks.dueAt")}</span>
+                      <input type="datetime-local" value={taskDraft.due_at} onChange={(event) => setTaskDraft((current) => ({ ...current, due_at: event.target.value }))} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text outline-none" />
+                    </label>
+                  ) : (
+                    <label className="flex items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 dark:border-white/10 dark:bg-white/[0.03]">
+                      <Clock3 className="h-4 w-4 shrink-0" />
+                      <span className="shrink-0">{tt("managerPortal.tasks.dueTime")}</span>
+                      <input type="time" value={taskDraft.due_time} onChange={(event) => setTaskDraft((current) => ({ ...current, due_time: event.target.value }))} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text outline-none" />
+                    </label>
+                  )}
+                  {taskDraft.kind !== "once" ? (
+                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03] md:col-span-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-black text-slate-500">
+                          {taskDraft.kind === "weekly" ? tt("managerPortal.tasks.weekdaysWeekly") : taskDraft.weekdays.length ? tt("managerPortal.tasks.weekdaysDaily") : tt("managerPortal.tasks.everyDay")}
+                        </span>
+                        {taskDraft.kind === "daily" && taskDraft.weekdays.length ? (
+                          <button type="button" onClick={() => setTaskDraft((current) => ({ ...current, weekdays: [] }))} className="text-[11px] font-black text-primary">{tt("managerPortal.tasks.everyDay")}</button>
+                        ) : null}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {WEEKDAY_ORDER.map((day) => {
+                          const active = taskDraft.weekdays.includes(day);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => setTaskDraft((current) => ({
+                                ...current,
+                                weekdays: active ? current.weekdays.filter((item) => item !== day) : [...current.weekdays, day].sort((a, b) => a - b),
+                              }))}
+                              className={`rounded-full border px-2.5 py-1 text-xs font-black transition ${active ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"}`}
+                            >
+                              {weekdayLabel(day)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                  {taskDraft.kind !== "once" ? (
+                    <>
+                      <textarea
+                        value={taskDraft.checklist_text}
+                        onChange={(event) => setTaskDraft((current) => ({ ...current, checklist_text: event.target.value }))}
+                        placeholder={tt("managerPortal.tasks.checklistPlaceholder")}
+                        rows={3}
+                        className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
+                      />
+                      <label className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 text-sm font-black text-text dark:border-white/10 dark:bg-white/[0.03]">
+                        <input type="checkbox" checked={taskDraft.requires_photo} onChange={(event) => setTaskDraft((current) => ({ ...current, requires_photo: event.target.checked }))} className="h-4 w-4 accent-[var(--primary)]" />
+                        <Camera className="h-4 w-4 text-text-muted" />
+                        <span>{tt("managerPortal.tasks.requiresPhoto")}</span>
+                      </label>
+                    </>
+                  ) : null}
                   <div className="flex gap-2">
                     <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
-                      {editingTaskId ? <SquarePen className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                      {editingTaskId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.actions.create")}
+                      {editingTaskId || editingTemplateId ? <SquarePen className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {editingTaskId || editingTemplateId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.actions.create")}
                     </button>
-                    {editingTaskId ? (
+                    {editingTaskId || editingTemplateId ? (
                       <button type="button" onClick={resetTaskDraft} className="inline-flex items-center justify-center gap-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                         <X className="h-4 w-4" />
                         {tt("managerPortal.tasks.cancelEdit")}

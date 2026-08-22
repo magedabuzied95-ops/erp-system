@@ -27,11 +27,27 @@ import {
 } from "../controllers/staffTasksController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import staffTaskPhotoUpload from "../config/staffTaskPhotoUpload.js";
 
 const router = express.Router();
 
+const uploadStaffTaskPhoto = (req, res, next) => {
+  staffTaskPhotoUpload.single("photo")(req, res, (error) => {
+    if (!error) return next();
+    return res.status(error.status || 400).json({
+      success: false,
+      code: error.code || "task_photo_invalid",
+      message: error.code === "LIMIT_FILE_SIZE" ? "الصورة أكبر من 10 ميجابايت" : error.message || "Unsupported photo",
+    });
+  });
+};
+
 router.get("/employee-portal", getEmployeePortalTasks);
 router.patch("/employee-portal/tasks/:id/status", updateEmployeePortalTask);
+// Completion proof photo. Multipart, token in the query string (multer parses
+// the body after the token check would have run). Stores the URL on the task
+// metadata; the status call that follows is what closes the task.
+router.post("/employee-portal/tasks/:id/photo", uploadStaffTaskPhoto, updateEmployeePortalTask);
 router.post("/employee-portal/tasks/:id/complete", updateEmployeePortalTask);
 router.get("/employee-portal/:token/push/public-key", getEmployeePortalPushKey);
 router.post("/employee-portal/:token/push/subscribe", subscribeEmployeePortalPushEndpoint);

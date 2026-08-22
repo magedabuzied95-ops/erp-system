@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, ClipboardList, Clock3, Loader2, Lock, Play, RefreshCw } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, ClipboardList, Clock3, Loader2, Lock, Play, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { staffTasksApi } from "../services/staffTasksApi";
+import { resolveEmployeeProfileImageUrl as resolveAssetUrl } from "../../../shared/lib/imageUrls";
 
 import { useTranslation } from "react-i18next";
 
@@ -171,7 +172,14 @@ function NotificationCard({ state, hint, onEnable }) {
   );
 }
 
-function TaskCard({ task, readOnly, saving, onStatus }) {
+// Proof-of-work pieces come from the task metadata the template stamped on
+// the instance: checklist_items (strings), photo_required, and what the
+// employee already recorded (checklist_done indexes, completion_photo_url).
+const taskChecklist = (task) => (Array.isArray(task?.metadata?.checklist_items) ? task.metadata.checklist_items : []);
+const taskChecklistDone = (task) => new Set((Array.isArray(task?.metadata?.checklist_done) ? task.metadata.checklist_done : []).map(Number));
+const isFixedTask = (task) => Boolean(task?.template_id || task?.metadata?.recurring_template);
+
+function TaskCard({ task, readOnly, saving, onStatus, onChecklist, onPhoto }) {
   const isCompleted = task.status === "completed";
   const isPending = task.status === "pending";
   const isInProgress = task.status === "in_progress";
@@ -180,19 +188,27 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
   const title = localizedTaskText(task, "title");
   const description = localizedTaskText(task, "description");
   const notes = localizedTaskText(task, "notes") || description;
+  const checklist = taskChecklist(task);
+  const done = taskChecklistDone(task);
+  const photoRequired = Boolean(task?.metadata?.photo_required);
+  const photoUrl = task?.metadata?.completion_photo_url || "";
+  const checklistComplete = checklist.every((_, index) => done.has(index));
+  const canComplete = isInProgress && checklistComplete && (!photoRequired || Boolean(photoUrl));
+  const pastDue = isOpen && task.due_at && new Date(task.due_at).getTime() < Date.now();
 
   return (
-    <article className={`rounded-[var(--radius-card)] border bg-surface p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue ? "border-orange-200 bg-orange-50" : "border-border"}`}>
+    <article className={`rounded-[var(--radius-card)] border bg-surface p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue || pastDue ? "border-rose-300 bg-rose-50/60 dark:bg-rose-500/5" : "border-border"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
+            {isFixedTask(task) ? <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:text-amber-300">{tt("employeePortal.tasks.fixed")}</span> : null}
             <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${priorityClass[task.priority] || priorityClass.medium}`}>
               {task.priority_label_ar || priorityLabel[task.priority] || priorityLabel.medium}
             </span>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-emerald-50 text-emerald-700" : isOverdue ? "bg-orange-100 text-orange-800" : "bg-surface-soft text-text"}`}>
               {task.status_label_ar || statusLabel[task.status] || statusLabel.pending}
             </span>
-            {isOverdue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">{tt("employeePortal.tasks.escalate")}</span> : null}
+            {isOverdue || pastDue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">{isOverdue ? tt("employeePortal.tasks.escalate") : tt("employeePortal.tasks.pastDue")}</span> : null}
           </div>
           <h3 className="m1-section-title mt-2 text-text">{title}</h3>
         </div>
@@ -202,12 +218,63 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
       {description ? <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-text-muted">{description}</p> : null}
 
       <div className="mt-3 grid gap-1.5 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold text-text">
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${pastDue ? "text-rose-600" : ""}`}>
           <Clock3 className="h-4 w-4 text-text-muted" />
           <span>{tt("employeePortal.chrome.appointment")}: {formatTime(task.due_at)}</span>
         </div>
         <div className="text-sm font-semibold leading-6 text-text-muted">{tt("employeePortal.common.notes")}: {notes || tt("employeePortal.tasks.noNotes")}</div>
       </div>
+
+      {checklist.length ? (
+        <ul className="mt-3 grid gap-1.5">
+          {checklist.map((item, index) => {
+            const checked = done.has(index);
+            return (
+              <li key={index}>
+                <label className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${checked ? "border-emerald-200 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-border text-text"}`}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={readOnly || saving || isCompleted || !isInProgress}
+                    onChange={() => onChecklist(task, index, !checked)}
+                    className="h-4 w-4 accent-[var(--primary)]"
+                  />
+                  <span className={checked ? "line-through opacity-80" : ""}>{item}</span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      {photoRequired || photoUrl ? (
+        <div className="mt-3 flex items-center gap-3">
+          {photoUrl ? (
+            <a href={resolveAssetUrl(photoUrl)} target="_blank" rel="noreferrer" className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border">
+              <img src={resolveAssetUrl(photoUrl)} alt="" className="h-full w-full object-cover" />
+            </a>
+          ) : null}
+          {isInProgress && !readOnly ? (
+            <label className={`inline-flex min-h-[var(--control-height-md)] cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm font-black ${photoUrl ? "border-border text-text" : "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"}`}>
+              <Camera className="h-4 w-4" />
+              {photoUrl ? tt("employeePortal.tasks.replacePhoto") : tt("employeePortal.tasks.takePhoto")}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                disabled={saving}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) onPhoto(task, file);
+                }}
+              />
+            </label>
+          ) : null}
+          {photoRequired && !photoUrl && !isInProgress && isOpen ? <span className="text-xs font-bold text-text-muted">{tt("employeePortal.tasks.photoRequiredHint")}</span> : null}
+        </div>
+      ) : null}
 
       {isOpen ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -222,7 +289,8 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
           </button>
           <button
             type="button"
-            disabled={readOnly || saving || !isInProgress}
+            disabled={readOnly || saving || !canComplete}
+            title={!canComplete && isInProgress ? (!checklistComplete ? tt("employeePortal.tasks.checklistHint") : tt("employeePortal.tasks.photoRequiredHint")) : undefined}
             onClick={() => onStatus(task.id, "completed")}
             className={`${isInProgress ? "inline-flex" : "hidden"} min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2.5 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45`}
           >
@@ -262,7 +330,8 @@ export default function EmployeePortal() {
   const showInstallBanner = !installDismissed && !isStandalone() && (Boolean(deferredInstallPrompt) || isIos());
   const grouped = useMemo(
     () => ({
-      pending: tasks.filter((task) => openStatuses.has(task.status)),
+      fixed: tasks.filter((task) => openStatuses.has(task.status) && isFixedTask(task)),
+      pending: tasks.filter((task) => openStatuses.has(task.status) && !isFixedTask(task)),
       completed: tasks.filter((task) => task.status === "completed"),
     }),
     [tasks]
@@ -420,6 +489,51 @@ export default function EmployeePortal() {
     }
   };
 
+  // Proof of work. Both write to task metadata on the server and refresh the
+  // portal; they need the network (no offline queue — the photo is a file).
+  const toggleChecklistItem = async (task, index, checked) => {
+    const done = new Set(taskChecklistDone(task));
+    if (checked) done.add(index);
+    else done.delete(index);
+    const checklistDone = [...done].sort((a, b) => a - b);
+    const previous = portal;
+    try {
+      setSavingTaskId(task.id);
+      setPortal((current) => current ? {
+        ...current,
+        tasks: normalizeTasks(current.tasks).map((item) =>
+          String(item.id) === String(task.id) ? { ...item, metadata: { ...(item.metadata || {}), checklist_done: checklistDone } } : item
+        ),
+      } : current);
+      await staffTasksApi.updateEmployeePortalStatus(token, task.id, { checklist_done: checklistDone });
+      await loadPortal({ silent: true });
+    } catch (err) {
+      setPortal(previous);
+      toast.error(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || tt("employeePortal.tasks.notEditable"));
+    } finally {
+      setSavingTaskId(null);
+    }
+  };
+
+  const uploadTaskPhoto = async (task, file) => {
+    if (!isOnline) {
+      toast.error(tt("employeePortal.tasks.photoNeedsNetwork"));
+      return;
+    }
+    try {
+      setSavingTaskId(task.id);
+      const formData = new FormData();
+      formData.append("photo", file, file.name || "photo.jpg");
+      await staffTasksApi.uploadEmployeePortalTaskPhoto(token, task.id, formData);
+      await loadPortal({ silent: true });
+      toast.success(tt("employeePortal.tasks.photoSaved"));
+    } catch (err) {
+      toast.error(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || tt("employeePortal.tasks.notEditable"));
+    } finally {
+      setSavingTaskId(null);
+    }
+  };
+
   const dismissInstall = () => {
     localStorage.setItem(installDismissedKey, "1");
     setInstallDismissed(true);
@@ -537,12 +651,23 @@ export default function EmployeePortal() {
 
         <NotificationCard state={notificationState} hint={notificationHint} onEnable={enableNotifications} />
 
+        {grouped.fixed.length ? (
+          <section className="mt-5">
+            <h2 className="m1-section-title text-text-muted">{tt("employeePortal.tasks.fixedToday")}</h2>
+            <div className="mt-3 grid gap-3">
+              {grouped.fixed.map((task) => (
+                <TaskCard key={task.id} task={task} readOnly={portal?.read_only} saving={savingTaskId === task.id || queuedTaskIds.has(String(task.id))} onStatus={updateStatus} onChecklist={toggleChecklistItem} onPhoto={uploadTaskPhoto} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="mt-5">
-          <h2 className="m1-section-title text-text-muted">{tt("employeePortal.tasks.required")}</h2>
+          <h2 className="m1-section-title text-text-muted">{grouped.fixed.length ? tt("employeePortal.tasks.variable") : tt("employeePortal.tasks.required")}</h2>
           <div className="mt-3 grid gap-3">
             {grouped.pending.length ? (
               grouped.pending.map((task) => (
-                <TaskCard key={task.id} task={task} readOnly={portal?.read_only} saving={savingTaskId === task.id || queuedTaskIds.has(String(task.id))} onStatus={updateStatus} />
+                <TaskCard key={task.id} task={task} readOnly={portal?.read_only} saving={savingTaskId === task.id || queuedTaskIds.has(String(task.id))} onStatus={updateStatus} onChecklist={toggleChecklistItem} onPhoto={uploadTaskPhoto} />
               ))
             ) : (
               <EmptyState>{tt("employeePortal.tasks.noneRequired")}</EmptyState>
@@ -554,7 +679,7 @@ export default function EmployeePortal() {
           <h2 className="m1-section-title text-text-muted">{tt("employeePortal.tasks.completed")}</h2>
           <div className="mt-3 grid gap-3">
             {grouped.completed.length ? (
-              grouped.completed.map((task) => <TaskCard key={task.id} task={task} readOnly saving={false} onStatus={updateStatus} />)
+              grouped.completed.map((task) => <TaskCard key={task.id} task={task} readOnly saving={false} onStatus={updateStatus} onChecklist={toggleChecklistItem} onPhoto={uploadTaskPhoto} />)
             ) : (
               <EmptyState>{tt("employeePortal.tasks.noneCompleted")}</EmptyState>
             )}

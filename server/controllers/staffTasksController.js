@@ -105,10 +105,16 @@ export const getEmployeePortalTasks = async (req, res) => {
 
 export const updateEmployeePortalTask = async (req, res) => {
   try {
+    const payload = { ...(req.body || {}) };
+    if (req.file) payload.completion_photo_url = `/uploads/staff-task-photos/${req.file.filename}`;
+    // Multipart bodies arrive as strings; the checklist travels JSON-encoded.
+    if (typeof payload.checklist_done === "string") {
+      try { payload.checklist_done = JSON.parse(payload.checklist_done); } catch { delete payload.checklist_done; }
+    }
     const result = await updateEmployeePortalTaskStatus({
       token: portalTokenFromRequest(req),
       taskId: req.params.id,
-      payload: req.body || {},
+      payload,
     });
     if (!result?.task) return res.status(404).json({ success: false, message: "Task not found" });
     return res.json({ success: true, ...result });

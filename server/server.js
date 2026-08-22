@@ -754,7 +754,7 @@ const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentServic
 const { ensureSocialCommentsCenterSchema } = await import("./services/socialCommentsCenterService.js");
 const { startSocialCommentJobWorker } = await import("./services/socialCommentJobQueue.js");
 const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadActionsService.js");
-const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
+const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders, generateRecurringTasksForToday } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = await import("./services/transactionalEmail/orderEmailService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
@@ -2338,6 +2338,9 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       safeRunDueSocialPublisherPublishes();
 
       const taskInterval = setInterval(() => {
+        void generateRecurringTasksForToday().catch((error) => {
+          console.error("[server] recurring task generation error", error);
+        });
         void processStaffTaskEmailQueue().catch((error) => {
           console.error("[server] staff task email queue error", error);
         });
@@ -2349,6 +2352,9 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, 5 * 60 * 1000);
       backgroundIntervals.add(taskInterval);
+      void generateRecurringTasksForToday().catch((error) => {
+        console.warn("[server] initial recurring task generation skipped", error.message);
+      });
       void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
         console.warn("[server] daily inventory task assignment skipped", error.message);
       });

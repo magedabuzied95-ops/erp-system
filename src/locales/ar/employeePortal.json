@@ -206,7 +206,17 @@
     "escalate": "تصعيد",
     "escalated": "تم التصعيد",
     "noNotes": "لا توجد ملاحظات",
-    "pauseAvailable": "الإيقاف المؤقت متاح"
+    "pauseAvailable": "الإيقاف المؤقت متاح",
+    "fixed": "ثابتة",
+    "fixedToday": "مهام اليوم الثابتة",
+    "variable": "مهام إضافية",
+    "pastDue": "فات الموعد",
+    "takePhoto": "صوّر الإثبات",
+    "replacePhoto": "تغيير الصورة",
+    "photoRequiredHint": "مطلوب صورة إثبات قبل الإنهاء",
+    "checklistHint": "علّم على كل البنود أولًا",
+    "photoSaved": "تم حفظ الصورة",
+    "photoNeedsNetwork": "رفع الصورة يحتاج اتصال بالإنترنت"
   },
   "scanner": {
     "permissionDenied": "تم رفض إذن الكاميرا",

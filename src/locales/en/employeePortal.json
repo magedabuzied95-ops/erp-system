@@ -206,7 +206,17 @@
     "escalate": "Escalate",
     "escalated": "Escalated",
     "noNotes": "No notes",
-    "pauseAvailable": "Pause is available"
+    "pauseAvailable": "Pause is available",
+    "fixed": "Fixed",
+    "fixedToday": "Today's fixed tasks",
+    "variable": "Additional tasks",
+    "pastDue": "Past due",
+    "takePhoto": "Take proof photo",
+    "replacePhoto": "Replace photo",
+    "photoRequiredHint": "A proof photo is required before completing",
+    "checklistHint": "Tick every checklist item first",
+    "photoSaved": "Photo saved",
+    "photoNeedsNetwork": "Uploading a photo needs a network connection"
   },
   "scanner": {
     "permissionDenied": "Camera permission denied",

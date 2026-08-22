@@ -107,7 +107,7 @@
     "showDetails": "عرض التفاصيل",
     "reopen": "إعادة فتح",
     "createdAt": "الإنشاء",
-    "dueAt": "الاستحقاق",
+    "dueAt": "موعد التسليم",
     "attachments": "المرفقات",
     "startEnd": "البدء/الإنهاء",
     "managerNote": "ملاحظة المدير",
@@ -135,7 +135,30 @@
     "assigneesCount": "{{count}} موظف محدد",
     "selectAll": "تحديد الكل",
     "clearAll": "إلغاء التحديد",
-    "duplicate": "المهمة موجودة بالفعل لنفس الموظف اليوم"
+    "duplicate": "المهمة موجودة بالفعل لنفس الموظف اليوم",
+    "kind": {
+      "once": "مرة واحدة",
+      "daily": "يومية ثابتة",
+      "weekly": "أسبوعية ثابتة"
+    },
+    "dueTime": "وقت التسليم",
+    "weekdaysWeekly": "أيام الأسبوع (اختر يومًا أو أكثر)",
+    "weekdaysDaily": "أيام محددة",
+    "everyDay": "كل الأيام",
+    "weekdayRequired": "اختر يومًا واحدًا على الأقل",
+    "checklistPlaceholder": "بنود التنفيذ — كل بند في سطر (اختياري)",
+    "requiresPhoto": "صورة إثبات عند الإنجاز",
+    "fixedTitle": "المهام الثابتة",
+    "fixedSubtitle": "{{count}} روتين · التزام آخر ٧ أيام",
+    "addFixed": "إضافة روتين",
+    "autoAssign": "أقل موظف مشغول عند الحضور",
+    "pause": "إيقاف مؤقت",
+    "resume": "تشغيل",
+    "noRuns": "لم تُولَّد بعد",
+    "complianceLabel": "{{rate}}% ({{completed}}/{{generated}})",
+    "fixedEmpty": "لا توجد مهام ثابتة",
+    "fixedEmptyBody": "أضف روتينًا يوميًا أو أسبوعيًا وسيتولد تلقائيًا كل يوم.",
+    "deleteTemplateConfirm": "حذف الروتين «{{title}}»؟ المهام المولدة سابقًا تبقى."
   },
   "payment": {
     "cash": "كاش",
@@ -261,7 +284,10 @@
     "advanceApproved": "تم اعتماد السلفة وإضافتها للموظف",
     "advanceRejected": "تم رفض طلب السلفة",
     "taskDeleted": "تم حذف المهمة",
-    "tasksCreated": "تم إنشاء {{count}} مهام"
+    "tasksCreated": "تم إنشاء {{count}} مهام",
+    "templateCreated": "تم حفظ الروتين وسيتولد تلقائيًا",
+    "templateUpdated": "تم تحديث الروتين",
+    "templateDeleted": "تم حذف الروتين"
   },
   "push": {
     "unsupportedDetail": "هذا المتصفح لا يدعم إشعارات الويب الفورية.",
@@ -671,5 +697,14 @@
     "attendanceSaveError": "تعذر حفظ الحضور",
     "cancel": "إلغاء",
     "corrected": "معدّل يدويًا"
+  },
+  "weekdays": {
+    "0": "الأحد",
+    "1": "الاثنين",
+    "2": "الثلاثاء",
+    "3": "الأربعاء",
+    "4": "الخميس",
+    "5": "الجمعة",
+    "6": "السبت"
   }
 }
