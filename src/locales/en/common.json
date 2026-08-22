@@ -765,7 +765,9 @@
     },
     "yesterday": "Yesterday",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "selectAll": "Select all",
+    "clear": "Clear"
   },
   "sidebar": {
     "main": "Main",

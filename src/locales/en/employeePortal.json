@@ -592,7 +592,11 @@
     "starred": "Starred",
     "starredMessages": "Starred messages",
     "noStarred": "No starred messages yet",
-    "starFailed": "Could not update the star"
+    "starFailed": "Could not update the star",
+    "broadcast": "Broadcast",
+    "broadcastSelected": "{{count}} selected",
+    "broadcastPlaceholder": "Write the message to send to everyone selected…",
+    "broadcastSend": "Send to {{count}}"
   },
   "profile": {
     "settings": "Profile settings",

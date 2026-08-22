@@ -592,7 +592,11 @@
     "starred": "مميزة",
     "starredMessages": "الرسائل المميزة",
     "noStarred": "لا توجد رسائل مميزة بعد",
-    "starFailed": "تعذر تحديث النجمة"
+    "starFailed": "تعذر تحديث النجمة",
+    "broadcast": "بث لعدة موظفين",
+    "broadcastSelected": "المحدد: {{count}}",
+    "broadcastPlaceholder": "اكتب الرسالة اللي هتتبعت لكل المحددين…",
+    "broadcastSend": "إرسال إلى {{count}}"
   },
   "profile": {
     "settings": "إعدادات الملف الشخصي",

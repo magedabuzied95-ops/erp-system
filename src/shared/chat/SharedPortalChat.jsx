@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, ChevronDown, ChevronUp, Loader2, MessageCircle, PhoneCall, Pin, PinOff, RefreshCw, Search, Star, UserRound, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, ChevronDown, ChevronUp, Loader2, Megaphone, MessageCircle, PhoneCall, Pin, PinOff, RefreshCw, Search, Star, UserRound, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import i18n from "../../i18n/i18n";
@@ -152,6 +152,7 @@ export default function SharedPortalChat({
   const [threadFilter, setThreadFilter] = useState("all"); // all | unread | cashier | archived
   const [rowMenu, setRowMenu] = useState(null); // { thread, employee, left, top }
   const [starredOpen, setStarredOpen] = useState(false);
+  const [broadcast, setBroadcast] = useState(null); // { selected: Set<threadId>, text, sending, done, failed }
   const [starredRows, setStarredRows] = useState(null);
   const [pendingJump, setPendingJump] = useState(null); // message id to scroll to once its thread is loaded
   const [typingThreadIds, setTypingThreadIds] = useState({});
@@ -1183,6 +1184,82 @@ export default function SharedPortalChat({
     </div>, document.body
   ) : null;
 
+  /*
+   * Broadcast: one text to several conversations. Sent per thread through the
+   * normal send endpoint (sequentially, so one failure does not abort the
+   * rest); each target gets its own client_id and lands in its own thread.
+   */
+  const broadcastTargets = sidebarRows.filter(({ thread: rowThread }) => rowThread?.id && !rowThread.archived_at);
+  const openBroadcast = () => setBroadcast({ selected: new Set(), text: "", sending: false, done: 0, failed: [] });
+  const toggleBroadcastTarget = (threadId) => setBroadcast((current) => {
+    const selected = new Set(current.selected);
+    if (selected.has(threadId)) selected.delete(threadId); else selected.add(threadId);
+    return { ...current, selected };
+  });
+  const sendBroadcast = async () => {
+    if (!broadcast || broadcast.sending || !apiAdapter?.sendMessage) return;
+    const text = broadcast.text.trim();
+    const targets = [...broadcast.selected];
+    if (!text || !targets.length) return;
+    setBroadcast((current) => ({ ...current, sending: true, done: 0, failed: [] }));
+    const failed = [];
+    for (const threadId of targets) {
+      const formData = new FormData();
+      formData.append("body", text);
+      formData.append("client_id", `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+      try {
+        const response = await apiAdapter.sendMessage(threadId, formData);
+        if (response?.thread) setThreads((current) => mergeChatThreads(current, [response.thread]));
+        if (response?.message) setMessagesByThread((current) => (current[threadId]?.length ? { ...current, [threadId]: mergeChatMessages(current[threadId], [response.message]) } : current));
+      } catch {
+        failed.push(threadId);
+      }
+      setBroadcast((current) => (current ? { ...current, done: current.done + 1 } : current));
+    }
+    setBroadcast((current) => (current ? { ...current, sending: false, failed } : current));
+    if (!failed.length) window.setTimeout(() => setBroadcast(null), 900);
+  };
+  const broadcastSheet = broadcast && typeof document !== "undefined" ? createPortal(
+    <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/50 sm:items-center sm:p-4" dir={i18nInstance.dir()} role="dialog" aria-modal="true" aria-label={t("employeePortal.chat.broadcast")}>
+      <button type="button" className="absolute inset-0" onClick={() => !broadcast.sending && setBroadcast(null)} aria-label={t("common.close")} />
+      <div className="relative flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.5rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl sm:rounded-[1.5rem]">
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+          <div className="flex items-center gap-2 text-base font-black"><Megaphone className="h-4 w-4 text-[var(--primary)]" />{t("employeePortal.chat.broadcast")}</div>
+          <button type="button" onClick={() => setBroadcast(null)} disabled={broadcast.sending} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[var(--surface-hover)]" aria-label={t("common.close")}><X className="h-5 w-5" /></button>
+        </div>
+        <div className="flex items-center justify-between px-4 pt-2 text-xs font-black text-[var(--muted)]">
+          <span>{t("employeePortal.chat.broadcastSelected", { count: broadcast.selected.size })}</span>
+          <button type="button" onClick={() => setBroadcast((current) => ({ ...current, selected: current.selected.size === broadcastTargets.length ? new Set() : new Set(broadcastTargets.map(({ thread: rowThread }) => String(rowThread.id))) }))} className="text-[var(--primary)]">
+            {broadcast.selected.size === broadcastTargets.length ? t("common.clear") : t("common.selectAll")}
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {broadcastTargets.map(({ employee, thread: rowThread }) => {
+            const id = String(rowThread.id);
+            const checked = broadcast.selected.has(id);
+            return (
+              <label key={id} className={`mb-1 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 ${checked ? "bg-[var(--primary-soft)]" : "hover:bg-[var(--surface-hover)]"}`}>
+                <input type="checkbox" checked={checked} onChange={() => toggleBroadcastTarget(id)} className="h-4 w-4 accent-[var(--primary)]" disabled={broadcast.sending} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-black" dir="auto">{employee?.full_name || employee?.employee_name || rowThread.employee_name}</span>
+                  <span className="block truncate text-[11px] font-bold text-[var(--muted)]" dir="auto">{employee?.branch_name || rowThread.branch_name || ""}</span>
+                </span>
+                {broadcast.failed.includes(id) ? <span className="text-[11px] font-black text-[var(--danger)]">{t("employeePortal.chat.sendFailed")}</span> : null}
+              </label>
+            );
+          })}
+        </div>
+        <div className="border-t border-[var(--border)] p-3">
+          <textarea value={broadcast.text} onChange={(event) => setBroadcast((current) => ({ ...current, text: event.target.value }))} rows={3} disabled={broadcast.sending} placeholder={t("employeePortal.chat.broadcastPlaceholder")} className="w-full resize-none rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-[15px] font-medium text-[var(--text)] outline-none focus:border-[var(--primary)]" dir="auto" />
+          <button type="button" onClick={sendBroadcast} disabled={broadcast.sending || !broadcast.text.trim() || !broadcast.selected.size} className="mt-2 flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-full bg-[var(--primary)] text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
+            {broadcast.sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+            {broadcast.sending ? `${broadcast.done}/${broadcast.selected.size}` : t("employeePortal.chat.broadcastSend", { count: broadcast.selected.size })}
+          </button>
+        </div>
+      </div>
+    </div>, document.body
+  ) : null;
+
   const openRowMenu = (node, rowThread, rowEmployee) => {
     const rect = node?.getBoundingClientRect?.();
     const viewportWidth = window.innerWidth || 360;
@@ -1249,6 +1326,7 @@ export default function SharedPortalChat({
     <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpen} onReply={answerRingAndOpen} onDismiss={chatRing.dismissIncoming} />
     {rowMenuSheet}
     {starredSheet}
+    {broadcastSheet}
     <section
       ref={chatRootRef}
       className={`theme-card portal-chat-root flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
@@ -1285,7 +1363,12 @@ export default function SharedPortalChat({
               <input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchThreads")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--text)] outline-none" />
               {threadSearch ? <button type="button" onClick={() => setThreadSearch("")} aria-label={t("common.close")}><X className="h-4 w-4" /></button> : null}
             </label>
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" role="tablist">
+            <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1" role="tablist">
+              {apiAdapter?.sendMessage && allowReply ? (
+                <button type="button" onClick={openBroadcast} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]" aria-label={t("employeePortal.chat.broadcast")} title={t("employeePortal.chat.broadcast")}>
+                  <Megaphone className="h-4 w-4" />
+                </button>
+              ) : null}
               {[["all", t("common.all")], ["unread", t("employeePortal.chat.filterUnread")], ["cashier", t("employeePortal.chat.filterCashiers")], ["archived", t("employeePortal.chat.filterArchived")]].map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={threadFilter === key} onClick={() => setThreadFilter(key)} className={`h-8 shrink-0 rounded-full px-3 text-[12px] font-black transition ${threadFilter === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "bg-[var(--surface-soft)] text-[var(--muted)] hover:text-[var(--text)]"}`}>
                   {label}

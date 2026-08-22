@@ -765,7 +765,9 @@
     },
     "yesterday": "أمس",
     "zoomIn": "تكبير",
-    "zoomOut": "تصغير"
+    "zoomOut": "تصغير",
+    "selectAll": "تحديد الكل",
+    "clear": "مسح"
   },
   "sidebar": {
     "main": "الرئيسية",
