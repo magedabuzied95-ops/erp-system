@@ -2,11 +2,49 @@ export const DEFAULT_THEME_ID = "light";
 export const DEFAULT_ACCENT_ID = "default";
 export const DEFAULT_DENSITY = "normal";
 
-// M1 has one product accent. Keeping the accent API preserves backwards
-// compatibility while preventing green/blue from becoming action colors.
+// Accent = the colour of the action keys (primary buttons, active tabs,
+// pills). "default" is the M1 gold baked into each theme's palette; the
+// others override the five primary tokens and nothing else, so surfaces,
+// text and status hues stay the same. Contrast colours are chosen so text
+// on a solid key stays readable in both light and dark themes.
 export const ACCENTS = [
-  { id: "default", name: "M1 Gold", primary: null, primarySoft: null },
-  { id: "gold", name: "M1 Gold", primary: null, primarySoft: null },
+  { id: "default", name: "M1 Gold", swatch: "#a47a12", variables: null },
+  {
+    id: "blue",
+    name: "Blue",
+    swatch: "#2563eb",
+    variables: { primary: "#2563eb", "primary-hover": "#1d4ed8", "primary-active": "#1e40af", "primary-contrast": "#ffffff", "primary-soft": "rgba(37, 99, 235, 0.14)" },
+  },
+  {
+    id: "emerald",
+    name: "Emerald",
+    swatch: "#059669",
+    variables: { primary: "#059669", "primary-hover": "#047857", "primary-active": "#065f46", "primary-contrast": "#ffffff", "primary-soft": "rgba(5, 150, 105, 0.14)" },
+  },
+  {
+    id: "rose",
+    name: "Rose",
+    swatch: "#e11d48",
+    variables: { primary: "#e11d48", "primary-hover": "#be123c", "primary-active": "#9f1239", "primary-contrast": "#ffffff", "primary-soft": "rgba(225, 29, 72, 0.14)" },
+  },
+  {
+    id: "violet",
+    name: "Violet",
+    swatch: "#7c3aed",
+    variables: { primary: "#7c3aed", "primary-hover": "#6d28d9", "primary-active": "#5b21b6", "primary-contrast": "#ffffff", "primary-soft": "rgba(124, 58, 237, 0.14)" },
+  },
+  {
+    id: "orange",
+    name: "Orange",
+    swatch: "#ea580c",
+    variables: { primary: "#ea580c", "primary-hover": "#c2410c", "primary-active": "#9a3412", "primary-contrast": "#ffffff", "primary-soft": "rgba(234, 88, 12, 0.14)" },
+  },
+  {
+    id: "slate",
+    name: "Slate",
+    swatch: "#334155",
+    variables: { primary: "#334155", "primary-hover": "#1e293b", "primary-active": "#0f172a", "primary-contrast": "#ffffff", "primary-soft": "rgba(51, 65, 85, 0.14)" },
+  },
 ];
 
 const shared = {

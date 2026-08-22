@@ -37,9 +37,8 @@ const applyThemeVariables = (theme, accentId, density, appearance) => {
   const densityValue = density === "compact" ? "compact" : "normal";
 
   const variables = { ...theme.variables };
-  if (accent.id !== DEFAULT_ACCENT_ID && accent.primary && accent.primarySoft) {
-    variables.primary = accent.primary;
-    variables.primarySoft = accent.primarySoft;
+  if (accent.id !== DEFAULT_ACCENT_ID && accent.variables) {
+    Object.assign(variables, accent.variables);
   }
 
   // The appearance profile is layered AFTER the palette so its font, radius

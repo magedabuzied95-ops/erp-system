@@ -518,7 +518,19 @@
     "branch": "Branch",
     "department": "Department",
     "role": "Role",
-    "email": "Email"
+    "email": "Email",
+    "keyColor": "Key colour",
+    "keyColorHint": "Pick the colour of the portal buttons and keys",
+    "keyColorPreview": "Preview",
+    "accents": {
+      "default": "M1 Gold",
+      "blue": "Blue",
+      "emerald": "Emerald",
+      "rose": "Rose",
+      "violet": "Violet",
+      "orange": "Orange",
+      "slate": "Slate"
+    }
   },
   "invoice": {
     "close": "Close invoice details",

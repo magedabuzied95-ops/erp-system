@@ -518,7 +518,19 @@
     "branch": "الفرع",
     "department": "القسم",
     "role": "الدور",
-    "email": "البريد"
+    "email": "البريد",
+    "keyColor": "لون المفاتيح",
+    "keyColorHint": "اختار لون الأزرار والمفاتيح في البوابة",
+    "keyColorPreview": "معاينة",
+    "accents": {
+      "default": "ذهبي M1",
+      "blue": "أزرق",
+      "emerald": "أخضر",
+      "rose": "وردي",
+      "violet": "بنفسجي",
+      "orange": "برتقالي",
+      "slate": "رمادي داكن"
+    }
   },
   "invoice": {
     "close": "إغلاق تفاصيل الفاتورة",

@@ -5,6 +5,7 @@ import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
   MoreVertical,
+  Palette,
   Trash2,
   ArrowLeftRight,
   ArrowUpRight,
@@ -59,6 +60,7 @@ import { managerPortalApi } from "../services/managerPortalApi";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { safeSetLocalStorage } from "../../../utils/safeStorage";
 import { useTheme } from "../../../theme/useTheme";
+import { ACCENTS } from "../../../theme/themes";
 import EmployeeDetailsSheet from "../components/EmployeeDetailsSheet";
 import "./ManagerPortal.m1.css";
 
@@ -862,7 +864,8 @@ export default function ManagerPortal() {
   // Subscribes the whole portal to language changes; the strings themselves are
   // resolved through the module-scope tt() helper.
   useTranslation();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, accentId, setAccent } = useTheme();
+  const accents = ACCENTS;
   const navigate = useNavigate();
   // Portal-scoped language: applied on enter, system language restored on leave.
   const [portalLanguage, setPortalLanguage] = useState(() => resolveManagerPortalLanguage());
@@ -3364,6 +3367,34 @@ export default function ManagerPortal() {
                       {item.badge > 0 ? <span className="absolute start-2 top-2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{formatNumber(item.badge)}</span> : null}
                     </button>
                   ))}
+                </div>
+              </Card>
+
+              {/* Key colour (accent). Persists per browser via the theme store. */}
+              <Card title={tt("managerPortal.settings.keyColor")} subtitle={tt("managerPortal.settings.keyColorHint")} icon={Palette} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
+                <div className="manager-portal-accent-grid flex flex-wrap gap-2">
+                  {accents.map((accent) => {
+                    const active = accent.id === accentId;
+                    return (
+                      <button
+                        key={accent.id}
+                        type="button"
+                        aria-pressed={active}
+                        data-testid={`accent-${accent.id}`}
+                        onClick={() => setAccent(accent.id)}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-text bg-surface-soft text-text" : "border-border bg-surface text-text-muted"}`}
+                      >
+                        <span className="h-5 w-5 rounded-full border border-black/10 shadow-sm" style={{ background: accent.swatch }} />
+                        {tt(`managerPortal.settings.accents.${accent.id}`, accent.name)}
+                        {active ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)]">{tt("managerPortal.actions.approve")}</span>
+                  <span className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-[var(--primary-soft)] px-4 text-xs font-black text-primary">{tt("managerPortal.actions.create")}</span>
+                  <span className="text-[11px] font-bold text-text-muted">{tt("managerPortal.settings.keyColorPreview")}</span>
                 </div>
               </Card>
 
