@@ -1179,6 +1179,13 @@ export default function SharedPortalChat({
       className={`theme-card portal-chat-root flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
       dir={i18nInstance.dir()}
       data-mobile-conversation-open={mobileConversationOpen ? "true" : "false"}
+      onKeyDown={(event) => {
+        if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === "f" && messageSearchRef.current) {
+          event.preventDefault();
+          messageSearchRef.current.focus();
+          messageSearchRef.current.select?.();
+        }
+      }}
     >
       <div className={`shrink-0 border-b border-[var(--border)] p-4 ${mobileFullScreen && mobileConversationOpen ? "hidden md:block" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1388,6 +1395,7 @@ export default function SharedPortalChat({
                 onSendRecording={sendVoiceRecording}
                 onStartRecording={startVoiceRecording}
                 onScrollToReply={scrollToMessage}
+                onEditLast={apiAdapter?.editMessage ? () => { const last = [...messages].reverse().find((item) => item.sender_type === "admin" && item.body && !item.deleted_at && item.id); if (last) beginEditMessage(last); } : null}
                 disabled={!activeThreadId}
               />
               <PortalChatContactInfo

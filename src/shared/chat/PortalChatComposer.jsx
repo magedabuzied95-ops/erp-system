@@ -77,6 +77,7 @@ export default function PortalChatComposer({
   onStartRecording,
   disabled = false,
   onScrollToReply,
+  onEditLast,
 }) {
   const { t } = useTranslation();
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -118,6 +119,11 @@ export default function PortalChatComposer({
     if (event.key === "Escape") {
       if (editingMessage) { setEditingMessage?.(null); setBody?.(""); }
       else if (replyTo) setReplyTo?.(null);
+    }
+    // ↑ in an empty composer edits your last message (WhatsApp desktop).
+    if (event.key === "ArrowUp" && !String(body || "").trim() && !editingMessage && onEditLast) {
+      event.preventDefault();
+      onEditLast();
     }
   };
 
