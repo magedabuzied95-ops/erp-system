@@ -1,5 +1,5 @@
 import { AlertCircle, ArrowDownCircle, Check, CheckCheck, ChevronDown, Clock3, Copy, Forward, Loader2, MessageCircle, Pencil, Reply, RotateCcw, Trash2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -72,6 +72,18 @@ function PortalChatMessageText({ body = "", reserve = 0, highlight = "" }) {
     </div>
   );
 }
+
+// First strong character decides the paragraph direction (what dir="auto" does),
+// so the time/ticks can sit at the *end* of the text where the spacer is.
+const STRONG_RTL = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+const STRONG_LTR = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/;
+const bodyDirection = (body = "") => {
+  for (const char of String(body)) {
+    if (STRONG_RTL.test(char)) return "rtl";
+    if (STRONG_LTR.test(char)) return "ltr";
+  }
+  return "rtl";
+};
 
 const messageDayKey = (value) => {
   const date = new Date(value || 0);
@@ -169,7 +181,15 @@ const MessageBubble = memo(function MessageBubble({
     ? "bg-[var(--chat-bubble-out)] text-[var(--chat-text)]"
     : "bg-[var(--chat-bubble-in)] text-[var(--chat-text)]";
   const size = voiceMessage ? "w-[min(76vw,18.5rem)] px-2 py-1" : imageOnly ? "w-fit max-w-[82%] p-1" : "w-fit max-w-[82%] px-3 py-1.5";
-  const metaReserve = (outgoing ? 62 : 44) + (message.edited_at && !deleted ? 40 : 0);
+  const metaRef = useRef(null);
+  const [metaWidth, setMetaWidth] = useState(0);
+  useLayoutEffect(() => {
+    const width = metaRef.current?.offsetWidth || 0;
+    if (width && width !== metaWidth) setMetaWidth(width);
+  }, [metaWidth, timeText, message.edited_at]);
+  // Measured once mounted; the estimate only covers the very first paint.
+  const metaReserve = (metaWidth || (outgoing ? 62 : 44) + (message.edited_at && !deleted ? 40 : 0)) + 6;
+  const textDirection = hasBody && !deleted ? bodyDirection(message.body) : "rtl";
   const meta = (
     <span className={`inline-flex items-center gap-1 text-[11px] font-medium leading-4 ${imageOnly ? "text-white" : "text-[var(--chat-muted)]/80"}`} dir="ltr">
       {message.edited_at && !deleted ? <span>{labels.edited}</span> : null}
@@ -239,7 +259,7 @@ const MessageBubble = memo(function MessageBubble({
           {deleted ? <div className="pe-5 italic text-[var(--chat-muted)]/70">{labels.deleted}</div> : hasBody ? <PortalChatMessageText body={message.body} reserve={metaReserve} highlight={highlight} /> : null}
           {!voiceMessage && !imageOnly ? (
             hasBody || deleted
-              ? <div className="absolute bottom-1 left-2" dir="ltr">{meta}</div>
+              ? <div ref={metaRef} className={`absolute bottom-1 ${textDirection === "ltr" ? "right-2" : "left-2"}`} dir="ltr">{meta}</div>
               : <div className="mt-0.5 flex justify-end" dir="ltr">{meta}</div>
           ) : null}
           {reactions.length && !deleted ? (
