@@ -2939,7 +2939,7 @@ function PurchaseCart({
       };
 
   return (
-    <aside className={`${compact ? "flex max-h-[82vh] flex-col" : "flex max-h-none flex-col xl:sticky xl:top-20 xl:h-[calc(100vh-5.5rem)]"} min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/20`}>
+    <aside className={`${compact ? "flex max-h-[82vh] flex-col" : "flex max-h-none flex-col xl:sticky xl:top-[4.5rem] xl:h-[calc(100vh-5rem)]"} min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/20`}>
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-l from-white/[0.05] to-transparent px-4 py-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.purchaseCart")}</div>
@@ -2952,7 +2952,7 @@ function PurchaseCart({
       </div>
 
       <div className="shrink-0 border-b border-white/10 px-3 py-2.5">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button
             type="button"
             onClick={() => onBulkPrice?.("purchase")}
@@ -2986,7 +2986,7 @@ function PurchaseCart({
         </p>
       </div>
 
-      <div className="min-h-[15rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/20 p-2.5 [scrollbar-gutter:stable] xl:min-h-[12rem] xl:max-h-none xl:flex-1">
+      <div className="min-h-[15rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/20 p-2.5 [scrollbar-gutter:stable] xl:min-h-[6rem] xl:max-h-none xl:flex-1">
         {items.length === 0 ? (
           <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
             {t("purchases.create.emptyCartHelper")}
@@ -2999,7 +2999,7 @@ function PurchaseCart({
       </div>
 
       <div className="shrink-0 bg-zinc-950/98 p-3 backdrop-blur">
-        <div className="max-h-[34vh] overflow-y-auto overscroll-contain pb-1 [scrollbar-gutter:stable] xl:max-h-none xl:overflow-visible">
+        <div className="max-h-[34vh] overflow-y-auto overscroll-contain pb-1 [scrollbar-gutter:stable] xl:max-h-[58vh]">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Summary label={t("purchases.details.subtotal")} value={formatCurrency(subtotal)} />
           <Summary label={t("purchases.create.expenses")} value={formatCurrency(expenses)} />
