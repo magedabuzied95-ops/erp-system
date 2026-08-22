@@ -14,6 +14,7 @@ import {
   MessageCircle,
   MessageSquareText,
   Plus,
+  Settings,
   ShoppingBag,
   Sparkles,
   User,
@@ -24,6 +25,7 @@ import {
 
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
+import RestockWorkflowSettings from "./RestockWorkflowSettings.jsx";
 import "./Customer360Drawer.css";
 // The restock form reuses the order composer's products section (ai-order__*).
 import "../pages/AiInboxOrderComposer.m1.css";
@@ -213,6 +215,7 @@ export default function Customer360Drawer({
   const [restockLoading, setRestockLoading] = useState(false);
   const [restockMsg, setRestockMsg] = useState("");
   const [restockCreate, setRestockCreate] = useState({ open: false, lines: [], busy: false });
+  const [restockSettingsOpen, setRestockSettingsOpen] = useState(false);
   const restockLineKey = (line = {}) => `${line.product_id || ""}:${line.variant_id || ""}:${clean(line.color)}:${clean(line.size)}`;
 
   const restockPhone = clean(profileData.phone || customer?.phone || context?.phone || "");
@@ -673,10 +676,16 @@ export default function Customer360Drawer({
 
               {/* Phase 7.5 — Restock Requests (variant-level intents). No message is ever sent to the customer. */}
               <div className="m1-customer-products-section rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-                <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockRequests")}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockRequests")}</div>
+                    <button type="button" aria-label={t("aiSupport.inbox.customer360.restockSettingsTitle")} title={t("aiSupport.inbox.customer360.restockSettingsTitle")} onClick={() => setRestockSettingsOpen((v) => !v)} className={`grid h-7 w-7 place-items-center rounded-lg border transition ${restockSettingsOpen ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"}`}>
+                      <Settings className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.createRestockRequest")}</button>
                 </div>
+                <RestockWorkflowSettings open={restockSettingsOpen} />
                 {restockMsg ? <div className="mt-2 rounded-xl bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">{restockMsg}</div> : null}
                 {restockCreate.open ? (
                   <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
