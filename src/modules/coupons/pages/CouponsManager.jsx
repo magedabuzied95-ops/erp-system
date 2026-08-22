@@ -542,7 +542,13 @@ export default function CouponsManager() {
                       <div className="text-zinc-300">{coupon.discount_type === "percentage" ? `${Number(coupon.discount_value)}%` : coupon.discount_type === "free_shipping" ? cText("types.freeShipping", "شحن مجاني") : formatCurrency(coupon.discount_value)}</div>
                       <div className="text-zinc-300">{number(coupon.usage_count)} / {number(coupon.usage_limit)}</div>
                       <div>
-                        {coupon.assigned_customer_id && !coupon.sent_at && !coupon.usage_count ? (
+                        {Number(coupon.usage_count || 0) >= Number(coupon.usage_limit || 1) ? (
+                          // A spent coupon is spent: is_active stays TRUE after the last use, so reading
+                          // it here used to label an exhausted code "مفعلة".
+                          <span className="rounded-full bg-violet-400/10 px-2 py-1 text-[11px] font-black text-violet-200">{cText("headers.used", "مستخدم")}</span>
+                        ) : coupon.expires_at && new Date(coupon.expires_at).getTime() < Date.now() ? (
+                          <span className="rounded-full bg-zinc-500/10 px-2 py-1 text-[11px] font-black text-zinc-400">{cText("headers.expired", "منتهي")}</span>
+                        ) : coupon.assigned_customer_id && !coupon.sent_at && !coupon.usage_count ? (
                           <button
                             type="button"
                             onClick={() => sendCouponRow(coupon)}
