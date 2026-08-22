@@ -1021,6 +1021,91 @@ export const sendAssignedCouponToCustomer = async ({ tenantId = null, campaignId
   return { ...assignment, sent: true, provider_message_id: providerMessageId, message: text };
 };
 
+/** Hard ceiling on one bulk run: WhatsApp throttles a number that fires a long burst. */
+export const BULK_SEND_MAX = 50;
+const BULK_SEND_DELAY_MS = 1200;
+const pause = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+/**
+ * Send every coupon of a campaign that a manager already assigned to a customer but never sent.
+ *
+ * Only the pending queue — never "all customers" — so a bulk run can only ever reach people the
+ * manager deliberately picked. Sends are sequential with a pause between them rather than
+ * concurrent: a burst is what gets a WhatsApp number throttled or banned.
+ *
+ * One failure never stops the run; each coupon's outcome is reported back. Because
+ * sendAssignedCouponToCustomer stamps sent_at only after the provider confirms, re-running this
+ * retries exactly the ones that did not go out and re-sends nothing that did.
+ */
+export const sendPendingCouponsForCampaign = async ({ tenantId = null, campaignId, userId = null, limit = BULK_SEND_MAX } = {}) => {
+  await ensureCouponsSchema();
+  const cap = Math.min(BULK_SEND_MAX, Math.max(1, Number.parseInt(limit, 10) || BULK_SEND_MAX));
+  const params = [campaignId];
+  let tenantSql = "";
+  if (tenantId !== null && tenantId !== undefined) {
+    params.push(tenantId);
+    tenantSql = ` AND (cp.tenant_id = $${params.length} OR cp.tenant_id IS NULL)`;
+  }
+  params.push(cap);
+  const pending = await db.query(
+    `SELECT cp.id, cp.code, cp.assigned_customer_id,
+            COALESCE(NULLIF(cu.name, ''), '') AS customer_name,
+            COALESCE(NULLIF(cu.phone, ''), '') AS customer_phone
+     FROM coupons cp
+     LEFT JOIN customers cu ON cu.id = cp.assigned_customer_id
+     WHERE cp.campaign_id = $1
+       AND cp.assigned_customer_id IS NOT NULL
+       AND cp.sent_at IS NULL
+       AND cp.usage_count = 0
+       AND cp.is_active = TRUE
+       AND (cp.expires_at IS NULL OR cp.expires_at >= NOW())
+       ${tenantSql}
+     ORDER BY cp.assigned_at ASC NULLS LAST, cp.id ASC
+     LIMIT $${params.length}`,
+    params
+  );
+
+  const results = [];
+  let sent = 0;
+  let failed = 0;
+  for (const [index, row] of pending.rows.entries()) {
+    if (index > 0) await pause(BULK_SEND_DELAY_MS);
+    try {
+      const result = await sendAssignedCouponToCustomer({
+        tenantId,
+        campaignId,
+        customerId: row.assigned_customer_id,
+        userId,
+      });
+      sent += 1;
+      results.push({
+        coupon_id: row.id,
+        code: result?.coupon?.code || row.code,
+        customer_id: row.assigned_customer_id,
+        customer_name: row.customer_name,
+        sent: true,
+      });
+    } catch (error) {
+      failed += 1;
+      results.push({
+        coupon_id: row.id,
+        code: row.code,
+        customer_id: row.assigned_customer_id,
+        customer_name: row.customer_name,
+        sent: false,
+        reason: error?.code || error?.message || "send_failed",
+      });
+      console.error("[coupons] bulk send item failed", {
+        campaign_id: campaignId,
+        coupon_id: row.id,
+        reason: error?.code || error?.message,
+      });
+    }
+  }
+  console.log("[coupons] bulk send finished", { campaign_id: campaignId, queued: pending.rowCount, sent, failed, by_user: userId });
+  return { queued: pending.rowCount, sent, failed, capped: pending.rowCount >= cap, results };
+};
+
 /**
  * Phase 3.1 — after a customer's FIRST order, hand them a coupon from every campaign flagged
  * auto_issue_on_first_order. Called post-commit, fire-and-forget: it never throws into checkout.

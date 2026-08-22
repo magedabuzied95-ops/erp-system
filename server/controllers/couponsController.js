@@ -1,6 +1,7 @@
 import {
   assignCouponToCustomer,
   sendAssignedCouponToCustomer,
+  sendPendingCouponsForCampaign,
   createCampaign,
   deleteCampaign,
   exportCouponsCsv,
@@ -148,6 +149,20 @@ export const sendCoupon = async (req, res) => {
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to send the coupon");
+  }
+};
+
+export const sendPendingCoupons = async (req, res) => {
+  try {
+    const result = await sendPendingCouponsForCampaign({
+      tenantId: scopedTenantId(req),
+      campaignId: req.params.id,
+      userId: req.user?.id || null,
+      limit: req.body?.limit,
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to send the pending coupons");
   }
 };
 

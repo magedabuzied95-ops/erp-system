@@ -158,6 +158,18 @@
     },
     "sources": { "pos": "POS", "website": "Website", "manual": "Manual" },
     "codeModes": { "unique": "Unique codes (one coupon per customer)", "shared": "One shared code (ads & social)" },
+    "bulk": {
+      "sendAll": "Send all ({{count}})",
+      "title": "Bulk send",
+      "confirm": "{{count}} coupons will be sent over WhatsApp to the customers they are assigned to, one after another.",
+      "capNote": "Up to 50 messages per run; press again for the rest.",
+      "go": "Send",
+      "sending": "Sending...",
+      "done": "Sent {{count}} coupons",
+      "someFailed": "{{count}} failed to send",
+      "nothing": "No coupons are awaiting send",
+      "failed": "Bulk send failed"
+    },
     "pendingSend": {
       "banner_one": "{{count}} coupon is assigned to a customer and not sent yet",
       "banner_other": "{{count}} coupons are assigned to customers and not sent yet",

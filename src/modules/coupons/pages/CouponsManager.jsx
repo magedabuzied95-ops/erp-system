@@ -357,6 +357,27 @@ export default function CouponsManager() {
   };
 
   const [rowSendingId, setRowSendingId] = useState(null);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
+
+  const sendPendingCoupons = async () => {
+    if (!selectedCampaign?.id || bulkSending) return;
+    setBulkSending(true);
+    try {
+      const response = await api.post(`/coupons/campaigns/${selectedCampaign.id}/send-pending`, {});
+      const sent = Number(response?.sent || 0);
+      const failed = Number(response?.failed || 0);
+      if (sent) toast.success(cText("bulk.done", "اتبعت {{count}} كوبون", { count: sent }));
+      if (failed) toast.error(cText("bulk.someFailed", "فشل إرسال {{count}}", { count: failed }));
+      if (!sent && !failed) toast(cText("bulk.nothing", "مفيش كوبونات بانتظار الإرسال"));
+      setBulkConfirmOpen(false);
+      loadCoupons();
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error.message || cText("bulk.failed", "تعذر الإرسال الجماعي"));
+    } finally {
+      setBulkSending(false);
+    }
+  };
   const sendCouponRow = async (coupon) => {
     if (!selectedCampaign?.id || !coupon?.assigned_customer_id || rowSendingId) return;
     setRowSendingId(coupon.id);
@@ -519,6 +540,16 @@ export default function CouponsManager() {
                     <span className="shrink-0 text-xs font-black text-amber-200/80">{cText("pendingSend.review", "استعراض")}</span>
                   </button>
                 ) : null}
+                {Number(stats?.pending_send_coupons || 0) > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setBulkConfirmOpen(true)}
+                    className="mb-3 inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {cText("bulk.sendAll", "ابعت الكل ({{count}})", { count: Number(stats.pending_send_coupons) })}
+                  </button>
+                ) : null}
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
                 <div className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                   <div>{cText("headers.code", "الكود")}</div>
@@ -629,6 +660,27 @@ export default function CouponsManager() {
           onClose={() => setModalOpen(false)}
           onSave={saveCampaign}
         />
+      ) : null}
+      {bulkConfirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={() => (bulkSending ? null : setBulkConfirmOpen(false))}>
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{cText("bulk.title", "إرسال جماعي")}</div>
+            <h2 className="m1-section-title mt-1">{selectedCampaign?.name}</h2>
+            <p className="mt-3 text-sm font-semibold text-zinc-300">
+              {cText("bulk.confirm", "هيتبعت {{count}} كوبون على واتساب للعملاء المخصّص لهم. الرسائل بتتبعت واحدة ورا التانية.", { count: Number(stats?.pending_send_coupons || 0) })}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-amber-200/80">{cText("bulk.capNote", "الحد الأقصى 50 رسالة في المرة، والباقي بضغطة تانية.")}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={bulkSending} onClick={() => setBulkConfirmOpen(false)} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-sm font-black disabled:opacity-50">
+                {cText("actions.cancel", "إلغاء")}
+              </button>
+              <button type="button" disabled={bulkSending} onClick={sendPendingCoupons} className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-emerald-400 px-5 text-sm font-black text-black disabled:opacity-50">
+                {bulkSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                {bulkSending ? cText("bulk.sending", "بيتبعت...") : cText("bulk.go", "ابعت")}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
       {assignOpen ? (
         <AssignCouponDialog
