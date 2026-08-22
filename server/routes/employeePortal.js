@@ -44,6 +44,7 @@ import {
   listStarredChatMessages,
   updateEmployeeChatMessage,
 } from "../services/employeeChatService.js";
+import { getLinkPreview } from "../services/linkPreviewService.js";
 import {
   listDisplayRefillAlertsForEmployee,
   isDisplayRefillSupervisor,
@@ -1081,6 +1082,16 @@ router.post("/:token/chat/ring/:messageId/answer", verifyEmployeePortalToken, as
   } catch (error) {
     if (!error.status) console.error("[employee-payroll-portal] chat ring answer error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to answer ring" });
+  }
+});
+
+router.get("/:token/chat/link-preview", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const preview = await getLinkPreview(String(req.query?.url || ""));
+    return res.json({ success: true, preview });
+  } catch (error) {
+    if (!error.status) console.error("[employee-payroll-portal] link preview error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load preview" });
   }
 });
 

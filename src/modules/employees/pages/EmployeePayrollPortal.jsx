@@ -3333,6 +3333,8 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  const fetchChatLinkPreview = useCallback((url) => api.get(`/employee-portal/${encodeURIComponent(token)}/chat/link-preview`, { params: { url }, suppressErrorStatuses: [400, 404, 429, 500] }), [token]);
+
   const starChatMessage = async (message) => {
     if (!message?.id) return;
     try {
@@ -4663,6 +4665,7 @@ export default function EmployeePayrollPortal() {
               onJumpToBottom={scrollChatToBottom}
               onRetry={retryChatSend}
               onStar={starChatMessage}
+              fetchLinkPreview={fetchChatLinkPreview}
               onLoadOlder={loadOlderEmployeeChat}
               hasOlder={chatHasOlder}
               loadingOlder={chatLoadingOlder}

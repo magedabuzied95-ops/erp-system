@@ -1060,6 +1060,7 @@ export default function ManagerPortal() {
     markDelivered: (threadId, upToMessageId) => managerPortalApi.markChatDelivered(token, threadId, upToMessageId),
     updatePrefs: (threadId, prefs) => managerPortalApi.updateChatPrefs(token, threadId, prefs),
     starMessage: (messageId) => managerPortalApi.starChatMessage(token, messageId),
+    linkPreview: (url) => managerPortalApi.chatLinkPreview(token, url),
     listStarred: () => managerPortalApi.starredChatMessages(token),
     isLive: () => Boolean(socketRef.current?.connected),
     ring: (threadId) => managerPortalApi.ringChat(token, threadId),

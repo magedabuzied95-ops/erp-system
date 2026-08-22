@@ -13,6 +13,7 @@ import {
   sendBranchPosChatMessage,
   sendBranchPosChatRing,
 } from "../services/employeeChatService.js";
+import { getLinkPreview } from "../services/linkPreviewService.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -208,6 +209,16 @@ router.post("/chat/pos/delivered", protect, async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return chatFailure(res, error, "Failed to mark delivered");
+  }
+});
+
+router.get("/chat/link-preview", protect, async (req, res) => {
+  try {
+    const preview = await getLinkPreview(String(req.query?.url || ""));
+    return res.json({ success: true, preview });
+  } catch (error) {
+    if (!error.status) console.error("[employees] link preview error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load preview" });
   }
 });
 

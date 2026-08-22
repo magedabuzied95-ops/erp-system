@@ -46,6 +46,7 @@ import {
   updateManagerPortalSettings,
   loadManagerPortalByToken,
 } from "../services/managerPortalService.js";
+import { getLinkPreview } from "../services/linkPreviewService.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -557,6 +558,18 @@ router.get("/:token/chat", async (req, res) => {
 });
 
 // Literal path before the :threadId parameter, or "starred" is parsed as a thread id.
+router.get("/:token/chat/link-preview", async (req, res) => {
+  const manager = await loadVerifiedManager(req, res);
+  if (!manager) return;
+  try {
+    const preview = await getLinkPreview(String(req.query?.url || ""));
+    return res.json({ success: true, preview });
+  } catch (error) {
+    if (!error.status) console.error("[manager-portal] link preview error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load preview" });
+  }
+});
+
 router.get("/:token/chat/starred", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);

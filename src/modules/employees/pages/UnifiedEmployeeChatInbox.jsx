@@ -46,6 +46,7 @@ export default function UnifiedEmployeeChatInbox({
     reactMessage: (messageId, emoji) => api.post(`/employees/chat/messages/${encodeURIComponent(messageId)}/reaction`, { emoji }),
     starMessage: (messageId) => api.post(`/employees/chat/messages/${encodeURIComponent(messageId)}/star`, {}),
     listStarred: () => api.get("/employees/chat/starred"),
+    linkPreview: (url) => api.get("/employees/chat/link-preview", { params: { url } }),
     updatePrefs: (threadId, prefs) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/prefs`, prefs),
     markDelivered: (threadId, upToMessageId) => api.post(`/employees/chat/threads/${encodeURIComponent(threadId)}/delivered`, { up_to_message_id: upToMessageId }),
     editMessage: (threadId, messageId, payload) => api.patch(`/employees/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`, payload),

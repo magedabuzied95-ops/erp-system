@@ -1405,6 +1405,7 @@ export default function SharedPortalChat({
               <PortalChatMessageList
                 messages={visibleMessages}
                 highlight={searchQuery}
+                fetchLinkPreview={apiAdapter?.linkPreview || null}
                 loading={loadingThread}
                 labels={{
                   today: t("common.today"),

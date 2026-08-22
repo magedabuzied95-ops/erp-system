@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { messageDeliveryState, portalChatMessagePreview, isPortalChatAudioMessage, isPortalChatImageMessage, portalChatTextParts } from "./portalChatUtils";
 import PortalChatAttachment from "./PortalChatAttachment";
+import ChatLinkPreview from "./ChatLinkPreview";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 /* Consecutive messages from one sender inside this window share a group:
@@ -139,6 +140,7 @@ const MessageBubble = memo(function MessageBubble({
   handlers,
   selectable,
   highlight,
+  fetchLinkPreview,
 }) {
   const deleted = Boolean(message.deleted_at);
   const hasBody = Boolean(String(message.body || "").trim());
@@ -258,6 +260,7 @@ const MessageBubble = memo(function MessageBubble({
               ) : null}
             </div>
           ) : null}
+          {!deleted && hasBody && fetchLinkPreview ? <ChatLinkPreview body={message.body} fetchLinkPreview={fetchLinkPreview} outgoing={outgoing} /> : null}
           {deleted ? <div className="pe-5 italic text-[var(--chat-muted)]/70">{labels.deleted}</div> : hasBody ? <PortalChatMessageText body={message.body} reserve={metaReserve} highlight={highlight} /> : null}
           {!voiceMessage && !imageOnly ? (
             hasBody || deleted
@@ -287,6 +290,7 @@ const MessageBubble = memo(function MessageBubble({
   && prev.incomingLabel === next.incomingLabel
   && prev.selectable === next.selectable
   && prev.highlight === next.highlight
+  && prev.fetchLinkPreview === next.fetchLinkPreview
 );
 
 export default function PortalChatMessageList({
@@ -322,6 +326,7 @@ export default function PortalChatMessageList({
   className = "",
   style,
   highlight = "",
+  fetchLinkPreview = null,
 }) {
   const { t, i18n } = useTranslation();
   const [activeMessage, setActiveMessage] = useState(null);
@@ -477,6 +482,7 @@ export default function PortalChatMessageList({
                 handlers={handlers}
                 selectable={selectable}
                 highlight={highlight}
+                fetchLinkPreview={fetchLinkPreview}
               />
             </div>
           );
