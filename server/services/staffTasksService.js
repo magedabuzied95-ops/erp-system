@@ -1425,7 +1425,9 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
     assignment_strategy: data.assignmentStrategy,
     auto_assign_mode: data.autoAssignMode,
     fixed_employee_id: data.fixedEmployeeId,
-    due_time: data.dueTime,
+    // Only touch due_time when the caller sent it; the rule is merged with
+    // ||, so a null here would erase a stored time.
+    ...(payload.due_time !== undefined || payload.dueTime !== undefined ? { due_time: data.dueTime } : {}),
     // Opt-in for the background scheduler. Templates saved before the
     // scheduler existed stay manual (button-driven) until they are re-saved.
     auto_generate: true,
@@ -1753,6 +1755,11 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       current_assignee_id: fixedEmployeeId,
       due_at: dueAt,
       allow_unassigned: true,
+      // This IS the instance. Without it createStaffTask reads the
+      // recurring_rule in metadata, re-saves the template (clobbering its
+      // rule) and calls back into this generator — an infinite loop.
+      force_instance: true,
+      save_as_template: false,
       title: template.title,
       description: template.description,
       title_ar: template.title_ar,
