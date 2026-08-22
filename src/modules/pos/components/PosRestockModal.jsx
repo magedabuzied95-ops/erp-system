@@ -7,6 +7,9 @@ import { api } from "../../../shared/api/api";
 import RestockRequestsPanel from "../../aiSupport/components/RestockRequestsPanel";
 import ProductCardPicker from "../../aiSupport/components/ProductCardPicker";
 import { matchesPhoneSearch, normalizePhone } from "../lib/phoneSearch";
+// The picker's desktop workspace layout lives with the inbox page stylesheet;
+// every rule in it is scoped to .ai-inbox-desktop / .ai-inbox-product-picker-desktop.
+import "../../aiSupport/pages/AiInboxDesktop.css";
 
 const text = (value = "") => String(value ?? "").trim();
 const customerPhone = (customer = {}) => text(customer?.phone || customer?.mobile || customer?.whatsapp || "");
