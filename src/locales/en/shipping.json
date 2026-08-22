@@ -83,5 +83,79 @@
       "save": "Save",
       "cancel": "Cancel"
     }
+  },
+  "settlements": {
+    "eyebrow": "Shipping Center",
+    "title": "Bosta COD Settlement",
+    "subtitle": "Parcels Bosta collected cash for, and the Bosta transfers that reached the bank.",
+    "back": "Shipping Center",
+    "refresh": "Refresh",
+    "backfill": "Reconcile delivered parcels",
+    "backfillDone": "{{count}} parcels marked as collected by Bosta",
+    "backfillNone": "No delivered parcels need reconciling",
+    "backfillFailed": "Reconcile failed",
+    "kpi": {
+      "pending": "Held by Bosta",
+      "pendingCount": "{{count}} parcels unsettled",
+      "settled": "Settled",
+      "settledCount": "{{count}} parcels",
+      "selected": "Selected for settlement",
+      "selectedCount": "{{count}} parcels"
+    },
+    "tabs": {
+      "pending": "Held by Bosta",
+      "settled": "Settled",
+      "history": "Transfers"
+    },
+    "filters": {
+      "search": "Search order, customer or tracking",
+      "from": "From",
+      "to": "To"
+    },
+    "table": {
+      "order": "Order",
+      "customer": "Customer",
+      "tracking": "Tracking",
+      "collectedAt": "Delivered at",
+      "orderTotal": "Order total",
+      "collected": "Collected",
+      "settlement": "Settlement",
+      "empty": "Nothing here"
+    },
+    "selectAll": "Select all",
+    "selectVisible": "Select visible",
+    "form": {
+      "title": "Record a Bosta transfer",
+      "hint": "Pick the parcels in this transfer, enter the fees Bosta deducted and the net that reached the bank. Net must equal collected − fees.",
+      "gross": "Gross collected (selected parcels)",
+      "fees": "Bosta fees deducted",
+      "net": "Net received in bank",
+      "expectedNet": "Expected",
+      "settledAt": "Transfer date",
+      "reference": "Transfer reference (optional)",
+      "account": "Receiving account",
+      "accountAuto": "Main Bank (automatic)",
+      "notes": "Notes",
+      "submit": "Record settlement",
+      "submitting": "Saving…",
+      "noSelection": "Select at least one parcel",
+      "mismatch": "Net does not equal collected minus fees",
+      "success": "Settlement #{{id}} recorded — net {{net}}",
+      "failed": "Could not record the settlement"
+    },
+    "history": {
+      "title": "Bosta transfers",
+      "empty": "No transfers recorded",
+      "date": "Date",
+      "reference": "Reference",
+      "orders": "Parcels",
+      "gross": "Gross",
+      "fees": "Fees",
+      "net": "Net",
+      "account": "Account",
+      "by": "By",
+      "view": "Details",
+      "close": "Close"
+    }
   }
 }

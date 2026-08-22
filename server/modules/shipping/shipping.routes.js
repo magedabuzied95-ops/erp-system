@@ -21,6 +21,13 @@ import {
   updateShipmentNotificationSettings,
   updateShippingProviderSettings,
 } from "./shipping.controller.js";
+import {
+  backfillCourierCollectionsController,
+  createCourierSettlementController,
+  getCourierSettlementController,
+  listCourierCollectionsController,
+  listCourierSettlementsController,
+} from "./shipping.settlements.controller.js";
 
 const router = express.Router();
 
@@ -45,5 +52,14 @@ router.get("/providers/bosta/status", protect, permit("settings", "view"), getBo
 router.post("/bosta/sync-locations", protect, permit("settings", "edit"), syncBostaLocationsController);
 router.post("/bosta/webhook", handleBostaWebhook);
 router.post("/bosta/webhook/test", protect, permit("settings", "view"), testBostaWebhook);
+
+// Courier COD money: what the courier collected at the door (step one, automatic)
+// and the bank transfers that settle it (step two, an operator act). Creating a
+// settlement moves money on a money account, so it needs the edit grant.
+router.get("/settlements/collections", protect, permit("orders", "view"), listCourierCollectionsController);
+router.post("/settlements/collections/backfill", protect, permit("orders", "edit"), backfillCourierCollectionsController);
+router.get("/settlements", protect, permit("orders", "view"), listCourierSettlementsController);
+router.get("/settlements/:id", protect, permit("orders", "view"), getCourierSettlementController);
+router.post("/settlements", protect, permit("orders", "edit"), createCourierSettlementController);
 
 export default router;

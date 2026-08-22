@@ -388,6 +388,15 @@ const paymentMethodIcon = {
   deferred: Clock3,
   credit_sale: Clock3,
   employee_advance: Wallet,
+  courier: Truck,
+};
+// The courier took the customer's money at the door. The customer owes nothing, but
+// the cash is with the courier until its transfer lands — the label says both.
+const courierCollectionOf = (order = {}) => {
+  if (!order.courier_collected_at) return null;
+  const provider = lower(order.shipping_provider || order.shipping_provider_id || "");
+  const providerLabel = provider === "bosta" ? "بوسطة" : (provider || "شركة الشحن");
+  return { providerLabel, settled: Boolean(order.courier_settlement_id) };
 };
 const paymentMethodParts = (order = {}) => [
   { key: "cash", value: numberValue(order.cash_amount, order.cashAmount) },
@@ -465,6 +474,16 @@ const getPaymentSummary = (order = {}, language = "en") => {
     ? parts.map((part) => methods[part.key]).join(" + ")
     : methods[methodKey] || "";
   const statusLabel = statuses[statusKey] || "\u0622\u062c\u0644";
+  const courier = courierCollectionOf(order);
+  if (courier && statusKey === "paid") {
+    return {
+      statusKey: courier.settled ? "paid" : "courier_pending",
+      methodKey: "courier",
+      label: courier.settled
+        ? `${statusLabel} - ${courier.providerLabel}`
+        : localizedCopy(language, `\u0645\u062d\u0635\u0651\u0644 \u0639\u0646\u062f ${courier.providerLabel}`, `Collected by ${courier.providerLabel}`),
+    };
+  }
   const label = methodLabel && statusKey !== "deferred"
     ? `${statusLabel} - ${methodLabel}`
     : statusLabel || "-";
@@ -1663,6 +1682,7 @@ function PaymentStatusCell({ order, language }) {
     paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
     partially_paid: "border-amber-400/25 bg-amber-400/10 text-amber-100",
     deferred: "border-border bg-border-strong text-text",
+    courier_pending: "border-sky-400/25 bg-sky-400/10 text-sky-100",
   }[summary.statusKey] || "border-border bg-surface-soft text-text";
 
   return (

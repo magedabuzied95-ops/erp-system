@@ -143,6 +143,7 @@ const CustomerLoyaltyProfile = lazy(() => import("./modules/loyalty/pages/Custom
 const Orders = lazy(() => import("./modules/orders/pages/OrdersDashboard"));
 const CreateOrder = lazy(() => import("./modules/sales/pages/CreateOrder"));
 const ShippingCenter = lazy(() => import("./modules/shipping/pages/ShippingCenter"));
+const CourierSettlements = lazy(() => import("./modules/shipping/pages/CourierSettlements"));
 
 /* ======================================================
    POS
@@ -1498,6 +1499,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["orders.view"]}>
               <ShippingCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="operations/shipping/settlements"
+          element={
+            <ProtectedRoute requiredPermissions={["orders.view"]}>
+              <CourierSettlements />
             </ProtectedRoute>
           }
         />

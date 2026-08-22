@@ -4,6 +4,7 @@ import { getSetting, setSetting } from "../../services/settingsService.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
+import { ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
 import { bostaStateText, buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -1183,7 +1184,12 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     `,
     [orderId, status, response.tracking_number, response.provider_delivery_id, response.tracking_url, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
   );
-  const updatedOrder = updated.rows[0];
+  let updatedOrder = updated.rows[0];
+  if (status === "delivered") {
+    await ensureCourierSettlementSchema();
+    const collection = await markCourierCollected(db, updatedOrder, { source: "bosta_refresh_status" });
+    if (collection.applied) updatedOrder = collection.order;
+  }
   sendShipmentNotificationForStatus(updatedOrder, status).catch((error) => {
     console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status, message: error?.message || String(error) });
   });
@@ -1344,8 +1350,16 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
       `,
       [order.id, parsed.status, parsed.deliveryId, parsed.trackingNumber, safeJson(payload), JSON.stringify([timelineEvent])]
     );
+    let updatedOrder = updated.rows[0];
+    // Delivered means the courier took the customer's money at the door: close the
+    // customer's balance and open the courier's. Same transaction as the status write
+    // so a parcel can never be "delivered" and still "آجل" at the same time.
+    if (parsed.status === "delivered") {
+      await ensureCourierSettlementSchema();
+      const collection = await markCourierCollected(client, updatedOrder, { source: "bosta_webhook", at: parsed.occurredAt || null });
+      if (collection.applied) updatedOrder = collection.order;
+    }
     await client.query("COMMIT");
-    const updatedOrder = updated.rows[0];
     sendShipmentNotificationForStatus(updatedOrder, parsed.status).catch((error) => {
       console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: parsed.status, message: error?.message || String(error) });
     });

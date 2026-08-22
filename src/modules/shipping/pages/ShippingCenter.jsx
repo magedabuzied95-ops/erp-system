@@ -14,6 +14,7 @@ import {
   Download,
   ExternalLink,
   Filter,
+  Landmark,
   Layers3,
   Loader2,
   MapPin,
@@ -526,6 +527,7 @@ export default function ShippingCenter() {
             <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.tableView")}</button>
             <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.boardView")}</button>
             <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-black text-[var(--text)]"><RefreshCw className="h-4 w-4" /> {t("shipping.center.refresh")}</button>
+            <Link to="/operations/shipping/settlements" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 hover:bg-emerald-400/20"><Landmark className="h-4 w-4" /> {t("shipping.settlements.title")}</Link>
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}

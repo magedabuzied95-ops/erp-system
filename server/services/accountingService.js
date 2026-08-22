@@ -1366,6 +1366,7 @@ const MONEY_TRANSACTION_TYPES = new Set([
   "manual_adjustment",
   "supplier_payment",
   "customer_payment",
+  "courier_settlement",
 ]);
 
 const DEFAULT_MONEY_ACCOUNTS = [
