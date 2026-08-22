@@ -5228,6 +5228,42 @@ const deleteOrderRelatedRows = async (client, orderId) => {
   return deleted;
 };
 
+/**
+ * What the customer ACTUALLY paid per unit, as a fraction of the line price.
+ *
+ * order_items.total_amount is the line price net of that line's own discount, but it carries no
+ * share of the ORDER-level discounts — the invoice discount, redeemed loyalty and any coupon.
+ * Refunding the raw line price therefore hands back more than was taken: an 1,100 order with a
+ * 220 coupon is paid at 880, so a 500 line was really paid at 400.
+ *
+ * factor = (goods net of item discounts − order-level discount) / goods net of item discounts
+ *
+ * The item discounts are subtracted out of orders.discount_amount first, because they are already
+ * reflected in total_amount and would otherwise be taken twice. Clamped to [0,1]: inconsistent
+ * legacy rows must never refund more than the line price, nor a negative amount.
+ * Returns 1 when the order carries no order-level discount, so ordinary invoices are untouched.
+ */
+const resolveRefundProrationFactor = async (client, order = {}) => {
+  const orderId = Number.parseInt(order?.id, 10);
+  if (!orderId) return 1;
+  const orderDiscount = Number(order.discount_amount || 0);
+  if (!(orderDiscount > 0)) return 1;
+  const result = await client.query(
+    `SELECT COALESCE(SUM(total_amount), 0)::numeric AS goods,
+            COALESCE(SUM(discount_amount), 0)::numeric AS item_discounts
+     FROM order_items WHERE order_id = $1`,
+    [orderId]
+  );
+  const goods = Number(result.rows[0]?.goods || 0);
+  if (!(goods > 0)) return 1;
+  const itemDiscounts = Number(result.rows[0]?.item_discounts || 0);
+  const orderLevelDiscount = Math.max(0, orderDiscount - itemDiscounts);
+  if (!(orderLevelDiscount > 0)) return 1;
+  const factor = (goods - orderLevelDiscount) / goods;
+  if (!Number.isFinite(factor)) return 1;
+  return Math.min(1, Math.max(0, factor));
+};
+
 const normalizeOperationItem = (item = {}) => {
   const quantity = Math.max(0, Number(item.quantity || 0));
   const price = resolveInputUnitPrice(item);
@@ -7435,6 +7471,7 @@ export const returnOrder = async (req, res) => {
       ? req.body.items
       : loaded.items.map((item) => ({ order_item_id: item.id, quantity: item.quantity }));
     const itemsById = new Map(loaded.items.map((item) => [String(item.id), item]));
+    const refundProrationFactor = await resolveRefundProrationFactor(client, loaded.order);
     const validatedItems = [];
     let projectedReturnedAll = true;
 
@@ -7463,7 +7500,9 @@ export const returnOrder = async (req, res) => {
       }
 
       const unitRefund = Number(original.total_amount || 0) / Math.max(1, soldQuantity || 1);
-      const refund = Number(requested.refund_amount ?? unitRefund * quantity);
+      // The client sends the gross line price, so prorate here rather than trusting it.
+      const grossRefund = Number(requested.refund_amount ?? unitRefund * quantity);
+      const refund = Number((grossRefund * refundProrationFactor).toFixed(2));
       validatedItems.push({ original, quantity, refund });
     }
 
@@ -8146,10 +8185,12 @@ export const createReturn = async (req, res) => {
     let returnCogsTotal = 0;
     const returnedLineSummary = [];
 
+    const refundProrationFactor = await resolveRefundProrationFactor(client, orderRow);
     for (const item of items) {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
       const quantity = Number(item.quantity || 0);
-      const refund = Number(item.refund_amount || item.refundAmount || 0);
+      // The client sends the gross line price; the order-level discount share is removed here.
+      const refund = Number((Number(item.refund_amount || item.refundAmount || 0) * refundProrationFactor).toFixed(2));
 
       if (!orderItemId || quantity <= 0) {
         continue;
