@@ -257,6 +257,9 @@ export default function SharedPortalChat({
   }, [selectedEmployeeId, selectedThreadId, thread, threadById, threadMap]);
 
   const activeThreadId = selectedThread?.id || "";
+  // Presence rides on the list rows (and presence events update them); the
+  // single-thread response does not carry it.
+  const presenceThread = threadMap.get(String(selectedEmployeeId || "")) || selectedThread;
   const messages = useMemo(
     () => (activeThreadId ? safeArray(messagesByThread[String(activeThreadId)]) : []),
     [activeThreadId, messagesByThread]
@@ -1161,10 +1164,10 @@ export default function SharedPortalChat({
                       <div className={`mt-0.5 truncate text-[11px] font-bold ${typingLabel || selectedThread?.online ? "text-[var(--primary)]" : "text-[var(--chat-muted)]"}`}>
                         {typingLabel
                           ? t("employeePortal.chat.admin.typing")
-                          : selectedThread?.online
+                          : presenceThread?.online
                             ? t("employeePortal.chat.online")
-                            : selectedThread?.last_seen_at
-                              ? formatLastSeen(selectedThread.last_seen_at, t)
+                            : presenceThread?.last_seen_at
+                              ? formatLastSeen(presenceThread.last_seen_at, t)
                               : t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}
                       </div>
                     </div>
