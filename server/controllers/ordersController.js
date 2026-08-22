@@ -3237,7 +3237,8 @@ export const createOrder = async (req, res) => {
     const nonCouponDiscount = itemDiscountAmount + normalizedInvoiceDiscountAmount + Number(loyalty_discount_amount || 0);
     const totalTax = normalizedTaxAmount;
     const totalServiceFee = Number(service_fee || 0);
-    const couponBaseTotal = Math.max(0, computedSubtotal - nonCouponDiscount + totalServiceFee);
+    // Coupon base = goods after non-coupon discounts; service fee joins only if the campaign applies_to_shipping.
+    const couponBaseTotal = Math.max(0, computedSubtotal - nonCouponDiscount);
     let couponValidation = null;
     const safeCouponCode = String(coupon_code || "").trim().toUpperCase();
     if (safeCouponCode) {
@@ -3245,6 +3246,7 @@ export const createOrder = async (req, res) => {
         tenantId,
         code: safeCouponCode,
         orderTotal: couponBaseTotal,
+        shippingAmount: totalServiceFee,
         source: channel === "website" ? "website" : "pos",
         customerId: resolvedCustomerId,
         client,
@@ -3839,6 +3841,7 @@ export const createOrder = async (req, res) => {
           customerId: resolvedCustomerId || order.customer_id || null,
           source: channel === "website" ? "website" : "pos",
           orderTotal: couponBaseTotal,
+        shippingAmount: totalServiceFee,
           client,
         });
         order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id;

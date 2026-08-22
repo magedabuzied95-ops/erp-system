@@ -4941,7 +4941,8 @@ export const createWebsiteOrder = async (req, res) => {
     const deliveryFee = roundMoney(shippingQuote.price);
     const manualDiscount = Math.max(0, toNumber(req.body?.discount || checkout.discount, 0));
     const couponCode = toText(checkout.coupon_code || checkout.coupon || req.body?.coupon_code || req.body?.coupon || "").trim().toUpperCase();
-    const couponBaseTotal = Math.max(0, subtotal - manualDiscount + deliveryFee);
+    // Coupon base = goods only; shipping is folded in by validateCoupon only when the campaign opts in.
+    const couponBaseTotal = Math.max(0, subtotal - manualDiscount);
     let couponValidation = null;
     let couponDiscountAmount = 0;
     if (couponCode) {
@@ -4949,6 +4950,7 @@ export const createWebsiteOrder = async (req, res) => {
         tenantId,
         code: couponCode,
         orderTotal: couponBaseTotal,
+        shippingAmount: deliveryFee,
         source: "website",
         customerId: customer?.id || null,
         client,
@@ -5130,6 +5132,7 @@ export const createWebsiteOrder = async (req, res) => {
         customerId: customer?.id || null,
         source: "website",
         orderTotal: couponBaseTotal,
+        shippingAmount: deliveryFee,
         client,
       });
       order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id || null;

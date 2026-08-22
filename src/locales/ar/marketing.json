@@ -124,7 +124,9 @@
       "startsAt": "تاريخ البداية",
       "expiresAt": "تاريخ الانتهاء",
       "channel": "القناة",
-      "activeCampaign": "حملة مفعلة"
+      "activeCampaign": "حملة مفعلة",
+      "appliesToShipping": "الخصم يشمل الشحن / رسوم الخدمة",
+      "appliesToShippingHint": "افتراضياً الخصم يُحسب على المنتجات فقط"
     },
     "actions": {
       "generate": "توليد",

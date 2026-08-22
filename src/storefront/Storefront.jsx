@@ -7230,7 +7230,10 @@ function RecentProductsSection({ currentId, recent = [], ...props }) {
   );
 }
 
+const PENDING_COUPON_STORAGE_KEY = "sf_pending_coupon";
+
 function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
+  const [checkoutSearchParams] = useSearchParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const checkoutLanguage = normalizeLanguage(i18n.language);
@@ -7606,7 +7609,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     try {
       const response = await api.post("/coupons/validate", {
         code: trimmedCode,
-        orderTotal: Math.max(0, subtotal + deliveryFee),
+        // Goods only — the server folds shipping in only for campaigns with applies_to_shipping.
+        orderTotal: Math.max(0, subtotal),
+        shippingAmount: Math.max(0, deliveryFee),
         source: "website",
         customerId: profile?.customer_id || profile?.id || null,
       });
@@ -7628,6 +7633,35 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       setCouponLoading(false);
     }
   };
+
+  // Printed coupons carry a QR to /checkout?coupon=CODE. Remember the code (the cart is usually
+  // still empty when the QR is scanned), prefill the field, and validate it once there is a cart.
+  const urlCoupon = String(checkoutSearchParams.get("coupon") || "").trim().toUpperCase();
+  const autoApplyCouponRef = useRef(false);
+  useEffect(() => {
+    if (!urlCoupon) return;
+    try { window.sessionStorage.setItem(PENDING_COUPON_STORAGE_KEY, urlCoupon); } catch { /* storage unavailable */ }
+  }, [urlCoupon]);
+  useEffect(() => {
+    if (form.coupon) return;
+    let pending = urlCoupon;
+    if (!pending) {
+      try { pending = String(window.sessionStorage.getItem(PENDING_COUPON_STORAGE_KEY) || "").trim().toUpperCase(); } catch { pending = ""; }
+    }
+    if (!pending) return;
+    autoApplyCouponRef.current = true;
+    setForm((prev) => ({ ...prev, coupon: pending }));
+  }, [urlCoupon, form.coupon]);
+  useEffect(() => {
+    if (!autoApplyCouponRef.current || !form.coupon || subtotal <= 0 || couponLoading) return;
+    autoApplyCouponRef.current = false;
+    applyCoupon().then((result) => {
+      if (result?.valid) {
+        try { window.sessionStorage.removeItem(PENDING_COUPON_STORAGE_KEY); } catch { /* ignore */ }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.coupon, subtotal, couponLoading]);
 
   const setGovernorate = (value, options = {}) => {
     if (options.markDirty !== false) {

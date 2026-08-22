@@ -1147,7 +1147,8 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
     source_id: event.source_id,
   }));
   const salesTimeline = saleTimeline.rows.flatMap((order) => {
-    const discount = money(Number(order.discount_amount || 0) + Number(order.coupon_discount_amount || 0));
+    // orders.discount_amount already includes the coupon (analyticsMetrics D-02) — never add coupon_discount_amount on top.
+    const discount = money(Number(order.discount_amount || 0));
     return [
       {
         type: "sale",
@@ -1248,7 +1249,9 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
     totals: {
       total_sales: money(sales.total_sales),
       invoice_count: Number(sales.invoice_count || 0),
-      discounts: money(Number(sales.discounts || 0) + Number(sales.coupon_discounts || 0)),
+      // discount_amount is all-inclusive (item + invoice + loyalty + coupon); coupon_discounts is a breakdown, not an addend.
+      discounts: money(sales.discounts),
+      coupon_discounts: money(sales.coupon_discounts),
       returns: money(returns.return_total),
       cash_returns: cashReturnTotal,
       cash_return_table_total: cashReturnTableTotal,

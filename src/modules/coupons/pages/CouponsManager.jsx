@@ -22,6 +22,7 @@ const emptyForm = {
   expires_at: "",
   channel: "offline",
   is_active: true,
+  applies_to_shipping: false,
 };
 
 const number = (value) => Number(value || 0).toLocaleString("en-US");
@@ -503,6 +504,13 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
           <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
             <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => update("is_active", e.target.checked)} />
             {cText("fields.activeCampaign", "الحملة نشطة")}
+          </label>
+          <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
+            <input type="checkbox" checked={Boolean(form.applies_to_shipping)} onChange={(e) => update("applies_to_shipping", e.target.checked)} />
+            <span>
+              {cText("fields.appliesToShipping", "الخصم يشمل الشحن / رسوم الخدمة")}
+              <span className="block text-[11px] font-normal text-white/50">{cText("fields.appliesToShippingHint", "افتراضياً الخصم يُحسب على المنتجات فقط")}</span>
+            </span>
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">

@@ -124,7 +124,9 @@
       "startsAt": "Starts at",
       "expiresAt": "Expires at",
       "channel": "Channel",
-      "activeCampaign": "Active campaign"
+      "activeCampaign": "Active campaign",
+      "appliesToShipping": "Discount also applies to shipping / service fee",
+      "appliesToShippingHint": "By default the discount is computed on products only"
     },
     "actions": {
       "generate": "Generate",

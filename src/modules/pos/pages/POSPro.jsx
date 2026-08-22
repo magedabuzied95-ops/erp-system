@@ -5169,36 +5169,71 @@ function POSPro() {
     });
   }, [products, showQuantityAdjustedWarning]);
 
+  // Coupon base = goods after item/invoice/loyalty discounts. The service fee is sent separately and
+  // only counts for campaigns flagged applies_to_shipping — the server decides, mirroring ordersController.
+  const couponBaseTotal = Math.max(
+    0,
+    Number(cartTotals.preLoyaltyTotal || 0) - Number(cartTotals.serviceFee || 0) - Number(loyaltyDiscountAmount || 0)
+  );
+  const couponServiceFee = Math.max(0, Number(cartTotals.serviceFee || 0));
+
+  const runCouponValidation = useCallback(async (code, { silent = false } = {}) => {
+    try {
+      setCouponLoading(true);
+      const response = await api.post("/coupons/validate", {
+        code,
+        source: "pos",
+        order_total: couponBaseTotal,
+        shipping_amount: couponServiceFee,
+        customer_id: selectedCustomerId || null,
+      });
+      if (!response.valid) {
+        setCouponValidation(null);
+        toast.error(response.reason || t("pos.toasts.couponInvalid"));
+        return null;
+      }
+      setCouponCode(code);
+      setCouponValidation(response);
+      if (!silent) toast.success(t("pos.toasts.couponApplied", { amount: formatCurrency(response.discount_amount || 0) }));
+      return response;
+    } catch (err) {
+      setCouponValidation(null);
+      toast.error(getErrorMessage(err, t("pos.toasts.couponValidateFailed")));
+      return null;
+    } finally {
+      setCouponLoading(false);
+    }
+  }, [couponBaseTotal, couponServiceFee, selectedCustomerId, t]);
+
   const handleApplyCoupon = async () => {
     const code = String(couponCode || "").trim().toUpperCase();
     if (!code) {
       toast.error(t("pos.toasts.enterCoupon"));
       return;
     }
-    try {
-      setCouponLoading(true);
-      const orderTotal = Math.max(0, Number(cartTotals.preLoyaltyTotal || 0) - Number(loyaltyDiscountAmount || 0));
-      const response = await api.post("/coupons/validate", {
-        code,
-        source: "pos",
-        order_total: orderTotal,
-        customer_id: selectedCustomerId || null,
-      });
-      if (!response.valid) {
-        setCouponValidation(null);
-        toast.error(response.reason || t("pos.toasts.couponInvalid"));
-        return;
-      }
-      setCouponCode(code);
-      setCouponValidation(response);
-      toast.success(t("pos.toasts.couponApplied", { amount: formatCurrency(response.discount_amount || 0) }));
-    } catch (err) {
-      setCouponValidation(null);
-      toast.error(getErrorMessage(err, t("pos.toasts.couponValidateFailed")));
-    } finally {
-      setCouponLoading(false);
-    }
+    await runCouponValidation(code);
   };
+
+  // A coupon validated against one cart must not keep its old discount after the cart changes:
+  // re-validate silently so the displayed discount always matches what the server will charge.
+  const couponRevalidateKeyRef = useRef("");
+  useEffect(() => {
+    if (!couponValidation?.valid) {
+      couponRevalidateKeyRef.current = "";
+      return;
+    }
+    const key = `${couponValidation.coupon?.code || couponCode}::${couponBaseTotal.toFixed(2)}::${couponServiceFee.toFixed(2)}::${selectedCustomerId || ""}`;
+    if (!couponRevalidateKeyRef.current) {
+      couponRevalidateKeyRef.current = key;
+      return;
+    }
+    if (couponRevalidateKeyRef.current === key) return;
+    couponRevalidateKeyRef.current = key;
+    const code = String(couponValidation.coupon?.code || couponCode || "").trim().toUpperCase();
+    if (!code) return;
+    runCouponValidation(code, { silent: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [couponValidation?.valid, couponBaseTotal, couponServiceFee, selectedCustomerId]);
 
   const handleRemoveCoupon = () => {
     setCouponCode("");

@@ -70,7 +70,14 @@ const normalizeCampaignInput = (body = {}) => {
     expires_at: body.expires_at || body.expiresAt || null,
     channel,
     is_active: body.is_active ?? body.isActive ?? true,
+    applies_to_shipping: parseBoolean(body.applies_to_shipping ?? body.appliesToShipping, false),
   };
+};
+
+const parseBoolean = (value, fallback = false) => {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
 };
 
 export const listCampaigns = async ({ tenantId = null } = {}) => {
@@ -100,9 +107,9 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
     INSERT INTO coupon_campaigns (
       tenant_id, name, code_prefix, discount_type, discount_value, minimum_order_amount,
       max_discount_amount, usage_limit_per_coupon, total_coupons, starts_at, expires_at,
-      channel, is_active, created_by
+      channel, is_active, created_by, applies_to_shipping
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     RETURNING *
     `,
     [
@@ -120,6 +127,7 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       campaign.channel,
       campaign.is_active,
       userId,
+      campaign.applies_to_shipping,
     ]
   );
   return result.rows[0];
@@ -139,7 +147,7 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
         discount_value = $${offset + 4}, minimum_order_amount = $${offset + 5},
         max_discount_amount = $${offset + 6}, usage_limit_per_coupon = $${offset + 7},
         starts_at = $${offset + 8}, expires_at = $${offset + 9}, channel = $${offset + 10},
-        is_active = $${offset + 11}, updated_at = NOW()
+        is_active = $${offset + 11}, applies_to_shipping = $${offset + 12}, updated_at = NOW()
     WHERE id = $${offset} ${tenantId === null ? "" : "AND (tenant_id = $1 OR tenant_id IS NULL)"}
     RETURNING *
     `,
@@ -156,9 +164,19 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
       campaign.expires_at,
       campaign.channel,
       campaign.is_active,
+      campaign.applies_to_shipping,
     ]
   );
-  return result.rows[0] || null;
+  const updated = result.rows[0] || null;
+  // Keep unused coupons in step with the campaign expiry: extending (or clearing) the campaign
+  // date must extend its coupons, otherwise validateCoupon keeps rejecting on the stale row date.
+  if (updated) {
+    await db.query(
+      `UPDATE coupons SET expires_at = $2, updated_at = NOW() WHERE campaign_id = $1 AND usage_count = 0`,
+      [updated.id, updated.expires_at]
+    );
+  }
+  return updated;
 };
 
 export const deleteCampaign = async ({ tenantId = null, id }) => {
@@ -298,11 +316,17 @@ export const calculateDiscount = ({ campaign, orderTotal }) => {
   return Number(Math.max(0, Math.min(discount, total)).toFixed(2));
 };
 
-export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, source = "website", customerId = null, client = db, lock = false } = {}) => {
+/**
+ * orderTotal = goods base (subtotal minus non-coupon discounts), WITHOUT shipping / service fees.
+ * shippingAmount is only folded into the base when the campaign opts in (applies_to_shipping).
+ */
+export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, shippingAmount = 0, source = "website", customerId = null, client = db, lock = false } = {}) => {
   await ensureCouponsSchema(client);
   const safeCode = String(code || "").trim().toUpperCase();
   const safeSource = normalizeSource(source);
-  const total = Number(orderTotal || 0);
+  const goodsTotal = Math.max(0, Number(orderTotal || 0));
+  const shipping = Math.max(0, Number(shippingAmount || 0));
+  let total = goodsTotal;
   const invalid = (reason) => ({ valid: false, coupon: null, campaign: null, discount_amount: 0, final_total: Math.max(0, total), reason });
   if (!safeCode) return invalid("Coupon code is required");
 
@@ -317,7 +341,7 @@ export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, so
     SELECT cp.*, c.name AS campaign_name, c.discount_type, c.discount_value,
       c.minimum_order_amount, c.max_discount_amount, c.starts_at AS campaign_starts_at,
       c.expires_at AS campaign_expires_at, c.channel, c.is_active AS campaign_is_active,
-      c.code_prefix, c.total_coupons
+      c.code_prefix, c.total_coupons, c.applies_to_shipping
     FROM coupons cp
     JOIN coupon_campaigns c ON c.id = cp.campaign_id
     WHERE cp.code = $1 ${tenantSql}
@@ -339,7 +363,9 @@ export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, so
     expires_at: row.campaign_expires_at,
     channel: row.channel,
     is_active: row.campaign_is_active,
+    applies_to_shipping: Boolean(row.applies_to_shipping),
   };
+  if (campaign.applies_to_shipping) total = goodsTotal + shipping;
   const coupon = {
     id: row.id,
     campaign_id: row.campaign_id,
@@ -374,17 +400,18 @@ export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, so
     coupon,
     campaign,
     discount_amount: discount,
+    base_total: Number(total.toFixed(2)),
     final_total: Number(Math.max(0, total - discount).toFixed(2)),
     reason: "valid",
   };
 };
 
-export const redeemCoupon = async ({ tenantId = null, code, orderId = null, customerId = null, source = "pos", orderTotal = 0, client: existingClient = null } = {}) => {
+export const redeemCoupon = async ({ tenantId = null, code, orderId = null, customerId = null, source = "pos", orderTotal = 0, shippingAmount = 0, client: existingClient = null } = {}) => {
   const ownClient = !existingClient;
   const client = existingClient || await db.connect();
   try {
     if (ownClient) await client.query("BEGIN");
-    const validation = await validateCoupon({ tenantId, code, orderTotal, source, customerId, client, lock: true });
+    const validation = await validateCoupon({ tenantId, code, orderTotal, shippingAmount, source, customerId, client, lock: true });
     if (!validation.valid) {
       const error = new Error(validation.reason || "Coupon is invalid");
       error.status = 400;
@@ -422,7 +449,7 @@ export const redeemCoupon = async ({ tenantId = null, code, orderId = null, cust
         orderId,
         customerId,
         normalizeSource(source),
-        Number(orderTotal || 0),
+        validation.base_total,
         validation.discount_amount,
         validation.final_total,
       ]

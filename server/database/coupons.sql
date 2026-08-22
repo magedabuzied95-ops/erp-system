@@ -63,3 +63,5 @@ CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons (is_active);
 CREATE INDEX IF NOT EXISTS idx_coupons_expires ON coupons (expires_at);
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_campaign_id ON coupon_redemptions (campaign_id);
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_coupon_id ON coupon_redemptions (coupon_id);
+
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS applies_to_shipping BOOLEAN NOT NULL DEFAULT FALSE;
