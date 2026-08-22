@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { useCallback } from "react";
+import { Suspense, lazy, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
@@ -51,7 +51,9 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-import SharedPortalChat from "../../../shared/chat/SharedPortalChat";
+// The chat (list, composer, recorder, media viewer, ring) only loads when the
+// tab is opened; a manager on attendance never downloads it.
+const SharedPortalChat = lazy(() => import("../../../shared/chat/SharedPortalChat"));
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl, resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { SOCKET_URL } from "../../../shared/constants/app";
@@ -3152,6 +3154,7 @@ export default function ManagerPortal() {
           )) : null}
 
           {activeTab === "chat" ? (
+            <Suspense fallback={<div className="theme-card flex min-h-[24rem] items-center justify-center text-sm font-bold text-[var(--muted)]">{tt("common.loading")}</div>}>
             <SharedPortalChat
               apiAdapter={managerChatApiAdapter}
               employees={staffList}
@@ -3238,6 +3241,7 @@ export default function ManagerPortal() {
               useTextareaComposer
               mobileFullScreen
             />
+            </Suspense>
           ) : null}
 
           {activeTab === "more" ? (
