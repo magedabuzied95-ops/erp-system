@@ -13,6 +13,7 @@ import {
   sendAdminEmployeeChatMessage,
   markAdminEmployeeChatThreadRead,
   markAdminEmployeeChatThreadDelivered,
+  updateAdminEmployeeChatThreadPrefs,
 } from "./employeeChatService.js";
 import { getUnreadCount, listNotifications, markAsRead, markAllAsRead, createNotification } from "./notificationsService.js";
 import {
@@ -2003,6 +2004,11 @@ export const getManagerPortalChat = async ({ manager = {}, threadId = null, befo
 export const getManagerPortalChatThread = async ({ manager = {}, threadId, beforeId = null, limit = null } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   return getAdminEmployeeChatThread({ tenantId, threadId, markRead: !beforeId, beforeId, limit: limit || undefined });
+};
+
+export const updateManagerPortalChatPrefs = async ({ manager = {}, threadId, prefs = {} } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  return updateAdminEmployeeChatThreadPrefs({ tenantId, threadId, pinned: prefs.pinned, muted_until: prefs.muted_until, archived: prefs.archived });
 };
 
 export const markManagerPortalChatDelivered = async ({ manager = {}, threadId, upToMessageId = null } = {}) => {

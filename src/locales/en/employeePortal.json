@@ -565,7 +565,18 @@
     "lastSeenYesterday": "Last seen yesterday at {{time}}",
     "lastSeenOn": "Last seen {{date}} at {{time}}",
     "filterUnread": "Unread",
-    "filterCashiers": "Branch cashiers"
+    "filterCashiers": "Branch cashiers",
+    "filterArchived": "Archived",
+    "conversationOptions": "Conversation options",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "mute8h": "Mute for 8 hours",
+    "mute1w": "Mute for 1 week",
+    "muteForever": "Mute always",
+    "unmute": "Unmute",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "prefsFailed": "Could not update the conversation"
   },
   "profile": {
     "settings": "Profile settings",

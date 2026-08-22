@@ -26,6 +26,7 @@ import {
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
   markManagerPortalChatDelivered,
+  updateManagerPortalChatPrefs,
   sendManagerPortalChatRing,
   answerManagerPortalChatRing,
   markManagerPortalNotificationRead,
@@ -582,6 +583,18 @@ router.post("/:token/chat/:threadId/ring/:messageId/answer", async (req, res) =>
   } catch (error) {
     if (!error.status) console.error("[manager-portal] chat ring answer error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to answer ring" });
+  }
+});
+
+router.patch("/:token/chat/:threadId/prefs", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await updateManagerPortalChatPrefs({ manager, threadId: req.params.threadId, prefs: req.body || {} });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status) console.error("[manager-portal] chat prefs error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update conversation" });
   }
 });
 

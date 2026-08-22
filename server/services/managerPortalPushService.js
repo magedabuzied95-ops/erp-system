@@ -394,6 +394,18 @@ export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = 
   // A branch POS channel has no employee; the portal selects it by its "pos-branch-<id>" key.
   const selectionKey = text(channelKey) || String(resolvedEmployeeId || "");
   const resolvedThreadId = numberOrNull(threadId || message.thread_id);
+  if (!isRing && resolvedThreadId) {
+    try {
+      const muted = await db.query(`SELECT muted_until FROM employee_chat_thread_prefs WHERE thread_id = $1 LIMIT 1`, [resolvedThreadId]);
+      const until = muted.rows[0]?.muted_until;
+      if (until && new Date(until).getTime() > Date.now()) {
+        console.info("[manager-push:chat-muted]", { thread_id: resolvedThreadId, muted_until: until });
+        return { sent: 0, muted: true };
+      }
+    } catch (error) {
+      console.warn("[manager-push] mute lookup failed", error?.message || error);
+    }
+  }
   const name = text(employeeName || employee.full_name || employee.employee_name || employee.employee_code) || "موظف";
   console.info("[manager-push:chat-trigger-entered]", {
     tenantId,

@@ -167,7 +167,11 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
       t.created_at,
       t.updated_at,${threadIdentitySql},
       COALESCE(e.photo_url, '') AS photo_url,
+      e.chat_last_seen_at,
       b.name AS branch_name,
+      p.pinned_at,
+      p.muted_until,
+      p.archived_at,
       lm.last_message,
       lm.sender_type AS last_sender_type,
       lm.attachment_type AS last_attachment_type,
@@ -178,6 +182,7 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
     FROM employee_chat_threads t
     LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
+    LEFT JOIN employee_chat_thread_prefs p ON p.thread_id = t.id
     LEFT JOIN LATERAL (
       SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, attachment_type, read_at, delivered_at, created_at
       FROM employee_chat_messages m
@@ -896,6 +901,9 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
       COALESCE(e.photo_url, '') AS photo_url,
       e.chat_last_seen_at,
       b.name AS branch_name,
+      p.pinned_at,
+      p.muted_until,
+      p.archived_at,
       lm.last_message,
       lm.sender_type AS last_sender_type,
       lm.attachment_type AS last_attachment_type,
@@ -906,6 +914,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
     FROM employee_chat_threads t
     LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
+    LEFT JOIN employee_chat_thread_prefs p ON p.thread_id = t.id
     LEFT JOIN LATERAL (
       SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, attachment_type, read_at, delivered_at, created_at
       FROM employee_chat_messages m
@@ -921,7 +930,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
     WHERE ($1::bigint IS NULL OR t.tenant_id = $1::bigint)
       AND COALESCE(e.is_deleted, FALSE) = FALSE
       AND (t.channel_type = '${BRANCH_POS_CHANNEL}' OR e.id IS NOT NULL)
-    ORDER BY COALESCE(t.last_message_at, t.updated_at, t.created_at) DESC, t.id DESC
+    ORDER BY (p.pinned_at IS NOT NULL) DESC, p.pinned_at ASC NULLS LAST, COALESCE(t.last_message_at, t.updated_at, t.created_at) DESC, t.id DESC
     LIMIT $2
     `,
     [tenantId, safeLimit]
@@ -1135,6 +1144,43 @@ export const forwardAdminEmployeeChatMessage = async ({ tenantId = null, sourceM
       attachment_duration_seconds: source.attachment_duration_seconds,
     } : null,
   });
+};
+
+/*
+ * Pin / mute / archive for the management list. `pinned` and `archived` are
+ * booleans; `muted_until` is an ISO time, null to unmute, or "forever". A
+ * muted thread still appears and still counts unread - only push is silenced.
+ */
+export const updateAdminEmployeeChatThreadPrefs = async ({ tenantId = null, threadId, pinned, muted_until: mutedUntil, archived } = {}) => {
+  const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false, withMessages: false });
+  const sets = [];
+  const values = [thread.id];
+  const push = (sql, value) => { values.push(value); sets.push(sql.replace("?", `${values.length}`)); };
+  if (pinned !== undefined) push("pinned_at = CASE WHEN ?::boolean THEN COALESCE(pinned_at, NOW()) ELSE NULL END", Boolean(pinned));
+  if (archived !== undefined) push("archived_at = CASE WHEN ?::boolean THEN COALESCE(archived_at, NOW()) ELSE NULL END", Boolean(archived));
+  if (mutedUntil !== undefined) {
+    const until = mutedUntil === "forever" ? new Date("2999-01-01T00:00:00Z") : mutedUntil ? new Date(mutedUntil) : null;
+    push("muted_until = ?::timestamp", until && Number.isFinite(until.getTime()) ? until : null);
+  }
+  if (!sets.length) return { thread: await loadThreadSummary(thread.id) };
+  await db.query(
+    `
+    INSERT INTO employee_chat_thread_prefs (thread_id, updated_at) VALUES ($1, NOW())
+    ON CONFLICT (thread_id) DO NOTHING
+    `,
+    [thread.id]
+  );
+  await db.query(`UPDATE employee_chat_thread_prefs SET ${sets.join(", ")}, updated_at = NOW() WHERE thread_id = $1`, values);
+  const summary = await loadThreadSummary(thread.id);
+  emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", { thread: summary });
+  return { thread: summary };
+};
+
+export const isAdminThreadMuted = async (threadId) => {
+  if (!threadId) return false;
+  const result = await db.query(`SELECT muted_until FROM employee_chat_thread_prefs WHERE thread_id = $1 LIMIT 1`, [threadId]);
+  const until = result.rows[0]?.muted_until;
+  return Boolean(until && new Date(until).getTime() > Date.now());
 };
 
 export const markAdminEmployeeChatThreadRead = async ({ tenantId = null, threadId } = {}) => {

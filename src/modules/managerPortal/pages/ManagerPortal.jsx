@@ -1018,6 +1018,7 @@ export default function ManagerPortal() {
     sendMessage: (threadId, formData) => managerPortalApi.sendChatMessage(token, threadId, formData),
     markRead: (threadId) => managerPortalApi.markChatRead(token, threadId),
     markDelivered: (threadId, upToMessageId) => managerPortalApi.markChatDelivered(token, threadId, upToMessageId),
+    updatePrefs: (threadId, prefs) => managerPortalApi.updateChatPrefs(token, threadId, prefs),
     isLive: () => Boolean(socketRef.current?.connected),
     ring: (threadId) => managerPortalApi.ringChat(token, threadId),
     answerRing: (threadId, messageId) => managerPortalApi.answerChatRing(token, threadId, messageId),
@@ -2796,10 +2797,20 @@ export default function ManagerPortal() {
                   </button>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Card title={formatNumber(taskCounts.open)} subtitle={tt("managerPortal.stats.openTasks")} icon={ClipboardList} tone="gold" />
-                <Card title={formatNumber(taskCounts.completed)} subtitle={tt("managerPortal.tasks.completedList")} icon={CheckCheck} tone="green" />
-                <Card title={formatNumber(taskCounts.overdue)} subtitle={tt("managerPortal.stats.overdueTasks")} icon={AlertTriangle} tone="red" />
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { key: "open", value: taskCounts.open, label: tt("managerPortal.stats.openTasks"), icon: ClipboardList, tone: "text-amber-500 border-amber-500/30 bg-amber-500/10" },
+                  { key: "completed", value: taskCounts.completed, label: tt("managerPortal.tasks.completedList"), icon: CheckCheck, tone: "text-emerald-500 border-emerald-500/30 bg-emerald-500/10" },
+                  { key: "overdue", value: taskCounts.overdue, label: tt("managerPortal.stats.overdueTasks"), icon: AlertTriangle, tone: "text-rose-500 border-rose-500/30 bg-rose-500/10" },
+                ].map(({ key, value, label, icon: Icon, tone }) => (
+                  <div key={key} className="flex min-w-0 items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
+                    <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${tone}`}><Icon className="h-3.5 w-3.5" /></span>
+                    <div className="min-w-0">
+                      <div className="truncate text-[11px] font-black leading-4 text-text-muted">{label}</div>
+                      <div className="text-base font-black leading-5 text-text">{formatNumber(value)}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <Card title={tt("managerPortal.tasks.openListTitle")} subtitle={tt("managerPortal.tasks.runList")} icon={ClipboardList} tone="gold">

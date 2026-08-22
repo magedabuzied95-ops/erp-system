@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, ChevronDown, ChevronUp, Loader2, MessageCircle, PhoneCall, RefreshCw, Search, UserRound, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, ChevronDown, ChevronUp, Loader2, MessageCircle, PhoneCall, Pin, PinOff, RefreshCw, Search, UserRound, X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 import i18n from "../../i18n/i18n";
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
@@ -146,7 +147,8 @@ export default function SharedPortalChat({
   const [replyTo, setReplyTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [threadSearch, setThreadSearch] = useState("");
-  const [threadFilter, setThreadFilter] = useState("all"); // all | unread | cashier
+  const [threadFilter, setThreadFilter] = useState("all"); // all | unread | cashier | archived
+  const [rowMenu, setRowMenu] = useState(null); // { thread, employee, left, top }
   const [typingThreadIds, setTypingThreadIds] = useState({});
   const [messageSearch, setMessageSearch] = useState("");
   const [forwardSearch, setForwardSearch] = useState("");
@@ -289,6 +291,8 @@ export default function SharedPortalChat({
       }));
     const query = threadSearch.trim().toLocaleLowerCase("ar");
     return [...employeeRows, ...threadOnlyRows].filter(({ employee, thread: employeeThread }) => {
+      const archived = Boolean(employeeThread?.archived_at);
+      if (threadFilter === "archived" ? !archived : archived) return false;
       if (threadFilter === "unread" && !Number(employeeThread?.unread_count || 0)) return false;
       if (threadFilter === "cashier" && !/^pos-branch-/.test(String(employeeThread?.employee_id || employee?.employee_id || employee?.id || ""))) return false;
       if (!query) return true;
@@ -1055,6 +1059,63 @@ export default function SharedPortalChat({
     }
   };
 
+  const openRowMenu = (node, rowThread, rowEmployee) => {
+    const rect = node?.getBoundingClientRect?.();
+    const viewportWidth = window.innerWidth || 360;
+    const viewportHeight = window.innerHeight || 640;
+    const width = Math.min(260, viewportWidth - 24);
+    const height = 232;
+    const left = Math.max(12, Math.min(i18nInstance.dir() === "rtl" ? (rect?.right || viewportWidth) - width : rect?.left || 12, viewportWidth - width - 12));
+    const top = (rect?.bottom || 80) + height + 12 < viewportHeight ? (rect?.bottom || 80) + 4 : Math.max(12, (rect?.top || viewportHeight) - height - 4);
+    setRowMenu({ thread: rowThread, employee: rowEmployee, left, top, width });
+  };
+  const updateThreadPrefs = async (rowThread, prefs) => {
+    setRowMenu(null);
+    if (!rowThread?.id || !apiAdapter?.updatePrefs) return;
+    // Optimistic: the row moves at once; the server's summary confirms it.
+    const guess = { ...rowThread };
+    if (prefs.pinned !== undefined) guess.pinned_at = prefs.pinned ? new Date().toISOString() : null;
+    if (prefs.archived !== undefined) guess.archived_at = prefs.archived ? new Date().toISOString() : null;
+    if (prefs.muted_until !== undefined) guess.muted_until = prefs.muted_until === "forever" ? "2999-01-01T00:00:00.000Z" : prefs.muted_until;
+    setThreads((current) => mergeChatThreads(current, [guess]));
+    try {
+      const response = await apiAdapter.updatePrefs(rowThread.id, prefs);
+      if (response?.thread) setThreads((current) => mergeChatThreads(current, [response.thread]));
+    } catch (err) {
+      setThreads((current) => mergeChatThreads(current, [rowThread]));
+      setError(failure(err, "employeePortal.chat.prefsFailed"));
+    }
+  };
+  const rowMenuSheet = rowMenu && typeof document !== "undefined" ? createPortal(
+    <div className="fixed inset-0 z-[140]" dir={i18nInstance.dir()} role="dialog" aria-modal="true" aria-label={t("employeePortal.chat.conversationOptions")}>
+      <button type="button" className="absolute inset-0 bg-black/30" onClick={() => setRowMenu(null)} aria-label={t("common.close")} />
+      <div className="absolute overflow-hidden rounded-[1.1rem] border border-[var(--border)] bg-[var(--card)] p-1.5 text-[var(--text)] shadow-2xl" style={{ left: rowMenu.left, top: rowMenu.top, width: rowMenu.width }}>
+        <div className="truncate px-3 py-1.5 text-xs font-black text-[var(--muted)]" dir="auto">{rowMenu.employee?.full_name || rowMenu.employee?.employee_name || rowMenu.thread?.employee_name}</div>
+        {(() => {
+          const pinned = Boolean(rowMenu.thread?.pinned_at);
+          const muted = Boolean(rowMenu.thread?.muted_until && new Date(rowMenu.thread.muted_until).getTime() > Date.now());
+          const archived = Boolean(rowMenu.thread?.archived_at);
+          const item = "flex min-h-[var(--control-height-md)] w-full items-center gap-3 rounded-[var(--radius-control)] px-3 text-start text-[14px] font-bold hover:bg-[var(--surface-hover)]";
+          return (
+            <div className="grid">
+              <button type="button" onClick={() => updateThreadPrefs(rowMenu.thread, { pinned: !pinned })} className={item}>{pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}{t(pinned ? "employeePortal.chat.unpin" : "employeePortal.chat.pin")}</button>
+              {muted ? (
+                <button type="button" onClick={() => updateThreadPrefs(rowMenu.thread, { muted_until: null })} className={item}><Bell className="h-4 w-4" />{t("employeePortal.chat.unmute")}</button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => updateThreadPrefs(rowMenu.thread, { muted_until: new Date(Date.now() + 8 * 3600000).toISOString() })} className={item}><BellOff className="h-4 w-4" />{t("employeePortal.chat.mute8h")}</button>
+                  <button type="button" onClick={() => updateThreadPrefs(rowMenu.thread, { muted_until: new Date(Date.now() + 7 * 86400000).toISOString() })} className={item}><BellOff className="h-4 w-4" />{t("employeePortal.chat.mute1w")}</button>
+                  <button type="button" onClick={() => updateThreadPrefs(rowMenu.thread, { muted_until: "forever" })} className={item}><BellOff className="h-4 w-4" />{t("employeePortal.chat.muteForever")}</button>
+                </>
+              )}
+              <button type="button" onClick={() => updateThreadPrefs(rowMenu.thread, { archived: !archived })} className={item}>{archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}{t(archived ? "employeePortal.chat.unarchive" : "employeePortal.chat.archive")}</button>
+            </div>
+          );
+        })()}
+      </div>
+    </div>, document.body
+  ) : null;
+
   const currentPanel = typeof managerPanel === "function"
     ? managerPanel({ employee: selectedEmployeeRecord, thread: selectedThread, messages })
     : managerPanel;
@@ -1062,6 +1123,7 @@ export default function SharedPortalChat({
   return (
     <>
     <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpen} onReply={answerRingAndOpen} onDismiss={chatRing.dismissIncoming} />
+    {rowMenuSheet}
     <section
       ref={chatRootRef}
       className={`theme-card portal-chat-root flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
@@ -1092,7 +1154,7 @@ export default function SharedPortalChat({
               {threadSearch ? <button type="button" onClick={() => setThreadSearch("")} aria-label={t("common.close")}><X className="h-4 w-4" /></button> : null}
             </label>
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" role="tablist">
-              {[["all", t("common.all")], ["unread", t("employeePortal.chat.filterUnread")], ["cashier", t("employeePortal.chat.filterCashiers")]].map(([key, label]) => (
+              {[["all", t("common.all")], ["unread", t("employeePortal.chat.filterUnread")], ["cashier", t("employeePortal.chat.filterCashiers")], ["archived", t("employeePortal.chat.filterArchived")]].map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={threadFilter === key} onClick={() => setThreadFilter(key)} className={`h-8 shrink-0 rounded-full px-3 text-[12px] font-black transition ${threadFilter === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "bg-[var(--surface-soft)] text-[var(--muted)] hover:text-[var(--text)]"}`}>
                   {label}
                 </button>
@@ -1122,6 +1184,8 @@ export default function SharedPortalChat({
                     timeText={employeeThread ? formatListTime(employeeThread.last_message_created_at || employeeThread.last_message_at || employeeThread.updated_at) : ""}
                     outgoingSenderType="admin"
                     onSelect={() => chooseEmployee(rowEmployeeId, employeeThread?.id || "")}
+                    onMenu={apiAdapter?.updatePrefs && employeeThread?.id ? (node) => openRowMenu(node, employeeThread, employee) : null}
+                    menuLabel={t("employeePortal.chat.conversationOptions")}
                     testId={`chat-thread-${employeeThread?.id || rowEmployeeId || "employee"}`}
                   />
                 );

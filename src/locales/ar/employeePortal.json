@@ -565,7 +565,18 @@
     "lastSeenYesterday": "آخر ظهور أمس {{time}}",
     "lastSeenOn": "آخر ظهور {{date}} {{time}}",
     "filterUnread": "غير مقروء",
-    "filterCashiers": "كاشير الفروع"
+    "filterCashiers": "كاشير الفروع",
+    "filterArchived": "المؤرشف",
+    "conversationOptions": "خيارات المحادثة",
+    "pin": "تثبيت",
+    "unpin": "إلغاء التثبيت",
+    "mute8h": "كتم ٨ ساعات",
+    "mute1w": "كتم أسبوع",
+    "muteForever": "كتم دائمًا",
+    "unmute": "إلغاء الكتم",
+    "archive": "أرشفة",
+    "unarchive": "إلغاء الأرشفة",
+    "prefsFailed": "تعذر تحديث المحادثة"
   },
   "profile": {
     "settings": "إعدادات الملف الشخصي",

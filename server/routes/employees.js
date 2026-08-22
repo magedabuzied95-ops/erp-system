@@ -6,6 +6,7 @@ import {
   getBranchPosChat,
   markBranchPosChatDelivered,
   markAdminEmployeeChatThreadDelivered,
+  updateAdminEmployeeChatThreadPrefs,
   sendAdminChatRing,
   sendBranchPosChatMessage,
   sendBranchPosChatRing,
@@ -205,6 +206,15 @@ router.post("/chat/pos/delivered", protect, async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return chatFailure(res, error, "Failed to mark delivered");
+  }
+});
+
+router.patch("/chat/threads/:threadId/prefs", protect, permit("employees", "edit"), async (req, res) => {
+  try {
+    const result = await updateAdminEmployeeChatThreadPrefs({ tenantId: req.tenantId || null, threadId: req.params.threadId, pinned: req.body?.pinned, muted_until: req.body?.muted_until, archived: req.body?.archived });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to update conversation");
   }
 });
 
