@@ -1,4 +1,4 @@
-import db from "../config/db.js";
+import db from "../database/db.js";
 import { emitToRooms } from "../utils/socket.js";
 
 /*
