@@ -388,8 +388,10 @@ const chatPreview = (message = {}) => {
   return "ملف";
 };
 
-export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = null, employee = {}, employeeId = null, employeeName = "", threadId = null, message = {} } = {}) => {
+export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = null, employee = {}, employeeId = null, employeeName = "", threadId = null, message = {}, channelKey = "" } = {}) => {
   const resolvedEmployeeId = numberOrNull(employeeId || employee.id || message.sender_employee_id);
+  // A branch POS channel has no employee; the portal selects it by its "pos-branch-<id>" key.
+  const selectionKey = text(channelKey) || String(resolvedEmployeeId || "");
   const resolvedThreadId = numberOrNull(threadId || message.thread_id);
   const name = text(employeeName || employee.full_name || employee.employee_name || employee.employee_code) || "موظف";
   console.info("[manager-push:chat-trigger-entered]", {
@@ -411,7 +413,7 @@ export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = 
       failed: "[manager-push:send-failed]",
     },
     buildPayload: (row) => {
-      const url = `/manager-portal/${encodeURIComponent(row.portal_token)}?tab=chat&employee_id=${encodeURIComponent(String(resolvedEmployeeId || ""))}&thread_id=${encodeURIComponent(String(resolvedThreadId || ""))}`;
+      const url = `/manager-portal/${encodeURIComponent(row.portal_token)}?tab=chat&employee_id=${encodeURIComponent(selectionKey)}&thread_id=${encodeURIComponent(String(resolvedThreadId || ""))}`;
       return {
         title: `رسالة جديدة من ${name}`,
         body: chatPreview(message),
@@ -419,7 +421,7 @@ export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = 
         data: {
           type: "employee_chat",
           thread_id: resolvedThreadId,
-          employee_id: resolvedEmployeeId,
+          employee_id: selectionKey || resolvedEmployeeId,
           message_id: message.id || null,
           url,
         },

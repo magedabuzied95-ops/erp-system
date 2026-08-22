@@ -605,6 +605,36 @@ export const sendBranchPosChatMessage = async ({ tenantId = null, branchId, user
     message,
   });
   emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", { thread: updatedThread });
+  // Same manager-facing fan-out as an employee message: in-app notification + portal web push.
+  const channelName = updatedThread?.employee_name || `${BRANCH_POS_NAME_PREFIX}${thread.branch_id}`;
+  const channelKey = branchPosChannelKey(thread.branch_id);
+  await createNotification({
+    tenant_id: thread.tenant_id || null,
+    role_key: "manager",
+    branch_id: thread.branch_id || null,
+    type: "employee_chat_message",
+    category: "employees",
+    priority: "medium",
+    title: `رسالة جديدة من ${channelName}`,
+    message: chatPushPreview(message),
+    action_url: "/employees/chat",
+    action_label: "فتح شات الموظفين",
+    entity_type: "employee_chat_thread",
+    entity_id: String(thread.id),
+    metadata: { channel_key: channelKey, branch_id: thread.branch_id, thread_id: thread.id, message_id: message.id },
+  }).catch(() => null);
+  sendManagerEmployeeChatPush({
+    tenantId: thread.tenant_id || null,
+    branchId: thread.branch_id || null,
+    employeeName: message.sender_name ? `${channelName} (${message.sender_name})` : channelName,
+    threadId: thread.id,
+    message,
+    channelKey,
+  }).catch((error) => console.warn("[manager-push:chat-message] failed", {
+    channel_key: channelKey,
+    thread_id: thread.id,
+    message: error?.message || String(error),
+  }));
   return { thread: updatedThread || thread, message };
 };
 
