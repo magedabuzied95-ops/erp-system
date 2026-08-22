@@ -1133,20 +1133,20 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
   return normalizeSettings(result.rows[0]);
 };
 
+// Only assets the AI Center itself rendered are eligible for cleanup.
+// image_url / primary_image_url / variant_image_url / media_urls are the
+// PRODUCT's catalogue pictures copied onto the queue row — deleting them
+// removed originals under /uploads/products on every queue purge
+// (2026-08-18 and 2026-08-21 audit bursts) and blanked POS/storefront images.
 const aiMarketingQueueAssetUrls = (item = {}) =>
   uniqueImageUrls([
-    item.image_url,
-    item.primary_image_url,
-    item.variant_image_url,
     item.rendered_image_url,
     item.story_image_url,
     item.final_asset_url,
-    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
     ...(Array.isArray(item.generated_asset_urls) ? item.generated_asset_urls : []),
     ...(Array.isArray(item.design_json?.generated_asset_urls) ? item.design_json.generated_asset_urls : []),
     ...(Array.isArray(item.metadata?.generated_asset_urls) ? item.metadata.generated_asset_urls : []),
     ...(Array.isArray(item.design_json?.slides) ? item.design_json.slides.flatMap((slide) => [
-      slide?.image_url,
       slide?.rendered_asset_url,
       slide?.final_asset_url,
       slide?.story_image_url,
@@ -1169,6 +1169,12 @@ const localUploadPathFromUrl = (assetUrl = "") => {
   const resolved = path.resolve(LOCAL_UPLOADS_DIR, relative);
   return resolved.startsWith(`${LOCAL_UPLOADS_DIR}${path.sep}`) ? resolved : "";
 };
+
+// Hard guard independent of which fields feed the cleanup: the AI Center may
+// only ever delete files it rendered, which live under uploads/stories/.
+const GENERATED_ASSET_DIR = path.resolve(LOCAL_UPLOADS_DIR, "stories");
+const isDeletableGeneratedAssetPath = (localPath = "") =>
+  Boolean(localPath) && localPath.startsWith(`${GENERATED_ASSET_DIR}${path.sep}`);
 
 const isQueueAssetReferenced = async ({ tenantId, assetUrl, excludeId }) => {
   const url = cleanText(assetUrl);
@@ -1197,6 +1203,10 @@ const cleanupQueueItemAssets = async ({ tenantId, item }) => {
     if (await isQueueAssetReferenced({ tenantId, assetUrl, excludeId: item.id })) continue;
     const localPath = localUploadPathFromUrl(assetUrl);
     if (!localPath) continue;
+    if (!isDeletableGeneratedAssetPath(localPath)) {
+      console.warn("[ai-marketing-cleanup] refused to delete non-generated asset", { queue_id: item.id, assetUrl });
+      continue;
+    }
     try {
       await fs.unlink(localPath);
       removed.push(assetUrl);
