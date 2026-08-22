@@ -127,7 +127,10 @@
       "activeCampaign": "حملة مفعلة",
       "appliesToShipping": "الخصم يشمل الشحن / رسوم الخدمة",
       "appliesToShippingHint": "افتراضياً الخصم يُحسب على المنتجات فقط",
-      "freeShippingHint": "الخصم = قيمة الشحن / رسوم الخدمة بالكامل (أقصى خصم يحدّه لو اتحدد)"
+      "freeShippingHint": "الخصم = قيمة الشحن / رسوم الخدمة بالكامل (أقصى خصم يحدّه لو اتحدد)",
+      "codeMode": "نوع الأكواد",
+      "sharedCode": "الكود المشترك",
+      "sharedUsageLimit": "إجمالي الاستخدامات (0 = بلا حد)"
     },
     "rules": {
       "title": "قواعد الاستخدام",
@@ -152,6 +155,21 @@
       }
     },
     "sources": { "pos": "نقطة البيع", "website": "الموقع", "manual": "يدوي" },
+    "codeModes": { "unique": "أكواد فريدة (كوبون لكل عميل)", "shared": "كود مشترك واحد (للإعلانات والسوشيال)" },
+    "assign": {
+      "button": "تخصيص لعميل",
+      "title": "تخصيص كوبون لعميل",
+      "searchCustomer": "ابحث بالاسم أو رقم الهاتف",
+      "typeToSearch": "اكتب حرفين على الأقل",
+      "noResults": "لا نتائج",
+      "done": "تم تخصيص الكوبون",
+      "failed": "تعذر تخصيص الكوبون",
+      "copied": "تم النسخ",
+      "copyFailed": "تعذر النسخ",
+      "copyCode": "نسخ الكود",
+      "copyMessage": "نسخ الرسالة",
+      "openWhatsApp": "فتح في واتساب"
+    },
     "log": {
       "title": "سجل الاستخدام",
       "showForCoupon": "عرض سجل استخدام هذا الكوبون",
@@ -185,6 +203,9 @@
       "expired": "المنتهي",
       "totalDiscount": "إجمالي الخصم",
       "salesGenerated": "المبيعات الناتجة",
+      "netSales": "صافي بعد الخصم",
+      "conversionAssigned": "التحويل (من المُرسَل)",
+      "avgOrder": "متوسط الطلب مع / بدون",
       "conversionRate": "معدل التحويل"
     },
     "generatedSuffix": "تم توليدها",

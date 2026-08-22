@@ -29,6 +29,8 @@ const emptyForm = {
   budget_cap: "",
   first_order_only: false,
   scope: { product_ids: [], category_ids: [], brand_ids: [], exclude_on_sale: false },
+  code_mode: "unique",
+  shared_code: "",
 };
 
 const normalizeScopeForForm = (scope) => {
@@ -109,6 +111,8 @@ export default function CouponsManager() {
   const [emailAddress, setEmailAddress] = useState("");
   const [exportBusy, setExportBusy] = useState("");
   const [logCouponId, setLogCouponId] = useState(null);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignResult, setAssignResult] = useState(null);
   const [redemptions, setRedemptions] = useState([]);
   const [redemptionsLoading, setRedemptionsLoading] = useState(false);
 
@@ -199,6 +203,8 @@ export default function CouponsManager() {
       stack_policy: campaign.stack_policy || "all",
       first_order_only: Boolean(campaign.first_order_only),
       scope: normalizeScopeForForm(campaign.scope),
+      code_mode: campaign.code_mode === "shared" ? "shared" : "unique",
+      shared_code: campaign.shared_code || "",
     });
     setModalOpen(true);
   };
@@ -210,8 +216,8 @@ export default function CouponsManager() {
         discount_value: Number(form.discount_value || 0),
         minimum_order_amount: Number(form.minimum_order_amount || 0),
         max_discount_amount: form.max_discount_amount === "" ? null : Number(form.max_discount_amount || 0),
-        usage_limit_per_coupon: Number(form.usage_limit_per_coupon || 1),
-        total_coupons: Number(form.total_coupons || 0),
+        usage_limit_per_coupon: form.code_mode === "shared" ? Number(form.usage_limit_per_coupon || 0) : Number(form.usage_limit_per_coupon || 1),
+        total_coupons: form.code_mode === "shared" ? 1 : Number(form.total_coupons || 0),
         usage_limit_per_customer: form.usage_limit_per_customer === "" ? null : Number(form.usage_limit_per_customer || 0),
         budget_cap: form.budget_cap === "" ? null : Number(form.budget_cap || 0),
         scope: normalizeScopeForForm(form.scope),
@@ -326,8 +332,28 @@ export default function CouponsManager() {
     [cText("headers.expired", "منتهية"), stats?.expired_coupons],
     [cText("headers.totalDiscount", "إجمالي الخصم"), formatCurrency(stats?.total_discount_amount || 0)],
     [cText("headers.salesGenerated", "المبيعات المحققة"), formatCurrency(stats?.total_sales_amount || 0)],
-    [cText("headers.conversionRate", "معدل التحويل"), `${Number(stats?.conversion_rate || 0).toFixed(2)}%`],
+    [cText("headers.netSales", "صافي بعد الخصم"), formatCurrency(stats?.net_sales_amount || 0)],
+    [
+      stats?.conversion_basis === "assigned" ? cText("headers.conversionAssigned", "التحويل (من المُرسَل)") : cText("headers.conversionRate", "معدل التحويل"),
+      `${Number(stats?.conversion_rate || 0).toFixed(2)}%`,
+    ],
+    [
+      cText("headers.avgOrder", "متوسط الطلب مع / بدون"),
+      `${formatCurrency(stats?.average_order_total || 0)} / ${formatCurrency(stats?.average_order_without_coupon || 0)}`,
+    ],
   ];
+
+  const assignCoupon = async (customer) => {
+    if (!selectedCampaign?.id || !customer?.id) return;
+    try {
+      const response = await api.post(`/coupons/campaigns/${selectedCampaign.id}/assign`, { customer_id: customer.id });
+      setAssignResult(response);
+      toast.success(cText("assign.done", "تم تخصيص الكوبون"));
+      loadCoupons();
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error.message || cText("assign.failed", "تعذر تخصيص الكوبون"));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.14),transparent_32%),linear-gradient(180deg,#050816,#09090b)] p-4 text-white md:p-6">
@@ -399,10 +425,20 @@ export default function CouponsManager() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "الكمية")} className="h-[var(--control-height-md)] w-24 rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
-                  <button type="button" onClick={generate} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100">
-                    <Sparkles className="h-4 w-4" />
-                    {cText("actions.generate", "إنشاء")}
+                  {selectedCampaign.code_mode === "shared" ? (
+                    <span className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-violet-300/25 bg-violet-400/15 px-3 font-mono text-sm font-black tracking-widest text-violet-100">{selectedCampaign.shared_code}</span>
+                  ) : (
+                    <>
+                      <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "الكمية")} className="h-[var(--control-height-md)] w-24 rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
+                      <button type="button" onClick={generate} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100">
+                        <Sparkles className="h-4 w-4" />
+                        {cText("actions.generate", "إنشاء")}
+                      </button>
+                    </>
+                  )}
+                  <button type="button" onClick={() => { setAssignResult(null); setAssignOpen(true); }} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-sky-300/25 bg-sky-400/15 px-3 text-sm font-black text-sky-100">
+                    <MessageCircle className="h-4 w-4" />
+                    {cText("assign.button", "تخصيص لعميل")}
                   </button>
                   <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "تعديل")}</button>
                   <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "حذف")}</button>
@@ -526,6 +562,15 @@ export default function CouponsManager() {
           onSave={saveCampaign}
         />
       ) : null}
+      {assignOpen ? (
+        <AssignCouponDialog
+          campaign={selectedCampaign}
+          result={assignResult}
+          onAssign={assignCoupon}
+          onClose={() => { setAssignOpen(false); setAssignResult(null); }}
+          cText={cText}
+        />
+      ) : null}
       {emailDialogOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onMouseDown={() => setEmailDialogOpen(false)}>
           <div className="w-full max-w-md rounded-3xl border border-amber-300/20 bg-zinc-950 p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
@@ -577,7 +622,12 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <Field label={cText("fields.name", "الاسم")} value={form.name} onChange={(value) => update("name", value)} />
-          <Field label={cText("fields.codePrefix", "بادئة الكود")} value={form.code_prefix} onChange={(value) => update("code_prefix", toCouponCode(value))} />
+          <Select label={cText("fields.codeMode", "نوع الأكواد")} value={form.code_mode} onChange={(value) => update("code_mode", value)} options={[["unique", cText("codeModes.unique", "أكواد فريدة (كوبون لكل عميل)")], ["shared", cText("codeModes.shared", "كود مشترك واحد (للإعلانات والسوشيال)")]]} />
+          {form.code_mode === "shared" ? (
+            <Field label={cText("fields.sharedCode", "الكود المشترك")} value={form.shared_code} onChange={(value) => update("shared_code", String(value).toUpperCase().replace(/\s+/g, "-").replace(/[^A-Z0-9-]+/g, ""))} placeholder="SUMMER20" />
+          ) : (
+            <Field label={cText("fields.codePrefix", "بادئة الكود")} value={form.code_prefix} onChange={(value) => update("code_prefix", toCouponCode(value))} />
+          )}
           <Select label={cText("fields.discountType", "نوع الخصم")} value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", cText("types.percentage", "نسبة")], ["fixed", cText("types.fixed", "قيمة ثابتة")], ["free_shipping", cText("types.freeShipping", "شحن مجاني")]]} />
           {form.discount_type === "free_shipping" ? (
             <div className="flex items-end text-xs text-zinc-400">{cText("fields.freeShippingHint", "الخصم = قيمة الشحن / رسوم الخدمة بالكامل (أقصى خصم يحدّه لو اتحدد)")}</div>
@@ -586,8 +636,10 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
           )}
           <Field label={cText("fields.minimumOrder", "الحد الأدنى للطلب")} type="number" value={form.minimum_order_amount} onChange={(value) => update("minimum_order_amount", value)} />
           <Field label={cText("fields.maxDiscount", "أقصى خصم")} type="number" value={form.max_discount_amount} onChange={(value) => update("max_discount_amount", value)} placeholder={cText("optional", "اختياري")} />
-          <Field label={cText("fields.usagePerCoupon", "حد الاستخدام لكل كوبون")} type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
-          <Field label={cText("fields.targetCoupons", "عدد الكوبونات المستهدفة")} type="number" value={form.total_coupons} onChange={(value) => update("total_coupons", value)} />
+          <Field label={form.code_mode === "shared" ? cText("fields.sharedUsageLimit", "إجمالي الاستخدامات (0 = بلا حد)") : cText("fields.usagePerCoupon", "حد الاستخدام لكل كوبون")} type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
+          {form.code_mode === "shared" ? null : (
+            <Field label={cText("fields.targetCoupons", "عدد الكوبونات المستهدفة")} type="number" value={form.total_coupons} onChange={(value) => update("total_coupons", value)} />
+          )}
           <Field label={cText("fields.startsAt", "يبدأ في")} type="datetime-local" value={form.starts_at} onChange={(value) => update("starts_at", value)} />
           <Field label={cText("fields.expiresAt", "ينتهي في")} type="datetime-local" value={form.expires_at} onChange={(value) => update("expires_at", value)} />
           <Select label={cText("fields.channel", "القناة")} value={form.channel} onChange={(value) => update("channel", value)} options={[["offline", cText("channels.offline", "غير متصل")], ["website", cText("channels.website", "الموقع")], ["pos", cText("channels.pos", "نقاط البيع")], ["all", cText("channels.all", "الكل")]]} />
@@ -621,6 +673,80 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
           <button type="button" onClick={onClose} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "إلغاء")}</button>
           <button type="button" onClick={onSave} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "حفظ")}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AssignCouponDialog({ campaign, result, onAssign, onClose, cText }) {
+  const [term, setTerm] = useState("");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const q = term.trim();
+    if (q.length < 2) { setRows([]); return undefined; }
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        setLoading(true);
+        const data = await api.get("/customers", { params: { limit: 12, page: 1, search: q } });
+        const payload = data?.data ?? data;
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.customers) ? payload.customers : [];
+        if (active) setRows(list);
+      } catch { if (active) setRows([]); }
+      finally { if (active) setLoading(false); }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [term]);
+  const pick = async (customer) => {
+    setBusy(true);
+    try { await onAssign(customer); } finally { setBusy(false); }
+  };
+  const copy = async (text) => {
+    try { await navigator.clipboard.writeText(text); toast.success(cText("assign.copied", "تم النسخ")); } catch { toast.error(cText("assign.copyFailed", "تعذر النسخ")); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={onClose}>
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-sky-300">{cText("assign.title", "تخصيص كوبون لعميل")}</div>
+            <h2 className="m1-section-title mt-1">{campaign?.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-2 text-zinc-300"><X className="h-4 w-4" /></button>
+        </div>
+        {result ? (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-[var(--radius-card)] border border-emerald-300/20 bg-emerald-400/10 p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200/80">{result.customer?.name} · {result.customer?.phone || "-"}</div>
+              <div className="mt-2 font-mono text-2xl font-black tracking-widest text-white">{result.coupon?.code}</div>
+            </div>
+            <textarea readOnly value={result.message || ""} rows={5} className="w-full rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-200 outline-none" />
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => copy(result.coupon?.code || "")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold">{cText("assign.copyCode", "نسخ الكود")}</button>
+              <button type="button" onClick={() => copy(result.message || "")} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold">{cText("assign.copyMessage", "نسخ الرسالة")}</button>
+              {result.whatsapp_url ? (
+                <a href={result.whatsapp_url} target="_blank" rel="noreferrer" className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/25 bg-emerald-400/20 px-3 text-sm font-black text-emerald-50">
+                  <MessageCircle className="h-4 w-4" />
+                  {cText("assign.openWhatsApp", "فتح في واتساب")}
+                </a>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)} placeholder={cText("assign.searchCustomer", "ابحث بالاسم أو رقم الهاتف")} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-zinc-600" />
+            <div className="mt-2 max-h-72 overflow-auto rounded-[var(--radius-card)] border border-white/10">
+              {loading ? <div className="p-4 text-center text-xs text-zinc-500">...</div> : rows.length ? rows.map((customer) => (
+                <button key={customer.id} type="button" disabled={busy} onClick={() => pick(customer)} className="flex w-full items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-start text-sm hover:bg-white/[0.05] disabled:opacity-50">
+                  <span className="font-bold text-white">{customer.name || customer.customer_name || `#${customer.id}`}</span>
+                  <span className="text-xs text-zinc-400" dir="ltr">{customer.phone || customer.customer_phone || ""}</span>
+                </button>
+              )) : <div className="p-4 text-center text-xs text-zinc-500">{term.trim().length < 2 ? cText("assign.typeToSearch", "اكتب حرفين على الأقل") : cText("assign.noResults", "لا نتائج")}</div>}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

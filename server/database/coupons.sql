@@ -77,3 +77,9 @@ ALTER TABLE IF EXISTS coupon_campaigns ADD CONSTRAINT coupon_campaigns_discount_
 ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMP NULL;
 ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversal_reason VARCHAR(80);
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_customer ON coupon_redemptions (campaign_id, customer_id);
+
+-- Phase 3: shared codes + customer assignment
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS code_mode VARCHAR(10) NOT NULL DEFAULT 'unique';
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS shared_code VARCHAR(80);
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP NULL;
+CREATE INDEX IF NOT EXISTS idx_coupons_assigned_customer ON coupons (assigned_customer_id);

@@ -57,6 +57,13 @@ const normalizeCampaignInput = (body = {}) => {
     throw error;
   }
   const name = String(body.name || "").trim();
+  const codeMode = String(body.code_mode || body.codeMode || "unique").trim().toLowerCase() === "shared" ? "shared" : "unique";
+  const sharedCode = codeMode === "shared" ? normalizeSharedCode(body.shared_code ?? body.sharedCode) : null;
+  if (codeMode === "shared" && sharedCode.length < 3) {
+    const error = new Error("Shared code must be at least 3 characters (letters, digits, dash)");
+    error.status = 400;
+    throw error;
+  }
   const prefix = String(body.code_prefix || body.codePrefix || name.slice(0, 4) || "CPN")
     .toUpperCase()
     .replace(/[^A-Z2-9]+/g, "")
@@ -74,7 +81,7 @@ const normalizeCampaignInput = (body = {}) => {
     discount_value: Math.max(0, Number(body.discount_value ?? body.discountValue ?? 0)),
     minimum_order_amount: Math.max(0, Number(body.minimum_order_amount ?? body.minimumOrderAmount ?? 0)),
     max_discount_amount: body.max_discount_amount === "" || body.maxDiscountAmount === "" ? null : body.max_discount_amount ?? body.maxDiscountAmount ?? null,
-    usage_limit_per_coupon: Math.max(1, Number.parseInt(body.usage_limit_per_coupon ?? body.usageLimitPerCoupon ?? 1, 10)),
+    usage_limit_per_coupon: normalizeUsageLimit(body.usage_limit_per_coupon ?? body.usageLimitPerCoupon, codeMode),
     total_coupons: Math.max(0, Number.parseInt(body.total_coupons ?? body.totalCoupons ?? 0, 10)),
     starts_at: body.starts_at || body.startsAt || null,
     expires_at: body.expires_at || body.expiresAt || null,
@@ -88,8 +95,20 @@ const normalizeCampaignInput = (body = {}) => {
       : "all",
     budget_cap: parseNullableMoney(body.budget_cap ?? body.budgetCap),
     first_order_only: parseBoolean(body.first_order_only ?? body.firstOrderOnly, false),
+    code_mode: codeMode,
+    shared_code: sharedCode,
   };
 };
+
+/** Shared codes can be "unlimited" (0) — stored as a very large limit so the existing >= check keeps working. */
+const UNLIMITED_USES = 1_000_000_000;
+const normalizeUsageLimit = (value, codeMode) => {
+  const n = Number.parseInt(value ?? 1, 10);
+  if (codeMode === "shared" && (!Number.isFinite(n) || n <= 0)) return UNLIMITED_USES;
+  return Math.max(1, Number.isFinite(n) ? n : 1);
+};
+export const normalizeSharedCode = (value) =>
+  String(value || "").trim().toUpperCase().replace(/\s+/g, "-").replace(/[^A-Z0-9-]+/g, "").slice(0, 40);
 
 const parseNullableInt = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -154,9 +173,9 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       tenant_id, name, code_prefix, discount_type, discount_value, minimum_order_amount,
       max_discount_amount, usage_limit_per_coupon, total_coupons, starts_at, expires_at,
       channel, is_active, created_by, applies_to_shipping,
-      usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only
+      usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only, code_mode, shared_code
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
     RETURNING *
     `,
     [
@@ -180,9 +199,44 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       campaign.stack_policy,
       campaign.budget_cap,
       campaign.first_order_only,
+      campaign.code_mode,
+      campaign.shared_code,
     ]
   );
-  return result.rows[0];
+  const created = result.rows[0];
+  if (created && campaign.code_mode === "shared") {
+    await ensureSharedCoupon({ tenantId, campaign: created });
+  }
+  return created;
+};
+
+/** A shared campaign is exactly one coupon row whose code is the campaign's shared_code. */
+const ensureSharedCoupon = async ({ tenantId = null, campaign, client = db }) => {
+  const code = normalizeSharedCode(campaign.shared_code);
+  if (!code) return null;
+  const existing = await client.query("SELECT * FROM coupons WHERE campaign_id = $1 ORDER BY id ASC LIMIT 1", [campaign.id]);
+  if (existing.rows[0]) {
+    const updated = await client.query(
+      "UPDATE coupons SET code = $2, qr_value = $3, usage_limit = $4, expires_at = $5, updated_at = NOW() WHERE id = $1 RETURNING *",
+      [existing.rows[0].id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, campaign.expires_at]
+    );
+    return updated.rows[0];
+  }
+  try {
+    const inserted = await client.query(
+      "INSERT INTO coupons (tenant_id, campaign_id, code, qr_value, usage_limit, expires_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
+      [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, campaign.expires_at]
+    );
+    await client.query("UPDATE coupon_campaigns SET total_coupons = 1 WHERE id = $1", [campaign.id]);
+    return inserted.rows[0];
+  } catch (error) {
+    if (error?.code === "23505") {
+      const conflict = new Error("This shared code is already used by another campaign");
+      conflict.status = 409;
+      throw conflict;
+    }
+    throw error;
+  }
 };
 
 export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
@@ -201,7 +255,8 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
         starts_at = $${offset + 8}, expires_at = $${offset + 9}, channel = $${offset + 10},
         is_active = $${offset + 11}, applies_to_shipping = $${offset + 12},
         usage_limit_per_customer = $${offset + 13}, scope = $${offset + 14}::jsonb, stack_policy = $${offset + 15},
-        budget_cap = $${offset + 16}, first_order_only = $${offset + 17}, updated_at = NOW()
+        budget_cap = $${offset + 16}, first_order_only = $${offset + 17},
+        code_mode = $${offset + 18}, shared_code = $${offset + 19}, updated_at = NOW()
     WHERE id = $${offset} ${tenantId === null ? "" : "AND (tenant_id = $1 OR tenant_id IS NULL)"}
     RETURNING *
     `,
@@ -224,9 +279,14 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
       campaign.stack_policy,
       campaign.budget_cap,
       campaign.first_order_only,
+      campaign.code_mode,
+      campaign.shared_code,
     ]
   );
   const updated = result.rows[0] || null;
+  if (updated && campaign.code_mode === "shared") {
+    await ensureSharedCoupon({ tenantId, campaign: updated });
+  }
   // Keep unused coupons in step with the campaign expiry: extending (or clearing) the campaign
   // date must extend its coupons, otherwise validateCoupon keeps rejecting on the stale row date.
   if (updated) {
@@ -283,6 +343,11 @@ export const generateCoupons = async ({ tenantId = null, campaignId, quantity = 
       const error = new Error("Campaign not found");
       error.status = 404;
       throw error;
+    }
+    if (campaign.code_mode === "shared") {
+      const shared = await ensureSharedCoupon({ tenantId, campaign, client });
+      await client.query("COMMIT");
+      return { campaign_id: campaign.id, generated: 0, coupons: shared ? [shared] : [], shared: true };
     }
     const currentCount = Number((await client.query("SELECT COUNT(*)::int AS count FROM coupons WHERE campaign_id = $1", [campaign.id])).rows[0]?.count || 0);
     const target = quantity === null || quantity === undefined || Number(quantity) <= 0
@@ -720,6 +785,107 @@ export const releaseCouponIfFullyReturned = async ({ client = db, orderId } = {}
   return releaseCouponForOrder({ client, orderId: safeOrderId, reason: "order_fully_returned" });
 };
 
+/**
+ * Phase 3 — hand a coupon to a specific customer. Reuses an unused, unassigned coupon of the
+ * campaign (or mints one for unique campaigns); shared campaigns just return the shared code.
+ * Returns the coupon plus a ready-to-send WhatsApp message / link — nothing is sent here.
+ */
+export const assignCouponToCustomer = async ({ tenantId = null, campaignId, customerId, userId = null } = {}) => {
+  await ensureCouponsSchema();
+  const safeCustomerId = Number.parseInt(customerId, 10);
+  if (!safeCustomerId) {
+    const error = new Error("customer_id is required");
+    error.status = 400;
+    throw error;
+  }
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const campaignResult = await client.query(
+      `SELECT * FROM coupon_campaigns WHERE id = $1 ${tenantId === null ? "" : "AND (tenant_id = $2 OR tenant_id IS NULL)"} FOR UPDATE`,
+      tenantId === null ? [campaignId] : [campaignId, tenantId]
+    );
+    const campaign = campaignResult.rows[0];
+    if (!campaign) {
+      const error = new Error("Campaign not found");
+      error.status = 404;
+      throw error;
+    }
+    const customerResult = await client.query("SELECT id, name, phone FROM customers WHERE id = $1", [safeCustomerId]);
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      const error = new Error("Customer not found");
+      error.status = 404;
+      throw error;
+    }
+    let coupon = null;
+    if (campaign.code_mode === "shared") {
+      coupon = await ensureSharedCoupon({ tenantId, campaign, client });
+    } else {
+      const already = await client.query(
+        "SELECT * FROM coupons WHERE campaign_id = $1 AND assigned_customer_id = $2 AND usage_count < usage_limit AND is_active = TRUE ORDER BY id ASC LIMIT 1",
+        [campaign.id, safeCustomerId]
+      );
+      coupon = already.rows[0] || null;
+      if (!coupon) {
+        const free = await client.query(
+          "SELECT * FROM coupons WHERE campaign_id = $1 AND assigned_customer_id IS NULL AND usage_count = 0 AND is_active = TRUE ORDER BY id ASC LIMIT 1 FOR UPDATE SKIP LOCKED",
+          [campaign.id]
+        );
+        coupon = free.rows[0] || null;
+      }
+      if (!coupon) {
+        let attempts = 0;
+        while (!coupon && attempts < 50) {
+          attempts += 1;
+          const code = `${campaign.code_prefix}-${randomCodePart(6)}`;
+          try {
+            const inserted = await client.query(
+              "INSERT INTO coupons (tenant_id, campaign_id, code, qr_value, usage_limit, expires_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
+              [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, campaign.expires_at]
+            );
+            coupon = inserted.rows[0];
+            await client.query("UPDATE coupon_campaigns SET total_coupons = (SELECT COUNT(*) FROM coupons WHERE campaign_id = $1) WHERE id = $1", [campaign.id]);
+          } catch (error) {
+            if (error?.code !== "23505") throw error;
+          }
+        }
+      }
+      if (!coupon) {
+        const error = new Error("Unable to allocate a coupon");
+        error.status = 409;
+        throw error;
+      }
+      if (String(coupon.assigned_customer_id || "") !== String(safeCustomerId)) {
+        const assigned = await client.query(
+          "UPDATE coupons SET assigned_customer_id = $2, assigned_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *",
+          [coupon.id, safeCustomerId]
+        );
+        coupon = assigned.rows[0];
+      }
+    }
+    await client.query("COMMIT");
+    const link = coupon.qr_value || resolveQrValue(coupon.code);
+    const discountLabel = campaign.discount_type === "percentage"
+      ? `${Number(campaign.discount_value)}%`
+      : campaign.discount_type === "free_shipping" ? "شحن مجاني" : `${Number(campaign.discount_value)} ج.م`;
+    const message = `أهلاً ${customer.name || ""}\nكود خصم ${discountLabel} خاص بيك: ${coupon.code}\n${link}${campaign.expires_at ? `\nصالح حتى ${formatCouponDate(campaign.expires_at)}` : ""}`.trim();
+    const phoneDigits = String(customer.phone || "").replace(/\D+/g, "");
+    return {
+      coupon,
+      customer,
+      message,
+      whatsapp_url: phoneDigits ? `https://wa.me/${phoneDigits.startsWith("20") ? phoneDigits : phoneDigits.replace(/^0/, "20")}?text=${encodeURIComponent(message)}` : "",
+      assigned_by: userId,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 /** Redemption log for one coupon or a whole campaign (manager UI). */
 export const listRedemptions = async ({ tenantId = null, campaignId = null, couponId = null, limit = 200 } = {}) => {
   await ensureCouponsSchema();
@@ -765,9 +931,11 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
       COUNT(c.id) FILTER (WHERE c.usage_count > 0)::int AS used_coupons,
       COUNT(c.id) FILTER (WHERE c.usage_count = 0)::int AS unused_coupons,
       COUNT(c.id) FILTER (WHERE c.expires_at IS NOT NULL AND c.expires_at < NOW())::int AS expired_coupons,
+      COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL)::int AS assigned_coupons,
       COUNT(r.id)::int AS total_redemptions,
       COALESCE(SUM(r.discount_amount), 0)::numeric AS total_discount_amount,
       COALESCE(SUM(r.order_total), 0)::numeric AS total_sales_amount,
+      COALESCE(SUM(r.final_total), 0)::numeric AS net_sales_amount,
       COALESCE(AVG(r.order_total), 0)::numeric AS average_order_total
     FROM coupons c
     LEFT JOIN coupon_redemptions r ON r.coupon_id = c.id AND r.reversed_at IS NULL
@@ -778,16 +946,52 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
   const stats = result.rows[0] || {};
   const total = Number(stats.total_coupons || 0);
   const used = Number(stats.used_coupons || 0);
+  const assigned = Number(stats.assigned_coupons || 0);
+  const redemptions = Number(stats.total_redemptions || 0);
+  // Baseline: orders in the campaign window WITHOUT any coupon (same tenant scope), for an uplift read.
+  const baselineParams = [campaignId];
+  let baselineTenantSql = "";
+  if (tenantId !== null && tenantId !== undefined) {
+    baselineParams.push(tenantId);
+    baselineTenantSql = ` AND (o.tenant_id = $${baselineParams.length} OR o.tenant_id IS NULL)`;
+  }
+  let baseline = { n: 0, avg: 0 };
+  try {
+    const baselineResult = await db.query(
+      `
+      SELECT COUNT(o.id)::int AS n, COALESCE(AVG(COALESCE(o.total_amount, o.total, 0)), 0)::numeric AS avg
+      FROM orders o, coupon_campaigns c
+      WHERE c.id = $1
+        AND COALESCE(o.coupon_id, 0) = 0
+        AND o.created_at >= COALESCE(c.starts_at, c.created_at)
+        AND o.created_at <= COALESCE(c.expires_at, NOW())
+        AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        ${baselineTenantSql}
+      `,
+      baselineParams
+    );
+    baseline = baselineResult.rows[0] || baseline;
+  } catch (error) {
+    console.warn("[coupons] baseline stats skipped:", error.message);
+  }
+  const isShared = total === 1 && Number(stats.total_redemptions || 0) > used;
   return {
     total_coupons: total,
     used_coupons: used,
+    assigned_coupons: assigned,
+    net_sales_amount: Number(stats.net_sales_amount || 0),
+    // Conversion = redemptions over what was actually handed out (assigned), falling back to generated.
+    conversion_rate: assigned > 0 ? Number(((redemptions / assigned) * 100).toFixed(2)) : total > 0 ? Number(((used / total) * 100).toFixed(2)) : 0,
+    conversion_basis: assigned > 0 ? "assigned" : "generated",
+    baseline_orders_without_coupon: Number(baseline.n || 0),
+    average_order_without_coupon: Number(baseline.avg || 0),
+    is_shared_code: isShared,
     unused_coupons: Number(stats.unused_coupons || 0),
     expired_coupons: Number(stats.expired_coupons || 0),
     total_redemptions: Number(stats.total_redemptions || 0),
     total_discount_amount: Number(stats.total_discount_amount || 0),
     total_sales_amount: Number(stats.total_sales_amount || 0),
     average_order_total: Number(stats.average_order_total || 0),
-    conversion_rate: total > 0 ? Number(((used / total) * 100).toFixed(2)) : 0,
   };
 };
 

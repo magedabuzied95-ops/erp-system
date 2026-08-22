@@ -127,7 +127,10 @@
       "activeCampaign": "Active campaign",
       "appliesToShipping": "Discount also applies to shipping / service fee",
       "appliesToShippingHint": "By default the discount is computed on products only",
-      "freeShippingHint": "Discount = the whole shipping / service fee (capped by max discount if set)"
+      "freeShippingHint": "Discount = the whole shipping / service fee (capped by max discount if set)",
+      "codeMode": "Code type",
+      "sharedCode": "Shared code",
+      "sharedUsageLimit": "Total uses (0 = unlimited)"
     },
     "rules": {
       "title": "Usage rules",
@@ -152,6 +155,21 @@
       }
     },
     "sources": { "pos": "POS", "website": "Website", "manual": "Manual" },
+    "codeModes": { "unique": "Unique codes (one coupon per customer)", "shared": "One shared code (ads & social)" },
+    "assign": {
+      "button": "Assign to customer",
+      "title": "Assign a coupon to a customer",
+      "searchCustomer": "Search by name or phone",
+      "typeToSearch": "Type at least two characters",
+      "noResults": "No results",
+      "done": "Coupon assigned",
+      "failed": "Could not assign the coupon",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "copyCode": "Copy code",
+      "copyMessage": "Copy message",
+      "openWhatsApp": "Open in WhatsApp"
+    },
     "log": {
       "title": "Redemption log",
       "showForCoupon": "Show this coupon's redemptions",
@@ -185,6 +203,9 @@
       "expired": "Expired",
       "totalDiscount": "Total discount",
       "salesGenerated": "Sales generated",
+      "netSales": "Net after discount",
+      "conversionAssigned": "Conversion (of assigned)",
+      "avgOrder": "Avg order with / without",
       "conversionRate": "Conversion rate"
     },
     "generatedSuffix": "generated",

@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  assignCoupon,
   exportCsv,
   emailPdf,
   exportPdf,
@@ -71,6 +72,7 @@ router.post("/campaigns/:id/generate", protect, requireCouponManager, permit("ma
 router.get("/campaigns/:id/coupons", protect, permit("marketing", "view"), getCampaignCoupons);
 router.get("/campaigns/:id/stats", protect, permit("marketing", "view"), getStats);
 router.get("/campaigns/:id/redemptions", protect, permit("marketing", "view"), getCampaignRedemptions);
+router.post("/campaigns/:id/assign", protect, requireCouponManager, permit("marketing", "update"), assignCoupon);
 
 router.get("/export/pdf", protect, requireCouponManager, permit("marketing", "view"), exportPdf);
 router.post("/export/pdf/email", protect, requireCouponManager, permit("marketing", "view"), emailPdf);

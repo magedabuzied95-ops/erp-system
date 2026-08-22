@@ -1,4 +1,5 @@
 import {
+  assignCouponToCustomer,
   createCampaign,
   deleteCampaign,
   exportCouponsCsv,
@@ -117,6 +118,20 @@ export const validate = async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Unable to validate coupon");
+  }
+};
+
+export const assignCoupon = async (req, res) => {
+  try {
+    const result = await assignCouponToCustomer({
+      tenantId: scopedTenantId(req),
+      campaignId: req.params.id,
+      customerId: req.body?.customer_id ?? req.body?.customerId,
+      userId: req.user?.id || null,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to assign coupon");
   }
 };
 
