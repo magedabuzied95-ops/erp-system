@@ -72,6 +72,40 @@ const resolveStorefrontUrl = (product = {}, variant = null, color = "", size = "
   }
 };
 
+const HOVER_ZOOM_SIZE = 288;
+
+function HoverZoomImage({ src, alt, className, loading = "lazy" }) {
+  const [anchor, setAnchor] = useState(null);
+  const show = useCallback((event) => {
+    if (typeof window === "undefined" || window.matchMedia?.("(hover: none)")?.matches) return;
+    setAnchor(event.currentTarget.getBoundingClientRect());
+  }, []);
+  const hide = useCallback(() => setAnchor(null), []);
+  let style = null;
+  if (anchor && typeof window !== "undefined") {
+    const gap = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const fitsLeft = anchor.left - gap - HOVER_ZOOM_SIZE >= 0;
+    const left = fitsLeft ? anchor.left - gap - HOVER_ZOOM_SIZE : Math.min(anchor.right + gap, vw - HOVER_ZOOM_SIZE - gap);
+    const top = Math.max(gap, Math.min(anchor.top + anchor.height / 2 - HOVER_ZOOM_SIZE / 2, vh - HOVER_ZOOM_SIZE - gap));
+    style = { position: "fixed", left, top, width: HOVER_ZOOM_SIZE, height: HOVER_ZOOM_SIZE, zIndex: 2147483000 };
+  }
+  return (
+    <>
+      <img src={src} alt={alt} className={`${className} cursor-zoom-in`} loading={loading} onMouseEnter={show} onMouseLeave={hide} />
+      {style && typeof document !== "undefined"
+        ? createPortal(
+            <div style={style} className="pointer-events-none overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl shadow-black/50">
+              <img src={src} alt={alt} className="h-full w-full object-contain" />
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
 const productImage = (product = {}, variant = null) =>
   resolveProductImageUrl(clean(
     variant?.image_url ||
@@ -1518,7 +1552,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
                           </span>
                           {card.image ? (
-                            <img src={card.image} alt={card.productName || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                            <HoverZoomImage src={card.image} alt={card.productName || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" />
                           ) : (
                             <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                               <ShoppingBag className="h-5 w-5" />
@@ -1585,7 +1619,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           </span>
                         ) : null}
                         {previewImage ? (
-                          <img src={previewImage} alt={product.name || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                          <HoverZoomImage src={previewImage} alt={product.name || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" />
                         ) : (
                           <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                             <ShoppingBag className="h-5 w-5" />
@@ -1709,7 +1743,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 <div className={previewCollapsed ? "hidden" : "space-y-3"}>
                 <div className="flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#1d1d1a] p-3">
                   {activeImage ? (
-                    <img src={activeImage} alt={selectedProduct.name || t("aiSupport.inbox.picker.product")} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" loading="lazy" />
+                    <HoverZoomImage src={activeImage} alt={selectedProduct.name || t("aiSupport.inbox.picker.product")} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" />
                   ) : (
                     <div className="grid h-24 w-24 shrink-0 place-items-center rounded-2xl bg-white/[0.05]">
                       <ShoppingBag className="h-8 w-8 text-stone-500" />
