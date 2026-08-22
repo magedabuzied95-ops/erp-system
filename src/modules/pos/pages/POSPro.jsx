@@ -7761,6 +7761,7 @@ function POSPro() {
       ["Total cash out", formatCurrency(totals.total_cash_out || 0)],
       ["Returns", formatCurrency(totals.returns)],
       ["Discounts", formatCurrency(totals.discounts)],
+      ...(Number(totals.coupon_discounts || 0) > 0 ? [["  of which coupons", formatCurrency(totals.coupon_discounts)]] : []),
       ["Invoice count", Number(totals.invoice_count || 0).toLocaleString()],
     ];
     const printWindow = window.open("", "_blank", "width=820,height=900");
@@ -10036,7 +10037,13 @@ function ShiftCloseAuditLayout({
 
             <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.activity")} accent="cyan">
               <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.invoiceCount")} value={Number(totals.invoice_count || 0).toLocaleString()} />
-            <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.discounts")} value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow
+              label={t("pos.posPro.shiftCloseAudit.discounts")}
+              value={formatCurrency(totals.discounts || 0)}
+              subtitle={Number(totals.coupon_discounts || 0) > 0
+                ? t("pos.posPro.shiftCloseAudit.ofWhichCoupons", "منهم كوبونات: {{amount}}", { amount: formatCurrency(totals.coupon_discounts || 0) })
+                : ""}
+            />
             <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.employeeAdvances")} value={formatCurrency(totals.employee_advances || 0)} />
             <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.shiftDuration")} value={safeShiftDuration} />
           </AccountingLedgerSection>

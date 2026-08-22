@@ -249,6 +249,7 @@
       "activity": "النشاط",
       "invoiceCount": "عدد الفواتير",
       "discounts": "الخصومات",
+      "ofWhichCoupons": "منهم كوبونات: {{amount}}",
       "employeeAdvances": "سلف الموظفين",
       "shiftDuration": "مدة الشيفت"
     },

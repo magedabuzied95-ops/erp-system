@@ -158,6 +158,12 @@
     },
     "sources": { "pos": "POS", "website": "Website", "manual": "Manual" },
     "codeModes": { "unique": "Unique codes (one coupon per customer)", "shared": "One shared code (ads & social)" },
+    "pendingSend": {
+      "banner_one": "{{count}} coupon is assigned to a customer and not sent yet",
+      "banner_other": "{{count}} coupons are assigned to customers and not sent yet",
+      "review": "Review",
+      "sent": "Sent"
+    },
     "assign": {
       "button": "Assign to customer",
       "title": "Assign a coupon to a customer",
@@ -292,6 +298,7 @@
     "openOnFacebook": "Open on Facebook",
     "editorTitle": "Social post editor",
     "filters": {
+      "pendingSend": "Awaiting send",
       "allStatuses": "All statuses",
       "allChannels": "All channels"
     },

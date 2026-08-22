@@ -70,6 +70,7 @@ export default function StorefrontCheckoutSummary({
   cart,
   subtotal,
   discount,
+  freeShipping = false,
   deliveryFee,
   total,
   codAmount,
@@ -101,6 +102,9 @@ export default function StorefrontCheckoutSummary({
       ? t("common.loading", "جاري التحميل...")
       : money(deliveryFee)
     : t("storefront.checkout.chooseGovernorate", "اختر المحافظة");
+  // Split the waiver out of the discount line so the two lines never read as a double discount.
+  const shippingWaived = Boolean(freeShipping) && Number(deliveryFee || 0) > 0;
+  const goodsDiscount = Math.max(0, Number(discount || 0) - (shippingWaived ? Number(deliveryFee || 0) : 0));
   const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "٢–٥ أيام عمل");
   const cartCount = Array.isArray(cart) ? cart.length : 0;
 
@@ -186,8 +190,17 @@ export default function StorefrontCheckoutSummary({
         </section>
         <div className="sf-checkout-summary-totals rounded-2xl border border-white/10 bg-black/20 p-4 shadow-inner shadow-black/30">
           <SummaryRow dark label={t("storefront.checkout.products", "المنتجات")} value={money(subtotal)} />
-          <SummaryRow dark label={t("storefront.checkout.discount", "الخصم")} value={discount ? `-${money(discount)}` : money(0)} />
-          <SummaryRow dark label={t("storefront.checkout.shipping", "الشحن")} value={shippingText} />
+          <SummaryRow dark label={t("storefront.checkout.discount", "الخصم")} value={goodsDiscount ? `-${money(goodsDiscount)}` : money(0)} />
+          <SummaryRow
+            dark
+            label={t("storefront.checkout.shipping", "الشحن")}
+            value={shippingWaived ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="text-emerald-300">{t("storefront.checkout.freeShipping", "مجاني")}</span>
+                <s className="font-bold text-white/40">{money(deliveryFee)}</s>
+              </span>
+            ) : shippingText}
+          />
           <SummaryRow dark label={t("storefront.checkout.total", "الإجمالي")} value={money(total)} strong />
           {codAmount ? <SummaryRow dark label={paymentMethod === "cod" ? t("storefront.checkout.codOnDelivery", "المتبقي عند الاستلام") : t("storefront.checkout.remainingOnDelivery", "المتبقي عند الاستلام")} value={money(codAmount)} /> : null}
         </div>

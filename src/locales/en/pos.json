@@ -249,6 +249,7 @@
       "activity": "Activity",
       "invoiceCount": "Invoice count",
       "discounts": "Discounts",
+      "ofWhichCoupons": "of which coupons: {{amount}}",
       "employeeAdvances": "Employee advances",
       "shiftDuration": "Shift duration"
     },

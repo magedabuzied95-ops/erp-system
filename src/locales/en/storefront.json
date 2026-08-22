@@ -80,6 +80,8 @@
     "couponPlaceholder": "If you have a discount code",
     "applyCoupon": "Apply coupon",
     "removeCoupon": "Remove coupon",
+    "freeShipping": "Free",
+    "couponFreeShippingSummary": "Coupon {{code}} — free shipping",
     "couponApplied": "Coupon applied",
     "couponAppliedSummary": "Coupon applied: {{code}} - {{discount}}",
     "couponNeedsApply": "Coupon entered. Apply it to calculate the discount.",

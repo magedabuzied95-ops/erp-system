@@ -86,3 +86,8 @@ CREATE INDEX IF NOT EXISTS idx_coupons_assigned_customer ON coupons (assigned_cu
 
 -- Phase 3.1: auto-issue a coupon after a customer's first order
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS auto_issue_on_first_order BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Phase 3.2: track the send, so an assigned-but-unsent coupon can be surfaced
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL;
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_by BIGINT NULL;
+CREATE INDEX IF NOT EXISTS idx_coupons_pending_send ON coupons (campaign_id) WHERE assigned_customer_id IS NOT NULL AND sent_at IS NULL;

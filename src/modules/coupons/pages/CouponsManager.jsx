@@ -356,6 +356,21 @@ export default function CouponsManager() {
     return response;
   };
 
+  const [rowSendingId, setRowSendingId] = useState(null);
+  const sendCouponRow = async (coupon) => {
+    if (!selectedCampaign?.id || !coupon?.assigned_customer_id || rowSendingId) return;
+    setRowSendingId(coupon.id);
+    try {
+      await api.post(`/coupons/campaigns/${selectedCampaign.id}/send`, { customer_id: coupon.assigned_customer_id });
+      toast.success(cText("assign.sent", "تم إرسال الكوبون"));
+      loadCoupons();
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error.message || cText("assign.sendFailed", "تعذر الإرسال"));
+    } finally {
+      setRowSendingId(null);
+    }
+  };
+
   const assignCoupon = async (customer) => {
     if (!selectedCampaign?.id || !customer?.id) return;
     try {
@@ -487,10 +502,23 @@ export default function CouponsManager() {
                   <option value="active">{cText("active", "نشط")}</option>
                   <option value="unused">{cText("headers.unused", "غير مستخدم")}</option>
                   <option value="used">{cText("headers.used", "مستخدم")}</option>
+                  <option value="pending_send">{cText("filters.pendingSend", "بانتظار الإرسال")}</option>
                   <option value="expired">{cText("headers.expired", "منتهي")}</option>
                 </select>
               </div>
 
+              {Number(stats?.pending_send_coupons || 0) > 0 && status !== "pending_send" ? (
+                  <button
+                    type="button"
+                    onClick={() => setStatus("pending_send")}
+                    className="mb-3 flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-start"
+                  >
+                    <span className="text-sm font-black text-amber-100">
+                      {cText("pendingSend.banner", "{{count}} كوبون متخصّص لعملاء ولسه ما اتبعتش", { count: Number(stats.pending_send_coupons) })}
+                    </span>
+                    <span className="shrink-0 text-xs font-black text-amber-200/80">{cText("pendingSend.review", "استعراض")}</span>
+                  </button>
+                ) : null}
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
                 <div className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                   <div>{cText("headers.code", "الكود")}</div>
@@ -505,10 +533,31 @@ export default function CouponsManager() {
                 ) : coupons.length ? (
                   coupons.map((coupon) => (
                     <div key={coupon.id} className={`grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${String(logCouponId) === String(coupon.id) ? "bg-violet-400/10" : ""}`}>
-                      <button type="button" onClick={() => setLogCouponId((current) => (String(current) === String(coupon.id) ? null : coupon.id))} title={cText("log.showForCoupon", "عرض سجل استخدام هذا الكوبون")} className="text-start font-black text-white hover:text-violet-200">{coupon.code}</button>
+                      <div className="min-w-0">
+                        <button type="button" onClick={() => setLogCouponId((current) => (String(current) === String(coupon.id) ? null : coupon.id))} title={cText("log.showForCoupon", "عرض سجل استخدام هذا الكوبون")} className="block truncate text-start font-black text-white hover:text-violet-200">{coupon.code}</button>
+                        {coupon.assigned_customer_id ? (
+                          <span className="block truncate text-[11px] font-semibold text-zinc-500">{coupon.assigned_customer_name || `#${coupon.assigned_customer_id}`}</span>
+                        ) : null}
+                      </div>
                       <div className="text-zinc-300">{coupon.discount_type === "percentage" ? `${Number(coupon.discount_value)}%` : coupon.discount_type === "free_shipping" ? cText("types.freeShipping", "شحن مجاني") : formatCurrency(coupon.discount_value)}</div>
                       <div className="text-zinc-300">{number(coupon.usage_count)} / {number(coupon.usage_limit)}</div>
-                      <div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? cText("active", "نشط") : cText("inactive", "متوقف")}</span></div>
+                      <div>
+                        {coupon.assigned_customer_id && !coupon.sent_at && !coupon.usage_count ? (
+                          <button
+                            type="button"
+                            onClick={() => sendCouponRow(coupon)}
+                            disabled={rowSendingId === coupon.id}
+                            className="inline-flex h-[var(--control-height-md)] items-center gap-1.5 rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-400/15 px-2.5 text-[11px] font-black text-amber-100 disabled:opacity-50"
+                          >
+                            {rowSendingId === coupon.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+                            {cText("assign.send", "ابعت")}
+                          </button>
+                        ) : coupon.sent_at && !coupon.usage_count ? (
+                          <span className="rounded-full bg-sky-400/10 px-2 py-1 text-[11px] font-black text-sky-200">{cText("pendingSend.sent", "اتبعت")}</span>
+                        ) : (
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? cText("active", "نشط") : cText("inactive", "متوقف")}</span>
+                        )}
+                      </div>
                       <div className="text-zinc-400">{coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : "-"}</div>
                       <button type="button" title={cText("export.printThis", "Print this coupon")} onClick={() => printPdf("single", coupon.id)} className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20">
                         {exportBusy === `print-single-${coupon.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}

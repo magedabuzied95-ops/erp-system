@@ -372,6 +372,8 @@
     "couponPlaceholder": "إذا كان لديك كود خصم",
     "applyCoupon": "تطبيق الكوبون",
     "removeCoupon": "إزالة الكوبون",
+    "freeShipping": "مجاني",
+    "couponFreeShippingSummary": "كوبون {{code}} — الشحن مجاني",
     "couponApplied": "تم تطبيق الكوبون",
     "couponAppliedSummary": "تم تطبيق الكوبون: {{code}} - {{discount}}",
     "couponNeedsApply": "تم إدخال الكوبون. اضغط تطبيق لحساب الخصم.",

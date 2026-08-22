@@ -7316,6 +7316,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
   const subtotal = pricedCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const couponDiscount = couponValidation?.valid ? Math.max(0, Number(couponValidation.discount_amount || 0)) : 0;
+  // A free-shipping coupon's discount IS the shipping fee. The totals are already right; this flag
+  // exists so the summary can say "شحن مجاني" instead of showing a fee and an equal discount beside it.
+  const couponFreeShipping = Boolean(couponValidation?.valid && couponValidation?.free_shipping);
   const discount = couponDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
@@ -8796,10 +8799,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                         </div>
                         {couponValidation?.valid ? (
                           <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100">
-                            {sfText("storefront.checkout.couponAppliedSummary", undefined, {
-                              code: couponValidation?.coupon?.code || couponCode,
-                              discount: money(couponDiscount),
-                            })}
+                            {couponFreeShipping
+                              ? sfText("storefront.checkout.couponFreeShippingSummary", undefined, {
+                                  code: couponValidation?.coupon?.code || couponCode,
+                                })
+                              : sfText("storefront.checkout.couponAppliedSummary", undefined, {
+                                  code: couponValidation?.coupon?.code || couponCode,
+                                  discount: money(couponDiscount),
+                                })}
                           </div>
                         ) : couponCode ? (
                           <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100">
@@ -8831,6 +8838,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             cart={pricedCart}
             subtotal={subtotal}
             discount={discount}
+            freeShipping={couponFreeShipping}
             deliveryFee={deliveryFee}
             total={total}
             codAmount={codAmount}

@@ -408,15 +408,20 @@ export const listCoupons = async ({ tenantId = null, campaignId, search = "", st
   }
   if (status === "used") where += " AND cp.usage_count > 0";
   if (status === "unused") where += " AND cp.usage_count = 0";
+  // Assigned to a customer, never sent, never used — the queue that would otherwise sit invisible.
+  if (status === "pending_send") where += " AND cp.assigned_customer_id IS NOT NULL AND cp.sent_at IS NULL AND cp.usage_count = 0";
   if (status === "expired") where += " AND cp.expires_at IS NOT NULL AND cp.expires_at < NOW()";
   if (status === "active") where += " AND cp.is_active = TRUE AND (cp.expires_at IS NULL OR cp.expires_at >= NOW())";
   const result = await db.query(
     `
     SELECT cp.*, c.name AS campaign_name, c.discount_type, c.discount_value,
       c.minimum_order_amount, c.max_discount_amount, c.starts_at AS campaign_starts_at,
-      c.expires_at AS campaign_expires_at, c.channel, c.usage_limit_per_coupon
+      c.expires_at AS campaign_expires_at, c.channel, c.usage_limit_per_coupon,
+      COALESCE(NULLIF(cu.name, ''), '') AS assigned_customer_name,
+      COALESCE(NULLIF(cu.phone, ''), '') AS assigned_customer_phone
     FROM coupons cp
     JOIN coupon_campaigns c ON c.id = cp.campaign_id
+    LEFT JOIN customers cu ON cu.id = cp.assigned_customer_id
     ${where}
     ORDER BY cp.created_at DESC
     LIMIT 1000
@@ -963,6 +968,12 @@ export const sendAssignedCouponToCustomer = async ({ tenantId = null, campaignId
     console.error("[coupons] inbox persist failed after a confirmed send", String(error?.message || error).slice(0, 160));
   }
 
+  try {
+    await db.query("UPDATE coupons SET sent_at = NOW(), sent_by = $2, updated_at = NOW() WHERE id = $1", [assignment.coupon?.id, userId || null]);
+  } catch (error) {
+    console.error("[coupons] could not stamp sent_at", String(error?.message || error).slice(0, 140));
+  }
+
   console.log("[coupons] sent to customer", {
     campaign_id: campaignId,
     customer_id: assignment.customer?.id,
@@ -1071,6 +1082,7 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
       COUNT(c.id) FILTER (WHERE c.usage_count = 0)::int AS unused_coupons,
       COUNT(c.id) FILTER (WHERE c.expires_at IS NOT NULL AND c.expires_at < NOW())::int AS expired_coupons,
       COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL)::int AS assigned_coupons,
+      COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL AND c.sent_at IS NULL AND c.usage_count = 0)::int AS pending_send_coupons,
       COUNT(r.id)::int AS total_redemptions,
       COALESCE(SUM(r.discount_amount), 0)::numeric AS total_discount_amount,
       COALESCE(SUM(r.order_total), 0)::numeric AS total_sales_amount,
@@ -1118,6 +1130,7 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
     total_coupons: total,
     used_coupons: used,
     assigned_coupons: assigned,
+    pending_send_coupons: Number(stats.pending_send_coupons || 0),
     net_sales_amount: Number(stats.net_sales_amount || 0),
     // Conversion = redemptions over what was actually handed out (assigned), falling back to generated.
     conversion_rate: assigned > 0 ? Number(((redemptions / assigned) * 100).toFixed(2)) : total > 0 ? Number(((used / total) * 100).toFixed(2)) : 0,
