@@ -1155,7 +1155,8 @@ export const updateAdminEmployeeChatThreadPrefs = async ({ tenantId = null, thre
   const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false, withMessages: false });
   const sets = [];
   const values = [thread.id];
-  const push = (sql, value) => { values.push(value); sets.push(sql.replace("?", `${values.length}`)); };
+  // Function replacement: a literal "$2" string would be read as a capture-group reference.
+  const push = (sql, value) => { values.push(value); const marker = "$" + values.length; sets.push(sql.replace("?", () => marker)); };
   if (pinned !== undefined) push("pinned_at = CASE WHEN ?::boolean THEN COALESCE(pinned_at, NOW()) ELSE NULL END", Boolean(pinned));
   if (archived !== undefined) push("archived_at = CASE WHEN ?::boolean THEN COALESCE(archived_at, NOW()) ELSE NULL END", Boolean(archived));
   if (mutedUntil !== undefined) {

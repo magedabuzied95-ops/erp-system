@@ -299,6 +299,11 @@ export default function SharedPortalChat({
       return [employee?.full_name, employee?.employee_name, employee?.employee_code, employee?.branch_name, employeeThread?.last_message]
         .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query));
     }).sort((left, right) => {
+      // Pinned conversations first (oldest pin on top, WhatsApp's order), then by activity.
+      const leftPin = left.thread?.pinned_at ? new Date(left.thread.pinned_at).getTime() : 0;
+      const rightPin = right.thread?.pinned_at ? new Date(right.thread.pinned_at).getTime() : 0;
+      if (Boolean(leftPin) !== Boolean(rightPin)) return leftPin ? -1 : 1;
+      if (leftPin && rightPin && leftPin !== rightPin) return leftPin - rightPin;
       if (left.thread && right.thread) return threadSortValue(right.thread) - threadSortValue(left.thread);
       if (left.thread) return -1;
       if (right.thread) return 1;
