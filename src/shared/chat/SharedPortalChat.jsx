@@ -94,6 +94,7 @@ export default function SharedPortalChat({
   managerPanel = null,
   pollMs = 12000,
   allowReply = true,
+  // eslint-disable-next-line no-unused-vars -- retained for callers; the composer is always an auto-growing textarea now
   useTextareaComposer = false,
   mobileFullScreen = false,
 }) {
@@ -1167,7 +1168,6 @@ export default function SharedPortalChat({
                 onStartRecording={startVoiceRecording}
                 onScrollToReply={scrollToMessage}
                 disabled={!activeThreadId}
-                useTextarea={useTextareaComposer}
               />
               <PortalChatContactInfo
                 open={contactInfoOpen}

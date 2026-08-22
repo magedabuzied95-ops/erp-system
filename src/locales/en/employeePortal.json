@@ -557,7 +557,9 @@
     "deleteForAll": "Delete for everyone",
     "forward": "Forward",
     "copy": "Copy",
-    "loadOlder": "Load earlier messages"
+    "loadOlder": "Load earlier messages",
+    "captionHint": "Type a caption below, or send as is",
+    "emoji": "Emoji"
   },
   "profile": {
     "settings": "Profile settings",
