@@ -589,17 +589,22 @@ function AttendanceWorkspace({
     });
   }, [loadBaseData]);
 
+  // Parent → child sync. This must react ONLY to a change of the parent's
+  // value. Reacting to the internal selection too made it clobber a fresh
+  // local pick (e.g. clicking "edit" on employee 8) with the parent's stale
+  // value (37) before the parent had been notified of 8; the parent then
+  // flipped to 8 while the child had already gone back to 37, and the two
+  // chased each other until Chrome ran out of sockets.
+  const lastSyncedExternalSelectedEmployeeIdRef = useRef(null);
   useEffect(() => {
     const nextSelectedEmployeeId = String(externalSelectedEmployeeId || "");
-    if (!nextSelectedEmployeeId || nextSelectedEmployeeId === String(selectedEmployeeId || "")) return;
-    console.log("[hr-loop]", "sync_external_selected_employee", {
-      employee_id: nextSelectedEmployeeId,
-      selectedEmployeeId,
-    });
-    setSelectedEmployeeId((prev) => {
-      return prev === nextSelectedEmployeeId ? prev : nextSelectedEmployeeId;
-    });
-  }, [externalSelectedEmployeeId, selectedEmployeeId]);
+    if (lastSyncedExternalSelectedEmployeeIdRef.current === nextSelectedEmployeeId) return;
+    lastSyncedExternalSelectedEmployeeIdRef.current = nextSelectedEmployeeId;
+    if (!nextSelectedEmployeeId) return;
+    // The parent echoing back what we just told it is not a new instruction.
+    if (nextSelectedEmployeeId === lastNotifiedSelectedEmployeeIdRef.current) return;
+    setSelectedEmployeeId((prev) => (prev === nextSelectedEmployeeId ? prev : nextSelectedEmployeeId));
+  }, [externalSelectedEmployeeId]);
 
   useEffect(() => {
     if (typeof onSelectedEmployeeChange !== "function") return;
@@ -617,11 +622,6 @@ function AttendanceWorkspace({
     if (!nextSelectedEmployeeSignature || lastNotifiedSelectedEmployeeSignatureRef.current === nextSelectedEmployeeSignature) return;
     lastNotifiedSelectedEmployeeSignatureRef.current = nextSelectedEmployeeSignature;
     lastNotifiedSelectedEmployeeIdRef.current = nextSelectedEmployeeId;
-    console.count("[hr-loop] onSelectedEmployeeChange");
-    console.log("[hr-loop]", "notify_parent_selected_employee", {
-      employee_id: nextSelectedEmployeeId,
-      signature: nextSelectedEmployeeSignature,
-    });
     onSelectedEmployeeChange(selectedEmployee || null);
   }, [onSelectedEmployeeChange, selectedEmployee, selectedEmployee?.employee_id, selectedEmployee?.id]);
 
@@ -636,11 +636,6 @@ function AttendanceWorkspace({
     ].join("|");
     if (lastAutoLoadedEmployeeSignatureRef.current === nextAutoLoadSignature) return;
     lastAutoLoadedEmployeeSignatureRef.current = nextAutoLoadSignature;
-    console.count("[hr-loop] loadEmployeeRelatedData");
-    console.log("[hr-loop]", "load_employee_related_data", {
-      employee_id: nextEmployeeId,
-      signature: nextAutoLoadSignature,
-    });
     queueMicrotask(() => {
       void loadEmployeeRelatedData(nextEmployeeId);
     });

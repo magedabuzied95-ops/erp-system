@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Component, lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -78,7 +78,6 @@ export default function EmployeeHub() {
   const canViewStaffTasks = usePermission("staff_tasks.view");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const handleSelectedEmployeeChange = useCallback((employee) => {
-    console.count("[hr-loop] onSelectedEmployeeChange");
     setSelectedEmployee(employee);
   }, []);
   const payrollVisibleTabs = useMemo(() => ["payroll", "penalties"], []);
@@ -103,13 +102,6 @@ export default function EmployeeHub() {
   );
   const activeTab = validTabs.has(params.tab) ? params.tab : "overview";
   const selectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
-  useEffect(() => {
-    console.log("[hr-loop]", "employee_hub_selection", {
-      employee_id: selectedEmployeeId,
-      selectedEmployeeId,
-      editingEmployeeId: "",
-    });
-  }, [selectedEmployeeId]);
   if (legacyTabRedirects[params.tab]) {
     return <Navigate to={`/employees/${legacyTabRedirects[params.tab]}`} replace />;
   }
@@ -197,13 +189,6 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
   const { i18n } = useTranslation();
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
-  useEffect(() => {
-    console.log("[hr-loop]", "employee_directory_props", {
-      employee_id: String(selectedEmployeeId || ""),
-      selectedEmployeeId: String(selectedEmployeeId || ""),
-      editingEmployeeId: "",
-    });
-  }, [selectedEmployeeId]);
   return (
     <div className="space-y-4">
       <section className="theme-card p-4">
