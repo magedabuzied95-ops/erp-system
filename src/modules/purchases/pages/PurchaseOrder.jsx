@@ -28,6 +28,8 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getProductAudienceValues, productMatchesAudience } from "../../../shared/lib/productAudiences";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import FlowShell from "../components/FlowShell";
+import { useProductClassifications } from "../../products/hooks/useProductClassifications";
+import { CLASSIFICATION_FIELDS, getClassificationLabel } from "../../products/lib/productClassifications";
 import {
   loadPurchaseDraft,
   savePurchaseDraft,
@@ -689,18 +691,20 @@ const makeCountOptions = (items = [], getId, getName = getId) => {
 };
 
 const purchaseFilterMatches = (item = {}, filters = {}) => {
-  if (filters.brand !== "all") {
+  const brandPicks = toArray(filters.brand).map(String);
+  if (brandPicks.length) {
     const brandIds = [item.brand_id].map((value) => text(value)).filter(Boolean);
     const brandNames = [item.brand, item.brand_name].map(normalizeFilterValue).filter(Boolean);
-    if (!brandIds.includes(String(filters.brand)) && !brandNames.includes(normalizeFilterValue(filters.brand))) return false;
+    if (!brandPicks.some((pick) => brandIds.includes(pick) || brandNames.includes(normalizeFilterValue(pick)))) return false;
   }
   if (filters.gender !== "all" && !productMatchesAudience(item, filters.gender)) return false;
   if (filters.productType !== "all" && ![item.product_type, item.productType].map(normalizeFilterValue).includes(normalizeFilterValue(filters.productType))) return false;
   if (filters.grade !== "all" && normalizeFilterValue(item.grade) !== normalizeFilterValue(filters.grade)) return false;
-  if (filters.manufacturer !== "all") {
+  const manufacturerPicks = toArray(filters.manufacturer).map(String);
+  if (manufacturerPicks.length) {
     const manufacturerIds = [item.manufacturer_id].map((value) => text(value)).filter(Boolean);
     const manufacturerNames = [item.manufacturer_name].map(normalizeFilterValue).filter(Boolean);
-    if (!manufacturerIds.includes(String(filters.manufacturer)) && !manufacturerNames.includes(normalizeFilterValue(filters.manufacturer))) return false;
+    if (!manufacturerPicks.some((pick) => manufacturerIds.includes(pick) || manufacturerNames.includes(normalizeFilterValue(pick)))) return false;
   }
   return true;
 };
@@ -713,6 +717,7 @@ function PurchaseOrder() {
   const { id: editPurchaseId } = useParams();
   const isEditMode = Boolean(editPurchaseId && /\/edit\/?$/.test(location.pathname));
   const purchaseShellRef = useRef(null);
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const searchRef = useRef(null);
   const searchPanelWrapRef = useRef(null);
   const filtersPanelRef = useRef(null);
@@ -741,8 +746,8 @@ function PurchaseOrder() {
     gender: "all",
     productType: "all",
     grade: "all",
-    brand: "all",
-    manufacturer: "all",
+    brand: [],
+    manufacturer: [],
   });
   const status = "received";
   const [discount, setDiscount] = useState(0);
@@ -1201,7 +1206,7 @@ function PurchaseOrder() {
     [debouncedSearch, products, searchProducts]
   );
 
-  const activePurchaseFilterCount = Object.values(purchaseFilters).filter((value) => value !== "all").length;
+  const activePurchaseFilterCount = Object.values(purchaseFilters).filter((value) => (Array.isArray(value) ? value.length > 0 : value !== "all")).length;
 
   const filteredProducts = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
@@ -1242,6 +1247,8 @@ function PurchaseOrder() {
   }, [runModal, products, searchProducts]);
 
   const filterSource = debouncedSearch.trim().length >= 2 && searchProducts.length ? searchProducts : products;
+  const classificationLocale = isArabic ? "ar" : "en";
+  const labelFor = (fieldKey) => (item, raw) => getClassificationLabel(classificationGroups, fieldKey, raw, classificationLocale);
   const purchaseFilterOptions = useMemo(() => ({
     brand: makeCountOptions(
       filterSource,
@@ -1251,16 +1258,21 @@ function PurchaseOrder() {
     gender: makeCountOptions(
       filterSource.flatMap((item) => getProductAudienceValues(item).map((audience) => ({ audience }))),
       (item) => item.audience,
-      (item) => item.audience
+      (item) => labelFor(CLASSIFICATION_FIELDS.gender)(item, item.audience)
     ),
-    productType: makeCountOptions(filterSource, (item) => normalizeFilterValue(firstText(item.product_type, item.productType)), (item) => firstText(item.product_type, item.productType)),
-    grade: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.grade), (item) => item.grade),
+    productType: makeCountOptions(
+      filterSource,
+      (item) => normalizeFilterValue(firstText(item.product_type, item.productType)),
+      (item) => labelFor(CLASSIFICATION_FIELDS.productType)(item, firstText(item.product_type, item.productType))
+    ),
+    grade: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.grade), (item) => labelFor(CLASSIFICATION_FIELDS.grade)(item, item.grade)),
     manufacturer: makeCountOptions(
       filterSource,
       (item) => optionId(item.manufacturer_id, normalizeFilterValue(item.manufacturer_name)),
       (item) => item.manufacturer_name
     ),
-  }), [filterSource]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [filterSource, classificationGroups, classificationLocale]);
 
   const purchaseSmartFilterOptions = useMemo(
     () => ({
@@ -1271,12 +1283,20 @@ function PurchaseOrder() {
     [purchaseFilterOptions.gender, purchaseFilterOptions.productType, purchaseFilterOptions.grade]
   );
   const setPurchaseFilter = (key, value) => setPurchaseFilters((current) => ({ ...current, [key]: value }));
+  // Brand / manufacturer are multi-select chips, same as POS: "all" clears, any other value toggles.
+  const togglePurchaseMultiFilter = (key, value) =>
+    setPurchaseFilters((current) => {
+      if (value === "all") return { ...current, [key]: [] };
+      const picks = toArray(current[key]).map(String);
+      const next = picks.includes(String(value)) ? picks.filter((pick) => pick !== String(value)) : [...picks, String(value)];
+      return { ...current, [key]: next };
+    });
   const resetPurchaseFilters = () => setPurchaseFilters({
     gender: "all",
     productType: "all",
     grade: "all",
-    brand: "all",
-    manufacturer: "all",
+    brand: [],
+    manufacturer: [],
   });
 
   const variantsByProduct = useMemo(() => {
@@ -2373,10 +2393,10 @@ function PurchaseOrder() {
         onGradeChange={(value) => setPurchaseFilter("grade", value)}
         brandOptions={purchaseFilterOptions.brand}
         selectedBrandId={purchaseFilters.brand}
-        onBrandChange={(value) => setPurchaseFilter("brand", value)}
+        onBrandChange={(value) => togglePurchaseMultiFilter("brand", value)}
         manufacturerOptions={purchaseFilterOptions.manufacturer}
         selectedManufacturerId={purchaseFilters.manufacturer}
-        onManufacturerChange={(value) => setPurchaseFilter("manufacturer", value)}
+        onManufacturerChange={(value) => togglePurchaseMultiFilter("manufacturer", value)}
         activeSmartFilterCount={activePurchaseFilterCount}
         onReset={resetPurchaseFilters}
         onClose={() => setFiltersOpen(false)}
