@@ -17,6 +17,7 @@ from "socket.io";
 import { fileURLToPath }
 from "url";
 import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
+import { presenceConnect, presenceDisconnect } from "./services/chatPresenceService.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
@@ -325,6 +326,8 @@ io.on("connection", async (socket) => {
         branch_id: employee.branch_id || null,
       };
       socket.join(`employee-chat:employee:${employee.id}`);
+      presenceConnect(employee.id, employee.tenant_id || null);
+      socket.once("disconnect", () => presenceDisconnect(employee.id));
       if (socket.handshake?.auth?.employeeChatActive === true) {
         socket.join(`employee-chat-active:employee:${employee.id}`);
       }
@@ -484,6 +487,8 @@ io.on("connection", async (socket) => {
     if (linkedEmployeeId) {
       socket.join(`employee-chat:employee:${linkedEmployeeId}`);
       socket.join(`employee:${linkedEmployeeId}`);
+      presenceConnect(linkedEmployeeId, tenantId || null);
+      socket.once("disconnect", () => presenceDisconnect(linkedEmployeeId));
       socket.on("employee-chat:presence", (payload = {}) => {
         const activeRoom = `employee-chat-active:employee:${linkedEmployeeId}`;
         if (payload?.active) socket.join(activeRoom);
@@ -501,7 +506,10 @@ io.on("connection", async (socket) => {
     socket.on("employee-chat:pos-branch", async (payload = {}, acknowledge) => {
       const ack = typeof acknowledge === "function" ? acknowledge : () => {};
       const nextBranchId = Number(payload?.branch_id || payload?.branchId || 0) || null;
-      if (posChannelBranchId && posChannelBranchId !== nextBranchId) socket.leave(posChannelRoom(posChannelBranchId));
+      if (posChannelBranchId && posChannelBranchId !== nextBranchId) {
+        socket.leave(posChannelRoom(posChannelBranchId));
+        presenceDisconnect(`pos-branch-${posChannelBranchId}`);
+      }
       posChannelBranchId = null;
       if (nextBranchId) {
         try {
@@ -512,12 +520,16 @@ io.on("connection", async (socket) => {
           if (branchResult.rows[0]) {
             socket.join(posChannelRoom(nextBranchId));
             posChannelBranchId = nextBranchId;
+            presenceConnect(`pos-branch-${nextBranchId}`, tenantId || null);
           }
         } catch (error) {
           console.warn("[socket] pos channel branch lookup failed", error?.message || error);
         }
       }
       ack({ success: true, branch_id: posChannelBranchId });
+    });
+    socket.once("disconnect", () => {
+      if (posChannelBranchId) presenceDisconnect(`pos-branch-${posChannelBranchId}`);
     });
     const cashierTypingIdentity = (payload = {}) =>
       String(payload?.channel || "") === "branch_pos"

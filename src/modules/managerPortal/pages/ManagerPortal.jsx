@@ -1029,6 +1029,7 @@ export default function ManagerPortal() {
         ["employee-chat:thread-updated", handlers.onThread],
         ["employee-chat:read", handlers.onRead],
         ["employee-chat:delivered", handlers.onDelivered],
+        ["employee-chat:presence", handlers.onPresence],
         ["employee-chat:message-updated", handlers.onMutation],
         ["employee-chat:message-deleted", handlers.onMutation],
         ["employee-chat:typing", handlers.onTyping],

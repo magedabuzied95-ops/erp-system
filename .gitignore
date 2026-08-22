@@ -41,6 +41,7 @@ tmp/
 services/
 !server/services/
 server/services/*
+!server/services/chatPresenceService.js
 !server/services/metaReviewerAccessService.js
 !server/services/metaReviewerInboxService.js
 !server/services/inboundMediaService.js
@@ -89,6 +90,7 @@ services/
 .codex-monitoring*.log
 !server/services/
 server/services/*
+!server/services/chatPresenceService.js
 !server/services/metaReviewerAccessService.js
 !server/services/metaReviewerInboxService.js
 !server/services/inboundMediaService.js

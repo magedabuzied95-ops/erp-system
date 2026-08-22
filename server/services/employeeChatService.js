@@ -4,6 +4,7 @@ import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { createNotification } from "./notificationsService.js";
 import { sendManagerEmployeeChatPush } from "./managerPortalPushService.js";
 import { emitToRooms, getRoomClientCount } from "../utils/socket.js";
+import { decorateThreadsWithPresence } from "./chatPresenceService.js";
 
 const clean = (value = "") => String(value || "").trim();
 
@@ -169,13 +170,16 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
       b.name AS branch_name,
       lm.last_message,
       lm.sender_type AS last_sender_type,
+      lm.attachment_type AS last_attachment_type,
+      lm.read_at AS last_message_read_at,
+      lm.delivered_at AS last_message_delivered_at,
       lm.created_at AS last_message_created_at,
       COALESCE(unread.unread_count, 0)::int AS unread_count
     FROM employee_chat_threads t
     LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     LEFT JOIN LATERAL (
-      SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, created_at
+      SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, attachment_type, read_at, delivered_at, created_at
       FROM employee_chat_messages m
       WHERE m.thread_id = t.id
       ORDER BY m.created_at DESC, m.id DESC
@@ -191,7 +195,7 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
     `,
     [threadId]
   );
-  return result.rows[0] || null;
+  return result.rows[0] ? decorateThreadsWithPresence([result.rows[0]])[0] : null;
 };
 
 const emitChatEvent = (rooms = [], eventName, payload = {}) => {
@@ -890,16 +894,20 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
       t.created_at,
       t.updated_at,${threadIdentitySql},
       COALESCE(e.photo_url, '') AS photo_url,
+      e.chat_last_seen_at,
       b.name AS branch_name,
       lm.last_message,
       lm.sender_type AS last_sender_type,
+      lm.attachment_type AS last_attachment_type,
+      lm.read_at AS last_message_read_at,
+      lm.delivered_at AS last_message_delivered_at,
       lm.created_at AS last_message_created_at,
       COALESCE(unread.unread_count, 0)::int AS unread_count
     FROM employee_chat_threads t
     LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     LEFT JOIN LATERAL (
-      SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, created_at
+      SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, attachment_type, read_at, delivered_at, created_at
       FROM employee_chat_messages m
       WHERE m.thread_id = t.id
       ORDER BY m.created_at DESC, m.id DESC
@@ -918,7 +926,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
     `,
     [tenantId, safeLimit]
   );
-  return result.rows;
+  return decorateThreadsWithPresence(result.rows);
 };
 
 export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, markRead = true, beforeId = null, limit = DEFAULT_MESSAGE_PAGE, withMessages = true } = {}) => {

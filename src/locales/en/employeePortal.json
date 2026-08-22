@@ -559,7 +559,13 @@
     "copy": "Copy",
     "loadOlder": "Load earlier messages",
     "captionHint": "Type a caption below, or send as is",
-    "emoji": "Emoji"
+    "emoji": "Emoji",
+    "online": "Online",
+    "lastSeenToday": "Last seen today at {{time}}",
+    "lastSeenYesterday": "Last seen yesterday at {{time}}",
+    "lastSeenOn": "Last seen {{date}} at {{time}}",
+    "filterUnread": "Unread",
+    "filterCashiers": "Branch cashiers"
   },
   "profile": {
     "settings": "Profile settings",

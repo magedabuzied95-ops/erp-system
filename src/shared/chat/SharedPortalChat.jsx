@@ -10,6 +10,7 @@ import PortalChatMessageList from "./PortalChatMessageList";
 import PortalChatContactInfo from "./PortalChatContactInfo";
 import { allowedPortalChatAttachment, portalChatMessagePreview } from "./portalChatUtils";
 import ChatRingOverlay, { ChatRingStatus } from "./ChatRingOverlay";
+import ChatThreadRow from "./ChatThreadRow";
 import useChatRing from "./useChatRing";
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
@@ -39,6 +40,30 @@ const formatChatDateTime = (value) => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+};
+
+const formatListTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  const days = (now - date) / 86400000;
+  if (sameDay) return new Intl.DateTimeFormat(chatDateLocale(), { hour: "2-digit", minute: "2-digit" }).format(date);
+  if (days < 7) return new Intl.DateTimeFormat(chatDateLocale(), { weekday: "short" }).format(date);
+  return new Intl.DateTimeFormat(chatDateLocale(), { day: "numeric", month: "short" }).format(date);
+};
+
+const formatLastSeen = (value, t) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const now = new Date();
+  const time = new Intl.DateTimeFormat(chatDateLocale(), { hour: "2-digit", minute: "2-digit" }).format(date);
+  if (date.toDateString() === now.toDateString()) return t("employeePortal.chat.lastSeenToday", { time });
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return t("employeePortal.chat.lastSeenYesterday", { time });
+  return t("employeePortal.chat.lastSeenOn", { date: new Intl.DateTimeFormat(chatDateLocale(), { day: "numeric", month: "short" }).format(date), time });
 };
 
 const formatMessageTime = (value) => {
@@ -120,6 +145,8 @@ export default function SharedPortalChat({
   const [replyTo, setReplyTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [threadSearch, setThreadSearch] = useState("");
+  const [threadFilter, setThreadFilter] = useState("all"); // all | unread | cashier
+  const [typingThreadIds, setTypingThreadIds] = useState({});
   const [messageSearch, setMessageSearch] = useState("");
   const [forwardSearch, setForwardSearch] = useState("");
   const [forwardMessage, setForwardMessage] = useState(null);
@@ -258,6 +285,8 @@ export default function SharedPortalChat({
       }));
     const query = threadSearch.trim().toLocaleLowerCase("ar");
     return [...employeeRows, ...threadOnlyRows].filter(({ employee, thread: employeeThread }) => {
+      if (threadFilter === "unread" && !Number(employeeThread?.unread_count || 0)) return false;
+      if (threadFilter === "cashier" && !/^pos-branch-/.test(String(employeeThread?.employee_id || employee?.employee_id || employee?.id || ""))) return false;
       if (!query) return true;
       return [employee?.full_name, employee?.employee_name, employee?.employee_code, employee?.branch_name, employeeThread?.last_message]
         .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query));
@@ -267,7 +296,7 @@ export default function SharedPortalChat({
       if (right.thread) return 1;
       return String(left.employee?.full_name || left.employee?.employee_name || "").localeCompare(String(right.employee?.full_name || right.employee?.employee_name || ""), "ar");
     });
-  }, [employees, normalizedThreads, threadMap, threadSearch]);
+  }, [employees, normalizedThreads, threadFilter, threadMap, threadSearch]);
 
   const visibleMessages = useMemo(() => {
     const query = messageSearch.trim().toLocaleLowerCase("ar");
@@ -572,14 +601,24 @@ export default function SharedPortalChat({
         refreshActiveThread(payload);
       },
       onTyping: (payload = {}) => {
+        stampLive();
         const threadId = eventThreadId(payload);
-        if (threadId && threadId === String(selectedThreadIdRef.current || "")) {
+        if (!threadId) return;
+        setTypingThreadIds((current) => (current[threadId] ? current : { ...current, [threadId]: true }));
+        if (threadId === String(selectedThreadIdRef.current || "")) {
           setTypingLabel(payload?.sender_name || payload?.employee_name || t("employeePortal.chat.admin.typing"));
         }
       },
       onStopTyping: (payload = {}) => {
         const threadId = eventThreadId(payload);
+        if (threadId) setTypingThreadIds((current) => { if (!current[threadId]) return current; const next = { ...current }; delete next[threadId]; return next; });
         if (!threadId || threadId === String(selectedThreadIdRef.current || "")) setTypingLabel("");
+      },
+      onPresence: (payload = {}) => {
+        stampLive();
+        const identity = String(payload?.employee_id || "");
+        if (!identity) return;
+        setThreads((current) => current.map((item) => (String(threadEmployeeId(item)) === identity ? { ...item, online: Boolean(payload.online), last_seen_at: payload.last_seen_at || item.last_seen_at || null } : item)));
       },
     });
   }, [apiAdapter, loadThread]);
@@ -1016,56 +1055,45 @@ export default function SharedPortalChat({
 
       <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] 2xl:grid-cols-[20rem_minmax(0,1fr)_18rem]" : "md:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]"}`}>
         <aside className={`${mobileFullScreen && mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l`}>
-          <label className="mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-[var(--muted)]">
-            <Search className="h-4 w-4 shrink-0" />
-            <input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchThreads")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--text)] outline-none" />
-            {threadSearch ? <button type="button" onClick={() => setThreadSearch("")}><X className="h-4 w-4" /></button> : null}
-          </label>
+          <div className="shrink-0 px-2 pt-2">
+            <label className="flex h-10 items-center gap-2 rounded-full bg-[var(--surface-soft)] px-3 text-[var(--muted)]">
+              <Search className="h-4 w-4 shrink-0" />
+              <input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchThreads")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--text)] outline-none" />
+              {threadSearch ? <button type="button" onClick={() => setThreadSearch("")} aria-label={t("common.close")}><X className="h-4 w-4" /></button> : null}
+            </label>
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" role="tablist">
+              {[["all", t("common.all")], ["unread", t("employeePortal.chat.filterUnread")], ["cashier", t("employeePortal.chat.filterCashiers")]].map(([key, label]) => (
+                <button key={key} type="button" role="tab" aria-selected={threadFilter === key} onClick={() => setThreadFilter(key)} className={`h-8 shrink-0 rounded-full px-3 text-[12px] font-black transition ${threadFilter === key ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "bg-[var(--surface-soft)] text-[var(--muted)] hover:text-[var(--text)]"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {loadingThreads && !sidebarRows.length ? (
             <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]">
               <Loader2 className="h-4 w-4 animate-spin" />
               {t("common.loading")}
             </div>
           ) : sidebarRows.length ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-2 md:max-h-[34rem]">
+            <div className="min-h-0 flex-1 divide-y divide-[var(--border)] overflow-y-auto md:max-h-[34rem]">
               {sidebarRows.map(({ employee, thread: employeeThread }) => {
                 const rowEmployeeId = employeeRecordId(employee) || String(employee.employee_id || "");
-                const active = String(selectedEmployeeId || "") === rowEmployeeId;
                 return (
-                  <button
+                  <ChatThreadRow
                     key={`${rowEmployeeId || "employee"}:${employeeThread?.id || "no-thread"}`}
-                    type="button"
-                    onClick={() => chooseEmployee(rowEmployeeId, employeeThread?.id || "")}
-                    data-testid={`chat-thread-${employeeThread?.id || rowEmployeeId || "employee"}`}
-                    className={[
-                      "mb-2 w-full rounded-[var(--radius-control)] border p-3 text-right transition",
-                      active ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--primary)]",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
-                        {employee.photo_url ? (
-                          <>
-                            <img src={resolveEmployeeProfileImageUrl(employee.photo_url)} alt={employee.full_name || employee.employee_name || ""} className="h-full w-full object-cover" loading="lazy" onError={(event) => { event.currentTarget.classList.add("hidden"); event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
-                            <UserRound className="hidden h-5 w-5" />
-                          </>
-                        ) : (
-                          <UserRound className="h-5 w-5" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{employee.full_name || employee.employee_name || employeeFallback}</div>
-                          {Number(employeeThread?.unread_count || 0) > 0 ? (
-                            <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[11px] font-black text-[var(--primary-contrast)]" dir="ltr">{employeeThread.unread_count}</span>
-                          ) : null}
-                        </div>
-                        <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employee.branch_name || employeeThread?.branch_name || t("employeePortal.chat.admin.noBranch")}</div>
-                        <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employeeThread ? portalChatMessagePreview(employeeThread, { image: t("employeePortal.chat.image"), voice: t("employeePortal.chat.voiceMessage"), file: t("employeePortal.chat.file") }) : t("employeePortal.chat.admin.noMessagesYet")}</div>
-                        <div className="mt-2 text-[11px] font-black text-[var(--muted)]" dir="ltr">{employeeThread ? formatChatDateTime(employeeThread.last_message_created_at || employeeThread.last_message_at || employeeThread.updated_at) : "-"}</div>
-                      </div>
-                    </div>
-                  </button>
+                    employee={employee}
+                    thread={employeeThread}
+                    active={String(selectedEmployeeId || "") === rowEmployeeId}
+                    typing={Boolean(employeeThread?.id && typingThreadIds[String(employeeThread.id)])}
+                    typingLabel={t("employeePortal.chat.admin.typing")}
+                    name={employee.full_name || employee.employee_name || employeeFallback}
+                    subtitle={employee.branch_name || employeeThread?.branch_name || t("employeePortal.chat.admin.noBranch")}
+                    preview={employeeThread ? portalChatMessagePreview(employeeThread, { image: t("employeePortal.chat.image"), voice: t("employeePortal.chat.voiceMessage"), file: t("employeePortal.chat.file") }) : ""}
+                    timeText={employeeThread ? formatListTime(employeeThread.last_message_created_at || employeeThread.last_message_at || employeeThread.updated_at) : ""}
+                    outgoingSenderType="admin"
+                    onSelect={() => chooseEmployee(rowEmployeeId, employeeThread?.id || "")}
+                    testId={`chat-thread-${employeeThread?.id || rowEmployeeId || "employee"}`}
+                  />
                 );
               })}
             </div>
@@ -1103,7 +1131,15 @@ export default function SharedPortalChat({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || employeeFallback}</div>
-                      <div className="mt-0.5 truncate text-[11px] font-bold text-[var(--primary)]">{t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}</div>
+                      <div className={`mt-0.5 truncate text-[11px] font-bold ${typingLabel || selectedThread?.online ? "text-[var(--primary)]" : "text-[var(--chat-muted)]"}`}>
+                        {typingLabel
+                          ? t("employeePortal.chat.admin.typing")
+                          : selectedThread?.online
+                            ? t("employeePortal.chat.online")
+                            : selectedThread?.last_seen_at
+                              ? formatLastSeen(selectedThread.last_seen_at, t)
+                              : t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}
+                      </div>
                     </div>
                   </button>
                   {apiAdapter?.ring && activeThreadId ? (

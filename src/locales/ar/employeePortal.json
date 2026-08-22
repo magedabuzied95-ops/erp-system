@@ -559,7 +559,13 @@
     "copy": "نسخ",
     "loadOlder": "تحميل الرسائل الأقدم",
     "captionHint": "اكتب تعليقًا بالأسفل أو أرسلها كما هي",
-    "emoji": "إيموجي"
+    "emoji": "إيموجي",
+    "online": "متصل",
+    "lastSeenToday": "آخر ظهور اليوم {{time}}",
+    "lastSeenYesterday": "آخر ظهور أمس {{time}}",
+    "lastSeenOn": "آخر ظهور {{date}} {{time}}",
+    "filterUnread": "غير مقروء",
+    "filterCashiers": "كاشير الفروع"
   },
   "profile": {
     "settings": "إعدادات الملف الشخصي",
