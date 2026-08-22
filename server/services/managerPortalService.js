@@ -901,7 +901,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
 export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
-  const [taskDashboard, salesRows, attendanceRows, advanceRows, pendingPortalRequests] = await Promise.all([
+  const [taskDashboard, salesRows, attendanceRows, advanceRows, pendingPortalRequests, photoRows] = await Promise.all([
     getStaffTaskDashboard({ tenantId, branchId }),
     tableExists("orders").then(async (ordersExist) => {
       if (!ordersExist) return [];
@@ -972,8 +972,19 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
       );
     }).catch(() => []),
     listEmployeePortalRequests({ tenantId, status: "pending", limit: 200 }).catch(() => []),
+    safeQuery(
+      `
+      SELECT e.id AS employee_id, e.photo_url
+      FROM employees e
+      WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+        AND e.photo_url IS NOT NULL AND e.photo_url <> ''
+      `,
+      [tenantId],
+      []
+    ).catch(() => []),
   ]);
 
+  const photoByEmployee = new Map((photoRows || []).map((row) => [String(row.employee_id), row.photo_url]));
   const salesByEmployee = new Map(salesRows.map((row) => [String(row.employee_id), row]));
   const attendanceByEmployee = new Map(attendanceRows.map((row) => [String(row.employee_id), row]));
   const advancesByEmployee = new Map(advanceRows.map((row) => [String(row.employee_id), row]));
@@ -991,6 +1002,7 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
       : 0;
     return {
       ...row,
+      photo_url: photoByEmployee.get(String(row.employee_id)) || row.photo_url || null,
       attendance_status: attendanceStatus,
       check_in_time: checkInTime,
       check_out_time: checkOutTime,
@@ -2067,4 +2079,231 @@ export const createManagerPortalNotification = async (payload = {}) => {
     ...payload,
     role_key: payload.role_key || "manager",
   });
+};
+
+// ---------------------------------------------------------------------------
+// Employee details popup (manager portal kebab menu): one month of everything
+// that touches an employee's pay — sales, salary preview, advances with dates,
+// bonuses/penalties, and the day-by-day attendance log with totals.
+// ---------------------------------------------------------------------------
+const monthRange = (month = "") => {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(month || "").trim());
+  const now = new Date();
+  const year = match ? Number(match[1]) : now.getFullYear();
+  const monthIndex = match ? Number(match[2]) - 1 : now.getMonth();
+  const pad = (n) => String(n).padStart(2, "0");
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return {
+    month: `${year}-${pad(monthIndex + 1)}`,
+    start: `${year}-${pad(monthIndex + 1)}-01`,
+    end: `${year}-${pad(monthIndex + 1)}-${pad(lastDay)}`,
+  };
+};
+
+const loadScopedEmployee = async ({ manager = {}, employeeId }) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const id = numberOrNull(employeeId);
+  if (!id) {
+    const error = new Error("Employee is required");
+    error.status = 400;
+    throw error;
+  }
+  const rows = await safeQuery(
+    `
+    SELECT e.id, e.tenant_id, e.branch_id, e.full_name, e.employee_code, e.photo_url, e.phone, e.job_title, e.position, e.role,
+           e.salary, e.hire_date, e.status
+    FROM employees e
+    WHERE e.id = $1::bigint
+      AND e.is_deleted IS DISTINCT FROM TRUE
+      AND ($2::bigint IS NULL OR e.tenant_id = $2::bigint)
+      AND ($3::bigint IS NULL OR e.branch_id = $3::bigint)
+    LIMIT 1
+    `,
+    [id, tenantId, branchId],
+    []
+  );
+  const employee = rows[0];
+  if (!employee) {
+    const error = new Error("Employee not found in your scope");
+    error.status = 404;
+    throw error;
+  }
+  return { employee, tenantId, branchId };
+};
+
+const ORDERS_EMPLOYEE_EXPR = "COALESCE(o.sales_employee_id, o.cashier_id, o.created_by)";
+
+export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId, month = "" } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const range = monthRange(month);
+  const salesCommission = await import("./salesCommissionService.js");
+
+  const ordersReady = async () => (await tableExists("orders")) && (await columnExists("orders", "sales_employee_id"));
+  const orderParams = [tenantId, employee.id, range.start, range.end];
+  const orderWhere = `
+        WHERE ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          AND ${ORDERS_EMPLOYEE_EXPR} = $2::bigint
+          AND o.created_at >= $3::date AND o.created_at < ($4::date + INTERVAL '1 day')
+          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')`;
+
+  const [salesRows, dailySalesRows, advanceRows, penaltyRows, bonusRows, attendanceRows, payrollPreview] = await Promise.all([
+    ordersReady().then((ok) => (!ok ? [] : safeQuery(
+      `SELECT COUNT(*)::int AS invoice_count, COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales_total FROM orders o ${orderWhere}`,
+      orderParams,
+      []
+    ))).catch(() => []),
+    ordersReady().then((ok) => (!ok ? [] : safeQuery(
+      `SELECT o.created_at::date AS day, COUNT(*)::int AS invoice_count, COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales_total
+       FROM orders o ${orderWhere}
+       GROUP BY o.created_at::date ORDER BY day DESC`,
+      orderParams,
+      []
+    ))).catch(() => []),
+    tableExists("employee_advances").then((ok) => (!ok ? [] : safeQuery(
+      `
+      SELECT id, amount, deducted_amount, remaining_amount, deduction_month, deduction_status, status, notes, created_at, deducted_at
+      FROM employee_advances
+      WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      ORDER BY created_at DESC, id DESC
+      LIMIT 100
+      `,
+      [employee.id, tenantId],
+      []
+    ))).catch(() => []),
+    salesCommission.listEmployeePenalties({ tenantId, employeeId: employee.id }).catch(() => []),
+    salesCommission.listEmployeeBonuses({ tenantId, employeeId: employee.id }).catch(() => []),
+    safeQuery(
+      `
+      SELECT attendance_date, check_in_at, check_out_at, check_in, check_out, status,
+             work_minutes, worked_hours, late_minutes, early_leave_minutes, overtime_minutes, notes
+      FROM attendance_logs
+      WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND attendance_date BETWEEN $3::date AND $4::date
+      ORDER BY attendance_date DESC
+      `,
+      [employee.id, tenantId, range.start, range.end],
+      []
+    ),
+    salesCommission.getPayrollPreview({ tenantId, employeeId: employee.id, filters: { month: range.month } })
+      .catch((error) => {
+        console.warn("[manager-portal] payroll preview skipped", error?.message || error);
+        return null;
+      }),
+  ]);
+
+  const toHours = (minutes) => Number((Number(minutes || 0) / 60).toFixed(2));
+  const attendance = attendanceRows.map((row) => {
+    const checkIn = row.check_in_at || row.check_in || null;
+    const checkOut = row.check_out_at || row.check_out || null;
+    const workMinutes = Number(row.work_minutes || 0) || (checkIn && checkOut ? Math.max(0, (new Date(checkOut) - new Date(checkIn)) / 60000) : 0);
+    return {
+      date: row.attendance_date,
+      check_in: checkIn,
+      check_out: checkOut,
+      status: row.status || "checked_in",
+      work_hours: toHours(workMinutes),
+      late_minutes: Number(row.late_minutes || 0),
+      early_leave_minutes: Number(row.early_leave_minutes || 0),
+      overtime_minutes: Number(row.overtime_minutes || 0),
+      notes: row.notes || "",
+    };
+  });
+  const attendanceTotals = attendance.reduce(
+    (acc, row) => ({
+      days: acc.days + 1,
+      work_hours: Number((acc.work_hours + row.work_hours).toFixed(2)),
+      late_minutes: acc.late_minutes + row.late_minutes,
+      early_leave_minutes: acc.early_leave_minutes + row.early_leave_minutes,
+      overtime_minutes: acc.overtime_minutes + row.overtime_minutes,
+      late_days: acc.late_days + (row.late_minutes > 0 ? 1 : 0),
+    }),
+    { days: 0, work_hours: 0, late_minutes: 0, early_leave_minutes: 0, overtime_minutes: 0, late_days: 0 }
+  );
+
+  const inMonth = (row, dateKey) => {
+    const d = String(row[dateKey] || row.created_at || "");
+    const iso = d.length >= 10 ? (d instanceof Date ? d.toISOString() : d).slice(0, 10) : d;
+    return iso >= range.start && iso <= range.end && row.status !== "cancelled";
+  };
+  const monthPenalties = penaltyRows.filter((row) => inMonth({ ...row, penalty_date: row.penalty_date ? new Date(row.penalty_date).toISOString() : "" }, "penalty_date"));
+  const monthBonuses = bonusRows.filter((row) => inMonth({ ...row, bonus_date: row.bonus_date ? new Date(row.bonus_date).toISOString() : "" }, "bonus_date"));
+  const sum = (rows, key = "amount") => Number(rows.reduce((s, r) => s + Number(r[key] || 0), 0).toFixed(2));
+
+  const snapshot = payrollPreview?.payroll || payrollPreview?.snapshot || payrollPreview || {};
+  return {
+    month: range.month,
+    period: { start: range.start, end: range.end },
+    employee: {
+      id: employee.id,
+      name: employee.full_name,
+      employee_code: employee.employee_code,
+      photo_url: employee.photo_url || null,
+      phone: employee.phone || "",
+      job_title: employee.job_title || employee.position || employee.role || "",
+      hire_date: employee.hire_date,
+      status: employee.status,
+      base_salary: Number(employee.salary || 0),
+    },
+    sales: {
+      total: Number(salesRows[0]?.sales_total || 0),
+      invoices: Number(salesRows[0]?.invoice_count || 0),
+      daily: dailySalesRows.map((row) => ({ day: row.day, total: Number(row.sales_total || 0), invoices: Number(row.invoice_count || 0) })),
+    },
+    salary: {
+      base_salary: Number(snapshot.base_salary ?? employee.salary ?? 0),
+      commissions: Number(snapshot.commissions || 0),
+      bonuses: Number(snapshot.bonuses ?? sum(monthBonuses)),
+      approved_overtime_pay: Number(snapshot.approved_overtime_pay || 0),
+      advance_deductions: Number(snapshot.advance_deductions || 0),
+      penalties_total: Number(snapshot.penalties_total ?? sum(monthPenalties)),
+      attendance_deduction_total: Number(snapshot.attendance_deductions?.attendance_deduction_total || snapshot.attendance_deduction_total || 0),
+      deductions: Number(snapshot.deductions || 0),
+      net_pay: snapshot.net_pay === undefined ? null : Number(snapshot.net_pay || 0),
+      attendance_breakdown: snapshot.attendance_deductions || null,
+    },
+    advances: {
+      total_outstanding: sum(advanceRows.filter((r) => r.status !== "cancelled"), "remaining_amount"),
+      total_taken: sum(advanceRows.filter((r) => r.status !== "cancelled")),
+      rows: advanceRows.map((row) => ({
+        id: row.id,
+        amount: Number(row.amount || 0),
+        deducted_amount: Number(row.deducted_amount || 0),
+        remaining_amount: Number(row.remaining_amount || 0),
+        deduction_month: row.deduction_month,
+        status: row.status,
+        deduction_status: row.deduction_status,
+        notes: row.notes || "",
+        created_at: row.created_at,
+        deducted_at: row.deducted_at,
+      })),
+    },
+    bonuses: { total: sum(monthBonuses), rows: monthBonuses },
+    penalties: { total: sum(monthPenalties), rows: monthPenalties },
+    attendance: { totals: attendanceTotals, rows: attendance },
+  };
+};
+
+export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, employeeId, payload = {} } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const type = String(payload.type || "").trim().toLowerCase();
+  const salesCommission = await import("./salesCommissionService.js");
+  const data = {
+    amount: payload.amount,
+    reason: payload.reason,
+    notes: payload.notes || `manager-portal:${manager.id || ""}`,
+    date: payload.date,
+  };
+  const userId = manager.user_id || null;
+  if (type === "bonus") {
+    const row = await salesCommission.createEmployeeBonus({ tenantId, employeeId: employee.id, userId, data });
+    return { type, row };
+  }
+  if (type === "deduction" || type === "penalty") {
+    const row = await salesCommission.createEmployeePenalty({ tenantId, employeeId: employee.id, userId, data, defaultStatus: "approved" });
+    return { type: "deduction", row };
+  }
+  const error = new Error("Adjustment type must be bonus or deduction");
+  error.status = 400;
+  throw error;
 };

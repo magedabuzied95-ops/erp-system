@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
+  MoreVertical,
   ArrowLeftRight,
   ArrowUpRight,
   Bell,
@@ -49,13 +50,14 @@ import toast from "react-hot-toast";
 
 import SharedPortalChat from "../../../shared/chat/SharedPortalChat";
 import { formatCurrency } from "../../../shared/lib/currency";
-import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { resolveProductImageUrl, resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { safeSetLocalStorage } from "../../../utils/safeStorage";
 import { useTheme } from "../../../theme/useTheme";
+import EmployeeDetailsSheet from "../components/EmployeeDetailsSheet";
 import "./ManagerPortal.m1.css";
 
 import { useTranslation } from "react-i18next";
@@ -563,13 +565,32 @@ const Badge = ({ children, className = "" }) => (
   <span className={`manager-portal-badge inline-flex items-center rounded-full border border-border bg-surface px-2.5 py-1.5 text-[11px] font-black leading-5 text-text ${className}`}>{children}</span>
 );
 
-const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false, tone = "gold" }) => (
+const EmployeeAvatar = ({ name = "", photoUrl = "", size = 44 }) => {
+  const src = resolveEmployeeProfileImageUrl(photoUrl || "");
+  const initial = String(name || "").trim().charAt(0) || "?";
+  return (
+    <div
+      className="manager-portal-employee-avatar flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-soft text-base font-black text-text-muted"
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        <img src={src} alt={name} loading="lazy" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      ) : (
+        <span>{initial}</span>
+      )}
+    </div>
+  );
+};
+
+const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false, tone = "gold", avatar = null, headerAction = null }) => (
   <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)] ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-2">
-      <div>
+      {avatar}
+      <div className="min-w-0 flex-1">
         <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{subtitle}</div>
         <h2 className="m1-section-title mt-1 text-text">{title}</h2>
       </div>
+      {headerAction}
       {Icon ? <div className="manager-portal-card-icon rounded-[var(--radius-card)] border border-border bg-surface-soft p-2 text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
@@ -857,6 +878,8 @@ export default function ManagerPortal() {
   const [me, setMe] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [staff, setStaff] = useState(null);
+  const [detailsEmployee, setDetailsEmployee] = useState(null);
+  const [detailsTab, setDetailsTab] = useState("overview");
   const [advanceRequestReviewingId, setAdvanceRequestReviewingId] = useState("");
   const [tasks, setTasks] = useState(null);
   const [sales, setSales] = useState(null);
@@ -2523,6 +2546,7 @@ export default function ManagerPortal() {
                     className="manager-portal-employee-card rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]"
                   >
                     <div className="flex items-start justify-between gap-3">
+                      <EmployeeAvatar name={employee.employee_name} photoUrl={employee.photo_url} size={46} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[15px] font-black leading-5 text-slate-950">
                           {portalText(employee.employee_name || tt("managerPortal.common.employee"))}
@@ -2540,29 +2564,48 @@ export default function ManagerPortal() {
                           {formatCurrency(employee.sales_today || 0)}
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        aria-label={tt("managerPortal.employeeDetails.open")}
+                        onClick={() => setDetailsEmployee(employee)}
+                        className="manager-employee-menu-btn -me-1 -mt-1 shrink-0 rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
                     </div>
 
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
+                      <button type="button" onClick={() => { setDetailsTab("sales"); setDetailsEmployee(employee); }} className="manager-employee-tile rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right active:bg-slate-100">
                         <div className="text-[10px] font-black text-slate-500">{tt("managerPortal.common.invoices")}</div>
                         <div className="mt-0.5 text-sm font-black text-slate-950">{formatNumber(employee.invoices_count || 0)}</div>
-                      </div>
-                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
+                      </button>
+                      <button type="button" onClick={() => { setDetailsTab("attendance"); setDetailsEmployee(employee); }} className="manager-employee-tile rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right active:bg-slate-100">
                         <div className="text-[10px] font-black text-slate-500">{tt("managerPortal.common.shift")}</div>
                         <div className="mt-0.5 text-sm font-black text-slate-950">{Number(employee.shift_duration_hours || 0).toFixed(1)} س</div>
-                      </div>
+                      </button>
                       <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
                         <div className="text-[10px] font-black text-slate-500">{tt("managerPortal.common.lastActivity")}</div>
                         <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatTime(employee.last_activity)}</div>
                       </div>
-                      <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right">
+                      <button type="button" onClick={() => { setDetailsTab("advances"); setDetailsEmployee(employee); }} className="manager-employee-tile rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2 text-right active:bg-slate-100">
                         <div className="text-[10px] font-black text-slate-500">{tt("managerPortal.advances.total")}</div>
                         <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatCurrency(employee.total_advances || 0)}</div>
-                      </div>
+                      </button>
                     </div>
                   </div>
                 ) : (
-                  <Card key={employee.employee_id} title={portalText(employee.employee_name || tt("managerPortal.common.employee"))} subtitle={portalText(employee.department || employee.job_title || tt("managerPortal.nav.team"))} icon={Users}>
+                  <Card
+                    key={employee.employee_id}
+                    title={portalText(employee.employee_name || tt("managerPortal.common.employee"))}
+                    subtitle={portalText(employee.department || employee.job_title || tt("managerPortal.nav.team"))}
+                    icon={Users}
+                    avatar={<EmployeeAvatar name={employee.employee_name} photoUrl={employee.photo_url} size={48} />}
+                    headerAction={(
+                      <button type="button" aria-label={tt("managerPortal.employeeDetails.open")} onClick={() => setDetailsEmployee(employee)} className="manager-employee-menu-btn rounded-full p-1.5 text-text-muted hover:bg-surface-soft hover:text-text">
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+                    )}
+                  >
                     <div className="flex flex-wrap gap-2">
                       <StatusPill tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "online" ? "blue" : "slate"} value={portalText(employee.attendance_status || "absent")} />
                       <StatusPill tone="blue" value={`المهام ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`} />
@@ -3560,6 +3603,15 @@ export default function ManagerPortal() {
         </div>
       </nav>
 
+      {detailsEmployee ? (
+        <EmployeeDetailsSheet
+          token={token}
+          employee={detailsEmployee}
+          initialTab={detailsTab}
+          onClose={() => { setDetailsEmployee(null); setDetailsTab("overview"); }}
+          onChanged={() => reloadTabData("staff", { force: true })}
+        />
+      ) : null}
       {invoiceSheet.open ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center">
           <button type="button" aria-label={tt("managerPortal.invoice.close")} onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="absolute inset-0" />

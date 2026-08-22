@@ -7,6 +7,8 @@ export const managerPortalApi = {
   dashboard: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/dashboard`, { ...options, params }),
   invoice: (token, invoiceId) => api.get(`${tokenPath(token)}/invoices/${encodeURIComponent(invoiceId)}`),
   staff: (token, options = {}) => api.get(`${tokenPath(token)}/staff`, options),
+  employeeDetails: (token, employeeId, params = {}, options = {}) => api.get(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/details`, { ...options, params }),
+  createEmployeeAdjustment: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/adjustments`, payload),
   reviewAdvanceRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/advance-requests/${encodeURIComponent(requestId)}`, payload),
   tasks: (token, options = {}) => api.get(`${tokenPath(token)}/tasks`, options),
   sales: (token, options = {}) => api.get(`${tokenPath(token)}/sales`, options),

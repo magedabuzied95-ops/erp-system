@@ -15,6 +15,8 @@ import {
   getManagerPortalInventoryApprovalSession,
   getManagerPortalSales,
   getManagerPortalStaff,
+  getManagerPortalEmployeeDetails,
+  createManagerPortalEmployeeAdjustment,
   reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
@@ -306,6 +308,28 @@ router.get("/:token/staff", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] staff error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load staff" });
+  }
+});
+
+router.get("/:token/staff/:employeeId/details", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const details = await getManagerPortalEmployeeDetails({ manager, employeeId: req.params.employeeId, month: req.query.month });
+    return res.json({ success: true, details });
+  } catch (error) {
+    console.error("[manager-portal] employee details error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load employee details" });
+  }
+});
+
+router.post("/:token/staff/:employeeId/adjustments", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const result = await createManagerPortalEmployeeAdjustment({ manager: req.managerPortalManager, employeeId: req.params.employeeId, payload: req.body || {} });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[manager-portal] employee adjustment error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save adjustment" });
   }
 });
 

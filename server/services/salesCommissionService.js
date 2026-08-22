@@ -439,6 +439,114 @@ export const ensureEmployeePenaltiesSchema = async (clientOrPool = db) => {
   return employeePenaltiesSchemaReadyPromise;
 };
 
+// Monetary bonuses (إضافة) — the mirror of employee_penalties. Before this
+// table existed a bonus was only a number typed at payroll-run time, so a
+// manager had nowhere to record one ahead of the run.
+let employeeBonusesSchemaReadyPromise = null;
+export const ensureEmployeeBonusesSchema = async (clientOrPool = db) => {
+  if (!employeeBonusesSchemaReadyPromise) {
+    employeeBonusesSchemaReadyPromise = clientOrPool.query(`
+      CREATE TABLE IF NOT EXISTS employee_bonuses (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NULL,
+        employee_id BIGINT NOT NULL,
+        bonus_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL,
+        notes TEXT,
+        status VARCHAR(40) NOT NULL DEFAULT 'approved',
+        created_by BIGINT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `).then(() => clientOrPool.query(
+      `CREATE INDEX IF NOT EXISTS idx_employee_bonuses_employee_date ON employee_bonuses (employee_id, bonus_date)`
+    )).catch((error) => {
+      employeeBonusesSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return employeeBonusesSchemaReadyPromise;
+};
+
+export const listEmployeeBonuses = async ({ tenantId = null, employeeId, periodStart = null, periodEnd = null, includeCancelled = false } = {}) => {
+  if (employeeId === undefined || employeeId === null || employeeId === "") return [];
+  await ensureEmployeeBonusesSchema(db);
+  const result = await db.query(
+    `
+    SELECT eb.*
+    FROM employee_bonuses eb
+    WHERE eb.employee_id::text = $1::text
+      AND ($2::bigint IS NULL OR eb.tenant_id = $2::bigint)
+      AND ($3::date IS NULL OR eb.bonus_date >= $3::date)
+      AND ($4::date IS NULL OR eb.bonus_date <= $4::date)
+      ${includeCancelled ? "" : "AND eb.status <> 'cancelled'"}
+    ORDER BY eb.bonus_date DESC, eb.id DESC
+    `,
+    [employeeId, tenantId, periodStart, periodEnd]
+  );
+  return result.rows.map((row) => ({ ...row, amount: toNumber(row.amount) }));
+};
+
+export const listApprovedEmployeeBonusesForPayroll = async ({ tenantId = null, employeeId, periodStart, periodEnd } = {}) =>
+  (await listEmployeeBonuses({ tenantId, employeeId, periodStart, periodEnd })).filter((row) => row.status === "approved" && row.amount > 0);
+
+export const createEmployeeBonus = async ({ tenantId = null, employeeId, userId = null, data = {} } = {}) => {
+  const normalizedEmployeeId = normalizeOptionalLookupId(employeeId || data.employee_id || data.employeeId);
+  if (!normalizedEmployeeId) {
+    const error = new Error("Employee is required");
+    error.status = 400;
+    throw error;
+  }
+  const amount = toNumber(data.amount);
+  if (amount <= 0) {
+    const error = new Error("Bonus amount must be greater than zero");
+    error.status = 400;
+    throw error;
+  }
+  const reason = String(data.reason || "").trim();
+  if (!reason) {
+    const error = new Error("Reason is required");
+    error.status = 400;
+    throw error;
+  }
+  await ensureEmployeeBonusesSchema(db);
+  const employeeResult = await db.query(
+    `
+    SELECT id, tenant_id
+    FROM employees
+    WHERE id::text = $1::text
+      AND is_deleted IS DISTINCT FROM TRUE
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    LIMIT 1
+    `,
+    [normalizedEmployeeId, tenantId]
+  );
+  const employee = employeeResult.rows[0];
+  if (!employee) {
+    const error = new Error("Employee not found");
+    error.status = 404;
+    throw error;
+  }
+  const result = await db.query(
+    `
+    INSERT INTO employee_bonuses (tenant_id, employee_id, bonus_date, amount, reason, notes, status, created_by, created_at, updated_at)
+    VALUES ($1,$2,$3::date,$4,$5,$6,'approved',$7,NOW(),NOW())
+    RETURNING *
+    `,
+    [
+      tenantId ?? employee.tenant_id ?? null,
+      normalizedEmployeeId,
+      normalizeDateInput(data.bonus_date || data.bonusDate || data.date) || new Date().toISOString().slice(0, 10),
+      amount,
+      reason,
+      String(data.notes || "").trim(),
+      userId,
+    ]
+  );
+  return { ...result.rows[0], amount: toNumber(result.rows[0]?.amount) };
+};
+
 export const listEmployeePenalties = async ({ tenantId = null, employeeId, status = "", includeCancelled = false } = {}) => {
   if (employeeId === undefined || employeeId === null || employeeId === "") return [];
   await ensureEmployeePenaltiesSchema(db);
@@ -2326,7 +2434,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   const salesEarnings = toNumber(report.summary.earned_commissions);
   const providedBaseSalary = filters.base_salary ?? filters.baseSalary;
   const baseSalary = providedBaseSalary === undefined || providedBaseSalary === null || providedBaseSalary === "" ? toNumber(employee.salary) : toNumber(providedBaseSalary);
-  const bonuses = toNumber(filters.bonuses);
+  const manualBonuses = toNumber(filters.bonuses);
   const manualDeductions = toNumber(filters.deductions);
   let advanceDeductions = 0;
   let advanceRows = [];
@@ -2470,6 +2578,19 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   } catch (error) {
     console.warn("[payroll] employee advances deduction skipped", error.message);
   }
+  let bonusRows = [];
+  try {
+    bonusRows = await listApprovedEmployeeBonusesForPayroll({
+      tenantId,
+      employeeId,
+      periodStart: payrollPeriodStart,
+      periodEnd: payrollPeriodEnd,
+    });
+  } catch (error) {
+    console.warn("[payroll] employee bonuses skipped", error.message);
+  }
+  const storedBonuses = bonusRows.reduce((sum, row) => sum + toNumber(row.amount), 0);
+  const bonuses = manualBonuses + storedBonuses;
   try {
     penaltyRows = await listApprovedEmployeePenaltiesForPayroll({
       tenantId,
@@ -2533,6 +2654,9 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     base_salary: baseSalary,
     commissions: salesEarnings,
     bonuses,
+    manual_bonuses: manualBonuses,
+    stored_bonuses: storedBonuses,
+    bonus_rows: bonusRows.map((row) => ({ id: row.id, amount: toNumber(row.amount), bonus_date: row.bonus_date, reason: row.reason })),
     approved_overtime_pay: approvedOvertimePay,
     approved_overtime_hours: toNumber(attendanceDeductions.approved_overtime_hours),
     manual_deductions: manualDeductions,
