@@ -3528,7 +3528,7 @@ export default function ManagerPortal() {
                                   <div className="mt-1 space-y-1">
                                     {operation.items_out.map((item, index) => (
                                       <div key={`out-${index}`} className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName> × {formatNumber(item.quantity)}</span>
+                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName>{item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[12px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null} × {formatNumber(item.quantity)}</span>
                                         <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
                                       </div>
                                     ))}
@@ -3542,7 +3542,7 @@ export default function ManagerPortal() {
                                   <div className="mt-1 space-y-1">
                                     {operation.items_in.map((item, index) => (
                                       <div key={`in-${index}`} className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName> × {formatNumber(item.quantity)}</span>
+                                        <span className="min-w-0 truncate"><InlineName>{portalText(item.name)}</InlineName>{item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[12px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null} × {formatNumber(item.quantity)}</span>
                                         <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
                                       </div>
                                     ))}

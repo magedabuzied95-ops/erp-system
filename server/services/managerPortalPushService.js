@@ -2,6 +2,7 @@ import webPush from "web-push";
 import db from "../database/db.js";
 import { createNotification } from "./notificationsService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { attachOperationVariantLabels } from "../utils/operationVariantLabels.js";
 
 const DEFAULT_FRONTEND_ORIGIN = "https://erp-system-ten-green.vercel.app";
 
@@ -614,7 +615,8 @@ const operationItemsPreview = (items = [], max = 2) => {
   if (!list.length) return "";
   const head = list.slice(0, max).map((item) => {
     const quantity = Number(item.quantity || 0);
-    const label = text(item.name);
+    const variant = text(item.variant_label);
+    const label = variant ? `${text(item.name)} (${variant})` : text(item.name);
     return quantity > 1 ? `${label} ×${quantity}` : label;
   });
   const rest = list.length - head.length;
@@ -660,6 +662,8 @@ export const sendManagerOrderOperationPush = async ({
   const invoiceNumber = text(order.invoice_number || order.public_order_number || orderId);
   const customerName = text(order.customer_name) || "عميل";
   const title = `${OPERATION_TITLES[normalizedKind]} · ${invoiceNumber}`;
+  // Size/colour on each line, so a same-product swap reads as what it was.
+  await attachOperationVariantLabels([...(operation.items_out || []), ...(operation.items_in || [])]);
   const detail = buildOperationBody(operation);
   const body = `${customerName} — ${detail}`;
   const entityId = text(operationId) || `${normalizedKind}-${orderId}`;

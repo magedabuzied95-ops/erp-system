@@ -28,6 +28,7 @@ import { listEmployeePortalRequests, reviewEmployeePortalRequest } from "./emplo
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
+import { attachOperationVariantLabels } from "../utils/operationVariantLabels.js";
 
 const tokenBytes = 32;
 const DEFAULT_MANAGER_PORTAL_APP_URL = "https://erp-system-ten-green.vercel.app";
@@ -1588,7 +1589,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   const returnItemRows = hasReturnItems && returnIds.length
     ? await safeQuery(
         `
-        SELECT ri.return_id, ri.quantity, ri.refund_amount, ri.restock,
+        SELECT ri.return_id, ri.quantity, ri.refund_amount, ri.restock, oi.variant_id,
                COALESCE(NULLIF(oi.product_name, ''), 'منتج') AS product_name
         FROM return_items ri
         LEFT JOIN order_items oi ON oi.id = ri.order_item_id
@@ -1605,6 +1606,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
     const list = returnItemsByReturn.get(key) || [];
     list.push({
       name: repairManagerPortalPayload(clean(row.product_name)),
+      variant_id: numberOrNull(row.variant_id),
       quantity,
       line_total: toNumber(row.refund_amount),
       price: quantity > 0 ? Number((toNumber(row.refund_amount) / quantity).toFixed(2)) : toNumber(row.refund_amount),
@@ -1645,7 +1647,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   const exchangeItemRows = exchangeOrderIds.length
     ? await safeQuery(
         `
-        SELECT oi.order_id, oi.quantity, COALESCE(NULLIF(oi.product_name, ''), 'منتج') AS product_name,
+        SELECT oi.order_id, oi.quantity, oi.variant_id, COALESCE(NULLIF(oi.product_name, ''), 'منتج') AS product_name,
                COALESCE(oi.total_amount, 0) AS total_amount
         FROM order_items oi
         WHERE oi.order_id = ANY($1::bigint[])
@@ -1661,6 +1663,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
     const list = exchangeItemsByOrder.get(key) || [];
     list.push({
       name: repairManagerPortalPayload(clean(row.product_name)),
+      variant_id: numberOrNull(row.variant_id),
       quantity,
       line_total: toNumber(row.total_amount),
       price: quantity > 0 ? Number((toNumber(row.total_amount) / quantity).toFixed(2)) : toNumber(row.total_amount),
@@ -1826,6 +1829,8 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   const filtered = kindFilter === "all" ? operations : operations.filter((operation) => operation.kind === kindFilter);
   const page = filtered.slice(0, limit);
   await resolveMissingOperationItemNames(page);
+  // Same product out and in is only readable once the size/colour is on the line.
+  await attachOperationVariantLabels(page.flatMap((operation) => [...(operation.items_out || []), ...(operation.items_in || [])]));
 
   // Each source is capped independently, so a source that came back exactly full may
   // be hiding older rows — and then the counts below describe the window, not the
