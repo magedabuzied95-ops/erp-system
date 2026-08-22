@@ -21,7 +21,9 @@ export const attachOperationVariantLabels = async (items = []) => {
       SELECT pv.id,
              COALESCE(NULLIF(p.name, ''), '') AS product_name,
              COALESCE(NULLIF(pv.color, ''), '') AS color,
-             COALESCE(NULLIF(pv.size, ''), '') AS size
+             COALESCE(NULLIF(pv.size, ''), '') AS size,
+             to_jsonb(pv) AS variant_row,
+             to_jsonb(p) AS product_row
       FROM product_variants pv
       LEFT JOIN products p ON p.id = pv.product_id
       WHERE pv.id = ANY($1::bigint[])
@@ -43,6 +45,11 @@ export const attachOperationVariantLabels = async (items = []) => {
     if (size) item.size = size;
     const label = [color, size].filter(Boolean).join(" / ");
     if (label) item.variant_label = label;
+    // Whole rows as JSON so a schema without pv.image_url still answers the query.
+    const variantRow = row.variant_row && typeof row.variant_row === "object" ? row.variant_row : {};
+    const productRow = row.product_row && typeof row.product_row === "object" ? row.product_row : {};
+    const image = clean(variantRow.image_url) || clean(variantRow.image) || clean(productRow.image_url) || clean(productRow.image) || clean(productRow.thumbnail_url);
+    if (image && !clean(item.image_url)) item.image_url = image;
     if ((!clean(item.name) || clean(item.name) === "منتج") && clean(row.product_name)) item.name = clean(row.product_name);
   }
 };
