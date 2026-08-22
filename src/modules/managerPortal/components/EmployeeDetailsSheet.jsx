@@ -49,6 +49,12 @@ const toClockInput = (value) => {
   const get = (type) => parts.find((part) => part.type === type)?.value || "00";
   return `${get("hour")}:${get("minute")}`;
 };
+const nextDateKey = (dateKey) => {
+  const [y, m, day] = String(dateKey || "").split("-").map(Number);
+  if (!y || !m || !day) return dateKey;
+  const next = new Date(Date.UTC(y, m - 1, day + 1));
+  return next.toISOString().slice(0, 10);
+};
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: ATTENDANCE_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const monthLabel = (month) => {
   const [y, m] = String(month || "").split("-").map(Number);
@@ -180,6 +186,9 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
         attendance_date: attForm.date,
         check_in_time: attForm.check_in,
         check_out_time: attForm.check_out || "",
+        // A night shift checks out after midnight: a check-out clock that is not
+        // after the check-in clock belongs to the next calendar day.
+        check_out_date: attForm.check_out && attForm.check_out <= attForm.check_in ? nextDateKey(attForm.date) : attForm.date,
         correction_scope: attForm.check_out ? "both" : "check_in",
         reason: attForm.reason.trim(),
       });
