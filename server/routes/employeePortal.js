@@ -40,6 +40,8 @@ import {
   reactEmployeeChatMessage,
   sendEmployeeChatMessage,
   markEmployeeChatDelivered,
+  starEmployeeChatMessage,
+  listStarredChatMessages,
   updateEmployeeChatMessage,
 } from "../services/employeeChatService.js";
 import {
@@ -1079,6 +1081,24 @@ router.post("/:token/chat/ring/:messageId/answer", verifyEmployeePortalToken, as
   } catch (error) {
     if (!error.status) console.error("[employee-payroll-portal] chat ring answer error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to answer ring" });
+  }
+});
+
+router.get("/:token/chat/starred", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const messages = await listStarredChatMessages({ actorType: "employee", employeeId: req.employeePortalEmployee?.id });
+    return res.json({ success: true, messages });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load starred messages" });
+  }
+});
+
+router.post("/:token/chat/messages/:messageId/star", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const result = await starEmployeeChatMessage({ employee: req.employeePortalEmployee, messageId: req.params.messageId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to star message" });
   }
 });
 

@@ -14,6 +14,8 @@ import {
   markAdminEmployeeChatThreadRead,
   markAdminEmployeeChatThreadDelivered,
   updateAdminEmployeeChatThreadPrefs,
+  starAdminEmployeeChatMessage,
+  listStarredChatMessages,
 } from "./employeeChatService.js";
 import { getUnreadCount, listNotifications, markAsRead, markAllAsRead, createNotification } from "./notificationsService.js";
 import {
@@ -2010,6 +2012,12 @@ export const getManagerPortalChatThread = async ({ manager = {}, threadId, befor
   const tenantId = numberOrNull(manager.tenant_id);
   return getAdminEmployeeChatThread({ tenantId, threadId, markRead: !beforeId, beforeId, limit: limit || undefined });
 };
+
+export const starManagerPortalChatMessage = async ({ manager = {}, messageId } = {}) =>
+  starAdminEmployeeChatMessage({ tenantId: numberOrNull(manager.tenant_id), messageId });
+
+export const listManagerPortalStarredMessages = async ({ manager = {} } = {}) =>
+  listStarredChatMessages({ actorType: "admin", tenantId: numberOrNull(manager.tenant_id) });
 
 export const updateManagerPortalChatPrefs = async ({ manager = {}, threadId, prefs = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);

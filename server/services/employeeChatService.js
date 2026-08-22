@@ -45,7 +45,8 @@ const messageSelect = `
     m.deleted_at,
     m.created_at,
     m.client_id,
-    COALESCE(rx.reactions, '[]'::json) AS reactions
+    COALESCE(rx.reactions, '[]'::json) AS reactions,
+    COALESCE(st.stars, '[]'::json) AS stars
   FROM employee_chat_messages m
   LEFT JOIN employee_chat_messages rm ON rm.id = m.reply_to_message_id
   LEFT JOIN LATERAL (
@@ -58,6 +59,11 @@ const messageSelect = `
     FROM employee_chat_message_reactions r
     WHERE r.message_id = m.id
   ) rx ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT json_agg(s.actor_type) AS stars
+    FROM employee_chat_message_stars s
+    WHERE s.message_id = m.id
+  ) st ON TRUE
 `;
 
 const attachmentLabelSql = (alias = "m") => `
@@ -546,6 +552,61 @@ const reactToEmployeeChatMessage = async ({ messageId, actorType, actorId, emplo
   }
   const message = await loadMessage(messageId);
   return emitMessageMutation({ ...message, employee_id: current.employee_id, tenant_id: current.tenant_id }, "employee-chat:message-updated");
+};
+
+/*
+ * Star / unstar. The star belongs to a SIDE (admin or employee), not a user:
+ * the management list is shared, so a star one manager sets shows for all.
+ */
+const toggleChatMessageStar = async ({ messageId, actorType, employeeId = null, tenantId = null } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const target = await db.query(
+    `SELECT m.id, m.thread_id, t.employee_id, t.tenant_id
+     FROM employee_chat_messages m
+     JOIN employee_chat_threads t ON t.id = m.thread_id
+     WHERE m.id = $1 AND m.deleted_at IS NULL
+       AND ($2::bigint IS NULL OR t.employee_id = $2::bigint)
+       AND ($3::bigint IS NULL OR t.tenant_id = $3::bigint)
+     LIMIT 1`,
+    [messageId, employeeId, tenantId]
+  );
+  const current = target.rows[0];
+  if (!current) throw chatError("Message not found", 404, "message_not_found");
+  const removed = await db.query(`DELETE FROM employee_chat_message_stars WHERE message_id = $1 AND actor_type = $2 RETURNING message_id`, [messageId, actorType]);
+  if (!removed.rowCount) {
+    await db.query(`INSERT INTO employee_chat_message_stars (message_id, actor_type, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING`, [messageId, actorType]);
+  }
+  const message = await loadMessage(messageId);
+  return { message, starred: !removed.rowCount, thread: await loadThreadSummary(current.thread_id) };
+};
+
+export const starEmployeeChatMessage = ({ employee, messageId } = {}) =>
+  toggleChatMessageStar({ messageId, actorType: "employee", employeeId: employee?.id });
+
+export const starAdminEmployeeChatMessage = ({ tenantId = null, messageId } = {}) =>
+  toggleChatMessageStar({ messageId, actorType: "admin", tenantId });
+
+// Starred list for one side, newest star first, with the thread's display name.
+export const listStarredChatMessages = async ({ actorType, tenantId = null, employeeId = null, limit = 100 } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    ${messageSelect}
+    JOIN employee_chat_message_stars star ON star.message_id = m.id AND star.actor_type = $1
+    JOIN employee_chat_threads t ON t.id = m.thread_id
+    LEFT JOIN employees e ON e.id = t.employee_id
+    WHERE m.deleted_at IS NULL
+      AND ($2::bigint IS NULL OR t.tenant_id = $2::bigint)
+      AND ($3::bigint IS NULL OR t.employee_id = $3::bigint)
+    ORDER BY star.created_at DESC
+    LIMIT $4
+    `,
+    [actorType, tenantId, employeeId, Math.min(Math.max(Number(limit) || 100, 1), 300)]
+  );
+  const threadIds = [...new Set(result.rows.map((row) => String(row.thread_id)))];
+  const summaries = await Promise.all(threadIds.map((id) => loadThreadSummary(id)));
+  const byThread = new Map(summaries.filter(Boolean).map((thread) => [String(thread.id), thread]));
+  return result.rows.map((row) => ({ ...row, thread_name: byThread.get(String(row.thread_id))?.employee_name || "", thread_employee_id: byThread.get(String(row.thread_id))?.employee_id || null }));
 };
 
 export const reactEmployeeChatMessage = ({ employee, messageId, emoji } = {}) =>

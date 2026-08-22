@@ -3333,6 +3333,17 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  const starChatMessage = async (message) => {
+    if (!message?.id) return;
+    try {
+      setChatError("");
+      const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages/${encodeURIComponent(message.id)}/star`, {});
+      if (response?.message) setChatMessages((current) => mergeChatMessages(current, [response.message]));
+    } catch (err) {
+      setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
+    }
+  };
+
   const reactToChatMessage = async (message, emoji) => {
     if (!message?.id) return;
     try {
@@ -4651,6 +4662,7 @@ export default function EmployeePayrollPortal() {
               showJump={showChatJump}
               onJumpToBottom={scrollChatToBottom}
               onRetry={retryChatSend}
+              onStar={starChatMessage}
               onLoadOlder={loadOlderEmployeeChat}
               hasOlder={chatHasOlder}
               loadingOlder={chatLoadingOlder}

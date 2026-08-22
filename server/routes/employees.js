@@ -7,6 +7,8 @@ import {
   markBranchPosChatDelivered,
   markAdminEmployeeChatThreadDelivered,
   updateAdminEmployeeChatThreadPrefs,
+  starAdminEmployeeChatMessage,
+  listStarredChatMessages,
   sendAdminChatRing,
   sendBranchPosChatMessage,
   sendBranchPosChatRing,
@@ -206,6 +208,24 @@ router.post("/chat/pos/delivered", protect, async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return chatFailure(res, error, "Failed to mark delivered");
+  }
+});
+
+router.get("/chat/starred", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const messages = await listStarredChatMessages({ actorType: "admin", tenantId: req.tenantId || null });
+    return res.json({ success: true, messages });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to load starred messages");
+  }
+});
+
+router.post("/chat/messages/:messageId/star", protect, permit("employees", "edit"), async (req, res) => {
+  try {
+    const result = await starAdminEmployeeChatMessage({ tenantId: req.tenantId || null, messageId: req.params.messageId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return chatFailure(res, error, "Failed to star message");
   }
 });
 

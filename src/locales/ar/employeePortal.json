@@ -586,7 +586,13 @@
     "unmute": "إلغاء الكتم",
     "archive": "أرشفة",
     "unarchive": "إلغاء الأرشفة",
-    "prefsFailed": "تعذر تحديث المحادثة"
+    "prefsFailed": "تعذر تحديث المحادثة",
+    "star": "تمييز بنجمة",
+    "unstar": "إزالة النجمة",
+    "starred": "مميزة",
+    "starredMessages": "الرسائل المميزة",
+    "noStarred": "لا توجد رسائل مميزة بعد",
+    "starFailed": "تعذر تحديث النجمة"
   },
   "profile": {
     "settings": "إعدادات الملف الشخصي",

@@ -397,6 +397,16 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_reactions_message ON employee_chat_message_reactions (message_id)`);
+  // Starred messages: one star per side of the conversation (admin = the
+  // management side as a whole; employee = that employee).
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_chat_message_stars (
+      message_id BIGINT NOT NULL REFERENCES employee_chat_messages(id) ON DELETE CASCADE,
+      actor_type VARCHAR(20) NOT NULL CHECK (actor_type IN ('employee', 'admin')),
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (message_id, actor_type)
+    )
+  `);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_push_subscriptions (
       id BIGSERIAL PRIMARY KEY,

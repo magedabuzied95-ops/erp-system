@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, ChevronDown, ChevronUp, Loader2, MessageCircle, PhoneCall, Pin, PinOff, RefreshCw, Search, UserRound, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, ChevronDown, ChevronUp, Loader2, MessageCircle, PhoneCall, Pin, PinOff, RefreshCw, Search, Star, UserRound, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import i18n from "../../i18n/i18n";
@@ -151,6 +151,9 @@ export default function SharedPortalChat({
   const [threadSearch, setThreadSearch] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // all | unread | cashier | archived
   const [rowMenu, setRowMenu] = useState(null); // { thread, employee, left, top }
+  const [starredOpen, setStarredOpen] = useState(false);
+  const [starredRows, setStarredRows] = useState(null);
+  const [pendingJump, setPendingJump] = useState(null); // message id to scroll to once its thread is loaded
   const [typingThreadIds, setTypingThreadIds] = useState({});
   const [messageSearch, setMessageSearch] = useState("");
   const [forwardSearch, setForwardSearch] = useState("");
@@ -1109,6 +1112,77 @@ export default function SharedPortalChat({
     }
   };
 
+  const starMessage = async (message) => {
+    if (!message?.id || !apiAdapter?.starMessage) return;
+    const threadId = String(message.thread_id || activeThreadId || "");
+    try {
+      clearError();
+      const response = await apiAdapter.starMessage(message.id);
+      if (response?.message && threadId) {
+        setMessagesByThread((current) => (current[threadId]?.length ? { ...current, [threadId]: mergeChatMessages(current[threadId], [response.message]) } : current));
+      }
+      if (starredRows) setStarredRows((rows) => (response?.starred ? rows : rows.filter((row) => String(row.id) !== String(message.id))));
+    } catch (err) {
+      setError(failure(err, "employeePortal.chat.starFailed"));
+    }
+  };
+  const openStarred = async () => {
+    setStarredOpen(true);
+    if (!apiAdapter?.listStarred) return;
+    try {
+      const response = await apiAdapter.listStarred();
+      setStarredRows(safeArray(response?.messages));
+    } catch (err) {
+      setError(failure(err, "employeePortal.chat.starFailed"));
+      setStarredRows([]);
+    }
+  };
+  const jumpToStarred = (row) => {
+    setStarredOpen(false);
+    const employeeId = String(row.thread_employee_id || "");
+    const threadId = String(row.thread_id || "");
+    setPendingJump(String(row.id));
+    if (threadId && threadId === String(activeThreadId || "")) {
+      window.setTimeout(() => scrollToMessage(row.id), 50);
+      return;
+    }
+    chooseEmployee(employeeId, threadId);
+  };
+  useEffect(() => {
+    if (!pendingJump || !messages.length) return undefined;
+    const present = messages.some((item) => String(item.id) === pendingJump);
+    if (!present) return undefined;
+    const timer = window.setTimeout(() => { scrollToMessage(pendingJump); setPendingJump(null); }, 120);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJump, messages]);
+  const starredSheet = starredOpen && typeof document !== "undefined" ? createPortal(
+    <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/50 sm:items-center sm:p-4" dir={i18nInstance.dir()} role="dialog" aria-modal="true" aria-label={t("employeePortal.chat.starredMessages")}>
+      <button type="button" className="absolute inset-0" onClick={() => setStarredOpen(false)} aria-label={t("common.close")} />
+      <div className="relative flex max-h-[80dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.5rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl sm:rounded-[1.5rem]">
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+          <div className="flex items-center gap-2 text-base font-black"><Star className="h-4 w-4 text-[var(--primary)]" />{t("employeePortal.chat.starredMessages")}</div>
+          <button type="button" onClick={() => setStarredOpen(false)} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[var(--surface-hover)]" aria-label={t("common.close")}><X className="h-5 w-5" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {starredRows === null ? (
+            <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" />{t("common.loading")}</div>
+          ) : starredRows.length ? starredRows.map((row) => (
+            <button key={row.id} type="button" onClick={() => jumpToStarred(row)} className="mb-1 flex w-full flex-col gap-0.5 rounded-[var(--radius-control)] px-3 py-2 text-start hover:bg-[var(--surface-hover)]">
+              <span className="flex items-center justify-between gap-2 text-[11px] font-black text-[var(--muted)]">
+                <span className="truncate" dir="auto">{row.sender_type === "admin" ? t("employeePortal.chat.admin.management") : row.thread_name}</span>
+                <span className="shrink-0 tabular-nums" dir="ltr">{formatChatDateTime(row.created_at)}</span>
+              </span>
+              <span className="line-clamp-2 text-[14px] font-semibold" dir="auto">{portalChatMessagePreview(row, { image: t("employeePortal.chat.image"), voice: t("employeePortal.chat.voiceMessage"), file: t("employeePortal.chat.file") })}</span>
+            </button>
+          )) : (
+            <div className="p-8 text-center text-sm font-bold text-[var(--muted)]">{t("employeePortal.chat.noStarred")}</div>
+          )}
+        </div>
+      </div>
+    </div>, document.body
+  ) : null;
+
   const openRowMenu = (node, rowThread, rowEmployee) => {
     const rect = node?.getBoundingClientRect?.();
     const viewportWidth = window.innerWidth || 360;
@@ -1174,6 +1248,7 @@ export default function SharedPortalChat({
     <>
     <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpen} onReply={answerRingAndOpen} onDismiss={chatRing.dismissIncoming} />
     {rowMenuSheet}
+    {starredSheet}
     <section
       ref={chatRootRef}
       className={`theme-card portal-chat-root flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
@@ -1293,6 +1368,11 @@ export default function SharedPortalChat({
                       </div>
                     </div>
                   </button>
+                  {apiAdapter?.listStarred ? (
+                    <button type="button" onClick={openStarred} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--chat-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--primary)]" aria-label={t("employeePortal.chat.starredMessages")} title={t("employeePortal.chat.starredMessages")}>
+                      <Star className="h-5 w-5" />
+                    </button>
+                  ) : null}
                   {apiAdapter?.ring && activeThreadId ? (
                     <button
                       type="button"
@@ -1353,6 +1433,7 @@ export default function SharedPortalChat({
                 onImageClick={setImagePreview}
                 onReply={allowReply ? setReplyTo : null}
                 onForward={apiAdapter?.forwardMessage ? setForwardMessage : null}
+                onStar={apiAdapter?.starMessage ? starMessage : null}
                 onReact={apiAdapter?.reactMessage ? reactToMessage : null}
                 onEdit={apiAdapter?.editMessage ? beginEditMessage : null}
                 onDelete={apiAdapter?.deleteMessage ? deleteMessage : null}

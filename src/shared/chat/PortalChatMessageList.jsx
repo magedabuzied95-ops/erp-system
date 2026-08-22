@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowDownCircle, Check, CheckCheck, ChevronDown, Clock3, Copy, Forward, Loader2, MessageCircle, Pencil, Reply, RotateCcw, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowDownCircle, Check, CheckCheck, ChevronDown, Clock3, Copy, Forward, Loader2, MessageCircle, Pencil, Reply, RotateCcw, Star, StarOff, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -145,6 +145,7 @@ const MessageBubble = memo(function MessageBubble({
   const voiceMessage = isPortalChatAudioMessage(message) && !hasBody;
   const imageOnly = isPortalChatImageMessage(message) && !hasBody && !deleted;
   const failed = messageDeliveryState(message) === "failed";
+  const starred = Array.isArray(message.stars) && message.stars.includes(outgoingSenderType);
   const reactions = useMemo(() => reactionCounts(message.reactions), [message.reactions]);
   const pressRef = useRef({ timer: null, x: 0, y: 0, fired: false });
 
@@ -188,10 +189,11 @@ const MessageBubble = memo(function MessageBubble({
     if (width && width !== metaWidth) setMetaWidth(width);
   }, [metaWidth, timeText, message.edited_at]);
   // Measured once mounted; the estimate only covers the very first paint.
-  const metaReserve = (metaWidth || (outgoing ? 62 : 44) + (message.edited_at && !deleted ? 40 : 0)) + 6;
+  const metaReserve = (metaWidth || (outgoing ? 62 : 44) + (message.edited_at && !deleted ? 40 : 0) + (starred ? 16 : 0)) + 6;
   const textDirection = hasBody && !deleted ? bodyDirection(message.body) : "rtl";
   const meta = (
     <span className={`inline-flex items-center gap-1 text-[11px] font-medium leading-4 ${imageOnly ? "text-white" : "text-[var(--chat-muted)]/80"}`} dir="ltr">
+      {starred ? <Star className="h-3 w-3 fill-current" aria-label={labels.starred} /> : null}
       {message.edited_at && !deleted ? <span>{labels.edited}</span> : null}
       <span className="tabular-nums">{timeText}</span>
       {outgoing ? <MessageTicks message={message} /> : null}
@@ -304,6 +306,7 @@ export default function PortalChatMessageList({
   onImageClick,
   onReply,
   onForward,
+  onStar,
   onReact,
   onEdit,
   onDelete,
@@ -346,6 +349,9 @@ export default function PortalChatMessageList({
     react: t("employeePortal.chat.react"),
     retry: t("common.retry"),
     loadOlder: t("employeePortal.chat.loadOlder"),
+    star: t("employeePortal.chat.star"),
+    unstar: t("employeePortal.chat.unstar"),
+    starred: t("employeePortal.chat.starred"),
     ...Object.fromEntries(Object.entries(rawLabels).filter(([, value]) => value != null && value !== "")),
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [t, i18n.language, JSON.stringify(rawLabels)]);
@@ -414,6 +420,7 @@ export default function PortalChatMessageList({
         <div className="grid text-[15px] font-bold">
           {onReply ? <button type="button" onClick={() => { onReply(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-[var(--radius-control)] px-3 text-start hover:bg-[var(--surface-hover)]"><Reply className="h-[18px] w-[18px]" />{labels.reply}</button> : null}
           {onForward ? <button type="button" onClick={() => { onForward(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-[var(--radius-control)] px-3 text-start hover:bg-[var(--surface-hover)]"><Forward className="h-[18px] w-[18px]" />{labels.forward}</button> : null}
+          {onStar && activeMessage.id ? (() => { const isStarred = Array.isArray(activeMessage.stars) && activeMessage.stars.includes(outgoingSenderType); return <button type="button" onClick={() => { onStar(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-[var(--radius-control)] px-3 text-start hover:bg-[var(--surface-hover)]">{isStarred ? <StarOff className="h-[18px] w-[18px]" /> : <Star className="h-[18px] w-[18px]" />}{isStarred ? labels.unstar : labels.star}</button>; })() : null}
           {activeMessage.body ? <button type="button" onClick={() => { navigator.clipboard?.writeText?.(activeMessage.body); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-[var(--radius-control)] px-3 text-start hover:bg-[var(--surface-hover)]"><Copy className="h-[18px] w-[18px]" />{labels.copy}</button> : null}
           {activeMessage.sender_type === outgoingSenderType && activeMessage.body && onEdit ? <button type="button" onClick={() => { onEdit(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-[var(--radius-control)] px-3 text-start hover:bg-[var(--surface-hover)]"><Pencil className="h-[18px] w-[18px]" />{labels.edit}</button> : null}
           {activeMessage.sender_type === outgoingSenderType && onDelete ? <button type="button" onClick={() => { onDelete(activeMessage); closeActions(); }} className="flex min-h-[var(--control-height-lg)] items-center gap-3 rounded-[var(--radius-control)] px-3 text-start text-[var(--danger)] hover:bg-[var(--surface-hover)]"><Trash2 className="h-[18px] w-[18px]" />{labels.delete}</button> : null}

@@ -586,7 +586,13 @@
     "unmute": "Unmute",
     "archive": "Archive",
     "unarchive": "Unarchive",
-    "prefsFailed": "Could not update the conversation"
+    "prefsFailed": "Could not update the conversation",
+    "star": "Star",
+    "unstar": "Unstar",
+    "starred": "Starred",
+    "starredMessages": "Starred messages",
+    "noStarred": "No starred messages yet",
+    "starFailed": "Could not update the star"
   },
   "profile": {
     "settings": "Profile settings",
