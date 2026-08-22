@@ -1,0 +1,3 @@
+*/5 * * * * root /opt/erp/bin/protect-product-images.sh
+0 4 * * *   root /opt/erp/bin/backup-product-images.sh
+30 4 * * *  root /opt/erp/bin/heal-product-images.sh
