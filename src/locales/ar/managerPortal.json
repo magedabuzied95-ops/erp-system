@@ -47,11 +47,11 @@
   "filters": {
     "all": "الكل",
     "allBranches": "كل الفروع",
-    "title": "المرشحات",
+    "title": "الفلاتر",
     "searchPlaceholder": "ابحث في العنوان أو الموظف",
     "allStatuses": "كل الحالات",
     "allEmployees": "كل الموظفين",
-    "clear": "مسح المرشحات"
+    "clear": "مسح الفلاتر"
   },
   "notifications": {
     "categories": {
