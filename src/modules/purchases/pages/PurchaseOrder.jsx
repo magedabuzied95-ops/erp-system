@@ -1249,30 +1249,37 @@ function PurchaseOrder() {
   const filterSource = debouncedSearch.trim().length >= 2 && searchProducts.length ? searchProducts : products;
   const classificationLocale = isArabic ? "ar" : "en";
   const labelFor = (fieldKey) => (item, raw) => getClassificationLabel(classificationGroups, fieldKey, raw, classificationLocale);
+  // Cascading options, like POS: each field's choices and counts come from the
+  // products that pass every OTHER active filter, so picking "رجالي" narrows the
+  // brands and manufacturers to the ones that actually have men's products.
+  const sourceExcluding = (field) => {
+    const others = { ...purchaseFilters, [field]: Array.isArray(purchaseFilters[field]) ? [] : "all" };
+    return filterSource.filter((item) => purchaseFilterMatches(item, others));
+  };
   const purchaseFilterOptions = useMemo(() => ({
     brand: makeCountOptions(
-      filterSource,
+      sourceExcluding("brand"),
       (item) => optionId(item.brand_id, normalizeFilterValue(firstText(item.brand_name, item.brand))),
       (item) => firstText(item.brand_name, item.brand)
     ),
     gender: makeCountOptions(
-      filterSource.flatMap((item) => getProductAudienceValues(item).map((audience) => ({ audience }))),
+      sourceExcluding("gender").flatMap((item) => getProductAudienceValues(item).map((audience) => ({ audience }))),
       (item) => item.audience,
       (item) => labelFor(CLASSIFICATION_FIELDS.gender)(item, item.audience)
     ),
     productType: makeCountOptions(
-      filterSource,
+      sourceExcluding("productType"),
       (item) => normalizeFilterValue(firstText(item.product_type, item.productType)),
       (item) => labelFor(CLASSIFICATION_FIELDS.productType)(item, firstText(item.product_type, item.productType))
     ),
-    grade: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.grade), (item) => labelFor(CLASSIFICATION_FIELDS.grade)(item, item.grade)),
+    grade: makeCountOptions(sourceExcluding("grade"), (item) => normalizeFilterValue(item.grade), (item) => labelFor(CLASSIFICATION_FIELDS.grade)(item, item.grade)),
     manufacturer: makeCountOptions(
-      filterSource,
+      sourceExcluding("manufacturer"),
       (item) => optionId(item.manufacturer_id, normalizeFilterValue(item.manufacturer_name)),
       (item) => item.manufacturer_name
     ),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [filterSource, classificationGroups, classificationLocale]);
+  }), [filterSource, purchaseFilters, classificationGroups, classificationLocale]);
 
   const purchaseSmartFilterOptions = useMemo(
     () => ({
