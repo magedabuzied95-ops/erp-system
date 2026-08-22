@@ -495,7 +495,18 @@
     "browserNotificationsOn": "إشعارات المتصفح مفعلة",
     "enableBrowserNotifications": "تفعيل إشعارات المتصفح",
     "permissions": "صلاحيات",
-    "noPermissions": "لا توجد صلاحيات ظاهرة"
+    "noPermissions": "لا توجد صلاحيات ظاهرة",
+    "language": "لغة البوابة",
+    "languageSubtitle": "خاصة ببوابة المدير ولا تغيّر لغة السيستم",
+    "languageHint": "هذا الاختيار يخص بوابة المدير فقط، وباقي السيستم يبقى على لغته.",
+    "languageFollowSystem": "اتبع لغة السيستم",
+    "themeDark": "الوضع الداكن",
+    "themeLight": "الوضع الفاتح",
+    "allBranches": "كل الفروع",
+    "branch": "الفرع",
+    "department": "القسم",
+    "role": "الدور",
+    "email": "البريد"
   },
   "invoice": {
     "close": "إغلاق تفاصيل الفاتورة",

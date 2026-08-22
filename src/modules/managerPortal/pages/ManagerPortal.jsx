@@ -10,6 +10,7 @@ import {
   Bell,
   Bot,
   Building2,
+  Languages,
   CheckCircle2,
   CheckCheck,
   ChevronDown,
@@ -63,9 +64,12 @@ import "./ManagerPortal.m1.css";
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
+import { activateRuntimeLanguage, clearManagerPortalLanguage, readManagerPortalLanguage, readSystemLanguage, resolveManagerPortalLanguage, writeManagerPortalLanguage } from "../lib/portalLanguage";
 
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
+// Locale for numbers/dates follows the PORTAL language, not a fixed ar-EG.
+const portalLocale = () => (String(i18n.resolvedLanguage || i18n.language || "ar").startsWith("ar") ? "ar-EG" : "en-GB");
 
 const TABS = ["today", "staff", "tasks", "sales", "chat", "inventory", "more"];
 // Reachable by URL and by notification, but deliberately not in the bottom bar —
@@ -153,13 +157,13 @@ const formatTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ar-EG", { hour: "2-digit", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat(portalLocale(), { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 const formatDateTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ar-EG", {
+  return new Intl.DateTimeFormat(portalLocale(), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -171,13 +175,13 @@ const formatShortDay = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ar-EG", {
+  return new Intl.DateTimeFormat(portalLocale(), {
     weekday: "short",
     month: "short",
     day: "numeric",
   }).format(date);
 };
-const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
+const formatNumber = (value) => new Intl.NumberFormat(portalLocale()).format(Number(value || 0));
 const normalizeManagerPortalValue = (value) => {
   if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item));
   if (value && typeof value === "object") {
@@ -417,7 +421,7 @@ const formatCompactDateTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ar-EG", {
+  return new Intl.DateTimeFormat(portalLocale(), {
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -439,7 +443,7 @@ const sparklinePoints = (values = [], width = 120, height = 36) => {
 };
 const compactDayNumber = (value) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat("ar-EG", { day: "numeric" }).format(date);
+  return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat(portalLocale(), { day: "numeric" }).format(date);
 };
 const MobileSalesChart = ({ points = [], valueKey = "revenue", formatValue = formatNumber, label = tt("managerPortal.common.value"), tone = "amber" }) => {
   const rows = Array.isArray(points) ? points : [];
@@ -859,6 +863,20 @@ export default function ManagerPortal() {
   useTranslation();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  // Portal-scoped language: applied on enter, system language restored on leave.
+  const [portalLanguage, setPortalLanguage] = useState(() => resolveManagerPortalLanguage());
+  useEffect(() => { void activateRuntimeLanguage(portalLanguage); }, [portalLanguage]);
+  useEffect(() => () => { void activateRuntimeLanguage(readSystemLanguage()); }, []);
+  const changePortalLanguage = useCallback((next) => {
+    const normalized = String(next || "").startsWith("ar") ? "ar" : "en";
+    writeManagerPortalLanguage(normalized);
+    setPortalLanguage(normalized);
+  }, []);
+  const followSystemLanguage = useCallback(() => {
+    clearManagerPortalLanguage();
+    setPortalLanguage(readSystemLanguage());
+  }, []);
+  const portalLanguageIsCustom = Boolean(readManagerPortalLanguage());
   const { token } = useParams();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => (isBrowser() ? window.localStorage.getItem(STORAGE_KEY) || "today" : "today"));
@@ -2038,7 +2056,7 @@ export default function ManagerPortal() {
   return (
     <main
       data-testid="manager-portal-root"
-      dir="rtl"
+      dir={portalLanguage === "ar" ? "rtl" : "ltr"}
       style={{
         paddingTop: "max(16px, env(safe-area-inset-top))",
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
@@ -3063,7 +3081,7 @@ export default function ManagerPortal() {
               className="manager-portal-tab manager-portal-tab--chat xl:h-[calc(100dvh-13rem)]"
               managerPanel={() => (
                 selectedChatEmployee ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1" dir="rtl">
+                  <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1" dir={portalLanguage === "ar" ? "rtl" : "ltr"}>
                     <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="text-xs font-black tracking-[0.16em] text-slate-500">{tt("managerPortal.chat.employee")}</div>
                       <div className="mt-1 text-lg font-black text-slate-950">{portalText(selectedChatEmployee.employee_name || selectedChatEmployee.full_name || selectedChatThread?.employee_name || tt("managerPortal.common.employee"))}</div>
@@ -3142,43 +3160,114 @@ export default function ManagerPortal() {
 
           {activeTab === "more" ? (
             <div className="manager-portal-tab manager-portal-tab--more space-y-4">
-              <Card title={tt("managerPortal.settings.title")} subtitle={tt("managerPortal.nav.more")} icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="gold">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <button type="button" onClick={() => setActiveTab("notifications")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-500"><Bell className="h-6 w-6" /></span>
-                    <span className="text-sm font-black">{tt("managerPortal.settings.alerts")}</span>
-                    {unreadCount > 0 ? <span className="absolute left-3 top-3 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{formatNumber(unreadCount)}</span> : null}
-                  </button>
-                  <button type="button" onClick={() => setActiveTab("operations")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-500/15 text-sky-500"><ArrowLeftRight className="h-6 w-6" /></span>
-                    <span className="text-sm font-black">{tt("managerPortal.operations.title")}</span>
-                  </button>
-                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-500/15 text-slate-500">{theme.mode === "dark" ? <SunMedium className="h-6 w-6" /> : <Moon className="h-6 w-6" />}</span>
-                    <span className="text-sm font-black">{tt("managerPortal.settings.appearance")}</span>
-                  </button>
-                  <button type="button" onClick={() => void loadAll({ silent: true })} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white p-3 text-slate-900 shadow-sm transition hover:border-amber-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-500"><RefreshCw className={`h-6 w-6 ${refreshing ? "animate-spin" : ""}`} /></span>
-                    <span className="text-sm font-black">{tt("managerPortal.settings.refreshData")}</span>
-                  </button>
+              {/* Identity header: who is signed in + where. */}
+              <section data-tone="green" className="manager-portal-card manager-portal-more-hero overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+                <div className="flex items-center gap-3">
+                  <EmployeeAvatar name={me?.full_name || me?.name || ""} photoUrl={me?.photo_url || me?.profile_image_url || ""} size={60} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-black leading-5 text-text-muted">{tt("managerPortal.settings.managerProfile")}</div>
+                    <div className="truncate text-lg font-black leading-6 text-text">{portalText(me?.full_name || me?.name || tt("managerPortal.shell.manager"))}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <Badge>{portalText(me?.role || "manager")}</Badge>
+                      <Badge>{portalText(me?.branch_name || tt("managerPortal.settings.allBranches"))}</Badge>
+                    </div>
+                  </div>
+                </div>
+                <dl className="manager-portal-more-facts mt-4 grid grid-cols-3 gap-2">
+                  {[
+                    [tt("managerPortal.settings.permissions"), formatNumber(me?.permissions?.length || 0), "text-text"],
+                    [tt("managerPortal.labels.liveAlerts"), formatNumber(notifications.length || 0), "text-text"],
+                    [tt("managerPortal.labels.unread"), formatNumber(unreadCount || notificationsUnread), "text-rose-500"],
+                  ].map(([label, value, tone]) => (
+                    <div key={label} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-2.5 text-center">
+                      <dt className="text-[10px] font-black leading-4 text-text-muted">{label}</dt>
+                      <dd className={`mt-1 text-xl font-black leading-none ${tone}`}>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+
+              {/* Portal-only language — independent from the ERP system language. */}
+              <Card title={tt("managerPortal.settings.language")} subtitle={tt("managerPortal.settings.languageSubtitle")} icon={Languages} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="gold">
+                <div role="radiogroup" aria-label={tt("managerPortal.settings.language")} className="manager-portal-language-switch grid grid-cols-2 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft p-1">
+                  {[
+                    { code: "ar", label: "العربية", hint: "Arabic" },
+                    { code: "en", label: "English", hint: "الإنجليزية" },
+                  ].map((option) => {
+                    const active = portalLanguage === option.code;
+                    return (
+                      <button
+                        key={option.code}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => changePortalLanguage(option.code)}
+                        className={`flex min-h-14 flex-col items-center justify-center rounded-[calc(var(--radius-control)-4px)] px-3 transition ${active ? "bg-amber-500 text-slate-950 shadow-sm" : "text-text hover:bg-surface"}`}
+                      >
+                        <span className="text-sm font-black leading-5">{option.label}</span>
+                        <span className={`text-[10px] font-bold leading-4 ${active ? "text-slate-900/70" : "text-text-muted"}`}>{option.hint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex items-start justify-between gap-2 text-[11px] font-bold leading-5 text-text-muted">
+                  <span>{tt("managerPortal.settings.languageHint")}</span>
+                  {portalLanguageIsCustom ? (
+                    <button type="button" onClick={followSystemLanguage} className="shrink-0 font-black text-amber-500 underline-offset-2 hover:underline">
+                      {tt("managerPortal.settings.languageFollowSystem")}
+                    </button>
+                  ) : null}
                 </div>
               </Card>
+
+              {/* Quick actions. */}
+              <Card title={tt("managerPortal.settings.title")} subtitle={tt("managerPortal.nav.more")} icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
+                <div className="manager-portal-more-actions grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    { key: "alerts", label: tt("managerPortal.settings.alerts"), icon: Bell, tone: "bg-amber-500/15 text-amber-500", badge: unreadCount, onClick: () => setActiveTab("notifications") },
+                    { key: "operations", label: tt("managerPortal.operations.title"), icon: ArrowLeftRight, tone: "bg-sky-500/15 text-sky-500", onClick: () => setActiveTab("operations") },
+                    { key: "appearance", label: tt("managerPortal.settings.appearance"), sub: theme.mode === "dark" ? tt("managerPortal.settings.themeDark") : tt("managerPortal.settings.themeLight"), icon: theme.mode === "dark" ? SunMedium : Moon, tone: "bg-slate-500/15 text-slate-500", onClick: () => setTheme(theme.mode === "dark" ? "light" : "dark") },
+                    { key: "refresh", label: tt("managerPortal.settings.refreshData"), icon: RefreshCw, spin: refreshing, tone: "bg-emerald-500/15 text-emerald-500", onClick: () => void loadAll({ silent: true }) },
+                  ].map((item) => (
+                    <button key={item.key} type="button" onClick={item.onClick} className="manager-portal-more-action relative flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface-soft p-3 text-text transition hover:border-amber-400">
+                      <span className={`grid h-11 w-11 place-items-center rounded-2xl ${item.tone}`}><item.icon className={`h-5 w-5 ${item.spin ? "animate-spin" : ""}`} /></span>
+                      <span className="text-sm font-black leading-5">{item.label}</span>
+                      {item.sub ? <span className="text-[10px] font-bold leading-4 text-text-muted">{item.sub}</span> : null}
+                      {item.badge > 0 ? <span className="absolute start-2 top-2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">{formatNumber(item.badge)}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Branch + account details as definition lists. */}
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title={tt("managerPortal.settings.profile")} subtitle={tt("managerPortal.settings.managerProfile")} icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="green">
-                  <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                    <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || tt("managerPortal.shell.manager"))}</div>
-                    <div>{portalText(me?.role || "manager")} · {portalText(me?.department || "—")}</div>
-                    <div>{portalText(me?.user_email || tt("managerPortal.common.noEmail"))}</div>
-                    <div>{formatNumber(me?.permissions?.length || 0)} صلاحية</div>
-                  </div>
+                <Card title={tt("managerPortal.settings.branchData")} subtitle={tt("managerPortal.settings.branchInfo")} icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
+                  <dl className="manager-portal-more-list divide-y divide-border text-sm font-semibold">
+                    {[
+                      [tt("managerPortal.settings.branch"), portalText(me?.branch_name || tt("managerPortal.settings.allBranches"))],
+                      [tt("managerPortal.labels.scope"), portalText(me?.branch_scope || "all")],
+                      [tt("managerPortal.settings.department"), portalText(me?.department || "—")],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-3 py-2">
+                        <dt className="text-text-muted">{label}</dt>
+                        <dd className="truncate font-black text-text">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </Card>
-              <Card title={tt("managerPortal.settings.branchData")} subtitle={tt("managerPortal.settings.branchInfo")} icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
-                <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                    <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
-                    <div>{tt("managerPortal.labels.scope")}: {portalText(me?.branch_scope || "all")}</div>
-                    <div>{tt("managerPortal.labels.liveAlerts")}: {formatNumber(notifications.length || 0)}</div>
-                    <div>{tt("managerPortal.labels.unread")}: {formatNumber(unreadCount || notificationsUnread)}</div>
-                  </div>
+                <Card title={tt("managerPortal.settings.profile")} subtitle={tt("managerPortal.settings.managerProfile")} icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="green">
+                  <dl className="manager-portal-more-list divide-y divide-border text-sm font-semibold">
+                    {[
+                      [tt("managerPortal.settings.role"), portalText(me?.role || "manager")],
+                      [tt("managerPortal.settings.email"), <span key="email" dir="ltr">{portalText(me?.user_email || tt("managerPortal.common.noEmail"))}</span>],
+                      [tt("managerPortal.settings.permissions"), formatNumber(me?.permissions?.length || 0)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-3 py-2">
+                        <dt className="text-text-muted">{label}</dt>
+                        <dd className="truncate font-black text-text">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </Card>
               </div>
             </div>
@@ -3615,7 +3704,7 @@ export default function ManagerPortal() {
       {invoiceSheet.open ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center">
           <button type="button" aria-label={tt("managerPortal.invoice.close")} onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="absolute inset-0" />
-          <section className="relative max-h-[92dvh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir="rtl">
+          <section className="relative max-h-[92dvh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir={portalLanguage === "ar" ? "rtl" : "ltr"}>
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-950 px-4 py-4 text-white">
               <div>
                 <div className="text-xs font-black text-slate-300">{tt("managerPortal.invoice.title")}</div>

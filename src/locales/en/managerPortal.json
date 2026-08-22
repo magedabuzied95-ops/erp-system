@@ -495,7 +495,18 @@
     "browserNotificationsOn": "Browser notifications are on",
     "enableBrowserNotifications": "Enable browser notifications",
     "permissions": "Permissions",
-    "noPermissions": "No visible permissions"
+    "noPermissions": "No visible permissions",
+    "language": "Portal language",
+    "languageSubtitle": "Manager portal only — does not change the system language",
+    "languageHint": "This choice applies to the manager portal only; the rest of the system keeps its own language.",
+    "languageFollowSystem": "Follow system language",
+    "themeDark": "Dark mode",
+    "themeLight": "Light mode",
+    "allBranches": "All branches",
+    "branch": "Branch",
+    "department": "Department",
+    "role": "Role",
+    "email": "Email"
   },
   "invoice": {
     "close": "Close invoice details",
