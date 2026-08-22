@@ -706,6 +706,7 @@
         "aiHandoff": "AI handoff",
         "customerMessage": "Customer message",
         "notification": "Notification",
+        "staffMessage": "Message from management",
         "error": "Error"
       },
       "batch": {

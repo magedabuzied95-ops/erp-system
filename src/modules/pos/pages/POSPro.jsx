@@ -41,6 +41,7 @@ import {
 
 import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
+import PosManagerChatDock from "../components/PosManagerChatDock";
 import { useRealtimeFeedback } from "../../../hooks/useRealtimeFeedback";
 import { getCurrentTenant, getCurrentUser, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
 import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumber";
@@ -8025,6 +8026,7 @@ function POSPro() {
       ref={posShellRef}
       className="pos-pro-shell h-[100dvh] w-full max-w-[100vw] min-w-0 overflow-hidden"
     >
+      <PosManagerChatDock />
       <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:overflow-hidden lg:p-3 xl:pb-3">
         {viewportIsMobile ? (
           <div className="sticky top-0 z-40 -mx-2 -mt-2 border-b border-white/10 bg-zinc-950/96 px-2 pt-[calc(env(safe-area-inset-top)+0.6rem)] pb-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:hidden">

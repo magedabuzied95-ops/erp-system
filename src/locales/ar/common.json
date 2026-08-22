@@ -706,6 +706,7 @@
         "aiHandoff": "تحويل من الذكاء الاصطناعي",
         "customerMessage": "رسالة من عميل",
         "notification": "إشعار",
+        "staffMessage": "رسالة من الإدارة",
         "error": "خطأ"
       },
       "batch": {

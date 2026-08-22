@@ -474,6 +474,40 @@ io.on("connection", async (socket) => {
     if (employeeRole && employeeRole !== role) socket.join(`role:${employeeRole}`);
     if (tenantId) socket.join(`tenant:${tenantId}`);
     if (branchId) socket.join(`branch:${branchId}`);
+    /*
+     * A JWT login linked to an employee row (the POS cashier) is the employee
+     * side of the management chat. Without this join a manager's message was
+     * written and emitted, but only the token-based Employee App ever heard
+     * it; the cashier on /pos was deaf to it.
+     */
+    const linkedEmployeeId = Number(user?.employee_id || 0);
+    if (linkedEmployeeId) {
+      const employeeTenantKey = tenantId || "global";
+      socket.join(`employee-chat:employee:${linkedEmployeeId}`);
+      socket.join(`employee:${linkedEmployeeId}`);
+      socket.on("employee-chat:presence", (payload = {}) => {
+        const activeRoom = `employee-chat-active:employee:${linkedEmployeeId}`;
+        if (payload?.active) socket.join(activeRoom);
+        else socket.leave(activeRoom);
+      });
+      socket.on("employee-chat:employee-typing", (payload = {}) => {
+        emitToRooms([`employee-chat:tenant:${employeeTenantKey}`], "employee-chat:typing", {
+          thread_id: payload.thread_id || null,
+          employee_id: linkedEmployeeId,
+          employee_name: payload.employee_name || "",
+          sender_type: "employee",
+          at: new Date().toISOString(),
+        });
+      });
+      socket.on("employee-chat:employee-stop-typing", (payload = {}) => {
+        emitToRooms([`employee-chat:tenant:${employeeTenantKey}`], "employee-chat:stop-typing", {
+          thread_id: payload.thread_id || null,
+          employee_id: linkedEmployeeId,
+          sender_type: "employee",
+          at: new Date().toISOString(),
+        });
+      });
+    }
     if (await socketUserCanViewEmployees(userId, user)) {
       socket.join(`employee-chat:tenant:${tenantId || "global"}`);
       socket.on("employee-chat:typing", (payload = {}) => {
@@ -513,7 +547,7 @@ io.on("connection", async (socket) => {
       };
       io.emit("warehouse-pick-alert", alertPayload);
     });
-    socket.emit("realtime:ready", { user_id: userId, branch_id: branchId || null, role, at: new Date().toISOString() });
+    socket.emit("realtime:ready", { user_id: userId, branch_id: branchId || null, role, employee_id: linkedEmployeeId || null, at: new Date().toISOString() });
   } catch (error) {
     console.warn("[socket] authentication failed", error?.message || error);
     socket.emit("realtime:error", { message: "Socket authentication failed" });

@@ -615,5 +615,30 @@
     "noMatches": "No customer matches — create them from the New customer button on the main screen.",
     "phoneRequired": "This customer has no phone number — a restock request needs one to notify them.",
     "searching": "Searching all customers..."
+  },
+  "managerChat": {
+    "title": "Management messages",
+    "subtitle": "Direct channel between you and your manager",
+    "open": "Open management messages",
+    "close": "Close",
+    "management": "Management",
+    "you": "You",
+    "connected": "Live",
+    "reconnecting": "Reconnecting — refreshing every 12s",
+    "empty": "No messages yet. The first message from your manager will appear here with a sound alert.",
+    "placeholder": "Reply to your manager… (Enter to send)",
+    "send": "Send",
+    "sending": "Sending…",
+    "attachment": "Attachment",
+    "image": "Image",
+    "voice": "Voice message",
+    "file": "File",
+    "unread_one": "{{count}} unread message",
+    "unread_other": "{{count}} unread messages",
+    "newMessageToast": "New message from {{name}}",
+    "loadFailed": "Could not load the conversation",
+    "sendFailed": "Could not send the message",
+    "testSound": "Test alert sound",
+    "soundHint": "The alert rings even when the POS tab is in the background"
   }
 }

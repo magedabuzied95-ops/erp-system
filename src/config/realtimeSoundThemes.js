@@ -7,6 +7,7 @@ const baseSounds = Object.freeze({
   aiMessage: "/sounds/ai-message.mp3",
   error: "/sounds/error.mp3",
   barcodeScan: "/sounds/barcode-scan.mp3",
+  staffChat: "/sounds/staff-chat.wav",
 });
 
 export const REALTIME_SOUND_THEME_IDS = Object.freeze([

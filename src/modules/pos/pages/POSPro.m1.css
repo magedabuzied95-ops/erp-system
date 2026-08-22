@@ -450,3 +450,13 @@ body.pos-route {
   width: 12px !important;
   height: 12px !important;
 }
+
+/* Management chat dock: a brief amber pulse on the floating button when a
+   manager's message lands, paired with the staff-chat alert sound. */
+@keyframes pos-manager-chat-flash {
+  0%, 100% { box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
+  35% { box-shadow: 0 0 0 14px rgba(245, 158, 11, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45); }
+}
+.pos-manager-chat-fab--flash {
+  animation: pos-manager-chat-flash 0.8s ease-out 3;
+}

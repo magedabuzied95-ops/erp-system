@@ -26,6 +26,7 @@ const DEFAULT_SOUND_FILES = {
   aiMessage: "/sounds/ai-message.mp3",
   error: "/sounds/error.mp3",
   barcodeScan: "/sounds/barcode-scan.mp3",
+  staffChat: "/sounds/staff-chat.wav",
 };
 
 const EVENT_MAP = {
@@ -49,6 +50,9 @@ const EVENT_MAP = {
   ai_escalation: { sound: "warning", priority: "high", toastType: "default", title: "AI handoff", titleKey: "common.realtimeFeedback.events.aiHandoff" },
   ai_customer_message: { sound: "aiMessage", priority: "normal", toastType: "default", title: "Customer message", titleKey: "common.realtimeFeedback.events.customerMessage" },
   notification: { sound: "notification", priority: "normal", toastType: "default", title: "Notification", titleKey: "common.realtimeFeedback.events.notification" },
+  // Management → cashier chat. Critical on purpose: a cashier's POS tab is often
+  // behind the receipt window, and a hidden tab is otherwise silenced.
+  employee_chat_message: { sound: "staffChat", priority: "critical", toastType: "default", title: "Message from management", titleKey: "common.realtimeFeedback.events.staffMessage" },
   error: { sound: "error", priority: "high", toastType: "error", title: "Error", titleKey: "common.realtimeFeedback.events.error" },
 };
 
@@ -303,6 +307,7 @@ const playFallbackTone = async (sound, priority) => {
       aiMessage: 560,
       error: 240,
       barcodeScan: 980,
+      staffChat: 830,
     };
     oscillator.type = sound === "error" || sound === "warning" ? "square" : "sine";
     oscillator.frequency.value = frequencies[sound] || 620;
