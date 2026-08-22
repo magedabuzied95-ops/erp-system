@@ -35,6 +35,10 @@ export const seedRestockRecoveryTemplate = (headers) => api.post(`${BASE}/restoc
 // Phase 7 — variant-level restock intents (operator view + management).
 export const getRestockIntents = (headers, status = null) => api.get(`${BASE}/restock-intents`, { headers, params: status ? { status } : {}, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const cancelRestockIntent = (id, headers) => api.post(`${BASE}/restock-intents/${encodeURIComponent(id)}/cancel`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const deleteRestockIntent = (id, headers) => api.delete(`${BASE}/restock-intents/${encodeURIComponent(id)}`, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const getRestockMessageTemplate = (headers) => api.get(`${BASE}/restock-messaging/template`, opts(headers));
+export const setRestockMessageTemplate = (template, headers) => api.post(`${BASE}/restock-messaging/template`, { template }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
+export const previewRestockMessageTemplate = (template, headers) => api.post(`${BASE}/restock-messaging/template/preview`, { template }, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 export const fulfilRestockIntent = (id, headers) => api.post(`${BASE}/restock-intents/${encodeURIComponent(id)}/fulfil`, {}, { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] });
 // Phase 8 — human-approved customer restock messaging.
 export const getRestockMessagingMode = (headers) => api.get(`${BASE}/restock-messaging/mode`, opts(headers));

@@ -37,8 +37,11 @@ import {
 } from "../services/aiWorkflowService.js";
 import { listTriggers } from "../services/aiWorkflowTriggerRegistry.js";
 import { listRecoveries, getRecoveryCounts } from "../services/aiRestockRecoveryService.js";
-import { createIntent, listIntents, cancelIntent, markIntentFulfilled, getIntentCounts } from "../services/restockIntentService.js";
-import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode } from "../services/restockNotificationService.js";
+import { createIntent, listIntents, cancelIntent, markIntentFulfilled, deleteIntent, getIntentCounts } from "../services/restockIntentService.js";
+import { listNotifications, getNotification, getNotificationCounts, editNotificationDraft, rejectNotification, sendApprovedRestockNotification, getMessagingMode, setMessagingMode, getMessageTemplate, setMessageTemplate, renderMessageTemplate } from "../services/restockNotificationService.js";
+
+// Sample facts for the template preview shown in the inbox gear.
+const TEMPLATE_PREVIEW_FACTS = Object.freeze({ customerName: "ماجد", productName: "Alexander Mcqueen Sneakers", color: "White", size: "38" });
 import { getDeliveryCounts, listUnmatchedDeliveryEvents } from "../services/messageDeliveryReconciliationService.js";
 import { getInboundAiMode, setInboundAiMode, getInboundIntakeStats, isInboundWorkflowsEnabled, getInboundAiChannels, setInboundAiChannel, ASSISTED_CHANNELS } from "../services/aiInboundIntakeService.js";
 import { getTenantStyleProfile } from "../services/aiCorrectionMemoryService.js";
@@ -115,6 +118,26 @@ router.post("/restock-intents/:id/cancel", protect, permit("settings", "edit"), 
 });
 router.post("/restock-intents/:id/fulfil", protect, permit("settings", "edit"), async (req, res) => {
   try { res.json({ success: true, intent: await markIntentFulfilled(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
+});
+router.delete("/restock-intents/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try { res.json({ success: true, intent: await deleteIntent(tid(req), req.params.id) }); } catch (error) { fail(res, error); }
+});
+
+// ---- Customer message template (placeholders only; a template rewords, never invents) ----
+router.get("/restock-messaging/template", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const current = await getMessageTemplate(tid(req));
+    res.json({ success: true, ...current, preview: renderMessageTemplate(current.template, TEMPLATE_PREVIEW_FACTS) });
+  } catch (error) { fail(res, error); }
+});
+router.post("/restock-messaging/template", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const saved = await setMessageTemplate(tid(req), String(req.body?.template ?? ""), uid(req));
+    res.json({ success: true, ...saved, preview: renderMessageTemplate(saved.template, TEMPLATE_PREVIEW_FACTS) });
+  } catch (error) { fail(res, error); }
+});
+router.post("/restock-messaging/template/preview", protect, permit("settings", "view"), (req, res) => {
+  res.json({ success: true, preview: renderMessageTemplate(String(req.body?.template ?? ""), TEMPLATE_PREVIEW_FACTS) });
 });
 
 // ---- Phase 8: Human-approved customer restock messaging ----

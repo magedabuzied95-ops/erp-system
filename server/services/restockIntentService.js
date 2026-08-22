@@ -173,14 +173,27 @@ export const listIntents = async (tenantId, { status = null, limit = 100, phone 
   if (customerId) { params.push(customerId); where += ` AND ri.customer_id = $${params.length}`; }
   params.push(Math.min(Number(limit) || 100, 300));
   const r = await db.query(
-    `SELECT ri.*, c.name AS customer_name, p.name AS product_name
+    `SELECT ri.*, c.name AS customer_name, p.name AS product_name,
+            COALESCE(NULLIF(TRIM(COALESCE(v.image_url, v.image, '')), ''), NULLIF(TRIM(COALESCE(p.image_url, p.image, '')), '')) AS image_url
        FROM restock_intents ri
        LEFT JOIN customers c ON c.id = ri.customer_id AND c.tenant_id = ri.tenant_id
        LEFT JOIN products p ON p.id = ri.product_id AND p.tenant_id = ri.tenant_id
+       LEFT JOIN product_variants v ON v.id = ri.variant_id
       WHERE ${where} ORDER BY ri.created_at DESC LIMIT $${params.length}`,
     params
   );
   return r.rows;
+};
+
+// Hard delete is for rows that are already over (cancelled / fulfilled / expired /
+// notified). A waiting intent is cancelled instead so the audit trail keeps it.
+export const deleteIntent = async (tenantId, intentId) => {
+  await ensureRestockIntentSchema();
+  const cur = await getIntent(tenantId, intentId);
+  if (!cur) { const e = new Error("Restock intent not found"); e.status = 404; throw e; }
+  if (["waiting", "recovery_created"].includes(cur.status)) { const e = new Error("Cancel the request before deleting it."); e.status = 409; throw e; }
+  await db.query(`DELETE FROM restock_intents WHERE tenant_id = $1 AND id = $2`, [tenantId, intentId]);
+  return cur;
 };
 
 // Waiting intents for a restock: EXACT_VARIANT first, then PRODUCT_ONLY (variant_id null). Bounded.

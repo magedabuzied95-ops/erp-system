@@ -48,6 +48,7 @@ export const ensureRestockNotificationSchema = async (client = db) => {
   schemaReady = (async () => {
     // Per-tenant kill switch / mode (off by default). Lives with the other automation settings.
     await client.query(`ALTER TABLE ai_workflow_tenant_settings ADD COLUMN IF NOT EXISTS restock_messaging_mode TEXT NOT NULL DEFAULT 'off'`);
+    await client.query(`ALTER TABLE ai_workflow_tenant_settings ADD COLUMN IF NOT EXISTS restock_message_template TEXT NULL`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS restock_notifications (
         id BIGSERIAL PRIMARY KEY,
@@ -110,18 +111,55 @@ export const setMessagingMode = async (tenantId, mode, userId) => {
 
 // ---- Pure: grounded draft (deterministic Arabic fallback; invents nothing) ----
 // facts must be verified upstream. Optional LLM rewrite happens elsewhere and may NOT alter facts.
-// The wording is the owner's: it travels as the caption of the colour photo, so
-// "اللون ده" points at the image; the colour name is still written out for the
-// text-only fallback when no photo exists.
-export const buildDeterministicDraft = (facts = {}) => {
+// The wording is the owner's and editable per tenant from the inbox gear. It travels
+// as the caption of the colour photo, so "اللون ده" points at the image; the colour
+// name is still written out for the text-only fallback when no photo exists.
+// Placeholders are the ONLY dynamic content — a template can reword, never invent.
+export const TEMPLATE_PLACEHOLDERS = Object.freeze(["greeting", "name", "product", "color", "size"]);
+export const DEFAULT_MESSAGE_TEMPLATE = "{greeting}\nحضرتك قولتلنا نبلغ حضرتك لو {product} اللون ده ({color}) اتوفر مقاس {size}.\nالمقاس اتوفر حاليًا، نوّرنا في أي وقت، ولو حابب نشحنه لحضرتك بلّغنا.";
+export const MESSAGE_TEMPLATE_MAX = 1000;
+
+export const renderMessageTemplate = (template = "", facts = {}) => {
   const name = (facts.customerName || "").toString().trim();
-  const greeting = name ? `ازيك يا ${name}؟` : "ازيك حضرتك؟";
-  const product = (facts.productName || "").toString().trim();
-  const color = (facts.color || "").toString().trim();
-  const size = (facts.size || "").toString().trim();
-  const which = [product, color ? `اللون ده (${color})` : "اللون ده"].filter(Boolean).join(" ");
-  const asked = `حضرتك قولتلنا نبلغ حضرتك لو ${which} اتوفر${size ? ` مقاس ${size}` : ""}.`;
-  return `${greeting}\n${asked}\nالمقاس اتوفر حاليًا، نوّرنا في أي وقت، ولو حابب نشحنه لحضرتك بلّغنا.`;
+  const values = {
+    greeting: name ? `ازيك يا ${name}؟` : "ازيك حضرتك؟",
+    name,
+    product: (facts.productName || "").toString().trim(),
+    color: (facts.color || "").toString().trim(),
+    size: (facts.size || "").toString().trim(),
+  };
+  const source = String(template || "").trim() || DEFAULT_MESSAGE_TEMPLATE;
+  return source
+    .replace(/\{(\w+)\}/g, (match, key) => (Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match))
+    // An empty fact leaves "()" or a dangling "مقاس " behind; tidy those so the
+    // customer never sees the seams.
+    .replace(/\(\s*\)/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +([.،؟!])/g, "$1")
+    .replace(/ +\n/g, "\n")
+    .trim();
+};
+
+export const buildDeterministicDraft = (facts = {}, template = DEFAULT_MESSAGE_TEMPLATE) => renderMessageTemplate(template, facts);
+
+export const getMessageTemplate = async (tenantId) => {
+  await ensureRestockNotificationSchema();
+  const r = await db.query(`SELECT restock_message_template FROM ai_workflow_tenant_settings WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
+  const stored = String(r.rows[0]?.restock_message_template || "").trim();
+  return { template: stored || DEFAULT_MESSAGE_TEMPLATE, isDefault: !stored, defaultTemplate: DEFAULT_MESSAGE_TEMPLATE, placeholders: TEMPLATE_PLACEHOLDERS };
+};
+export const setMessageTemplate = async (tenantId, template, userId) => {
+  await ensureRestockNotificationSchema();
+  const value = String(template || "").replace(/\r\n/g, "\n").trim();
+  if (value.length > MESSAGE_TEMPLATE_MAX) { const e = new Error(`Template is longer than ${MESSAGE_TEMPLATE_MAX} characters.`); e.status = 400; throw e; }
+  // Empty = back to the default; stored as NULL so "isDefault" stays truthful.
+  await db.query(
+    `INSERT INTO ai_workflow_tenant_settings (tenant_id, restock_message_template, updated_by, updated_at)
+     VALUES ($1,$2,$3,NOW()) ON CONFLICT (tenant_id) DO UPDATE SET restock_message_template = EXCLUDED.restock_message_template, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+    [tenantId, value || null, userId || null]
+  );
+  await writeAudit({ tenantId, userId, action: "restock_messaging.template", entityType: "tenant", entityId: tenantId, details: { length: value.length, isDefault: !value } });
+  return getMessageTemplate(tenantId);
 };
 
 // Verified facts snapshot for an intent + current stock (no invented fields).
@@ -206,7 +244,8 @@ export const createDraftNotification = async ({ tenantId, intentId, restockEvent
   if (!channel.available) return { ok: false, reason: channel.reason || "no_channel" };
 
   const facts = await buildFacts({ tenantId, intent });
-  const draft = buildDeterministicDraft(facts);
+  const { template } = await getMessageTemplate(tenantId);
+  const draft = buildDeterministicDraft(facts, template);
   const eventKey = String(restockEventId || `inv:${tenantId}:${intent.product_id}:${intent.variant_id}`);
   const idem = `notif:${tenantId}:${intentId}:${eventKey}`;
   try {

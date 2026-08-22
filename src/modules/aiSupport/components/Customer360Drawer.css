@@ -70,3 +70,33 @@ html[data-theme="light"] .m1-customer-360 .m1-customer-product-card {
 html[data-theme="dark"] .m1-customer-360 .m1-customer-product-card {
   background: #191917 !important;
 }
+
+/* Restock request thumbnail: the colour photo the customer is waiting for.
+   Hover (or keyboard focus) lifts it into a large preview above the card so
+   the size chip underneath stays readable; the card itself never reflows. */
+.m1-restock-thumb {
+  position: relative;
+  z-index: 0;
+}
+
+.m1-restock-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+  background: var(--surface);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transform-origin: center center;
+}
+
+.m1-restock-thumb:hover,
+.m1-restock-thumb:focus-within {
+  z-index: 20;
+}
+
+.m1-restock-thumb:hover img,
+.m1-restock-thumb:focus-within img {
+  transform: scale(3.2);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border);
+}

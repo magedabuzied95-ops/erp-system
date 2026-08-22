@@ -236,6 +236,28 @@ export default function Customer360Drawer({
     try { await api.post(`/ai-studio/restock-intents/${encodeURIComponent(id)}/cancel`, {}, { suppressErrorStatuses: [400, 403, 404, 500] }); await loadRestockIntents(); }
     catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to cancel"); }
   };
+  // Finished rows (cancelled / notified / fulfilled) can be removed outright; an
+  // active one has to be cancelled first so the audit trail keeps it.
+  const deleteRestockIntent = async (id) => {
+    if (!window.confirm(t("aiSupport.inbox.customer360.deleteRestockConfirm"))) return;
+    try { await api.delete(`/ai-studio/restock-intents/${encodeURIComponent(id)}`, { suppressErrorStatuses: [400, 403, 404, 409, 500] }); await loadRestockIntents(); }
+    catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to delete"); }
+  };
+  // "Edit" = pick a different colour/size; the old request is cancelled only once
+  // the new one exists, so a closed picker changes nothing.
+  const [restockEditingId, setRestockEditingId] = useState(null);
+  const editRestockIntent = (intent) => { setRestockEditingId(intent.id); onRequestRestockPick?.(); };
+  const applyRestockEdit = async (intentId, card) => {
+    const productId = Number(card?.product_id), variantId = Number(card?.variant_id);
+    if (!productId || !variantId) { setRestockMsg(t("aiSupport.inbox.customer360.restockNeedsVariant")); return; }
+    try {
+      const res = await api.post(`/ai-studio/restock-intents`, { productId, variantId, phone: restockPhone, source: "ai_inbox" }, { suppressErrorStatuses: [400, 403, 404, 409, 500] });
+      if (res?.available_now) { setRestockMsg(t("aiSupport.inbox.customer360.restockAvailableNowCount", { count: 1 })); return; }
+      await api.post(`/ai-studio/restock-intents/${encodeURIComponent(intentId)}/cancel`, {}, { suppressErrorStatuses: [400, 403, 404, 500] });
+      setRestockMsg(t("aiSupport.inbox.customer360.restockEdited"));
+      await loadRestockIntents();
+    } catch (e) { setRestockMsg(e?.responseBody?.message || "Failed to edit"); }
+  };
   // Explicit, human-confirmed create. Variant is REQUIRED (no fake exact intent). Never autonomous.
   // One request per line, like the order composer's cart: the backend has no batch
   // endpoint, so the lines go one by one and a failed line stays in the form.
@@ -282,12 +304,20 @@ export default function Customer360Drawer({
     if (!restockPick) return;
     const incoming = safeArray(restockPick.cards ?? (restockPick.product_id ? [restockPick] : []));
     if (!incoming.length) return;
+    if (restockEditingId) {
+      const editing = restockEditingId;
+      setRestockEditingId(null);
+      onClearRestockPick?.();
+      void applyRestockEdit(editing, incoming[0]);
+      return;
+    }
     setRestockCreate((current) => {
       const seen = new Set(current.lines.map(restockLineKey));
       const appended = incoming.filter((card) => { const key = restockLineKey(card); if (seen.has(key)) return false; seen.add(key); return true; });
       return { ...current, open: true, lines: [...current.lines, ...appended] };
     });
     setRestockMsg("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restockPick]);
 
   useEffect(() => {
@@ -685,7 +715,7 @@ export default function Customer360Drawer({
                   </div>
                   <button type="button" onClick={() => setRestockCreate((s) => ({ ...s, open: !s.open }))} className="inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.createRestockRequest")}</button>
                 </div>
-                <RestockWorkflowSettings open={restockSettingsOpen} />
+                <RestockWorkflowSettings open={restockSettingsOpen} onClose={() => setRestockSettingsOpen(false)} />
                 {restockMsg ? <div className="mt-2 rounded-xl bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">{restockMsg}</div> : null}
                 {restockCreate.open ? (
                   <div className="mt-2 space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
@@ -743,8 +773,14 @@ export default function Customer360Drawer({
                     <div className="flex items-center gap-2 p-2 text-sm text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" />{t("aiSupport.inbox.customer360.loading")}</div>
                   ) : restockIntents.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">{t("aiSupport.inbox.customer360.noRestockRequests")}</div>
-                  ) : restockIntents.map((i) => (
+                  ) : restockIntents.map((i) => {
+                    const intentImage = resolveProductImageUrl(i.image_url || "");
+                    const intentActive = ["waiting", "recovery_created"].includes(i.status);
+                    return (
                     <div key={i.id} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-2.5">
+                      <div className="m1-restock-thumb h-14 w-14 shrink-0 overflow-visible rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+                        {intentImage ? <img src={intentImage} alt="" loading="lazy" /> : null}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-black text-[var(--text)]">{clean(i.product_name) || `Product #${i.product_id}`}</div>
                         <div className="mt-0.5 text-xs text-[var(--muted)]">{i.variant_id ? [i.color, i.size ? `Size ${i.size}` : ""].filter(Boolean).join(" · ") || `Variant #${i.variant_id}` : "Product-level — requested size unknown"} · {formatDateTime(i.created_at)}</div>
@@ -754,11 +790,19 @@ export default function Customer360Drawer({
                           <span className="text-[10px] text-[var(--muted)]">{i.source}</span>
                         </div>
                       </div>
-                      {["waiting", "recovery_created"].includes(i.status) ? (
-                        <button type="button" onClick={() => cancelRestockIntent(i.id)} className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">{t("aiSupport.inbox.customer360.cancel")}</button>
-                      ) : null}
+                      <div className="flex shrink-0 flex-col gap-1">
+                        {intentActive ? (
+                          <>
+                            <button type="button" onClick={() => editRestockIntent(i)} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)]">{t("aiSupport.inbox.customer360.restockEdit")}</button>
+                            <button type="button" onClick={() => cancelRestockIntent(i.id)} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">{t("aiSupport.inbox.customer360.cancel")}</button>
+                          </>
+                        ) : (
+                          <button type="button" onClick={() => deleteRestockIntent(i.id)} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--text)] hover:border-rose-300 hover:text-rose-500">{t("aiSupport.inbox.customer360.restockDelete")}</button>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="mt-2 text-[10px] text-[var(--muted)]">{t("aiSupport.inbox.customer360.restockNotice")}</div>
               </div>
