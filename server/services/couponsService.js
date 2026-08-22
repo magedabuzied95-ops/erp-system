@@ -517,6 +517,9 @@ const resolveScopedItems = async ({ client, scope, items }) => {
  *                 whole of it is the discount for free_shipping campaigns.
  * items         = [{ product_id, variant_id, price, quantity }] — needed for scoped campaigns.
  * appliedDiscounts = { loyalty, invoice } already on the order, for the stack policy.
+ * excludeOrderId  = re-validating a coupon ALREADY redeemed on that order (an edit). Its own
+ *                   redemption is discounted from the usage count, the per-customer limit and the
+ *                   budget, so re-checking an edited order does not reject the coupon it already has.
  */
 export const validateCoupon = async ({
   tenantId = null,
@@ -527,9 +530,11 @@ export const validateCoupon = async ({
   appliedDiscounts = {},
   source = "website",
   customerId = null,
+  excludeOrderId = null,
   client = db,
   lock = false,
 } = {}) => {
+  const safeExcludeOrderId = Number.parseInt(excludeOrderId, 10) || null;
   await ensureCouponsSchema(client);
   const safeCode = String(code || "").trim().toUpperCase();
   const safeSource = normalizeSource(source);
@@ -598,7 +603,15 @@ export const validateCoupon = async ({
   if (campaign.starts_at && new Date(campaign.starts_at).getTime() > now) return { ...invalid("Campaign has not started"), coupon, campaign };
   if (campaign.expires_at && new Date(campaign.expires_at).getTime() < now) return { ...invalid("Campaign has expired"), coupon, campaign };
   if (coupon.expires_at && new Date(coupon.expires_at).getTime() < now) return { ...invalid("Coupon has expired"), coupon, campaign };
-  if (coupon.usage_count >= coupon.usage_limit) return { ...invalid("Coupon usage limit reached"), coupon, campaign };
+  let ownUses = 0;
+  if (safeExcludeOrderId) {
+    const own = await client.query(
+      "SELECT COUNT(*)::int AS n FROM coupon_redemptions WHERE coupon_id = $1 AND order_id = $2 AND reversed_at IS NULL",
+      [coupon.id, safeExcludeOrderId]
+    );
+    ownUses = Number(own.rows[0]?.n || 0);
+  }
+  if (coupon.usage_count - ownUses >= coupon.usage_limit) return { ...invalid("Coupon usage limit reached"), coupon, campaign };
   if (!["all", safeSource].includes(campaign.channel) && !(campaign.channel === "offline" && safeSource === "pos")) {
     return { ...invalid("Coupon is not valid for this channel"), coupon, campaign };
   }
@@ -622,8 +635,10 @@ export const validateCoupon = async ({
   // --- per-customer limit, first order only, budget cap (all need the DB)
   if (campaign.usage_limit_per_customer && customerId) {
     const used = await client.query(
-      `SELECT COUNT(*)::int AS n FROM coupon_redemptions WHERE campaign_id = $1 AND customer_id = $2 AND reversed_at IS NULL`,
-      [campaign.id, customerId]
+      `SELECT COUNT(*)::int AS n FROM coupon_redemptions
+       WHERE campaign_id = $1 AND customer_id = $2 AND reversed_at IS NULL
+         AND ($3::bigint IS NULL OR order_id IS DISTINCT FROM $3::bigint)`,
+      [campaign.id, customerId, safeExcludeOrderId]
     );
     if (Number(used.rows[0]?.n || 0) >= campaign.usage_limit_per_customer) {
       return { ...invalid("Coupon usage limit for this customer reached"), coupon, campaign };
@@ -631,8 +646,11 @@ export const validateCoupon = async ({
   }
   if (campaign.first_order_only && customerId) {
     const prior = await client.query(
-      `SELECT 1 FROM orders WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void') LIMIT 1`,
-      [customerId]
+      `SELECT 1 FROM orders
+       WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')
+         AND ($2::bigint IS NULL OR id IS DISTINCT FROM $2::bigint)
+       LIMIT 1`,
+      [customerId, safeExcludeOrderId]
     );
     if (prior.rowCount) return { ...invalid("Coupon is for first orders only"), coupon, campaign };
   }
@@ -660,8 +678,10 @@ export const validateCoupon = async ({
 
   if (campaign.budget_cap !== null) {
     const spent = await client.query(
-      `SELECT COALESCE(SUM(discount_amount), 0)::numeric AS n FROM coupon_redemptions WHERE campaign_id = $1 AND reversed_at IS NULL`,
-      [campaign.id]
+      `SELECT COALESCE(SUM(discount_amount), 0)::numeric AS n FROM coupon_redemptions
+       WHERE campaign_id = $1 AND reversed_at IS NULL
+         AND ($2::bigint IS NULL OR order_id IS DISTINCT FROM $2::bigint)`,
+      [campaign.id, safeExcludeOrderId]
     );
     if (Number(spent.rows[0]?.n || 0) + discount > campaign.budget_cap + 0.009) {
       return { ...invalid("Campaign budget exhausted"), coupon, campaign };
@@ -780,6 +800,23 @@ export const releaseCouponForOrder = async ({ client = db, orderId, reason = "or
     console.log("[coupons] released", { orderId: safeOrderId, reason, redemptions: redemptions.rowCount });
   }
   return { released: redemptions.rowCount, redemptions: redemptions.rows };
+};
+
+/**
+ * An edited order changed value: move its existing redemption row to the new figures rather than
+ * writing a second one, so campaign stats, the budget cap and the per-customer limit stay honest.
+ */
+export const syncRedemptionForOrder = async ({ client = db, orderId, orderTotal = 0, discountAmount = 0, finalTotal = 0 } = {}) => {
+  const safeOrderId = Number.parseInt(orderId, 10);
+  if (!safeOrderId) return { updated: 0 };
+  const result = await client.query(
+    `UPDATE coupon_redemptions
+     SET order_total = $2, discount_amount = $3, final_total = $4
+     WHERE order_id = $1 AND reversed_at IS NULL
+     RETURNING id`,
+    [safeOrderId, Number(orderTotal || 0), Number(discountAmount || 0), Number(finalTotal || 0)]
+  );
+  return { updated: result.rowCount };
 };
 
 /** After a return is recorded: if every line of the order is now returned, give the coupon back. */

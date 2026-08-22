@@ -5385,6 +5385,20 @@ function POSPro() {
       setInvoiceDiscountReason(loadedOrder.invoice_discount_reason || "");
       setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
+      // Restore the invoice's coupon, otherwise the edit screen shows a total the saved invoice
+      // never had and the cashier cannot see the discount the customer was given. The server
+      // re-prices it against the edited cart on save; this is display state only.
+      if (loadedOrder.coupon_code) {
+        setCouponCode(String(loadedOrder.coupon_code).toUpperCase());
+        setCouponValidation({
+          valid: true,
+          coupon: { id: loadedOrder.coupon_id || null, code: String(loadedOrder.coupon_code).toUpperCase() },
+          discount_amount: Number(loadedOrder.coupon_discount_amount || 0),
+        });
+      } else {
+        setCouponCode("");
+        setCouponValidation(null);
+      }
       setEditRefundMethod("cash");
 
       const loadedCustomerId = loadedOrder.customer_id || loadedOrder.customer?.id || null;
@@ -5506,6 +5520,20 @@ function POSPro() {
       setInvoiceDiscountReason(loadedOrder.invoice_discount_reason || "");
       setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
+      // Restore the invoice's coupon, otherwise the edit screen shows a total the saved invoice
+      // never had and the cashier cannot see the discount the customer was given. The server
+      // re-prices it against the edited cart on save; this is display state only.
+      if (loadedOrder.coupon_code) {
+        setCouponCode(String(loadedOrder.coupon_code).toUpperCase());
+        setCouponValidation({
+          valid: true,
+          coupon: { id: loadedOrder.coupon_id || null, code: String(loadedOrder.coupon_code).toUpperCase() },
+          discount_amount: Number(loadedOrder.coupon_discount_amount || 0),
+        });
+      } else {
+        setCouponCode("");
+        setCouponValidation(null);
+      }
       setEditRefundMethod("cash");
       const loadedCustomer = customerSnapshotFromOrder(loadedOrder);
       if (loadedCustomer?.id) {

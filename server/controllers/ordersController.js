@@ -12,7 +12,7 @@ import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, 
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
-import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, validateCoupon } from "../services/couponsService.js";
+import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, syncRedemptionForOrder, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
@@ -6189,7 +6189,43 @@ export const editOrder = async (req, res) => {
     const discountValue = Number(req.body.discount_amount ?? newItems.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0));
     const serviceValue = Number(req.body.service_fee ?? loaded.order.service_fee ?? 0);
     const taxValue = Number(req.body.tax_amount ?? 0);
-    const totalValue = Math.max(0, subtotalValue - discountValue + serviceValue + taxValue);
+
+    // An edit used to leave the coupon columns untouched while recomputing discount_amount: the
+    // customer silently lost the discount, yet coupon_discount_amount still claimed it was given.
+    // Re-price the order's own coupon against the NEW cart (its existing redemption is excluded so
+    // it does not read as already-spent), and let it go if the edit made it invalid.
+    // Client contract matches create: req.body.discount_amount is item+invoice only, coupon excluded.
+    const editCouponCode = String(loaded.order.coupon_code || "").trim().toUpperCase();
+    let editCouponValidation = null;
+    let editCouponDiscount = 0;
+    const editCouponBaseTotal = Math.max(0, subtotalValue - discountValue);
+    if (editCouponCode) {
+      editCouponValidation = await validateCoupon({
+        tenantId,
+        code: editCouponCode,
+        orderTotal: editCouponBaseTotal,
+        shippingAmount: serviceValue,
+        items: newItems,
+        appliedDiscounts: { invoice: invoiceDiscountAmount },
+        source: String(loaded.order.channel || "").toLowerCase() === "website" ? "website" : "pos",
+        customerId: loaded.order.customer_id || null,
+        excludeOrderId: loaded.order.id,
+        client,
+        lock: true,
+      });
+      editCouponDiscount = editCouponValidation.valid ? Number(editCouponValidation.discount_amount || 0) : 0;
+      console.log("[orders:edit-coupon]", {
+        order_id: loaded.order.id,
+        code: editCouponCode,
+        base: editCouponBaseTotal,
+        valid: editCouponValidation.valid,
+        reason: editCouponValidation.reason,
+        previous_discount: Number(loaded.order.coupon_discount_amount || 0),
+        new_discount: editCouponDiscount,
+      });
+    }
+    const totalDiscountValue = discountValue + editCouponDiscount;
+    const totalValue = Math.max(0, subtotalValue - totalDiscountValue + serviceValue + taxValue);
     // An invoice settled against an employee's advances carries no cash balance:
     // whatever the new price is, the employee owes it through payroll, not at the
     // till. Treat the whole new total as already settled so the edit never asks
@@ -6444,7 +6480,7 @@ export const editOrder = async (req, res) => {
       `,
       [
         subtotalValue,
-        discountValue,
+        totalDiscountValue,
         taxValue,
         serviceValue,
         totalValue,
@@ -6487,6 +6523,33 @@ export const editOrder = async (req, res) => {
         JSON.stringify(resolvedEditExcludedCategoryIds),
       ]
     );
+    // Land the re-priced coupon on the order and move its redemption to the new figures. If the edit
+    // invalidated it (below the minimum, scope no longer matched), hand the coupon back to the
+    // customer instead of leaving a phantom discount on the invoice.
+    if (editCouponCode) {
+      if (editCouponValidation?.valid) {
+        await client.query(
+          `UPDATE orders SET coupon_discount_amount = $2, updated_at = NOW() WHERE id = $1`,
+          [loaded.order.id, editCouponDiscount]
+        );
+        await syncRedemptionForOrder({
+          client,
+          orderId: loaded.order.id,
+          orderTotal: Number(editCouponValidation.base_total || editCouponBaseTotal),
+          discountAmount: editCouponDiscount,
+          finalTotal: Math.max(0, Number(editCouponValidation.base_total || editCouponBaseTotal) - editCouponDiscount),
+        });
+        Object.assign(orderResult.rows[0], { coupon_discount_amount: editCouponDiscount });
+      } else {
+        await releaseCouponForOrder({ client, orderId: loaded.order.id, reason: "order_edited_coupon_invalid" });
+        await client.query(
+          `UPDATE orders SET coupon_id = NULL, coupon_code = '', coupon_discount_amount = 0, updated_at = NOW() WHERE id = $1`,
+          [loaded.order.id]
+        );
+        Object.assign(orderResult.rows[0], { coupon_id: null, coupon_code: "", coupon_discount_amount: 0 });
+      }
+    }
+
     // "وفى حالة تعديل السعر يتم تعديل سلف الموظف فوراً" — the advance follows the
     // new price in the same transaction as the edit. Payroll is the floor: an
     // amount already deducted from a salary is never walked back (the service
@@ -8820,6 +8883,9 @@ export const getPosEditOrder = async (req, res) => {
         o.invoice_discount_value,
         o.invoice_discount_amount,
         o.invoice_discount_reason,
+        o.coupon_id,
+        o.coupon_code,
+        o.coupon_discount_amount,
         o.service_fee,
         o.subtotal,
         o.total_amount,
