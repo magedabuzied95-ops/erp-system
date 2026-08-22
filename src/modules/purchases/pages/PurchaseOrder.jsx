@@ -2462,7 +2462,7 @@ function PurchaseOrder() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,54%)_minmax(0,46%)]">
         <div className="order-2 min-w-0 xl:order-1">
           <PurchaseCart
             items={items}
@@ -2915,7 +2915,7 @@ function PurchaseCart({
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const hasItems = items.length > 0;
-  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
+  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(true);
   const labels = isArabic
     ? {
         supplierPayment: "حالة دفع فاتورة المورد",
@@ -2939,7 +2939,7 @@ function PurchaseCart({
       };
 
   return (
-    <aside className={`${compact ? "flex max-h-[82vh] flex-col" : "flex max-h-none flex-col xl:sticky xl:top-20 xl:h-[calc(100vh-6rem)]"} min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/20`}>
+    <aside className={`${compact ? "flex max-h-[82vh] flex-col" : "flex max-h-none flex-col xl:sticky xl:top-20 xl:h-[calc(100vh-5.5rem)]"} min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/20`}>
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-l from-white/[0.05] to-transparent px-4 py-3">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.purchaseCart")}</div>
@@ -2999,7 +2999,7 @@ function PurchaseCart({
       </div>
 
       <div className="shrink-0 bg-zinc-950/98 p-3 backdrop-blur">
-        <div className="max-h-[34vh] overflow-y-auto overscroll-contain pb-1 [scrollbar-gutter:stable]">
+        <div className="max-h-[34vh] overflow-y-auto overscroll-contain pb-1 [scrollbar-gutter:stable] xl:max-h-none xl:overflow-visible">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Summary label={t("purchases.details.subtotal")} value={formatCurrency(subtotal)} />
           <Summary label={t("purchases.create.expenses")} value={formatCurrency(expenses)} />
@@ -3008,19 +3008,19 @@ function PurchaseCart({
             <input type="number" min="0" value={discount} onChange={(event) => onDiscount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
           </label>
         </div>
-        <div className="mt-2 flex items-center justify-between rounded-2xl bg-emerald-500 px-4 py-3 text-black shadow-lg shadow-emerald-950/20">
+        <div className="mt-2 flex items-center justify-between rounded-2xl bg-emerald-500 px-5 py-4 text-black shadow-lg shadow-emerald-950/20">
           <span className="text-sm font-black">{labels.grandTotal}</span>
-          <span className="text-xl font-black">{formatCurrency(total)}</span>
+          <span className="text-2xl font-black">{formatCurrency(total)}</span>
         </div>
         <div className="mt-2 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
           <button
             type="button"
             onClick={() => setPaymentDetailsOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-start transition hover:bg-white/[0.04]"
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start transition hover:bg-white/[0.04]"
             aria-expanded={paymentDetailsOpen}
           >
             <div>
-              <div className="text-[11px] font-black text-emerald-200">{isArabic ? "طريقة الدفع والحساب" : "Payment method & account"}</div>
+              <div className="text-sm font-black text-emerald-200">{isArabic ? "طريقة الدفع والحساب" : "Payment method & account"}</div>
               <div className="mt-0.5 text-xs font-semibold text-zinc-400">
                 {paymentStatusOptions.find((option) => String(option.value) === String(supplierPaymentStatus))?.label || labels.unpaid}
               </div>
@@ -3074,7 +3074,7 @@ function PurchaseCart({
           ) : null}
         </div>
         </div>
-        <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black shadow-lg shadow-amber-950/20 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-3.5 text-base font-black text-black shadow-lg shadow-amber-950/20 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
           {posting ? labels.saving : saveLabel || labels.saveInvoice}
         </button>
       </div>
