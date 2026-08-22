@@ -27,7 +27,24 @@ export function MessageTicks({ message, className = "h-3.5 w-3.5" }) {
   return <CheckCheck className={`${className} ${state === "read" ? "text-[var(--chat-read)]" : "text-[var(--chat-tick)]"}`} aria-label={state} />;
 }
 
-function PortalChatMessageText({ body = "", reserve = 0 }) {
+const highlightParts = (text, query) => {
+  if (!query) return [text];
+  const haystack = String(text).toLocaleLowerCase("ar");
+  const needle = query.toLocaleLowerCase("ar");
+  const out = [];
+  let from = 0;
+  for (;;) {
+    const at = haystack.indexOf(needle, from);
+    if (at < 0) break;
+    if (at > from) out.push(text.slice(from, at));
+    out.push(<mark key={`m-${at}`} className="rounded-sm bg-[var(--primary)] px-0.5 text-[var(--primary-contrast)]">{text.slice(at, at + needle.length)}</mark>);
+    from = at + needle.length;
+  }
+  if (from < text.length) out.push(text.slice(from));
+  return out;
+};
+
+function PortalChatMessageText({ body = "", reserve = 0, highlight = "" }) {
   return (
     <div className="whitespace-pre-wrap break-words" dir="auto">
       {portalChatTextParts(body).map((part, index) =>
@@ -46,7 +63,7 @@ function PortalChatMessageText({ body = "", reserve = 0 }) {
             {part.text}
           </a>
         ) : (
-          <span key={`text-${index}`}>{part.text}</span>
+          <span key={`text-${index}`}>{highlightParts(part.text, highlight)}</span>
         )
       )}
       {/* WhatsApp's trick: an inline spacer the width of the time/ticks so the
@@ -109,6 +126,7 @@ const MessageBubble = memo(function MessageBubble({
   messageIdPrefix,
   handlers,
   selectable,
+  highlight,
 }) {
   const deleted = Boolean(message.deleted_at);
   const hasBody = Boolean(String(message.body || "").trim());
@@ -218,7 +236,7 @@ const MessageBubble = memo(function MessageBubble({
               ) : null}
             </div>
           ) : null}
-          {deleted ? <div className="pe-5 italic text-[var(--chat-muted)]/70">{labels.deleted}</div> : hasBody ? <PortalChatMessageText body={message.body} reserve={metaReserve} /> : null}
+          {deleted ? <div className="pe-5 italic text-[var(--chat-muted)]/70">{labels.deleted}</div> : hasBody ? <PortalChatMessageText body={message.body} reserve={metaReserve} highlight={highlight} /> : null}
           {!voiceMessage && !imageOnly ? (
             hasBody || deleted
               ? <div className="absolute bottom-1 left-2" dir="ltr">{meta}</div>
@@ -246,6 +264,7 @@ const MessageBubble = memo(function MessageBubble({
   && prev.outgoingLabel === next.outgoingLabel
   && prev.incomingLabel === next.incomingLabel
   && prev.selectable === next.selectable
+  && prev.highlight === next.highlight
 );
 
 export default function PortalChatMessageList({
@@ -279,6 +298,7 @@ export default function PortalChatMessageList({
   messageIdPrefix = "portal-chat-message",
   className = "",
   style,
+  highlight = "",
 }) {
   const { t, i18n } = useTranslation();
   const [activeMessage, setActiveMessage] = useState(null);
@@ -429,6 +449,7 @@ export default function PortalChatMessageList({
                 messageIdPrefix={messageIdPrefix}
                 handlers={handlers}
                 selectable={selectable}
+                highlight={highlight}
               />
             </div>
           );

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Loader2, MessageCircle, PhoneCall, RefreshCw, Search, UserRound, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Loader2, MessageCircle, PhoneCall, RefreshCw, Search, UserRound, X } from "lucide-react";
 
 import i18n from "../../i18n/i18n";
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
@@ -298,12 +298,31 @@ export default function SharedPortalChat({
     });
   }, [employees, normalizedThreads, threadFilter, threadMap, threadSearch]);
 
-  const visibleMessages = useMemo(() => {
-    const query = messageSearch.trim().toLocaleLowerCase("ar");
-    if (!query) return messages;
-    return messages.filter((message) => [message.body, message.attachment_name, message.reply_body]
-      .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query)));
-  }, [messageSearch, messages]);
+  /*
+   * Search highlights and steps through matches; it no longer hides the rest
+   * of the conversation, so a hit keeps its context (WhatsApp's behaviour).
+   */
+  const searchQuery = messageSearch.trim();
+  const searchMatchIds = useMemo(() => {
+    const query = searchQuery.toLocaleLowerCase("ar");
+    if (!query) return [];
+    return messages
+      .filter((message) => [message.body, message.attachment_name, message.reply_body].some((value) => String(value || "").toLocaleLowerCase("ar").includes(query)))
+      .map((message) => String(message.id || message.client_id || ""));
+  }, [messages, searchQuery]);
+  const [searchCursor, setSearchCursor] = useState(0);
+  useEffect(() => { setSearchCursor(searchMatchIds.length ? searchMatchIds.length - 1 : 0); }, [searchMatchIds]);
+  const stepSearch = (delta) => {
+    if (!searchMatchIds.length) return;
+    const next = (searchCursor + delta + searchMatchIds.length) % searchMatchIds.length;
+    setSearchCursor(next);
+    scrollToMessage(searchMatchIds[next]);
+  };
+  useEffect(() => {
+    if (searchMatchIds.length && searchQuery) scrollToMessage(searchMatchIds[searchMatchIds.length - 1]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+  const visibleMessages = messages;
 
   useEffect(() => {
     selectedThreadIdRef.current = activeThreadId || selectedThreadId || "";
@@ -635,7 +654,14 @@ export default function SharedPortalChat({
     // bottom or wrote it; otherwise the jump button counts it.
     if (!threadChanged && !nearBottom && !lastOwn) return undefined;
     const timer = window.setTimeout(() => {
-      node.scrollTop = node.scrollHeight;
+      const firstUnread = threadChanged && firstUnreadIndex >= 0 ? messages[firstUnreadIndex] : null;
+      const unreadNode = firstUnread ? document.getElementById(`shared-portal-chat-message-${firstUnread.id || firstUnread.client_id}`) : null;
+      if (unreadNode) {
+        // Open where reading stopped: the unread divider sits just under the header.
+        node.scrollTop = Math.max(0, unreadNode.offsetTop - node.offsetTop - 48);
+      } else {
+        node.scrollTop = node.scrollHeight;
+      }
       scrolledThreadRef.current = String(activeThreadId || selectedEmployeeId || "");
       setUnseenBelow(0);
     }, 50);
@@ -1157,7 +1183,10 @@ export default function SharedPortalChat({
                   ) : null}
                   <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-[var(--chat-input)] px-2 text-[var(--chat-text)]">
                     <Search className="h-4 w-4 shrink-0" />
-                    <input ref={messageSearchRef} value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchMessages")} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-muted)]" />
+                    {searchQuery ? <span className="shrink-0 text-[11px] font-black tabular-nums text-[var(--chat-muted)]" dir="ltr">{searchMatchIds.length ? `${searchCursor + 1}/${searchMatchIds.length}` : "0"}</span> : null}
+                    {searchQuery ? <button type="button" onClick={() => stepSearch(-1)} disabled={!searchMatchIds.length} aria-label={t("common.previous")} className="grid h-6 w-6 place-items-center rounded-full hover:bg-[var(--surface-hover)] disabled:opacity-40"><ChevronUp className="h-4 w-4" /></button> : null}
+                    {searchQuery ? <button type="button" onClick={() => stepSearch(1)} disabled={!searchMatchIds.length} aria-label={t("common.next")} className="grid h-6 w-6 place-items-center rounded-full hover:bg-[var(--surface-hover)] disabled:opacity-40"><ChevronDown className="h-4 w-4" /></button> : null}
+                    <input ref={messageSearchRef} value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); stepSearch(event.shiftKey ? -1 : 1); } if (event.key === "Escape") setMessageSearch(""); }} placeholder={t("employeePortal.chat.admin.searchMessages")} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-muted)]" />
                     {messageSearch ? <button type="button" onClick={() => setMessageSearch("")}><X className="h-3.5 w-3.5" /></button> : null}
                   </label>
                 </div>
@@ -1170,6 +1199,7 @@ export default function SharedPortalChat({
               ) : null}
               <PortalChatMessageList
                 messages={visibleMessages}
+                highlight={searchQuery}
                 loading={loadingThread}
                 labels={{
                   today: t("common.today"),
