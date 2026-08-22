@@ -918,6 +918,7 @@ export default function ManagerPortal() {
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskDraft, setTaskDraft] = useState({ title: "", description: "", assigned_employee_id: "", assigned_employee_ids: [], priority: "medium" });
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskNotes, setTaskNotes] = useState({});
   const [taskFilters, setTaskFilters] = useState({ status: "all", employee: "", query: "" });
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
@@ -1857,6 +1858,7 @@ export default function ManagerPortal() {
   const resetTaskDraft = () => {
     setTaskDraft({ title: "", description: "", assigned_employee_id: "", assigned_employee_ids: [], priority: "medium" });
     setEditingTaskId(null);
+    setTaskModalOpen(false);
   };
 
   const createTask = async () => {
@@ -1903,9 +1905,7 @@ export default function ManagerPortal() {
       assigned_employee_ids: [],
       priority: task.priority || "medium",
     });
-    if (typeof document !== "undefined") {
-      document.querySelector('[data-testid="create-task-button"]')?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    setTaskModalOpen(true);
   };
 
   const deleteTask = async (task) => {
@@ -2731,80 +2731,21 @@ export default function ManagerPortal() {
 
           {activeTab === "tasks" ? (
             <div className="manager-portal-tab manager-portal-tab--tasks space-y-4">
-              <Card title={tt("managerPortal.tasks.create")} subtitle={tt("managerPortal.chrome.createTask")} icon={Plus} tone="gold">
-                <div className="grid gap-2 md:grid-cols-2">
-                  <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder={tt("managerPortal.tasks.titleField")} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
-                  {editingTaskId ? (
-                    <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
-                      <option value="">{tt("managerPortal.tasks.optionalAssignee")}</option>
-                      {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
-                    </select>
-                  ) : (
-                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-black text-slate-500">
-                          {taskDraft.assigned_employee_ids.length
-                            ? tt("managerPortal.tasks.assigneesCount", { count: taskDraft.assigned_employee_ids.length })
-                            : tt("managerPortal.tasks.optionalAssignee")}
-                        </span>
-                        {staffList.length ? (
-                          <button
-                            type="button"
-                            onClick={() => setTaskDraft((current) => ({
-                              ...current,
-                              assigned_employee_ids: current.assigned_employee_ids.length === staffList.length ? [] : staffList.map((employee) => String(employee.employee_id)),
-                            }))}
-                            className="text-[11px] font-black text-primary"
-                          >
-                            {taskDraft.assigned_employee_ids.length === staffList.length ? tt("managerPortal.tasks.clearAll") : tt("managerPortal.tasks.selectAll")}
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {staffList.map((employee) => {
-                          const id = String(employee.employee_id);
-                          const active = taskDraft.assigned_employee_ids.includes(id);
-                          return (
-                            <button
-                              key={id}
-                              type="button"
-                              aria-pressed={active}
-                              data-testid={`task-assignee-${id}`}
-                              onClick={() => setTaskDraft((current) => ({
-                                ...current,
-                                assigned_employee_ids: active ? current.assigned_employee_ids.filter((item) => item !== id) : [...current.assigned_employee_ids, id],
-                              }))}
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black transition ${active ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"}`}
-                            >
-                              {active ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-                              {portalText(employee.employee_name)}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
-                    <option value="low">{tt("managerPortal.priority.low")}</option>
-                    <option value="medium">{tt("managerPortal.priority.medium")}</option>
-                    <option value="high">{tt("managerPortal.priority.high")}</option>
-                    <option value="critical">{tt("managerPortal.priority.critical")}</option>
-                  </select>
-                  <div className="flex gap-2">
-                    <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
-                      {editingTaskId ? <SquarePen className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                      {editingTaskId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.actions.create")}
-                    </button>
-                    {editingTaskId ? (
-                      <button type="button" onClick={resetTaskDraft} className="inline-flex items-center justify-center gap-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                        <X className="h-4 w-4" />
-                        {tt("managerPortal.tasks.cancelEdit")}
-                      </button>
-                    ) : null}
-                  </div>
+              <div className="manager-portal-card flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]" data-tone="gold">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{tt("managerPortal.chrome.createTask")}</div>
+                  <h2 className="m1-section-title mt-1 text-text">{tt("managerPortal.tasks.create")}</h2>
                 </div>
-                <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder={tt("managerPortal.common.description")} rows={3} className="mt-2 w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
-              </Card>
+                <button
+                  type="button"
+                  data-testid="open-create-task"
+                  aria-label={tt("managerPortal.tasks.create")}
+                  onClick={() => { resetTaskDraft(); setTaskModalOpen(true); }}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-[var(--primary-contrast)] shadow-[var(--shadow-card)] dark:bg-white"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              </div>
 
               <Card title={tt("managerPortal.filters.title")} subtitle={tt("managerPortal.filters.title")} icon={Search} tone="slate">
                 <div className="grid gap-2 md:grid-cols-4">
@@ -3863,6 +3804,96 @@ export default function ManagerPortal() {
           onClose={() => { setDetailsEmployee(null); setDetailsTab("overview"); }}
           onChanged={() => reloadTabData("staff", { force: true })}
         />
+      ) : null}
+      {taskModalOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center" role="dialog" aria-modal="true">
+          <button type="button" aria-label={tt("managerPortal.tasks.cancelEdit")} onClick={resetTaskDraft} className="absolute inset-0" />
+          <section className="manager-task-modal relative max-h-[92dvh] w-full max-w-2xl overflow-hidden rounded-t-[2rem] border border-border bg-surface shadow-2xl sm:rounded-[2rem]" dir={portalLanguage === "ar" ? "rtl" : "ltr"}>
+            <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-black leading-5 text-text-muted">{tt("managerPortal.chrome.createTask")}</div>
+                <h2 className="m1-section-title mt-1 text-text">{editingTaskId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.tasks.create")}</h2>
+              </div>
+              <button type="button" aria-label={tt("managerPortal.tasks.cancelEdit")} onClick={resetTaskDraft} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[calc(92dvh-5rem)] overflow-y-auto px-4 py-4">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder={tt("managerPortal.tasks.titleField")} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+                  {editingTaskId ? (
+                    <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
+                      <option value="">{tt("managerPortal.tasks.optionalAssignee")}</option>
+                      {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
+                    </select>
+                  ) : (
+                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-black text-slate-500">
+                          {taskDraft.assigned_employee_ids.length
+                            ? tt("managerPortal.tasks.assigneesCount", { count: taskDraft.assigned_employee_ids.length })
+                            : tt("managerPortal.tasks.optionalAssignee")}
+                        </span>
+                        {staffList.length ? (
+                          <button
+                            type="button"
+                            onClick={() => setTaskDraft((current) => ({
+                              ...current,
+                              assigned_employee_ids: current.assigned_employee_ids.length === staffList.length ? [] : staffList.map((employee) => String(employee.employee_id)),
+                            }))}
+                            className="text-[11px] font-black text-primary"
+                          >
+                            {taskDraft.assigned_employee_ids.length === staffList.length ? tt("managerPortal.tasks.clearAll") : tt("managerPortal.tasks.selectAll")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {staffList.map((employee) => {
+                          const id = String(employee.employee_id);
+                          const active = taskDraft.assigned_employee_ids.includes(id);
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              aria-pressed={active}
+                              data-testid={`task-assignee-${id}`}
+                              onClick={() => setTaskDraft((current) => ({
+                                ...current,
+                                assigned_employee_ids: active ? current.assigned_employee_ids.filter((item) => item !== id) : [...current.assigned_employee_ids, id],
+                              }))}
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black transition ${active ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"}`}
+                            >
+                              {active ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                              {portalText(employee.employee_name)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
+                    <option value="low">{tt("managerPortal.priority.low")}</option>
+                    <option value="medium">{tt("managerPortal.priority.medium")}</option>
+                    <option value="high">{tt("managerPortal.priority.high")}</option>
+                    <option value="critical">{tt("managerPortal.priority.critical")}</option>
+                  </select>
+                  <div className="flex gap-2">
+                    <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] dark:bg-white dark:text-[var(--primary-contrast)]">
+                      {editingTaskId ? <SquarePen className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {editingTaskId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.actions.create")}
+                    </button>
+                    {editingTaskId ? (
+                      <button type="button" onClick={resetTaskDraft} className="inline-flex items-center justify-center gap-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                        <X className="h-4 w-4" />
+                        {tt("managerPortal.tasks.cancelEdit")}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder={tt("managerPortal.common.description")} rows={3} className="mt-2 w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+            </div>
+          </section>
+        </div>
       ) : null}
       {invoiceSheet.open ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center">
