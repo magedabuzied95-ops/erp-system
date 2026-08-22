@@ -380,6 +380,15 @@ const couponErrorKeyMap = {
   "Coupon is not valid for this channel": "storefront.checkout.couponErrors.channelMismatch",
   "Coupon is assigned to another customer": "storefront.checkout.couponErrors.assignedCustomer",
   "Fixed coupon discount exceeds order total": "storefront.checkout.couponErrors.discountTooHigh",
+  "Coupon cannot be combined with other discounts": "storefront.checkout.couponErrors.noStacking",
+  "Coupon cannot be combined with an invoice discount": "storefront.checkout.couponErrors.noStacking",
+  "Coupon cannot be combined with loyalty points": "storefront.checkout.couponErrors.noStacking",
+  "Coupon usage limit for this customer reached": "storefront.checkout.couponErrors.customerLimit",
+  "Coupon is for first orders only": "storefront.checkout.couponErrors.firstOrderOnly",
+  "Coupon does not apply to the items in this order": "storefront.checkout.couponErrors.notApplicable",
+  "Free shipping coupon needs a shipping fee to waive": "storefront.checkout.couponErrors.freeShippingNoFee",
+  "Campaign budget exhausted": "storefront.checkout.couponErrors.budgetExhausted",
+  "Too many coupon checks, try again in a minute": "storefront.checkout.couponErrors.tooMany",
   "Coupon is invalid": "storefront.checkout.couponErrors.invalid",
 };
 const couponErrorText = (reason = "") => {
@@ -7612,6 +7621,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         // Goods only — the server folds shipping in only for campaigns with applies_to_shipping.
         orderTotal: Math.max(0, subtotal),
         shippingAmount: Math.max(0, deliveryFee),
+        items: pricedCart.map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, price: item.price, quantity: item.quantity })),
         source: "website",
         customerId: profile?.customer_id || profile?.id || null,
       });

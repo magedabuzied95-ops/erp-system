@@ -4951,6 +4951,8 @@ export const createWebsiteOrder = async (req, res) => {
         code: couponCode,
         orderTotal: couponBaseTotal,
         shippingAmount: deliveryFee,
+        items: normalizedItems,
+        appliedDiscounts: { invoice: manualDiscount },
         source: "website",
         customerId: customer?.id || null,
         client,
@@ -5133,6 +5135,8 @@ export const createWebsiteOrder = async (req, res) => {
         source: "website",
         orderTotal: couponBaseTotal,
         shippingAmount: deliveryFee,
+        items: normalizedItems,
+        appliedDiscounts: { invoice: manualDiscount },
         client,
       });
       order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id || null;

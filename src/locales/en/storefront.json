@@ -94,7 +94,14 @@
       "minimumNotReached": "The order minimum has not been reached",
       "channelMismatch": "This coupon is not valid for this checkout",
       "assignedCustomer": "This coupon is assigned to another customer",
-      "discountTooHigh": "This coupon discount exceeds the order total"
+      "discountTooHigh": "This coupon discount exceeds the order total",
+      "noStacking": "This coupon cannot be combined with other discounts",
+      "customerLimit": "You have already used this coupon the maximum number of times",
+      "firstOrderOnly": "This coupon is for first orders only",
+      "notApplicable": "This coupon does not apply to the items in your cart",
+      "freeShippingNoFee": "A free-shipping coupon needs a shipping fee to waive",
+      "budgetExhausted": "This campaign's budget has been used up",
+      "tooMany": "Too many attempts, try again in a minute"
     },
     "orderNotes": "Order notes",
     "orderNotesPlaceholder": "Alternative size or special note",

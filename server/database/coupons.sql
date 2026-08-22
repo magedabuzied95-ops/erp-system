@@ -65,3 +65,15 @@ CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_campaign_id ON coupon_redempti
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_coupon_id ON coupon_redemptions (coupon_id);
 
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS applies_to_shipping BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Phase 1: rules engine
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS usage_limit_per_customer INTEGER NULL;
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS scope JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS stack_policy VARCHAR(30) NOT NULL DEFAULT 'all';
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS budget_cap NUMERIC(12,2) NULL;
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS first_order_only BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE IF EXISTS coupon_campaigns DROP CONSTRAINT IF EXISTS coupon_campaigns_discount_type_check;
+ALTER TABLE IF EXISTS coupon_campaigns ADD CONSTRAINT coupon_campaigns_discount_type_check CHECK (discount_type IN ('percentage', 'fixed', 'free_shipping'));
+ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMP NULL;
+ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversal_reason VARCHAR(80);
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_customer ON coupon_redemptions (campaign_id, customer_id);

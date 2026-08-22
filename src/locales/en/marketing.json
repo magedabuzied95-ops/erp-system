@@ -126,7 +126,30 @@
       "channel": "Channel",
       "activeCampaign": "Active campaign",
       "appliesToShipping": "Discount also applies to shipping / service fee",
-      "appliesToShippingHint": "By default the discount is computed on products only"
+      "appliesToShippingHint": "By default the discount is computed on products only",
+      "freeShippingHint": "Discount = the whole shipping / service fee (capped by max discount if set)"
+    },
+    "rules": {
+      "title": "Usage rules",
+      "perCustomer": "Uses per customer (across the campaign)",
+      "budgetCap": "Campaign budget (total discount cap)",
+      "unlimited": "Unlimited",
+      "stackPolicy": "Stacking with other discounts",
+      "stack": {
+        "all": "Stacks with everything",
+        "none": "Does not stack with any discount",
+        "withLoyalty": "Only with loyalty points",
+        "withInvoice": "Only with invoice discount"
+      },
+      "firstOrderOnly": "First order only",
+      "scope": {
+        "title": "Product scope",
+        "hint": "Leave empty to cover every product. With brands or products selected, the discount applies to matching lines only.",
+        "brands": "Brands",
+        "products": "Specific products",
+        "searchProducts": "Search by product name or code",
+        "excludeOnSale": "Exclude discounted products (line price below the list selling price)"
+      }
     },
     "actions": {
       "generate": "Generate",
@@ -160,7 +183,8 @@
     },
     "types": {
       "percentage": "Percentage",
-      "fixed": "Fixed"
+      "fixed": "Fixed",
+      "freeShipping": "Free shipping"
     },
     "channels": {
       "offline": "Offline",

@@ -5185,6 +5185,8 @@ function POSPro() {
         source: "pos",
         order_total: couponBaseTotal,
         shipping_amount: couponServiceFee,
+        items: cart.map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, price: item.price, quantity: item.quantity })),
+        applied_discounts: { loyalty: Number(loyaltyDiscountAmount || 0), invoice: Number(cartTotals.invoiceDiscount || 0) },
         customer_id: selectedCustomerId || null,
       });
       if (!response.valid) {
@@ -5203,7 +5205,8 @@ function POSPro() {
     } finally {
       setCouponLoading(false);
     }
-  }, [couponBaseTotal, couponServiceFee, selectedCustomerId, t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [couponBaseTotal, couponServiceFee, selectedCustomerId, cart, loyaltyDiscountAmount, cartTotals.invoiceDiscount, t]);
 
   const handleApplyCoupon = async () => {
     const code = String(couponCode || "").trim().toUpperCase();

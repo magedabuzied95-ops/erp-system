@@ -108,6 +108,8 @@ export const validate = async (req, res) => {
       code: req.body?.code,
       orderTotal: req.body?.order_total ?? req.body?.orderTotal,
       shippingAmount: req.body?.shipping_amount ?? req.body?.shippingAmount ?? 0,
+      items: req.body?.items,
+      appliedDiscounts: req.body?.applied_discounts ?? req.body?.appliedDiscounts ?? {},
       source: req.body?.source,
       customerId: req.body?.customer_id ?? req.body?.customerId,
     });

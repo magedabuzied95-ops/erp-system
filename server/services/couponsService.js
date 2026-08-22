@@ -13,19 +13,29 @@ const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const VALID_DISCOUNT_TYPES = new Set(["percentage", "fixed"]);
+const VALID_DISCOUNT_TYPES = new Set(["percentage", "fixed", "free_shipping"]);
+const VALID_STACK_POLICIES = new Set(["all", "none", "with_loyalty", "with_invoice_discount"]);
 const VALID_CHANNELS = new Set(["offline", "website", "pos", "all"]);
 const VALID_SOURCES = new Set(["pos", "website", "manual"]);
 
+let couponsSchemaReady = null;
 export const ensureCouponsSchema = async (clientOrPool = db) => {
-  const sqlPath = path.join(currentDir, "../database/coupons.sql");
-  console.log("[migration] loading:", sqlPath);
-  if (!fs.existsSync(sqlPath)) {
-    console.warn("[migration] missing:", sqlPath);
-    return;
-  }
-  const sql = await readFile(sqlPath, "utf8");
-  await clientOrPool.query(sql);
+  // DDL once per process; it used to run on every validate/list call (lock contention on hot paths).
+  if (couponsSchemaReady) return couponsSchemaReady;
+  couponsSchemaReady = (async () => {
+    const sqlPath = path.join(currentDir, "../database/coupons.sql");
+    console.log("[migration] loading:", sqlPath);
+    if (!fs.existsSync(sqlPath)) {
+      console.warn("[migration] missing:", sqlPath);
+      return;
+    }
+    const sql = await readFile(sqlPath, "utf8");
+    await clientOrPool.query(sql);
+  })().catch((error) => {
+    couponsSchemaReady = null;
+    throw error;
+  });
+  return couponsSchemaReady;
 };
 
 const tenantFilter = (tenantId, alias = "") => {
@@ -71,8 +81,44 @@ const normalizeCampaignInput = (body = {}) => {
     channel,
     is_active: body.is_active ?? body.isActive ?? true,
     applies_to_shipping: parseBoolean(body.applies_to_shipping ?? body.appliesToShipping, false),
+    usage_limit_per_customer: parseNullableInt(body.usage_limit_per_customer ?? body.usageLimitPerCustomer),
+    scope: normalizeScope(body.scope),
+    stack_policy: VALID_STACK_POLICIES.has(String(body.stack_policy || "").trim().toLowerCase())
+      ? String(body.stack_policy).trim().toLowerCase()
+      : "all",
+    budget_cap: parseNullableMoney(body.budget_cap ?? body.budgetCap),
+    first_order_only: parseBoolean(body.first_order_only ?? body.firstOrderOnly, false),
   };
 };
+
+const parseNullableInt = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+const parseNullableMoney = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Number(n.toFixed(2)) : null;
+};
+const idList = (value) => {
+  const raw = Array.isArray(value) ? value : String(value ?? "").split(/[,\s]+/);
+  return [...new Set(raw.map((v) => Number.parseInt(v, 10)).filter((n) => Number.isFinite(n) && n > 0))];
+};
+/** scope = { product_ids, category_ids, brand_ids, exclude_on_sale }. Empty lists mean "everything". */
+export const normalizeScope = (value) => {
+  let raw = value;
+  if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+  if (!raw || typeof raw !== "object") raw = {};
+  return {
+    product_ids: idList(raw.product_ids ?? raw.productIds),
+    category_ids: idList(raw.category_ids ?? raw.categoryIds),
+    brand_ids: idList(raw.brand_ids ?? raw.brandIds),
+    exclude_on_sale: parseBoolean(raw.exclude_on_sale ?? raw.excludeOnSale, false),
+  };
+};
+const scopeIsRestricted = (scope) =>
+  Boolean(scope && (scope.product_ids?.length || scope.category_ids?.length || scope.brand_ids?.length || scope.exclude_on_sale));
 
 const parseBoolean = (value, fallback = false) => {
   if (value === null || value === undefined || value === "") return fallback;
@@ -107,9 +153,10 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
     INSERT INTO coupon_campaigns (
       tenant_id, name, code_prefix, discount_type, discount_value, minimum_order_amount,
       max_discount_amount, usage_limit_per_coupon, total_coupons, starts_at, expires_at,
-      channel, is_active, created_by, applies_to_shipping
+      channel, is_active, created_by, applies_to_shipping,
+      usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
     RETURNING *
     `,
     [
@@ -128,6 +175,11 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       campaign.is_active,
       userId,
       campaign.applies_to_shipping,
+      campaign.usage_limit_per_customer,
+      JSON.stringify(campaign.scope),
+      campaign.stack_policy,
+      campaign.budget_cap,
+      campaign.first_order_only,
     ]
   );
   return result.rows[0];
@@ -147,7 +199,9 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
         discount_value = $${offset + 4}, minimum_order_amount = $${offset + 5},
         max_discount_amount = $${offset + 6}, usage_limit_per_coupon = $${offset + 7},
         starts_at = $${offset + 8}, expires_at = $${offset + 9}, channel = $${offset + 10},
-        is_active = $${offset + 11}, applies_to_shipping = $${offset + 12}, updated_at = NOW()
+        is_active = $${offset + 11}, applies_to_shipping = $${offset + 12},
+        usage_limit_per_customer = $${offset + 13}, scope = $${offset + 14}::jsonb, stack_policy = $${offset + 15},
+        budget_cap = $${offset + 16}, first_order_only = $${offset + 17}, updated_at = NOW()
     WHERE id = $${offset} ${tenantId === null ? "" : "AND (tenant_id = $1 OR tenant_id IS NULL)"}
     RETURNING *
     `,
@@ -165,6 +219,11 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
       campaign.channel,
       campaign.is_active,
       campaign.applies_to_shipping,
+      campaign.usage_limit_per_customer,
+      JSON.stringify(campaign.scope),
+      campaign.stack_policy,
+      campaign.budget_cap,
+      campaign.first_order_only,
     ]
   );
   const updated = result.rows[0] || null;
@@ -302,9 +361,16 @@ const normalizeSource = (source) => {
   return VALID_SOURCES.has(value) ? value : "website";
 };
 
-export const calculateDiscount = ({ campaign, orderTotal }) => {
+export const calculateDiscount = ({ campaign, orderTotal, shippingAmount = 0 }) => {
   const total = Math.max(0, Number(orderTotal || 0));
   let discount;
+  if (campaign.discount_type === "free_shipping") {
+    discount = Math.max(0, Number(shippingAmount || 0));
+    if (campaign.max_discount_amount !== null && campaign.max_discount_amount !== undefined) {
+      discount = Math.min(discount, Number(campaign.max_discount_amount || 0));
+    }
+    return Number(discount.toFixed(2));
+  }
   if (campaign.discount_type === "percentage") {
     discount = total * (Number(campaign.discount_value || 0) / 100);
     if (campaign.max_discount_amount !== null && campaign.max_discount_amount !== undefined) {
@@ -316,18 +382,87 @@ export const calculateDiscount = ({ campaign, orderTotal }) => {
   return Number(Math.max(0, Math.min(discount, total)).toFixed(2));
 };
 
+const normalizeItems = (items) =>
+  (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      product_id: Number.parseInt(item?.product_id ?? item?.productId ?? item?.id, 10) || null,
+      variant_id: Number.parseInt(item?.variant_id ?? item?.variantId ?? item?.matched_variant_id, 10) || null,
+      price: Math.max(0, Number(item?.price ?? item?.unit_price ?? 0) || 0),
+      quantity: Math.max(0, Number(item?.quantity ?? item?.qty ?? 1) || 0),
+    }))
+    .filter((item) => item.quantity > 0);
+
 /**
- * orderTotal = goods base (subtotal minus non-coupon discounts), WITHOUT shipping / service fees.
- * shippingAmount is only folded into the base when the campaign opts in (applies_to_shipping).
+ * Which lines does this campaign's scope cover? Returns { eligible, ineligible, eligibleSum, rawSum }.
+ * "On sale" = the paid line price is below the product's list selling price (channel independent).
  */
-export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, shippingAmount = 0, source = "website", customerId = null, client = db, lock = false } = {}) => {
+const resolveScopedItems = async ({ client, scope, items }) => {
+  const rawSum = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  if (!scopeIsRestricted(scope) || !items.length) {
+    return { eligible: items, ineligible: [], eligibleSum: rawSum, rawSum };
+  }
+  const productIds = [...new Set(items.map((item) => item.product_id).filter(Boolean))];
+  const lookup = new Map();
+  if (productIds.length) {
+    const result = await client.query(
+      `SELECT id, category_id, brand_id,
+              COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0), 0)::numeric AS list_price
+       FROM products WHERE id = ANY($1::bigint[])`,
+      [productIds]
+    );
+    for (const row of result.rows) lookup.set(Number(row.id), row);
+  }
+  const productSet = new Set(scope.product_ids);
+  const categorySet = new Set(scope.category_ids);
+  const brandSet = new Set(scope.brand_ids);
+  const hasInclusion = productSet.size || categorySet.size || brandSet.size;
+  const eligible = [];
+  const ineligible = [];
+  for (const item of items) {
+    const product = lookup.get(Number(item.product_id));
+    let ok = true;
+    if (hasInclusion) {
+      ok = productSet.has(Number(item.product_id))
+        || (product && categorySet.has(Number(product.category_id)))
+        || (product && brandSet.has(Number(product.brand_id)));
+    }
+    if (ok && scope.exclude_on_sale && product) {
+      const listPrice = Number(product.list_price || 0);
+      if (listPrice > 0 && item.price < listPrice - 0.009) ok = false;
+    }
+    (ok ? eligible : ineligible).push(item);
+  }
+  const eligibleSum = eligible.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  return { eligible, ineligible, eligibleSum, rawSum };
+};
+
+/**
+ * orderTotal    = goods base (subtotal minus non-coupon discounts), WITHOUT shipping / service fees.
+ * shippingAmount= delivery / service fee; folded into the base only when applies_to_shipping, and the
+ *                 whole of it is the discount for free_shipping campaigns.
+ * items         = [{ product_id, variant_id, price, quantity }] — needed for scoped campaigns.
+ * appliedDiscounts = { loyalty, invoice } already on the order, for the stack policy.
+ */
+export const validateCoupon = async ({
+  tenantId = null,
+  code,
+  orderTotal = 0,
+  shippingAmount = 0,
+  items = [],
+  appliedDiscounts = {},
+  source = "website",
+  customerId = null,
+  client = db,
+  lock = false,
+} = {}) => {
   await ensureCouponsSchema(client);
   const safeCode = String(code || "").trim().toUpperCase();
   const safeSource = normalizeSource(source);
   const goodsTotal = Math.max(0, Number(orderTotal || 0));
   const shipping = Math.max(0, Number(shippingAmount || 0));
+  const lines = normalizeItems(items);
   let total = goodsTotal;
-  const invalid = (reason) => ({ valid: false, coupon: null, campaign: null, discount_amount: 0, final_total: Math.max(0, total), reason });
+  const invalid = (reason, extra = {}) => ({ valid: false, coupon: null, campaign: null, discount_amount: 0, free_shipping: false, final_total: Math.max(0, total), reason, ...extra });
   if (!safeCode) return invalid("Coupon code is required");
 
   const params = [safeCode];
@@ -341,7 +476,8 @@ export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, sh
     SELECT cp.*, c.name AS campaign_name, c.discount_type, c.discount_value,
       c.minimum_order_amount, c.max_discount_amount, c.starts_at AS campaign_starts_at,
       c.expires_at AS campaign_expires_at, c.channel, c.is_active AS campaign_is_active,
-      c.code_prefix, c.total_coupons, c.applies_to_shipping
+      c.code_prefix, c.total_coupons, c.applies_to_shipping,
+      c.usage_limit_per_customer, c.scope, c.stack_policy, c.budget_cap, c.first_order_only
     FROM coupons cp
     JOIN coupon_campaigns c ON c.id = cp.campaign_id
     WHERE cp.code = $1 ${tenantSql}
@@ -364,8 +500,12 @@ export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, sh
     channel: row.channel,
     is_active: row.campaign_is_active,
     applies_to_shipping: Boolean(row.applies_to_shipping),
+    usage_limit_per_customer: row.usage_limit_per_customer === null ? null : Number(row.usage_limit_per_customer),
+    scope: normalizeScope(row.scope),
+    stack_policy: VALID_STACK_POLICIES.has(row.stack_policy) ? row.stack_policy : "all",
+    budget_cap: row.budget_cap === null || row.budget_cap === undefined ? null : Number(row.budget_cap),
+    first_order_only: Boolean(row.first_order_only),
   };
-  if (campaign.applies_to_shipping) total = goodsTotal + shipping;
   const coupon = {
     id: row.id,
     campaign_id: row.campaign_id,
@@ -384,34 +524,95 @@ export const validateCoupon = async ({ tenantId = null, code, orderTotal = 0, sh
   if (campaign.expires_at && new Date(campaign.expires_at).getTime() < now) return { ...invalid("Campaign has expired"), coupon, campaign };
   if (coupon.expires_at && new Date(coupon.expires_at).getTime() < now) return { ...invalid("Coupon has expired"), coupon, campaign };
   if (coupon.usage_count >= coupon.usage_limit) return { ...invalid("Coupon usage limit reached"), coupon, campaign };
-  if (campaign.minimum_order_amount > total) return { ...invalid("Minimum order amount not reached"), coupon, campaign };
   if (!["all", safeSource].includes(campaign.channel) && !(campaign.channel === "offline" && safeSource === "pos")) {
     return { ...invalid("Coupon is not valid for this channel"), coupon, campaign };
   }
   if (coupon.assigned_customer_id && customerId && String(coupon.assigned_customer_id) !== String(customerId)) {
     return { ...invalid("Coupon is assigned to another customer"), coupon, campaign };
   }
+
+  // --- stack policy
+  const loyaltyApplied = Math.max(0, Number(appliedDiscounts?.loyalty || 0));
+  const invoiceApplied = Math.max(0, Number(appliedDiscounts?.invoice || 0));
+  if (campaign.stack_policy === "none" && (loyaltyApplied > 0 || invoiceApplied > 0)) {
+    return { ...invalid("Coupon cannot be combined with other discounts"), coupon, campaign };
+  }
+  if (campaign.stack_policy === "with_loyalty" && invoiceApplied > 0) {
+    return { ...invalid("Coupon cannot be combined with an invoice discount"), coupon, campaign };
+  }
+  if (campaign.stack_policy === "with_invoice_discount" && loyaltyApplied > 0) {
+    return { ...invalid("Coupon cannot be combined with loyalty points"), coupon, campaign };
+  }
+
+  // --- per-customer limit, first order only, budget cap (all need the DB)
+  if (campaign.usage_limit_per_customer && customerId) {
+    const used = await client.query(
+      `SELECT COUNT(*)::int AS n FROM coupon_redemptions WHERE campaign_id = $1 AND customer_id = $2 AND reversed_at IS NULL`,
+      [campaign.id, customerId]
+    );
+    if (Number(used.rows[0]?.n || 0) >= campaign.usage_limit_per_customer) {
+      return { ...invalid("Coupon usage limit for this customer reached"), coupon, campaign };
+    }
+  }
+  if (campaign.first_order_only && customerId) {
+    const prior = await client.query(
+      `SELECT 1 FROM orders WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void') LIMIT 1`,
+      [customerId]
+    );
+    if (prior.rowCount) return { ...invalid("Coupon is for first orders only"), coupon, campaign };
+  }
+
+  // --- scope → eligible base
+  const scoped = await resolveScopedItems({ client, scope: campaign.scope, items: lines });
+  let eligibleBase = goodsTotal;
+  if (scopeIsRestricted(campaign.scope) && lines.length) {
+    if (!scoped.eligible.length) return { ...invalid("Coupon does not apply to the items in this order"), coupon, campaign };
+    // Scale the eligible line sum by the ratio goodsTotal/rawSum so invoice-level discounts are shared pro rata.
+    const ratio = scoped.rawSum > 0 ? Math.min(1, goodsTotal / scoped.rawSum) : 1;
+    eligibleBase = Number((scoped.eligibleSum * ratio).toFixed(2));
+  }
+  if (campaign.applies_to_shipping && campaign.discount_type !== "free_shipping") total = eligibleBase + shipping;
+  else total = eligibleBase;
+
+  if (campaign.minimum_order_amount > goodsTotal) return { ...invalid("Minimum order amount not reached"), coupon, campaign };
   if (campaign.discount_type === "fixed" && Number(campaign.discount_value || 0) > total) {
     return { ...invalid("Fixed coupon discount exceeds order total"), coupon, campaign };
   }
-  const discount = calculateDiscount({ campaign, orderTotal: total });
+  if (campaign.discount_type === "free_shipping" && shipping <= 0) {
+    return { ...invalid("Free shipping coupon needs a shipping fee to waive"), coupon, campaign };
+  }
+  const discount = calculateDiscount({ campaign, orderTotal: total, shippingAmount: shipping });
+
+  if (campaign.budget_cap !== null) {
+    const spent = await client.query(
+      `SELECT COALESCE(SUM(discount_amount), 0)::numeric AS n FROM coupon_redemptions WHERE campaign_id = $1 AND reversed_at IS NULL`,
+      [campaign.id]
+    );
+    if (Number(spent.rows[0]?.n || 0) + discount > campaign.budget_cap + 0.009) {
+      return { ...invalid("Campaign budget exhausted"), coupon, campaign };
+    }
+  }
+
   return {
     valid: true,
     coupon,
     campaign,
     discount_amount: discount,
+    free_shipping: campaign.discount_type === "free_shipping",
     base_total: Number(total.toFixed(2)),
+    eligible_item_count: scoped.eligible.length,
+    ineligible_item_count: scoped.ineligible.length,
     final_total: Number(Math.max(0, total - discount).toFixed(2)),
     reason: "valid",
   };
 };
 
-export const redeemCoupon = async ({ tenantId = null, code, orderId = null, customerId = null, source = "pos", orderTotal = 0, shippingAmount = 0, client: existingClient = null } = {}) => {
+export const redeemCoupon = async ({ tenantId = null, code, orderId = null, customerId = null, source = "pos", orderTotal = 0, shippingAmount = 0, items = [], appliedDiscounts = {}, client: existingClient = null } = {}) => {
   const ownClient = !existingClient;
   const client = existingClient || await db.connect();
   try {
     if (ownClient) await client.query("BEGIN");
-    const validation = await validateCoupon({ tenantId, code, orderTotal, shippingAmount, source, customerId, client, lock: true });
+    const validation = await validateCoupon({ tenantId, code, orderTotal, shippingAmount, items, appliedDiscounts, source, customerId, client, lock: true });
     if (!validation.valid) {
       const error = new Error(validation.reason || "Coupon is invalid");
       error.status = 400;
@@ -494,7 +695,7 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
       COALESCE(SUM(r.order_total), 0)::numeric AS total_sales_amount,
       COALESCE(AVG(r.order_total), 0)::numeric AS average_order_total
     FROM coupons c
-    LEFT JOIN coupon_redemptions r ON r.coupon_id = c.id
+    LEFT JOIN coupon_redemptions r ON r.coupon_id = c.id AND r.reversed_at IS NULL
     WHERE c.campaign_id = $1 ${tenantSql}
     `,
     params

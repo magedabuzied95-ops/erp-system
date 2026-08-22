@@ -8,6 +8,7 @@ import { api } from "../../../shared/api/api";
 import { API_BASE_URL } from "../../../shared/constants/app";
 import { getToken } from "../../../shared/auth/authStorage";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { getBrands, getProductsAdminList } from "../../products/services/productsApi";
 
 const emptyForm = {
   name: "",
@@ -23,6 +24,23 @@ const emptyForm = {
   channel: "offline",
   is_active: true,
   applies_to_shipping: false,
+  usage_limit_per_customer: "",
+  stack_policy: "all",
+  budget_cap: "",
+  first_order_only: false,
+  scope: { product_ids: [], category_ids: [], brand_ids: [], exclude_on_sale: false },
+};
+
+const normalizeScopeForForm = (scope) => {
+  let raw = scope;
+  if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+  if (!raw || typeof raw !== "object") raw = {};
+  return {
+    product_ids: Array.isArray(raw.product_ids) ? raw.product_ids.map(Number).filter(Boolean) : [],
+    category_ids: Array.isArray(raw.category_ids) ? raw.category_ids.map(Number).filter(Boolean) : [],
+    brand_ids: Array.isArray(raw.brand_ids) ? raw.brand_ids.map(Number).filter(Boolean) : [],
+    exclude_on_sale: Boolean(raw.exclude_on_sale),
+  };
 };
 
 const number = (value) => Number(value || 0).toLocaleString("en-US");
@@ -156,6 +174,11 @@ export default function CouponsManager() {
       starts_at: campaign.starts_at ? String(campaign.starts_at).slice(0, 16) : "",
       expires_at: campaign.expires_at ? String(campaign.expires_at).slice(0, 16) : "",
       max_discount_amount: campaign.max_discount_amount ?? "",
+      usage_limit_per_customer: campaign.usage_limit_per_customer ?? "",
+      budget_cap: campaign.budget_cap ?? "",
+      stack_policy: campaign.stack_policy || "all",
+      first_order_only: Boolean(campaign.first_order_only),
+      scope: normalizeScopeForForm(campaign.scope),
     });
     setModalOpen(true);
   };
@@ -169,6 +192,9 @@ export default function CouponsManager() {
         max_discount_amount: form.max_discount_amount === "" ? null : Number(form.max_discount_amount || 0),
         usage_limit_per_coupon: Number(form.usage_limit_per_coupon || 1),
         total_coupons: Number(form.total_coupons || 0),
+        usage_limit_per_customer: form.usage_limit_per_customer === "" ? null : Number(form.usage_limit_per_customer || 0),
+        budget_cap: form.budget_cap === "" ? null : Number(form.budget_cap || 0),
+        scope: normalizeScopeForForm(form.scope),
       };
       if (editing?.id) {
         await api.put(`/coupons/campaigns/${editing.id}`, payload);
@@ -492,8 +518,12 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <Field label={cText("fields.name", "الاسم")} value={form.name} onChange={(value) => update("name", value)} />
           <Field label={cText("fields.codePrefix", "بادئة الكود")} value={form.code_prefix} onChange={(value) => update("code_prefix", toCouponCode(value))} />
-          <Select label={cText("fields.discountType", "نوع الخصم")} value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", cText("types.percentage", "نسبة")], ["fixed", cText("types.fixed", "قيمة ثابتة")]]} />
-          <Field label={cText("fields.discountValue", "قيمة الخصم")} type="number" value={form.discount_value} onChange={(value) => update("discount_value", value)} />
+          <Select label={cText("fields.discountType", "نوع الخصم")} value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", cText("types.percentage", "نسبة")], ["fixed", cText("types.fixed", "قيمة ثابتة")], ["free_shipping", cText("types.freeShipping", "شحن مجاني")]]} />
+          {form.discount_type === "free_shipping" ? (
+            <div className="flex items-end text-xs text-zinc-400">{cText("fields.freeShippingHint", "الخصم = قيمة الشحن / رسوم الخدمة بالكامل (أقصى خصم يحدّه لو اتحدد)")}</div>
+          ) : (
+            <Field label={cText("fields.discountValue", "قيمة الخصم")} type="number" value={form.discount_value} onChange={(value) => update("discount_value", value)} />
+          )}
           <Field label={cText("fields.minimumOrder", "الحد الأدنى للطلب")} type="number" value={form.minimum_order_amount} onChange={(value) => update("minimum_order_amount", value)} />
           <Field label={cText("fields.maxDiscount", "أقصى خصم")} type="number" value={form.max_discount_amount} onChange={(value) => update("max_discount_amount", value)} placeholder={cText("optional", "اختياري")} />
           <Field label={cText("fields.usagePerCoupon", "حد الاستخدام لكل كوبون")} type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
@@ -513,11 +543,127 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
             </span>
           </label>
         </div>
+
+        <div className="mt-5 border-t border-white/10 pt-4">
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{cText("rules.title", "قواعد الاستخدام")}</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <Field label={cText("rules.perCustomer", "حد الاستخدام لكل عميل (عبر الحملة)")} type="number" value={form.usage_limit_per_customer} onChange={(value) => update("usage_limit_per_customer", value)} placeholder={cText("rules.unlimited", "بلا حد")} />
+            <Field label={cText("rules.budgetCap", "ميزانية الحملة (سقف إجمالي الخصم)")} type="number" value={form.budget_cap} onChange={(value) => update("budget_cap", value)} placeholder={cText("rules.unlimited", "بلا حد")} />
+            <Select label={cText("rules.stackPolicy", "التراكب مع خصومات أخرى")} value={form.stack_policy} onChange={(value) => update("stack_policy", value)} options={[["all", cText("rules.stack.all", "يتراكب مع الكل")], ["none", cText("rules.stack.none", "لا يتراكب مع أي خصم")], ["with_loyalty", cText("rules.stack.withLoyalty", "مع نقاط الولاء فقط")], ["with_invoice_discount", cText("rules.stack.withInvoice", "مع خصم الفاتورة فقط")]]} />
+            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
+              <input type="checkbox" checked={Boolean(form.first_order_only)} onChange={(e) => update("first_order_only", e.target.checked)} />
+              {cText("rules.firstOrderOnly", "أول طلب للعميل فقط")}
+            </label>
+          </div>
+          <ScopeEditor scope={form.scope} onChange={(scope) => update("scope", scope)} cText={cText} />
+        </div>
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "إلغاء")}</button>
           <button type="button" onClick={onSave} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "حفظ")}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ScopeEditor({ scope, onChange, cText }) {
+  const safeScope = scope && typeof scope === "object" ? scope : { product_ids: [], category_ids: [], brand_ids: [], exclude_on_sale: false };
+  const [brands, setBrands] = useState([]);
+  const [productQuery, setProductQuery] = useState("");
+  const [productResults, setProductResults] = useState([]);
+  const [productLabels, setProductLabels] = useState({});
+  const [searching, setSearching] = useState(false);
+  const set = (key, value) => onChange({ ...safeScope, [key]: value });
+
+  useEffect(() => {
+    let active = true;
+    getBrands().then((rows) => { if (active) setBrands(Array.isArray(rows) ? rows : []); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const q = productQuery.trim();
+    if (q.length < 2) { setProductResults([]); return undefined; }
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        setSearching(true);
+        const { products } = await getProductsAdminList({ params: { search: q, limit: 8 } });
+        if (!active) return;
+        setProductResults(Array.isArray(products) ? products : []);
+      } catch { if (active) setProductResults([]); }
+      finally { if (active) setSearching(false); }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [productQuery]);
+
+  const toggleBrand = (id) => {
+    const ids = new Set(safeScope.brand_ids || []);
+    if (ids.has(id)) ids.delete(id); else ids.add(id);
+    set("brand_ids", [...ids]);
+  };
+  const addProduct = (product) => {
+    const id = Number(product.id);
+    if (!id || (safeScope.product_ids || []).includes(id)) return;
+    setProductLabels((prev) => ({ ...prev, [id]: product.name || product.title || `#${id}` }));
+    set("product_ids", [...(safeScope.product_ids || []), id]);
+    setProductQuery("");
+    setProductResults([]);
+  };
+  const removeProduct = (id) => set("product_ids", (safeScope.product_ids || []).filter((value) => value !== id));
+
+  return (
+    <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{cText("rules.scope.title", "نطاق المنتجات")}</div>
+      <div className="mt-1 text-[11px] text-zinc-500">{cText("rules.scope.hint", "اتركه فارغاً ليشمل كل المنتجات. لو اخترت براندات أو منتجات، الخصم يُحسب على البنود المطابقة فقط.")}</div>
+
+      {brands.length ? (
+        <div className="mt-3">
+          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{cText("rules.scope.brands", "البراندات")}</div>
+          <div className="flex flex-wrap gap-2">
+            {brands.map((brand) => {
+              const id = Number(brand.id);
+              const selected = (safeScope.brand_ids || []).includes(id);
+              return (
+                <button key={id} type="button" onClick={() => toggleBrand(id)} className={`rounded-full border px-3 py-1 text-xs font-bold ${selected ? "border-violet-300/50 bg-violet-400/20 text-violet-100" : "border-white/10 bg-white/[0.04] text-zinc-300"}`}>
+                  {brand.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3">
+        <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{cText("rules.scope.products", "منتجات محددة")}</div>
+        <div className="relative">
+          <input value={productQuery} onChange={(e) => setProductQuery(e.target.value)} placeholder={cText("rules.scope.searchProducts", "ابحث باسم المنتج أو الكود")} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-zinc-600" />
+          {productResults.length ? (
+            <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-[var(--radius-card)] border border-white/10 bg-zinc-900 shadow-xl">
+              {productResults.map((product) => (
+                <button key={product.id} type="button" onClick={() => addProduct(product)} className="block w-full px-3 py-2 text-start text-sm text-zinc-200 hover:bg-white/[0.06]">
+                  {product.name || product.title} <span className="text-xs text-zinc-500">#{product.id}</span>
+                </button>
+              ))}
+            </div>
+          ) : searching ? <div className="mt-1 text-[11px] text-zinc-500">...</div> : null}
+        </div>
+        {(safeScope.product_ids || []).length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {safeScope.product_ids.map((id) => (
+              <span key={id} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-bold text-zinc-200">
+                {productLabels[id] || `#${id}`}
+                <button type="button" onClick={() => removeProduct(id)} className="text-rose-300"><X className="h-3 w-3" /></button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <label className="mt-3 flex items-center gap-3 text-sm font-semibold">
+        <input type="checkbox" checked={Boolean(safeScope.exclude_on_sale)} onChange={(e) => set("exclude_on_sale", e.target.checked)} />
+        {cText("rules.scope.excludeOnSale", "استثناء المنتجات المخفّضة (سعرها أقل من سعر البيع الأساسي)")}
+      </label>
     </div>
   );
 }

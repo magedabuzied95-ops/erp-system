@@ -3247,6 +3247,8 @@ export const createOrder = async (req, res) => {
         code: safeCouponCode,
         orderTotal: couponBaseTotal,
         shippingAmount: totalServiceFee,
+        items,
+        appliedDiscounts: { loyalty: Number(loyalty_discount_amount || 0), invoice: normalizedInvoiceDiscountAmount },
         source: channel === "website" ? "website" : "pos",
         customerId: resolvedCustomerId,
         client,
@@ -3842,6 +3844,8 @@ export const createOrder = async (req, res) => {
           source: channel === "website" ? "website" : "pos",
           orderTotal: couponBaseTotal,
         shippingAmount: totalServiceFee,
+        items,
+        appliedDiscounts: { loyalty: Number(loyalty_discount_amount || 0), invoice: normalizedInvoiceDiscountAmount },
           client,
         });
         order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id;
