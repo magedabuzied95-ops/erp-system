@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { mergeChatMessages } from "../../../shared/lib/chatState";
 import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
@@ -444,6 +445,7 @@ Object.assign(labels.ar, {
   chatTitle: "محادثة الإدارة",
   chatSubtitle: "اكتب رسالتك وسيتم الرد عليك من الإدارة.",
   chatPlaceholder: "اكتب رسالتك هنا...",
+  adminTyping: "الإدارة تكتب الآن...",
   sendMessage: "إرسال",
   noChatMessages: "لا توجد رسائل حتى الآن.",
   chatLoadError: "تعذر تحميل المحادثة.",
@@ -536,6 +538,7 @@ Object.assign(labels.en, {
   chatTitle: "Management chat",
   chatSubtitle: "Send a message and management will reply here.",
   chatPlaceholder: "Write your message...",
+  adminTyping: "Management is typing...",
   sendMessage: "Send",
   noChatMessages: "No messages yet.",
   chatLoadError: "Unable to load chat.",
@@ -1536,6 +1539,9 @@ export default function EmployeePayrollPortal() {
   const [notificationSubscriptionActive, setNotificationSubscriptionActive] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatHasOlder, setChatHasOlder] = useState(false);
+  const [chatLoadingOlder, setChatLoadingOlder] = useState(false);
+  const chatPendingSendsRef = useRef(new Map());
   const [chatSaving, setChatSaving] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatError, setChatError] = useState("");
@@ -1591,12 +1597,8 @@ export default function EmployeePayrollPortal() {
   const [completedExpanded, setCompletedExpanded] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
-  const visibleChatMessages = useMemo(() => {
-    const query = chatSearch.trim().toLocaleLowerCase("ar");
-    if (!query) return chatMessages;
-    return chatMessages.filter((message) => [message.body, message.attachment_name, message.reply_body]
-      .some((value) => String(value || "").toLocaleLowerCase("ar").includes(query)));
-  }, [chatMessages, chatSearch]);
+  // Search highlights in the list (PortalChatMessageList `highlight`); nothing is hidden.
+  const visibleChatMessages = chatMessages;
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [profileMobile, setProfileMobile] = useState("");
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -2624,6 +2626,31 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  // Our device has the management's message: one tick becomes two on their side.
+  const ackChatDelivered = (upToMessageId) => {
+    if (!token || !upToMessageId) return;
+    api.post(`/employee-portal/${encodeURIComponent(token)}/chat/delivered`, { up_to_message_id: upToMessageId }, { suppressErrorStatuses: [400, 404, 429] }).catch(() => null);
+  };
+
+  const loadOlderEmployeeChat = async () => {
+    const oldest = chatMessages.find((item) => item.id);
+    if (!token || !oldest || chatLoadingOlder) return;
+    const node = chatMessagesRef.current;
+    const previousHeight = node?.scrollHeight || 0;
+    const previousTop = node?.scrollTop || 0;
+    setChatLoadingOlder(true);
+    try {
+      const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/chat`, { params: { before: oldest.id }, suppressErrorStatuses: [400, 404, 429] });
+      setChatMessages((current) => mergeChatMessages(current, safeArray(response.messages)));
+      setChatHasOlder(Boolean(response.has_more));
+      window.setTimeout(() => { if (node) node.scrollTop = previousTop + (node.scrollHeight - previousHeight); }, 0);
+    } catch {
+      /* the button stays; the next scroll retries */
+    } finally {
+      setChatLoadingOlder(false);
+    }
+  };
+
   const loadEmployeeChat = async ({ silent = false } = {}) => {
     if (!token) return;
     try {
@@ -2633,7 +2660,16 @@ export default function EmployeePayrollPortal() {
         suppressErrorStatuses: [400, 404, 429],
       });
       setChatThread(response.thread || null);
-      setChatMessages(safeArray(response.messages));
+      const page = safeArray(response.messages);
+      setChatMessages((current) => {
+        // Keep older pages and unconfirmed optimistic rows; refresh the newest page.
+        const oldestId = Number(page[0]?.id || 0);
+        const retained = current.filter((item) => (oldestId && Number(item.id || 0) < oldestId) || item.status === "pending" || item.status === "failed");
+        return mergeChatMessages(retained, page);
+      });
+      setChatHasOlder(Boolean(response.has_more));
+      const newestAdmin = [...page].reverse().find((item) => item.sender_type === "admin");
+      if (newestAdmin && !newestAdmin.delivered_at && !newestAdmin.read_at) void ackChatDelivered(newestAdmin.id);
       if (chatOpen) {
         console.info("[employee-badge:clear-portion]", { portion: "chat", source: "chat-fetch" });
         postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
@@ -2674,10 +2710,14 @@ export default function EmployeePayrollPortal() {
     const onMessage = (payload = {}) => {
       const message = payload.message;
       if (!message?.id) return;
-      setChatMessages((current) => {
-        if (current.some((item) => String(item.id) === String(message.id))) return current;
-        return [...current, message];
-      });
+      setChatMessages((current) => mergeChatMessages(current, [message]));
+      if (message.sender_type === "admin") ackChatDelivered(message.id);
+    };
+    const onDelivered = (payload = {}) => {
+      const ids = new Set(safeArray(payload.message_ids).map(String));
+      if (!ids.size) return;
+      const deliveredAt = payload.delivered_at || new Date().toISOString();
+      setChatMessages((current) => current.map((item) => (ids.has(String(item.id)) && !item.delivered_at ? { ...item, delivered_at: deliveredAt } : item)));
     };
     const onRead = (payload = {}) => {
       if (!payload.thread_id) return;
@@ -2710,6 +2750,7 @@ export default function EmployeePayrollPortal() {
     chatSocket.on("connect_error", onDisconnect);
     chatSocket.on("employee-chat:new-message", onMessage);
     chatSocket.on("employee-chat:read", onRead);
+    chatSocket.on("employee-chat:delivered", onDelivered);
     chatSocket.on("employee-chat:message-updated", onMutation);
     chatSocket.on("employee-chat:message-deleted", onMutation);
     chatSocket.on("employee-chat:typing", onTyping);
@@ -2722,6 +2763,7 @@ export default function EmployeePayrollPortal() {
       chatSocket.off("connect_error", onDisconnect);
       chatSocket.off("employee-chat:new-message", onMessage);
       chatSocket.off("employee-chat:read", onRead);
+      chatSocket.off("employee-chat:delivered", onDelivered);
       chatSocket.off("employee-chat:message-updated", onMutation);
       chatSocket.off("employee-chat:message-deleted", onMutation);
       chatSocket.off("employee-chat:typing", onTyping);
@@ -2817,28 +2859,69 @@ export default function EmployeePayrollPortal() {
       return;
     }
     if ((!message && !chatAttachment) || chatSaving) return;
+    const draft = { text: message, attachment: chatAttachment, attachmentDuration: chatAttachmentDuration, replyTo: replyToChat };
+    setChatBody("");
+    setChatAttachment(null);
+    setChatAttachmentDuration(0);
+    setReplyToChat(null);
+    if (chatFileInputRef.current) chatFileInputRef.current.value = "";
+    void dispatchChatSend(draft);
+  };
+
+  /*
+   * Optimistic send (same contract as SharedPortalChat): the bubble shows at
+   * once with a clock and a client_id; the server echoes the id so the
+   * confirmed row replaces it in place; failure keeps it with a retry.
+   */
+  const dispatchChatSend = async (draft, existingClientId = "") => {
+    const clientId = existingClientId || `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    chatPendingSendsRef.current.set(clientId, draft);
+    const attachmentType = draft.attachment
+      ? (draft.attachment.type?.startsWith("image/") ? "image" : draft.attachment.type?.startsWith("audio/") ? "audio" : draft.attachment.type?.startsWith("video/") ? "video" : "file")
+      : null;
+    setChatMessages((current) => mergeChatMessages(current, [{
+      client_id: clientId,
+      thread_id: chatThread?.id || null,
+      sender_type: "employee",
+      body: draft.text || "",
+      attachment_type: attachmentType,
+      attachment_name: draft.attachment?.name || null,
+      attachment_url: draft.attachment ? URL.createObjectURL(draft.attachment) : null,
+      attachment_duration_seconds: draft.attachmentDuration || null,
+      reply_to_message_id: draft.replyTo?.id || null,
+      reply_sender_type: draft.replyTo?.sender_type || null,
+      reply_body: draft.replyTo?.body || null,
+      reply_attachment_type: draft.replyTo?.attachment_type || null,
+      created_at: new Date().toISOString(),
+      status: "pending",
+      reactions: [],
+    }]));
+    setChatSaving(true);
+    setChatError("");
     try {
-      setChatSaving(true);
-      setChatError("");
       const formData = new FormData();
-      if (message) formData.append("body", message);
-      if (chatAttachment) formData.append("attachment", chatAttachment);
-      if (chatAttachment && chatAttachmentDuration > 0) formData.append("attachment_duration_seconds", String(chatAttachmentDuration));
-      if (replyToChat?.id) formData.append("reply_to_message_id", replyToChat.id);
-      await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
+      if (draft.text) formData.append("body", draft.text);
+      if (draft.attachment) formData.append("attachment", draft.attachment);
+      if (draft.attachment && draft.attachmentDuration > 0) formData.append("attachment_duration_seconds", String(draft.attachmentDuration));
+      if (draft.replyTo?.id) formData.append("reply_to_message_id", draft.replyTo.id);
+      formData.append("client_id", clientId);
+      const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
         suppressErrorStatuses: [400, 404, 429],
       });
-      setChatBody("");
-      setChatAttachment(null);
-      setChatAttachmentDuration(0);
-      setReplyToChat(null);
-      if (chatFileInputRef.current) chatFileInputRef.current.value = "";
-      await loadEmployeeChat({ silent: true });
+      chatPendingSendsRef.current.delete(clientId);
+      if (response?.thread) setChatThread(response.thread);
+      if (response?.message) setChatMessages((current) => mergeChatMessages(current, [{ ...response.message, client_id: response.message.client_id || clientId }]));
     } catch (err) {
+      setChatMessages((current) => current.map((item) => (item.client_id === clientId ? { ...item, status: "failed" } : item)));
       setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
     } finally {
       setChatSaving(false);
     }
+  };
+
+  const retryChatSend = (message) => {
+    const draft = chatPendingSendsRef.current.get(message?.client_id);
+    if (draft) void dispatchChatSend(draft, message.client_id);
   };
 
   const chooseChatAttachment = (event) => {
@@ -3058,19 +3141,14 @@ export default function EmployeePayrollPortal() {
     try {
       const recording = await stopVoiceRecording({ capture: true });
       if (!recording?.blob?.size) return;
-      const formData = new FormData();
-      formData.append("attachment", new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" }));
-      formData.append("attachment_duration_seconds", String(recording.durationSeconds));
-      if (replyToChat?.id) formData.append("reply_to_message_id", replyToChat.id);
-      await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
-        suppressErrorStatuses: [400, 404, 429],
-      });
+      const file = new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" });
+      const draft = { text: "", attachment: file, attachmentDuration: recording.durationSeconds, replyTo: replyToChat };
       setChatBody("");
       setChatAttachment(null);
       setChatAttachmentDuration(0);
       setReplyToChat(null);
       if (chatFileInputRef.current) chatFileInputRef.current.value = "";
-      await loadEmployeeChat({ silent: true });
+      await dispatchChatSend(draft);
     } catch (err) {
       setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
     } finally {
@@ -4572,7 +4650,12 @@ export default function EmployeePayrollPortal() {
               onScroll={handleChatScroll}
               showJump={showChatJump}
               onJumpToBottom={scrollChatToBottom}
-              typingLabel={chatTyping ? "الإدارة تكتب الآن..." : ""}
+              onRetry={retryChatSend}
+              onLoadOlder={loadOlderEmployeeChat}
+              hasOlder={chatHasOlder}
+              loadingOlder={chatLoadingOlder}
+              highlight={chatSearch.trim()}
+              typingLabel={chatTyping ? ui("adminTyping") : ""}
               onImageClick={setChatImagePreview}
               onReply={setReplyToChat}
               onReact={reactToChatMessage}
