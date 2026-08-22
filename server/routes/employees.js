@@ -1,7 +1,6 @@
 import express from "express";
 import employeeChatUpload from "../config/employeeChatUpload.js";
-import db from "../database/db.js";
-import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
+import { getBranchPosChat, sendBranchPosChatMessage } from "../services/employeeChatService.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -112,57 +111,31 @@ router.put("/commission-rules/:id", protect, permit("employees", "edit"), update
 router.get("/portal-requests", protect, permit("employees", "view"), getEmployeePortalRequests);
 router.patch("/portal-requests/:id", protect, permit("employees", "edit"), reviewEmployeePortalRequestRecord);
 /*
- * "My" chat: the employee side of the management chat for a JWT login that is
- * linked to an employee row (the POS cashier). Deliberately gated by `protect`
- * only — a cashier has no `employees` permission — and the employee is
- * resolved by the strict `employees.user_id` link, never by name or email:
- * a fuzzy match here would hand someone another employee's private thread.
+ * Branch POS channel: "كاشير فرع X". The cashier side of this thread is
+ * whichever POS device is on that branch — no employee link required. Gated by
+ * `protect` only (a cashier has no `employees` permission); the branch must
+ * belong to the caller's tenant, which the service enforces.
  */
-const loadLinkedEmployee = async (req, res) => {
-  const userId = Number(req.user?.id || 0);
-  if (!userId) {
-    res.status(401).json({ success: false, code: "unauthorized", message: "Unauthorized" });
-    return null;
-  }
-  const result = await db.query(
-    `
-    SELECT e.id, e.tenant_id, e.branch_id, e.full_name, e.employee_code, e.user_id, b.name AS branch_name
-    FROM employees e
-    LEFT JOIN branches b ON b.id = e.branch_id
-    WHERE e.user_id = $1
-      AND ($2::bigint IS NULL OR e.tenant_id = $2::bigint)
-      AND COALESCE(e.is_deleted, FALSE) = FALSE
-    ORDER BY e.id DESC
-    LIMIT 1
-    `,
-    [userId, req.tenantId || null]
-  );
-  const employee = result.rows[0];
-  if (!employee) {
-    res.status(404).json({ success: false, code: "employee_not_linked", message: "No employee is linked to this account" });
-    return null;
-  }
-  return employee;
-};
+const posChannelBranchId = (req) => Number(req.query?.branch_id || req.body?.branch_id || req.params?.branchId || 0) || null;
+const posChannelSenderName = (req) => String(req.user?.name || req.user?.full_name || req.user?.username || req.user?.email || "").trim();
 
-router.get("/chat/me", protect, async (req, res) => {
+router.get("/chat/pos", protect, async (req, res) => {
   try {
-    const employee = await loadLinkedEmployee(req, res);
-    if (!employee) return;
-    const chat = await getEmployeeChat({ employee });
-    return res.json({ success: true, employee, ...chat });
+    const chat = await getBranchPosChat({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req) });
+    return res.json({ success: true, ...chat });
   } catch (error) {
-    console.error("[employees] my chat load error", error);
+    if (!error.status) console.error("[employees] pos channel load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load chat" });
   }
 });
 
-router.post("/chat/me/messages", protect, uploadEmployeeChatAttachment, async (req, res) => {
+router.post("/chat/pos/messages", protect, uploadEmployeeChatAttachment, async (req, res) => {
   try {
-    const employee = await loadLinkedEmployee(req, res);
-    if (!employee) return;
-    const result = await sendEmployeeChatMessage({
-      employee,
+    const result = await sendBranchPosChatMessage({
+      tenantId: req.tenantId || null,
+      branchId: posChannelBranchId(req),
+      userId: req.user?.id || null,
+      senderName: posChannelSenderName(req),
       body: req.body?.body || req.body?.message || "",
       file: req.file || null,
       replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
@@ -170,23 +143,22 @@ router.post("/chat/me/messages", protect, uploadEmployeeChatAttachment, async (r
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
-    console.error("[employees] my chat send error", error);
+    if (!error.status) console.error("[employees] pos channel send error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
   }
 });
 
-router.post("/chat/me/read", protect, async (req, res) => {
+router.post("/chat/pos/read", protect, async (req, res) => {
   try {
-    const employee = await loadLinkedEmployee(req, res);
-    if (!employee) return;
-    // getEmployeeChat marks every admin message read and tells the admin room.
-    const chat = await getEmployeeChat({ employee });
+    // getBranchPosChat marks every admin message read and tells the admin room.
+    const chat = await getBranchPosChat({ tenantId: req.tenantId || null, branchId: posChannelBranchId(req) });
     return res.json({ success: true, thread: chat.thread });
   } catch (error) {
-    console.error("[employees] my chat read error", error);
+    if (!error.status) console.error("[employees] pos channel read error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to mark chat read" });
   }
 });
+
 
 router.get("/chat/threads", protect, permit("employees", "view"), getEmployeeChatThreads);
 router.get("/chat/threads/:threadId", protect, permit("employees", "view"), getEmployeeChatThreadRecord);

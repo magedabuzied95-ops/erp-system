@@ -482,7 +482,6 @@ io.on("connection", async (socket) => {
      */
     const linkedEmployeeId = Number(user?.employee_id || 0);
     if (linkedEmployeeId) {
-      const employeeTenantKey = tenantId || "global";
       socket.join(`employee-chat:employee:${linkedEmployeeId}`);
       socket.join(`employee:${linkedEmployeeId}`);
       socket.on("employee-chat:presence", (payload = {}) => {
@@ -490,42 +489,86 @@ io.on("connection", async (socket) => {
         if (payload?.active) socket.join(activeRoom);
         else socket.leave(activeRoom);
       });
-      socket.on("employee-chat:employee-typing", (payload = {}) => {
-        emitToRooms([`employee-chat:tenant:${employeeTenantKey}`], "employee-chat:typing", {
-          thread_id: payload.thread_id || null,
-          employee_id: linkedEmployeeId,
-          employee_name: payload.employee_name || "",
-          sender_type: "employee",
-          at: new Date().toISOString(),
-        });
-      });
-      socket.on("employee-chat:employee-stop-typing", (payload = {}) => {
-        emitToRooms([`employee-chat:tenant:${employeeTenantKey}`], "employee-chat:stop-typing", {
-          thread_id: payload.thread_id || null,
-          employee_id: linkedEmployeeId,
-          sender_type: "employee",
-          at: new Date().toISOString(),
-        });
-      });
     }
+    /*
+     * Branch POS channel ("كاشير فرع X"): the POS announces the branch it is
+     * serving and joins that branch's cashier room. Any device on the branch
+     * hears the manager; no employee link is involved. The branch is checked
+     * against the caller's tenant before the join.
+     */
+    let posChannelBranchId = null;
+    const posChannelRoom = (id) => `employee-chat:branch-pos:${id}`;
+    socket.on("employee-chat:pos-branch", async (payload = {}, acknowledge) => {
+      const ack = typeof acknowledge === "function" ? acknowledge : () => {};
+      const nextBranchId = Number(payload?.branch_id || payload?.branchId || 0) || null;
+      if (posChannelBranchId && posChannelBranchId !== nextBranchId) socket.leave(posChannelRoom(posChannelBranchId));
+      posChannelBranchId = null;
+      if (nextBranchId) {
+        try {
+          const branchResult = await db.query(
+            `SELECT id FROM branches WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
+            [nextBranchId, tenantId || null]
+          );
+          if (branchResult.rows[0]) {
+            socket.join(posChannelRoom(nextBranchId));
+            posChannelBranchId = nextBranchId;
+          }
+        } catch (error) {
+          console.warn("[socket] pos channel branch lookup failed", error?.message || error);
+        }
+      }
+      ack({ success: true, branch_id: posChannelBranchId });
+    });
+    const cashierTypingIdentity = (payload = {}) =>
+      String(payload?.channel || "") === "branch_pos"
+        ? posChannelBranchId ? `pos-branch-${posChannelBranchId}` : null
+        : linkedEmployeeId || null;
+    socket.on("employee-chat:employee-typing", (payload = {}) => {
+      const identity = cashierTypingIdentity(payload);
+      if (!identity) return;
+      emitToRooms([`employee-chat:tenant:${tenantId || "global"}`], "employee-chat:typing", {
+        thread_id: payload.thread_id || null,
+        employee_id: identity,
+        employee_name: payload.employee_name || "",
+        sender_type: "employee",
+        at: new Date().toISOString(),
+      });
+    });
+    socket.on("employee-chat:employee-stop-typing", (payload = {}) => {
+      const identity = cashierTypingIdentity(payload);
+      if (!identity) return;
+      emitToRooms([`employee-chat:tenant:${tenantId || "global"}`], "employee-chat:stop-typing", {
+        thread_id: payload.thread_id || null,
+        employee_id: identity,
+        sender_type: "employee",
+        at: new Date().toISOString(),
+      });
+    });
     if (await socketUserCanViewEmployees(userId, user)) {
       socket.join(`employee-chat:tenant:${tenantId || "global"}`);
+      // The admin side addresses a numeric employee or a "pos-branch-<id>" channel.
+      const cashierRoomFor = (value) => {
+        const branchMatch = /^pos-branch-(d+)$/.exec(String(value || "").trim());
+        if (branchMatch) return { room: `employee-chat:branch-pos:${branchMatch[1]}`, employee_id: branchMatch[0] };
+        const employeeId = Number(value || 0);
+        return employeeId ? { room: `employee-chat:employee:${employeeId}`, employee_id: employeeId } : null;
+      };
       socket.on("employee-chat:typing", (payload = {}) => {
-        const employeeId = Number(payload.employee_id || payload.employeeId || 0);
-        if (!employeeId) return;
-        emitToRooms([`employee-chat:employee:${employeeId}`], "employee-chat:typing", {
+        const target = cashierRoomFor(payload.employee_id || payload.employeeId);
+        if (!target) return;
+        emitToRooms([target.room], "employee-chat:typing", {
           thread_id: payload.thread_id || null,
-          employee_id: employeeId,
+          employee_id: target.employee_id,
           sender_type: "admin",
           at: new Date().toISOString(),
         });
       });
       socket.on("employee-chat:stop-typing", (payload = {}) => {
-        const employeeId = Number(payload.employee_id || payload.employeeId || 0);
-        if (!employeeId) return;
-        emitToRooms([`employee-chat:employee:${employeeId}`], "employee-chat:stop-typing", {
+        const target = cashierRoomFor(payload.employee_id || payload.employeeId);
+        if (!target) return;
+        emitToRooms([target.room], "employee-chat:stop-typing", {
           thread_id: payload.thread_id || null,
-          employee_id: employeeId,
+          employee_id: target.employee_id,
           sender_type: "admin",
           at: new Date().toISOString(),
         });

@@ -21,6 +21,7 @@ const messageSelect = `
     m.sender_type,
     m.sender_employee_id,
     m.sender_user_id,
+    m.sender_name,
     m.body,
     m.attachment_url,
     m.attachment_type,
@@ -67,6 +68,28 @@ const attachmentLabelSql = (alias = "m") => `
 const adminChatRoom = (tenantId = null) => `employee-chat:tenant:${tenantId || "global"}`;
 const employeeChatRoom = (employeeId) => `employee-chat:employee:${employeeId}`;
 const employeeActiveChatRoom = (employeeId) => `employee-chat-active:employee:${employeeId}`;
+/*
+ * Branch POS channel ("كاشير فرع X"): a thread whose cashier side is whichever
+ * POS device is on that branch, not an employee. Its realtime room is keyed by
+ * branch, and the admin UIs see it through a synthetic, non-numeric
+ * employee_id so the shared chat groups and selects it like any other row.
+ */
+export const BRANCH_POS_CHANNEL = "branch_pos";
+export const branchPosChatRoom = (branchId) => `employee-chat:branch-pos:${branchId}`;
+export const branchPosChannelKey = (branchId) => `pos-branch-${branchId}`;
+export const parseBranchPosChannelKey = (value = "") => {
+  const match = /^pos-branch-(\d+)$/.exec(String(value || "").trim());
+  return match ? Number(match[1]) : null;
+};
+const isBranchPosThread = (thread = {}) => String(thread?.channel_type || "") === BRANCH_POS_CHANNEL;
+const threadCashierRooms = (thread = {}) =>
+  isBranchPosThread(thread) ? [branchPosChatRoom(thread.branch_id)] : thread?.employee_id ? [employeeChatRoom(thread.employee_id)] : [];
+const BRANCH_POS_NAME_PREFIX = "كاشير فرع ";
+const threadIdentitySql = `
+      t.channel_type,
+      CASE WHEN t.channel_type = '${BRANCH_POS_CHANNEL}' THEN 'pos-branch-' || t.branch_id::text ELSE t.employee_id::text END AS employee_id,
+      CASE WHEN t.channel_type = '${BRANCH_POS_CHANNEL}' THEN '${BRANCH_POS_NAME_PREFIX}' || COALESCE(b.name, t.branch_id::text) ELSE e.full_name END AS employee_name,
+      CASE WHEN t.channel_type = '${BRANCH_POS_CHANNEL}' THEN 'POS' ELSE e.employee_code END AS employee_code`;
 const EMPLOYEE_CHAT_PUSH_TITLE = "\u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629";
 const EMPLOYEE_CHAT_PUSH_FALLBACK_BODY = "\u0644\u062f\u064a\u0643 \u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629 \u0645\u0646 \u0627\u0644\u0625\u062f\u0627\u0631\u0629";
 
@@ -130,14 +153,11 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
     SELECT
       t.id,
       t.tenant_id,
-      t.employee_id,
       t.branch_id,
       t.status,
       t.last_message_at,
       t.created_at,
-      t.updated_at,
-      e.full_name AS employee_name,
-      e.employee_code,
+      t.updated_at,${threadIdentitySql},
       COALESCE(e.photo_url, '') AS photo_url,
       b.name AS branch_name,
       lm.last_message,
@@ -145,7 +165,7 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
       lm.created_at AS last_message_created_at,
       COALESCE(unread.unread_count, 0)::int AS unread_count
     FROM employee_chat_threads t
-    JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     LEFT JOIN LATERAL (
       SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, created_at
@@ -363,7 +383,7 @@ const loadMessageForMutation = async ({ messageId, threadId = null, employeeId =
   await ensureEmployeePayrollPortalSchema(db);
   const result = await db.query(
     `
-    SELECT m.*, t.employee_id, t.tenant_id
+    SELECT m.*, t.employee_id, t.tenant_id, t.channel_type, t.branch_id
     FROM employee_chat_messages m
     JOIN employee_chat_threads t ON t.id = m.thread_id
     WHERE m.id = $1
@@ -383,7 +403,7 @@ const loadMessageForMutation = async ({ messageId, threadId = null, employeeId =
 
 const emitMessageMutation = async (message, eventName) => {
   const thread = await loadThreadSummary(message.thread_id);
-  emitChatEvent([employeeChatRoom(message.employee_id), adminChatRoom(message.tenant_id)], eventName, {
+  emitChatEvent([...threadCashierRooms(message), adminChatRoom(message.tenant_id)], eventName, {
     thread,
     thread_id: message.thread_id,
     employee_id: message.employee_id,
@@ -476,6 +496,118 @@ export const reactEmployeeChatMessage = ({ employee, messageId, emoji } = {}) =>
 export const reactAdminEmployeeChatMessage = ({ tenantId = null, userId, messageId, emoji } = {}) =>
   reactToEmployeeChatMessage({ messageId, emoji, actorType: "admin", actorId: userId, tenantId });
 
+const loadBranchForChannel = async ({ tenantId = null, branchId } = {}) => {
+  const id = Number(branchId || 0);
+  if (!id) throw chatError("Branch is required", 400, "branch_required");
+  const result = await db.query(
+    `SELECT id, tenant_id, name FROM branches WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
+    [id, tenantId]
+  );
+  if (!result.rows[0]) throw chatError("Branch not found", 404, "branch_not_found");
+  return result.rows[0];
+};
+
+const findBranchPosThread = (tenantId, branchId) =>
+  db.query(
+    `SELECT * FROM employee_chat_threads WHERE channel_type = $1 AND branch_id = $2 AND COALESCE(tenant_id, 0) = COALESCE($3::bigint, 0) LIMIT 1`,
+    [BRANCH_POS_CHANNEL, branchId, tenantId]
+  );
+
+export const getOrCreateBranchPosThread = async ({ tenantId = null, branchId } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const branch = await loadBranchForChannel({ tenantId, branchId });
+  const scopeTenantId = tenantId ?? branch.tenant_id ?? null;
+  const existing = await findBranchPosThread(scopeTenantId, branch.id);
+  if (existing.rows[0]) return { thread: existing.rows[0], branch };
+  const created = await db.query(
+    `
+    INSERT INTO employee_chat_threads (tenant_id, employee_id, branch_id, channel_type, status, created_at, updated_at)
+    VALUES ($1, NULL, $2, $3, 'open', NOW(), NOW())
+    ON CONFLICT DO NOTHING
+    RETURNING *
+    `,
+    [scopeTenantId, branch.id, BRANCH_POS_CHANNEL]
+  );
+  if (created.rows[0]) {
+    // The channel appears in the manager's list the moment a POS first opens it.
+    const summary = await loadThreadSummary(created.rows[0].id);
+    emitChatEvent([adminChatRoom(scopeTenantId)], "employee-chat:thread-updated", { thread: summary });
+    return { thread: created.rows[0], branch };
+  }
+  const raced = await findBranchPosThread(scopeTenantId, branch.id);
+  return { thread: raced.rows[0], branch };
+};
+
+export const getBranchPosChat = async ({ tenantId = null, branchId } = {}) => {
+  const { thread, branch } = await getOrCreateBranchPosThread({ tenantId, branchId });
+  const readResult = await db.query(
+    `
+    UPDATE employee_chat_messages
+    SET read_at = COALESCE(read_at, NOW())
+    WHERE thread_id = $1 AND sender_type = 'admin' AND read_at IS NULL
+    RETURNING id
+    `,
+    [thread.id]
+  );
+  if (readResult.rowCount > 0) {
+    emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:read", {
+      thread_id: thread.id,
+      employee_id: branchPosChannelKey(branch.id),
+      reader_type: "employee",
+      read_sender_type: "admin",
+      read_count: readResult.rowCount,
+    });
+  }
+  const messages = await loadMessages(thread.id);
+  return {
+    thread: { ...thread, employee_id: branchPosChannelKey(branch.id), branch_name: branch.name, employee_name: `${BRANCH_POS_NAME_PREFIX}${branch.name}` },
+    branch,
+    messages,
+  };
+};
+
+export const sendBranchPosChatMessage = async ({ tenantId = null, branchId, userId = null, senderName = "", body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+  const attachment = attachmentFromUpload(file, attachmentDurationSeconds);
+  const text = validateMessageInput({ body, attachment });
+  const { thread } = await getOrCreateBranchPosThread({ tenantId, branchId });
+  const replyTo = normalizeReplyId(replyToMessageId);
+  const result = await db.query(
+    `
+    INSERT INTO employee_chat_messages (
+      thread_id, sender_type, sender_employee_id, sender_user_id, sender_name, body,
+      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime, attachment_duration_seconds,
+      reply_to_message_id, read_at, created_at
+    )
+    VALUES ($1, 'employee', NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+      (SELECT id FROM employee_chat_messages WHERE id = $11 AND thread_id = $1),
+      NULL, NOW())
+    RETURNING *
+    `,
+    [
+      thread.id,
+      userId,
+      clean(senderName).slice(0, 160) || null,
+      text,
+      attachment?.attachment_url || null,
+      attachment?.attachment_type || null,
+      attachment?.attachment_name || null,
+      attachment?.attachment_size || null,
+      attachment?.attachment_mime || null,
+      attachment?.attachment_duration_seconds || null,
+      replyTo,
+    ]
+  );
+  await db.query(`UPDATE employee_chat_threads SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`, [thread.id]);
+  const updatedThread = await loadThreadSummary(thread.id);
+  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
+  emitChatEvent([branchPosChatRoom(thread.branch_id), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
+    thread: updatedThread,
+    message,
+  });
+  emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", { thread: updatedThread });
+  return { thread: updatedThread || thread, message };
+};
+
 export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } = {}) => {
   await ensureEmployeePayrollPortalSchema(db);
   const safeLimit = Math.min(Math.max(Number(limit || 200), 1), 500);
@@ -484,21 +616,19 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
     SELECT
       t.id,
       t.tenant_id,
-      t.employee_id,
       t.branch_id,
       t.status,
       t.last_message_at,
       t.created_at,
-      t.updated_at,
-      e.full_name AS employee_name,
-      e.employee_code,
+      t.updated_at,${threadIdentitySql},
+      COALESCE(e.photo_url, '') AS photo_url,
       b.name AS branch_name,
       lm.last_message,
       lm.sender_type AS last_sender_type,
       lm.created_at AS last_message_created_at,
       COALESCE(unread.unread_count, 0)::int AS unread_count
     FROM employee_chat_threads t
-    JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     LEFT JOIN LATERAL (
       SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, created_at
@@ -514,6 +644,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
     ) unread ON TRUE
     WHERE ($1::bigint IS NULL OR t.tenant_id = $1::bigint)
       AND COALESCE(e.is_deleted, FALSE) = FALSE
+      AND (t.channel_type = '${BRANCH_POS_CHANNEL}' OR e.id IS NOT NULL)
     ORDER BY COALESCE(t.last_message_at, t.updated_at, t.created_at) DESC, t.id DESC
     LIMIT $2
     `,
@@ -528,18 +659,18 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
     `
     SELECT
       t.*,
-      e.full_name AS employee_name,
-      e.employee_code,
+      t.employee_id AS employee_record_id,${threadIdentitySql},
       COALESCE(e.photo_url, '') AS photo_url,
       e.tenant_id AS employee_tenant_id,
       e.employee_portal_token,
       b.name AS branch_name
     FROM employee_chat_threads t
-    JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     WHERE t.id = $1
       AND ($2::bigint IS NULL OR t.tenant_id = $2::bigint)
       AND COALESCE(e.is_deleted, FALSE) = FALSE
+      AND (t.channel_type = '${BRANCH_POS_CHANNEL}' OR e.id IS NOT NULL)
     LIMIT 1
     `,
     [threadId, tenantId]
@@ -558,7 +689,7 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
       [thread.id]
     );
     if (readResult.rowCount > 0) {
-      emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:read", {
+      emitChatEvent([...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)], "employee-chat:read", {
         thread_id: thread.id,
         employee_id: thread.employee_id,
         reader_type: "admin",
@@ -612,20 +743,22 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
   );
   const updatedThread = await loadThreadSummary(thread.id);
   const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
-  emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
+  emitChatEvent([...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
     thread: updatedThread,
     message,
   });
   emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", {
     thread: updatedThread,
   });
-  const activeEmployeeChatClients = await getRoomClientCount(employeeActiveChatRoom(thread.employee_id));
+  // A branch channel has no employee to push to; the POS hears it over the socket.
+  if (isBranchPosThread(thread) || !thread.employee_record_id) return { thread: updatedThread || thread, message };
+  const activeEmployeeChatClients = await getRoomClientCount(employeeActiveChatRoom(thread.employee_record_id));
   const employeeChatIsActive = activeEmployeeChatClients > 0;
   const notificationTenantId = thread.tenant_id || thread.employee_tenant_id || tenantId || null;
   const senderName = await loadAdminSenderName({ userId, tenantId: notificationTenantId });
   await sendEmployeePortalPush({
     tenantId: notificationTenantId,
-    employeeId: thread.employee_id,
+    employeeId: thread.employee_record_id,
     title: EMPLOYEE_CHAT_PUSH_TITLE,
     body: employeeManagementPushBody(message, senderName),
     url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
@@ -687,7 +820,7 @@ export const markAdminEmployeeChatThreadRead = async ({ tenantId = null, threadI
     [thread.id]
   );
   if (readResult.rowCount > 0) {
-    emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:read", {
+    emitChatEvent([...threadCashierRooms(thread), adminChatRoom(thread.tenant_id)], "employee-chat:read", {
       thread_id: thread.id,
       employee_id: thread.employee_id,
       reader_type: "admin",

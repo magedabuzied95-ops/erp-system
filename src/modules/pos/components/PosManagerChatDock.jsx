@@ -15,20 +15,19 @@ import {
 } from "../../../shared/chat/portalChatUtils";
 
 /*
- * Management → cashier channel inside the POS.
+ * Management → cashier channel inside the POS: "كاشير فرع X".
  *
- * The employee side of the management chat (employee_chat_threads) for the
- * cashier's linked employee row. Realtime comes from the shared JWT socket,
- * which the server now joins to `employee-chat:employee:<id>`; a 12 s poll
- * only runs while that socket is down, mirroring the Employee App.
+ * One thread per BRANCH (employee_chat_threads.channel_type = 'branch_pos'),
+ * so no employee link is needed — whoever is on the POS at that branch is the
+ * cashier side. The POS announces its branch over the shared JWT socket
+ * (`employee-chat:pos-branch`) and joins `employee-chat:branch-pos:<id>`; a
+ * 12 s poll only runs while that socket is down, mirroring the Employee App.
  *
  * A manager's message rings `employee_chat_message` (priority critical) so the
  * cashier hears it even when the POS tab sits behind the receipt window.
  */
 
 const POLL_MS = 12000;
-const PRESENCE_ACTIVE = { active: true };
-const PRESENCE_INACTIVE = { active: false };
 
 const messageKey = (message) => String(message?.id || "");
 const isAdminMessage = (message) => String(message?.sender_type || "") === "admin";
@@ -53,13 +52,14 @@ const formatTime = (value, locale) => {
   return new Intl.DateTimeFormat(locale, sameDay ? { hour: "2-digit", minute: "2-digit" } : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 };
 
-export default function PosManagerChatDock() {
+export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
   const { t, i18n } = useTranslation();
+  const branchKey = String(branchId || "").trim();
   const locale = i18n.language?.startsWith("ar") ? "ar-EG" : "en-US";
   const { connected } = useRealtimeConnection();
 
-  const [available, setAvailable] = useState(null); // null = unknown, false = no linked employee
-  const [employee, setEmployee] = useState(null);
+  const [available, setAvailable] = useState(null); // null = unknown, false = no usable branch
+  const [channelName, setChannelName] = useState("");
   const [messages, setMessages] = useState([]);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -86,36 +86,40 @@ export default function PosManagerChatDock() {
   }, []);
 
   const markRead = useCallback(async () => {
-    if (!threadIdRef.current) return;
+    if (!threadIdRef.current || !branchKey) return;
     try {
-      await api.post("/employees/chat/me/read", {});
+      await api.post("/employees/chat/pos/read", { branch_id: branchKey });
       setMessages((list) => list.map((item) => (isAdminMessage(item) && !item.read_at ? { ...item, read_at: new Date().toISOString() } : item)));
     } catch {
       /* the next load re-syncs read state */
     }
-  }, []);
+  }, [branchKey]);
 
   const load = useCallback(
     async ({ silent = false } = {}) => {
+      if (!branchKey) {
+        setAvailable(false);
+        return;
+      }
       try {
-        const data = await api.get("/employees/chat/me", { suppressErrorStatuses: [404] });
+        const data = await api.get(`/employees/chat/pos?branch_id=${encodeURIComponent(branchKey)}`, { suppressErrorStatuses: [404, 400] });
         const nextThread = data?.thread || null;
         threadIdRef.current = nextThread?.id ? String(nextThread.id) : "";
-        setEmployee(data?.employee || null);
+        setChannelName(String(nextThread?.employee_name || data?.branch?.name || ""));
         setMessages(sortByTime(Array.isArray(data?.messages) ? data.messages : []));
         setAvailable(true);
         setError("");
       } catch (err) {
-        const code = err?.responseBody?.code || err?.code || "";
         const status = Number(err?.status || err?.response?.status || 0);
-        if (code === "employee_not_linked" || status === 404) {
+        // 404 = route not deployed yet or branch not found; 400 = no branch. Either way, no dock.
+        if (status === 404 || status === 400) {
           setAvailable(false);
           return;
         }
         if (!silent) setError(t("pos.managerChat.loadFailed"));
       }
     },
-    [t]
+    [branchKey, t]
   );
 
   useEffect(() => {
@@ -130,16 +134,19 @@ export default function PosManagerChatDock() {
      * open is both the freshest thread and the read receipt the manager sees.
      */
     load({ silent: true });
-    emitRealtime("employee-chat:presence", PRESENCE_ACTIVE);
     const raf = window.requestAnimationFrame(() => {
       scrollToEnd();
       inputRef.current?.focus?.();
     });
-    return () => {
-      window.cancelAnimationFrame(raf);
-      emitRealtime("employee-chat:presence", PRESENCE_INACTIVE);
-    };
+    return () => window.cancelAnimationFrame(raf);
   }, [open, load, scrollToEnd]);
+
+  // Announce the branch to the socket (again after every reconnect — rooms do not survive one).
+  useEffect(() => {
+    if (!branchKey || !connected) return undefined;
+    emitRealtime("employee-chat:pos-branch", { branch_id: branchKey });
+    return () => emitRealtime("employee-chat:pos-branch", { branch_id: null });
+  }, [branchKey, connected]);
 
   useEffect(() => {
     if (open) scrollToEnd();
@@ -207,7 +214,7 @@ export default function PosManagerChatDock() {
   const stopTyping = useCallback(() => {
     if (!typingSent.current) return;
     typingSent.current = false;
-    emitRealtime("employee-chat:employee-stop-typing", { thread_id: threadIdRef.current || null });
+    emitRealtime("employee-chat:employee-stop-typing", { channel: "branch_pos", thread_id: threadIdRef.current || null });
   }, []);
 
   const handleDraftChange = useCallback(
@@ -215,12 +222,12 @@ export default function PosManagerChatDock() {
       setDraft(event.target.value);
       if (!typingSent.current) {
         typingSent.current = true;
-        emitRealtime("employee-chat:employee-typing", { thread_id: threadIdRef.current || null, employee_name: employee?.full_name || "" });
+        emitRealtime("employee-chat:employee-typing", { channel: "branch_pos", thread_id: threadIdRef.current || null, employee_name: channelName });
       }
       window.clearTimeout(typingTimer.current);
       typingTimer.current = window.setTimeout(stopTyping, 2200);
     },
-    [employee, stopTyping]
+    [channelName, stopTyping]
   );
 
   const send = useCallback(async () => {
@@ -229,7 +236,7 @@ export default function PosManagerChatDock() {
     setSending(true);
     setError("");
     try {
-      const data = await api.post("/employees/chat/me/messages", { body });
+      const data = await api.post("/employees/chat/pos/messages", { branch_id: branchKey, body });
       if (data?.thread?.id) threadIdRef.current = String(data.thread.id);
       if (data?.message) setMessages((list) => mergeMessage(list, data.message));
       setDraft("");
@@ -240,7 +247,7 @@ export default function PosManagerChatDock() {
     } finally {
       setSending(false);
     }
-  }, [draft, sending, stopTyping, t]);
+  }, [branchKey, draft, sending, stopTyping, t]);
 
   const onKeyDown = useCallback(
     (event) => {
@@ -261,6 +268,7 @@ export default function PosManagerChatDock() {
   if (available === false) return null;
 
   const title = t("pos.managerChat.title");
+  const subtitle = channelName || branchName || "";
   const unreadLabel = unread ? t("pos.managerChat.unread", { count: unread }) : "";
   const badge = unread > 99 ? "99+" : String(unread || "");
 
@@ -308,6 +316,7 @@ export default function PosManagerChatDock() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-black">{title}</div>
+              {subtitle ? <div className="truncate text-[11px] font-bold text-amber-200/80">{subtitle}</div> : null}
               <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] font-semibold text-zinc-400">
                 <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${connected ? "bg-emerald-400" : "bg-amber-400"}`} />
                 <span className="truncate">{connected ? t("pos.managerChat.connected") : t("pos.managerChat.reconnecting")}</span>
@@ -353,7 +362,7 @@ export default function PosManagerChatDock() {
                       }`}
                     >
                       <div className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${admin ? "text-amber-300/80" : "text-zinc-500"}`}>
-                        {admin ? t("pos.managerChat.management") : t("pos.managerChat.you")}
+                        {admin ? t("pos.managerChat.management") : message.sender_name || t("pos.managerChat.you")}
                       </div>
                       {deleted ? (
                         <div className="italic text-zinc-500">—</div>
