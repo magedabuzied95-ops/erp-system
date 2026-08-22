@@ -1230,6 +1230,20 @@ function PurchaseOrder() {
   }, [activePurchaseFilterCount, debouncedSearch, purchaseFilters, purchaseProductSource]);
 
   const groupedCards = useMemo(() => groupByProduct(filteredProducts), [filteredProducts]);
+  // The size/colour run modal must always contain the model whose card was clicked.
+  // Search results come from the server and may not be part of the bounded local
+  // catalog, so merge them in and pin the clicked model to the front of the list.
+  const runModalProductGroups = useMemo(() => {
+    if (!runModal) return [];
+    const clicked = runModal.product;
+    const clickedId = String(clicked?.product_id ?? "");
+    const groups = groupByProduct([...products, ...searchProducts]);
+    const index = groups.findIndex((group) => String(group.product_id) === clickedId);
+    if (index === -1) return clicked ? [clicked, ...groups] : groups;
+    const [match] = groups.splice(index, 1);
+    const merged = clicked && toArray(clicked.variants).length > toArray(match.variants).length ? clicked : match;
+    return [merged, ...groups];
+  }, [runModal, products, searchProducts]);
 
   const filterSource = debouncedSearch.trim().length >= 2 && searchProducts.length ? searchProducts : products;
   const purchaseFilterOptions = useMemo(() => ({
@@ -2616,7 +2630,7 @@ function PurchaseOrder() {
       </div>
 
       {variantSelector ? <VariantSelector group={variantSelector} onAdd={addProduct} onClose={() => setVariantSelector(null)} /> : null}
-      {runModal ? <RunModal mode={runModal.mode} initialProduct={runModal.product} productGroups={groupByProduct(products)} onClose={() => setRunModal(null)} onAdd={addRunItems} /> : null}
+      {runModal ? <RunModal mode={runModal.mode} initialProduct={runModal.product} productGroups={runModalProductGroups} onClose={() => setRunModal(null)} onAdd={addRunItems} /> : null}
       {bulkPriceModal === "model-pricing" ? (
         <BulkModelPricingModal
           items={items}
@@ -3952,7 +3966,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
 function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
   const { t } = useTranslation();
   const [productId, setProductId] = useState(String(initialProduct?.product_id || productGroups[0]?.product_id || ""));
-  const selected = productGroups.find((group) => String(group.product_id) === String(productId)) || productGroups[0] || null;
+  const selected = productGroups.find((group) => String(group.product_id) === String(productId)) || initialProduct || productGroups[0] || null;
   const colorGroups = Array.from(toArray(selected?.variants).reduce((map, item) => {
     const key = purchaseVariantColorGroupKey(item);
     if (!map.has(key)) map.set(key, { key, color: item.color || "افتراضي", variants: [] });
