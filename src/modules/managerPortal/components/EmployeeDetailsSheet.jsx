@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, X, Plus, Minus, ChevronRight, ChevronLeft } from "lucide-react";
+import { Loader2, X, Plus, Minus, ChevronRight, ChevronLeft, Trash2, Pencil } from "lucide-react";
 import i18n from "../../../i18n/i18n";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -33,6 +33,23 @@ const formatMinutes = (minutes) => {
   const r = m % 60;
   return h ? `${h} س ${r ? `${r} د` : ""}`.trim() : `${r} د`;
 };
+const ATTENDANCE_TZ = "Africa/Cairo";
+const toDateKey = (value) => {
+  if (!value) return "";
+  const str = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+};
+const toClockInput = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ATTENDANCE_TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value || "00";
+  return `${get("hour")}:${get("minute")}`;
+};
+const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: ATTENDANCE_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const monthLabel = (month) => {
   const [y, m] = String(month || "").split("-").map(Number);
   if (!y || !m) return month || "";
@@ -81,6 +98,10 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const [form, setForm] = useState({ type: "bonus", amount: "", reason: "" });
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [deletingKey, setDeletingKey] = useState("");
+  const [attForm, setAttForm] = useState(null);
+  const [attSaving, setAttSaving] = useState(false);
+  const [attNotice, setAttNotice] = useState("");
 
   const employeeId = employee?.employee_id || employee?.id;
 
@@ -120,6 +141,56 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
       setNotice(error?.response?.data?.message || error?.message || tt("managerPortal.employeeDetails.saveError"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteAdjustment = async (row) => {
+    if (!window.confirm(tt("managerPortal.employeeDetails.deleteConfirm"))) return;
+    const key = `${row._kind}-${row.id}`;
+    try {
+      setDeletingKey(key);
+      setNotice("");
+      await managerPortalApi.deleteEmployeeAdjustment(token, employeeId, row._kind, row.id);
+      setNotice(tt("managerPortal.employeeDetails.deleted"));
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setNotice(error?.response?.data?.message || error?.message || tt("managerPortal.employeeDetails.deleteError"));
+    } finally {
+      setDeletingKey("");
+    }
+  };
+
+  const openAttendanceEditor = (row = null) => {
+    setAttNotice("");
+    setAttForm(row
+      ? { date: toDateKey(row.date), check_in: toClockInput(row.check_in), check_out: toClockInput(row.check_out), reason: "" }
+      : { date: isCurrentMonth ? todayKey() : `${month}-01`, check_in: "", check_out: "", reason: "" });
+  };
+
+  const submitAttendance = async (event) => {
+    event.preventDefault();
+    if (!attForm) return;
+    if (!attForm.check_in) { setAttNotice(tt("managerPortal.employeeDetails.checkInRequired")); return; }
+    if (!String(attForm.reason || "").trim()) { setAttNotice(tt("managerPortal.employeeDetails.attendanceReasonRequired")); return; }
+    try {
+      setAttSaving(true);
+      setAttNotice("");
+      await managerPortalApi.correctEmployeeAttendance(token, employeeId, {
+        attendance_date: attForm.date,
+        check_in_time: attForm.check_in,
+        check_out_time: attForm.check_out || "",
+        correction_scope: attForm.check_out ? "both" : "check_in",
+        reason: attForm.reason.trim(),
+      });
+      setAttForm(null);
+      setNotice(tt("managerPortal.employeeDetails.attendanceSaved"));
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setAttNotice(error?.response?.data?.message || error?.message || tt("managerPortal.employeeDetails.attendanceSaveError"));
+    } finally {
+      setAttSaving(false);
     }
   };
 
@@ -254,6 +325,38 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
 
               {tab === "attendance" ? (
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => openAttendanceEditor(null)} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-800">
+                      <Plus className="h-3.5 w-3.5" /> {tt("managerPortal.employeeDetails.addAttendance")}
+                    </button>
+                    {notice ? <span className="text-xs font-bold text-slate-600">{notice}</span> : null}
+                  </div>
+                  {attForm ? (
+                    <form onSubmit={submitAttendance} className="rounded-[var(--radius-card)] border border-slate-200 bg-slate-50 p-3">
+                      <label className="block text-[11px] font-black text-slate-500">{tt("managerPortal.employeeDetails.attendanceDate")}</label>
+                      <input type="date" value={attForm.date} onChange={(e) => setAttForm((f) => ({ ...f, date: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950" required />
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-500">{tt("managerPortal.employeeDetails.checkInTime")}</label>
+                          <input type="time" value={attForm.check_in} onChange={(e) => setAttForm((f) => ({ ...f, check_in: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950" required />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-500">{tt("managerPortal.employeeDetails.checkOutTime")}</label>
+                          <input type="time" value={attForm.check_out} onChange={(e) => setAttForm((f) => ({ ...f, check_out: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950" />
+                        </div>
+                      </div>
+                      <div className="mt-1 text-[10px] font-bold text-slate-400">{tt("managerPortal.employeeDetails.checkOutOptional")}</div>
+                      <input type="text" value={attForm.reason} onChange={(e) => setAttForm((f) => ({ ...f, reason: e.target.value }))} placeholder={tt("managerPortal.employeeDetails.attendanceReason")} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-950" />
+                      {attNotice ? <div className="mt-2 text-xs font-bold text-rose-700">{attNotice}</div> : null}
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => setAttForm(null)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700">{tt("managerPortal.employeeDetails.cancel")}</button>
+                        <button type="submit" disabled={attSaving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-black text-white disabled:opacity-60">
+                          {attSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                          {tt("managerPortal.employeeDetails.save")}
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     <Stat label={tt("managerPortal.employeeDetails.attendanceDays")} value={formatNumber(d.attendance.totals.days)} />
                     <Stat label={tt("managerPortal.employeeDetails.workHours")} value={`${formatNumber(d.attendance.totals.work_hours)} س`} />
@@ -271,6 +374,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                             <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.hours")}</th>
                             <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.late")}</th>
                             <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.overtime")}</th>
+                            <th className="px-2 py-2" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
@@ -282,6 +386,11 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                               <td className="px-2 py-2 tabular-nums">{formatNumber(row.work_hours)}</td>
                               <td className={`px-2 py-2 tabular-nums ${row.late_minutes > 0 ? "text-rose-700" : "text-slate-400"}`}>{formatMinutes(row.late_minutes)}</td>
                               <td className={`px-2 py-2 tabular-nums ${row.overtime_minutes > 0 ? "text-emerald-700" : "text-slate-400"}`}>{formatMinutes(row.overtime_minutes)}</td>
+                              <td className="px-1 py-1 text-left">
+                                <button type="button" aria-label={tt("managerPortal.employeeDetails.editAttendance")} onClick={() => openAttendanceEditor(row)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -292,6 +401,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                             <td className="px-2 py-2 tabular-nums">{formatNumber(d.attendance.totals.work_hours)}</td>
                             <td className="px-2 py-2 tabular-nums text-rose-700">{formatMinutes(d.attendance.totals.late_minutes)}</td>
                             <td className="px-2 py-2 tabular-nums text-emerald-700">{formatMinutes(d.attendance.totals.overtime_minutes)}</td>
+                            <td />
                           </tr>
                         </tfoot>
                       </table>
@@ -345,7 +455,12 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                       <div key={`${row._kind}-${row.id}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5">
                         <div className="flex items-center justify-between gap-2">
                           <span className={`text-sm font-black ${row._kind === "bonus" ? "text-emerald-700" : "text-rose-700"}`}>{row._kind === "bonus" ? "+" : "-"} {formatCurrency(row.amount)}</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600">{statusLabel(row.status)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600">{statusLabel(row.status)}</span>
+                            <button type="button" aria-label={tt("managerPortal.employeeDetails.delete")} disabled={deletingKey === `${row._kind}-${row.id}`} onClick={() => deleteAdjustment(row)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-50">
+                              {deletingKey === `${row._kind}-${row.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
                         </div>
                         <div className="mt-1 text-xs font-bold text-slate-700">{row.reason}</div>
                         <div className="mt-0.5 text-[11px] font-bold text-slate-400">{formatDate(row._date || row.created_at)}</div>

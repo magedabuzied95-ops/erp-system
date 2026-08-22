@@ -2202,7 +2202,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     salesCommission.listEmployeeBonuses({ tenantId, employeeId: employee.id }).catch(() => []),
     safeQuery(
       `
-      SELECT attendance_date, check_in_at, check_out_at, check_in, check_out, status,
+      SELECT id, branch_id, attendance_date, check_in_at, check_out_at, check_in, check_out, status,
              work_minutes, worked_hours, late_minutes, early_leave_minutes, overtime_minutes, notes
       FROM attendance_logs
       WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
@@ -2225,6 +2225,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     const checkOut = row.check_out_at || row.check_out || null;
     const workMinutes = Number(row.work_minutes || 0) || (checkIn && checkOut ? Math.max(0, (new Date(checkOut) - new Date(checkIn)) / 60000) : 0);
     return {
+      id: row.id,
+      branch_id: row.branch_id,
       date: row.attendance_date,
       check_in: checkIn,
       check_out: checkOut,
@@ -2333,6 +2335,64 @@ export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
   const error = new Error("Adjustment type must be bonus or deduction");
   error.status = 400;
   throw error;
+};
+
+export const cancelManagerPortalEmployeeAdjustment = async ({ manager = {}, employeeId, kind, adjustmentId } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const type = String(kind || "").trim().toLowerCase();
+  const salesCommission = await import("./salesCommissionService.js");
+  if (type === "bonus") {
+    const row = await salesCommission.cancelEmployeeBonus({ tenantId, employeeId: employee.id, id: adjustmentId });
+    return { type, row };
+  }
+  if (type === "deduction" || type === "penalty") {
+    const existing = (await salesCommission.listEmployeePenalties({ tenantId, employeeId: employee.id, includeCancelled: true }))
+      .find((row) => String(row.id) === String(adjustmentId));
+    if (!existing) {
+      const error = new Error("Deduction not found");
+      error.status = 404;
+      throw error;
+    }
+    const row = await salesCommission.cancelEmployeePenalty({ tenantId, id: adjustmentId });
+    return { type: "deduction", row };
+  }
+  const error = new Error("Adjustment type must be bonus or deduction");
+  error.status = 400;
+  throw error;
+};
+
+// Manager-side check-in / check-out correction. Same engine as the admin
+// manual entry, scoped to the manager's branch and tagged in the audit log.
+export const correctManagerPortalAttendance = async ({ manager = {}, employeeId, payload = {}, request = {} } = {}) => {
+  const { employee, tenantId, branchId } = await loadScopedEmployee({ manager, employeeId });
+  if (!tenantId) {
+    const error = new Error("Tenant context is required");
+    error.status = 400;
+    throw error;
+  }
+  const { upsertManualAttendance } = await import("../utils/attendanceManualEntry.js");
+  const { saved, created } = await upsertManualAttendance({
+    tenantId,
+    employeeId: employee.id,
+    attendanceDate: payload.attendance_date || payload.date,
+    checkInTime: payload.check_in_time || payload.check_in,
+    checkOutTime: payload.check_out_time || payload.check_out,
+    checkOutDate: payload.check_out_date,
+    correctionScope: payload.correction_scope || payload.scope,
+    reason: payload.reason,
+    branchId: payload.branch_id || employee.branch_id || branchId,
+    scopeBranchId: branchId,
+    actor: {
+      userId: manager.user_id || null,
+      ip: request.ip || null,
+      userAgent: request.userAgent || null,
+      source: "manager_portal",
+      managerEmployeeId: manager.id || null,
+    },
+    auditPrefix: "Manager attendance correction",
+    auditAction: "attendance_manager_upsert",
+  });
+  return { attendance: saved, created };
 };
 
 const managerTaskActor = (manager = {}) => ({

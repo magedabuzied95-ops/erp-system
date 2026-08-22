@@ -653,6 +653,23 @@
     "save": "حفظ",
     "bonusesMonth": "إضافات الشهر",
     "penaltiesMonth": "خصومات الشهر",
-    "noAdjustments": "لا توجد إضافات أو خصومات هذا الشهر"
+    "noAdjustments": "لا توجد إضافات أو خصومات هذا الشهر",
+    "delete": "حذف",
+    "deleteConfirm": "حذف هذا السجل؟ سيتم استبعاده من الراتب.",
+    "deleted": "تم الحذف",
+    "deleteError": "تعذر الحذف",
+    "editAttendance": "تعديل",
+    "addAttendance": "إضافة يوم حضور",
+    "attendanceDate": "التاريخ",
+    "checkInTime": "وقت الحضور",
+    "checkOutTime": "وقت الانصراف",
+    "checkOutOptional": "اتركه فارغًا لو لم ينصرف بعد",
+    "attendanceReason": "سبب التعديل",
+    "attendanceReasonRequired": "اكتب سبب التعديل",
+    "checkInRequired": "أدخل وقت الحضور",
+    "attendanceSaved": "تم حفظ الحضور",
+    "attendanceSaveError": "تعذر حفظ الحضور",
+    "cancel": "إلغاء",
+    "corrected": "معدّل يدويًا"
   }
 }

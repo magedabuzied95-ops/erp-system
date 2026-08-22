@@ -1,4 +1,5 @@
 import express from "express";
+import net from "node:net";
 import employeeChatUpload from "../config/employeeChatUpload.js";
 import {
   approveManagerPortalTask,
@@ -19,6 +20,8 @@ import {
   getManagerPortalStaff,
   getManagerPortalEmployeeDetails,
   createManagerPortalEmployeeAdjustment,
+  cancelManagerPortalEmployeeAdjustment,
+  correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
@@ -332,6 +335,43 @@ router.post("/:token/staff/:employeeId/adjustments", verifyManagerPortalToken, a
   } catch (error) {
     console.error("[manager-portal] employee adjustment error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save adjustment" });
+  }
+});
+
+const managerRequestIp = (req) => {
+  const forwarded = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  const candidate = forwarded || req.ip || req.socket?.remoteAddress || "";
+  const normalized = String(candidate).replace(/^::ffff:/, "").trim();
+  return net.isIP(normalized) ? normalized : null;
+};
+
+router.delete("/:token/staff/:employeeId/adjustments/:kind/:adjustmentId", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const result = await cancelManagerPortalEmployeeAdjustment({
+      manager: req.managerPortalManager,
+      employeeId: req.params.employeeId,
+      kind: req.params.kind,
+      adjustmentId: req.params.adjustmentId,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[manager-portal] employee adjustment cancel error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete adjustment" });
+  }
+});
+
+router.post("/:token/staff/:employeeId/attendance", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const result = await correctManagerPortalAttendance({
+      manager: req.managerPortalManager,
+      employeeId: req.params.employeeId,
+      payload: req.body || {},
+      request: { ip: managerRequestIp(req), userAgent: req.headers?.["user-agent"] || null },
+    });
+    return res.status(result.created ? 201 : 200).json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] attendance correction error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code || null, message: error.message || "Failed to save attendance correction" });
   }
 });
 

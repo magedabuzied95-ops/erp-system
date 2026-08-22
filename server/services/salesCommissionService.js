@@ -490,6 +490,33 @@ export const listEmployeeBonuses = async ({ tenantId = null, employeeId, periodS
 export const listApprovedEmployeeBonusesForPayroll = async ({ tenantId = null, employeeId, periodStart, periodEnd } = {}) =>
   (await listEmployeeBonuses({ tenantId, employeeId, periodStart, periodEnd })).filter((row) => row.status === "approved" && row.amount > 0);
 
+export const cancelEmployeeBonus = async ({ tenantId = null, employeeId = null, id } = {}) => {
+  const bonusId = normalizeOptionalId(id);
+  if (!bonusId) {
+    const error = new Error("Bonus id is required");
+    error.status = 400;
+    throw error;
+  }
+  await ensureEmployeeBonusesSchema(db);
+  const result = await db.query(
+    `
+    UPDATE employee_bonuses
+    SET status = 'cancelled', updated_at = NOW()
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      AND ($3::text IS NULL OR employee_id::text = $3::text)
+    RETURNING *
+    `,
+    [bonusId, tenantId, employeeId === null || employeeId === undefined || employeeId === "" ? null : String(employeeId)]
+  );
+  if (!result.rows[0]) {
+    const error = new Error("Bonus not found");
+    error.status = 404;
+    throw error;
+  }
+  return { ...result.rows[0], amount: toNumber(result.rows[0]?.amount) };
+};
+
 export const createEmployeeBonus = async ({ tenantId = null, employeeId, userId = null, data = {} } = {}) => {
   const normalizedEmployeeId = normalizeOptionalLookupId(employeeId || data.employee_id || data.employeeId);
   if (!normalizedEmployeeId) {

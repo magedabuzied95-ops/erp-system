@@ -653,6 +653,23 @@
     "save": "Save",
     "bonusesMonth": "Bonuses this month",
     "penaltiesMonth": "Deductions this month",
-    "noAdjustments": "No bonuses or deductions this month"
+    "noAdjustments": "No bonuses or deductions this month",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this record? It will be excluded from payroll.",
+    "deleted": "Deleted",
+    "deleteError": "Could not delete",
+    "editAttendance": "Edit",
+    "addAttendance": "Add attendance day",
+    "attendanceDate": "Date",
+    "checkInTime": "Check-in time",
+    "checkOutTime": "Check-out time",
+    "checkOutOptional": "Leave empty if not checked out yet",
+    "attendanceReason": "Correction reason",
+    "attendanceReasonRequired": "Enter the correction reason",
+    "checkInRequired": "Enter the check-in time",
+    "attendanceSaved": "Attendance saved",
+    "attendanceSaveError": "Could not save attendance",
+    "cancel": "Cancel",
+    "corrected": "Manually corrected"
   }
 }
