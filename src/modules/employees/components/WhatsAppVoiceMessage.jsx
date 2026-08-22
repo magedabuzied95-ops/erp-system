@@ -129,7 +129,7 @@ export default function WhatsAppVoiceMessage({
         <button
           type="button"
           onClick={togglePlayback}
-          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${ outgoing ? "bg-[#d9fdd3] text-[#005c4b]" : "bg-[#e9edef] text-[#202c33]" }`}
+          className={`flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${ outgoing ? "bg-[var(--chat-chrome)] text-[var(--chat-text)]" : "bg-[var(--chat-chrome)] text-[var(--chat-text)]" }`}
           aria-label={playing ? t("employeePortal.chrome.pauseVoiceMessage") : t("employeePortal.chrome.playVoiceMessage")}
         >
           {playing ? <Pause className="h-[15px] w-[15px] fill-current" /> : <Play className="h-[15px] w-[15px] fill-current ps-0.5" />}
@@ -146,21 +146,21 @@ export default function WhatsAppVoiceMessage({
             return (
               <span
                 key={`${height}-${index}`}
-                className={`min-w-px flex-1 rounded-full transition-colors ${ active ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]" : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75" }`}
+                className={`min-w-px flex-1 rounded-full transition-colors ${ active ? outgoing ? "bg-[var(--primary)]" : "bg-[var(--primary)]" : outgoing ? "bg-[var(--chat-tick)]/50" : "bg-[var(--chat-tick)]/50" }`}
                 style={{ height: `${height}px` }}
                 aria-hidden="true"
               />
             );
           })}
         </button>
-        <span className={`w-8 shrink-0 text-right text-[10px] font-medium leading-none tabular-nums ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
+        <span className={`w-8 shrink-0 text-right text-[10px] font-medium leading-none tabular-nums ${outgoing ? "text-[var(--chat-tick)]" : "text-[var(--chat-tick)]"}`}>
           {formatDuration(duration)}
         </span>
       </div>
       {(timeText || showChecks) ? (
-        <div className={`mt-0 flex h-3 items-center justify-end gap-px text-[9px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
+        <div className={`mt-0 flex h-3 items-center justify-end gap-px text-[9px] font-medium leading-none ${outgoing ? "text-[var(--chat-tick)]" : "text-[var(--chat-tick)]"}`}>
           {timeText ? <span>{timeText}</span> : null}
-          {showChecks ? <CheckCheck className={`h-3 w-3 ${read ? "text-[#53bdeb]" : outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} /> : null}
+          {showChecks ? <CheckCheck className={`h-3 w-3 ${read ? "text-[var(--chat-link)]" : outgoing ? "text-[var(--chat-tick)]" : "text-[var(--chat-tick)]"}`} /> : null}
         </div>
       ) : null}
     </div>

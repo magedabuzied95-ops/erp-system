@@ -65,7 +65,7 @@ export default function PortalChatAttachment({
 
   if (isVideo && href) {
     return (
-      <div className="mb-2 overflow-hidden rounded-2xl border border-black/10 bg-black/15">
+      <div className="mb-2 overflow-hidden rounded-2xl border border-[var(--chat-border)] bg-black/15">
         <video
           src={href}
           controls
@@ -81,8 +81,8 @@ export default function PortalChatAttachment({
   if (!href) return null;
 
   return (
-    <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/70 text-slate-700">
+    <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-[var(--chat-border)] bg-black/5 p-3 text-inherit no-underline">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--chat-input)] text-[var(--chat-muted)]">
         <FileText className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">

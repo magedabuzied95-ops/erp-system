@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
 
@@ -62,7 +62,7 @@ export default function ChatImageAttachment({ src, alt = "", compact = false, on
 
   if (!safeSrc) {
     return (
-      <div className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-slate-200/80">
+      <div className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-[var(--chat-border)] bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-[var(--chat-text)]/80">
         <ImageOff className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 truncate" dir="auto">{t("employeePortal.chrome.imageUnavailable")}</span>
       </div>
@@ -71,7 +71,7 @@ export default function ChatImageAttachment({ src, alt = "", compact = false, on
 
   if (failed) {
     return (
-      <a href={safeSrc} target="_blank" rel="noreferrer" className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-slate-200/80 no-underline">
+      <a href={safeSrc} target="_blank" rel="noreferrer" className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-[var(--chat-border)] bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-[var(--chat-text)]/80 no-underline">
         <ImageOff className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 truncate" dir="auto">{t("employeePortal.chrome.openImage")}</span>
       </a>
@@ -92,7 +92,7 @@ export default function ChatImageAttachment({ src, alt = "", compact = false, on
   };
 
   return (
-    <button type="button" onClick={() => onClick?.(safeSrc)} className="mb-1 inline-block max-w-full overflow-hidden rounded-[var(--radius-control)] border border-black/5 bg-black/5 text-start align-top">
+    <button type="button" onClick={() => onClick?.(safeSrc)} className="mb-1 inline-block max-w-full overflow-hidden rounded-[var(--radius-control)] border border-[var(--chat-border)] bg-black/5 text-start align-top">
       <img
         src={safeSrc}
         alt={imageAlt}

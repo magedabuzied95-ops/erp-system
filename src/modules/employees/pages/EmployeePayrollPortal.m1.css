@@ -179,10 +179,6 @@ html[data-theme="dark"] .employee-portal-shell [class*="border-dashed"] {
   border-color: var(--border-strong) !important;
 }
 
-html[data-theme="dark"] .employee-portal-shell [class*="ring-offset-[#0b141a]"] {
-  --tw-ring-offset-color: var(--bg) !important;
-}
-
 /* Action colors must win over semantic status utilities. In the portal these
    solid legacy green/cyan buttons are commands, not success indicators. */
 .employee-portal-shell button[class*="bg-emerald-"],
@@ -204,55 +200,32 @@ html[data-theme="light"] .employee-portal-shell {
   color-scheme: light;
 }
 
-/* The employee chat intentionally keeps WhatsApp's dark visual language in
-   both application themes so the conversation never inherits ERP surfaces. */
+/* The employee chat follows the application theme through the shared chat
+   token layer (src/theme/foundation.css). The --wa-* names are kept as local
+   aliases so the layout rules below did not need to change; the values are
+   no longer WhatsApp's palette. */
 .employee-portal-chat {
-  --wa-bg: #0b141a;
-  --wa-header: #202c33;
-  --wa-panel: #202c33;
-  --wa-input: #2a3942;
-  --wa-outgoing: #005c4b;
-  --wa-incoming: #202c33;
-  --wa-text: #e9edef;
-  --wa-muted: #8696a0;
-  --wa-green: #00a884;
+  --wa-bg: var(--chat-bg);
+  --wa-header: var(--chat-chrome);
+  --wa-panel: var(--chat-chrome);
+  --wa-input: var(--chat-input);
+  --wa-outgoing: var(--chat-bubble-out);
+  --wa-incoming: var(--chat-bubble-in);
+  --wa-text: var(--chat-text);
+  --wa-muted: var(--chat-muted);
+  --wa-green: var(--primary);
   background: var(--wa-bg) !important;
-  border-color: #2f3b43 !important;
+  border-color: var(--chat-border) !important;
   color: var(--wa-text) !important;
-  color-scheme: dark;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Arial, sans-serif !important;
+  font-family: var(--app-font) !important;
 }
 
 .employee-portal-chat > div:first-child,
 .employee-portal-chat > div:first-child header,
 .employee-portal-chat form {
   background: var(--wa-panel) !important;
-  border-color: rgba(134, 150, 160, 0.2) !important;
+  border-color: var(--chat-border) !important;
   color: var(--wa-text) !important;
-}
-
-.employee-portal-chat [class*="bg-[#0b141a]"] {
-  background-color: var(--wa-bg) !important;
-}
-
-.employee-portal-chat [class*="bg-[#005c4b]"] {
-  background: var(--wa-outgoing) !important;
-  border-color: transparent !important;
-  color: var(--wa-text) !important;
-}
-
-.employee-portal-chat [class*="bg-[#005c4b]"]::after {
-  background: var(--wa-outgoing) !important;
-}
-
-.employee-portal-chat [class*="bg-[#202c33]"] {
-  background: var(--wa-incoming) !important;
-  border-color: transparent !important;
-  color: var(--wa-text) !important;
-}
-
-.employee-portal-chat [class*="bg-[#202c33]"]::after {
-  background: var(--wa-incoming) !important;
 }
 
 .employee-portal-chat form :where(input, textarea) {
@@ -264,7 +237,7 @@ html[data-theme="light"] .employee-portal-shell {
 
 .employee-portal-chat form button[type="submit"] {
   background: var(--wa-green) !important;
-  color: #062b24 !important;
+  color: var(--primary-contrast) !important;
 }
 
 .employee-chat-status-safe-area {

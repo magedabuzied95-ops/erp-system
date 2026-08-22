@@ -59,9 +59,11 @@ const resolveApiBaseUrl = () => {
   // All local nip.io ERP previews run behind Vite's same-origin proxy.
   // Resolve this before reading env fallbacks, because the base .env may
   // intentionally point ordinary localhost development at port 8000.
+  // `app.localhost`-style hosts are the same situation: a subdomain exists only
+  // to pass the ERP host gate, and the in-app browser blocks nip.io outright.
   if (
     typeof window !== "undefined" &&
-    String(window.location.hostname || "").toLowerCase().endsWith(".nip.io")
+    /\.(?:nip\.io|localhost)$/.test(String(window.location.hostname || "").toLowerCase())
   ) {
     return "/api";
   }

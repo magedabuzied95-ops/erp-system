@@ -548,7 +548,15 @@
       "notifications": "Notifications",
       "theme": "Chat theme",
       "themeDark": "Dark"
-    }
+    },
+    "deletedMessage": "This message was deleted",
+    "edited": "edited",
+    "messageActions": "Message actions",
+    "you": "You",
+    "react": "React",
+    "deleteForAll": "Delete for everyone",
+    "forward": "Forward",
+    "copy": "Copy"
   },
   "profile": {
     "settings": "Profile settings",

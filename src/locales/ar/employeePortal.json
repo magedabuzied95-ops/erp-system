@@ -548,7 +548,15 @@
       "notifications": "الإشعارات",
       "theme": "سمة المحادثة",
       "themeDark": "داكن"
-    }
+    },
+    "deletedMessage": "تم حذف هذه الرسالة",
+    "edited": "معدلة",
+    "messageActions": "إجراءات الرسالة",
+    "you": "أنت",
+    "react": "تفاعل",
+    "deleteForAll": "حذف لدى الجميع",
+    "forward": "إعادة توجيه",
+    "copy": "نسخ"
   },
   "profile": {
     "settings": "إعدادات الملف الشخصي",

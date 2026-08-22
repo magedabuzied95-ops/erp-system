@@ -794,7 +794,7 @@ export default function SharedPortalChat({
             {t("common.refresh")}
           </button>
         </div>
-        {errorMessage ? <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-200" dir="auto">{errorMessage}</div> : null}
+        {errorMessage ? <div className="mt-3 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-sm font-bold text-[var(--danger)]" dir="auto">{errorMessage}</div> : null}
       </div>
 
       <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "xl:grid-cols-[22rem_1fr_20rem] md:grid-cols-[20rem_1fr]" : "md:grid-cols-[22rem_1fr]"}`}>
@@ -840,7 +840,7 @@ export default function SharedPortalChat({
                         <div className="flex items-center justify-between gap-2">
                           <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{employee.full_name || employee.employee_name || employeeFallback}</div>
                           {Number(employeeThread?.unread_count || 0) > 0 ? (
-                            <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-black text-white" dir="ltr">{employeeThread.unread_count}</span>
+                            <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[11px] font-black text-[var(--primary-contrast)]" dir="ltr">{employeeThread.unread_count}</span>
                           ) : null}
                         </div>
                         <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employee.branch_name || employeeThread?.branch_name || t("employeePortal.chat.admin.noBranch")}</div>
@@ -860,23 +860,23 @@ export default function SharedPortalChat({
           )}
         </aside>
 
-        <div className={`${mobileFullScreen && !mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#0b141a] md:min-h-[34rem]`}>
+        <div className={`${mobileFullScreen && !mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--chat-bg)] md:min-h-[34rem]`}>
           {selectedEmployeeRecord ? (
             <>
-              <div className="shrink-0 border-b border-white/10 bg-[#1f2c33] px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-white md:px-4 md:py-2">
+              <div className="shrink-0 border-b border-[var(--chat-border)] bg-[var(--chat-chrome)] px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-[var(--chat-text)] md:px-4 md:py-2">
                 <div className="flex min-w-0 items-center gap-3">
                   {mobileFullScreen ? (
                     <button
                       type="button"
                       onClick={() => setMobileConversationOpen(false)}
-                      className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-white transition hover:bg-white/10 md:hidden"
+                      className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-[var(--chat-text)] transition hover:bg-[var(--surface-hover)] md:hidden"
                       aria-label={t("employeePortal.chat.admin.backToThreads")}
                     >
                       <ArrowRight className="h-6 w-6" />
                     </button>
                   ) : null}
-                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-control)] text-start hover:bg-white/5" aria-label={t("employeePortal.chat.admin.openEmployeeInfo")}>
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
+                  <button type="button" onClick={() => setContactInfoOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-control)] text-start hover:bg-[var(--surface-hover)]" aria-label={t("employeePortal.chat.admin.openEmployeeInfo")}>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-soft)] text-[var(--primary)] ring-1 ring-[var(--chat-border)]">
                       {selectedEmployeeRecord.photo_url ? (
                         <>
                           <img src={resolveEmployeeProfileImageUrl(selectedEmployeeRecord.photo_url)} alt="" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.classList.add("hidden"); event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} />
@@ -886,7 +886,7 @@ export default function SharedPortalChat({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedEmployeeRecord.employee_name || selectedThread?.employee_name || employeeFallback}</div>
-                      <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}</div>
+                      <div className="mt-0.5 truncate text-[11px] font-bold text-[var(--primary)]">{t(activeThreadId ? "employeePortal.chat.admin.threadReady" : "employeePortal.chat.empty")}</div>
                     </div>
                   </button>
                   {apiAdapter?.ring && activeThreadId ? (
@@ -896,20 +896,20 @@ export default function SharedPortalChat({
                       disabled={ringSending || chatRing.outgoing?.status === "ringing"}
                       title={t("common.chatRing.ringTitle")}
                       aria-label={t("common.chatRing.ringButton")}
-                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-amber-400 px-3 text-xs font-black text-zinc-950 shadow-[0_8px_20px_rgba(245,158,11,0.3)] disabled:opacity-50"
+                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--primary)] px-3 text-xs font-black text-[var(--primary-contrast)] shadow-[0_8px_20px_rgba(245,158,11,0.3)] disabled:opacity-50"
                     >
                       <PhoneCall className={`h-4 w-4 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
                       <span className="hidden sm:inline">{t("common.chatRing.ringButton")}</span>
                     </button>
                   ) : null}
-                  <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-white/10 px-2 text-slate-200">
+                  <label className="flex h-9 max-w-44 items-center gap-1.5 rounded-full bg-[var(--chat-input)] px-2 text-[var(--chat-text)]">
                     <Search className="h-4 w-4 shrink-0" />
-                    <input ref={messageSearchRef} value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchMessages")} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white outline-none placeholder:text-slate-300" />
+                    <input ref={messageSearchRef} value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.searchMessages")} className="min-w-0 flex-1 bg-transparent text-xs font-bold text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-muted)]" />
                     {messageSearch ? <button type="button" onClick={() => setMessageSearch("")}><X className="h-3.5 w-3.5" /></button> : null}
                   </label>
                 </div>
               </div>
-              <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
+              <div className="mx-auto mt-1.5 w-fit rounded-full bg-[var(--chat-pill)] px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-[var(--chat-muted)]">
                 {resolvedSecureNotice}
               </div>
               {chatRing.outgoing && String(chatRing.outgoing.thread_id) === String(activeThreadId) ? (
@@ -1013,7 +1013,7 @@ export default function SharedPortalChat({
       </div>
       {imagePreview ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <button type="button" onClick={() => setImagePreview("")} className="absolute end-4 top-4 flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-white/10 text-white">
+          <button type="button" onClick={() => setImagePreview("")} className="absolute end-4 top-4 flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-[var(--chat-input)] text-[var(--chat-text)]">
             <X className="h-5 w-5" />
           </button>
           <img src={imagePreview} alt="" className="max-h-full max-w-full object-contain" />
@@ -1022,22 +1022,22 @@ export default function SharedPortalChat({
       {forwardMessage ? (
         <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" dir={i18nInstance.dir()}>
           <button type="button" className="absolute inset-0" onClick={() => !forwarding && setForwardMessage(null)} aria-label={t("common.close")} />
-          <div className="relative flex max-h-[78dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-[#202c33] text-white shadow-2xl sm:rounded-[1.75rem]">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <div><div className="text-base font-black">{t("employeePortal.chat.admin.forward.title")}</div><div className="mt-0.5 text-xs text-slate-400">{t("employeePortal.chat.admin.forward.subtitle")}</div></div>
-              <button type="button" onClick={() => setForwardMessage(null)} disabled={forwarding} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
+          <div className="relative flex max-h-[78dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.75rem] border border-[var(--chat-border)] bg-[var(--chat-chrome)] text-[var(--chat-text)] shadow-2xl sm:rounded-[1.75rem]">
+            <div className="flex items-center justify-between border-b border-[var(--chat-border)] px-4 py-3">
+              <div><div className="text-base font-black">{t("employeePortal.chat.admin.forward.title")}</div><div className="mt-0.5 text-xs text-[var(--chat-muted)]">{t("employeePortal.chat.admin.forward.subtitle")}</div></div>
+              <button type="button" onClick={() => setForwardMessage(null)} disabled={forwarding} className="grid h-[var(--control-height-md)] w-9 place-items-center rounded-full hover:bg-[var(--surface-hover)]"><X className="h-5 w-5" /></button>
             </div>
-            <label className="mx-3 mt-3 flex h-11 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-300">
-              <Search className="h-4 w-4" /><input autoFocus value={forwardSearch} onChange={(event) => setForwardSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.forward.search")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none" />
+            <label className="mx-3 mt-3 flex h-11 items-center gap-2 rounded-full bg-[var(--chat-input)] px-3 text-[var(--chat-muted)]">
+              <Search className="h-4 w-4" /><input autoFocus value={forwardSearch} onChange={(event) => setForwardSearch(event.target.value)} placeholder={t("employeePortal.chat.admin.forward.search")} className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[var(--chat-text)] outline-none" />
             </label>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {forwardTargets.length ? forwardTargets.map(({ employee, thread: targetThread }) => (
-                <button key={targetThread.id} type="button" disabled={forwarding} onClick={() => forwardToThread(targetThread.id)} className="mb-2 flex w-full items-center gap-3 rounded-[var(--radius-control)] bg-white/5 p-3 text-start transition hover:bg-white/10 disabled:opacity-50">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300"><UserRound className="h-5 w-5" /></span>
-                  <span className="min-w-0 flex-1"><span className="block truncate font-black" dir="auto">{employee?.full_name || employee?.employee_name || targetThread.employee_name || employeeFallback}</span><span className="mt-1 block truncate text-xs text-slate-400">{employee?.branch_name || targetThread.branch_name || t("employeePortal.chat.admin.noBranch")}</span></span>
+                <button key={targetThread.id} type="button" disabled={forwarding} onClick={() => forwardToThread(targetThread.id)} className="mb-2 flex w-full items-center gap-3 rounded-[var(--radius-control)] bg-[var(--chat-input)] p-3 text-start transition hover:bg-[var(--surface-hover)] disabled:opacity-50">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]"><UserRound className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-black" dir="auto">{employee?.full_name || employee?.employee_name || targetThread.employee_name || employeeFallback}</span><span className="mt-1 block truncate text-xs text-[var(--chat-muted)]">{employee?.branch_name || targetThread.branch_name || t("employeePortal.chat.admin.noBranch")}</span></span>
                   {forwarding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 </button>
-              )) : <div className="py-8 text-center text-sm font-bold text-slate-400">{t("employeePortal.chat.admin.forward.empty")}</div>}
+              )) : <div className="py-8 text-center text-sm font-bold text-[var(--chat-muted)]">{t("employeePortal.chat.admin.forward.empty")}</div>}
             </div>
           </div>
         </div>

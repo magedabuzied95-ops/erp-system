@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useState } from "react";
 import { Pause, Play, Send, Trash2 } from "lucide-react";
 
@@ -66,23 +66,23 @@ export default function WhatsAppRecordingBar({
   const visibleLevels = paused ? pausedLevels : levels;
 
   return (
-    <div className="flex min-h-[54px] w-full items-center gap-2 rounded-[1.5rem] bg-[#111b21] px-1.5 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)]" dir="ltr">
+    <div className="flex min-h-[54px] w-full items-center gap-2 rounded-[1.5rem] bg-[var(--chat-input)] px-1.5 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)]" dir="ltr">
       <button
         type="button"
         onClick={onDelete}
         disabled={sending}
-        className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[#202c33] text-red-300 transition active:scale-95 disabled:opacity-50"
+        className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[var(--chat-chrome)] text-[var(--danger)] transition active:scale-95 disabled:opacity-50"
         aria-label={t("employeePortal.chrome.deleteRecording")}
       >
         <Trash2 className="h-4 w-4" />
       </button>
 
-      <div className="flex h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full bg-[#1f2c33] px-2">
+      <div className="flex h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full bg-[var(--chat-chrome)] px-2">
         <button
           type="button"
           onClick={onPauseResume}
           disabled={sending}
-          className="flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full bg-[#2a3942] text-slate-100 transition active:scale-95 disabled:opacity-50"
+          className="flex h-[var(--control-height-sm)] w-8 shrink-0 items-center justify-center rounded-full bg-[var(--chat-input)] text-[var(--chat-text)] transition active:scale-95 disabled:opacity-50"
           aria-label={paused ? "Resume recording" : "Pause recording"}
         >
           {paused ? <Play className="h-3.5 w-3.5 fill-current ps-0.5" /> : <Pause className="h-3.5 w-3.5 fill-current" />}
@@ -91,13 +91,13 @@ export default function WhatsAppRecordingBar({
           {visibleLevels.map((height, index) => (
             <span
               key={index}
-              className={`min-w-px flex-1 rounded-full transition-[height,background-color] duration-100 ${paused ? "bg-slate-500/70" : "bg-[#00a884]"}`}
+              className={`min-w-px flex-1 rounded-full transition-[height,background-color] duration-100 ${paused ? "bg-[var(--chat-tick)]" : "bg-[var(--primary)]"}`}
               style={{ height: `${height}px` }}
             />
           ))}
         </div>
-        <span className={`flex shrink-0 items-center gap-1 text-[11px] font-bold tabular-nums ${paused ? "text-slate-300" : "text-red-300"}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${paused ? "bg-slate-400" : "animate-pulse bg-red-400"}`} />
+        <span className={`flex shrink-0 items-center gap-1 text-[11px] font-bold tabular-nums ${paused ? "text-[var(--chat-muted)]" : "text-[var(--danger)]"}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${paused ? "bg-[var(--chat-tick)]" : "animate-pulse bg-red-400"}`} />
           {formatDuration(seconds)}
         </span>
       </div>
@@ -106,7 +106,7 @@ export default function WhatsAppRecordingBar({
         type="button"
         onClick={onSend}
         disabled={sending}
-        className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-[#062821] transition active:scale-95 disabled:opacity-50"
+        className="flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-contrast)] transition active:scale-95 disabled:opacity-50"
         aria-label={t("employeePortal.chrome.sendRecording")}
       >
         <Send className="h-4 w-4" />

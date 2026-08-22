@@ -23,6 +23,28 @@
        Portal can run compact without forking the design system. */
     --row-height: 44px;
     --toolbar-height: 56px;
+
+    /* Chat token layer (manager portal, employee portal, POS cashier dock).
+       Every value is DERIVED from the theme tokens ThemeProvider writes, so the
+       chat follows light/dark and the key colour without its own palette. The
+       WhatsApp hex values these replace lived in 9 files behind three different
+       `[class*="bg-[#202c33]"] !important` shims. */
+    --chat-bg: color-mix(in srgb, var(--primary) 4%, var(--bg));
+    --chat-pattern: color-mix(in srgb, var(--muted) 16%, transparent);
+    --chat-chrome: var(--surface);
+    --chat-text: var(--text);
+    --chat-muted: var(--muted);
+    --chat-border: var(--border);
+    --chat-input: var(--surface-soft);
+    --chat-pill: var(--surface-soft);
+    --chat-bubble-in: var(--card);
+    --chat-bubble-out: color-mix(in srgb, var(--primary) 22%, var(--card));
+    --chat-bubble-out-border: color-mix(in srgb, var(--primary) 40%, transparent);
+    --chat-link: color-mix(in srgb, var(--primary) 65%, var(--text));
+    --chat-quote: var(--primary);
+    --chat-read: var(--primary);
+    --chat-tick: var(--muted);
+    --chat-overlay: rgba(0, 0, 0, 0.55);
   }
 
   /* Compact density profile — same design system, approved denser profile. */
@@ -116,6 +138,12 @@
 }
 
 @layer components {
+  .chat-canvas {
+    background-color: var(--chat-bg);
+    background-image: radial-gradient(circle at 1px 1px, var(--chat-pattern) 1px, transparent 0);
+    background-size: 18px 18px;
+  }
+
   .m1-page { min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--app-font); font-size: 14px; line-height: 1.55; }
   .m1-container { width: min(100%, var(--content-max)); margin-inline: auto; padding-inline: var(--page-inline); }
   .m1-surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }

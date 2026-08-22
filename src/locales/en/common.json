@@ -762,7 +762,8 @@
       "email": "Email",
       "password": "Password",
       "workspace": "Workspace / company slug"
-    }
+    },
+    "yesterday": "Yesterday"
   },
   "sidebar": {
     "main": "Main",

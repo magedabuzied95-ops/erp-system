@@ -2205,7 +2205,7 @@ export default function EmployeePayrollPortal() {
   );
   const chatMessagesStyle = useMemo(
     () => ({
-      backgroundColor: "#0b141a",
+      backgroundColor: "var(--chat-bg)",
     }),
     []
   );
@@ -2946,9 +2946,9 @@ export default function EmployeePayrollPortal() {
     const node = document.getElementById(`employee-chat-message-${messageId}`);
     if (!node) return;
     node.scrollIntoView({ block: "center", behavior: "smooth" });
-    node.classList.add("ring-2", "ring-emerald-300", "ring-offset-2", "ring-offset-[#0b141a]");
+    node.classList.add("ring-2", "ring-[var(--primary)]", "ring-offset-2", "ring-offset-[var(--chat-bg)]");
     window.setTimeout(() => {
-      node.classList.remove("ring-2", "ring-emerald-300", "ring-offset-2", "ring-offset-[#0b141a]");
+      node.classList.remove("ring-2", "ring-[var(--primary)]", "ring-offset-2", "ring-offset-[var(--chat-bg)]");
     }, 1200);
   };
 
@@ -4507,13 +4507,13 @@ export default function EmployeePayrollPortal() {
         </button>
       ) : null}
       {chatOpen ? (
-        <div className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-slate-950/70 p-0" style={chatPanelStyle}>
-          <section className="employee-portal-chat mx-auto flex h-full max-h-full w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" dir={direction}>
-            <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
+        <div className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-black/50 p-0" style={chatPanelStyle}>
+          <section className="employee-portal-chat mx-auto flex h-full max-h-full w-full flex-col overflow-hidden border border-[var(--chat-border)] bg-[var(--chat-bg)] text-[var(--chat-text)] shadow-2xl sm:max-w-md" dir={direction}>
+            <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[var(--chat-bg)]">
               <div className="employee-chat-status-safe-area" aria-hidden="true" />
-              <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
+              <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-[var(--chat-border)] bg-[var(--chat-chrome)] px-2 py-2">
                 <div className="employee-chat-header-identity flex shrink-0 items-center gap-0.5">
-                  <button type="button" onClick={closeEmployeeChat} className="flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label={text.back}>
+                  <button type="button" onClick={closeEmployeeChat} className="flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-full text-[var(--chat-text)] transition hover:bg-[var(--surface-hover)]" aria-label={text.back}>
                     <ArrowRight className="h-5 w-5" />
                   </button>
                   <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label={text.storeInfo}>
@@ -4523,7 +4523,7 @@ export default function EmployeePayrollPortal() {
                 </div>
                 <button type="button" onClick={() => setChatContactInfoOpen(true)} className="min-w-0 flex-1 text-start" aria-label={text.storeInfo}>
                   <h2 className="m1-section-title truncate text-[16px]">M1 Store</h2>
-                  <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">{text.businessAccount}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--chat-muted)]">{text.businessAccount}</p>
                 </button>
                 <button
                   type="button"
@@ -4535,16 +4535,16 @@ export default function EmployeePayrollPortal() {
                 >
                   <PhoneCall className={`h-5 w-5 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
                 </button>
-                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-slate-100 transition hover:bg-white/10" aria-label={text.searchMessages}>
+                <button type="button" onClick={() => setChatSearchOpen((open) => !open)} className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full text-[var(--chat-text)] transition hover:bg-[var(--surface-hover)]" aria-label={text.searchMessages}>
                   {chatSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </button>
               </header>
               {chatSearchOpen ? (
-                <div className="border-b border-white/10 bg-[#1f2c33] px-3 pb-2">
-                  <label className="flex h-10 items-center gap-2 rounded-full bg-[#111b21] px-3 text-slate-200">
-                    <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                    <input autoFocus value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} data-employee-chat-search="" placeholder={text.searchMessagesPlaceholder} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-400" />
-                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-[var(--control-height-sm)] w-7 place-items-center rounded-full hover:bg-white/10" aria-label={text.clearSearch}><X className="h-4 w-4" /></button> : null}
+                <div className="border-b border-[var(--chat-border)] bg-[var(--chat-chrome)] px-3 pb-2">
+                  <label className="flex h-10 items-center gap-2 rounded-full bg-[var(--chat-input)] px-3 text-[var(--chat-text)]">
+                    <Search className="h-4 w-4 shrink-0 text-[var(--chat-muted)]" />
+                    <input autoFocus value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} data-employee-chat-search="" placeholder={text.searchMessagesPlaceholder} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-muted)]" />
+                    {chatSearch ? <button type="button" onClick={() => setChatSearch("")} className="grid h-[var(--control-height-sm)] w-7 place-items-center rounded-full hover:bg-[var(--surface-hover)]" aria-label={text.clearSearch}><X className="h-4 w-4" /></button> : null}
                   </label>
                 </div>
               ) : null}

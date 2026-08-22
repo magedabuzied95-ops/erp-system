@@ -285,37 +285,7 @@ html[data-theme="light"] .manager-portal-shell :where(.manager-portal-card, .man
   color: var(--text) !important;
 }
 
-/* Manager chat: gold outgoing messages, neutral incoming messages. */
-.manager-portal-shell [class*="bg-[#0b141a]"] {
-  background-color: var(--bg) !important;
-  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted) 12%, transparent) 1px, transparent 0) !important;
-}
-
-.manager-portal-shell [class*="bg-[#1f2c33]"],
-.manager-portal-shell [class*="bg-[#182229]"] {
-  background: var(--surface) !important;
-  color: var(--text) !important;
-}
-
-.manager-portal-shell [class*="bg-[#005c4b]"] {
-  background: var(--primary) !important;
-  color: var(--primary-contrast) !important;
-}
-
-.manager-portal-shell [class*="bg-[#005c4b]"]::after { background: var(--primary) !important; }
-
-.manager-portal-shell [class*="bg-[#202c33]"] {
-  background: var(--surface-raised) !important;
-  border: 1px solid var(--border) !important;
-  color: var(--text) !important;
-}
-
-.manager-portal-shell [class*="bg-[#202c33]"]::after { background: var(--surface-raised) !important; }
-
-.manager-portal-shell form[class*="bg-[#1f2c33]"] button[type="submit"] {
-  background: var(--primary) !important;
-  color: var(--primary-contrast) !important;
-}
+/* Manager chat colours come from the shared chat token layer (foundation.css). */
 
 /* Mobile KPI grid: explicit override for the legacy CompactStat tone map. */
 .manager-portal-shell .manager-portal-compact-stat {
