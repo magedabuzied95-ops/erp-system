@@ -2,7 +2,12 @@ import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/li
 
 // v3 adds color_group_key to cached variants; older snapshots are dropped so the
 // offline picker never groups colours differently from the online one.
-export const POS_CATALOG_SCHEMA_VERSION = 3;
+// v4: the snapshot stores products ALREADY PRICED by getPosEffectivePrice, and the
+// catalog-version watermark only tracks DATA (counts, updated_at, stock, sale mode) — so a
+// change to the pricing RULE leaves the watermark identical and a warm terminal would keep
+// selling at the old price. Curated Offers now set their own price, so bump this whenever
+// pricing logic changes: it is the only thing that re-normalizes an existing snapshot.
+export const POS_CATALOG_SCHEMA_VERSION = 4;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
