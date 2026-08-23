@@ -1286,13 +1286,15 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
   const result = await db.query(
     `
     SELECT
-      COUNT(c.id)::int AS total_coupons,
-      COUNT(c.id) FILTER (WHERE c.usage_count > 0)::int AS used_coupons,
-      COUNT(c.id) FILTER (WHERE c.usage_count = 0)::int AS unused_coupons,
-      COUNT(c.id) FILTER (WHERE c.expires_at IS NOT NULL AND c.expires_at < NOW())::int AS expired_coupons,
-      COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL)::int AS assigned_coupons,
-      COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL AND c.sent_at IS NULL AND c.usage_count = 0)::int AS pending_send_coupons,
-      COUNT(c.id) FILTER (
+      COUNT(DISTINCT c.id)::int AS total_coupons,
+      COUNT(DISTINCT c.id) FILTER (WHERE c.usage_count > 0)::int AS used_coupons,
+      COUNT(DISTINCT c.id) FILTER (WHERE c.usage_count = 0)::int AS unused_coupons,
+      COUNT(DISTINCT c.id) FILTER (WHERE c.expires_at IS NOT NULL AND c.expires_at < NOW())::int AS expired_coupons,
+      COUNT(DISTINCT c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL)::int AS assigned_coupons,
+      COUNT(r.id) FILTER (WHERE c.sent_at IS NOT NULL)::int AS sent_redemptions,
+      COUNT(DISTINCT c.id) FILTER (WHERE c.sent_at IS NOT NULL)::int AS sent_coupons,
+      COUNT(DISTINCT c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL AND c.sent_at IS NULL AND c.usage_count = 0)::int AS pending_send_coupons,
+      COUNT(DISTINCT c.id) FILTER (
         WHERE c.sent_at IS NOT NULL AND c.reminded_at IS NULL AND c.usage_count = 0 AND c.is_active = TRUE
           AND c.expires_at IS NOT NULL AND c.expires_at >= NOW() AND c.expires_at <= NOW() + INTERVAL '7 days'
       )::int AS expiring_soon_coupons,
@@ -1311,6 +1313,7 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
   const total = Number(stats.total_coupons || 0);
   const used = Number(stats.used_coupons || 0);
   const assigned = Number(stats.assigned_coupons || 0);
+  const sentCount = Number(stats.sent_coupons || 0);
   const redemptions = Number(stats.total_redemptions || 0);
   // Baseline: orders in the campaign window WITHOUT any coupon (same tenant scope), for an uplift read.
   const baselineParams = [campaignId];
@@ -1346,9 +1349,12 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
     pending_send_coupons: Number(stats.pending_send_coupons || 0),
     expiring_soon_coupons: Number(stats.expiring_soon_coupons || 0),
     net_sales_amount: Number(stats.net_sales_amount || 0),
-    // Conversion = redemptions over what was actually handed out (assigned), falling back to generated.
-    conversion_rate: assigned > 0 ? Number(((redemptions / assigned) * 100).toFixed(2)) : total > 0 ? Number(((used / total) * 100).toFixed(2)) : 0,
-    conversion_basis: assigned > 0 ? "assigned" : "generated",
+    // Over what was actually SENT where that is known, with a numerator drawn from the same
+    // population (redemptions of sent coupons); otherwise used-coupons over generated.
+    conversion_rate: sentCount > 0
+      ? Number(((Number(stats.sent_redemptions || 0) / sentCount) * 100).toFixed(2))
+      : total > 0 ? Number(((used / total) * 100).toFixed(2)) : 0,
+    conversion_basis: sentCount > 0 ? "sent" : "generated",
     baseline_orders_without_coupon: Number(baseline.n || 0),
     average_order_without_coupon: Number(baseline.avg || 0),
     is_shared_code: isShared,
@@ -1383,24 +1389,48 @@ export const getCouponPerformanceReport = async ({ tenantId = null, from = null,
     AND ($2::timestamp IS NULL OR r.used_at < ($2::timestamp + INTERVAL '1 day'))
     AND ($3::bigint IS NULL OR r.tenant_id = $3::bigint OR r.tenant_id IS NULL)`;
 
+  // Coupon counts and redemption sums are aggregated SEPARATELY and then joined on the campaign.
+  // Joining both to coupon_campaigns in one query is a cartesian product — the coupons of a
+  // campaign multiply its redemption rows — which inflated every money figure by the coupon count.
   const campaigns = await db.query(
     `
     SELECT c.id, c.name, c.code_mode, c.shared_code, c.discount_type, c.discount_value,
            c.is_active, c.starts_at, c.expires_at, c.budget_cap,
-           COUNT(DISTINCT cp.id)::int AS generated,
-           COUNT(DISTINCT cp.id) FILTER (WHERE cp.assigned_customer_id IS NOT NULL)::int AS assigned,
-           COUNT(DISTINCT cp.id) FILTER (WHERE cp.sent_at IS NOT NULL)::int AS sent,
-           COUNT(r.id)::int AS redemptions,
-           COALESCE(SUM(r.discount_amount), 0)::numeric AS discount_total,
-           COALESCE(SUM(r.order_total), 0)::numeric AS gross_sales,
-           COALESCE(SUM(r.final_total), 0)::numeric AS net_sales,
-           COALESCE(AVG(r.order_total), 0)::numeric AS average_order
+           COALESCE(cc.generated, 0)::int         AS generated,
+           COALESCE(cc.assigned, 0)::int          AS assigned,
+           COALESCE(cc.sent, 0)::int              AS sent,
+           COALESCE(rr.redemptions, 0)::int       AS redemptions,
+           COALESCE(rr.sent_redemptions, 0)::int  AS sent_redemptions,
+           COALESCE(rr.discount_total, 0)::numeric AS discount_total,
+           COALESCE(rr.gross_sales, 0)::numeric    AS gross_sales,
+           COALESCE(rr.net_sales, 0)::numeric      AS net_sales,
+           COALESCE(rr.average_order, 0)::numeric  AS average_order
     FROM coupon_campaigns c
-    LEFT JOIN coupons cp ON cp.campaign_id = c.id
-    LEFT JOIN coupon_redemptions r ON r.campaign_id = c.id AND ${redemptionWindow}
+    LEFT JOIN (
+      SELECT campaign_id,
+             COUNT(*)::int AS generated,
+             COUNT(*) FILTER (WHERE assigned_customer_id IS NOT NULL)::int AS assigned,
+             COUNT(*) FILTER (WHERE sent_at IS NOT NULL)::int AS sent
+      FROM coupons
+      GROUP BY campaign_id
+    ) cc ON cc.campaign_id = c.id
+    LEFT JOIN (
+      SELECT r.campaign_id,
+             COUNT(*)::int AS redemptions,
+             -- Redemptions BY a coupon that was actually sent, so the conversion ratio compares
+             -- like with like instead of dividing every redemption by the sent-only denominator.
+             COUNT(*) FILTER (WHERE cp.sent_at IS NOT NULL)::int AS sent_redemptions,
+             SUM(r.discount_amount)::numeric AS discount_total,
+             SUM(r.order_total)::numeric     AS gross_sales,
+             SUM(r.final_total)::numeric     AS net_sales,
+             AVG(r.order_total)::numeric     AS average_order
+      FROM coupon_redemptions r
+      JOIN coupons cp ON cp.id = r.coupon_id
+      WHERE ${redemptionWindow}
+      GROUP BY r.campaign_id
+    ) rr ON rr.campaign_id = c.id
     WHERE ($3::bigint IS NULL OR c.tenant_id = $3::bigint OR c.tenant_id IS NULL)
-    GROUP BY c.id
-    ORDER BY COALESCE(SUM(r.discount_amount), 0) DESC, c.created_at DESC
+    ORDER BY COALESCE(rr.discount_total, 0) DESC, c.created_at DESC
     `,
     args
   );
@@ -1448,9 +1478,13 @@ export const getCouponPerformanceReport = async ({ tenantId = null, from = null,
     const generated = Number(row.generated || 0);
     const sent = Number(row.sent || 0);
     const redemptions = Number(row.redemptions || 0);
-    // Conversion is measured against what was actually handed out where that is known,
-    // because "redeemed ÷ generated" punishes a campaign for printing spare codes.
+    const sentRedemptions = Number(row.sent_redemptions || 0);
+    // Measured against what was actually handed out where that is known, because
+    // "redeemed ÷ generated" punishes a campaign for printing spare codes. The numerator has to
+    // be the redemptions OF sent coupons — counting redemptions of printed codes against a
+    // sent-only denominator read as 1000% on the first real campaign.
     const basis = sent > 0 ? sent : generated;
+    const converted = sent > 0 ? sentRedemptions : redemptions;
     return {
       id: row.id,
       name: row.name,
@@ -1470,7 +1504,8 @@ export const getCouponPerformanceReport = async ({ tenantId = null, from = null,
       gross_sales: Number(row.gross_sales || 0),
       net_sales: Number(row.net_sales || 0),
       average_order: Number(row.average_order || 0),
-      conversion_rate: basis > 0 ? Number(((redemptions / basis) * 100).toFixed(2)) : 0,
+      sent_redemptions: sentRedemptions,
+      conversion_rate: basis > 0 ? Number(((converted / basis) * 100).toFixed(2)) : 0,
       conversion_basis: sent > 0 ? "sent" : "generated",
       budget_used_pct: row.budget_cap ? Number(((Number(row.discount_total || 0) / Number(row.budget_cap)) * 100).toFixed(2)) : null,
     };
@@ -1478,9 +1513,11 @@ export const getCouponPerformanceReport = async ({ tenantId = null, from = null,
 
   const sum = (key) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
   const totalRedemptions = sum("redemptions");
+  const totalSentRedemptions = sum("sent_redemptions");
   const totalSent = sum("sent");
   const totalGenerated = sum("generated");
   const conversionBasis = totalSent > 0 ? totalSent : totalGenerated;
+  const totalConverted = totalSent > 0 ? totalSentRedemptions : totalRedemptions;
   const grossSales = sum("gross_sales");
 
   return {
@@ -1495,7 +1532,7 @@ export const getCouponPerformanceReport = async ({ tenantId = null, from = null,
       discount_total: Number(sum("discount_total").toFixed(2)),
       gross_sales: Number(grossSales.toFixed(2)),
       net_sales: Number(sum("net_sales").toFixed(2)),
-      conversion_rate: conversionBasis > 0 ? Number(((totalRedemptions / conversionBasis) * 100).toFixed(2)) : 0,
+      conversion_rate: conversionBasis > 0 ? Number(((totalConverted / conversionBasis) * 100).toFixed(2)) : 0,
       conversion_basis: totalSent > 0 ? "sent" : "generated",
       average_with_coupon: totalRedemptions > 0 ? Number((grossSales / totalRedemptions).toFixed(2)) : 0,
       average_without_coupon: Number(baseline.average.toFixed(2)),
