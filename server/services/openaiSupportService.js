@@ -83,13 +83,49 @@ const noteTextGenerationSuccess = () => {
   textGenerationBlockReason = "";
 };
 
-const noteTextGenerationRateLimit = () => {
-  const waitMs = nextTextGenerationBackoffMs();
+const exhaustedQuotaBlockMs = () => positiveNumber(process.env.AI_SUPPORT_NO_CREDIT_BLOCK_MS, 15 * 60 * 1000);
+
+/**
+ * "You have no credits remaining" (type `insufficient_quota`) is NOT a rate limit. It
+ * stays true until somebody adds money, so retrying it is pure latency: measured on
+ * production, each dead call cost ~1.9s and the SDK's own 429 retries turned that into
+ * 10-12s of a customer waiting before the deterministic fallback appeared.
+ *
+ * Treated separately: a long block, and a distinct reason so the runtime config says
+ * "billing" rather than implying a traffic spike.
+ */
+const isExhaustedQuota = (error) => {
+  const type = error?.type || error?.error?.type || error?.code || error?.error?.code || "";
+  if (String(type).toLowerCase() === "insufficient_quota") return true;
+  return /no credits remaining|exceeded your current quota|insufficient_quota/i.test(
+    String(error?.message || error?.error?.message || "")
+  );
+};
+
+const noteTextGenerationRateLimit = (error = null) => {
+  const exhausted = error ? isExhaustedQuota(error) : false;
+  const waitMs = exhausted ? exhaustedQuotaBlockMs() : nextTextGenerationBackoffMs();
   textGenerationBackoffStreak += 1;
   textGenerationBlockedUntil = Date.now() + waitMs;
-  textGenerationBlockReason = "openai_quota_or_rate_limit";
+  textGenerationBlockReason = exhausted ? "openai_no_credits" : "openai_rate_limit";
   return waitMs;
 };
+
+/**
+ * Shared circuit breaker, exported so every AI service reports into ONE state.
+ *
+ * Without this the understanding pass caught its own 429s privately and never tripped
+ * the breaker, so with a dead API it re-hit OpenAI on every single inbound message —
+ * paying the full retry latency each time — while generateSupportAnswer sat correctly
+ * backed off. One dead account, two different behaviours.
+ */
+export const noteOpenAiFailure = (error) => {
+  const status = Number(error?.status ?? error?.response?.status ?? 0);
+  if (status !== 429 && !isExhaustedQuota(error)) return 0;
+  return noteTextGenerationRateLimit(error);
+};
+
+export const noteOpenAiSuccess = () => noteTextGenerationSuccess();
 
 const textGenerationTemporarilyBlocked = () => Date.now() < textGenerationBlockedUntil;
 
@@ -873,16 +909,13 @@ export const generateSupportAnswer = async ({
       suggested_actions: suggestedActions,
     });
   } catch (error) {
-    let backoffMs = 0;
-    if (Number(error?.status || error?.response?.status || 0) === 429) {
-      backoffMs = noteTextGenerationRateLimit();
-    }
+    const backoffMs = noteOpenAiFailure(error);
     console.warn("[ai-support] OpenAI request failed", {
       name: error?.name,
       status: error?.status,
       message: error?.message,
       model: resolveSupportModel(),
-      ...(backoffMs ? { backoff_ms: backoffMs, backoff_streak: textGenerationBackoffStreak } : {}),
+      ...(backoffMs ? { backoff_ms: backoffMs, backoff_reason: textGenerationBlockReason, backoff_streak: textGenerationBackoffStreak } : {}),
     });
     return fallbackWithExtras;
   }

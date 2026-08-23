@@ -30,6 +30,7 @@ import { BRAND_LEXICON, CATEGORY_LEXICON, COLOR_LEXICON } from "./aiEntityLexico
 import {
   getSharedOpenAiClient,
   isTextGenerationAvailable,
+  noteOpenAiFailure,
   resolveFastModel,
 } from "./openaiSupportService.js";
 
@@ -695,7 +696,11 @@ export const understandCustomerMessage = async ({
           },
         },
       },
-      { timeout: understandingTimeoutMs(), maxRetries: 1 }
+      // No retries. This is a cheap classification on the customer's critical path and
+      // the deterministic fallback is good; a retry only makes a waiting customer wait
+      // longer. Measured on production with a dead API: retries turned a 1.9s failure
+      // into 10-12s before the fallback appeared.
+      { timeout: understandingTimeoutMs(), maxRetries: 0 }
     );
 
     let parsed = null;
@@ -709,12 +714,17 @@ export const understandCustomerMessage = async ({
     writeCache(key, understanding);
     return { ...understanding, cached: false };
   } catch (error) {
+    // Report into the SHARED breaker. Catching this privately meant a dead API was
+    // re-hit on every inbound message forever, paying the full failure latency each
+    // time, while generateSupportAnswer sat correctly backed off behind the same key.
+    const backoffMs = noteOpenAiFailure(error);
     console.warn("[ai-understanding] read failed, using deterministic reading", {
       tenant_id: tenantId,
       channel: text(channel),
       model,
       message: error?.message,
       status: error?.status,
+      ...(backoffMs ? { backoff_ms: backoffMs } : {}),
     });
     return buildDeterministicUnderstanding(customerMessage);
   }
