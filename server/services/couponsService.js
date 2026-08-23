@@ -99,7 +99,30 @@ const normalizeCampaignInput = (body = {}) => {
     shared_code: sharedCode,
     auto_issue_on_first_order: parseBoolean(body.auto_issue_on_first_order ?? body.autoIssueOnFirstOrder, false),
     print_on_receipt: parseBoolean(body.print_on_receipt ?? body.printOnReceipt, false),
+    validity_days: parseNullableInt(body.validity_days ?? body.validityDays),
+    apply_to_single_item: parseBoolean(body.apply_to_single_item ?? body.applyToSingleItem, false),
+    terms_text: String(body.terms_text ?? body.termsText ?? "").trim().slice(0, 2000),
   };
+};
+
+/**
+ * When a coupon is handed to someone, its clock starts THEN.
+ *
+ * validity_days makes one standing campaign work forever: the receipt printed today expires a
+ * week from today, the one printed next month a week from then, with no campaign end date and
+ * no need to re-create a campaign every day. Falls back to the campaign's own fixed date when
+ * no relative window is set.
+ *
+ * Bulk generation is deliberately NOT on this clock: a batch printed today may sit in a drawer
+ * for a month, so counting from the generation date would expire the codes before anyone was
+ * handed one. Those keep the campaign's date.
+ */
+export const resolveIssuedExpiry = (campaign = {}, issuedAt = null) => {
+  const days = Number.parseInt(campaign.validity_days, 10);
+  if (!Number.isFinite(days) || days <= 0) return campaign.expires_at || null;
+  const start = issuedAt ? new Date(issuedAt) : new Date();
+  const base = Number.isNaN(start.getTime()) ? new Date() : start;
+  return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
 };
 
 /** Shared codes can be "unlimited" (0) — stored as a very large limit so the existing >= check keeps working. */
@@ -176,9 +199,9 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       max_discount_amount, usage_limit_per_coupon, total_coupons, starts_at, expires_at,
       channel, is_active, created_by, applies_to_shipping,
       usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only, code_mode, shared_code,
-      auto_issue_on_first_order, print_on_receipt
+      auto_issue_on_first_order, print_on_receipt, validity_days, terms_text, apply_to_single_item
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
     RETURNING *
     `,
     [
@@ -206,6 +229,9 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       campaign.shared_code,
       campaign.auto_issue_on_first_order,
       campaign.print_on_receipt,
+      campaign.validity_days,
+      campaign.terms_text,
+      campaign.apply_to_single_item,
     ]
   );
   const created = result.rows[0];
@@ -224,14 +250,14 @@ const ensureSharedCoupon = async ({ tenantId = null, campaign, client = db }) =>
   if (existing.rows[0]) {
     const updated = await client.query(
       "UPDATE coupons SET code = $2, qr_value = $3, usage_limit = $4, expires_at = $5, updated_at = NOW() WHERE id = $1 RETURNING *",
-      [existing.rows[0].id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, campaign.expires_at]
+      [existing.rows[0].id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, resolveIssuedExpiry(campaign)]
     );
     return updated.rows[0];
   }
   try {
     const inserted = await client.query(
       "INSERT INTO coupons (tenant_id, campaign_id, code, qr_value, usage_limit, expires_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
-      [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, campaign.expires_at]
+      [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, resolveIssuedExpiry(campaign)]
     );
     await client.query("UPDATE coupon_campaigns SET total_coupons = 1 WHERE id = $1", [campaign.id]);
     return inserted.rows[0];
@@ -263,7 +289,9 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
         usage_limit_per_customer = $${offset + 13}, scope = $${offset + 14}::jsonb, stack_policy = $${offset + 15},
         budget_cap = $${offset + 16}, first_order_only = $${offset + 17},
         code_mode = $${offset + 18}, shared_code = $${offset + 19},
-        auto_issue_on_first_order = $${offset + 20}, print_on_receipt = $${offset + 21}, updated_at = NOW()
+        auto_issue_on_first_order = $${offset + 20}, print_on_receipt = $${offset + 21},
+        validity_days = $${offset + 22}, terms_text = $${offset + 23},
+        apply_to_single_item = $${offset + 24}, updated_at = NOW()
     WHERE id = $${offset} ${tenantId === null ? "" : "AND (tenant_id = $1 OR tenant_id IS NULL)"}
     RETURNING *
     `,
@@ -290,6 +318,9 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
       campaign.shared_code,
       campaign.auto_issue_on_first_order,
       campaign.print_on_receipt,
+      campaign.validity_days,
+      campaign.terms_text,
+      campaign.apply_to_single_item,
     ]
   );
   const updated = result.rows[0] || null;
@@ -299,7 +330,11 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
   }
   // Keep unused coupons in step with the campaign expiry: extending (or clearing) the campaign
   // date must extend its coupons, otherwise validateCoupon keeps rejecting on the stale row date.
-  if (updated) {
+  //
+  // Skipped entirely on a relative-validity campaign: there every coupon carries its OWN date,
+  // counted from the invoice that issued it, and stamping one shared date over them would throw
+  // that away — a coupon printed today would suddenly expire with one printed last month.
+  if (updated && !updated.validity_days) {
     await db.query(
       `UPDATE coupons SET expires_at = $2, updated_at = NOW() WHERE campaign_id = $1 AND usage_count = 0`,
       [updated.id, updated.expires_at]
@@ -562,7 +597,8 @@ export const validateCoupon = async ({
       c.minimum_order_amount, c.max_discount_amount, c.starts_at AS campaign_starts_at,
       c.expires_at AS campaign_expires_at, c.channel, c.is_active AS campaign_is_active,
       c.code_prefix, c.total_coupons, c.applies_to_shipping,
-      c.usage_limit_per_customer, c.scope, c.stack_policy, c.budget_cap, c.first_order_only
+      c.usage_limit_per_customer, c.scope, c.stack_policy, c.budget_cap, c.first_order_only,
+      c.apply_to_single_item
     FROM coupons cp
     JOIN coupon_campaigns c ON c.id = cp.campaign_id
     WHERE cp.code = $1 ${tenantSql}
@@ -590,6 +626,7 @@ export const validateCoupon = async ({
     stack_policy: VALID_STACK_POLICIES.has(row.stack_policy) ? row.stack_policy : "all",
     budget_cap: row.budget_cap === null || row.budget_cap === undefined ? null : Number(row.budget_cap),
     first_order_only: Boolean(row.first_order_only),
+    apply_to_single_item: Boolean(row.apply_to_single_item),
   };
   const coupon = {
     id: row.id,
@@ -669,6 +706,21 @@ export const validateCoupon = async ({
     const ratio = scoped.rawSum > 0 ? Math.min(1, goodsTotal / scoped.rawSum) : 1;
     eligibleBase = Number((scoped.eligibleSum * ratio).toFixed(2));
   }
+  // "الخصم على قطعة واحدة": the discount buys down ONE piece — the dearest eligible unit —
+  // rather than the whole basket. Priced per unit, not per line, so two of the same shoe still
+  // discount one of them.
+  if (campaign.apply_to_single_item && campaign.discount_type !== "free_shipping") {
+    if (!lines.length) {
+      // The rule cannot be evaluated without the basket, and guessing here would discount the
+      // whole invoice. Fail closed: both the till and the storefront do send their items.
+      return { ...invalid("This coupon needs the basket to price a single item"), coupon, campaign };
+    }
+    const dearestUnit = scoped.eligible.reduce((top, item) => Math.max(top, Number(item.price || 0)), 0);
+    if (!(dearestUnit > 0)) return { ...invalid("Coupon does not apply to the items in this order"), coupon, campaign };
+    const ratio = scoped.rawSum > 0 ? Math.min(1, goodsTotal / scoped.rawSum) : 1;
+    eligibleBase = Number((dearestUnit * ratio).toFixed(2));
+  }
+
   if (campaign.applies_to_shipping && campaign.discount_type !== "free_shipping") total = eligibleBase + shipping;
   else total = eligibleBase;
 
@@ -701,6 +753,7 @@ export const validateCoupon = async ({
     free_shipping: campaign.discount_type === "free_shipping",
     base_total: Number(total.toFixed(2)),
     eligible_item_count: scoped.eligible.length,
+    single_item: Boolean(campaign.apply_to_single_item),
     ineligible_item_count: scoped.ineligible.length,
     final_total: Number(Math.max(0, total - discount).toFixed(2)),
     reason: "valid",
@@ -894,7 +947,7 @@ export const assignCouponToCustomer = async ({ tenantId = null, campaignId, cust
           try {
             const inserted = await client.query(
               "INSERT INTO coupons (tenant_id, campaign_id, code, qr_value, usage_limit, expires_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
-              [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, campaign.expires_at]
+              [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, resolveIssuedExpiry(campaign)]
             );
             coupon = inserted.rows[0];
             await client.query("UPDATE coupon_campaigns SET total_coupons = (SELECT COUNT(*) FROM coupons WHERE campaign_id = $1) WHERE id = $1", [campaign.id]);
@@ -1312,7 +1365,7 @@ export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db
   await ensureCouponsSchema(client);
 
   const existing = await client.query(
-    `SELECT cp.*, c.discount_type, c.discount_value, c.minimum_order_amount, c.name AS campaign_name
+    `SELECT cp.*, c.discount_type, c.discount_value, c.minimum_order_amount, c.name AS campaign_name, c.terms_text
      FROM coupons cp JOIN coupon_campaigns c ON c.id = cp.campaign_id
      WHERE cp.issued_order_id = $1 LIMIT 1`,
     [orderId]
@@ -1332,7 +1385,8 @@ export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db
     if (String(redeemed.rows[0]?.campaign_id || "") === String(campaign.id)) return null;
   }
 
-  const expiresAt = campaign.expires_at;
+  // The invoice is the moment of issue, so a standing campaign gives every receipt its own window.
+  const expiresAt = resolveIssuedExpiry(campaign, order.created_at || null);
   let attempts = 0;
   while (attempts < 25) {
     attempts += 1;
@@ -1349,6 +1403,7 @@ export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db
         discount_value: campaign.discount_value,
         minimum_order_amount: campaign.minimum_order_amount,
         campaign_name: campaign.name,
+        terms_text: campaign.terms_text,
       });
     } catch (error) {
       if (error?.code !== "23505") throw error;
@@ -1361,6 +1416,11 @@ export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db
 const describeReceiptCoupon = (row) => ({
   code: row.code,
   campaign_name: row.campaign_name || "",
+  terms: String(row.terms_text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 8),
   discount_type: row.discount_type,
   discount_value: Number(row.discount_value || 0),
   minimum_order_amount: Number(row.minimum_order_amount || 0),

@@ -284,6 +284,13 @@ export default function PublicInvoice() {
                 {invoicePrintLabel("couponExpiry", "صالح حتى {{date}}", { date: couponExpiry })}
               </div>
             ) : null}
+            {Array.isArray(receiptCoupon.terms) && receiptCoupon.terms.length ? (
+              <ul className="mx-auto mt-3 max-w-sm list-none space-y-1 text-start text-xs font-semibold text-slate-300">
+                {receiptCoupon.terms.map((line, index) => (
+                  <li key={index} className="flex gap-2"><span className="text-emerald-400">•</span><span>{line}</span></li>
+                ))}
+              </ul>
+            ) : null}
             {receiptCoupon.url ? (
               <a
                 href={receiptCoupon.url}

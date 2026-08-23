@@ -99,3 +99,8 @@ ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP NUL
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS print_on_receipt BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS issued_order_id BIGINT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_issued_order ON coupons (issued_order_id) WHERE issued_order_id IS NOT NULL;
+
+-- Phase 4.1: validity measured from the moment a coupon is issued, plus printed terms
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS validity_days INTEGER NULL;
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS terms_text TEXT NOT NULL DEFAULT '';
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS apply_to_single_item BOOLEAN NOT NULL DEFAULT FALSE;

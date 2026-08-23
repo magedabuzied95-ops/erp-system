@@ -156,10 +156,26 @@
         "products": "Specific products",
         "searchProducts": "Search by product name or code",
         "excludeOnSale": "Exclude discounted products (line price below the list selling price)"
-      }
+      },
+      "validityDays": "Coupon validity (days from the invoice date)",
+      "validityDaysHint": "Leave empty to use the campaign end date",
+      "validityDaysNote": "With this set the campaign runs indefinitely and each coupon carries its own window from its own invoice — no need to create a campaign every day.",
+      "terms": "Terms printed on the coupon",
+      "termsHint": "One condition per line. Printed under the coupon on the receipt and on the invoice link.",
+      "termsGenerate": "Generate from settings",
+      "termsPlaceholder": "Valid for one use\nMinimum invoice 300 EGP\nValid for a week from the invoice date",
+      "singleItem": "Discount one item only",
+      "singleItemHint": "Applied to the dearest piece on the invoice rather than the whole basket"
     },
-    "sources": { "pos": "POS", "website": "Website", "manual": "Manual" },
-    "codeModes": { "unique": "Unique codes (one coupon per customer)", "shared": "One shared code (ads & social)" },
+    "sources": {
+      "pos": "POS",
+      "website": "Website",
+      "manual": "Manual"
+    },
+    "codeModes": {
+      "unique": "Unique codes (one coupon per customer)",
+      "shared": "One shared code (ads & social)"
+    },
     "remind": {
       "button": "Remind expiring ({{count}})",
       "title": "Expiry reminder",
@@ -213,10 +229,21 @@
       "filteredByCoupon": "Filtered to one coupon — click the code again to see the whole campaign",
       "allCampaign": "Every redemption in this campaign, including reversed ones",
       "clearFilter": "Clear filter",
-      "headers": { "coupon": "Code", "customer": "Customer", "order": "Order", "source": "Channel", "discount": "Discount", "when": "When" },
+      "headers": {
+        "coupon": "Code",
+        "customer": "Customer",
+        "order": "Order",
+        "source": "Channel",
+        "discount": "Discount",
+        "when": "When"
+      },
       "of": "of",
       "reversed": "Reversed",
-      "reversal": { "order_cancelled": "Order cancelled", "order_deleted": "Order deleted", "order_fully_returned": "Fully returned" },
+      "reversal": {
+        "order_cancelled": "Order cancelled",
+        "order_deleted": "Order deleted",
+        "order_fully_returned": "Fully returned"
+      },
       "empty": "No coupon has been used yet."
     },
     "actions": {

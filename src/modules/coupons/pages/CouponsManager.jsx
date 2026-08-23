@@ -33,6 +33,41 @@ const emptyForm = {
   shared_code: "",
   auto_issue_on_first_order: false,
   print_on_receipt: false,
+  validity_days: "",
+  terms_text: "",
+  apply_to_single_item: false,
+};
+
+/**
+ * The printed terms, written out of the campaign's own settings.
+ *
+ * Generated rather than typed from scratch so the paper can never contradict the rules the
+ * engine actually enforces — but it lands in an editable box, so the wording stays the
+ * owner's and a saved edit is never overwritten behind their back.
+ */
+const buildCouponTerms = (form = {}) => {
+  const lines = [];
+  const uses = Number.parseInt(form.usage_limit_per_coupon, 10);
+  if (form.code_mode !== "shared" && Number.isFinite(uses) && uses > 0) {
+    lines.push(uses === 1 ? "الكوبون صالح للاستخدام مرة واحدة" : `الكوبون صالح للاستخدام ${uses} مرات`);
+  }
+  const minimum = Number(form.minimum_order_amount || 0);
+  if (minimum > 0) lines.push(`الحد الأدنى للفاتورة ${minimum.toLocaleString()} ج.م`);
+  const days = Number.parseInt(form.validity_days, 10);
+  if (Number.isFinite(days) && days > 0) {
+    lines.push(days === 7 ? "صالح لمدة أسبوع من تاريخ الفاتورة" : `صالح لمدة ${days} يوم من تاريخ الفاتورة`);
+  } else if (form.expires_at) {
+    lines.push(`صالح حتى ${String(form.expires_at).slice(0, 10)}`);
+  }
+  const perCustomer = Number.parseInt(form.usage_limit_per_customer, 10);
+  if (Number.isFinite(perCustomer) && perCustomer > 0) {
+    lines.push(perCustomer === 1 ? "لكل عميل كوبون واحد من الحملة دي" : `لكل عميل ${perCustomer} كوبونات من الحملة دي`);
+  }
+  if (form.apply_to_single_item) lines.push("الخصم على قطعة واحدة (الأغلى في الفاتورة)");
+  if (form.scope?.exclude_on_sale) lines.push("لا يشمل المنتجات المخفّضة");
+  if (form.stack_policy === "none") lines.push("لا يُجمع مع أي خصم آخر");
+  if (form.first_order_only) lines.push("لأول طلب فقط");
+  return lines.join("\n");
 };
 
 const normalizeScopeForForm = (scope) => {
@@ -209,6 +244,9 @@ export default function CouponsManager() {
       shared_code: campaign.shared_code || "",
       auto_issue_on_first_order: Boolean(campaign.auto_issue_on_first_order),
       print_on_receipt: Boolean(campaign.print_on_receipt),
+      validity_days: campaign.validity_days ?? "",
+      terms_text: campaign.terms_text || "",
+      apply_to_single_item: Boolean(campaign.apply_to_single_item),
     });
     setModalOpen(true);
   };
@@ -225,6 +263,9 @@ export default function CouponsManager() {
         usage_limit_per_customer: form.usage_limit_per_customer === "" ? null : Number(form.usage_limit_per_customer || 0),
         budget_cap: form.budget_cap === "" ? null : Number(form.budget_cap || 0),
         scope: normalizeScopeForForm(form.scope),
+        validity_days: form.validity_days === "" ? null : Number(form.validity_days || 0),
+        apply_to_single_item: Boolean(form.apply_to_single_item),
+        terms_text: String(form.terms_text || ""),
       };
       if (editing?.id) {
         await api.put(`/coupons/campaigns/${editing.id}`, payload);
@@ -842,6 +883,13 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
               <input type="checkbox" checked={Boolean(form.first_order_only)} onChange={(e) => update("first_order_only", e.target.checked)} />
               {cText("rules.firstOrderOnly", "أول طلب للعميل فقط")}
             </label>
+            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold md:col-span-2">
+              <input type="checkbox" checked={Boolean(form.apply_to_single_item)} onChange={(e) => update("apply_to_single_item", e.target.checked)} />
+              <span>
+                {cText("rules.singleItem", "الخصم على قطعة واحدة بس")}
+                <span className="block text-[11px] font-normal text-white/50">{cText("rules.singleItemHint", "يُحسب على أغلى قطعة في الفاتورة بدل الفاتورة كلها")}</span>
+              </span>
+            </label>
             <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
               <input type="checkbox" checked={Boolean(form.auto_issue_on_first_order)} onChange={(e) => update("auto_issue_on_first_order", e.target.checked)} />
               <span>
@@ -857,6 +905,42 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
               </span>
             </label>
           </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <Field
+              label={cText("rules.validityDays", "مدة صلاحية الكوبون (أيام من تاريخ الفاتورة)")}
+              type="number"
+              value={form.validity_days}
+              onChange={(value) => update("validity_days", value)}
+              placeholder={cText("rules.validityDaysHint", "اتركه فارغاً لاستخدام تاريخ انتهاء الحملة")}
+            />
+            <div className="flex items-end text-[11px] text-zinc-500">
+              {cText("rules.validityDaysNote", "لما تحطها، الحملة تفضل شغالة على طول وكل كوبون بياخد مدته من تاريخ فاتورته — مش محتاج تعمل حملة جديدة كل يوم.")}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{cText("rules.terms", "الشروط المطبوعة على الكوبون")}</div>
+                <div className="mt-1 text-[11px] text-zinc-500">{cText("rules.termsHint", "سطر لكل شرط. بتتطبع تحت الكوبون في الفاتورة وفي لينك الفاتورة.")}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => update("terms_text", buildCouponTerms(form))}
+                className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-violet-300/30 bg-violet-400/15 px-3 text-xs font-black text-violet-100"
+              >
+                {cText("rules.termsGenerate", "توليد من الإعدادات")}
+              </button>
+            </div>
+            <textarea
+              value={form.terms_text}
+              onChange={(e) => update("terms_text", e.target.value)}
+              rows={5}
+              placeholder={cText("rules.termsPlaceholder", "الكوبون صالح للاستخدام مرة واحدة\nالحد الأدنى للفاتورة 300 ج.م\nصالح لمدة أسبوع من تاريخ الفاتورة")}
+              className="mt-3 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-3 text-sm text-white outline-none placeholder:text-zinc-600"
+            />
+          </div>
+
           <ScopeEditor scope={form.scope} onChange={(scope) => update("scope", scope)} cText={cText} />
         </div>
         </div>
