@@ -98,6 +98,7 @@ const normalizeCampaignInput = (body = {}) => {
     code_mode: codeMode,
     shared_code: sharedCode,
     auto_issue_on_first_order: parseBoolean(body.auto_issue_on_first_order ?? body.autoIssueOnFirstOrder, false),
+    print_on_receipt: parseBoolean(body.print_on_receipt ?? body.printOnReceipt, false),
   };
 };
 
@@ -175,9 +176,9 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       max_discount_amount, usage_limit_per_coupon, total_coupons, starts_at, expires_at,
       channel, is_active, created_by, applies_to_shipping,
       usage_limit_per_customer, scope, stack_policy, budget_cap, first_order_only, code_mode, shared_code,
-      auto_issue_on_first_order
+      auto_issue_on_first_order, print_on_receipt
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
     RETURNING *
     `,
     [
@@ -204,9 +205,11 @@ export const createCampaign = async ({ tenantId = null, userId = null, body = {}
       campaign.code_mode,
       campaign.shared_code,
       campaign.auto_issue_on_first_order,
+      campaign.print_on_receipt,
     ]
   );
   const created = result.rows[0];
+  if (created?.print_on_receipt) await makeSoleReceiptCampaign({ tenantId, campaignId: created.id });
   if (created && campaign.code_mode === "shared") {
     await ensureSharedCoupon({ tenantId, campaign: created });
   }
@@ -260,7 +263,7 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
         usage_limit_per_customer = $${offset + 13}, scope = $${offset + 14}::jsonb, stack_policy = $${offset + 15},
         budget_cap = $${offset + 16}, first_order_only = $${offset + 17},
         code_mode = $${offset + 18}, shared_code = $${offset + 19},
-        auto_issue_on_first_order = $${offset + 20}, updated_at = NOW()
+        auto_issue_on_first_order = $${offset + 20}, print_on_receipt = $${offset + 21}, updated_at = NOW()
     WHERE id = $${offset} ${tenantId === null ? "" : "AND (tenant_id = $1 OR tenant_id IS NULL)"}
     RETURNING *
     `,
@@ -286,9 +289,11 @@ export const updateCampaign = async ({ tenantId = null, id, body = {} }) => {
       campaign.code_mode,
       campaign.shared_code,
       campaign.auto_issue_on_first_order,
+      campaign.print_on_receipt,
     ]
   );
   const updated = result.rows[0] || null;
+  if (updated?.print_on_receipt) await makeSoleReceiptCampaign({ tenantId, campaignId: updated.id });
   if (updated && campaign.code_mode === "shared") {
     await ensureSharedCoupon({ tenantId, campaign: updated });
   }
@@ -1244,6 +1249,120 @@ export const issueFirstOrderCoupons = async ({ tenantId = null, customerId, orde
   }
   return { issued };
 };
+
+/**
+ * Only ONE campaign may print on the receipt: a till slip carrying two different offers is
+ * incoherent, and the cashier has no way to choose. Switching it on for a campaign switches
+ * every other one off.
+ */
+const makeSoleReceiptCampaign = async ({ tenantId = null, campaignId }) => {
+  const params = [campaignId];
+  let tenantSql = "";
+  if (tenantId !== null && tenantId !== undefined) {
+    params.push(tenantId);
+    tenantSql = ` AND (tenant_id = $${params.length} OR tenant_id IS NULL)`;
+  }
+  await db.query(
+    `UPDATE coupon_campaigns SET print_on_receipt = FALSE, updated_at = NOW()
+     WHERE print_on_receipt = TRUE AND id <> $1 ${tenantSql}`,
+    params
+  );
+};
+
+/** The campaign currently printing on receipts, if any is switched on and in date. */
+export const getReceiptCouponCampaign = async ({ tenantId = null, client = db } = {}) => {
+  const params = [];
+  let tenantSql = "";
+  if (tenantId !== null && tenantId !== undefined) {
+    params.push(tenantId);
+    tenantSql = ` AND (tenant_id = $${params.length} OR tenant_id IS NULL)`;
+  }
+  const result = await client.query(
+    `SELECT * FROM coupon_campaigns
+     WHERE print_on_receipt = TRUE
+       AND is_active = TRUE
+       AND (starts_at IS NULL OR starts_at <= NOW())
+       AND (expires_at IS NULL OR expires_at >= NOW())
+       ${tenantSql}
+     ORDER BY id DESC
+     LIMIT 1`,
+    params
+  );
+  return result.rows[0] || null;
+};
+
+/**
+ * The coupon printed at the foot of a till receipt.
+ *
+ * Two rules make this safe to run on every sale:
+ *
+ * 1. **Never twice for one invoice.** The coupon is tied to the order that issued it
+ *    via issued_order_id, so a reprint — or the share/PDF path — reproduces the SAME code
+ *    instead of minting a fresh one on every press.
+ * 2. **Never a coupon for a coupon.** An invoice that was itself paid with a receipt coupon
+ *    prints none, or the shop hands out an unbroken chain of discounts: buy, redeem, get
+ *    another, redeem, forever.
+ *
+ * Returns null whenever no campaign is switched on — the ordinary case — and never throws
+ * into the checkout path: the caller treats a failure as "no coupon on this receipt".
+ */
+export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db } = {}) => {
+  const orderId = Number.parseInt(order?.id, 10);
+  if (!orderId) return null;
+  await ensureCouponsSchema(client);
+
+  const existing = await client.query(
+    `SELECT cp.*, c.discount_type, c.discount_value, c.minimum_order_amount, c.name AS campaign_name
+     FROM coupons cp JOIN coupon_campaigns c ON c.id = cp.campaign_id
+     WHERE cp.issued_order_id = $1 LIMIT 1`,
+    [orderId]
+  );
+  if (existing.rows[0]) return describeReceiptCoupon(existing.rows[0]);
+
+  const campaign = await getReceiptCouponCampaign({ tenantId, client });
+  if (!campaign) return null;
+
+  // Rule 2: this invoice already spent a coupon from the very campaign that prints here.
+  if (order.coupon_id) {
+    const redeemed = await client.query("SELECT campaign_id FROM coupons WHERE id = $1", [order.coupon_id]);
+    if (String(redeemed.rows[0]?.campaign_id || "") === String(campaign.id)) return null;
+  }
+
+  const expiresAt = campaign.expires_at;
+  let attempts = 0;
+  while (attempts < 25) {
+    attempts += 1;
+    const code = `${campaign.code_prefix}-${randomCodePart(6)}`;
+    try {
+      const inserted = await client.query(
+        `INSERT INTO coupons (tenant_id, campaign_id, code, qr_value, usage_limit, expires_at, issued_order_id, assigned_customer_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [tenantId, campaign.id, code, resolveQrValue(code), campaign.usage_limit_per_coupon, expiresAt, orderId, order.customer_id || null]
+      );
+      return describeReceiptCoupon({
+        ...inserted.rows[0],
+        discount_type: campaign.discount_type,
+        discount_value: campaign.discount_value,
+        minimum_order_amount: campaign.minimum_order_amount,
+        campaign_name: campaign.name,
+      });
+    } catch (error) {
+      if (error?.code !== "23505") throw error;
+    }
+  }
+  return null;
+};
+
+/** Everything the receipt needs, already shaped for printing. */
+const describeReceiptCoupon = (row) => ({
+  code: row.code,
+  campaign_name: row.campaign_name || "",
+  discount_type: row.discount_type,
+  discount_value: Number(row.discount_value || 0),
+  minimum_order_amount: Number(row.minimum_order_amount || 0),
+  expires_at: row.expires_at || null,
+  url: row.qr_value || resolveQrValue(row.code),
+});
 
 /** Redemption log for one coupon or a whole campaign (manager UI). */
 export const listRedemptions = async ({ tenantId = null, campaignId = null, couponId = null, limit = 200 } = {}) => {

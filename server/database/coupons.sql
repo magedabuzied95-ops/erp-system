@@ -94,3 +94,8 @@ CREATE INDEX IF NOT EXISTS idx_coupons_pending_send ON coupons (campaign_id) WHE
 
 -- Phase 3.3: expiry reminder for a coupon that was sent but never used
 ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP NULL;
+
+-- Phase 4: the coupon printed at the foot of a till receipt
+ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS print_on_receipt BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS issued_order_id BIGINT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_issued_order ON coupons (issued_order_id) WHERE issued_order_id IS NOT NULL;

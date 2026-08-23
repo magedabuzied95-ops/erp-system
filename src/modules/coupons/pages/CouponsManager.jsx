@@ -32,6 +32,7 @@ const emptyForm = {
   code_mode: "unique",
   shared_code: "",
   auto_issue_on_first_order: false,
+  print_on_receipt: false,
 };
 
 const normalizeScopeForForm = (scope) => {
@@ -207,6 +208,7 @@ export default function CouponsManager() {
       code_mode: campaign.code_mode === "shared" ? "shared" : "unique",
       shared_code: campaign.shared_code || "",
       auto_issue_on_first_order: Boolean(campaign.auto_issue_on_first_order),
+      print_on_receipt: Boolean(campaign.print_on_receipt),
     });
     setModalOpen(true);
   };
@@ -844,6 +846,13 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
               <span>
                 {cText("rules.autoIssue", "إصدار تلقائي بعد أول طلب")}
                 <span className="block text-[11px] font-normal text-white/50">{cText("rules.autoIssueHint", "يُخصَّص الكوبون للعميل تلقائياً — الإرسال يدوي من زر تخصيص لعميل")}</span>
+              </span>
+            </label>
+            <label className="flex items-center gap-3 rounded-[var(--radius-card)] border border-emerald-300/25 bg-emerald-400/10 px-4 py-3 text-sm font-semibold md:col-span-2">
+              <input type="checkbox" checked={Boolean(form.print_on_receipt)} onChange={(e) => update("print_on_receipt", e.target.checked)} />
+              <span>
+                {cText("rules.printOnReceipt", "اطبع كوبون من الحملة دي في آخر كل فاتورة")}
+                <span className="block text-[11px] font-normal text-white/50">{cText("rules.printOnReceiptHint", "حملة واحدة بس تقدر تطبع على الفاتورة — تفعيلها هنا بيوقف أي حملة تانية. والفاتورة اللي اتدفعت بكوبون من نفس الحملة مش بيتطبع فيها كوبون جديد.")}</span>
               </span>
             </label>
           </div>

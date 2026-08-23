@@ -1458,7 +1458,7 @@ function DiscountLoyaltyModal({
   );
 }
 
-export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", cashierName = "", createdAt, storeProfile, compact = false, template = null }) {
+export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", cashierName = "", createdAt, storeProfile, compact = false, template = null, receiptCoupon = null }) {
   // Rendered through renderToStaticMarkup for thermal printing, so the template has to
   // arrive as a prop — there is no React tree here to hang a hook on.
   const tpl = useMemo(() => invoiceTemplateForOutput(template || {}, "thermal"), [template]);
@@ -1474,6 +1474,26 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       }),
     [receiptBarcodeValue]
   );
+  // The discount voucher at the foot of the slip. The server decides whether there is one at
+  // all — including refusing to print one on an invoice that was itself paid with a voucher —
+  // so the receipt only has to render what it was handed.
+  const couponCode = String(receiptCoupon?.code || "").trim();
+  const couponBarcodeSvg = useMemo(
+    () => (couponCode ? getBarcodeSvg(couponCode, { width: 440, height: 96 }) : ""),
+    [couponCode]
+  );
+  const couponHeadline = useMemo(() => {
+    if (!receiptCoupon) return "";
+    if (receiptCoupon.discount_type === "percentage") return `${Number(receiptCoupon.discount_value || 0)}% خصم`;
+    if (receiptCoupon.discount_type === "free_shipping") return "شحن مجاني";
+    return `${Number(receiptCoupon.discount_value || 0)} ج.م خصم`;
+  }, [receiptCoupon]);
+  const couponExpiryText = useMemo(() => {
+    if (!receiptCoupon?.expires_at) return "";
+    const date = new Date(receiptCoupon.expires_at);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("ar-EG", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+  }, [receiptCoupon]);
   const premiumDate = useMemo(() => formatArabicDate(), []);
   const premiumTime = useMemo(() => formatArabicTime(), []);
   const premiumSeller = getSellerName(customer);
@@ -1638,6 +1658,31 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
           ) : null}
         </div>
       </div>
+
+      {couponCode ? (
+        <div className="pos-receipt-coupon mt-3 rounded-[22px] border-2 border-dashed border-emerald-500 px-3 py-2.5 text-center">
+          <div className="text-[10px] font-black tracking-[0.28em] text-emerald-700">
+            {receiptPrintLabel("couponTitle", "كوبون خصم لزيارتك الجاية")}
+          </div>
+          <div className="mt-1 text-lg font-black leading-tight text-zinc-950">{couponHeadline}</div>
+          {Number(receiptCoupon?.minimum_order_amount || 0) > 0 ? (
+            <div className="text-[10px] font-bold text-zinc-600">
+              {receiptPrintLabel("couponMinimum", "على فاتورة {{amount}} أو أكثر", {
+                amount: formatCurrency(receiptCoupon.minimum_order_amount),
+              })}
+            </div>
+          ) : null}
+          <div className="mx-auto mt-1.5 w-[260px] max-w-full rounded-lg bg-white px-1 py-0">
+            <div dangerouslySetInnerHTML={{ __html: couponBarcodeSvg }} />
+          </div>
+          <div className="mt-0.5 text-[13px] font-black tracking-[0.18em] text-emerald-700">{couponCode}</div>
+          {couponExpiryText ? (
+            <div className="mt-0.5 text-[10px] font-bold text-zinc-600">
+              {receiptPrintLabel("couponExpiry", "صالح حتى {{date}}", { date: couponExpiryText })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

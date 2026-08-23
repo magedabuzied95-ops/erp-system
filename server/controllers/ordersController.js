@@ -12,7 +12,7 @@ import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, 
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
-import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, syncRedemptionForOrder, validateCoupon } from "../services/couponsService.js";
+import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, resolveReceiptCoupon, syncRedemptionForOrder, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
@@ -4133,6 +4133,16 @@ export const createOrder = async (req, res) => {
       });
     });
 
+    // The coupon printed at the foot of the receipt. Resolved AFTER commit and swallowed on
+    // failure: a discount voucher is never worth failing a completed sale for. It is tied to
+    // this order, so a reprint reproduces the same code rather than minting another.
+    let receiptCoupon = null;
+    try {
+      receiptCoupon = await resolveReceiptCoupon({ tenantId, order });
+    } catch (receiptCouponError) {
+      console.error("[orders] receipt coupon skipped", String(receiptCouponError?.message || receiptCouponError).slice(0, 160));
+    }
+
     checkoutTiming.add("notifications_ms", 0);
     checkoutTiming.add("pdf_generation_ms", 0);
     const responsePayload = {
@@ -4162,6 +4172,7 @@ export const createOrder = async (req, res) => {
       attribution_type: order.attribution_type || null,
       loyalty: loyaltyResult,
       coupon: couponRedemption,
+      receipt_coupon: receiptCoupon,
       wallet: {
         cashbackAmount: Number(loyaltyResult?.cashbackAmount || 0),
         redeemedAmount: Number(loyaltyResult?.walletRedeemedAmount || 0),
@@ -8866,9 +8877,18 @@ export const getPosOrderSummary = async (req, res) => {
     timeline.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
 
     const normalizedItems = normalizeReturnedOrderItems(order, itemsResult.rows);
+    // A reprint has to carry the same voucher the original slip did, so look it up here too.
+    // resolveReceiptCoupon returns the coupon already tied to this order without minting.
+    let reprintCoupon = null;
+    try {
+      reprintCoupon = await resolveReceiptCoupon({ tenantId, order });
+    } catch (receiptCouponError) {
+      console.error("[pos-summary] receipt coupon skipped", String(receiptCouponError?.message || receiptCouponError).slice(0, 160));
+    }
     return res.status(200).json({
-      order: withPaymentProofAliases({ ...order, items: normalizedItems, audit_timeline: timeline }),
+      order: withPaymentProofAliases({ ...order, items: normalizedItems, audit_timeline: timeline, receipt_coupon: reprintCoupon }),
       items: normalizedItems,
+      receipt_coupon: reprintCoupon,
       audit_timeline: timeline,
     });
   } catch (error) {

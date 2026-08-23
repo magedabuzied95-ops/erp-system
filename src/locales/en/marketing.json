@@ -147,6 +147,8 @@
       "firstOrderOnly": "First order only",
       "autoIssue": "Auto-issue after first order",
       "autoIssueHint": "The coupon is assigned automatically — sending stays manual via Assign to customer",
+      "printOnReceipt": "Print a coupon from this campaign at the foot of every receipt",
+      "printOnReceiptHint": "Only one campaign can print on the receipt — switching it on here switches every other off. An invoice paid with a coupon from this same campaign prints none.",
       "scope": {
         "title": "Product scope",
         "hint": "Leave empty to cover every product. With brands or products selected, the discount applies to matching lines only.",

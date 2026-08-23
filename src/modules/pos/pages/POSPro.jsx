@@ -6934,6 +6934,9 @@ function POSPro() {
       // Printing renders the receipt through renderToStaticMarkup, outside React, so
       // the template travels with the receipt props rather than through a hook.
       template: invoiceTemplate,
+      // The server decides whether this invoice earns a voucher (and refuses one on an invoice
+      // that was itself paid with a voucher); the till only prints what it was handed.
+      receiptCoupon: order.receipt_coupon || order.receiptCoupon || null,
       cart: renderedCart,
       totals: renderedTotals,
       paymentSummary: renderedPaymentSummary,
