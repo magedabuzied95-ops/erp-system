@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+/* Cairo + Inter are loaded by a <link> in index.html, not from here.
+   An @import in this file sat inside a render-blocking stylesheet, so the fonts
+   could not even be DISCOVERED until app.css had downloaded and parsed -- three
+   chained round trips before text painted in its real face. The <link> is in the
+   first bytes of the document, so the preload scanner starts it immediately and
+   in parallel. Identical families, weights and display=swap.
+   Do not re-add an @import here; it would silently reintroduce the chain. */
 
 @layer base {
   :root {

@@ -239,16 +239,50 @@ const startLocaleHydration = () => {
 };
 
 if (typeof window !== "undefined") {
-  // After `load`, then on idle: the first waits out the render and the product
-  // imagery, the second waits out whatever the page is still busy with. Either
-  // alone would still let these chunks compete with the very work this split
-  // was meant to unblock.
-  const onIdle = () => {
-    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1200));
+  // WHY NOT `load`.
+  //
+  // This used to schedule on `load` + idle. In an SPA `load` does not mean "the
+  // page is useful" -- it means "the entry chunks finished". Measured on the
+  // production storefront it fired at 1.59s, while the app was still fetching
+  // App/Storefront and had not issued a single API request. The deferred bundles
+  // (rest.en 125KB + rest.ar 146KB + core.ar 31KB) therefore started at ~1.6-2.1s
+  // and finished at 3.7s, competing for exactly the bandwidth this split exists to
+  // free, and /api/storefront/home did not start until 3.98s.
+  //
+  // So the gate is now "the page painted something worth looking at", whichever of
+  // these comes first:
+  //   - the app says so explicitly (m1:content-painted), for routes that know;
+  //   - the browser reports a Largest Contentful Paint, which on the storefront is
+  //     the first product image -- i.e. the critical path is genuinely done;
+  //   - a hard ceiling, so a page that never paints an LCP candidate (an empty
+  //     search, a route behind auth) still gets its dictionaries.
+  //
+  // requestIdleCallback still wraps the start, so even after the gate opens the
+  // fetches wait for a quiet main thread.
+  const HYDRATION_CEILING_MS = Number(import.meta.env?.VITE_LOCALE_HYDRATION_CEILING_MS) || 8000;
+  let opened = false;
+
+  const openGate = () => {
+    if (opened) return;
+    opened = true;
+    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 200));
     schedule(() => startLocaleHydration(), { timeout: 4000 });
   };
-  if (document.readyState === "complete") onIdle();
-  else window.addEventListener("load", onIdle, { once: true });
+
+  window.addEventListener("m1:content-painted", openGate, { once: true });
+  window.setTimeout(openGate, HYDRATION_CEILING_MS);
+
+  try {
+    const observer = new PerformanceObserver(() => {
+      observer.disconnect();
+      // One frame of slack so the paint the observer just reported actually lands
+      // before these fetches start contending with it.
+      window.setTimeout(openGate, 250);
+    });
+    observer.observe({ type: "largest-contentful-paint", buffered: true });
+  } catch {
+    // No LCP support (older Safari): the explicit event and the ceiling still apply.
+  }
 } else {
   startLocaleHydration();
 }

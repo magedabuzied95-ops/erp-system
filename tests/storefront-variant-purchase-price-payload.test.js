@@ -24,11 +24,17 @@ const region = (startMarker, endMarker) => {
   return squash(controller.slice(start, end));
 };
 
+// The projection is chosen at build time between the default shape and a derived
+// faster one (see STOREFRONT_FAST_CATALOG_SQL), so the marker that used to be a
+// bare `${catalogSelectListSql}` is now that ternary. Pinning the whole expression
+// keeps these regions anchored to the same boundaries as before.
+const PROJECTION_MARKER = "${fast ? fastCatalogSelectListSql : catalogSelectListSql}";
+
 const candidateRowsSql = region("WITH candidate_rows AS MATERIALIZED (", "candidate_purchase_items AS MATERIALIZED (");
 const candidateItemsSql = region("candidate_purchase_items AS MATERIALIZED (", "candidate_purchase_matches AS (");
 const matchesSql = region("candidate_purchase_matches AS (", "last_color_purchase_price AS (");
-const resolverSql = region("last_color_purchase_price AS (", "${catalogSelectListSql}");
-const projectionSql = region("${catalogSelectListSql}", "${trailing}");
+const resolverSql = region("last_color_purchase_price AS (", PROJECTION_MARKER);
+const projectionSql = region(PROJECTION_MARKER, "${trailing}");
 
 const matchBranches = matchesSql.split(" UNION ALL ");
 
@@ -163,7 +169,7 @@ test("the candidate predicate is defined once and never string-mutated", () => {
   assert.match(candidateRowsSql, /\$\{where\}/, "caller predicates are injected into the candidate CTE");
   assert.doesNotMatch(projectionSql, /\$\{where\}/, "the outer query must read the candidate set, not re-derive it");
 
-  assert.match(controller, /const buildCatalogQuery = \(\{ where = "", trailing = "", productVisibility = true \} = \{\} \) =>|const buildCatalogQuery = \(\{ where = "", trailing = "", productVisibility = true \} = \{\}\) =>/);
+  assert.match(controller, /const buildCatalogQuery = \(\{ where = "", trailing = "", productVisibility = true, fast = false \} = \{\}\) =>/);
   assert.doesNotMatch(controller, /\$\{catalogQuery\}/, "no caller may interpolate a raw catalog query fragment");
 
   // The relaxed-visibility fallback must be built from the same source of truth, not
@@ -176,9 +182,40 @@ test("the candidate predicate is defined once and never string-mutated", () => {
   assert.doesNotMatch(controller, /storefrontProductsSql\.replace\(/);
   assert.equal(
     (controller.match(/storefrontProductsWhereSql/g) || []).length,
-    3,
-    "one definition plus exactly two references: the base query and the relaxed-visibility fallback",
+    4,
+    "one definition plus exactly three references: the base query, the relaxed-visibility fallback, and the fast-shape build",
   );
+});
+
+test("the fast catalog shape is derived from the default projection, never hand-copied", () => {
+  // Two projections that must agree about purchase-price semantics are a drift risk,
+  // so the fast one is DERIVED from the default by three asserted replacements rather
+  // than maintained as a second copy. These guards pin that arrangement: if someone
+  // pastes a literal second projection, the purchase-price assertions above would
+  // still pass while the fast shape silently diverged.
+  assert.match(controller, /const fastCatalogSelectListSql = \(\(\) => \{/);
+  assert.match(controller, /let sql = catalogSelectListSql;/, "the fast shape must start from the default projection");
+  assert.match(
+    controller,
+    /if \(count !== 1\) \{\s*\n?\s*throw new Error\(/,
+    "each derivation step must assert it matched exactly once, so a broken anchor fails loudly",
+  );
+
+  // The three transformations are the ONLY differences allowed, and none of them may
+  // touch a purchase-price field.
+  assert.match(controller, /replaceOnce\(sql, soldCountSubquery, "COALESCE\(MAX\(candidate_sold\.sold_count\), 0\)::int AS sold_count,", "sold_count"\)/);
+  assert.match(controller, /replaceOnce\(sql, "DISTINCT jsonb_build_object\(", "jsonb_build_object\(", "jsonb_agg DISTINCT"\)/);
+  assert.match(controller, /"jsonb_agg ordering"/);
+  assert.doesNotMatch(controller, /replaceOnce\([\s\S]{0,120}last_color_purchase_price/, "no derivation step may rewrite purchase-price resolution");
+
+  // sold_count is the only field the grouped CTE feeds, and it must be restricted to
+  // the same candidate products the correlated subquery could have been evaluated for.
+  assert.match(controller, /WHERE EXISTS \(SELECT 1 FROM candidate_rows cr_sold WHERE cr_sold\.product_id = oi\.product_id\)/);
+  assert.match(controller, /GROUP BY oi\.product_id/);
+
+  // A structurally invalid fast shape must degrade to the proven one rather than 500.
+  assert.match(controller, /const FAST_CATALOG_SQL_STRUCTURAL_CODES = new Set\(\[/);
+  assert.match(controller, /fastCatalogSqlDisabled = true;/);
 });
 
 test("different color variants resolve their own purchase-derived prices", () => {

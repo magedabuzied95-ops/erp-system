@@ -64,6 +64,13 @@ import { storefrontCategorySeoPageHandler } from "../services/storefrontCategory
 const router = express.Router();
 const publicStorefrontHomeCache = new Map();
 const PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS = Math.max(5_000, Number(process.env.STOREFRONT_HOME_CACHE_TTL_MS || 60_000));
+// Past the TTL the entry is STALE rather than gone: it keeps being served while a
+// rebuild runs behind the response. Without this the first visitor after every
+// expiry paid the full rebuild, measured at 2.6-3.3s in production.
+const PUBLIC_STOREFRONT_HOME_CACHE_STALE_MS = Math.max(
+  PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS,
+  Number(process.env.STOREFRONT_HOME_CACHE_STALE_MS || 1_800_000),
+);
 const IMAGE_TOO_LARGE_MESSAGE = "\u062d\u062c\u0645 \u0627\u0644\u0635\u0648\u0631\u0629 \u0643\u0628\u064a\u0631. \u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0623\u0635\u063a\u0631";
 const UNSUPPORTED_IMAGE_MESSAGE = "\u0646\u0648\u0639 \u0627\u0644\u0635\u0648\u0631\u0629 \u063a\u064a\u0631 \u0645\u062f\u0639\u0648\u0645. \u0627\u0633\u062a\u062e\u062f\u0645 JPG \u0623\u0648 PNG \u0623\u0648 WEBP";
 const toText = (value) => {
@@ -225,21 +232,43 @@ const cachedPublicStorefrontHome = async (tenantId, mirrorFilterSlug = "mirror_o
   const key = `${String(tenantId || 1)}:quality=${mirrorFilterSlug}:in_stock=1`;
   const now = Date.now();
   const cached = publicStorefrontHomeCache.get(key);
-  if (cached?.data && now - cached.at < PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS) return cached.data;
-  if (cached?.promise) return cached.promise;
+  const age = cached?.data ? now - cached.at : Infinity;
+  if (cached?.data && age < PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS) return cached.data;
+  // An in-flight rebuild is joined ONLY when there is nothing servable. If a stale
+  // copy exists the caller gets it immediately and lets the rebuild finish on its
+  // own -- that is the whole point of the stale window.
+  if (cached?.promise && !cached?.data) return cached.promise;
 
-  const promise = (async () => {
-    const settings = await getWebsiteSettings({ tenantId });
-    const home = await resolveStorefrontHome({ tenantId, settings });
-    const data = { settings, home };
-    publicStorefrontHomeCache.set(key, { at: Date.now(), data });
-    return data;
-  })().catch((error) => {
-    publicStorefrontHomeCache.delete(key);
-    throw error;
-  });
-  publicStorefrontHomeCache.set(key, { at: now, promise });
-  return promise;
+  const rebuild = () => {
+    const promise = (async () => {
+      const settings = await getWebsiteSettings({ tenantId });
+      const home = await resolveStorefrontHome({ tenantId, settings });
+      const data = { settings, home };
+      publicStorefrontHomeCache.set(key, { at: Date.now(), data });
+      return data;
+    })().catch((error) => {
+      // Keep a stale copy on failure rather than dropping to a cold cache: a
+      // transient DB blip must not turn into a multi-second page for the next
+      // visitor. With nothing cached there is nothing to keep, so drop the entry.
+      const current = publicStorefrontHomeCache.get(key);
+      if (current?.data) publicStorefrontHomeCache.set(key, { at: current.at, data: current.data });
+      else publicStorefrontHomeCache.delete(key);
+      throw error;
+    });
+    publicStorefrontHomeCache.set(key, { at: cached?.data ? cached.at : now, data: cached?.data, promise });
+    return promise;
+  };
+
+  if (cached?.data && age < PUBLIC_STOREFRONT_HOME_CACHE_STALE_MS) {
+    if (!cached.promise) {
+      rebuild().catch((error) => {
+        console.warn("[storefront/home] background revalidate failed", error?.message || error);
+      });
+    }
+    return cached.data;
+  }
+
+  return rebuild();
 };
 
 const setPublicStorefrontHomeCacheHeaders = (res) => {

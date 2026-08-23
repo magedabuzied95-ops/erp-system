@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+/* Cairo + Inter come from the <link> in index.html, which already loads a
+   superset of these weights (Cairo 400-800). Re-importing them here only added a
+   duplicate request on this route. */
 
 .m1p{--gold:#a47a12;--gold-dark:#765608;--gold-soft:#fff7df;--ink:#25231f;--muted:#716e67;--line:#dedbd3;--canvas:#f3f3f1;--surface:#fff;--surface-soft:#f7f7f5;--sidebar:#ececea;--top:#1c1c1a;--green:#198754;--green-soft:#e9f7ef;min-height:100vh;background:var(--canvas);color:var(--ink);font-family:"Cairo","Inter",sans-serif;display:flex;font-size:14px;transition:background .2s ease,color .2s ease}
 .m1p.is-dark{--gold:#d0a632;--gold-dark:#e2c263;--gold-soft:#352d18;--ink:#efeee9;--muted:#a19e96;--line:#393936;--canvas:#171715;--surface:#232321;--surface-soft:#2a2a27;--sidebar:#1d1d1b;--top:#10100f;--green:#42b883;--green-soft:#183529}

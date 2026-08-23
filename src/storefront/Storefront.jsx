@@ -20,6 +20,8 @@ import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
 import usePageTitle from "../shared/hooks/usePageTitle";
 import { safeSetSessionStorage } from "../utils/safeStorage";
+import { signalContentPainted } from "../shared/utils/contentPainted";
+import { getPublicSettingsResponse } from "../shared/api/publicSettings";
 import {
   BadgePercent,
   Baby,
@@ -783,6 +785,14 @@ const useStorefrontHome = () => {
     if (initialHome) return storefrontHomeStateFromResponse(initialHome);
     return { loading: true, error: "", hero: null, mirrorProducts: [], collections: [] };
   });
+
+  // Opens the gate that deferred, off-critical-path work waits on (the ~300 KB of
+  // i18n bundles). Runs after commit, and only once there is something on screen --
+  // a bootstrap paint from cache counts, an empty loading shell does not.
+  const painted = Boolean(initialHome) || !state.loading;
+  useEffect(() => {
+    if (painted) signalContentPainted();
+  }, [painted]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1861,6 +1871,22 @@ const persistStorefrontHome = (data) => {
     // The memory cache still works if storage is unavailable or full.
   }
 };
+/**
+ * Claims the response index.html already started fetching for this URL, if any.
+ *
+ * The boot script issues the home request while the JS bundles are still
+ * downloading, which is ~3.9s earlier than this module could. Consumed once and
+ * then cleared: a later refresh must go to the network, not replay a stale boot
+ * payload.
+ */
+const adoptBootPrefetch = (url) => {
+  if (typeof window === "undefined") return null;
+  const boot = window.__M1_BOOT_HOME;
+  if (!boot || boot.key !== url) return null;
+  window.__M1_BOOT_HOME = null;
+  return boot.promise;
+};
+
 const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS, forceRefresh = false, persist = false } = {}) => {
   if (ttlMs <= 0) {
     storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "no-store" });
@@ -1876,8 +1902,11 @@ const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS, forceRe
     storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, strategy: "in-flight" });
     return storefrontGetInFlight.get(url);
   }
-  storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "network" });
-  const request = api.get(url)
+  const booted = adoptBootPrefetch(url);
+  storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: booted ? "boot-prefetch" : "network" });
+  // A failed boot prefetch falls back to the normal request rather than surfacing:
+  // it is an optimisation, and the network path already reports errors properly.
+  const request = (booted ? booted.catch(() => api.get(url)) : api.get(url))
     .then((data) => {
       storefrontGetCache.set(url, { at: Date.now(), data });
       if (persist) persistStorefrontHome(data);
@@ -3684,12 +3713,12 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
           <div>
             <div className="relative h-24 w-24 md:h-28 md:w-28" aria-label="M1 Store">
               <div className="absolute inset-0 dark:hidden">
-                <img src="/branding/m-one-logo-dark-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
-                <img src="/branding/m-one-logo-dark-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
+                <img src="/branding/m-one-logo-dark-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
+                <img src="/branding/m-one-logo-dark-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
               </div>
               <div className="absolute inset-0 hidden dark:block">
-                <img src="/branding/m-one-logo-white-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
-                <img src="/branding/m-one-logo-white-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
+                <img src="/branding/m-one-logo-white-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
+                <img src="/branding/m-one-logo-white-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
               </div>
             </div>
             <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
@@ -7459,11 +7488,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     let cancelled = false;
-    api.get("/settings/public", {
-      suppressErrorStatuses: [404, 500],
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-    })
+    getPublicSettingsResponse()
       .then((data) => {
         if (cancelled) return;
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
@@ -10795,11 +10820,7 @@ function Storefront() {
 
   useEffect(() => {
     let cancelled = false;
-    api.get("/settings/public", {
-      suppressErrorStatuses: [404, 500],
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-    })
+    getPublicSettingsResponse()
       .then((data) => {
         if (cancelled) return;
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);

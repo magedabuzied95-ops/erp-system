@@ -1,6 +1,29 @@
 @import "tailwindcss";
 
 /* ============================================================================
+   SOURCE SCANNING — keep dead code out of the utility layer
+   ----------------------------------------------------------------------------
+   Tailwind v4 discovers sources by walking up from this file and scanning
+   everything not gitignored. `backups/` is neither gitignored nor untracked --
+   36 files are tracked, ~7.8 MB of them .jsx -- so those frozen "before"
+   snapshots of AiInbox, ProductEdit and friends WERE being scanned. Measured: 16
+   classes that exist nowhere but `backups/` were being emitted into the entry
+   stylesheet.
+
+   Be honest about the size of this: 16 of 6110 utility selectors, ~2 KB raw and
+   below the noise floor after brotli. This is correctness, not a speed fix --
+   dead snapshots must not get a vote in the build. The entry stylesheet is large
+   (893 KB raw / 107 KB brotli) because ~6100 genuinely-used utilities from a
+   669-file app all land in ONE render-blocking file; the fix for THAT is
+   splitting storefront and ERP into separate Tailwind entry points, which is a
+   much bigger change than this line.
+
+   `@source not` rather than a .gitignore entry: the files are TRACKED, so
+   gitignoring them would not stop the scan.
+   ========================================================================== */
+@source not "../backups";
+
+/* ============================================================================
    THEME OWNERSHIP — Tailwind `dark:` follows the APPLICATION theme (Phase 1.5)
    ----------------------------------------------------------------------------
    src/theme/ThemeProvider.jsx is the single authoritative theme owner: it writes

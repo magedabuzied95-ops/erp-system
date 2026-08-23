@@ -22,7 +22,7 @@ import { generateAiProductData } from "../services/aiProductDataService.js";
 import { understandProductImageForSearch } from "../services/openaiSupportService.js";
 import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
-import { buildCacheKey, getOrSetCache, invalidateCachePattern } from "../services/cacheService.js";
+import { buildCacheKey, getOrSetCache, getOrSetCacheSWR, invalidateCachePattern } from "../services/cacheService.js";
 import { createPerfTrace } from "../utils/storefrontPerf.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
@@ -596,6 +596,28 @@ const sortedQueryString = (query = {}) => {
   });
   return params.toString();
 };
+
+// Cache windows for the public catalogue reads.
+//
+// FRESH is the old TTL: inside it nothing is rebuilt. STALE is the new part --
+// past FRESH the cached answer is still served INSTANTLY while the rebuild runs
+// behind the response, so no shopper ever waits for the 4-6s cold build that used
+// to land on whoever happened to arrive first after an expiry.
+//
+// STALE is deliberately far longer than FRESH. It is not a correctness budget --
+// a product save calls invalidateStorefrontTenantCache and drops the entry
+// outright -- it is how long a quiet catalogue may coast on its last good answer
+// instead of making a visitor pay to rebuild it.
+const STOREFRONT_CACHE_FRESH_SECONDS = Math.max(5, Number(process.env.STOREFRONT_CACHE_FRESH_SECONDS || 120));
+const STOREFRONT_CACHE_STALE_SECONDS = Math.max(
+  STOREFRONT_CACHE_FRESH_SECONDS,
+  Number(process.env.STOREFRONT_CACHE_STALE_SECONDS || 1800),
+);
+const storefrontCacheWindows = () => ({
+  freshSeconds: STOREFRONT_CACHE_FRESH_SECONDS,
+  staleSeconds: STOREFRONT_CACHE_STALE_SECONDS,
+});
+
 const storefrontCacheKey = (tenantId, scope, query = {}) =>
   buildCacheKey("storefront", `tenant:${tenantId || "public"}`, scope, sortedQueryString(query));
 const invalidateStorefrontTenantCache = (tenantId) =>
@@ -1485,7 +1507,64 @@ const catalogSelectListSql = `  SELECT
       '[]'::jsonb
     ) AS variants`;
 
-const buildCatalogQuery = ({ where = "", trailing = "", productVisibility = true } = {}) => `
+// The same projection without two avoidable costs. Selected by
+// STOREFRONT_FAST_CATALOG_SQL; default OFF so it can be proven in production and
+// switched back without a redeploy.
+//
+//  1. jsonb_agg(DISTINCT jsonb_build_object(...35 keys...)) makes Postgres sort
+//     every variant by its whole serialised jsonb value in order to deduplicate.
+//     The DISTINCT is redundant: candidate_rows yields one row per
+//     (product, variant) -- its other joins (categories, brands, manufacturers)
+//     are many-to-one on primary keys, the outer query joins product_variants on
+//     its primary key, and last_color_purchase_price is DISTINCT ON its key. So
+//     nothing can duplicate a variant. Ordering by two scalars instead is cheaper
+//     AND more deterministic than ordering by jsonb text.
+//
+//  2. sold_count is a correlated subquery, re-scanning order_items JOIN orders
+//     once per product row -- ~1000 scans per cold build. The fast form reads the
+//     same numbers from one grouped pass (candidate_sold, injected by
+//     buildCatalogQuery) and takes MAX over the group. candidate_sold holds
+//     exactly one row per product, so MAX is that row's value, and using an
+//     aggregate means no caller-supplied GROUP BY has to change.
+//
+// Derived by transforming the string above rather than maintaining a second copy,
+// so the two cannot drift. Each step asserts, so an edit that breaks an anchor
+// fails at boot instead of silently serving the slow shape.
+const fastCatalogSelectListSql = (() => {
+  const replaceOnce = (text, find, replacement, label) => {
+    const count = text.split(find).length - 1;
+    if (count !== 1) {
+      throw new Error(`fastCatalogSelectListSql: "${label}" matched ${count} times, expected 1`);
+    }
+    return text.replace(find, replacement);
+  };
+
+  const soldCountSubquery = `COALESCE((
+      SELECT SUM(GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.returned_quantity, 0), 0))
+      FROM order_items oi
+      LEFT JOIN orders o ON o.id = oi.order_id
+      WHERE oi.product_id = p.id
+        AND ($1::bigint IS NULL OR COALESCE(oi.tenant_id, o.tenant_id) = $1::bigint)
+        AND COALESCE(NULLIF(LOWER(TRIM(o.status)), ''), 'delivered') NOT IN ('cancelled', 'canceled', 'void', 'returned')
+    ), 0)::int AS sold_count,`;
+
+  let sql = catalogSelectListSql;
+  sql = replaceOnce(sql, soldCountSubquery, "COALESCE(MAX(candidate_sold.sold_count), 0)::int AS sold_count,", "sold_count");
+  sql = replaceOnce(sql, "DISTINCT jsonb_build_object(", "jsonb_build_object(", "jsonb_agg DISTINCT");
+  sql = replaceOnce(
+    sql,
+    `      ) FILTER (WHERE pv.id IS NOT NULL),
+      '[]'::jsonb
+    ) AS variants`,
+    `      ORDER BY pv.color_sort_order NULLS LAST, pv.id) FILTER (WHERE pv.id IS NOT NULL),
+      '[]'::jsonb
+    ) AS variants`,
+    "jsonb_agg ordering",
+  );
+  return sql;
+})();
+
+const buildCatalogQuery = ({ where = "", trailing = "", productVisibility = true, fast = false } = {}) => `
   WITH candidate_rows AS MATERIALIZED (
     SELECT p.id AS product_id, pv.id AS variant_id
     FROM products p
@@ -1558,15 +1637,32 @@ ${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${whe
       purchase_sale_price
     FROM candidate_purchase_matches
     ORDER BY variant_pk, pu_created_at DESC NULLS LAST, pi_id DESC
-  )
-${catalogSelectListSql}
+  )${fast ? `,
+  -- One grouped pass over order_items for every candidate product, replacing the
+  -- per-product correlated subquery in the default projection. Restricted to the
+  -- same product set the correlated form could ever be evaluated for, so a product
+  -- with no matching order rows is absent here and COALESCE(MAX(...), 0) yields the
+  -- same 0 the correlated COALESCE(..., 0) yielded.
+  candidate_sold AS (
+    SELECT
+      oi.product_id AS product_id,
+      SUM(GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.returned_quantity, 0), 0)) AS sold_count
+    FROM order_items oi
+    LEFT JOIN orders o ON o.id = oi.order_id
+    WHERE EXISTS (SELECT 1 FROM candidate_rows cr_sold WHERE cr_sold.product_id = oi.product_id)
+      AND ($1::bigint IS NULL OR COALESCE(oi.tenant_id, o.tenant_id) = $1::bigint)
+      AND COALESCE(NULLIF(LOWER(TRIM(o.status)), ''), 'delivered') NOT IN ('cancelled', 'canceled', 'void', 'returned')
+    GROUP BY oi.product_id
+  )` : ""}
+${fast ? fastCatalogSelectListSql : catalogSelectListSql}
   FROM candidate_rows cr
   JOIN products p ON p.id = cr.product_id
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN brands b ON b.id = p.brand_id
   LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
   LEFT JOIN product_variants pv ON pv.id = cr.variant_id
-  LEFT JOIN last_color_purchase_price ON last_color_purchase_price.variant_pk = pv.id
+  LEFT JOIN last_color_purchase_price ON last_color_purchase_price.variant_pk = pv.id${fast ? `
+  LEFT JOIN candidate_sold ON candidate_sold.product_id = p.id` : ""}
 ${trailing}
 `;
 
@@ -1767,6 +1863,44 @@ export const storefrontProductsSql = buildCatalogQuery({
   trailing: storefrontProductsTrailingSql,
 });
 
+// Same query, cheaper shape. Both are built at module load so the flag is a pure
+// pointer swap at request time -- flipping STOREFRONT_FAST_CATALOG_SQL back needs
+// only a restart, never a redeploy, and the slow form stays byte-identical to what
+// production has always run.
+export const storefrontProductsSqlFast = buildCatalogQuery({
+  where: storefrontProductsWhereSql,
+  trailing: storefrontProductsTrailingSql,
+  fast: true,
+});
+
+const STOREFRONT_FAST_CATALOG_SQL = ["1", "true", "yes", "on"].includes(
+  String(process.env.STOREFRONT_FAST_CATALOG_SQL || "").trim().toLowerCase(),
+);
+
+// The fast shape cannot be parse-checked before it runs, so it self-heals instead
+// of trusting the flag. If Postgres rejects it STRUCTURALLY -- syntax, unknown
+// relation/column/function, wrong argument types -- that is a defect in the derived
+// SQL, never a property of the data, so the flag is dropped for the life of the
+// process and the request is retried on the shape production has always run. The
+// visitor gets a correct answer; the operator gets one loud line.
+//
+// Deliberately narrow: any other error (timeout, deadlock, connection loss) is a
+// real failure and must propagate rather than be masked as a fallback.
+const FAST_CATALOG_SQL_STRUCTURAL_CODES = new Set([
+  "42601", // syntax_error
+  "42P01", // undefined_table
+  "42703", // undefined_column
+  "42883", // undefined_function
+  "42P10", // invalid_column_reference
+  "42804", // datatype_mismatch
+  "42P18", // indeterminate_datatype
+  "42809", // wrong_object_type
+  "42702", // ambiguous_column
+]);
+let fastCatalogSqlDisabled = false;
+
+export const fastCatalogSqlActive = () => STOREFRONT_FAST_CATALOG_SQL && !fastCatalogSqlDisabled;
+
 // Relaxed-visibility fallback. Built from the same builder with the product-level
 // storefront-visibility predicate omitted, instead of string-replacing it out of an
 // already-assembled query. The variant-level visibility condition in the
@@ -1842,8 +1976,23 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
   }
 };
 
-export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
-  queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
+export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) => {
+  if (!fastCatalogSqlActive()) {
+    return queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
+  }
+  try {
+    return await queryProductsWithSql(storefrontProductsSqlFast, tenantId, q, category, filters, saleOnly, limit, offset);
+  } catch (error) {
+    if (!FAST_CATALOG_SQL_STRUCTURAL_CODES.has(String(error?.code || ""))) throw error;
+    fastCatalogSqlDisabled = true;
+    console.error("[storefront] fast catalog SQL rejected by Postgres - falling back for the life of this process", {
+      code: error?.code || "",
+      message: error?.message || String(error),
+      position: error?.position || "",
+    });
+    return queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
+  }
+};
 
 export const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
   queryProductsWithSql(storefrontProductsSqlWithoutVisibility, tenantId, q, category, filters, saleOnly, limit, offset);
@@ -3216,7 +3365,7 @@ export const listProducts = async (req, res) => {
     await perf.step("ensure_variant_images_schema", () => ensureProductVariantImagesSchema());
     const tenantId = tenantFromRequest(req);
     const pricingSettings = await perf.step("pricing_settings", () => loadStorefrontPricingSettings(tenantId));
-    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 120, async () => {
+    const payload = await getOrSetCacheSWR(storefrontCacheKey(tenantId, "products", req.query || {}), storefrontCacheWindows(), async () => {
       const normalizedQuery = perf.sync("normalize_query", () => normalizeStorefrontProductsQuery(req.query || {}));
       const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, sizes, colors, bagType, minPrice, maxPrice, lastSizes, inStock, audienceSearch, largeSizes } = normalizedQuery;
       const genderAliases = await perf.step("alias_gender", () => getClassificationFilterAliases("gender", normalizedQuery.gender));
@@ -3580,9 +3729,9 @@ export const listProductFacets = async (req, res) => {
     const tenantId = tenantFromRequest(req);
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const scope = storefrontFacetScopeQuery(req.query || {});
-    const payload = await getOrSetCache(
+    const payload = await getOrSetCacheSWR(
       storefrontCacheKey(tenantId, "product-facets", storefrontFacetCacheQuery(scope)),
-      120,
+      storefrontCacheWindows(),
       async () => {
         const genderAliases = await getClassificationFilterAliases("gender", scope.gender);
         const gender = normalizeProductAudiences(genderAliases, scope.gender || scope.audienceSearch);

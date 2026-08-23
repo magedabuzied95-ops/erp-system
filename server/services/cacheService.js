@@ -122,6 +122,123 @@ export const getOrSetCache = async (key, ttlSeconds, loader, diagnostics) => {
   return value;
 };
 
+/* ------------------------------------------------------------------ *
+ * Stale-while-revalidate + single flight
+ * ------------------------------------------------------------------ */
+
+// WHY THIS EXISTS
+//
+// getOrSetCache above is a plain expiry cache: the moment an entry expires the
+// NEXT visitor becomes the one who rebuilds it, and waits for the whole build.
+// On the storefront product list that build measures 4-6s in production, and it
+// is FLAT with page size (limit=1 costs the same as limit=48) because the query
+// materialises the entire candidate catalogue before it pages it. With a 120s
+// TTL a real shopper ate a multi-second blank page every two minutes -- and every
+// request arriving DURING that rebuild started its own identical rebuild.
+//
+// This variant fixes both halves:
+//   - freshSeconds..staleSeconds is a stale window. Inside it the cached value is
+//     returned IMMEDIATELY and the rebuild runs behind the response, so a visitor
+//     never waits for an entry that merely got old.
+//   - a single-flight map collapses concurrent rebuilds of one key into one, so a
+//     cold key costs one query instead of one query per waiting request.
+//
+// The stored shape is an envelope so the freshness deadline survives Redis. It is
+// namespaced with `__swr` and read defensively: a value written by the plain
+// getOrSetCache (or by an older build mid-rollout) is honoured as-is rather than
+// treated as a miss.
+
+const SWR_ENVELOPE = "__swr";
+const inFlightBuilds = new Map();
+
+const isSwrEnvelope = (value) =>
+  Boolean(value) && typeof value === "object" && value[SWR_ENVELOPE] === 1 && "v" in value;
+
+// One rebuild per key at a time. Later callers join the running promise instead
+// of starting a second identical query.
+const singleFlight = (key, loader) => {
+  const running = inFlightBuilds.get(key);
+  if (running) return running;
+  const promise = Promise.resolve()
+    .then(loader)
+    .finally(() => {
+      inFlightBuilds.delete(key);
+    });
+  inFlightBuilds.set(key, promise);
+  return promise;
+};
+
+/**
+ * Cache read with a stale window.
+ *
+ * @param {string} key
+ * @param {{freshSeconds:number, staleSeconds:number}} windows
+ *   freshSeconds - how long the value is served with no rebuild at all.
+ *   staleSeconds - total lifetime. Between fresh and stale the value is still
+ *                  served instantly, with a background rebuild kicked off.
+ * @param {() => Promise<any>} loader
+ * @param {object} [diagnostics] timing only; undefined for normal callers.
+ */
+export const getOrSetCacheSWR = async (key, windows, loader, diagnostics) => {
+  const freshSeconds = Math.max(1, Number(windows?.freshSeconds) || DEFAULT_TTL_SECONDS);
+  const staleSeconds = Math.max(freshSeconds, Number(windows?.staleSeconds) || freshSeconds);
+
+  if (CACHE_DISABLED || !key) {
+    if (diagnostics) diagnostics.cache = "disabled";
+    return loader();
+  }
+
+  const lookupStart = diagnostics ? process.hrtime.bigint() : null;
+  const cached = await getCache(key);
+  if (diagnostics) {
+    diagnostics.cache_lookup_ms = Number((Number(process.hrtime.bigint() - lookupStart) / 1e6).toFixed(1));
+  }
+
+  const build = async () => {
+    const value = await loader();
+    const writeStart = diagnostics ? process.hrtime.bigint() : null;
+    await setCache(key, { [SWR_ENVELOPE]: 1, v: value, f: now() + freshSeconds * 1000 }, staleSeconds);
+    if (diagnostics) {
+      diagnostics.cache_write_ms = Number((Number(process.hrtime.bigint() - writeStart) / 1e6).toFixed(1));
+    }
+    return value;
+  };
+
+  if (cached !== null && cached !== undefined) {
+    if (!isSwrEnvelope(cached)) {
+      if (diagnostics) diagnostics.cache = "hit";
+      return cached;
+    }
+    if (now() < Number(cached.f || 0)) {
+      if (diagnostics) diagnostics.cache = "hit";
+      return cached.v;
+    }
+    // Stale: answer now, refresh behind the response. A failed background rebuild
+    // must never reach this visitor -- the entry just stays stale until the next
+    // attempt, or until its staleSeconds lifetime runs out.
+    if (diagnostics) diagnostics.cache = "stale";
+    singleFlight(key, build).catch((error) => {
+      console.warn("[cache] background revalidate failed", key, error?.message || error);
+    });
+    return cached.v;
+  }
+
+  if (diagnostics) diagnostics.cache = "miss";
+  return singleFlight(key, build);
+};
+
+/** Rebuilds an entry unconditionally. Used by the storefront cache warmer. */
+export const primeCacheSWR = async (key, windows, loader) => {
+  const freshSeconds = Math.max(1, Number(windows?.freshSeconds) || DEFAULT_TTL_SECONDS);
+  const staleSeconds = Math.max(freshSeconds, Number(windows?.staleSeconds) || freshSeconds);
+  if (CACHE_DISABLED || !key) return null;
+  return singleFlight(key, async () => {
+    const value = await loader();
+    await setCache(key, { [SWR_ENVELOPE]: 1, v: value, f: now() + freshSeconds * 1000 }, staleSeconds);
+    return value;
+  });
+};
+
 export const invalidateCache = async (key) => {
   if (!key) return;
   const redis = await getRedisClient();
