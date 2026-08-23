@@ -4307,6 +4307,22 @@ export default function ManagerPortal() {
                     {[
                       [tt("managerPortal.invoice.subtotal"), formatCurrency(invoiceSheet.invoice.subtotal || 0)],
                       [tt("managerPortal.invoice.discount"), formatCurrency(invoiceSheet.invoice.discount || 0)],
+                      // The parts of that total, shown only when they carry a value: a manager
+                      // asking "why is this invoice 185 less" gets the answer on the same screen.
+                      ...(Number(invoiceSheet.invoice.coupon_discount || 0) > 0 ? [[
+                        invoiceSheet.invoice.coupon_code
+                          ? tt("managerPortal.invoice.couponWithCode", { code: invoiceSheet.invoice.coupon_code })
+                          : tt("managerPortal.invoice.coupon"),
+                        formatCurrency(invoiceSheet.invoice.coupon_discount || 0),
+                      ]] : []),
+                      ...(Number(invoiceSheet.invoice.invoice_discount || 0) > 0 ? [[
+                        tt("managerPortal.invoice.manualDiscount"),
+                        formatCurrency(invoiceSheet.invoice.invoice_discount || 0),
+                      ]] : []),
+                      ...(Number(invoiceSheet.invoice.loyalty_discount || 0) > 0 ? [[
+                        tt("managerPortal.invoice.loyaltyDiscount"),
+                        formatCurrency(invoiceSheet.invoice.loyalty_discount || 0),
+                      ]] : []),
                       [tt("managerPortal.invoice.shipping"), formatCurrency(invoiceSheet.invoice.shipping || 0)],
                       [tt("managerPortal.invoice.tax"), formatCurrency(invoiceSheet.invoice.tax || 0)],
                       [tt("managerPortal.common.total"), formatCurrency(invoiceSheet.invoice.total || 0)],

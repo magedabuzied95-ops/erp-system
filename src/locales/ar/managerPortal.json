@@ -583,7 +583,11 @@
     "viewPublic": "عرض الفاتورة العامة",
     "linkCopied": "تم نسخ رابط الفاتورة",
     "copyLink": "نسخ الرابط",
-    "shareWhatsapp": "مشاركة واتساب"
+    "shareWhatsapp": "مشاركة واتساب",
+    "coupon": "كوبون خصم",
+    "couponWithCode": "كوبون خصم ({{code}})",
+    "manualDiscount": "خصم يدوي على الفاتورة",
+    "loyaltyDiscount": "خصم نقاط الولاء"
   },
   "operations": {
     "title": "التعديلات والمرتجعات",

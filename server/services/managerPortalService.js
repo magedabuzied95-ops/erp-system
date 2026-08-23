@@ -593,7 +593,13 @@ const invoiceItemsSelectColumns = (e) => `
 export const buildManagerPortalInvoiceObject = (order, items, profitAllowed) => {
   const subtotal = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   const total = Number(order.total_amount ?? order.total ?? subtotal);
+  // discount_amount is all-inclusive (item + invoice + loyalty + coupon, see analyticsMetrics
+  // D-02), so it stays the single total. The parts are reported ALONGSIDE it, never added to it,
+  // so a manager looking at an invoice can see WHY it was discounted rather than only by how much.
   const discount = Number(order.discount_amount ?? order.invoice_discount_amount ?? order.coupon_discount_amount ?? 0);
+  const couponDiscount = Number(order.coupon_discount_amount || 0);
+  const invoiceDiscount = Number(order.invoice_discount_amount || 0);
+  const loyaltyDiscount = Number(order.loyalty_discount_amount || 0);
   const shipping = Number(order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? order.service_fee ?? 0);
   const tax = Number(order.tax_amount ?? order.vat_amount ?? order.total_tax ?? 0);
   const paid = Number(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? 0);
@@ -624,6 +630,11 @@ export const buildManagerPortalInvoiceObject = (order, items, profitAllowed) => 
     cod_amount: Number(order.cod_amount || 0),
     subtotal,
     discount,
+    coupon_code: order.coupon_code || "",
+    coupon_discount: couponDiscount,
+    invoice_discount: invoiceDiscount,
+    invoice_discount_reason: order.invoice_discount_reason || "",
+    loyalty_discount: loyaltyDiscount,
     shipping,
     tax,
     total,
