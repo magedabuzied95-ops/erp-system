@@ -1,6 +1,7 @@
 import {
   assignCouponToCustomer,
   sendAssignedCouponToCustomer,
+  sendCouponExpiryReminders,
   sendPendingCouponsForCampaign,
   createCampaign,
   deleteCampaign,
@@ -163,6 +164,21 @@ export const sendPendingCoupons = async (req, res) => {
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to send the pending coupons");
+  }
+};
+
+export const sendExpiryReminders = async (req, res) => {
+  try {
+    const result = await sendCouponExpiryReminders({
+      tenantId: scopedTenantId(req),
+      campaignId: req.params.id,
+      userId: req.user?.id || null,
+      withinDays: req.body?.within_days ?? req.body?.withinDays,
+      limit: req.body?.limit,
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to send the expiry reminders");
   }
 };
 

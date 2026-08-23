@@ -1,12 +1,45 @@
 import type { BusinessRules, CouponDecision, DecisionInput, DecisionValue, Strategy } from "../decisionTypes";
 
+const none = (reason: string, confidence = 85): DecisionValue<CouponDecision> => ({
+  value: { code: null, amount: 0, expiresAt: null },
+  reason,
+  confidence,
+  source: "Business Rules",
+});
+
+/**
+ * Offer a coupon only when a real one exists to offer.
+ *
+ * This used to mint `CRM-<customer id>` whenever a lead scored high enough with no campaign
+ * behind it. That code is not a row in the coupons table, so the customer who tried it got
+ * "Coupon not found" — the strategy cannot invent a code, because only the server's generator
+ * (or a campaign's shared code) produces one that will validate at checkout.
+ *
+ * So: a code is surfaced only when an active Coupon campaign actually carries one, and the
+ * amount and expiry come from that campaign rather than from defaults.
+ */
 export const CouponStrategy: Strategy<DecisionValue<CouponDecision>> = {
-  evaluate(input, rules) {
+  evaluate(input: DecisionInput, rules: BusinessRules) {
+    if (!rules.coupon.enabled) return none("Coupons are disabled in the business rules.");
+
     const campaign = input.campaigns.find((item) => item.active && item.type === "Coupon");
-    const eligible = rules.coupon.enabled && input.conversationIntelligence.leadScore >= rules.coupon.minimumLeadScore;
-    if (!campaign && !eligible) return { value: { code: null, amount: 0, expiresAt: null }, reason: "Coupon eligibility rules were not met.", confidence: 85, source: "Business Rules" };
-    const expiration = campaign?.expiresAt || new Date(Date.now() + rules.coupon.expirationDays * 86400000).toISOString();
-    return { value: { code: campaign?.couponCode || `CRM-${String(input.customer.id || "LEAD")}`, amount: Number(campaign?.value ?? rules.coupon.defaultAmount), expiresAt: expiration }, reason: campaign ? "An active coupon campaign applies." : "Lead score meets the configured coupon threshold.", confidence: campaign ? 95 : 82, source: campaign ? "Campaigns" : "CRM + Conversation" };
+    const campaignCode = String(campaign?.couponCode || "").trim();
+    if (!campaignCode) {
+      return none("No active coupon campaign carries a real code to offer.");
+    }
+
+    const eligible = input.conversationIntelligence.leadScore >= rules.coupon.minimumLeadScore;
+    if (!eligible) return none("Coupon eligibility rules were not met.");
+
+    return {
+      value: {
+        code: campaignCode,
+        amount: Number(campaign?.value ?? 0),
+        expiresAt: campaign?.expiresAt || null,
+      },
+      reason: "An active coupon campaign applies.",
+      confidence: 95,
+      source: "Campaigns",
+    };
   },
 };
-

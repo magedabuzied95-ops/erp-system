@@ -158,6 +158,16 @@
     },
     "sources": { "pos": "POS", "website": "Website", "manual": "Manual" },
     "codeModes": { "unique": "Unique codes (one coupon per customer)", "shared": "One shared code (ads & social)" },
+    "remind": {
+      "button": "Remind expiring ({{count}})",
+      "title": "Expiry reminder",
+      "confirm": "A reminder will be sent to {{count}} customers holding a coupon that was sent, never used, and expires within 7 days.",
+      "onceNote": "Each coupon is reminded once only, so nobody is nagged twice.",
+      "go": "Remind them",
+      "done": "Sent {{count}} reminders",
+      "nothing": "No coupons are expiring soon",
+      "failed": "Could not send the reminders"
+    },
     "bulk": {
       "sendAll": "Send all ({{count}})",
       "title": "Bulk send",

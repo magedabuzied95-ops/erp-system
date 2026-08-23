@@ -934,6 +934,61 @@ export const assignCouponToCustomer = async ({ tenantId = null, campaignId, cust
 };
 
 /**
+ * Send one coupon message over WhatsApp and mirror it into the customer's AI Inbox thread.
+ *
+ * Shared by the assignment hand-off and the expiry reminder so both follow the identical
+ * canonical outbound-by-phone path: the Inbox row is written ONLY after the provider confirms,
+ * so a failed send leaves no ghost message, and a failure to write the Inbox row never turns a
+ * delivered message into a reported failure.
+ *
+ * Throws WHATSAPP_SEND_FAILED when the provider does not accept it; returns the provider id.
+ */
+const deliverCouponMessage = async ({ tenantId = null, phone, text, source = "coupon_assignment" } = {}) => {
+  const { sendTextMessage } = await import("./whatsappGatewayService.js");
+  const result = await sendTextMessage({ phone, message: text });
+  const providerMessageId = result?.result?.key?.id || result?.message_id || result?.key?.id || null;
+  const sent = Boolean(result?.success ?? result?.sent ?? providerMessageId);
+  if (!sent) {
+    const error = new Error("WhatsApp did not accept the message");
+    error.status = 502;
+    error.code = "WHATSAPP_SEND_FAILED";
+    throw error;
+  }
+  try {
+    const { normalizeWhatsappSessionId, normalizeWhatsappPhone } = await import("../utils/whatsappIdentity.js");
+    const { appendChannelOutboundSupportReply } = await import("./aiSupportLogService.js");
+    const canonicalPhone = normalizeWhatsappPhone(phone) || phone;
+    const sessionId = normalizeWhatsappSessionId(phone, canonicalPhone) || `whatsapp:${canonicalPhone}`;
+    await appendChannelOutboundSupportReply({
+      tenantId,
+      channel: "whatsapp",
+      sessionId,
+      resolvedPhone: canonicalPhone,
+      message: text,
+      providerMessageId,
+      externalMessageId: providerMessageId,
+      deliveryStatus: "sent",
+      senderType: "system",
+      source,
+      sessionSource: source,
+      sourcePath: source,
+      insertSource: source,
+    });
+    const { upsertChannelConversationMapping } = await import("./aiChannelAdapterService.js");
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel: "whatsapp",
+      externalConversationId: sessionId,
+      externalCustomerId: canonicalPhone,
+      lastMessageAt: new Date(),
+    });
+  } catch (error) {
+    console.error("[coupons] inbox persist failed after a confirmed send", String(error?.message || error).slice(0, 160));
+  }
+  return providerMessageId;
+};
+
+/**
  * Send an assigned coupon to the customer over WhatsApp and drop the message into the AI Inbox
  * thread, so the coupon hand-off lives in the same conversation history as everything else.
  *
@@ -961,49 +1016,7 @@ export const sendAssignedCouponToCustomer = async ({ tenantId = null, campaignId
     throw error;
   }
 
-  const { sendTextMessage } = await import("./whatsappGatewayService.js");
-  const result = await sendTextMessage({ phone, message: text });
-  const providerMessageId = result?.result?.key?.id || result?.message_id || result?.key?.id || null;
-  const sent = Boolean(result?.success ?? result?.sent ?? providerMessageId);
-  if (!sent) {
-    const error = new Error("WhatsApp did not accept the message");
-    error.status = 502;
-    error.code = "WHATSAPP_SEND_FAILED";
-    throw error;
-  }
-
-  // Best-effort: a delivered coupon must never be reported as failed because the Inbox row did not write.
-  try {
-    const { normalizeWhatsappSessionId, normalizeWhatsappPhone } = await import("../utils/whatsappIdentity.js");
-    const { appendChannelOutboundSupportReply } = await import("./aiSupportLogService.js");
-    const canonicalPhone = normalizeWhatsappPhone(phone) || phone;
-    const sessionId = normalizeWhatsappSessionId(phone, canonicalPhone) || `whatsapp:${canonicalPhone}`;
-    await appendChannelOutboundSupportReply({
-      tenantId,
-      channel: "whatsapp",
-      sessionId,
-      resolvedPhone: canonicalPhone,
-      message: text,
-      providerMessageId,
-      externalMessageId: providerMessageId,
-      deliveryStatus: "sent",
-      senderType: "system",
-      source: "coupon_assignment",
-      sessionSource: "coupon_assignment",
-      sourcePath: "coupon_assignment",
-      insertSource: "coupon_assignment",
-    });
-    const { upsertChannelConversationMapping } = await import("./aiChannelAdapterService.js");
-    await upsertChannelConversationMapping({
-      tenantId,
-      channel: "whatsapp",
-      externalConversationId: sessionId,
-      externalCustomerId: canonicalPhone,
-      lastMessageAt: new Date(),
-    });
-  } catch (error) {
-    console.error("[coupons] inbox persist failed after a confirmed send", String(error?.message || error).slice(0, 160));
-  }
+  const providerMessageId = await deliverCouponMessage({ tenantId, phone, text, source: "coupon_assignment" });
 
   try {
     await db.query("UPDATE coupons SET sent_at = NOW(), sent_by = $2, updated_at = NOW() WHERE id = $1", [assignment.coupon?.id, userId || null]);
@@ -1019,6 +1032,80 @@ export const sendAssignedCouponToCustomer = async ({ tenantId = null, campaignId
     by_user: userId,
   });
   return { ...assignment, sent: true, provider_message_id: providerMessageId, message: text };
+};
+
+export const REMINDER_DEFAULT_WINDOW_DAYS = 7;
+
+/**
+ * Nudge customers holding a coupon that was sent, never used, and is about to expire.
+ *
+ * Only coupons that actually reached the customer (sent_at set) qualify — reminding someone about
+ * a code they were never given would be nonsense. Each coupon is reminded at most once
+ * (reminded_at), so pressing the button twice does not nag the same customer again.
+ */
+export const sendCouponExpiryReminders = async ({ tenantId = null, campaignId, userId = null, withinDays = REMINDER_DEFAULT_WINDOW_DAYS, limit = BULK_SEND_MAX } = {}) => {
+  await ensureCouponsSchema();
+  const cap = Math.min(BULK_SEND_MAX, Math.max(1, Number.parseInt(limit, 10) || BULK_SEND_MAX));
+  const days = Math.min(90, Math.max(1, Number.parseInt(withinDays, 10) || REMINDER_DEFAULT_WINDOW_DAYS));
+  const params = [campaignId, days];
+  let tenantSql = "";
+  if (tenantId !== null && tenantId !== undefined) {
+    params.push(tenantId);
+    tenantSql = ` AND (cp.tenant_id = $${params.length} OR cp.tenant_id IS NULL)`;
+  }
+  params.push(cap);
+  const due = await db.query(
+    `SELECT cp.id, cp.code, cp.qr_value, cp.expires_at, cp.assigned_customer_id,
+            c.discount_type, c.discount_value,
+            COALESCE(NULLIF(cu.name, ''), '') AS customer_name,
+            COALESCE(NULLIF(cu.phone, ''), '') AS customer_phone
+     FROM coupons cp
+     JOIN coupon_campaigns c ON c.id = cp.campaign_id
+     LEFT JOIN customers cu ON cu.id = cp.assigned_customer_id
+     WHERE cp.campaign_id = $1
+       AND cp.sent_at IS NOT NULL
+       AND cp.reminded_at IS NULL
+       AND cp.usage_count = 0
+       AND cp.is_active = TRUE
+       AND cp.assigned_customer_id IS NOT NULL
+       AND cp.expires_at IS NOT NULL
+       AND cp.expires_at >= NOW()
+       AND cp.expires_at <= NOW() + ($2::int * INTERVAL '1 day')
+       ${tenantSql}
+     ORDER BY cp.expires_at ASC, cp.id ASC
+     LIMIT $${params.length}`,
+    params
+  );
+
+  const results = [];
+  let sent = 0;
+  let failed = 0;
+  for (const [index, row] of due.rows.entries()) {
+    if (index > 0) await pause(BULK_SEND_DELAY_MS);
+    try {
+      const phone = String(row.customer_phone || "").trim();
+      if (!phone) {
+        const error = new Error("This customer has no phone number on file");
+        error.code = "CUSTOMER_PHONE_MISSING";
+        throw error;
+      }
+      const discountLabel = row.discount_type === "percentage"
+        ? `${Number(row.discount_value)}%`
+        : row.discount_type === "free_shipping" ? "شحن مجاني" : `${Number(row.discount_value)} ج.م`;
+      const link = row.qr_value || resolveQrValue(row.code);
+      const text = `${row.customer_name ? `${row.customer_name}، ` : ""}كود الخصم بتاعك ${row.code} (${discountLabel}) لسه مستنيك\nصالح حتى ${formatCouponDate(row.expires_at)}\n${link}`.trim();
+      const providerMessageId = await deliverCouponMessage({ tenantId, phone, text, source: "coupon_expiry_reminder" });
+      await db.query("UPDATE coupons SET reminded_at = NOW(), updated_at = NOW() WHERE id = $1", [row.id]);
+      sent += 1;
+      results.push({ coupon_id: row.id, code: row.code, customer_id: row.assigned_customer_id, customer_name: row.customer_name, sent: true, provider_message_id: providerMessageId });
+    } catch (error) {
+      failed += 1;
+      results.push({ coupon_id: row.id, code: row.code, customer_id: row.assigned_customer_id, customer_name: row.customer_name, sent: false, reason: error?.code || error?.message || "send_failed" });
+      console.error("[coupons] reminder failed", { coupon_id: row.id, reason: error?.code || error?.message });
+    }
+  }
+  console.log("[coupons] expiry reminders finished", { campaign_id: campaignId, due: due.rowCount, sent, failed, within_days: days, by_user: userId });
+  return { due: due.rowCount, sent, failed, within_days: days, results };
 };
 
 /** Hard ceiling on one bulk run: WhatsApp throttles a number that fires a long burst. */
@@ -1205,6 +1292,10 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
       COUNT(c.id) FILTER (WHERE c.expires_at IS NOT NULL AND c.expires_at < NOW())::int AS expired_coupons,
       COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL)::int AS assigned_coupons,
       COUNT(c.id) FILTER (WHERE c.assigned_customer_id IS NOT NULL AND c.sent_at IS NULL AND c.usage_count = 0)::int AS pending_send_coupons,
+      COUNT(c.id) FILTER (
+        WHERE c.sent_at IS NOT NULL AND c.reminded_at IS NULL AND c.usage_count = 0 AND c.is_active = TRUE
+          AND c.expires_at IS NOT NULL AND c.expires_at >= NOW() AND c.expires_at <= NOW() + INTERVAL '7 days'
+      )::int AS expiring_soon_coupons,
       COUNT(r.id)::int AS total_redemptions,
       COALESCE(SUM(r.discount_amount), 0)::numeric AS total_discount_amount,
       COALESCE(SUM(r.order_total), 0)::numeric AS total_sales_amount,
@@ -1253,6 +1344,7 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
     used_coupons: used,
     assigned_coupons: assigned,
     pending_send_coupons: Number(stats.pending_send_coupons || 0),
+    expiring_soon_coupons: Number(stats.expiring_soon_coupons || 0),
     net_sales_amount: Number(stats.net_sales_amount || 0),
     // Conversion = redemptions over what was actually handed out (assigned), falling back to generated.
     conversion_rate: assigned > 0 ? Number(((redemptions / assigned) * 100).toFixed(2)) : total > 0 ? Number(((used / total) * 100).toFixed(2)) : 0,

@@ -91,3 +91,6 @@ ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS auto_issue_on_fi
 ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL;
 ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_by BIGINT NULL;
 CREATE INDEX IF NOT EXISTS idx_coupons_pending_send ON coupons (campaign_id) WHERE assigned_customer_id IS NOT NULL AND sent_at IS NULL;
+
+-- Phase 3.3: expiry reminder for a coupon that was sent but never used
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP NULL;

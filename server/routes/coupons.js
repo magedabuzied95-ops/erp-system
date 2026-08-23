@@ -3,6 +3,7 @@ import express from "express";
 import {
   assignCoupon,
   sendCoupon,
+  sendExpiryReminders,
   sendPendingCoupons,
   exportCsv,
   emailPdf,
@@ -77,6 +78,7 @@ router.get("/campaigns/:id/redemptions", protect, permit("marketing", "view"), g
 router.post("/campaigns/:id/assign", protect, requireCouponManager, permit("marketing", "update"), assignCoupon);
 router.post("/campaigns/:id/send", protect, requireCouponManager, permit("marketing", "update"), sendCoupon);
 router.post("/campaigns/:id/send-pending", protect, requireCouponManager, permit("marketing", "update"), sendPendingCoupons);
+router.post("/campaigns/:id/remind-expiring", protect, requireCouponManager, permit("marketing", "update"), sendExpiryReminders);
 
 router.get("/export/pdf", protect, requireCouponManager, permit("marketing", "view"), exportPdf);
 router.post("/export/pdf/email", protect, requireCouponManager, permit("marketing", "view"), emailPdf);

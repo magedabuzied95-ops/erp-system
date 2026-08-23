@@ -359,6 +359,27 @@ export default function CouponsManager() {
   const [rowSendingId, setRowSendingId] = useState(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
+  const [remindConfirmOpen, setRemindConfirmOpen] = useState(false);
+  const [reminding, setReminding] = useState(false);
+
+  const remindExpiringCoupons = async () => {
+    if (!selectedCampaign?.id || reminding) return;
+    setReminding(true);
+    try {
+      const response = await api.post(`/coupons/campaigns/${selectedCampaign.id}/remind-expiring`, {});
+      const sent = Number(response?.sent || 0);
+      const failed = Number(response?.failed || 0);
+      if (sent) toast.success(cText("remind.done", "اتبعت {{count}} تذكير", { count: sent }));
+      if (failed) toast.error(cText("bulk.someFailed", "فشل إرسال {{count}}", { count: failed }));
+      if (!sent && !failed) toast(cText("remind.nothing", "مفيش كوبونات قربت تنتهي"));
+      setRemindConfirmOpen(false);
+      loadCoupons();
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error.message || cText("remind.failed", "تعذر إرسال التذكير"));
+    } finally {
+      setReminding(false);
+    }
+  };
 
   const sendPendingCoupons = async () => {
     if (!selectedCampaign?.id || bulkSending) return;
@@ -540,6 +561,16 @@ export default function CouponsManager() {
                     <span className="shrink-0 text-xs font-black text-amber-200/80">{cText("pendingSend.review", "استعراض")}</span>
                   </button>
                 ) : null}
+                {Number(stats?.expiring_soon_coupons || 0) > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setRemindConfirmOpen(true)}
+                    className="mb-3 me-2 inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-orange-300/25 bg-orange-400/15 px-3 text-sm font-black text-orange-100"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {cText("remind.button", "ذكّر اللي قرب يخلص ({{count}})", { count: Number(stats.expiring_soon_coupons) })}
+                  </button>
+                ) : null}
                 {Number(stats?.pending_send_coupons || 0) > 0 ? (
                   <button
                     type="button"
@@ -660,6 +691,27 @@ export default function CouponsManager() {
           onClose={() => setModalOpen(false)}
           onSave={saveCampaign}
         />
+      ) : null}
+      {remindConfirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={() => (reminding ? null : setRemindConfirmOpen(false))}>
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-orange-300">{cText("remind.title", "تذكير قبل الانتهاء")}</div>
+            <h2 className="m1-section-title mt-1">{selectedCampaign?.name}</h2>
+            <p className="mt-3 text-sm font-semibold text-zinc-300">
+              {cText("remind.confirm", "هيتبعت تذكير لـ {{count}} عميل معاهم كوبون اتبعتلهم وما استخدموهوش وقرب ينتهي خلال 7 أيام.", { count: Number(stats?.expiring_soon_coupons || 0) })}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-amber-200/80">{cText("remind.onceNote", "كل كوبون بيتذكّر مرة واحدة بس، فمفيش إزعاج للعميل.")}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={reminding} onClick={() => setRemindConfirmOpen(false)} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-sm font-black disabled:opacity-50">
+                {cText("actions.cancel", "إلغاء")}
+              </button>
+              <button type="button" disabled={reminding} onClick={remindExpiringCoupons} className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] bg-orange-400 px-5 text-sm font-black text-black disabled:opacity-50">
+                {reminding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {reminding ? cText("bulk.sending", "بيتبعت...") : cText("remind.go", "ذكّرهم")}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
       {bulkConfirmOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={() => (bulkSending ? null : setBulkConfirmOpen(false))}>
