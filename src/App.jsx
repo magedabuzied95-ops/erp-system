@@ -21,6 +21,7 @@ import { isStorefrontBootPath } from "./i18n/loadLocaleScope";
 
 import { api } from "./shared/api/api";
 import { getPublicSettings } from "./shared/api/publicSettings";
+import { setAppTimezoneFromSettings } from "./shared/lib/appTimezone";
 import { setCurrency } from "./shared/lib/currency";
 import { useTheme } from "./theme/useTheme";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
@@ -405,6 +406,8 @@ function App() {
     getPublicSettings()
       .then((settings) => {
         if (cancelled) return;
+        // The store's clock, so a laptop with the wrong zone cannot skew what gets saved.
+        setAppTimezoneFromSettings(settings);
         const code = settings["general.default_currency"];
         const symbol = settings["general.currency_symbol"];
         const faviconUrl = isStorefrontRootHost() || isErpHost()

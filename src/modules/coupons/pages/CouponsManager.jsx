@@ -8,6 +8,7 @@ import { api } from "../../../shared/api/api";
 import { API_BASE_URL } from "../../../shared/constants/app";
 import { getToken } from "../../../shared/auth/authStorage";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { instantToWallClock, wallClockToInstant } from "../../../shared/lib/appTimezone";
 import { getBrands, getProductsAdminList } from "../../products/services/productsApi";
 
 const emptyForm = {
@@ -80,18 +81,8 @@ const buildCouponTerms = (form = {}) => {
  * So the pair below converts on the way out and back on the way in: the box always shows local
  * time, and the server always receives the instant that time actually is.
  */
-const localInputToInstant = (value) => {
-  if (!value) return null;
-  const parsed = new Date(value); // no zone suffix ⇒ parsed as local time, which is the intent
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-};
-const instantToLocalInput = (value) => {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  const pad = (part) => String(part).padStart(2, "0");
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
-};
+const localInputToInstant = (value) => wallClockToInstant(value);
+const instantToLocalInput = (value) => instantToWallClock(value);
 
 const normalizeScopeForForm = (scope) => {
   let raw = scope;
