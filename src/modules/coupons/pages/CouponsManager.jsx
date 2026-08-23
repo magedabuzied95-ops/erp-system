@@ -70,6 +70,29 @@ const buildCouponTerms = (form = {}) => {
   return lines.join("\n");
 };
 
+/**
+ * A <input type="datetime-local"> value is a WALL CLOCK with no zone — "2026-08-23T20:11" is
+ * whatever 20:11 means where the manager is standing. It used to be sent through untouched and
+ * stored as-is, then compared against the server's NOW() in UTC: a campaign told to start now,
+ * in Cairo, did not start for another three hours, and the receipts it should have printed
+ * during those hours printed nothing at all.
+ *
+ * So the pair below converts on the way out and back on the way in: the box always shows local
+ * time, and the server always receives the instant that time actually is.
+ */
+const localInputToInstant = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value); // no zone suffix ⇒ parsed as local time, which is the intent
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+const instantToLocalInput = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+};
+
 const normalizeScopeForForm = (scope) => {
   let raw = scope;
   if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
@@ -232,8 +255,8 @@ export default function CouponsManager() {
     setForm({
       ...emptyForm,
       ...campaign,
-      starts_at: campaign.starts_at ? String(campaign.starts_at).slice(0, 16) : "",
-      expires_at: campaign.expires_at ? String(campaign.expires_at).slice(0, 16) : "",
+      starts_at: instantToLocalInput(campaign.starts_at),
+      expires_at: instantToLocalInput(campaign.expires_at),
       max_discount_amount: campaign.max_discount_amount ?? "",
       usage_limit_per_customer: campaign.usage_limit_per_customer ?? "",
       budget_cap: campaign.budget_cap ?? "",
@@ -266,6 +289,8 @@ export default function CouponsManager() {
         validity_days: form.validity_days === "" ? null : Number(form.validity_days || 0),
         apply_to_single_item: Boolean(form.apply_to_single_item),
         terms_text: String(form.terms_text || ""),
+        starts_at: localInputToInstant(form.starts_at),
+        expires_at: localInputToInstant(form.expires_at),
       };
       if (editing?.id) {
         await api.put(`/coupons/campaigns/${editing.id}`, payload);
