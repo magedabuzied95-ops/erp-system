@@ -177,7 +177,7 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
     .join("");
   const rows = items.map((item) => `
     <tr>
-      <td>${!thermal && show.show_product_image ? `<img src="${escapeHtml(item.image || DEFAULT_PRODUCT_PLACEHOLDER)}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PRODUCT_PLACEHOLDER}'" style="width:42px;height:42px;object-fit:cover;border-radius:10px;background:#f1f5f9;margin-inline-end:8px;vertical-align:middle" />` : ""}<strong>${escapeHtml(item.name)}</strong>${show.show_product_variant ? `<br><small class="muted">${escapeHtml(item.variant)}</small>` : ""}${show.show_sku && item.sku ? `<br><small class="muted">${escapeHtml(tPrint("print.invoice.sku", "SKU"))} ${escapeHtml(item.sku)}</small>` : ""}</td>
+      <td>${!thermal && show.show_product_image ? `<img src="${escapeHtml(item.image || DEFAULT_PRODUCT_PLACEHOLDER)}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PRODUCT_PLACEHOLDER}'" style="width:42px;height:42px;object-fit:contain;border-radius:10px;background:#ffffff;border:1px solid #e2e8f0;margin-inline-end:8px;vertical-align:middle" />` : ""}<strong>${escapeHtml(item.name)}</strong>${show.show_product_variant ? `<br><small class="muted">${escapeHtml(item.variant)}</small>` : ""}${show.show_sku && item.sku ? `<br><small class="muted">${escapeHtml(tPrint("print.invoice.sku", "SKU"))} ${escapeHtml(item.sku)}</small>` : ""}</td>
       ${thermal || !show.show_product_variant ? "" : `<td>${escapeHtml(item.variant)}</td>`}
       <td class="number">${escapeHtml(item.quantity)}</td>
       ${thermal || !show.show_unit_price ? "" : `<td class="amount">${escapeHtml(formatInvoiceItemMoney(item.price))}</td>`}

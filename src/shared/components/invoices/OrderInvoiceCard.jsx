@@ -176,26 +176,47 @@ const getPaymentMethodLabel = (value = "", copy = EN_INVOICE_COPY) => {
   return labels[normalized] || (value || copy.notSpecified);
 };
 
-const formatVariantDetails = (item = {}, copy = EN_INVOICE_COPY) => {
-  const parts = [];
-  if (item?.color) parts.push(`${copy.color}: ${item.color}`);
-  if (item?.size) parts.push(`${copy.size}: ${item.size}`);
-  return parts.join(" • ") || copy.notSpecified;
-};
-
+// object-contain, not cover: a centre crop of a product photo cuts the bag in half on
+// the customer's phone, and the invoice is where they check they got the right one.
+// min-h-0 is load-bearing: the thumbnail is a grid item, and min-height:auto let a
+// portrait photo lay itself out ~190px tall inside an 80px frame, so overflow-hidden
+// showed the customer a zoomed crop of the top of the bag.
 function InvoiceImage({ src, alt }) {
   const imageUrl = src || DEFAULT_PRODUCT_PLACEHOLDER;
   return (
     <img
       src={imageUrl}
       alt={alt}
-      className="h-full w-full object-cover"
+      className="h-full max-h-full w-full min-h-0 min-w-0 object-contain p-0.5"
       loading="lazy"
       onError={(e) => {
         if (e.currentTarget.src === DEFAULT_PRODUCT_PLACEHOLDER) return;
         e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
       }}
     />
+  );
+}
+
+// The colour and the size are the two facts a customer checks first, and they used to
+// arrive as one truncated line — on a phone "اللون: أسود" came out as "اللون: k". Chips
+// wrap rather than clip, and each keeps its own label whatever the other one is.
+function VariantChips({ item, copy, luxury = false, className = "", fallback = "" }) {
+  const chips = [];
+  if (item?.color) chips.push({ key: "color", label: copy.color, value: String(item.color) });
+  if (item?.size) chips.push({ key: "size", label: copy.size, value: String(item.size) });
+  if (!chips.length) return fallback ? <span className={className}>{fallback}</span> : null;
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      {chips.map((chip) => (
+        <span
+          key={chip.key}
+          className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold leading-5 ${luxury ? "border-slate-200 bg-slate-50 text-slate-500" : "border-stone-200 bg-stone-50 text-stone-500"}`}
+        >
+          <span className="opacity-70">{chip.label}</span>
+          <span className={`break-words ${luxury ? "text-slate-900" : "text-stone-950"}`}>{chip.value}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -387,9 +408,12 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
     items_table: (
       <div className={`${luxury ? "px-5 sm:px-6" : "px-5"}`}>
           <div className={`overflow-hidden rounded-[var(--radius-card)] border ${luxury ? "border-slate-200/90 bg-white/72 shadow-[0_18px_55px_rgba(15,23,42,0.08)] print:border-slate-200 print:bg-white print:shadow-none" : "border-stone-200"}`}>
-            <div className={`grid grid-cols-[minmax(0,1.7fr)_0.7fr_0.75fr_0.8fr] px-4 py-3 text-xs font-black sm:grid-cols-[minmax(0,1.8fr)_0.8fr_0.75fr_0.8fr_0.9fr] ${luxury ? "bg-slate-100/80 tracking-[0.08em] text-slate-500 print:bg-slate-50" : "bg-stone-50 text-stone-500"}`}>
+            {/* The column head belongs to the table, and the table only exists from sm
+                up. On a phone each item draws as its own stacked row, where a head that
+                names four columns names nothing. */}
+            <div className={`hidden grid-cols-[minmax(0,1.8fr)_0.8fr_0.75fr_0.8fr_0.9fr] px-4 py-3 text-xs font-black sm:grid ${luxury ? "bg-slate-100/80 tracking-[0.08em] text-slate-500 print:bg-slate-50" : "bg-stone-50 text-stone-500"}`}>
               <div>{copy.product}</div>
-              <div className="hidden sm:block">{`${copy.color} / ${copy.size}`}</div>
+              <div>{`${copy.color} / ${copy.size}`}</div>
               <div className="text-center">{copy.quantity}</div>
               <div className={amountAlignClass}>{copy.price}</div>
               <div className={amountAlignClass}>{copy.total}</div>
@@ -399,24 +423,55 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
                 const rawItem = item?.rawItem || item;
                 const resolvedImageUrl = resolveInvoiceItemImageUrl(rawItem, "") || resolveInvoiceItemImageUrl(item, "");
                 logInvoiceRowImageDebug(item, index, resolvedImageUrl);
+                const showImage = !compact && show.show_product_image;
+                const showSku = Boolean(show.show_sku && item?.sku);
                 return (
-                  <div key={String(item?.id ?? index)} className={`grid grid-cols-[minmax(0,1.7fr)_0.7fr_0.75fr_0.8fr] items-center gap-2 px-4 text-sm sm:grid-cols-[minmax(0,1.8fr)_0.8fr_0.75fr_0.8fr_0.9fr] ${luxury ? "bg-white/55 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] print:bg-white print:shadow-none" : "py-3"}`}>
-                    <div className="flex min-w-0 items-center gap-3">
-                      {!compact && show.show_product_image ? (
-                        <div className={`grid shrink-0 place-items-center overflow-hidden border ${luxury ? "h-16 w-16 rounded-xl border-slate-200 bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] print:shadow-none" : "h-14 w-14 rounded-xl border-stone-200 bg-stone-100"}`}>
+                  <div key={String(item?.id ?? index)} className={`${luxury ? "bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] print:bg-white print:shadow-none" : ""}`}>
+                    {/* Phone. Four columns left the product barely a third of a 390px
+                        screen, so the name and the colour both came out cut to a couple
+                        of characters — the customer could not read which item, in which
+                        colour, they had just bought. Stacked, the name wraps in full,
+                        the colour and the size read as chips under it, and the money
+                        sits on its own line where it never breaks mid-amount. */}
+                    <div className="flex items-start gap-3 px-4 py-3.5 sm:hidden">
+                      {showImage ? (
+                        <div className={`grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border bg-white ${luxury ? "border-slate-200" : "border-stone-200"}`}>
                           <InvoiceImage src={resolvedImageUrl} alt={item?.name || ""} />
                         </div>
                       ) : null}
-                      <div className="min-w-0">
-                        <div className={`truncate ${luxury ? "font-black tracking-tight text-slate-950" : "font-black"}`}>{item?.name || "-"}</div>
-                        <div className={`mt-1 truncate text-xs font-bold sm:hidden ${luxury ? "text-slate-500" : "text-stone-500"}`}>{formatVariantDetails(item, copy)}</div>
-                        {show.show_sku && item?.sku ? <div className={`mt-1 truncate text-[11px] font-bold ${luxury ? "text-slate-400" : "text-stone-400"}`}>SKU {item?.sku}</div> : null}
+                      <div className="min-w-0 flex-1">
+                        <div className={`text-sm font-black leading-6 break-words ${luxury ? "text-slate-950" : "text-stone-950"}`}>{item?.name || "-"}</div>
+                        <VariantChips item={item} copy={copy} luxury={luxury} className="mt-1.5" />
+                        {showSku ? <div className={`mt-1.5 text-[11px] font-bold ${luxury ? "text-slate-400" : "text-stone-400"}`}>SKU {item?.sku}</div> : null}
+                        <div className={`mt-2.5 flex items-center justify-between gap-3 border-t pt-2 ${luxury ? "border-slate-200/70" : "border-stone-200"}`}>
+                          <span className={`whitespace-nowrap text-xs font-bold ${luxury ? "text-slate-500" : "text-stone-500"}`}>
+                            {`${item?.quantity ?? 0} × ${formatCurrency(item?.unitPrice)}`}
+                          </span>
+                          <span className="whitespace-nowrap text-base font-black text-emerald-700">{formatCurrency(item?.lineTotal)}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className={`hidden text-sm font-bold sm:block ${luxury ? "text-slate-500" : "text-stone-500"}`}>{formatVariantDetails(item, copy)}</div>
-                    <div className="text-center font-black text-slate-900">{item?.quantity ?? 0}</div>
-                    <div className={`${amountAlignClass} font-bold ${luxury ? "text-slate-700" : ""}`}>{formatCurrency(item?.unitPrice)}</div>
-                    <div className={`${amountAlignClass} font-black text-emerald-700`}>{formatCurrency(item?.lineTotal)}</div>
+                    {/* sm and up — and every printed sheet, which lays out at paper
+                        width — keep the table. */}
+                    <div className={`hidden grid-cols-[minmax(0,1.8fr)_0.8fr_0.75fr_0.8fr_0.9fr] items-center gap-2 px-4 text-sm sm:grid ${luxury ? "py-4" : "py-3"}`}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {showImage ? (
+                          <div className={`grid shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "h-16 w-16 rounded-xl border-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] print:shadow-none" : "h-14 w-14 rounded-xl border-stone-200"}`}>
+                            <InvoiceImage src={resolvedImageUrl} alt={item?.name || ""} />
+                          </div>
+                        ) : null}
+                        <div className="min-w-0">
+                          <div className={`truncate ${luxury ? "font-black tracking-tight text-slate-950" : "font-black"}`} title={item?.name || ""}>{item?.name || "-"}</div>
+                          {showSku ? <div className={`mt-1 truncate text-[11px] font-bold ${luxury ? "text-slate-400" : "text-stone-400"}`}>SKU {item?.sku}</div> : null}
+                        </div>
+                      </div>
+                      <div className={`min-w-0 text-sm font-bold ${luxury ? "text-slate-500" : "text-stone-500"}`}>
+                        <VariantChips item={item} copy={copy} luxury={luxury} fallback={copy.notSpecified} />
+                      </div>
+                      <div className="text-center font-black text-slate-900">{item?.quantity ?? 0}</div>
+                      <div className={`${amountAlignClass} whitespace-nowrap font-bold ${luxury ? "text-slate-700" : ""}`}>{formatCurrency(item?.unitPrice)}</div>
+                      <div className={`${amountAlignClass} whitespace-nowrap font-black text-emerald-700`}>{formatCurrency(item?.lineTotal)}</div>
+                    </div>
                   </div>
                 );
               }) : (
