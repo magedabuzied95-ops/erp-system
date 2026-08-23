@@ -37,6 +37,8 @@ import { normalizeSaleModeSettings } from "../services/saleModeService.js";
 import { issueFirstOrderCoupons, redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
+// ONE definition of "this product is a curated offer", shared with POS and the AI resolver.
+import { isForcedOfferSale } from "../../src/shared/lib/effectiveCustomerPrice.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
 import {
   createStorefrontCustomerReviewData,
@@ -393,11 +395,14 @@ const roundComparePrice = (value, mode = "none") => {
 const saleModeEnabled = (settings = {}) =>
   settings.sale_mode_enabled === true || settings.global_sale_enabled === true || settings.sale_prices_enabled === true;
 
-const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, pricingSettings = STOREFRONT_PRICING_DEFAULTS }) => {
+// `forcedOffer` = the product sits in the curated Offers section. That membership activates its sale price on
+// its own, without the global Sale Mode toggle — the same rule POS and resolveEffectiveCustomerPrice apply, so
+// the shelf price, the cart and the AI quote cannot disagree. `sale < selling` still guards every path.
+const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, pricingSettings = STOREFRONT_PRICING_DEFAULTS, forcedOffer = false }) => {
   const original = roundMoney(originalPrice);
   const selling = roundMoney(sellingPrice);
   const sale = roundMoney(salePrice);
-  const enabled = saleModeEnabled(pricingSettings);
+  const enabled = saleModeEnabled(pricingSettings) || forcedOffer === true;
   // Some catalog imports store the only customer-facing price in sale_price.
   // Never turn that valid price into zero merely because global sale mode is off.
   const basePrice = selling > 0 ? selling : sale > 0 ? sale : original;
@@ -422,7 +427,11 @@ const resolveCustomerFacingDisplayPrice = (product = {}, variant = {}, pricingSe
         global_sale_enabled: variant.global_sale_enabled ?? product.global_sale_enabled,
         sale_prices_enabled: variant.sale_prices_enabled ?? product.sale_prices_enabled,
       });
-  const saleApplied = explicitSaleMode && sale > 0 && selling > 0 && sale < selling;
+  // A curated offer activates its own sale price, global toggle or not. See resolveStorefrontActivePrice.
+  // Checked on each record separately, never on a merged scope: the flag lives on the product and storefront
+  // variant rows omit it, so a spread would let an absent/false variant key mask a real product-level offer.
+  const forcedOffer = isForcedOfferSale(product) || isForcedOfferSale(variant);
+  const saleApplied = (explicitSaleMode || forcedOffer) && sale > 0 && selling > 0 && sale < selling;
   const selected_display_price = saleApplied ? sale : selling > 0 ? selling : sale;
   const selected_price_source = saleApplied || (selling <= 0 && sale > 0) ? "sale_price" : "selling_price";
   const wholesale_price = roundMoney(variant.wholesale_price ?? product.wholesale_price ?? variant.purchase_price ?? product.purchase_price ?? variant.average_cost ?? product.average_cost ?? variant.last_purchase_price ?? product.last_purchase_price ?? 0);
@@ -1191,6 +1200,8 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   // A manually entered storefront compare price is an explicit presentation
   // choice, so it must win over the regular/base price aliases.
   const rowOriginalPrice = roundMoney(customOriginalPrice || row.original_price || row.base_price || row.list_price || row.compare_at_price || row.regular_price);
+  // Offer membership is a product-level fact; every variant of a curated offer prices as an offer.
+  const rowForcedOffer = isForcedOfferSale(row);
   const rowPublicPrice = resolveCustomerFacingDisplayPrice(row, {}, pricingSettings);
   const rowResolvedSellingPrice = resolveCurrentSellingPrice({ product: row }).value;
   const rowSellingPrice = roundMoney(rowResolvedSellingPrice || rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
@@ -1214,6 +1225,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       sellingPrice: variantSellingPrice,
       salePrice: variantSalePrice,
       pricingSettings,
+      forcedOffer: rowForcedOffer || isForcedOfferSale(variant),
     });
     const currentPrice = resolvedPrice.activePrice;
     const variantCompareAtPrice = resolvedPrice.compareAtPrice;
@@ -1271,7 +1283,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const bestVariantPrice = variantPriceOptions[0];
   const originalPrice = rowOriginalPrice || bestVariantPrice?.original_price || 0;
   const sellingPrice = rowSellingPrice || bestVariantPrice?.selling_price || bestVariantPrice?.price || 0;
-  const productResolvedPrice = resolveStorefrontActivePrice({ originalPrice, sellingPrice, salePrice: rowSalePrice, pricingSettings });
+  const productResolvedPrice = resolveStorefrontActivePrice({ originalPrice, sellingPrice, salePrice: rowSalePrice, pricingSettings, forcedOffer: rowForcedOffer });
   const currentPrice = bestVariantPrice?.final_price || productResolvedPrice.activePrice || sellingPrice;
   const selectedDisplayPrice = currentPrice;
   const saleModeActive = productResolvedPrice.saleActive || Boolean(bestVariantPrice?.sale_mode_applied);
@@ -3187,7 +3199,11 @@ export const expandProductsToColorCards = (products = []) => {
         selectedVariant.sale_prices_enabled === true ||
         product.sale_mode_enabled === true ||
         product.global_sale_enabled === true ||
-        product.sale_prices_enabled === true;
+        product.sale_prices_enabled === true ||
+        // Read the offer flag directly rather than trusting the derived sale_mode_enabled to have survived
+        // normalizeProduct: a curated offer prices as a sale on its own. Same rule as POS and the AI resolver.
+        isForcedOfferSale(product) ||
+        isForcedOfferSale(selectedVariant);
       const saleApplied = saleModeOn && salePrice > 0 && (sellingPrice <= 0 || salePrice < sellingPrice);
       const finalPrice = saleApplied ? salePrice : sellingPrice;
       const comparePrice = roundMoney(selectedVariant.compare_at_price || product.compare_at_price);
@@ -5195,7 +5211,10 @@ export const createWebsiteOrder = async (req, res) => {
           p.sale_price AS product_sale_price,
           p.sale_price_enabled AS product_sale_price_enabled,
           p.sale_start_at AS product_sale_start_at,
-          p.sale_end_at AS product_sale_end_at
+          p.sale_end_at AS product_sale_end_at,
+          -- Curated-offer membership decides the charged price here exactly as it does on the product card;
+          -- without it checkout would bill the normal price for a product the storefront advertised on sale.
+          COALESCE(p.is_offer_story, FALSE) AS product_is_offer_story
         FROM product_variants pv
         JOIN products p ON p.id = pv.product_id
         WHERE pv.id = $1
@@ -5226,6 +5245,7 @@ export const createWebsiteOrder = async (req, res) => {
         sellingPrice,
         salePrice: variant.sale_price || variant.product_sale_price,
         pricingSettings,
+        forcedOffer: isForcedOfferSale({ is_offer_story: variant.product_is_offer_story }) || isForcedOfferSale(variant),
       });
       const price = resolvedPrice.activePrice;
       if (price <= 0) {

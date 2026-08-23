@@ -7,10 +7,14 @@
 //   C) COMPARE price → presentation metadata ONLY, never active
 //
 // The rule the owner confirmed:
-//   global website_settings.sale_mode_enabled === false  ⇒  Sale is OFF for everything. `sale_price` is dormant
-//   data even when the per-record `sale_price_enabled` flag is true and the number is lower. The active price is
-//   the NORMAL price. When the global toggle is ON, the SAME POS rules decide (per-record enable flag, valid
-//   relationship, sale window, exclusions, sale_mode_type, percentage/fixed discount, min-margin floor).
+//   1) Curated Offers (`is_offer_story` and its aliases) are self-sufficient. A product sitting in the Offers
+//      section with a stored sale price BELOW its normal price is charged at that sale price — in POS, on the
+//      storefront and in every AI quote — WITHOUT the global toggle. Owner decision, 2026-08-23: the section is
+//      the switch, because a second hidden switch left 79 curated offers quietly ringing at full price.
+//   2) For everything else, global website_settings.sale_mode_enabled === false ⇒ Sale is OFF. `sale_price` is
+//      dormant data even when the per-record `sale_price_enabled` flag is true and the number is lower; the
+//      active price is the NORMAL price. When the global toggle is ON, the SAME POS rules decide (per-record
+//      enable flag, valid relationship, sale window, exclusions, sale_mode_type, discount mode, margin floor).
 //
 // The old AI resolver inferred "a sale is running" from ~30 loose per-record flags and never read the global
 // toggle, so it quoted dormant sale prices on ~41% of the catalogue (product 39: AI 1550 vs POS 1750). Nothing in
@@ -25,8 +29,11 @@ const money = (value) => {
 
 const truthy = (value) => value === true || value === 1 || String(value || "").trim().toLowerCase() === "true";
 
-// POS treats an explicit offer flag as "force the stored sale price" while global Sale Mode is on. Mirrored here so
-// the shared resolver is a drop-in for getPosEffectivePrice; it is still gated on the global toggle.
+// An explicit offer flag means "force the stored sale price". The curated Offers section IS the switch: it does
+// NOT wait for the global Sale Mode toggle, because a manager who moves a product into العروض has already made
+// the decision, and a second hidden switch only produced offers that quietly rang at full price. The global
+// toggle still governs every OTHER sale mechanism (per-record sale_price_enabled, percentage/fixed discount
+// modes). Mirrored in getPosEffectivePrice so POS and this resolver stay one rule.
 export const isForcedOfferSale = (record = {}) =>
   [record?.is_offer, record?.isOffer, record?.show_in_offers, record?.showInOffers,
    record?.promotion_enabled, record?.promotionEnabled, record?.is_offer_story, record?.isOfferStory].some(truthy);
@@ -71,7 +78,25 @@ export const resolveEffectiveCustomerPrice = ({ product = {}, variant = null, sa
     };
   }
 
-  // Global toggle OFF ⇒ sale is dormant, full stop. No per-record flag can override it.
+  // Curated Offers win first, and they are NOT gated on the global toggle — see isForcedOfferSale. The stored
+  // sale price must still be a real discount: `< normalPrice` means a mistyped sale price can only ever be
+  // ignored, never raise what the customer is charged.
+  if ((isForcedOfferSale(product) || isForcedOfferSale(safeVariant)) && storedSalePrice > 0 && storedSalePrice < normalPrice) {
+    return {
+      active_price: storedSalePrice,
+      price_source: "sale",
+      normal_price: normalPrice,
+      normal_price_source: normal.source,
+      sale_price: storedSalePrice,
+      sale_mode_enabled: settings.sale_mode_enabled,
+      sale_mode_applied: true,
+      compare_price: resolveComparePrice({ product, variant: safeVariant, normalPrice, activePrice: storedSalePrice }),
+      has_price: true,
+      reason: "offer_forced_sale",
+    };
+  }
+
+  // Global toggle OFF ⇒ every OTHER sale mechanism is dormant. No per-record flag can override it.
   if (!settings.sale_mode_enabled) {
     return {
       active_price: normalPrice,
@@ -84,21 +109,6 @@ export const resolveEffectiveCustomerPrice = ({ product = {}, variant = null, sa
       compare_price: resolveComparePrice({ product, variant: safeVariant, normalPrice, activePrice: normalPrice }),
       has_price: true,
       reason: "global_sale_mode_off",
-    };
-  }
-
-  if (isForcedOfferSale(scope) && storedSalePrice > 0) {
-    return {
-      active_price: storedSalePrice,
-      price_source: "sale",
-      normal_price: normalPrice,
-      normal_price_source: normal.source,
-      sale_price: storedSalePrice,
-      sale_mode_enabled: true,
-      sale_mode_applied: true,
-      compare_price: resolveComparePrice({ product, variant: safeVariant, normalPrice, activePrice: storedSalePrice }),
-      has_price: true,
-      reason: "offer_forced_sale",
     };
   }
 

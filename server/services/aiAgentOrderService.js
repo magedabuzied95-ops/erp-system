@@ -1016,7 +1016,10 @@ const loadOrderLineVariants = async ({ tenantId, variantIds = [] }) => {
       p.sale_end_at,
       p.purchase_selling_price AS product_purchase_selling_price,
       p.selling_price AS product_selling_price,
-      p.regular_price AS product_regular_price
+      p.regular_price AS product_regular_price,
+      -- Curated-offer membership sets the charged price on its own (see effectiveCustomerPrice.js). Without it
+      -- an AI-created order bills the normal price for a product the AI just quoted at its offer price.
+      COALESCE(p.is_offer_story, FALSE) AS product_is_offer_story
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE v.id = ANY($1::bigint[])
@@ -1325,6 +1328,7 @@ export const createAiOrderDraftLines = async (payload = {}) => {
         purchase_selling_price: row.product_purchase_selling_price,
         selling_price: row.product_selling_price,
         regular_price: row.product_regular_price,
+        is_offer_story: row.product_is_offer_story,
       },
       variant: {
         id: row.variant_id,

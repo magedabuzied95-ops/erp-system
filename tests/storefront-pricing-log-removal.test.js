@@ -40,7 +40,11 @@ test("the return value and its field set are unchanged", () => {
 test("pricing arithmetic is byte-identical to the pre-change implementation", () => {
   assert.match(fn, /const sale = roundMoney\(variant\.sale_price \?\? product\.sale_price \?\? 0\);/);
   assert.match(fn, /const selling = roundMoney\(variant\.selling_price \?\? variant\.price \?\? product\.selling_price \?\? product\.price \?\? product\.regular_price \?\? 0\);/);
-  assert.match(fn, /const saleApplied = explicitSaleMode && sale > 0 && selling > 0 && sale < selling;/);
+  // 2026-08-23: a curated Offer now activates its own sale price without the global toggle, so the gate reads
+  // `(explicitSaleMode || forcedOffer)`. The arithmetic around it — the three guards that keep a sale from ever
+  // raising a price — is still pinned exactly. See tests/offers-force-sale-price.test.js.
+  assert.match(fn, /const forcedOffer = isForcedOfferSale\(product\) \|\| isForcedOfferSale\(variant\);/);
+  assert.match(fn, /const saleApplied = \(explicitSaleMode \|\| forcedOffer\) && sale > 0 && selling > 0 && sale < selling;/);
   assert.match(fn, /const selected_display_price = saleApplied \? sale : selling > 0 \? selling : sale;/);
   assert.match(fn, /const selected_price_source = saleApplied \|\| \(selling <= 0 && sale > 0\) \? "sale_price" : "selling_price";/);
   assert.match(fn, /const wholesale_price = roundMoney\(variant\.wholesale_price \?\?/);

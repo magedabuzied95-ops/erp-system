@@ -50,7 +50,12 @@ export const getPosEffectivePrice = ({ product = {}, variant = null, saleModeSet
     product?.sale_price
   );
 
-  if (normalizedSaleMode.sale_mode_enabled && shouldForceSalePriceForPos(scope) && storedSalePrice > 0) {
+  // The curated Offers section IS the switch — this branch is deliberately NOT gated on
+  // sale_mode_enabled, matching resolveEffectiveCustomerPrice so the cashier, the storefront and the AI
+  // all quote one price. `storedSalePrice < regularPrice` keeps a mistyped sale price from raising the bill.
+  // Checked per record, not on the merged `scope`: the flag lives on the product and a variant row that omits
+  // it (or carries an explicit false) would otherwise mask a real product-level offer through the spread.
+  if ((shouldForceSalePriceForPos(product) || shouldForceSalePriceForPos(variant || {})) && storedSalePrice > 0 && storedSalePrice < regularPrice) {
     return {
       regular_price: regularPrice,
       selling_price: regularPrice,
