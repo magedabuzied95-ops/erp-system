@@ -263,17 +263,17 @@ export default function PublicInvoice() {
           className="print:rounded-none print:border-0 print:shadow-none"
         />
 
-        {receiptCoupon?.code ? (
-          {/*
-            Every colour here is written out, not inherited.
+        {/*
+          Every colour in the voucher below is written out, not inherited.
 
-            The block first used theme utilities and translucent fills, and it rendered
-            differently in the customer's in-app browser than on a desktop: the code came out pale
-            green on a near-white plate and could not be read at all. A voucher is worth nothing if
-            the code cannot be copied, so the panel now carries its own dark ground and the code
-            sits on solid white in near-black — the same contrast the paper receipt has, and no
-            page theme, colour scheme or opacity blending can weaken it.
-          */}
+          It first used theme utilities and translucent fills, and rendered differently in the
+          in-app browser a customer actually opens the link in: the code came out pale green on a
+          near-white plate and could not be read. A voucher is worth nothing if the code cannot be
+          copied, so the panel carries its own dark ground and the code sits on solid white in
+          near-black — the contrast the paper receipt has, which no page theme, colour scheme or
+          opacity blending can weaken.
+        */}
+        {receiptCoupon?.code ? (
           <div
             className="mt-4 rounded-[var(--radius-card)] border-2 border-dashed p-5 text-center"
             style={{ backgroundColor: "#0b2b21", borderColor: "#34d399" }}
