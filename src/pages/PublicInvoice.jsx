@@ -147,6 +147,23 @@ export default function PublicInvoice() {
       logoUrl: String(publicSettings?.["general.company_logo_url"] || publicSettings?.["storefront.store_logo_url"] || "").trim(),
     };
   }, [publicSettings]);
+  // The voucher the till printed at the foot of the paper slip. Shown here so a customer who
+  // kept only the link still has the code — a web page beats a barcode on a phone, so this
+  // renders the code itself and a tap-through rather than a scannable image.
+  const receiptCoupon = invoice?.receipt_coupon || null;
+  const couponHeadline = useMemo(() => {
+    if (!receiptCoupon) return "";
+    if (receiptCoupon.discount_type === "percentage") return `${Number(receiptCoupon.discount_value || 0)}% خصم`;
+    if (receiptCoupon.discount_type === "free_shipping") return "شحن مجاني";
+    return `${Number(receiptCoupon.discount_value || 0)} ج.م خصم`;
+  }, [receiptCoupon]);
+  const couponExpiry = useMemo(() => {
+    if (!receiptCoupon?.expires_at) return "";
+    const date = new Date(receiptCoupon.expires_at);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("ar-EG", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+  }, [receiptCoupon]);
+
   const normalizedInvoice = useMemo(
     () => normalizeOrderInvoiceData({ ...(invoice || {}), public_invoice_url: publicUrl }, null, tenantBranding),
     [invoice, publicUrl, tenantBranding]
@@ -245,6 +262,38 @@ export default function PublicInvoice() {
           publicView
           className="print:rounded-none print:border-0 print:shadow-none"
         />
+
+        {receiptCoupon?.code ? (
+          <div className="mt-4 rounded-[var(--radius-card)] border-2 border-dashed border-emerald-400/50 bg-emerald-400/10 p-5 text-center">
+            <div className="text-[11px] font-black uppercase tracking-[0.28em] text-emerald-300">
+              {invoicePrintLabel("couponTitle", "كوبون خصم لزيارتك الجاية")}
+            </div>
+            <div className="mt-1.5 text-2xl font-black text-white">{couponHeadline}</div>
+            {Number(receiptCoupon.minimum_order_amount || 0) > 0 ? (
+              <div className="mt-0.5 text-xs font-bold text-slate-300">
+                {invoicePrintLabel("couponMinimum", "على فاتورة {{amount}} أو أكثر", {
+                  amount: `${Number(receiptCoupon.minimum_order_amount).toLocaleString()} ج.م`,
+                })}
+              </div>
+            ) : null}
+            <div className="mx-auto mt-3 inline-block rounded-[var(--radius-control)] border border-emerald-300/40 bg-black/40 px-5 py-2.5 font-mono text-xl font-black tracking-[0.2em] text-emerald-100">
+              {receiptCoupon.code}
+            </div>
+            {couponExpiry ? (
+              <div className="mt-2 text-xs font-bold text-slate-300">
+                {invoicePrintLabel("couponExpiry", "صالح حتى {{date}}", { date: couponExpiry })}
+              </div>
+            ) : null}
+            {receiptCoupon.url ? (
+              <a
+                href={receiptCoupon.url}
+                className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-400 px-6 text-sm font-black text-emerald-950"
+              >
+                {invoicePrintLabel("couponUse", "استخدمه دلوقتي")}
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

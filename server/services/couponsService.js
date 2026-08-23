@@ -1306,7 +1306,7 @@ export const getReceiptCouponCampaign = async ({ tenantId = null, client = db } 
  * Returns null whenever no campaign is switched on — the ordinary case — and never throws
  * into the checkout path: the caller treats a failure as "no coupon on this receipt".
  */
-export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db } = {}) => {
+export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db, mintIfMissing = true } = {}) => {
   const orderId = Number.parseInt(order?.id, 10);
   if (!orderId) return null;
   await ensureCouponsSchema(client);
@@ -1318,6 +1318,10 @@ export const resolveReceiptCoupon = async ({ tenantId = null, order, client = db
     [orderId]
   );
   if (existing.rows[0]) return describeReceiptCoupon(existing.rows[0]);
+
+  // Read paths pass mintIfMissing:false — a public invoice URL is crawlable, and minting on
+  // view would let anything following those links spend the campaign's codes.
+  if (!mintIfMissing) return null;
 
   const campaign = await getReceiptCouponCampaign({ tenantId, client });
   if (!campaign) return null;

@@ -1558,6 +1558,12 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     found: Boolean(order),
   });
   if (!order) return null;
+  let publicReceiptCoupon = null;
+  try {
+    publicReceiptCoupon = await resolveReceiptCoupon({ order, mintIfMissing: false });
+  } catch (receiptCouponError) {
+    console.error("[public-invoice] receipt coupon skipped", String(receiptCouponError?.message || receiptCouponError).slice(0, 140));
+  }
 
   const itemsResult = await db.query(
     `
@@ -1691,6 +1697,10 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     : collectedPaymentMethods[0] || order.payment_method || "n/a";
 
   return {
+    // The same voucher the till printed at the foot of the paper slip, so the customer who
+    // opens the link sees the code they were given rather than having to keep the receipt.
+    // Look-up only: a public invoice URL must never mint a coupon.
+    receipt_coupon: publicReceiptCoupon,
     invoice_number: order.invoice_number,
     order_number: order.order_number || "",
     invoice_code: order.invoice_code || "",
@@ -8881,7 +8891,7 @@ export const getPosOrderSummary = async (req, res) => {
     // resolveReceiptCoupon returns the coupon already tied to this order without minting.
     let reprintCoupon = null;
     try {
-      reprintCoupon = await resolveReceiptCoupon({ tenantId, order });
+      reprintCoupon = await resolveReceiptCoupon({ tenantId, order, mintIfMissing: false });
     } catch (receiptCouponError) {
       console.error("[pos-summary] receipt coupon skipped", String(receiptCouponError?.message || receiptCouponError).slice(0, 160));
     }

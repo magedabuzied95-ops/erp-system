@@ -6601,6 +6601,9 @@ function POSPro() {
         total: cartTotals.total,
         totals: cartTotals,
         coupon: normalizedResponse.raw?.coupon || normalizedResponse.data?.coupon || null,
+        // The receipt voucher rides in the response ROOT beside `order`, so — like `coupon`
+        // above — it has to be lifted onto the order the till actually prints from.
+        receipt_coupon: normalizedResponse.raw?.receipt_coupon || normalizedResponse.data?.receipt_coupon || null,
         paymentStatus: checkoutPaymentSummary.paymentStatus,
         exchange_mode: Boolean(exchangeState?.active),
         exchange_invoice_number: exchangeState?.invoiceNumber || "",
