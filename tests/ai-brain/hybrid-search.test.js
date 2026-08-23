@@ -134,3 +134,42 @@ test("no query at all returns empty rather than throwing", async () => {
   });
   assert.deepEqual(results, []);
 });
+
+test("a non-shopping question returns no products at all", async () => {
+  // Measured against the live catalog before this guard: asking for a human returned
+  // handbags, and asking where an order was returned Crocs. The token retriever
+  // latches onto incidental words ("حد", "رقم") and the ranker answers them.
+  const calls = [];
+  const runQuery = async ({ query }) => {
+    calls.push(query);
+    return [{ id: 99, name: "Classic Bag" }];
+  };
+
+  for (const intent of [
+    "order_status",
+    "human_handoff",
+    "complaint",
+    "return_or_exchange",
+    "shipping_question",
+  ]) {
+    const results = await searchProductsHybrid({
+      tenantId: 1,
+      message: "الأوردر بتاعي رقم 4412 وصل فين؟",
+      understanding: { primary_intent: intent, entities: {} },
+      runQuery,
+    });
+    assert.deepEqual(results, [], `${intent} must not return products`);
+  }
+  assert.equal(calls.length, 0, "retrieval should not even run for these intents");
+});
+
+test("a greeting can still surface something to show", async () => {
+  // Greeting is deliberately NOT suppressed: it often opens a shopping conversation.
+  const results = await searchProductsHybrid({
+    tenantId: 1,
+    message: "السلام عليكم عندكم كروكس؟",
+    understanding: { primary_intent: "greeting", entities: { brand: "كروكس" } },
+    runQuery: async () => [{ id: 1, name: "Crocs Classic", product_type: "crocs" }],
+  });
+  assert.equal(results.length, 1);
+});

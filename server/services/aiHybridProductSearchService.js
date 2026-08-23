@@ -41,6 +41,21 @@ const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const lower = (value = "") => text(value).toLowerCase();
 
+/**
+ * Intents where a product card is never the right answer. Deliberately does NOT
+ * include greeting or smalltalk: a greeting often opens a shopping conversation, and
+ * showing something is a reasonable opener. These six are different — the customer has
+ * told you what they want, and it is not a product.
+ */
+const NON_PRODUCT_INTENTS = new Set([
+  "order_status",
+  "human_handoff",
+  "complaint",
+  "return_or_exchange",
+  "shipping_question",
+  "payment_question",
+]);
+
 const RRF_K = 60;
 const PER_RETRIEVER_LIMIT = 12;
 const MAX_TOKEN_QUERIES = 3;
@@ -375,6 +390,22 @@ export const searchProductsHybrid = async ({
   maxQueries = Infinity,
 } = {}) => {
   if (typeof runQuery !== "function") throw new TypeError("runQuery is required");
+
+  // Some questions are not shopping questions, and answering them with product cards
+  // is worse than answering them with nothing. Measured against the live catalog:
+  //   "عايز اكلم حد من الموظفين"        -> Classic Bag, David Jones Crossbody
+  //   "الأوردر بتاعي رقم 4412 وصل فين؟" -> Crocs, SKECHERS SLIP INS
+  // The token retriever latches onto incidental words ("حد", "رقم") and the ranker
+  // happily returns its best match for them, because retrieval had no idea the
+  // customer was asking for a human or chasing a delivery.
+  if (NON_PRODUCT_INTENTS.has(text(understanding?.primary_intent))) {
+    console.log("ai_hybrid_search_skipped", {
+      tenant_id: tenantId,
+      intent: understanding?.primary_intent,
+      reason: "non_product_intent",
+    });
+    return [];
+  }
 
   const queries = strongestQueries(buildRetrievalQueries({ message, understanding, catalogBrands }), maxQueries);
   if (!queries.length) return [];
