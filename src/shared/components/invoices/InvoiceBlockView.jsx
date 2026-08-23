@@ -6,8 +6,9 @@
 // the three sections that used to live in the public invoice page's own JSX.
 
 import { useEffect, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 
+import { resolveInvoicePolicyLines } from "../../../../shared/invoiceTemplate.js";
 import {
   localizedBlockText,
   resolveBarcodeValue,
@@ -81,13 +82,43 @@ function BarcodeBlock({ block, invoice }) {
   return <div className="flex justify-center" dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
-const policyLines = (template, language) => {
-  if (!template?.footer?.return_policy_enabled) return [];
-  const text = language === "en" && template.footer.return_policy_en
-    ? template.footer.return_policy_en
-    : template.footer.return_policy_ar;
-  return String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
-};
+// The policy is a headline plus its conditions, and on a phone the conditions were a
+// wall of text between the total and the review buttons. They stay in the DOM at every
+// width — mobile puts them behind the toggle, every other width and every print path
+// renders them outright — so nothing is ever hidden from a printed invoice.
+function PolicyBlock({ template, invoice, language, luxury }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = resolveInvoicePolicyLines(template, { invoice, language });
+  if (!lines.length) return null;
+  const [headline, ...conditions] = lines;
+  const conditionsClass = expanded ? "block" : "hidden sm:block print:block";
+  return (
+    <div className={`mx-5 mb-5 rounded-[1.25rem] border p-4 text-xs font-bold leading-6 ${luxury ? "border-amber-200/80 bg-[#fffaf0] text-slate-600" : "border-amber-200 bg-amber-50/70 text-stone-600"}`}>
+      <div className="flex items-start gap-3 text-start">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+        <div className="min-w-0 flex-1">
+          <div>{headline}</div>
+          {conditions.length ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setExpanded((current) => !current)}
+                aria-expanded={expanded}
+                className="mt-1 inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 underline underline-offset-2 sm:hidden print:hidden"
+              >
+                {language === "en" ? "Conditions" : "الشروط"}
+                <ChevronDown className={`h-3.5 w-3.5 ${expanded ? "rotate-180" : ""}`} />
+              </button>
+              <div className={`mt-1 space-y-1 ${conditionsClass}`}>
+                {conditions.map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Egypt local number -> international wa.me form, derived from the chat number when the
 // store has one and from the support line otherwise, so there is one phone to maintain.
@@ -142,20 +173,8 @@ export default function InvoiceBlockView({
     case "totals":
       return builtIn || null;
 
-    case "policy": {
-      const lines = policyLines(template, language);
-      if (!lines.length) return null;
-      return (
-        <div className={`mx-5 mb-5 rounded-[1.25rem] border p-4 text-xs font-bold leading-6 ${luxury ? "border-amber-200/80 bg-[#fffaf0] text-slate-600" : "border-amber-200 bg-amber-50/70 text-stone-600"}`}>
-          <div className="flex items-start gap-3 text-start">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-            <div className="space-y-1">
-              {lines.map((line) => <div key={line}>{line}</div>)}
-            </div>
-          </div>
-        </div>
-      );
-    }
+    case "policy":
+      return <PolicyBlock template={template} invoice={invoice} language={language} luxury={luxury} />;
 
     case "social": {
       const links = socialLinks(template, language, invoice);

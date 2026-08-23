@@ -48,6 +48,7 @@ import {
 // A stand-in order with one of everything the invoice can show — two lines, a discount,
 // shipping, an outstanding balance — so toggling a field always has something to hide.
 const SAMPLE_ORDER = {
+  source: "website",
   invoice_number: "INV-1042",
   created_at: "2026-08-18T14:20:00.000Z",
   status: "confirmed",
@@ -71,6 +72,28 @@ const SAMPLE_ORDER = {
     { id: 2, product_name: "Nike Air Zoom", color: "أبيض", size: "42", quantity: 2, unit_price: 650, total_amount: 1300, sku: "ART-2287" },
   ],
 };
+
+// The studio previews both customers, because they do not receive the same invoice:
+// the counter sale has no shipping line, no delivery address, and its own policy.
+// Editing the in-store wording without being able to look at it is how the four
+// copies of the policy drifted apart in the first place.
+const SAMPLE_POS_ORDER = {
+  ...SAMPLE_ORDER,
+  source: "pos",
+  channel: "pos",
+  payment_method: "cash",
+  street_address: "",
+  city_area: "",
+  governorate: "",
+  shipping_cost: 0,
+  total_amount: 3000,
+  remaining_amount: 2000,
+};
+
+const PREVIEW_CHANNELS = [
+  { key: "website", fallback: "طلب أونلاين" },
+  { key: "pos", fallback: "بيع من الفرع" },
+];
 
 const OUTPUTS = [
   { key: "card", icon: Receipt },
@@ -153,6 +176,7 @@ export default function InvoiceStudio() {
   const [meta, setMeta] = useState({ name: "", scope_channel: "all", is_default: false });
   const [draft, setDraft] = useState(() => normalizeInvoiceTemplateConfig({}));
   const [output, setOutput] = useState("card");
+  const [previewChannel, setPreviewChannel] = useState("website");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -205,40 +229,44 @@ export default function InvoiceStudio() {
     setDirty(true);
   }, []);
 
+  const previewOrder = previewChannel === "pos" ? SAMPLE_POS_ORDER : SAMPLE_ORDER;
+
   const previewInvoice = useMemo(
-    () => normalizeOrderInvoiceData(SAMPLE_ORDER, null, { template: draft }),
-    [draft]
+    () => normalizeOrderInvoiceData(previewOrder, null, { template: draft }),
+    [draft, previewOrder]
   );
 
   const previewHtml = useMemo(() => {
     if (output !== "print" && output !== "thermal") return "";
     return buildInvoicePreviewHtml(
       {
-        invoiceNumber: SAMPLE_ORDER.invoice_number,
-        customerName: SAMPLE_ORDER.customer_name,
-        customerPhone: SAMPLE_ORDER.customer_phone,
-        seller_name: SAMPLE_ORDER.seller_name,
-        createdAt: SAMPLE_ORDER.created_at,
-        payment_method: SAMPLE_ORDER.payment_method,
-        items: SAMPLE_ORDER.items,
+        source: previewOrder.source,
+        shipping_cost: previewOrder.shipping_cost,
+        invoiceNumber: previewOrder.invoice_number,
+        customerName: previewOrder.customer_name,
+        customerPhone: previewOrder.customer_phone,
+        seller_name: previewOrder.seller_name,
+        createdAt: previewOrder.created_at,
+        payment_method: previewOrder.payment_method,
+        items: previewOrder.items,
         totals: {
-          subtotal: SAMPLE_ORDER.subtotal,
-          discount: SAMPLE_ORDER.discount_amount,
-          shipping: SAMPLE_ORDER.shipping_cost,
-          total: SAMPLE_ORDER.total_amount,
-          paidAmount: SAMPLE_ORDER.paid_amount,
-          remainingAmount: SAMPLE_ORDER.remaining_amount,
+          subtotal: previewOrder.subtotal,
+          discount: previewOrder.discount_amount,
+          shipping: previewOrder.shipping_cost,
+          total: previewOrder.total_amount,
+          paidAmount: previewOrder.paid_amount,
+          remainingAmount: previewOrder.remaining_amount,
         },
       },
       output === "thermal" ? "thermal" : "a4",
       i18n.language,
       draft
     );
-  }, [draft, output, i18n.language]);
+  }, [draft, output, previewOrder, i18n.language]);
 
   const previewText = useMemo(
-    () => (output === "whatsapp" ? buildOrderInvoiceWhatsappText(SAMPLE_ORDER, null, { template: draft }) : ""),
-    [draft, output]
+    () => (output === "whatsapp" ? buildOrderInvoiceWhatsappText(previewOrder, null, { template: draft }) : ""),
+    [draft, output, previewOrder]
   );
 
   const runAction = async (action, successMessage) => {
@@ -437,6 +465,8 @@ export default function InvoiceStudio() {
                   <Toggle label={tr("footer.policyEnabled", "إظهار سياسة الاستبدال والاسترجاع")} checked={footer.return_policy_enabled} disabled={disabled} onChange={(v) => patch({ footer: { return_policy_enabled: v } })} />
                   <AreaField label={tr("footer.policyAr", "السياسة (عربي)")} value={footer.return_policy_ar} disabled={disabled || !footer.return_policy_enabled} onChange={(v) => patch({ footer: { return_policy_ar: v } })} />
                   <AreaField label={tr("footer.policyEn", "السياسة (إنجليزي)")} hint={tr("footer.policyEnHint", "يُستخدم عند طباعة الفاتورة بالإنجليزية. اتركه فارغًا ليستخدم النص العربي.")} value={footer.return_policy_en} disabled={disabled || !footer.return_policy_enabled} onChange={(v) => patch({ footer: { return_policy_en: v } })} rows={4} />
+                  <AreaField label={tr("footer.policyInStoreAr", "سياسة البيع من الفرع (عربي)")} hint={tr("footer.policyInStoreHint", "تظهر لعميل اشترى من الفرع ولم يُشحن له شيء. اتركه فارغًا ليستخدم نص الأونلاين.")} value={footer.return_policy_in_store_ar} disabled={disabled || !footer.return_policy_enabled} onChange={(v) => patch({ footer: { return_policy_in_store_ar: v } })} rows={4} />
+                  <AreaField label={tr("footer.policyInStoreEn", "سياسة البيع من الفرع (إنجليزي)")} value={footer.return_policy_in_store_en} disabled={disabled || !footer.return_policy_enabled} onChange={(v) => patch({ footer: { return_policy_in_store_en: v } })} rows={3} />
                   <div className="grid gap-3 md:grid-cols-2">
                     <TextField label={tr("footer.thankYouAr", "رسالة شكر (عربي)")} value={footer.thank_you_ar} disabled={disabled} onChange={(v) => patch({ footer: { thank_you_ar: v } })} />
                     <TextField label={tr("footer.thankYouEn", "رسالة شكر (إنجليزي)")} value={footer.thank_you_en} disabled={disabled} onChange={(v) => patch({ footer: { thank_you_en: v } })} />
@@ -523,6 +553,21 @@ export default function InvoiceStudio() {
                     >
                       <Icon className="h-4 w-4" />
                       {tr(`preview.${key}`, key)}
+                    </button>
+                  ))}
+                </div>
+                {/* The two customers do not receive the same invoice, so the preview
+                    has to be able to be either of them — otherwise the in-store policy
+                    is edited blind, which is how these texts drifted apart before. */}
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {PREVIEW_CHANNELS.map(({ key, fallback }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setPreviewChannel(key)}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-black transition ${previewChannel === key ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-slate-950/55 text-slate-400 hover:border-white/20"}`}
+                    >
+                      {tr(`preview.channels.${key}`, fallback)}
                     </button>
                   ))}
                 </div>

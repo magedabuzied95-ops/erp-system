@@ -858,6 +858,12 @@ function OrderDetails() {
 
   const handlePdf = async () => {
     const invoice = {
+      // Which policy the sheet prints is decided from these two, not from the
+      // layout: a counter sale with nothing shipped gets the in-store wording.
+      // Read shipping_cost rather than totals.shipping — totals is what draws the
+      // shipping row, and this must not add one that was never there.
+      source: order.source || order.channel || "",
+      shipping_cost: Number(order.shipping_cost || order.shipping_fee || 0),
       invoiceNumber: order.invoice_number,
       invoiceLabel: tt("orders.details.invoice"),
       companyName: tt("common.employeeHub.analytics.export.companyName"),

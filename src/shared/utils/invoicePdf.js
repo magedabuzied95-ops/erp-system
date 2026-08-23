@@ -13,7 +13,7 @@ import {
   wrapPrintableHtml,
 } from "./printLocalization";
 import { getInvoiceTemplateConfig } from "../hooks/useInvoiceTemplate";
-import { invoiceTemplateForOutput } from "../../../shared/invoiceTemplate.js";
+import { invoiceTemplateForOutput, resolveInvoicePolicyLines } from "../../../shared/invoiceTemplate.js";
 import { blocksForOutput } from "../../../shared/invoiceBlocks.js";
 import { renderInvoiceBlockHtml } from "./invoiceBlockHtml";
 
@@ -163,14 +163,9 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language, template =
   const supportPhone = getInvoiceSupportPhone(invoice, tpl);
   const websiteText = getInvoiceWebsite(invoice, tpl);
   const websiteHref = tpl.identity.website_url;
-  const returnPolicyHtml = tpl.footer.return_policy_enabled
-    ? String((normalized === "en" && tpl.footer.return_policy_en) || tpl.footer.return_policy_ar || "")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => `<div>${escapeHtml(line)}</div>`)
-        .join("")
-    : "";
+  const returnPolicyHtml = resolveInvoicePolicyLines(tpl, { invoice, language: normalized })
+    .map((line) => `<div>${escapeHtml(line)}</div>`)
+    .join("");
   const publicUrl = getPublicInvoiceUrl(invoice);
   const social = getSocialLinks(invoice, tpl)
     .map((link) => `<a class="pill" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`)
@@ -400,9 +395,7 @@ const drawEnglishPdf = async ({ format, invoice, filename, template = null }) =>
   doc.setFontSize(isThermal ? 6 : 8);
   // jsPDF lays this out as one wrapped paragraph, so the policy's line breaks
   // collapse into spaces here rather than becoming separate rows.
-  const policyText = tpl.footer.return_policy_enabled
-    ? String(tpl.footer.return_policy_en || tpl.footer.return_policy_ar || "").split("\n").map((line) => line.trim()).filter(Boolean).join(" ")
-    : "";
+  const policyText = resolveInvoicePolicyLines(tpl, { invoice, language: "en" }).join(" ");
   if (policyText) {
     doc.text(policyText, pageWidth / 2, y + 8, {
       align: "center",

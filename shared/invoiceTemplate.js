@@ -37,16 +37,33 @@ export const INVOICE_TEMPLATE_CHANNELS = ["all", "website", "pos", "manual"];
 //   whatsapp the plain-text message
 export const INVOICE_TEMPLATE_OUTPUTS = ["card", "print", "thermal", "whatsapp"];
 
-// Transcribed from src/pages/PublicInvoice.jsx (PUBLIC_RETURN_POLICY_LINES). The window
-// here is prose, not logic — orders.return_exchange_window_days is what the storefront
-// policy page reads. Keep them in step by hand until the studio surfaces both together.
+// The customer reads ONE of two policies, never both.
+//
+// Two of the five old lines were about who pays the shipping, which is noise to someone
+// who walked into the branch, paid at the counter and carried the box out — and it was
+// the only policy the public link had, so that is exactly what a walk-in customer read.
+// resolveInvoicePolicyLines() picks between the two from the order itself.
+//
+// The window in both is prose, not logic — orders.return_exchange_window_days is what
+// the storefront policy page reads. Keep them in step by hand until the studio surfaces
+// both together.
 export const DEFAULT_RETURN_POLICY_AR = [
-  "يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية:",
-  "• يجب أن تكون المنتجات غير مستخدمة وبحالتها الأصلية.",
-  "• يجب وجود الفاتورة الأصلية.",
-  "• في حالة وجود عيب مصنعي، تتحمل M1 Store تكلفة الشحن.",
-  "• في حالة الاستبدال بسبب رغبة العميل مثل المقاس أو اللون، يتحمل العميل تكلفة الشحن ذهابًا وعودة.",
-  "للاستفسارات، تواصل مع خدمة العملاء.",
+  "متاح الاستبدال أو الاسترجاع خلال 14 يوم من استلام الطلب.",
+  "بشرط:",
+  "• المنتج بحالته الأصلية وغير مستخدم.",
+  "• الفاتورة دي هي إثبات الشراء، احتفظ بالرابط.",
+  "• عيب في المنتج؟ الشحن علينا.",
+  "• تغيير مقاس أو لون؟ تكلفة الشحن رايح وجاي عليك.",
+  "• الشنط غير قابلة للاستبدال أو الاسترجاع.",
+].join("\n");
+
+// The counter sale: no shipping clause, because nothing was shipped. The bag exclusion
+// was already printed on the 80mm receipt and had never reached the link the customer
+// opens on their phone — this is where those two documents stop disagreeing.
+export const DEFAULT_RETURN_POLICY_IN_STORE_AR = [
+  "متاح الاستبدال أو الاسترجاع خلال 14 يوم من تاريخ الاستلام.",
+  "• المنتج بحالته الأصلية وغير مستخدم.",
+  "• الشنط غير قابلة للاستبدال أو الاسترجاع.",
 ].join("\n");
 
 export const INVOICE_TEMPLATE_DEFAULTS = Object.freeze({
@@ -117,6 +134,10 @@ export const INVOICE_TEMPLATE_DEFAULTS = Object.freeze({
     return_policy_enabled: true,
     return_policy_ar: DEFAULT_RETURN_POLICY_AR,
     return_policy_en: "",
+    // What a counter sale shows instead. Empty falls back to the online text, so an
+    // operator who clears it loses a tailored policy, never the policy itself.
+    return_policy_in_store_ar: DEFAULT_RETURN_POLICY_IN_STORE_AR,
+    return_policy_in_store_en: "",
     terms_ar: "",
     terms_en: "",
     // New capability, off so it changes nothing until someone turns it on.
@@ -240,6 +261,8 @@ export const normalizeInvoiceTemplateConfig = (config = {}) => {
       return_policy_enabled: coerceBoolean(footer.return_policy_enabled, defaults.footer.return_policy_enabled),
       return_policy_ar: toText(footer.return_policy_ar, defaults.footer.return_policy_ar, 4000),
       return_policy_en: toText(footer.return_policy_en, defaults.footer.return_policy_en, 4000),
+      return_policy_in_store_ar: toText(footer.return_policy_in_store_ar, defaults.footer.return_policy_in_store_ar, 4000),
+      return_policy_in_store_en: toText(footer.return_policy_in_store_en, defaults.footer.return_policy_in_store_en, 4000),
       terms_ar: toText(footer.terms_ar, defaults.footer.terms_ar, 4000),
       terms_en: toText(footer.terms_en, defaults.footer.terms_en, 4000),
       show_public_link_qr: coerceBoolean(footer.show_public_link_qr, defaults.footer.show_public_link_qr),
@@ -353,4 +376,44 @@ export const invoiceTemplateForOutput = (config = {}, output = "card") => {
     fields.show_unit_price = normalized.outputs.thermal.show_unit_price;
   }
   return { ...normalized, fields };
+};
+
+// Which of the two return policies this invoice carries.
+//
+// The channel alone is the wrong question. The POS sells delivery orders too, and on
+// those the shipping clauses are exactly right — what actually decides it is whether
+// anything was shipped at all. A counter sale has no shipping line.
+//
+// Anything we cannot classify falls to the online text, which is the superset: an
+// unknown order shows the customer MORE of what they are owed, never less.
+const IN_STORE_INVOICE_SOURCES = new Set(["pos", "offline", "cashier", "store", "branch", "in_store"]);
+
+export const isInStoreInvoice = (invoice = {}) => {
+  const source = String(invoice?.source ?? invoice?.channel ?? "").trim().toLowerCase();
+  if (!IN_STORE_INVOICE_SOURCES.has(source)) return false;
+  const shipping = Number(
+    invoice?.totals?.shipping ?? invoice?.shipping_cost ?? invoice?.shippingCost ?? invoice?.shipping ?? 0
+  );
+  return !Number.isFinite(shipping) || shipping <= 0;
+};
+
+// The policy for one invoice, as the lines it is made of. The four renderers disagree
+// about how to draw a line — a div, a table row, one wrapped paragraph on an 80mm roll —
+// but they must never disagree about WHICH lines they were handed, which is how the
+// bag exclusion ended up printed on the cashier's receipt and nowhere else.
+//
+// The first line is the headline and the rest are its conditions; a renderer that can
+// collapse (the phone) hides everything after [0] behind a toggle.
+export const resolveInvoicePolicyLines = (config = {}, { invoice = {}, language = "ar" } = {}) => {
+  const footer = {
+    ...INVOICE_TEMPLATE_DEFAULTS.footer,
+    ...(config?.footer && typeof config.footer === "object" ? config.footer : {}),
+  };
+  if (!footer.return_policy_enabled) return [];
+  const english = language === "en";
+  const online = (english && footer.return_policy_en) || footer.return_policy_ar;
+  const text = isInStoreInvoice(invoice)
+    ? (english && footer.return_policy_in_store_en) || footer.return_policy_in_store_ar || online
+    : online;
+  return String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
 };

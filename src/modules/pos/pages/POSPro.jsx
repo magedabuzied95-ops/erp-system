@@ -7050,6 +7050,10 @@ function POSPro() {
         template: invoiceTemplate,
         invoice: {
           ...source,
+          // Without these the sheet falls back to the online policy and tells a
+          // customer standing at the till who pays the return shipping.
+          source: source.source || source.channel || "pos",
+          shipping_cost: Number(source.shipping_cost ?? source.totals?.shipping ?? 0),
           invoiceNumber: receiptContext.invoiceNumber,
           customerName: receiptContext.customer?.name,
           items: receiptContext.cart,

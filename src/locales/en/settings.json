@@ -313,11 +313,14 @@
       },
       "footer": {
         "title": "Footer and policy",
-        "subtitle": "Each line in the policy box starts on a new line.",
+        "subtitle": "The first line is the headline and the rest are its conditions. Each line starts on a new line.",
         "policyEnabled": "Show the return and exchange policy",
-        "policyAr": "Policy (Arabic)",
-        "policyEn": "Policy (English)",
+        "policyAr": "Online order policy (Arabic)",
+        "policyEn": "Online order policy (English)",
         "policyEnHint": "Used when the invoice prints in English. Leave empty to use the Arabic text.",
+        "policyInStoreAr": "In-store sale policy (Arabic)",
+        "policyInStoreEn": "In-store sale policy (English)",
+        "policyInStoreHint": "Shown to a customer who bought at the branch with nothing shipped. Leave empty to use the online text.",
         "thankYouAr": "Thank-you message (Arabic)",
         "thankYouEn": "Thank-you message (English)",
         "termsAr": "Extra terms (Arabic)"
@@ -362,6 +365,10 @@
       },
       "preview": {
         "note": "Previewed on a sample order, through the same components the customer actually receives.",
+        "channels": {
+          "website": "Online order",
+          "pos": "In-store sale"
+        },
         "card": "Invoice",
         "print": "A4 print",
         "thermal": "Thermal 80mm",

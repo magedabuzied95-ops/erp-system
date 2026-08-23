@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
-import { invoiceTemplateForOutput } from "../../../../shared/invoiceTemplate.js";
+import { invoiceTemplateForOutput, resolveInvoicePolicyLines } from "../../../../shared/invoiceTemplate.js";
 import {
   Check,
   Banknote,
@@ -144,7 +144,15 @@ const receiptPrintLabel = (key, fallback, options = {}) =>
 const posLabel = (key, fallback, options = {}) =>
   i18n.t(`pos.${key}`, { defaultValue: fallback, ...options });
 
-const getReturnPolicyText = () => receiptPrintLabel("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة.");
+// A cashier's receipt is a counter sale by construction: the customer is standing at
+// the till and nothing is being shipped, so it always resolves to the in-store policy.
+// The one-line wording and the bag exclusion under it used to be written here and
+// nowhere else, so the paper the cashier handed over and the link the same customer
+// opened on their phone said different things. Both read the template now.
+const POS_COUNTER_INVOICE = { source: "pos", totals: { shipping: 0 } };
+
+const getReturnPolicyLines = (template) =>
+  resolveInvoicePolicyLines(template, { invoice: POS_COUNTER_INVOICE, language: "ar" });
 
 const DEFAULT_SOCIAL_LINKS = {
   googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
@@ -1463,6 +1471,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   // arrive as a prop — there is no React tree here to hang a hook on.
   const tpl = useMemo(() => invoiceTemplateForOutput(template || {}, "thermal"), [template]);
   const premiumStore = useMemo(() => mergeStoreProfile(getStoreProfile(tpl), storeProfile), [storeProfile, tpl]);
+  const receiptPolicyLines = getReturnPolicyLines(tpl);
   const premiumReceiptNumber = String(invoiceNumber || "DRAFT");
   const invoiceDigits = premiumReceiptNumber.replace(/\D/g, "").slice(-12);
   const receiptBarcodeValue = invoiceDigits ? `9919${invoiceDigits.padStart(12, "0")}` : premiumReceiptNumber;
@@ -1630,11 +1639,12 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[10px] leading-5 text-zinc-700">
-        <div className="font-black text-emerald-700">{receiptPrintLabel("returnPolicyTitle", "سياسة الاستبدال والاسترجاع")}</div>
-        <div>{getReturnPolicyText()}</div>
-        <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
-      </div>
+      {receiptPolicyLines.length ? (
+        <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[10px] leading-5 text-zinc-700">
+          <div className="font-black text-emerald-700">{receiptPrintLabel("returnPolicyTitle", "سياسة الاستبدال والاسترجاع")}</div>
+          {receiptPolicyLines.map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+        </div>
+      ) : null}
 
       <div className="mt-3 text-center text-[10px] font-black tracking-[0.2em] text-emerald-600">GREEN_THERMAL_RECEIPT_V2</div>
 
@@ -1791,6 +1801,7 @@ function ThermalReceiptFinal({
   const amount = (value) => Number(Number(value || 0).toFixed(2)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const tpl = invoiceTemplateForOutput(template || {}, "thermal");
   const store = mergeStoreProfile(getStoreProfile(tpl), storeProfile);
+  const thermalPolicyLines = getReturnPolicyLines(tpl);
   const thermalLogoUrl = resolveThermalStoreLogo(store.logoUrl);
   const receiptNumber = String(invoiceNumber || "DRAFT").trim();
   const receiptDate = createdAt ? new Date(createdAt) : new Date();
@@ -1885,7 +1896,7 @@ function ThermalReceiptFinal({
         {supportPhone ? <div className="thermal-store-row"><span>خدمة العملاء</span><strong dir="ltr">{supportPhone}</strong></div> : null}
         {officialWebsite ? <div className="thermal-website"><span>الموقع الإلكتروني الرسمي</span><strong dir="ltr">{officialWebsite}</strong></div> : null}
       </section></> : null}
-      <div className="thermal-note"><div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div><div>{getReturnPolicyText()}</div></div>
+      {thermalPolicyLines.length ? <div className="thermal-note"><div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div>{thermalPolicyLines.map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}</div> : null}
       <div className="thermal-barcode"><div dangerouslySetInnerHTML={{ __html: barcodeSvg }} /></div>
       <footer className="thermal-footer"><div className="thermal-thanks">شكرًا لزيارتكم</div>{invoiceFooter ? <div>{invoiceFooter}</div> : null}</footer>
       {receiptCoupon?.code ? (
