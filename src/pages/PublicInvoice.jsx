@@ -264,37 +264,55 @@ export default function PublicInvoice() {
         />
 
         {receiptCoupon?.code ? (
-          <div className="mt-4 rounded-[var(--radius-card)] border-2 border-dashed border-emerald-400/50 bg-emerald-400/10 p-5 text-center">
-            <div className="text-[11px] font-black uppercase tracking-[0.28em] text-emerald-300">
+          {/*
+            Every colour here is written out, not inherited.
+
+            The block first used theme utilities and translucent fills, and it rendered
+            differently in the customer's in-app browser than on a desktop: the code came out pale
+            green on a near-white plate and could not be read at all. A voucher is worth nothing if
+            the code cannot be copied, so the panel now carries its own dark ground and the code
+            sits on solid white in near-black — the same contrast the paper receipt has, and no
+            page theme, colour scheme or opacity blending can weaken it.
+          */}
+          <div
+            className="mt-4 rounded-[var(--radius-card)] border-2 border-dashed p-5 text-center"
+            style={{ backgroundColor: "#0b2b21", borderColor: "#34d399" }}
+          >
+            <div className="text-[11px] font-black uppercase tracking-[0.28em]" style={{ color: "#6ee7b7" }}>
               {invoicePrintLabel("couponTitle", "كوبون خصم لزيارتك الجاية")}
             </div>
-            <div className="mt-1.5 text-2xl font-black text-white">{couponHeadline}</div>
+            <div className="mt-1.5 text-2xl font-black" style={{ color: "#ffffff" }}>{couponHeadline}</div>
             {Number(receiptCoupon.minimum_order_amount || 0) > 0 ? (
-              <div className="mt-0.5 text-xs font-bold text-slate-300">
+              <div className="mt-0.5 text-xs font-bold" style={{ color: "#d1fae5" }}>
                 {invoicePrintLabel("couponMinimum", "على فاتورة {{amount}} أو أكثر", {
                   amount: `${Number(receiptCoupon.minimum_order_amount).toLocaleString()} ج.م`,
                 })}
               </div>
             ) : null}
-            <div className="mx-auto mt-3 inline-block rounded-[var(--radius-control)] border border-emerald-300/40 bg-black/40 px-5 py-2.5 font-mono text-xl font-black tracking-[0.2em] text-emerald-100">
+            <div
+              className="mx-auto mt-3 inline-block rounded-[var(--radius-control)] px-6 py-3 font-mono text-2xl font-black tracking-[0.22em]"
+              style={{ backgroundColor: "#ffffff", color: "#0b2b21", border: "2px solid #0b2b21" }}
+              dir="ltr"
+            >
               {receiptCoupon.code}
             </div>
             {couponExpiry ? (
-              <div className="mt-2 text-xs font-bold text-slate-300">
+              <div className="mt-2 text-xs font-bold" style={{ color: "#d1fae5" }}>
                 {invoicePrintLabel("couponExpiry", "صالح حتى {{date}}", { date: couponExpiry })}
               </div>
             ) : null}
             {Array.isArray(receiptCoupon.terms) && receiptCoupon.terms.length ? (
-              <ul className="mx-auto mt-3 max-w-sm list-none space-y-1 text-start text-xs font-semibold text-slate-300">
+              <ul className="mx-auto mt-3 max-w-sm list-none space-y-1 text-start text-xs font-semibold" style={{ color: "#d1fae5" }}>
                 {receiptCoupon.terms.map((line, index) => (
-                  <li key={index} className="flex gap-2"><span className="text-emerald-400">•</span><span>{line}</span></li>
+                  <li key={index} className="flex gap-2"><span style={{ color: "#34d399" }}>•</span><span>{line}</span></li>
                 ))}
               </ul>
             ) : null}
             {receiptCoupon.url ? (
               <a
                 href={receiptCoupon.url}
-                className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-400 px-6 text-sm font-black text-emerald-950"
+                className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full px-6 text-sm font-black"
+                style={{ backgroundColor: "#34d399", color: "#052e1c" }}
               >
                 {invoicePrintLabel("couponUse", "استخدمه دلوقتي")}
               </a>
