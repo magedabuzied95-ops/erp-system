@@ -786,16 +786,17 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
   const cText = (key, fallback, options = {}) => t(`marketing.coupons.${key}`, { defaultValue: fallback, ...options });
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/50">
-        <div className="flex items-start justify-between gap-3">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl shadow-black/50">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? cText("modal.edit", "تعديل الحملة") : cText("modal.create", "حملة جديدة")}</div>
             <h2 className="m1-section-title mt-1">{editing ? editing.name : cText("modal.title", "حملة كوبونات")}</h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] p-2 text-zinc-300"><X className="h-4 w-4" /></button>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="grid gap-3 md:grid-cols-2">
           <Field label={cText("fields.name", "الاسم")} value={form.name} onChange={(value) => update("name", value)} />
           <Select label={cText("fields.codeMode", "نوع الأكواد")} value={form.code_mode} onChange={(value) => update("code_mode", value)} options={[["unique", cText("codeModes.unique", "أكواد فريدة (كوبون لكل عميل)")], ["shared", cText("codeModes.shared", "كود مشترك واحد (للإعلانات والسوشيال)")]]} />
           {form.code_mode === "shared" ? (
@@ -858,7 +859,8 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
           </div>
           <ScopeEditor scope={form.scope} onChange={(scope) => update("scope", scope)} cText={cText} />
         </div>
-        <div className="mt-5 flex justify-end gap-2">
+        </div>
+        <div className="flex shrink-0 justify-end gap-2 border-t border-white/10 px-5 py-4">
           <button type="button" onClick={onClose} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "إلغاء")}</button>
           <button type="button" onClick={onSave} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "حفظ")}</button>
         </div>
@@ -1039,7 +1041,7 @@ function ScopeEditor({ scope, onChange, cText }) {
       {brands.length ? (
         <div className="mt-3">
           <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{cText("rules.scope.brands", "البراندات")}</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto pe-1">
             {brands.map((brand) => {
               const id = Number(brand.id);
               const selected = (safeScope.brand_ids || []).includes(id);
