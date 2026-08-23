@@ -475,6 +475,7 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Executive Overview", to: "/reports/overview", permission: "reports.view", icon: LineChart, keywords: "overview executive analytics reporting center نظرة تنفيذية تحليلات" },
       { label: "Sales Intelligence", to: "/reports/sales", permission: "reports.view", icon: TrendingUp, keywords: "sales profit intelligence products sizes ذكاء المبيعات الأرباح المقاسات" },
       { label: "Inventory Intelligence", to: "/reports/inventory", permission: "reports.view", icon: Boxes, keywords: "inventory stock value velocity dead slow sizes ذكاء المخزون قيمة المخزون الركود المقاسات" },
+      { label: "Coupon Performance", to: "/reports/coupons", permission: "reports.view", icon: TicketPercent, keywords: "coupon coupons campaign redemption discount أداء الكوبونات حملات الخصم الاستخدام" },
       { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],
   },

@@ -11,6 +11,7 @@ import {
   generateCampaignCoupons,
   getCampaignCoupons,
   getCampaignRedemptions,
+  getPerformanceReport,
   getCampaigns,
   getStats,
   postCampaign,
@@ -65,6 +66,8 @@ const requireRedeemOrder = (req, res, next) => {
 
 router.post("/validate", validateRateLimit, validate);
 router.post("/redeem", protect, requireCouponManager, requireRedeemOrder, redeem);
+
+router.get("/reports/performance", protect, permit("marketing", "view"), getPerformanceReport);
 
 router.get("/campaigns", protect, permit("marketing", "view"), getCampaigns);
 router.post("/campaigns", protect, requireCouponManager, permit("marketing", "create"), postCampaign);

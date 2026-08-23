@@ -1361,6 +1361,156 @@ export const getCampaignStats = async ({ tenantId = null, campaignId }) => {
   };
 };
 
+/**
+ * Cross-campaign performance, for the Reporting Center.
+ *
+ * Every figure ignores reversed redemptions, so a cancelled or fully-returned order stops
+ * counting as a coupon success the moment it is reversed.
+ *
+ * The with/without comparison is deliberately drawn over the SAME window as the redemptions,
+ * not over each campaign's own dates: comparing a summer campaign's orders against a whole
+ * year of baseline would flatter it. Orders carrying a coupon are excluded from the baseline.
+ */
+export const getCouponPerformanceReport = async ({ tenantId = null, from = null, to = null } = {}) => {
+  await ensureCouponsSchema();
+  const tenantScoped = tenantId !== null && tenantId !== undefined;
+
+  // $1 from, $2 to, $3 tenant (nullable) — one shape reused by every query below.
+  const args = [from || null, to || null, tenantScoped ? tenantId : null];
+  const redemptionWindow = `
+    r.reversed_at IS NULL
+    AND ($1::timestamp IS NULL OR r.used_at >= $1::timestamp)
+    AND ($2::timestamp IS NULL OR r.used_at < ($2::timestamp + INTERVAL '1 day'))
+    AND ($3::bigint IS NULL OR r.tenant_id = $3::bigint OR r.tenant_id IS NULL)`;
+
+  const campaigns = await db.query(
+    `
+    SELECT c.id, c.name, c.code_mode, c.shared_code, c.discount_type, c.discount_value,
+           c.is_active, c.starts_at, c.expires_at, c.budget_cap,
+           COUNT(DISTINCT cp.id)::int AS generated,
+           COUNT(DISTINCT cp.id) FILTER (WHERE cp.assigned_customer_id IS NOT NULL)::int AS assigned,
+           COUNT(DISTINCT cp.id) FILTER (WHERE cp.sent_at IS NOT NULL)::int AS sent,
+           COUNT(r.id)::int AS redemptions,
+           COALESCE(SUM(r.discount_amount), 0)::numeric AS discount_total,
+           COALESCE(SUM(r.order_total), 0)::numeric AS gross_sales,
+           COALESCE(SUM(r.final_total), 0)::numeric AS net_sales,
+           COALESCE(AVG(r.order_total), 0)::numeric AS average_order
+    FROM coupon_campaigns c
+    LEFT JOIN coupons cp ON cp.campaign_id = c.id
+    LEFT JOIN coupon_redemptions r ON r.campaign_id = c.id AND ${redemptionWindow}
+    WHERE ($3::bigint IS NULL OR c.tenant_id = $3::bigint OR c.tenant_id IS NULL)
+    GROUP BY c.id
+    ORDER BY COALESCE(SUM(r.discount_amount), 0) DESC, c.created_at DESC
+    `,
+    args
+  );
+
+  const timeline = await db.query(
+    `
+    SELECT to_char(date_trunc('day', r.used_at), 'YYYY-MM-DD') AS day,
+           COUNT(r.id)::int AS redemptions,
+           COALESCE(SUM(r.discount_amount), 0)::numeric AS discount,
+           COALESCE(SUM(r.final_total), 0)::numeric AS net_sales
+    FROM coupon_redemptions r
+    WHERE ${redemptionWindow}
+    GROUP BY 1
+    ORDER BY 1 ASC
+    `,
+    args
+  );
+
+  // Baseline: orders in the same window with NO coupon, so "with vs without" is like-for-like.
+  let baseline = { orders: 0, average: 0 };
+  try {
+    const baselineResult = await db.query(
+      `
+      SELECT COUNT(o.id)::int AS orders,
+             COALESCE(AVG(COALESCE(o.total_amount, o.total, 0)), 0)::numeric AS average
+      FROM orders o
+      WHERE COALESCE(o.coupon_id, 0) = 0
+        AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        AND COALESCE(o.is_personal_transaction, FALSE) = FALSE
+        AND ($1::timestamp IS NULL OR o.created_at >= $1::timestamp)
+        AND ($2::timestamp IS NULL OR o.created_at < ($2::timestamp + INTERVAL '1 day'))
+        AND ($3::bigint IS NULL OR o.tenant_id = $3::bigint OR o.tenant_id IS NULL)
+      `,
+      args
+    );
+    baseline = {
+      orders: Number(baselineResult.rows[0]?.orders || 0),
+      average: Number(baselineResult.rows[0]?.average || 0),
+    };
+  } catch (error) {
+    console.warn("[coupons] performance baseline skipped:", error.message);
+  }
+
+  const rows = campaigns.rows.map((row) => {
+    const generated = Number(row.generated || 0);
+    const sent = Number(row.sent || 0);
+    const redemptions = Number(row.redemptions || 0);
+    // Conversion is measured against what was actually handed out where that is known,
+    // because "redeemed ÷ generated" punishes a campaign for printing spare codes.
+    const basis = sent > 0 ? sent : generated;
+    return {
+      id: row.id,
+      name: row.name,
+      code_mode: row.code_mode || "unique",
+      shared_code: row.shared_code || "",
+      discount_type: row.discount_type,
+      discount_value: Number(row.discount_value || 0),
+      is_active: Boolean(row.is_active),
+      starts_at: row.starts_at,
+      expires_at: row.expires_at,
+      budget_cap: row.budget_cap === null ? null : Number(row.budget_cap),
+      generated,
+      assigned: Number(row.assigned || 0),
+      sent,
+      redemptions,
+      discount_total: Number(row.discount_total || 0),
+      gross_sales: Number(row.gross_sales || 0),
+      net_sales: Number(row.net_sales || 0),
+      average_order: Number(row.average_order || 0),
+      conversion_rate: basis > 0 ? Number(((redemptions / basis) * 100).toFixed(2)) : 0,
+      conversion_basis: sent > 0 ? "sent" : "generated",
+      budget_used_pct: row.budget_cap ? Number(((Number(row.discount_total || 0) / Number(row.budget_cap)) * 100).toFixed(2)) : null,
+    };
+  });
+
+  const sum = (key) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+  const totalRedemptions = sum("redemptions");
+  const totalSent = sum("sent");
+  const totalGenerated = sum("generated");
+  const conversionBasis = totalSent > 0 ? totalSent : totalGenerated;
+  const grossSales = sum("gross_sales");
+
+  return {
+    period: { from: from || null, to: to || null },
+    totals: {
+      campaigns: rows.length,
+      active_campaigns: rows.filter((row) => row.is_active).length,
+      generated: totalGenerated,
+      assigned: sum("assigned"),
+      sent: totalSent,
+      redemptions: totalRedemptions,
+      discount_total: Number(sum("discount_total").toFixed(2)),
+      gross_sales: Number(grossSales.toFixed(2)),
+      net_sales: Number(sum("net_sales").toFixed(2)),
+      conversion_rate: conversionBasis > 0 ? Number(((totalRedemptions / conversionBasis) * 100).toFixed(2)) : 0,
+      conversion_basis: totalSent > 0 ? "sent" : "generated",
+      average_with_coupon: totalRedemptions > 0 ? Number((grossSales / totalRedemptions).toFixed(2)) : 0,
+      average_without_coupon: Number(baseline.average.toFixed(2)),
+      baseline_orders: baseline.orders,
+    },
+    campaigns: rows,
+    timeline: timeline.rows.map((row) => ({
+      day: row.day,
+      redemptions: Number(row.redemptions || 0),
+      discount: Number(row.discount || 0),
+      net_sales: Number(row.net_sales || 0),
+    })),
+  };
+};
+
 export const exportCouponsCsv = async ({ tenantId = null, campaignId }) => {
   const rows = await listCoupons({ tenantId, campaignId });
   const escape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;

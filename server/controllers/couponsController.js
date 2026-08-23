@@ -7,6 +7,7 @@ import {
   deleteCampaign,
   exportCouponsCsv,
   exportCouponsPdfBuffer,
+  getCouponPerformanceReport,
   generateCoupons,
   getCampaignStats,
   listCampaigns,
@@ -179,6 +180,19 @@ export const sendExpiryReminders = async (req, res) => {
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to send the expiry reminders");
+  }
+};
+
+export const getPerformanceReport = async (req, res) => {
+  try {
+    const report = await getCouponPerformanceReport({
+      tenantId: scopedTenantId(req),
+      from: req.query.from || req.query.start || null,
+      to: req.query.to || req.query.end || null,
+    });
+    return res.json({ success: true, ...report });
+  } catch (error) {
+    return sendError(res, error, "Failed to build the coupon performance report");
   }
 };
 

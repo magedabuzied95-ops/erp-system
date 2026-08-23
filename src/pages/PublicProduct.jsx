@@ -52,11 +52,6 @@ const writeAttribution = (value) => {
   }
 };
 
-// Website checkout integration point:
-// when a real public cart/checkout page is added, read ?coupon=CODE, call
-// POST /api/coupons/validate with { source: "website" }, subtract discount
-// from totals, and send coupon_code in the order creation payload.
-
 const buildAttributionState = (searchParams, current = {}) => ({
   source_key: resolveSourceKeyFromParams(searchParams) || normalizeSourceKey(current.source_key || ""),
   marketing_source: String(searchParams.get("src") || searchParams.get("platform") || searchParams.get("kind") || "other"),

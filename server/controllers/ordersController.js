@@ -2784,16 +2784,9 @@ const runPostOrderSideEffects = async ({
     async () => {
       // Welcome coupon for a first-time customer. Assigned only — the manager still sends it.
       if (!resolvedCustomerId || isPersonalTransaction) return;
-      const { issued } = await issueFirstOrderCoupons({ tenantId, customerId: resolvedCustomerId, orderId });
-      for (const assignment of issued) {
-        io.emit("dashboard:activity", {
-          type: "coupon_issued",
-          title: assignment.campaign_name,
-          code: assignment.coupon?.code || "",
-          customer: assignment.customer?.name || "",
-          created_at: new Date().toISOString(),
-        });
-      }
+      // The coupon is assigned only; the coupons page surfaces it through its
+      // "awaiting send" banner, which is where a manager actually acts on it.
+      await issueFirstOrderCoupons({ tenantId, customerId: resolvedCustomerId, orderId });
     },
     async () => {
       io.emit("new_order", order);

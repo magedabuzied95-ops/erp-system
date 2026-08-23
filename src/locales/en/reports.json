@@ -86,5 +86,38 @@
       "people": "People & Customers"
     },
     "emptyRows": "No report rows match the current filters."
+  },
+  "coupons": {
+    "title": "Coupon performance",
+    "subtitle": "Reversed redemptions are excluded, and the with/without comparison is drawn over the same period.",
+    "forbidden": "You do not have access to marketing reports.",
+    "failed": "Could not load the report.",
+    "tiles": {
+      "redemptions": "Redemptions",
+      "discount": "Total discount",
+      "netSales": "Net sales after discount",
+      "conversionSent": "Conversion (of sent)",
+      "conversionGenerated": "Conversion (of generated)",
+      "avgWith": "Avg order with coupon",
+      "avgWithout": "Avg order without coupon",
+      "upliftHint": "{{pct}} versus orders without a coupon",
+      "baselineHint": "from {{count}} orders in the same period"
+    },
+    "table": {
+      "title": "Campaigns",
+      "subtitle": "Ranked by discount spent",
+      "campaign": "Campaign",
+      "discount": "Discount",
+      "generated": "Generated",
+      "sent": "Sent",
+      "redemptions": "Redeemed",
+      "conversion": "Conversion",
+      "discountTotal": "Total discount",
+      "netSales": "Net sales",
+      "uniqueCodes": "Unique codes",
+      "inactive": "Inactive",
+      "freeShipping": "Free shipping",
+      "empty": "No coupon was used in this period."
+    }
   }
 }

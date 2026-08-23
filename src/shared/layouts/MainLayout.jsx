@@ -216,7 +216,7 @@ const groupForSidebarItem = (sectionTitle, item) => {
   if (to === "/products" || to === "/products/add" || to === "/inventory" || to === "/inventory/count" || to === "/warehouses" || to === "/stock-transfers") return "Products & Inventory";
   if (to === "/purchases" || to === "/suppliers") return "Purchasing";
   if (to === "/employees" || to.startsWith("/employees/")) return "Employees";
-  if (to === "/accounting" || to === "/expenses" || to === "/reports" || to === "/reports/overview" || to === "/reports/sales" || to === "/reports/inventory") return "Finance";
+  if (to === "/accounting" || to === "/expenses" || to === "/reports" || to === "/reports/overview" || to === "/reports/sales" || to === "/reports/inventory" || to === "/reports/coupons") return "Finance";
   if (to === "/marketing/ai-center" || to === "/admin/ai-inbox" || to === "/admin/ai-followups" || to === "/admin/ai-agent-analytics" || to === "/admin/ai-support-knowledge-base" || to === "/admin/ai-agent-settings") return "AI & Marketing";
   if (to === "/branches" || to === "/settings/users" || to === "/admin/tenants" || to === "/settings/permissions" || to === "/settings/company" || to === "/settings/storefront" || to === "/settings/shipping" || to === "/settings/payments" || to === "/settings") return "System Settings";
 
@@ -278,7 +278,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
     "Products & Inventory": ["/products", "/products/add", "/inventory", "/inventory/count", "/warehouses", "/stock-transfers"],
     Purchasing: ["/purchases", "/suppliers"],
     Employees: ["/employees", "/employees/attendance", "/reports"],
-    Finance: ["/accounting", "/expenses", "/reports/overview", "/reports/sales", "/reports/inventory", "/reports"],
+    Finance: ["/accounting", "/expenses", "/reports/overview", "/reports/sales", "/reports/inventory", "/reports/coupons", "/reports"],
     "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
     "System Settings": ["/settings", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments", "/branches", "/settings/users", "/admin/tenants", "/settings/permissions"],
   };
