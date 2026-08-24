@@ -9,6 +9,7 @@ import CoverageBadge from "../components/CoverageBadge";
 import OverviewTrendChart from "../components/OverviewTrendChart";
 import CategoryContribution from "../components/CategoryContribution";
 import ManagementHighlights from "../components/ManagementHighlights";
+import ReportExportMenu from "../components/ReportExportMenu";
 import { Card, PeriodFootnote, ReportsHeader, ReportsPage, Subtle } from "../components/ReportsLayout";
 import {
   OverviewEmpty,
@@ -53,14 +54,23 @@ export default function ExecutiveOverview() {
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-5">
         <ReportsHeader title={t("overview.title")} subtitle={t("overview.subtitle")}>
-          <PeriodSelector
-            filters={filters}
-            allowedComparisons={allowedComparisons}
-            onPresetChange={setPreset}
-            onCompareChange={setCompare}
-            onRefresh={refresh}
-            busy={busy}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodSelector
+              filters={filters}
+              allowedComparisons={allowedComparisons}
+              onPresetChange={setPreset}
+              onCompareChange={setCompare}
+              onRefresh={refresh}
+              busy={busy}
+            />
+            <ReportExportMenu
+              reportKey="overview"
+              title={t("overview.title")}
+              filters={filters}
+              language={i18n.language}
+              sheets={() => buildOverviewSheets({ t, language: i18n.language, data, showProfit })}
+            />
+          </div>
         </ReportsHeader>
 
         {status === "forbidden" ? (
@@ -154,3 +164,61 @@ export default function ExecutiveOverview() {
     </ReportsPage>
   );
 }
+
+/**
+ * The export carries exactly what the page rendered: the same KPI set, the same
+ * permission gating, the same period. Profit columns are absent rather than blank when
+ * the caller may not see them, so a file cannot become a way around the mask.
+ */
+const buildOverviewSheets = ({ t, language, data, showProfit }) => {
+  const sheets = [];
+  const kpis = data?.kpis || {};
+  const metrics = [...PRIMARY, ...OPERATING, ...HEALTH].filter(
+    (metric) => kpis[metric] && !kpis[metric].restricted && (showProfit || !PROFIT_METRICS.includes(metric))
+  );
+
+  sheets.push({
+    name: t("overview.groups.primary"),
+    columns: [
+      { key: "metric", label: t("overview.kpi.netSales") },
+      { key: "value", label: t("overview.period.label", { defaultValue: "Value" }), align: "end" },
+      { key: "previous", label: t("overview.compare.label"), align: "end" },
+    ],
+    rows: metrics.map((metric) => ({
+      metric: t(`overview.kpi.${metric}`),
+      value: kpis[metric].current,
+      previous: kpis[metric].previous ?? null,
+    })),
+  });
+
+  if (data?.categories?.length) {
+    sheets.push({
+      name: t("overview.categories.title"),
+      columns: [
+        { key: "key", label: t("overview.categories.title") },
+        { key: "netSales", label: t("overview.kpi.netSales"), align: "end" },
+        ...(showProfit ? [{ key: "grossProfit", label: t("overview.kpi.grossProfit"), align: "end" }] : []),
+        { key: "share", label: t("overview.kpi.discountRate"), align: "end", kind: "percent" },
+      ],
+      rows: data.categories,
+    });
+  }
+
+  if (data?.trend?.length) {
+    sheets.push({
+      name: t("overview.trend.title"),
+      columns: [
+        { key: "bucket", label: t("overview.trend.title"), kind: "text" },
+        { key: "netSales", label: t("overview.trend.netSales"), align: "end" },
+        ...(showProfit ? [{ key: "grossProfit", label: t("overview.trend.grossProfit"), align: "end" }] : []),
+        { key: "orders", label: t("overview.trend.orders"), align: "end" },
+      ],
+      rows: data.trend,
+    });
+  }
+
+  return { sheets, language };
+};
+
+/** Metrics that carry margin, and therefore follow the profit permission. */
+const PROFIT_METRICS = ["grossProfit", "grossMargin"];

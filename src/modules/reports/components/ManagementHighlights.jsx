@@ -57,7 +57,6 @@ export default function ManagementHighlights({ highlights = [], namespace = "ove
  * wording stays in the bundle.
  */
 const buildValues = (highlight, language) => ({
-  ...formatHighlightValues(highlight.values, language),
   percent:
     typeof highlight.changePercent === "number"
       ? formatPercentValue(Math.abs(highlight.changePercent), language)
@@ -67,6 +66,8 @@ const buildValues = (highlight, language) => ({
   points: typeof highlight.changePoints === "number" ? Math.abs(highlight.changePoints).toFixed(1) : "",
   current: typeof highlight.currentValue === "number" ? formatPercentValue(highlight.currentValue, language) : "",
   previous: typeof highlight.comparisonValue === "number" ? formatPercentValue(highlight.comparisonValue, language) : "",
+  // Last, so an explicit values object always wins over the flat fallbacks above.
+  ...formatHighlightValues(highlight.values, language),
 });
 
 /** Format a raw values object: ratios as percentages, money as money, counts as-is. */

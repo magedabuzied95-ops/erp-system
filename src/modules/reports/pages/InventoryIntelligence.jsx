@@ -12,6 +12,7 @@ import {
 } from "../services/inventoryApi";
 
 import PeriodSelector from "../components/PeriodSelector";
+import ReportExportMenu from "../components/ReportExportMenu";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -96,6 +97,13 @@ export default function InventoryIntelligence() {
               onCompareChange={filters.setCompare}
               onRefresh={refreshAll}
               busy={summary.status === "loading" || summary.status === "refreshing"}
+            />
+            <ReportExportMenu
+              reportKey="inventory"
+              title={t("inventoryAnalytics.title")}
+              filters={filters.filters}
+              language={i18n.language}
+              sheets={() => buildInventorySheets({ t, language: i18n.language, summary, breakdown, products })}
             />
             <button
               type="button"
@@ -336,3 +344,78 @@ function ActiveFilters({ filters, t, language }) {
     </div>
   );
 }
+
+/**
+ * Export payload for this screen. Same rule as everywhere else in the Reporting Center:
+ * the file carries the rows the page rendered, under the same permission gating.
+ */
+const buildInventorySheets = ({ t, language, summary, breakdown, products }) => {
+  const sheets = [];
+  const kpis = summary.data?.kpis || {};
+  const metricKeys = Object.keys(kpis).filter((metric) => kpis[metric] && !kpis[metric].restricted);
+
+  if (metricKeys.length) {
+    sheets.push({
+      name: t("inventoryAnalytics.title"),
+      columns: [
+        { key: "metric", label: t("inventory.table.product") },
+        { key: "value", label: t("overview.kpi.unitsInStock"), align: "end" },
+      ],
+      rows: metricKeys.map((metric) => ({
+        metric: t(`overview.kpi.${metric}`, { defaultValue: metric }),
+        value: kpis[metric].current,
+      })),
+    });
+  }
+
+  const health = summary.data?.health?.buckets;
+  if (health) {
+    sheets.push({
+      name: t("inventory.sections.health"),
+      columns: [
+        { key: "bucket", label: t("inventory.table.product") },
+        { key: "products", label: t("overview.kpi.stockedProducts"), align: "end" },
+        { key: "units", label: t("overview.kpi.unitsInStock"), align: "end" },
+        { key: "value", label: t("overview.kpi.inventoryValue"), align: "end" },
+      ],
+      rows: Object.entries(health).map(([bucket, entry]) => ({
+        bucket: t(`inventory.health.${bucket}`, { defaultValue: bucket }),
+        products: entry?.products ?? null,
+        units: entry?.units ?? null,
+        value: entry?.value ?? null,
+      })),
+    });
+  }
+
+  if (breakdown.data?.rows?.length) {
+    sheets.push({
+      name: t("inventory.sections.breakdown"),
+      columns: [
+        { key: "key", label: t("inventory.table.product") },
+        { key: "stockedProducts", label: t("overview.kpi.stockedProducts"), align: "end" },
+        { key: "unitsInStock", label: t("overview.kpi.unitsInStock"), align: "end" },
+        { key: "inventoryValue", label: t("overview.kpi.inventoryValue"), align: "end" },
+        { key: "unitsSoldPeriod", label: t("overview.kpi.unitsSoldPeriod"), align: "end" },
+        { key: "netSalesPeriod", label: t("overview.kpi.netSalesPeriod"), align: "end" },
+      ],
+      rows: breakdown.data.rows,
+    });
+  }
+
+  if (products.data?.rows?.length) {
+    sheets.push({
+      name: t("inventory.sections.table"),
+      columns: [
+        { key: "productName", label: t("inventory.table.product") },
+        { key: "unitsInStock", label: t("overview.kpi.unitsInStock"), align: "end" },
+        { key: "inventoryValue", label: t("overview.kpi.inventoryValue"), align: "end" },
+        { key: "unitsSoldPeriod", label: t("overview.kpi.unitsSoldPeriod"), align: "end" },
+        { key: "netSalesPeriod", label: t("overview.kpi.netSalesPeriod"), align: "end" },
+        { key: "velocity", label: t("inventory.sections.health"), kind: "text" },
+      ],
+      rows: products.data.rows,
+    });
+  }
+
+  return { sheets, language };
+};

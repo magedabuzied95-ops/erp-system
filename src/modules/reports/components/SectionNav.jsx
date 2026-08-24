@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
  * The active item is tracked with an IntersectionObserver rather than a scroll handler,
  * so nothing runs per scroll frame.
  */
-export default function SectionNav({ sections = [] }) {
+export default function SectionNav({ sections = [], namespace = "salesAnalytics" }) {
   const { t } = useTranslation();
   const [active, setActive] = useState(sections[0]?.id || null);
 
@@ -60,7 +60,7 @@ export default function SectionNav({ sections = [] }) {
 
   return (
     <nav
-      aria-label={t("salesAnalytics.nav.label")}
+      aria-label={t(`${namespace}.nav.label`)}
       className="-mx-1 hidden overflow-x-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-1 py-1 lg:block"
     >
       <ul className="flex items-center gap-0.5">
@@ -72,7 +72,7 @@ export default function SectionNav({ sections = [] }) {
               aria-current={active === section.id ? "true" : undefined}
               className={`whitespace-nowrap rounded-[var(--radius-control)] px-3 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] 2xl:text-[13px] ${ active === section.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]" }`}
             >
-              {t(`salesAnalytics.nav.${section.key}`)}
+              {t(`${namespace}.nav.${section.key}`)}
             </button>
           </li>
         ))}

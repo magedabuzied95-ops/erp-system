@@ -509,7 +509,7 @@ export const buildCustomerHighlights = ({ segments, activeCurrent, activePreviou
       values: {
         customers: wonCustomers,
         alreadyRepeated: bySegment.new_repeat?.customers ?? 0,
-        revenue: toMoney((bySegment.new?.revenue ?? 0) + (bySegment.new_repeat?.revenue ?? 0)),
+        revenueValue: toMoney((bySegment.new?.revenue ?? 0) + (bySegment.new_repeat?.revenue ?? 0)),
       },
     });
   }
@@ -522,7 +522,7 @@ export const buildCustomerHighlights = ({ segments, activeCurrent, activePreviou
         severity: change > 0 ? "info" : "warning",
         messageKey: change > 0 ? "highlights.baseGrowing" : "highlights.baseShrinking",
         metric: "activeCustomers",
-        values: { percent: Math.abs(change), current: activeCurrent, previous: activePrevious },
+        values: { changePercent: Math.abs(change), currentCount: activeCurrent, previousCount: activePrevious },
       });
     }
   }

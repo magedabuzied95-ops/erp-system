@@ -183,14 +183,37 @@ test("the navigation entries are translated, not left as raw English labels", as
 
 test("the new pages are grouped with the reporting entries, and the legacy one stays", async () => {
   const layout = await read("../../src/shared/layouts/MainLayout.jsx");
-  const financeRule = layout.match(/if \(to === "\/accounting"[^\n]*return "Finance";/)?.[0];
-  assert.ok(financeRule, "the Finance grouping rule must exist");
-  for (const route of ["/reports/overview", "/reports/sales", "/reports"]) {
-    assert.ok(financeRule.includes(`"${route}"`), `${route} must group with the reporting entries`);
-  }
+
+  // The Reporting Center owns its own sidebar group. It used to live inside Finance
+  // beside the ledger screens, which buried six analytical pages under two accounting
+  // ones and left a reader no way to tell the current reports from the legacy one.
+  assert.match(layout, /"Employees",\n  "Reports",\n  "Finance",/, "Reports must be its own sidebar group");
+  assert.match(
+    layout,
+    /if \(to === "\/reports" \|\| to\.startsWith\("\/reports\/"\)\) return "Reports";/,
+    "every /reports route must land in the Reports group"
+  );
+
+  // Order is meaningful: current pages first, the legacy page last, so the legacy one
+  // never reads as the primary report.
+  const order = layout.match(/Reports: \[([\s\S]*?)\],/)?.[1] || "";
+  const positions = [
+    "/reports/overview",
+    "/reports/sales",
+    "/reports/inventory",
+    "/reports/purchasing",
+    "/reports/customers",
+    "/reports/coupons",
+    "/reports",
+  ].map((route) => order.indexOf(`"${route}"`));
+  assert.ok(positions.every((index) => index !== -1), "every reporting route must be ordered");
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions, "the legacy route must be ordered last");
 
   const store = await read("../../src/modules/permissions/lib/rbacStore.js");
   assert.match(store, /to:\s*"\/reports"/, "the legacy Reports entry must remain in the navigation");
+  for (const route of ["/reports/purchasing", "/reports/customers"]) {
+    assert.ok(store.includes(`to: "${route}"`), `${route} must appear in the navigation matrix`);
+  }
 });
 
 test("the route is gated by the reports permission, not left open", async () => {
@@ -315,7 +338,11 @@ test("the section navigator anchors every section it lists, desktop only", async
   assert.ok(listed.length >= 5, `expected the page to declare its sections, found ${listed.length}`);
   for (const { id, key } of listed) {
     assert.ok(page.includes(`id="${id}"`), `no element carries id="${id}"`);
-    assert.ok(nav.includes("salesAnalytics.nav."), "labels must come from the bundle");
+    // The navigator is shared by every long reporting page, so its labels resolve through
+    // a namespace prop rather than a hardcoded bundle name. What must not change is that
+    // they come from the bundle at all.
+    assert.match(nav, /namespace = "salesAnalytics"/, "salesAnalytics stays the default namespace");
+    assert.match(nav, /t\(`\$\{namespace\}\.nav\.\$\{section\.key\}`\)/, "labels must come from the bundle");
     const ar = JSON.parse(await read("../../src/locales/ar/salesAnalytics.json"));
     assert.ok(ar.nav[key], `nav.${key} has no Arabic copy`);
     assert.match(ar.nav[key], /[؀-ۿ]/, `nav.${key} must be Arabic`);

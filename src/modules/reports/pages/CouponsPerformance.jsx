@@ -6,6 +6,7 @@ import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchCouponPerformance } from "../services/couponsReportApi";
 
 import PeriodSelector from "../components/PeriodSelector";
+import ReportExportMenu from "../components/ReportExportMenu";
 import { Card, ReportsHeader, ReportsPage } from "../components/ReportsLayout";
 import { formatMoney } from "../lib/metricFormat";
 
@@ -73,14 +74,42 @@ export default function CouponsPerformance() {
         title={rText("title", "أداء الكوبونات")}
         subtitle={rText("subtitle", "كل الأرقام بتستبعد الاستخدامات الملغاة، والمقارنة بين الطلبات بكوبون وبدونه على نفس الفترة.")}
       >
-        <PeriodSelector
-          filters={filters}
-          allowedComparisons={allowedComparisons}
-          onPresetChange={setPreset}
-          onCompareChange={setCompare}
-          onRefresh={refresh}
-          busy={busy}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodSelector
+            filters={filters}
+            allowedComparisons={allowedComparisons}
+            onPresetChange={setPreset}
+            onCompareChange={setCompare}
+            onRefresh={refresh}
+            busy={busy}
+          />
+          <ReportExportMenu
+            reportKey="coupons"
+            title={rText("title", "أداء الكوبونات")}
+            filters={filters}
+            language={language}
+            sheets={() => ({
+              language,
+              sheets: campaigns.length
+                ? [
+                    {
+                      name: rText("table.title", "الحملات"),
+                      columns: [
+                        { key: "campaign_name", label: rText("table.campaign", "الحملة") },
+                        { key: "codes_generated", label: rText("table.generated", "مولَّد"), align: "end" },
+                        { key: "codes_sent", label: rText("table.sent", "مُرسَل"), align: "end" },
+                        { key: "redemptions", label: rText("table.redemptions", "مستخدم"), align: "end" },
+                        { key: "conversion_rate", label: rText("table.conversion", "التحويل"), align: "end", kind: "percent" },
+                        { key: "discount_total", label: rText("table.discountTotal", "إجمالي الخصم"), align: "end", kind: "currency" },
+                        { key: "net_sales", label: rText("table.netSales", "صافي المبيعات"), align: "end", kind: "currency" },
+                      ],
+                      rows: campaigns,
+                    },
+                  ]
+                : [],
+            })}
+          />
+        </div>
       </ReportsHeader>
 
       {forbidden ? (

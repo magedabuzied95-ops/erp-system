@@ -649,7 +649,7 @@ export const buildPurchasingHighlights = ({
         severity: "info",
         messageKey: change > 0 ? "highlights.spendUp" : "highlights.spendDown",
         metric: "purchaseSpend",
-        values: { percent: Math.abs(change), current: toMoney(spendCurrent), previous: toMoney(spendPrevious) },
+        values: { changePercent: Math.abs(change), spendValue: toMoney(spendCurrent), previousSpendValue: toMoney(spendPrevious) },
       });
     }
   }
@@ -661,7 +661,7 @@ export const buildPurchasingHighlights = ({
         severity: "warning",
         messageKey: "highlights.stockBuilding",
         metric: "stockBuildRatio",
-        values: { ratio: relationship.stockBuildRatio, spend: relationship.purchaseSpend, cogs: relationship.cogs },
+        values: { ratio: relationship.stockBuildRatio, spendValue: relationship.purchaseSpend, cogsValue: relationship.cogs },
       });
     } else if (relationship.stockBuildRatio > 0 && relationship.stockBuildRatio <= 0.5) {
       highlights.push({
@@ -669,7 +669,7 @@ export const buildPurchasingHighlights = ({
         severity: "info",
         messageKey: "highlights.stockDrawdown",
         metric: "stockBuildRatio",
-        values: { ratio: relationship.stockBuildRatio, spend: relationship.purchaseSpend, cogs: relationship.cogs },
+        values: { ratio: relationship.stockBuildRatio, spendValue: relationship.purchaseSpend, cogsValue: relationship.cogs },
       });
     }
   }
@@ -680,7 +680,7 @@ export const buildPurchasingHighlights = ({
       severity: "warning",
       messageKey: "highlights.concentration",
       metric: "topShare",
-      values: { share: concentration.topShare, suppliers: concentration.supplierCount },
+      values: { sharePercent: concentration.topShare, suppliers: concentration.supplierCount },
     });
   }
 
@@ -690,7 +690,7 @@ export const buildPurchasingHighlights = ({
       severity: "info",
       messageKey: "highlights.unpaid",
       metric: "unpaidPurchaseValue",
-      values: { amount: toMoney(unpaid) },
+      values: { amountValue: toMoney(unpaid) },
     });
   }
 
