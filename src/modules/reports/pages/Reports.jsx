@@ -361,7 +361,12 @@ function Reports() {
           they would not silently move figures a manager reads daily — and that choice
           is only honest if the page says which figures are affected.
         */}
-        <LegacyReportNotice variant="reports" activeTab={activeTab} scopeCorrection={dashboard?.scopeCorrection} />
+        <LegacyReportNotice
+          variant="reports"
+          activeTab={activeTab}
+          scopeCorrection={dashboard?.scopeCorrection}
+          presetCount={presets.length}
+        />
         <header className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(6,78,59,0.72))] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>

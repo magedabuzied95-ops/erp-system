@@ -307,6 +307,7 @@
       "body": "This page no longer counts orders that were never sales — unpaid, cancelled, returned, personal and deleted — and now uses the same definition of a sale as the accounting profit and loss.",
       "removed": "For the period shown that removes {{orders}} orders worth {{value}} from every figure on this page; figures you recorded before that date still included them.",
       "removedNothing": "For the period shown nothing was removed: every order in range is a recognised sale."
-    }
+    },
+    "presetsWarning": "Your {{saved}} saved report presets live only in this browser, on this page. Nothing on the server can see them, so they cannot be restored if this page is ever retired — take a note of any you rely on."
   }
 }

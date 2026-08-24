@@ -35,7 +35,12 @@ export const CANONICAL_REPLACEMENT = Object.freeze({
   financial: [{ to: "/accounting/reports", key: "financial" }, { to: "/reports/reconciliation", key: "reconciliation" }],
 });
 
-export default function LegacyReportNotice({ variant = "reports", activeTab = null, scopeCorrection = null }) {
+export default function LegacyReportNotice({
+  variant = "reports",
+  activeTab = null,
+  scopeCorrection = null,
+  presetCount = 0,
+}) {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const Arrow = isArabic ? ArrowLeft : ArrowRight;
@@ -103,6 +108,21 @@ export default function LegacyReportNotice({ variant = "reports", activeTab = nu
                   : t("overview.legacy.scopeFix.removedNothing")}
               </p>
             </div>
+          ) : null}
+
+          {/*
+            The migration line. This page is on a retirement path, and its saved presets
+            live in THIS browser's storage — nothing on the server can see them, so nobody
+            can warn the reader afterwards that they were lost. Shown only when they have
+            some, because a warning about a feature you do not use is noise.
+          */}
+          {variant === "reports" && presetCount > 0 ? (
+            <p className="mt-2.5 max-w-[80ch] text-[12px] leading-5 text-[var(--text-secondary)]">
+              {/* `saved`, not `count` — `count` triggers i18next pluralisation, and Arabic
+                  needs six forms. A bundle carrying only _one/_other silently renders
+                  English at 2, 3 and 11. A plain variable engages none of that. */}
+              {t("overview.legacy.presetsWarning", { saved: presetCount })}
+            </p>
           ) : null}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">

@@ -86,8 +86,11 @@ test("both legacy pages carry the notice, above the numbers it is about", async 
   const reports = await read("../../src/modules/reports/pages/Reports.jsx");
   assert.match(reports, /import LegacyReportNotice/);
   // It is told which tab the reader is on, so its link answers the question in front of
-  // them rather than offering a generic pair they have to choose between.
-  assert.match(reports, /<LegacyReportNotice variant="reports" activeTab=\{activeTab\}/);
+  // them rather than offering a generic pair they have to choose between — and how many
+  // presets they have, so the migration warning only appears for people who would lose
+  // something. Matched across lines, because the prop list no longer fits on one.
+  assert.match(reports, /<LegacyReportNotice\s+variant="reports"\s+activeTab=\{activeTab\}/);
+  assert.match(reports, /presetCount=\{presets\.length\}/);
   // It must be the first child of the page body, not buried under the header.
   const bodyIndex = reports.indexOf('<div className="mx-auto w-full space-y-5">');
   const noticeIndex = reports.indexOf("<LegacyReportNotice");
@@ -232,6 +235,20 @@ test("the page says what the correction removed, in both languages", async () =>
 
   const page = await read("../../src/modules/reports/pages/Reports.jsx");
   assert.match(page, /scopeCorrection=\{dashboard\?\.scopeCorrection\}/);
+
+  // The migration warning: saved presets live in localStorage, so nothing on the server
+  // can warn the reader after the fact that they were lost. It must interpolate a plain
+  // variable, never `count` — that would engage i18next pluralisation, and an Arabic
+  // bundle without all six forms silently renders English at 2, 3 and 11.
+  assert.match(notice, /presetCount > 0/);
+  assert.match(notice, /t\("overview\.legacy\.presetsWarning", \{ saved: presetCount \}\)/);
+  for (const locale of ["en", "ar"]) {
+    const bundle = JSON.parse(await read(`../../src/locales/${locale}/overview.json`));
+    const warning = bundle.legacy?.presetsWarning;
+    assert.ok(warning?.length > 60, `${locale} is missing the presets migration warning`);
+    assert.match(warning, /\{\{saved\}\}/, `${locale} must interpolate the count`);
+    assert.ok(!/_one|_other/.test(JSON.stringify(bundle.legacy)), "no bare plural suffixes in the legacy block");
+  }
 
   for (const locale of ["en", "ar"]) {
     const bundle = JSON.parse(await read(`../../src/locales/${locale}/overview.json`));
