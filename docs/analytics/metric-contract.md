@@ -6,7 +6,12 @@ contract change: it requires a version bump, a migration note in [`reconciliatio
 Implemented by `server/services/analytics/`. Legacy `/api/reports`, `/api/analytics` and `/api/accounting/*` are **not**
 governed by this contract — they are described in [`legacy-defects.md`](./legacy-defects.md).
 
-Contract version: **1.0.0** · Frozen against `main` @ `2b5b9fe`.
+Contract version: **1.1.0** · Frozen against `main` @ `2b5b9fe`.
+
+| Version | Date | Change |
+|---|---|---|
+| 1.0.0 | 2026-08-23 | Frozen. |
+| 1.1.0 | 2026-08-24 | §6 exchange recognition depends on whether the replaced order was actually reversed. Re-traced write path; the POS returns the original first. Migration note: [`reconciliation.md` Q-D03](./reconciliation.md), tests in `analytics-contract.test.js` §6. No other definition changed. |
 
 ---
 
@@ -106,7 +111,7 @@ Response envelope:
   "warnings": [
     { "code": "COGS_COVERAGE_LOW", "message": "…", "coverage": 0.73, "scope": "grossProfit" }
   ],
-  "meta": { "filters": {}, "generatedAt": "…", "comparison": {}, "contractVersion": "1.0.0" }
+  "meta": { "filters": {}, "generatedAt": "…", "comparison": {}, "contractVersion": "1.1.0" }
 }
 ```
 
@@ -270,12 +275,16 @@ allowlist; an unrecognised `movement_type` is counted in no bucket and emits `UN
 
 ## 6. Exchange behaviour
 
-Established by code trace and data (D-03): the exchange flow **never reverses the original order**. No `returns` row,
-`returned_quantity` stays 0, `returned_at` stays null, and no compensating stock movement is written.
+> **Amended v1.1.0, 2026-08-24.** The v1 rule below rested on a code trace of `POST /orders` alone. Re-tracing the
+> whole write path from the UI showed the POS reverses the original **before** opening the exchange sale — a returns
+> row, `returned_quantity`, a `RETURN_IN` movement and `status = 'returned'`. There are two shapes, not one, and they
+> need opposite treatment. The amended rule is below the v1 one, which is retained because it still governs the
+> orphan shape. Full trace in [`legacy-defects.md` D-03](./legacy-defects.md).
 
-### v1 recognition rule
+### v1 recognition rule — now scoped to the ORPHAN shape only
 
-For an order with `exchange_mode = TRUE`:
+An **orphan exchange** is one created through `POST /orders` with `exchange_mode = TRUE` and no preceding return, so
+the original is still a live sale. For those:
 
 | Quantity | Treatment |
 |---|---|
@@ -286,6 +295,22 @@ For an order with `exchange_mode = TRUE`:
 | Warning | `EXCHANGE_COGS_UNREVERSED`, with affected order count and estimated unreversed cost |
 
 This eliminates the revenue double-count (the material error) and makes the cost/stock issue visible rather than silent.
+
+### v1.1 recognition rule — the REVERSED shape
+
+A **reversed exchange** is the one the POS actually produces: the original carries `returned_at` or
+`status IN ('returned', 'refunded')`, so it already fails the canonical predicate and contributes nothing.
+
+| Quantity | Treatment |
+|---|---|
+| Revenue contribution | the exchange's **full** net revenue — `subtotal − discount_amount`, same as any sale |
+| Original order | contributes nothing; its stock is back and its COGS is reversed by the return |
+| Negative `exchange_difference` | already a customer-wallet liability, written by the return; not disclosed again |
+| Warning | none — nothing is unreversed |
+
+Applying the v1 rule here would **understate** the sale by the entire credited portion, which is why the shape is
+determined from the data (`exchangeOriginalReversedExpr` — a tenant-scoped primary-key lookup, evaluated only for
+exchange rows) rather than assumed.
 
 **Why COGS is not auto-reversed.** The model cannot disambiguate partial exchanges, and dev order 176 has **two**
 exchange children (178 and 179) — a blanket "reverse the original in full" rule would reverse it twice.

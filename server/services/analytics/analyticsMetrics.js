@@ -23,7 +23,9 @@ import {
 } from "./accountingCanon.js";
 import { WARNING_CODES } from "./analyticsComparison.js";
 
-export const CONTRACT_VERSION = "1.0.0";
+// 1.1.0 — exchange recognition depends on whether the replaced order was actually
+// reversed (contract §6 v1.1). Everything else is unchanged from 1.0.0.
+export const CONTRACT_VERSION = "1.1.0";
 
 /**
  * Every place v2 knowingly differs from legacy accounting. The reconciliation service
@@ -34,7 +36,7 @@ export const DIVERGENCES = Object.freeze([
   { id: "D-04", metric: "orders", warning: WARNING_CODES.SOFT_DELETED_EXCLUDED, summary: "v2 excludes deleted_at IS NOT NULL" },
   { id: "D-05", metric: "orders", warning: WARNING_CODES.DRAFT_STATUS_EXCLUDED, summary: "v2 excludes any status matching %draft%, not just the literal 'draft'" },
   { id: "D-07", metric: "operatingExpenses", warning: WARNING_CODES.DRAFT_EXPENSES_EXCLUDED, summary: "v2 excludes draft expenses" },
-  { id: "D-03", metric: "netSales", warning: WARNING_CODES.EXCHANGE_COGS_UNREVERSED, summary: "v2 recognises amount_due_now for exchange orders; original COGS still unreversed" },
+  { id: "D-03", metric: "netSales", warning: WARNING_CODES.EXCHANGE_COGS_UNREVERSED, summary: "v2 recognises amount_due_now only for an exchange whose original was never returned; that original's COGS stays unreversed" },
   { id: "D-08", metric: "inventoryValue", warning: WARNING_CODES.STOCK_SOURCE_DIVERGENCE, summary: "v2 values stock from product_variants.stock, not the dead products.stock" },
 ]);
 
@@ -107,25 +109,84 @@ export const discountBreakdownExprs = (orderColumns, { alias = "o" } = {}) => ({
 });
 
 /**
+ * Was the order this exchange replaces actually reversed?
+ *
+ * The POS creates an exchange in two steps: `POST /orders/:id/return` with `mode:
+ * "exchange"`, which writes a returns row, increments returned_quantity, restores stock
+ * with a RETURN_IN movement and sets the original to `status = 'returned'` — and only
+ * then a new sale carrying the credit. A reversed original fails the canonical predicate,
+ * so it is already out of every figure.
+ *
+ * But `POST /orders` accepts `exchange_mode` on its own, with no evidence that any return
+ * happened. An API client can therefore mint an exchange whose original is still a live
+ * sale. That shape is what D-03 describes, and it is the only one that double-counts.
+ *
+ * So this asks the data rather than assuming either way. Evaluated only for exchange rows
+ * — Postgres short-circuits CASE — and it is a primary-key lookup.
+ */
+export const exchangeOriginalReversedExpr = (orderColumns, { alias = "o" } = {}) => {
+  if (!orderColumns.has("original_order_id")) return "FALSE";
+  const returnedAt = orderColumns.has("returned_at") ? "orig.returned_at IS NOT NULL" : "FALSE";
+  const returnedStatus = orderColumns.has("status")
+    ? "LOWER(COALESCE(orig.status, '')) IN ('returned', 'refunded')"
+    : "FALSE";
+  // Scoped to the exchange's own tenant. original_order_id is an unconstrained bigint, so
+  // without this a crafted value could read one row of another shop's orders.
+  const tenant = orderColumns.has("tenant_id") ? `AND orig.tenant_id = ${alias}.tenant_id` : "";
+  return `EXISTS (
+    SELECT 1 FROM orders orig
+    WHERE orig.id = ${alias}.original_order_id ${tenant}
+      AND (${returnedAt} OR ${returnedStatus})
+  )`;
+};
+
+/**
  * Revenue contribution of a single order.
  *
- * Exchange orders recognise `amount_due_now` (the incremental consideration) rather than
- * total_amount, because the exchange flow never reverses the original order — no returns
- * row, returned_quantity stays 0, stock is not restored (D-03). Counting both sides in
- * full double-counts the credited portion.
+ * An exchange recognises its full net revenue when the order it replaced was genuinely
+ * reversed, because that original has already left every figure — recognising only the
+ * incremental `amount_due_now` there would UNDERSTATE the sale by the credited portion.
+ *
+ * When the original was not reversed, both sides are live and counting both in full
+ * double-counts the credit, so only `amount_due_now` is recognised. See D-03, and
+ * exchangeOriginalReversedExpr above for how the two shapes arise.
  */
 export const orderRevenueExpr = (orderColumns, { alias = "o" } = {}) => {
   const gross = grossSalesExpr(orderColumns, { alias });
   const discount = discountAmountExpr(orderColumns, { alias });
   const net = `((${gross}) - (${discount}))`;
   if (!orderColumns.has("exchange_mode") || !orderColumns.has("amount_due_now")) return net;
-  return `(CASE WHEN COALESCE(${alias}.exchange_mode, FALSE) THEN COALESCE(${alias}.amount_due_now, 0) ELSE ${net} END)`;
+  const reversed = exchangeOriginalReversedExpr(orderColumns, { alias });
+  return `(CASE
+    WHEN COALESCE(${alias}.exchange_mode, FALSE) AND NOT (${reversed}) THEN COALESCE(${alias}.amount_due_now, 0)
+    ELSE ${net}
+  END)`;
 };
 
-/** Exchange credit the customer did not consume — the residual v2 overstatement. §6 */
+/**
+ * Exchanges whose original is still a live sale — the ones D-03 is actually about.
+ *
+ * Counting these is what the warning should be based on. Counting every exchange would
+ * fire on the correct two-step flow as well, and a warning that appears when nothing is
+ * wrong stops being read.
+ */
+export const orphanExchangeExpr = (orderColumns, { alias = "o" } = {}) => {
+  if (!orderColumns.has("exchange_mode")) return "FALSE";
+  const reversed = exchangeOriginalReversedExpr(orderColumns, { alias });
+  return `(COALESCE(${alias}.exchange_mode, FALSE) AND NOT (${reversed}))`;
+};
+
+/**
+ * Exchange credit the customer did not consume — the residual v2 overstatement. §6
+ *
+ * Only on the orphan shape. When the original was properly reversed, the unconsumed
+ * credit was already moved to the customer's wallet by the return, so it is a liability
+ * and not revenue sitting in this figure — there is nothing residual to report.
+ */
 export const exchangeCreditRetainedExpr = (orderColumns, { alias = "o" } = {}) => {
   if (!orderColumns.has("exchange_mode") || !orderColumns.has("exchange_difference")) return "0";
-  return `(CASE WHEN COALESCE(${alias}.exchange_mode, FALSE) THEN GREATEST(-COALESCE(${alias}.exchange_difference, 0), 0) ELSE 0 END)`;
+  const orphan = orphanExchangeExpr(orderColumns, { alias });
+  return `(CASE WHEN ${orphan} THEN GREATEST(-COALESCE(${alias}.exchange_difference, 0), 0) ELSE 0 END)`;
 };
 
 /* ------------------------------------------------------------------------ cost */

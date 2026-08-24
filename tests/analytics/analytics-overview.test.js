@@ -341,7 +341,7 @@ test("the response envelope carries period, contract version and query timings",
   assert.equal(data.period.from, "2026-06-01");
   assert.equal(data.period.to, "2026-06-30");
   assert.equal(data.period.granularity, "day");
-  assert.equal(meta.contractVersion, "1.0.0");
+  assert.equal(meta.contractVersion, "1.1.0");
   assert.ok(meta.generatedAt);
   assert.equal(typeof meta.timings, "object");
 });

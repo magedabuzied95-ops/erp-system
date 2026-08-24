@@ -169,7 +169,10 @@ test("live: v2 excludes what the contract says it excludes", async (t) => {
   }
 });
 
-test("live: exchange orders contribute amount_due_now, not total_amount", async (t) => {
+// An exchange only double-counts when the order it replaced was never returned. The POS
+// creates the return first, so the original is already out of scope and the exchange
+// contributes in full. See docs/analytics/legacy-defects.md D-03.
+test("live: the unreversed-cost warning tracks orphan exchanges, not every exchange", async (t) => {
   if (!(await reachable())) return t.skip("no database reachable");
   const pg = await import("pg");
   const { Pool } = pg.default || pg;
@@ -184,9 +187,14 @@ test("live: exchange orders contribute amount_due_now, not total_amount", async 
 
   try {
     const exchange = await pool.query(`
-      SELECT COUNT(*)::int AS n,
-             COALESCE(SUM(COALESCE(total_amount,0) - COALESCE(amount_due_now,0)), 0)::numeric AS correction
-      FROM orders WHERE tenant_id = 1 AND COALESCE(exchange_mode, FALSE)
+      SELECT
+        COUNT(*)::int AS n,
+        COUNT(*) FILTER (WHERE NOT EXISTS (
+          SELECT 1 FROM orders orig
+          WHERE orig.id = e.original_order_id AND orig.tenant_id = e.tenant_id
+            AND (orig.returned_at IS NOT NULL OR LOWER(COALESCE(orig.status, '')) IN ('returned', 'refunded'))
+        ))::int AS orphans
+      FROM orders e WHERE e.tenant_id = 1 AND COALESCE(e.exchange_mode, FALSE)
     `);
     if (!exchange.rows[0].n) return t.skip("no exchange orders in this dataset");
 
@@ -196,11 +204,12 @@ test("live: exchange orders contribute amount_due_now, not total_amount", async 
       permissions: FULL,
     });
 
-    assert.ok(
-      payload.warnings.some((warning) => warning.code === "EXCHANGE_COGS_UNREVERSED"),
-      "the unreversed-cost limitation must be disclosed whenever exchanges are present"
-    );
-    assert.ok(Number(exchange.rows[0].correction) > 0, "fixture should have a non-zero exchange correction");
+    const disclosed = payload.warnings.some((warning) => warning.code === "EXCHANGE_COGS_UNREVERSED");
+    if (Number(exchange.rows[0].orphans) > 0) {
+      assert.ok(disclosed, "an exchange whose original is still a live sale must be disclosed");
+    } else {
+      assert.ok(!disclosed, "warning on a correctly reversed exchange would be crying wolf");
+    }
   } finally {
     await pool.end().catch(() => {});
   }

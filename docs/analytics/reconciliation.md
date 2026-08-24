@@ -145,15 +145,32 @@ WHERE LOWER(COALESCE(o.status,'')) NOT IN ('cancelled','canceled','void','refund
        OR LOWER(COALESCE(o.status,'')) IN ('paid','completed','complete','delivered'));
 ```
 
-### Q-D03 — exchange exposure
+### Q-D03 — exchange exposure, split by shape
+
+An exchange only double-counts when the order it replaced is still a live sale. The POS returns the original first,
+so the shape has to be read from the data rather than assumed — see contract §6 v1.1 and `legacy-defects.md` D-03.
+
 ```sql
-SELECT COUNT(*) AS exchange_orders,
-       ROUND(SUM(COALESCE(total_amount,0))::numeric,2)                              AS legacy_revenue,
-       ROUND(SUM(COALESCE(amount_due_now,0))::numeric,2)                            AS v2_revenue,
-       ROUND(SUM(COALESCE(total_amount,0) - COALESCE(amount_due_now,0))::numeric,2) AS correction,
-       ROUND(SUM(GREATEST(-COALESCE(exchange_difference,0),0))::numeric,2)          AS credit_retained
-FROM orders WHERE COALESCE(exchange_mode,FALSE);
+SELECT
+  COUNT(*)                                                                  AS exchange_orders,
+  COUNT(*) FILTER (WHERE reversed)                                          AS reversed_shape,
+  COUNT(*) FILTER (WHERE NOT reversed)                                      AS orphan_shape,
+  ROUND(SUM(COALESCE(total_amount,0))::numeric,2)                           AS legacy_revenue,
+  ROUND(SUM(CASE WHEN reversed THEN COALESCE(total_amount,0)
+                 ELSE COALESCE(amount_due_now,0) END)::numeric,2)           AS v2_revenue,
+  ROUND(SUM(CASE WHEN reversed THEN 0
+                 ELSE GREATEST(-COALESCE(exchange_difference,0),0) END)::numeric,2) AS credit_retained
+FROM (
+  SELECT e.*, EXISTS (
+    SELECT 1 FROM orders orig
+    WHERE orig.id = e.original_order_id AND orig.tenant_id = e.tenant_id
+      AND (orig.returned_at IS NOT NULL OR LOWER(COALESCE(orig.status,'')) IN ('returned','refunded'))
+  ) AS reversed
+  FROM orders e WHERE COALESCE(e.exchange_mode,FALSE)
+) shaped;
 ```
+
+**Production, 2026-08-24: 0 rows.** No exchange order of either shape has ever been created there.
 
 ### Q-D06 — fully paid but unrecognised
 ```sql

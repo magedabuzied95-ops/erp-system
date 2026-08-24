@@ -2,6 +2,7 @@
 // docs/analytics/metric-contract.md v1.0.0
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   AnalyticsFilterError,
@@ -32,8 +33,10 @@ import {
   discountAmountExpr,
   discountBreakdownExprs,
   exchangeCreditRetainedExpr,
+  exchangeOriginalReversedExpr,
   nanSafe,
   orderRevenueExpr,
+  orphanExchangeExpr,
   recognisedExpenseClausesV2,
   recognisedPurchaseClauses,
   resolveSellerAttributionField,
@@ -197,10 +200,13 @@ test("low cost coverage warns; critical coverage blanks profit", () => {
 
 /* ------------------------------------------------- §1.3 v2 canonical predicate */
 
+// Mirrors the production `orders` schema for the columns this contract touches, verified
+// against information_schema on 2026-08-24.
 const ORDER_COLUMNS = new Set([
-  "status", "payment_status", "is_personal_transaction", "deleted_at",
+  "tenant_id", "status", "payment_status", "is_personal_transaction", "deleted_at",
   "subtotal", "total_amount", "discount_amount", "invoice_discount_amount",
   "coupon_discount_amount", "exchange_mode", "amount_due_now", "exchange_difference",
+  "original_order_id", "returned_at",
   "seller_user_id", "sales_employee_id", "salesperson_id", "channel",
 ]);
 
@@ -313,47 +319,110 @@ test("discount fixture matrix: legacy over-counting is quantified", () => {
 
 /* --------------------------------------------------------------- §6 exchanges */
 
-test("exchange orders recognise amount_due_now, not total_amount", () => {
+// There are two exchange shapes, and they need opposite treatment.
+//
+// The POS reverses the original before opening the exchange sale — a returns row,
+// returned_quantity, a RETURN_IN movement and status = 'returned' — so the original is
+// already out of every figure. `POST /orders` accepts exchange_mode with no such
+// evidence, which leaves both sides live. See docs/analytics/legacy-defects.md D-03.
+
+test("amending the contract bumped its version, everywhere it is stamped", async () => {
+  const { CONTRACT_VERSION } = await import("../../server/services/analytics/analyticsMetrics.js");
+  assert.equal(CONTRACT_VERSION, "1.1.0", "§6 changed, so the version had to move");
+
+  // buildEnvelope cannot import the constant without a cycle, so its default is a
+  // literal. If the two drift, an endpoint that omits the field publishes a stale version.
+  const comparison = readFileSync(new URL("../../server/services/analytics/analyticsComparison.js", import.meta.url), "utf8");
+  const fallback = comparison.match(/contractVersion = "([^"]+)"/)?.[1];
+  assert.equal(fallback, CONTRACT_VERSION, "the envelope default must track CONTRACT_VERSION");
+
+  // And the document the constant refers to.
+  const contract = readFileSync(new URL("../../docs/analytics/metric-contract.md", import.meta.url), "utf8");
+  assert.ok(contract.includes(`Contract version: **${CONTRACT_VERSION}**`), "the contract must state the same version");
+  assert.match(contract, /\| 1\.1\.0 \| 2026-08-24 \|/, "and record what changed");
+});
+
+test("an exchange whose original was reversed recognises its full revenue", () => {
   const expr = orderRevenueExpr(ORDER_COLUMNS);
-  assert.match(expr, /CASE WHEN COALESCE\(o\.exchange_mode, FALSE\) THEN COALESCE\(o\.amount_due_now, 0\)/);
+  // amount_due_now applies only when the original is NOT reversed. Recognising it when
+  // the original is gone understates the sale by the entire credited portion.
+  assert.match(expr, /WHEN COALESCE\(o\.exchange_mode, FALSE\) AND NOT \(EXISTS \(/);
+  assert.match(expr, /THEN COALESCE\(o\.amount_due_now, 0\)/);
+});
+
+test("the reversal is read from the data, and only from this tenant's data", () => {
+  const expr = exchangeOriginalReversedExpr(ORDER_COLUMNS);
+  assert.match(expr, /SELECT 1 FROM orders orig/);
+  assert.match(expr, /orig\.id = o\.original_order_id/);
+  assert.match(expr, /orig\.returned_at IS NOT NULL/);
+  assert.match(expr, /LOWER\(COALESCE\(orig\.status, ''\)\) IN \('returned', 'refunded'\)/);
+  // original_order_id is an unconstrained bigint from the request body.
+  assert.match(expr, /AND orig\.tenant_id = o\.tenant_id/);
+
+  const untenanted = exchangeOriginalReversedExpr(new Set(["original_order_id", "returned_at", "status"]));
+  assert.ok(!untenanted.includes("tenant_id"), "a schema without tenant_id must degrade, not emit invalid SQL");
+  assert.equal(exchangeOriginalReversedExpr(new Set(["status"])), "FALSE", "no link column means no claim either way");
 });
 
 test("non-exchange orders are unaffected by the exchange branch", () => {
   const withoutExchange = orderRevenueExpr(new Set(["subtotal", "total_amount", "discount_amount"]));
-  assert.ok(!withoutExchange.includes("CASE WHEN"), "no exchange columns means no CASE branch");
+  assert.ok(!withoutExchange.includes("CASE"), "no exchange columns means no CASE branch");
 });
 
-// Worked examples A/B/C from docs/analytics/metric-contract.md §6.
+// Worked examples A/B/C from docs/analytics/metric-contract.md §6, now stated for both
+// shapes. `original` is what the replaced order contributes: nothing once it is returned.
 const EXCHANGE_CASES = [
-  { name: "A like-for-like", original: 1000, replacement: 1000, credit: 1000, dueNow: 0, difference: 0, legacy: 2000, v2: 1000, truth: 1000 },
-  { name: "B upgrade", original: 1000, replacement: 1200, credit: 1000, dueNow: 200, difference: 200, legacy: 2200, v2: 1200, truth: 1200 },
-  { name: "C downgrade", original: 1000, replacement: 800, credit: 1000, dueNow: 0, difference: -200, legacy: 1800, v2: 1000, truth: 800 },
+  { name: "A like-for-like", original: 1000, replacement: 1000, credit: 1000, dueNow: 0, difference: 0, legacy: 2000, orphan: 1000, truth: 1000 },
+  { name: "B upgrade", original: 1000, replacement: 1200, credit: 1000, dueNow: 200, difference: 200, legacy: 2200, orphan: 1200, truth: 1200 },
+  { name: "C downgrade", original: 1000, replacement: 800, credit: 1000, dueNow: 0, difference: -200, legacy: 1800, orphan: 1000, truth: 800 },
 ];
 
-test("exchange cases A/B/C: v2 recognition removes the credited double-count", () => {
+test("orphan exchanges: recognising amount_due_now removes the credited double-count", () => {
   for (const item of EXCHANGE_CASES) {
     const legacy = item.original + item.replacement;
     const v2 = item.original + item.dueNow;
     assert.equal(legacy, item.legacy, `${item.name}: legacy revenue`);
-    assert.equal(v2, item.v2, `${item.name}: v2 revenue`);
+    assert.equal(v2, item.orphan, `${item.name}: orphan-shape revenue`);
     assert.ok(v2 <= legacy, `${item.name}: v2 must never exceed legacy`);
   }
 });
 
-test("exchange cases A/B: v2 is exact; case C overstates by exactly the retained credit", () => {
+test("reversed exchanges: the full replacement value is exactly right, in every case", () => {
+  for (const item of EXCHANGE_CASES) {
+    // The original was returned, so it contributes nothing and the exchange stands alone.
+    const v2 = 0 + item.replacement;
+    assert.equal(v2, item.truth, `${item.name}: reversed-shape revenue must be exact`);
+    // Which is also why the old rule was wrong here: it would have recognised dueNow.
+    if (item.dueNow !== item.replacement) {
+      assert.ok(item.dueNow < v2, `${item.name}: amount_due_now would have understated this sale`);
+    }
+  }
+});
+
+test("orphan cases A/B are exact; case C overstates by exactly the retained credit", () => {
   const [caseA, caseB, caseC] = EXCHANGE_CASES;
-  assert.equal(caseA.v2, caseA.truth, "case A must be exact");
-  assert.equal(caseB.v2, caseB.truth, "case B must be exact");
+  assert.equal(caseA.orphan, caseA.truth, "case A must be exact");
+  assert.equal(caseB.orphan, caseB.truth, "case B must be exact");
 
   const retained = Math.max(-caseC.difference, 0);
   assert.equal(retained, 200);
-  assert.equal(caseC.v2 - caseC.truth, retained, "case C overstatement must equal the retained credit");
+  assert.equal(caseC.orphan - caseC.truth, retained, "case C overstatement must equal the retained credit");
 });
 
-test("retained exchange credit is expressed so it can be disclosed and subtracted", () => {
-  const expr = exchangeCreditRetainedExpr(ORDER_COLUMNS);
-  assert.match(expr, /GREATEST\(-COALESCE\(o\.exchange_difference, 0\), 0\)/);
-  assert.match(expr, /COALESCE\(o\.exchange_mode, FALSE\)/);
+test("retained credit and the unreversed-cost warning fire only on the orphan shape", () => {
+  const retained = exchangeCreditRetainedExpr(ORDER_COLUMNS);
+  assert.match(retained, /GREATEST\(-COALESCE\(o\.exchange_difference, 0\), 0\)/);
+  // On the reversed shape the unconsumed credit is already a wallet liability, not
+  // revenue sitting in this figure, so there is nothing residual to disclose.
+  assert.match(retained, /CASE WHEN \(COALESCE\(o\.exchange_mode, FALSE\) AND NOT \(EXISTS/);
+
+  const orphan = orphanExchangeExpr(ORDER_COLUMNS);
+  assert.match(orphan, /COALESCE\(o\.exchange_mode, FALSE\) AND NOT \(EXISTS/);
+  assert.equal(orphanExchangeExpr(new Set(["total_amount"])), "FALSE");
+
+  const overview = readFileSync(new URL("../../server/services/analytics/analyticsOverviewService.js", import.meta.url), "utf8");
+  // A warning that appears when nothing is wrong stops being read.
+  assert.match(overview, /COUNT\(\*\) FILTER \(WHERE in_current AND orphan_exchange\)::int AS exchange_orders_current/);
 });
 
 /* ----------------------------------------------------------------- §1.6 NaN */

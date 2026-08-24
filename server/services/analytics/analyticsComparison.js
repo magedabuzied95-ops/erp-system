@@ -156,8 +156,14 @@ export const applyCogsCoveragePolicy = ({ coverage, values, collector, uncostedU
   return values;
 };
 
-/** Standard envelope. Every v2 endpoint returns this shape. §2 */
-export const buildEnvelope = ({ data, filters, collector, contractVersion = "1.0.0", generatedAt = null, meta = null }) => ({
+/**
+ * Standard envelope. Every v2 endpoint returns this shape. §2
+ *
+ * The default has to track CONTRACT_VERSION in analyticsMetrics, which cannot be imported
+ * here — that module imports WARNING_CODES from this one, so it would be a cycle. A test
+ * asserts the two agree.
+ */
+export const buildEnvelope = ({ data, filters, collector, contractVersion = "1.1.0", generatedAt = null, meta = null }) => ({
   data,
   meta: {
     filters,

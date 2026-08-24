@@ -169,15 +169,52 @@ Shape of dev order 178 → 176 (credit 800, total 1 800, due 1 000).
 **Financial impact.** Net sales overstated by the credited amount on every exchange; COGS overstated by the original
 item's cost; on-hand stock understated by the returned unit. On dev: 3 exchange orders, 2 800 EGP of credit.
 
-**Recommended fix (product change, out of scope).** The exchange flow should create a real `returns` row against the
-original with `restock = true`, so the existing return machinery reverses revenue, COGS and stock. Until then the data
-model cannot express a partial exchange, and order 176 having **two** exchange children shows a blanket
-"reverse the original in full" rule would itself be wrong.
-
 **Migration risk.** High — changes both operational stock and historical accounting.
-**Tests required.** Fixtures for cases A/B/C asserting the v2 recognition rule.
-**v2 status.** Handled per [`metric-contract.md` §Exchange behaviour](./metric-contract.md#exchange-behaviour) — v2 recognises
-`amount_due_now` as the exchange order's revenue contribution and emits `EXCHANGE_COGS_UNREVERSED`.
+
+---
+
+### Re-traced 2026-08-24 — the recommended fix is what the POS already does
+
+The audit above traced `POST /orders` and concluded "the exchange flow never reverses the original order". That is
+true of that endpoint, and false of the flow. Tracing the whole write path from the UI:
+
+1. `RecentOperationsDrawer` opens the return modal in `mode: "exchange"` and submits the **selected line items** to
+   `POST /orders/:id/return`.
+2. `returnOrder` (`ordersController.js:7458`) writes a `returns` row, increments `order_items.returned_quantity`,
+   writes a `RETURN_IN` inventory movement, moves the credit to the customer wallet as `exchange_credit`, and sets
+   the original to `status = 'returned'`, `payment_status = 'refunded' | 'partially_refunded'`, `returned_at = NOW()`.
+3. Only then does `handleExchangeStarted` open a new sale carrying the credit, which is the order that gets
+   `exchange_mode` stamped on it.
+
+`status = 'returned'` fails `paidOrderClauses`, so **the original leaves every figure**, its stock is back, and the
+returns machinery has reversed it — exactly the fix the audit recommended, already implemented. Dev orders 176–180
+carry no returns rows because they were created by calling `POST /orders` directly with `exchange_mode: true`, which
+the POS never does.
+
+**So there are two shapes, and only one of them double-counts:**
+
+| Shape | How it arises | Original | Correct recognition |
+|---|---|---|---|
+| Reversed | The POS flow, above | `returned`, out of scope, stock restored | the exchange's **full** net revenue |
+| Orphan | `POST /orders` with `exchange_mode` and no preceding return | still a live sale | `amount_due_now` only |
+
+Recognising `amount_due_now` on the reversed shape — which is what v2 did until today — **understates** the sale by
+the whole credited portion, because the original it was compensating for is already gone.
+
+**Production magnitude: zero.** 573 orders, 1 return, **0 exchange orders of either shape** (read-only, 2026-08-24).
+Nothing published has ever been affected either way.
+
+**v2 status — corrected 2026-08-24.** `orderRevenueExpr` now asks the data which shape it is looking at
+(`exchangeOriginalReversedExpr`, a tenant-scoped primary-key lookup evaluated only for exchange rows) instead of
+assuming the worst. `EXCHANGE_COGS_UNREVERSED` and `exchangeCreditRetainedExpr` now fire only on the orphan shape;
+firing on every exchange would have meant a warning that appears when nothing is wrong, which stops being read.
+
+**Unresolved at the source.** `POST /orders` still accepts `exchange_mode` and `original_order_id` with no evidence
+that any return happened, so an API client can still mint the orphan shape. It cannot be fixed there by creating the
+return itself: the sale payload carries no returned-item detail — no `order_item_id`, no quantities — and a blanket
+"reverse the original in full" rule would be wrong anyway, as dev order 176 having **two** exchange children shows.
+Closing it properly means requiring a `return_id` on an exchange sale, which is a product decision about the POS
+contract, not a reporting one. Until then the reporting layer detects the shape rather than assuming it.
 
 ---
 
@@ -424,7 +461,7 @@ the process lifetime with every distinct filter combination.
 |---|---|---|---|---|
 | D-01 | `NaN` in purchase totals | S1 | data | v2 only |
 | D-02 | Discount double-count | S1 | code + identity proof | v2 only |
-| D-03 | Exchange double-count | S1 | code + data | v2 only |
+| D-03 | Exchange double-count | S1 | code | **re-traced 2026-08-24** — the POS reverses the original; only an API-minted orphan double-counts, 0 on production |
 | D-04 | Soft-delete not excluded | S1 | code (latent) | v2 only |
 | D-05 | `ai_draft` survives filter | S1 | data (latent) | v2 only |
 | D-06 | Paid-but-pending excluded | S1 | data | warned in v2 |

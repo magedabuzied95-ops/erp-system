@@ -38,6 +38,7 @@ import {
   nanSafe,
   onHandUnitCostExpr,
   orderRevenueExpr,
+  orphanExchangeExpr,
   variantStockClauses,
   variantStockExpr,
 } from "./analyticsMetrics.js";
@@ -104,6 +105,7 @@ const buildOrdersQuery = ({ orderColumns, itemColumns, costContext, scope, granu
   const discount = nanSafe(discountAmountExpr(orderColumns));
   const breakdown = discountBreakdownExprs(orderColumns);
   const creditRetained = exchangeCreditRetainedExpr(orderColumns);
+  const orphanExchange = orphanExchangeExpr(orderColumns);
   const netQty = costContext.netQuantityExpr;
 
   // Order-level values must not be multiplied by the item join, so they are aggregated
@@ -126,7 +128,8 @@ const buildOrdersQuery = ({ orderColumns, itemColumns, costContext, scope, granu
              ${discount}        AS discount_amount,
              ${nanSafe(breakdown.invoice)} AS invoice_discount,
              ${nanSafe(breakdown.coupon)}  AS coupon_discount,
-             ${creditRetained}  AS exchange_credit_retained
+             ${creditRetained}  AS exchange_credit_retained,
+             ${orphanExchange}  AS orphan_exchange
       FROM orders o
       ${scope.orderWhere}
     ),
@@ -143,7 +146,7 @@ const buildOrdersQuery = ({ orderColumns, itemColumns, costContext, scope, granu
         COALESCE(SUM(invoice_discount) FILTER (WHERE in_current), 0) AS invoice_discount_current,
         COALESCE(SUM(coupon_discount)  FILTER (WHERE in_current), 0) AS coupon_discount_current,
         COALESCE(SUM(exchange_credit_retained) FILTER (WHERE in_current), 0) AS credit_retained_current,
-        COUNT(*) FILTER (WHERE in_current AND exchange_credit_retained > 0)::int AS exchange_orders_current
+        COUNT(*) FILTER (WHERE in_current AND orphan_exchange)::int AS exchange_orders_current
       FROM scoped_orders
     ),
     item_totals AS (
@@ -594,6 +597,8 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters,
       rows: Number(contextRow.orphan_return_items),
     });
   }
+  // Only the orphan shape — an exchange whose original was never returned. The POS
+  // reverses the original first, and warning on those would fire when nothing is wrong.
   if (Number(totals.exchange_orders_current || 0) > 0) {
     collector.add(WARNING_CODES.EXCHANGE_COGS_UNREVERSED, "Exchange originals are not cost-reversed.", {
       orders: Number(totals.exchange_orders_current),
