@@ -280,30 +280,57 @@ const sellerKeyExpr = (attribution) => {
 /* ------------------------------------------------------------------- shared CTE */
 
 /**
- * One row per order, carrying its seller, cashier, channel, branch, revenue and units.
+ * One row per contribution: an order that earned revenue, or a refund that reversed some.
  *
- * Returns are deducted per ORDER, which is exactly where they are attributable: a return
- * joins to the order it reverses, and the order carries the seller. Same basis as R2 and
- * R3, so a seller's revenue and the company's are the same arithmetic.
+ * WHY A UNION AND NOT A JOIN. The first cut joined refunds onto the scoped orders by
+ * order id, which silently dropped every refund raised in the window against an order
+ * placed BEFORE it — and on the development data that was all of them, so seller revenue
+ * came out gross by exactly the returns total. The reconciliation harness caught it on
+ * its first run.
+ *
+ * The Executive Overview deducts refunds by RETURN date regardless of the order's date,
+ * so a seller view must do the same. A refund therefore joins back to its ORIGINAL order
+ * to inherit that order's seller, cashier, channel and branch, and enters the set as a
+ * negative contribution. It is attributed to whoever made the sale, which is the only
+ * defensible answer: nobody else earned it, so nobody else should lose it.
+ *
+ * Orders count only from order rows, so a refund never inflates the order count.
  */
 const employeeCte = ({ scope, columns, attribution }) => {
   const revenue = orderRevenueExpr(columns.orderColumns);
   const returnsAvailable = columns.returnColumns.size > 0 && columns.returnItemColumns.size > 0;
   const refundExpr = coalesceColumnExpr("ri", columns.returnItemColumns, ["refund_amount", "total", "total_amount"], "0");
   const returnStatus = "LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')";
+  // Tenant-scoped on the ORIGINAL order. The first cut had no tenant clause here at all,
+  // which aggregated refunds across every tenant into one shop's figures.
+  const refundTenant = scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : "";
 
   const orderRefunds = returnsAvailable
     ? `order_refunds AS (
-      SELECT r.order_id,
-             COALESCE(SUM(${nanSafe(refundExpr)}), 0) AS refunded
+      SELECT o.id                                                                                    AS order_id,
+             ${sellerKeyExpr(attribution)}                                                           AS seller,
+             ${columns.orderColumns.has("cashier_user_id") ? "o.cashier_user_id" : "NULL::bigint"}    AS cashier_user_id,
+             ${columns.orderColumns.has("channel") ? "COALESCE(NULLIF(TRIM(o.channel), ''), 'pos')" : "'pos'"} AS channel,
+             ${columns.orderColumns.has("branch_id") ? "o.branch_id" : "NULL::bigint"}               AS branch_id,
+             MAX(r.created_at)                                                                        AS refunded_at,
+             COALESCE(SUM(${nanSafe(refundExpr)}), 0)                                                 AS refunded,
+             BOOL_OR(r.created_at >= ${scope.currentFrom}::date
+                 AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day'))                    AS in_current,
+             ${scope.previousFrom
+                ? `BOOL_OR(r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day'))`
+                : "FALSE"}                                                                            AS in_previous
       FROM return_items ri
       JOIN returns r ON r.id = ri.return_id
-      WHERE ${returnStatus}
-        AND r.created_at >= ${scope.currentFrom}::date
-        AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
-      GROUP BY r.order_id
+      JOIN orders o  ON o.id = r.order_id
+      WHERE ${refundTenant}${returnStatus}
+      GROUP BY 1, 2, 3, 4, 5
     )`
-    : `order_refunds AS (SELECT NULL::bigint AS order_id, 0::numeric AS refunded WHERE FALSE)`;
+    : `order_refunds AS (
+      SELECT NULL::bigint AS order_id, NULL::text AS seller, NULL::bigint AS cashier_user_id,
+             'pos'::text AS channel, NULL::bigint AS branch_id, NULL::timestamp AS refunded_at,
+             0::numeric AS refunded, FALSE AS in_current, FALSE AS in_previous
+      WHERE FALSE
+    )`;
 
   const units = columns.itemColumns.size
     ? "COALESCE(SUM(GREATEST(COALESCE(oi.quantity,0) - COALESCE(oi.returned_quantity,0), 0)), 0)"
@@ -332,13 +359,29 @@ const employeeCte = ({ scope, columns, attribution }) => {
       GROUP BY oi.order_id
     ),
     netted_orders AS (
-      SELECT so.*,
-             COALESCE(ou.units, 0)                                       AS units,
-             so.gross_revenue - COALESCE(orf.refunded, 0)                AS revenue,
-             COALESCE(orf.refunded, 0)                                   AS refunded
+      -- Orders contribute revenue and units and count as one order each.
+      SELECT so.id, so.created_at, so.seller, so.cashier_user_id, so.channel, so.branch_id,
+             so.in_current, so.in_previous,
+             so.gross_revenue          AS revenue,
+             COALESCE(ou.units, 0)     AS units,
+             0::numeric                AS refunded,
+             1                         AS order_count
       FROM scoped_orders so
-      LEFT JOIN order_units ou   ON ou.order_id = so.id
-      LEFT JOIN order_refunds orf ON orf.order_id = so.id
+      LEFT JOIN order_units ou ON ou.order_id = so.id
+
+      UNION ALL
+
+      -- Refunds contribute NEGATIVE revenue against the seller of the original order, and
+      -- count as no order at all. A refund on an order older than the window still lands
+      -- here, which is what makes this agree with the Executive Overview.
+      SELECT orf.order_id, orf.refunded_at, orf.seller, orf.cashier_user_id, orf.channel, orf.branch_id,
+             orf.in_current, orf.in_previous,
+             -orf.refunded             AS revenue,
+             0                         AS units,
+             orf.refunded              AS refunded,
+             0                         AS order_count
+      FROM order_refunds orf
+      WHERE orf.in_current OR orf.in_previous
     )
   `;
 };
@@ -370,16 +413,16 @@ export const getEmployeesSummary = async ({ filters, permissions = {}, client = 
     WITH ${employeeCte({ scope, columns, attribution })},
     totals AS (
       SELECT
-        COUNT(*) FILTER (WHERE in_current)                                          AS orders_current,
-        COUNT(*) FILTER (WHERE in_previous)                                         AS orders_previous,
+        COALESCE(SUM(order_count) FILTER (WHERE in_current), 0) AS orders_current,
+        COALESCE(SUM(order_count) FILTER (WHERE in_previous), 0) AS orders_previous,
         COALESCE(SUM(revenue) FILTER (WHERE in_current), 0)                         AS revenue_current,
         COALESCE(SUM(revenue) FILTER (WHERE in_previous), 0)                        AS revenue_previous,
         COALESCE(SUM(units) FILTER (WHERE in_current), 0)                           AS units_current,
-        COUNT(DISTINCT seller) FILTER (WHERE in_current AND seller IS NOT NULL)     AS sellers_current,
-        COUNT(DISTINCT seller) FILTER (WHERE in_previous AND seller IS NOT NULL)    AS sellers_previous,
-        COUNT(DISTINCT cashier_user_id) FILTER (WHERE in_current AND cashier_user_id IS NOT NULL) AS cashiers_current,
-        COUNT(DISTINCT channel) FILTER (WHERE in_current)                           AS channels_current,
-        COUNT(*) FILTER (WHERE in_current AND seller IS NULL)                       AS unattributed_orders,
+        COUNT(DISTINCT seller) FILTER (WHERE in_current AND seller IS NOT NULL AND order_count = 1)     AS sellers_current,
+        COUNT(DISTINCT seller) FILTER (WHERE in_previous AND seller IS NOT NULL AND order_count = 1)    AS sellers_previous,
+        COUNT(DISTINCT cashier_user_id) FILTER (WHERE in_current AND cashier_user_id IS NOT NULL AND order_count = 1) AS cashiers_current,
+        COUNT(DISTINCT channel) FILTER (WHERE in_current AND order_count = 1) AS channels_current,
+        COALESCE(SUM(order_count) FILTER (WHERE in_current AND seller IS NULL), 0) AS unattributed_orders,
         COALESCE(SUM(revenue) FILTER (WHERE in_current AND seller IS NULL), 0)      AS unattributed_revenue
       FROM netted_orders
     ),
@@ -390,9 +433,9 @@ export const getEmployeesSummary = async ({ filters, permissions = {}, client = 
     ),
     trend AS (
       SELECT ${bucket}                                  AS bucket,
-             COUNT(*)                                   AS orders,
+             COALESCE(SUM(no.order_count), 0)           AS orders,
              COALESCE(SUM(no.revenue), 0)               AS revenue,
-             COUNT(DISTINCT no.seller) FILTER (WHERE no.seller IS NOT NULL) AS sellers
+             COUNT(DISTINCT no.seller) FILTER (WHERE no.seller IS NOT NULL AND no.order_count = 1) AS sellers
       FROM netted_orders no
       WHERE no.in_current
       GROUP BY 1
@@ -621,7 +664,7 @@ export const getEmployeesBreakdown = async ({ filters, permissions = {}, client 
     WITH ${employeeCte({ scope, columns, attribution })},
     grouped AS (
       SELECT ${dimensionSql.expr}                                            AS key,
-             COUNT(*) FILTER (WHERE no.in_current)                           AS orders,
+             COALESCE(SUM(no.order_count) FILTER (WHERE no.in_current), 0) AS orders,
              COALESCE(SUM(no.revenue) FILTER (WHERE no.in_current), 0)       AS revenue,
              COALESCE(SUM(no.units) FILTER (WHERE no.in_current), 0)         AS units,
              COALESCE(SUM(no.revenue) FILTER (WHERE no.in_previous), 0)      AS revenue_previous,
@@ -714,13 +757,13 @@ export const getEmployeesList = async ({ filters, permissions = {}, client = db 
     WITH ${employeeCte({ scope, columns, attribution })},
     per_seller AS (
       SELECT COALESCE(no.seller, '${UNATTRIBUTED_KEY}')                      AS seller,
-             COUNT(*) FILTER (WHERE no.in_current)                           AS orders,
+             COALESCE(SUM(no.order_count) FILTER (WHERE no.in_current), 0) AS orders,
              COALESCE(SUM(no.revenue) FILTER (WHERE no.in_current), 0)       AS net_sales,
              COALESCE(SUM(no.units) FILTER (WHERE no.in_current), 0)         AS units,
              COALESCE(SUM(no.refunded) FILTER (WHERE no.in_current), 0)      AS refunded,
              COALESCE(SUM(no.revenue) FILTER (WHERE no.in_previous), 0)      AS net_sales_previous,
              MAX(no.created_at) FILTER (WHERE no.in_current)                 AS last_sale_at,
-             COUNT(DISTINCT no.channel) FILTER (WHERE no.in_current)         AS channels
+             COUNT(DISTINCT no.channel) FILTER (WHERE no.in_current AND no.order_count = 1) AS channels
       FROM netted_orders no
       GROUP BY 1
     ),

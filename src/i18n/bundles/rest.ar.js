@@ -25,6 +25,7 @@ import pos from "../../locales/ar/pos.json";
 import products from "../../locales/ar/products.json";
 import purchases from "../../locales/ar/purchases.json";
 import purchasingAnalytics from "../../locales/ar/purchasingAnalytics.json";
+import reconciliation from "../../locales/ar/reconciliation.json";
 import reports from "../../locales/ar/reports.json";
 import saas from "../../locales/ar/saas.json";
 import sales from "../../locales/ar/sales.json";
@@ -59,6 +60,7 @@ export default {
   "products": products,
   "purchases": purchases,
   "purchasingAnalytics": purchasingAnalytics,
+  "reconciliation": reconciliation,
   "reports": reports,
   "saas": saas,
   "sales": sales,

@@ -1,0 +1,121 @@
+{
+  "title": "Reconciliation",
+  "subtitle": "Whether the Reporting Center agrees with itself, and by how much it deliberately differs from accounting.",
+  "nav": {
+    "label": "Sections",
+    "status": "Status",
+    "internal": "Internal checks",
+    "declared": "Versus accounting",
+    "warnings": "Data quality"
+  },
+  "status": {
+    "pass": "Everything agrees",
+    "fail": "Disagreement found",
+    "partial": "Partly unverifiable",
+    "passHint": "Every screen that answers the same question returns the same number, to within {{tolerance}}.",
+    "failHint": "At least one pair of screens disagrees. Every figure derived from a failing check is suspect until it is resolved.",
+    "partialHint": "Some checks could not run. The ones that ran all agree.",
+    "verifiedAt": "Verified at",
+    "tolerance": "Tolerance",
+    "passed": "Passing",
+    "failed": "Failing",
+    "unavailable": "Unavailable",
+    "declared": "Declared differences"
+  },
+  "figures": {
+    "title": "The numbers being reconciled",
+    "netSales": "Net sales",
+    "returns": "Returns",
+    "grossProfit": "Gross profit",
+    "grossMargin": "Gross margin",
+    "orders": "Orders",
+    "itemsSold": "Units sold",
+    "customerRevenue": "Customer revenue",
+    "walkInRevenue": "Walk-in revenue",
+    "inventoryValue": "Inventory value",
+    "unitsInStock": "Units in stock",
+    "stockedProducts": "Stocked products",
+    "purchaseSpend": "Purchase spend",
+    "attributionCoverage": "Seller attribution",
+    "accountingNetSales": "Accounting net sales",
+    "accountingGrossProfit": "Accounting gross profit",
+    "accountingCogs": "Accounting COGS",
+    "accountingDiscounts": "Accounting discounts"
+  },
+  "internal": {
+    "title": "Internal checks",
+    "subtitle": "Screens that answer the same question from the same canon must agree to the cent. A failure here is a defect, not a rounding difference.",
+    "columns": {
+      "check": "Check",
+      "left": "Left",
+      "right": "Right",
+      "delta": "Difference",
+      "status": "Status"
+    },
+    "empty": "No checks ran."
+  },
+  "declared": {
+    "title": "Deliberate differences from accounting",
+    "subtitle": "These are meant to differ. The Reporting Center corrects defects the accounting layer still carries, so the gap is the correction working — a difference of zero would be the suspicious result.",
+    "columns": {
+      "check": "Metric",
+      "reporting": "Reporting Center",
+      "accounting": "Accounting",
+      "delta": "Difference"
+    },
+    "unavailable": "The accounting profit and loss could not be read, so the deliberate differences could not be measured. The internal checks above are unaffected.",
+    "corrections": "Corrections applied by the Reporting Center",
+    "empty": "Nothing to compare."
+  },
+  "correction": {
+    "discountDoubleCount": "Discount is counted once, from the all-inclusive column, instead of being added twice.",
+    "exchangeRecognition": "An exchange order recognises what the customer actually paid, not the full replacement value.",
+    "softDeletedExcluded": "Soft-deleted orders are excluded from revenue.",
+    "draftStatusExcluded": "Draft-like statuses, including AI drafts, are excluded from revenue.",
+    "draftExpensesExcluded": "Draft expenses are excluded from expenses."
+  },
+  "check": {
+    "sales": {
+      "netSales": "Net sales",
+      "orders": "Order count",
+      "itemsSold": "Units sold",
+      "returns": "Returns",
+      "discounts": "Discounts"
+    },
+    "profit": {
+      "grossProfit": "Gross profit",
+      "grossMargin": "Gross margin",
+      "cogs": "Cost of goods sold"
+    },
+    "customers": {
+      "customerRevenuePlusWalkIns": "Customer revenue plus walk-ins equals net sales"
+    },
+    "employees": {
+      "sellerNetSales": "Employee revenue equals net sales"
+    },
+    "inventory": {
+      "demandWithinSales": "Inventory demand is within total sales",
+      "velocityBuckets": "Every stocked product is classified"
+    },
+    "purchasing": {
+      "headerVersusLines": "Purchase headers against purchase lines"
+    }
+  },
+  "note": {
+    "walkIns": "Orders with no customer record are added back, because they are real revenue that cannot be attributed to a customer.",
+    "stockedOnly": "Inventory demand covers only products with stock on hand right now, so it is always a subset of total sales rather than equal to it.",
+    "headerLine": "A purchase header carries tax and header discount; the sum of its lines need not match. Spend uses the header, and anything per product uses the lines.",
+    "discountNotPublished": "The Reporting Center does not publish a standalone discount total; it is already deducted inside net sales.",
+    "cogsNotPublishedSeparately": "The Reporting Center does not publish a standalone cost of goods total; it is already deducted inside gross profit."
+  },
+  "warnings": {
+    "title": "Data quality notes from every report",
+    "subtitle": "Everything the individual screens raised, gathered in one place.",
+    "empty": "No screen raised a data-quality note for this period."
+  },
+  "states": {
+    "error": "The reconciliation could not be run.",
+    "forbidden": "You do not have access to reports.",
+    "retry": "Try again"
+  }
+}

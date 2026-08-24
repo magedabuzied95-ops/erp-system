@@ -258,18 +258,46 @@ test("dimensions and sorts are closed allowlists", async () => {
 
 test("revenue is net of returns, on the canonical basis", async () => {
   const source = await read(SERVICE);
-  // Returns join to an order and an order carries the seller, so the deduction is exact
-  // and the seller total reconciles with the Executive Overview.
-  assert.match(source, /order_refunds AS \(/);
-  assert.match(source, /so\.gross_revenue - COALESCE\(orf\.refunded, 0\)\s+AS revenue/);
+  // A refund enters as a NEGATIVE contribution rather than a join onto the order, because
+  // joining dropped every refund raised in the window against an older order — which on
+  // the development data was all of them, leaving seller revenue gross by exactly the
+  // returns total. The reconciliation harness caught it on its first run.
+  assert.ok(source.includes("order_refunds AS ("));
+  assert.match(source, /UNION ALL/);
+  assert.match(source, /-orf\.refunded\s+AS revenue/);
   assert.match(source, /revenue: "canonical_order_revenue_net_of_returns"/);
-  assert.match(source, /nanSafe\(refundExpr\)/);
+  assert.ok(source.includes("nanSafe(refundExpr)"));
+  // The refund inherits the ORIGINAL order's seller, so it is charged to whoever made
+  // the sale — the only defensible answer.
+  assert.ok(source.includes("JOIN orders o  ON o.id = r.order_id"));
+  // And it is tenant-scoped on that order. The first cut had no tenant clause at all,
+  // which aggregated refunds across every tenant into one shop's figures.
+  assert.ok(source.includes('const refundTenant = scope.tenantScoped && columns.orderColumns.has("tenant_id")'));
+  assert.ok(source.includes("WHERE ${refundTenant}${returnStatus}"));
+});
+
+test("a refund never counts as an order", async () => {
+  const source = await read(SERVICE);
+  // Order rows carry order_count 1 and refund rows carry 0, so every count sums that
+  // column instead of counting result rows.
+  assert.match(source, /1\s+AS order_count/);
+  assert.match(source, /0\s+AS order_count/);
+  assert.ok(source.includes("SUM(order_count)"));
+  // "Active" means made a sale, not merely appeared on a refund.
+  assert.ok(
+    source.includes("COUNT(DISTINCT seller) FILTER (WHERE in_current AND seller IS NOT NULL AND order_count = 1)"),
+    "an active seller made a sale, rather than merely appearing on a refund"
+  );
 });
 
 test("units come from one grouped pass, never an aggregate per order", async () => {
   const source = await read(SERVICE);
-  assert.match(source, /order_units AS \(/);
-  assert.match(source, /LEFT JOIN order_units ou   ON ou\.order_id = so\.id/);
+  assert.ok(source.includes("order_units AS ("));
+  assert.ok(source.includes("LEFT JOIN order_units ou ON ou.order_id = so.id"));
+  assert.ok(
+    !/\(SELECT COALESCE\(SUM\([\s\S]{0,120}WHERE oi\.order_id = o\.id\)/.test(source),
+    "the correlated per-order aggregate must not return"
+  );
 });
 
 test("the route and endpoints are permission gated", async () => {

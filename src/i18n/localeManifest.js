@@ -52,6 +52,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "purchasingAnalytics", file: "purchasingAnalytics" },
   { branch: "customerAnalytics", file: "customerAnalytics" },
   { branch: "employeeAnalytics", file: "employeeAnalytics" },
+  { branch: "reconciliation", file: "reconciliation" },
   { branch: "reports", file: "reports" },
   { branch: "suppliers", file: "suppliers" },
   { branch: "purchases", file: "purchases" },

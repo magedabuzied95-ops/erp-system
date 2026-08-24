@@ -36,6 +36,7 @@ import {
   getEmployeesList,
   getEmployeesSummary,
 } from "../services/analytics/analyticsEmployeesService.js";
+import { runReconciliation } from "../services/analytics/analyticsReconciliationService.js";
 import { resolveAnalyticsPermissions } from "../services/analytics/analyticsScope.js";
 
 export async function getOverview(req, res) {
@@ -156,3 +157,9 @@ const employeesHandler = (name, run) => analyticsHandler("employees", name, "EMP
 export const getEmployeesSummaryController   = employeesHandler("summary", getEmployeesSummary);
 export const getEmployeesBreakdownController = employeesHandler("breakdown", getEmployeesBreakdown);
 export const getEmployeesListController      = employeesHandler("list", getEmployeesList);
+
+// R10 - Reconciliation. One engine, shared with the CLI script; this controller only
+// resolves permissions and maps errors, exactly like every other area.
+export const getReconciliationController = analyticsHandler(
+  "reconciliation", "report", "RECONCILIATION_QUERY_FAILED", runReconciliation
+);

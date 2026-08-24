@@ -251,7 +251,9 @@
     "SELLER_ATTRIBUTION_UNAVAILABLE": "No column on the order carries a usable seller, so sales cannot be attributed to a person in this period. The channel and cashier views are unaffected.",
     "SELLER_ATTRIBUTION_TOO_THIN": "Too few orders carry a seller for a per-person breakdown to mean anything, so it is not shown.",
     "SELLER_ATTRIBUTION_PARTIAL": "Not every order carries a seller. The per-person figures cover only the ones that do, and the remainder is shown as its own row.",
-    "SELLER_UNATTRIBUTED_ORDERS": "Some orders carry no seller. They are shown as their own row and are never shared out across the named sellers."
+    "SELLER_UNATTRIBUTED_ORDERS": "Some orders carry no seller. They are shown as their own row and are never shared out across the named sellers.",
+    "ACCOUNTING_COMPARISON_UNAVAILABLE": "The accounting profit and loss could not be read, so the deliberate differences could not be measured. The Reporting Center's own consistency checks are unaffected.",
+    "RECONCILIATION_FAILED": "Two screens that answer the same question returned different numbers. Every figure derived from the failing check is suspect until it is resolved."
   },
   "states": {
     "loading": "Loading data...",

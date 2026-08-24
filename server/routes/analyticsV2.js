@@ -14,6 +14,7 @@ import {
   getInventorySizesController,
   getInventorySummaryController,
   getOverview,
+  getReconciliationController,
   getPurchasingBreakdownController,
   getPurchasingProductsController,
   getPurchasingSummaryController,
@@ -65,5 +66,9 @@ router.get("/customers/list", protect, viewReports, getCustomersListController);
 router.get("/employees/summary", protect, viewReports, getEmployeesSummaryController);
 router.get("/employees/breakdown", protect, viewReports, getEmployeesBreakdownController);
 router.get("/employees/list", protect, viewReports, getEmployeesListController);
+
+// R10 — Reconciliation. Cost and profit comparisons are withheld inside the service for
+// a caller without those permissions, so the entry gate stays reports:view like the rest.
+router.get("/reconciliation", protect, viewReports, getReconciliationController);
 
 export default router;
