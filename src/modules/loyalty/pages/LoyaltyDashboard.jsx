@@ -179,7 +179,7 @@ function LoyaltyDashboard() {
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <h2 className="m1-section-title">{t("loyalty.dashboard.history.title")}</h2>
-          <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)]">
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-[var(--surface)] text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <tr>

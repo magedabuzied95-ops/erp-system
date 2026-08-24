@@ -236,7 +236,7 @@ function Accounts() {
                 <h3 className="m1-section-title text-white">{tt("accounting.accounts.tree")}</h3>
                 <p className="mt-1 text-sm text-zinc-400">{tt("accounting.accounts.defaultsHint")}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <label className="flex min-w-[260px] items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
                   <Search className="h-4 w-4 text-zinc-500" />
                   <input

@@ -640,8 +640,8 @@ export default function CouponsManager() {
                     {cText("bulk.sendAll", "ابعت الكل ({{count}})", { count: Number(stats.pending_send_coupons) })}
                   </button>
                 ) : null}
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-                <div className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+                <div className="grid min-w-[560px] grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                   <div>{cText("headers.code", "الكود")}</div>
                   <div>{cText("headers.discount", "الخصم")}</div>
                   <div>{cText("headers.usage", "الاستخدام")}</div>
@@ -653,7 +653,7 @@ export default function CouponsManager() {
                   Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse border-t border-white/5 bg-white/[0.025]" />)
                 ) : coupons.length ? (
                   coupons.map((coupon) => (
-                    <div key={coupon.id} className={`grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${String(logCouponId) === String(coupon.id) ? "bg-violet-400/10" : ""}`}>
+                    <div key={coupon.id} className={`grid min-w-[560px] grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${String(logCouponId) === String(coupon.id) ? "bg-violet-400/10" : ""}`}>
                       <div className="min-w-0">
                         <button type="button" onClick={() => setLogCouponId((current) => (String(current) === String(coupon.id) ? null : coupon.id))} title={cText("log.showForCoupon", "عرض سجل استخدام هذا الكوبون")} className="block truncate text-start font-black text-white hover:text-violet-200">{coupon.code}</button>
                         {coupon.assigned_customer_id ? (
@@ -710,7 +710,8 @@ export default function CouponsManager() {
                     <button type="button" onClick={() => setLogCouponId(null)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-zinc-200">{cText("log.clearFilter", "إلغاء الترشيح")}</button>
                   ) : null}
                 </div>
-                <div className="grid grid-cols-[1fr_1fr_1fr_0.8fr_0.8fr_0.9fr] gap-3 border-t border-white/10 bg-white/[0.02] px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+                <div className="overflow-x-auto">
+                <div className="grid min-w-[560px] grid-cols-[1fr_1fr_1fr_0.8fr_0.8fr_0.9fr] gap-3 border-t border-white/10 bg-white/[0.02] px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
                   <div>{cText("log.headers.coupon", "الكود")}</div>
                   <div>{cText("log.headers.customer", "العميل")}</div>
                   <div>{cText("log.headers.order", "الطلب")}</div>
@@ -722,7 +723,7 @@ export default function CouponsManager() {
                   <div className="h-12 animate-pulse bg-white/[0.025]" />
                 ) : redemptions.length ? (
                   redemptions.map((row) => (
-                    <div key={row.id} className={`grid grid-cols-[1fr_1fr_1fr_0.8fr_0.8fr_0.9fr] items-center gap-3 border-t border-white/5 px-4 py-2.5 text-xs ${row.reversed_at ? "text-zinc-500 line-through decoration-rose-400/50" : "text-zinc-200"}`}>
+                    <div key={row.id} className={`grid min-w-[560px] grid-cols-[1fr_1fr_1fr_0.8fr_0.8fr_0.9fr] items-center gap-3 border-t border-white/5 px-4 py-2.5 text-xs ${row.reversed_at ? "text-zinc-500 line-through decoration-rose-400/50" : "text-zinc-200"}`}>
                       <div className="font-black">{row.coupon_code}</div>
                       <div>{row.customer_name || "-"}{row.customer_phone ? <span className="block text-[10px] text-zinc-500 no-underline">{row.customer_phone}</span> : null}</div>
                       <div>{row.invoice_number || row.public_order_number || (row.order_id ? `#${row.order_id}` : "-")}{row.reversed_at ? <span className="ms-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-black text-rose-200 no-underline">{cText(`log.reversal.${row.reversal_reason || "reversed"}`, cText("log.reversed", "مُلغى"))}</span> : null}</div>
@@ -734,6 +735,7 @@ export default function CouponsManager() {
                 ) : (
                   <div className="px-4 py-6 text-center text-xs font-semibold text-zinc-500">{cText("log.empty", "لم يُستخدم أي كوبون بعد.")}</div>
                 )}
+                </div>
               </div>
             </>
           ) : (

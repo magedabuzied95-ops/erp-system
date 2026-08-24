@@ -3690,7 +3690,7 @@ function CreateProduct() {
 
                       {isExpanded ? (
                         <div className="border-t border-border p-4">
-                          <div className="grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)] xl:items-start">
+                          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[180px_minmax(0,1fr)] xl:items-start">
                             <div className="space-y-2">
                               <label className="flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                                 {getPrimaryColorImage(group) ? (

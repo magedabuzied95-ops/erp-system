@@ -780,7 +780,7 @@ function CurrentStockSummary({ loading, error, rows }) {
       </div>
 
       <div className="mt-4 hidden lg:block">
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-black/20">
+        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-black/20">
           <table className="m1-table m1-table--compact min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-[0.18em] text-text-muted">

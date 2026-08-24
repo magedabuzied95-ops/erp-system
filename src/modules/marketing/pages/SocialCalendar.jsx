@@ -473,7 +473,7 @@ export default function SocialCalendar() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-white/10">
+          <div className="overflow-x-auto rounded-3xl border border-white/10">
             <table className="m1-table m1-table--compact min-w-full">
               <thead className="bg-white/[0.03]">
                 <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">

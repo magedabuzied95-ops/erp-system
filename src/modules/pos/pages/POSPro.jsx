@@ -8483,7 +8483,7 @@ function POSPro() {
             <div className="min-w-0 space-y-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div className="pos-catalog-toolbar relative z-30 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:sticky lg:top-[calc(env(safe-area-inset-top)+4.9rem)] xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <div className="flex min-w-0 flex-[1_1_0%] items-center gap-2">
+                <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2">
                   <div className="relative min-w-0 flex-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                     <input
@@ -8684,7 +8684,7 @@ function POSPro() {
 
         {!isVariantModalOpen && !selectedProduct ? (
           <StickyMobileActionBar>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <div className="grid grid-cols-[minmax(140px,1fr)_minmax(0,auto)] gap-2">
               <button
                 type="button"
                 onClick={() => setMobileCartOpen(true)}

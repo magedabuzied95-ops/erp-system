@@ -138,7 +138,7 @@ function CustomerLoyaltyProfile() {
             <h2 className="m1-section-title">{t("loyalty.profile.history")}</h2>
             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[loyalty?.tier] || tierStyles.Bronze}`}>{loyalty?.tier || "Bronze"}</span>
           </div>
-          <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)]">
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
               <thead className="bg-[var(--surface)] text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <tr>

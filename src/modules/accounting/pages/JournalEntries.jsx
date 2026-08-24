@@ -652,7 +652,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
               </div>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-3xl border border-white/10">
+            <div className="mt-4 overflow-x-auto rounded-3xl border border-white/10">
               <table className="m1-table m1-table--compact min-w-full text-right text-sm" dir="rtl">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
