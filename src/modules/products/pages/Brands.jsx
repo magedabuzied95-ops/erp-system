@@ -329,8 +329,8 @@ function Brands() {
                   }}
                   className={`rounded-[30px] border p-5 text-left transition hover:bg-white/8 ${ isEditing ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/8 bg-white/5" }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex min-w-0 flex-[1_1_11rem] items-center gap-4">
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-zinc-950">
                         {logoUrl ? (
                           <img src={resolveProductImageUrl(logoUrl)} alt={item.name} className="h-full w-full object-contain p-1.5" />

@@ -1490,7 +1490,7 @@ function AttendanceWorkspace({
       ) : null}
 
       {selectedTab === "dashboard" ? (
-        <div className="grid gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-8">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1556,8 +1556,8 @@ function AttendanceWorkspace({
                 {tr("dashboard.filtersAutoApply")}
               </div>
             </div>
-            <div className="mt-4 overflow-hidden rounded-[28px] border border-white/10">
-              <div className="grid grid-cols-8 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            <div className="mt-4 overflow-x-auto rounded-[28px] border border-white/10">
+              <div className="grid min-w-[820px] grid-cols-8 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                 <span className="col-span-2">{tr("fields.employee")}</span>
                 <span>{tr("fields.branch")}</span>
                 <span>{tr("fields.shift")}</span>
@@ -1566,7 +1566,7 @@ function AttendanceWorkspace({
                 <span>{t("common.status")}</span>
                 <span>{tr("fields.worked")}</span>
               </div>
-              <div className="divide-y divide-white/5">
+              <div className="min-w-[820px] divide-y divide-white/5">
                 {recentLogs.length === 0 ? (
                   <div className="p-8 text-center text-zinc-400">{tr("empty.noAttendanceLogs")}</div>
                 ) : (
@@ -1597,7 +1597,7 @@ function AttendanceWorkspace({
       ) : null}
 
       {selectedTab === "employees" ? (
-        <div className="grid gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
           <section className={`rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 ${employeeEditorOpen ? "hidden" : "xl:col-span-12"}`}>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -2127,7 +2127,7 @@ function AttendanceWorkspace({
       ) : null}
 
       {selectedTab === "devices" ? (
-        <div className="grid gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-12">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
@@ -2247,7 +2247,7 @@ function AttendanceWorkspace({
       ) : null}
 
       {selectedTab === "reports" ? (
-        <div className="grid gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-12">
             <div className="flex flex-wrap items-end gap-3">
               <InputField label={tr("fields.dailyDate")} type="date" value={filters.date} onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))} />
@@ -2345,8 +2345,8 @@ function AttendanceWorkspace({
               <AttendanceMetricCard label={tr("metrics.overtimeDays")} value={employeeReport?.summary?.overtimeDays || 0} tone="blue" isRtl={isArabic} />
               <AttendanceMetricCard label={tr("metrics.workedHours")} value={employeeReport?.summary?.totalWorkedHours || "00:00"} tone="zinc" isRtl={isArabic} />
             </div>
-            <div className="mt-5 overflow-hidden rounded-[28px] border border-white/10">
-              <div className="grid grid-cols-7 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            <div className="mt-5 overflow-x-auto rounded-[28px] border border-white/10">
+              <div className="grid min-w-[760px] grid-cols-7 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                 <span>{tr("fields.date")}</span>
                 <span>{tr("fields.checkIn")}</span>
                 <span>{tr("fields.checkOut")}</span>
@@ -2355,7 +2355,7 @@ function AttendanceWorkspace({
                 <span>{t("common.status")}</span>
                 <span>{tr("fields.worked")}</span>
               </div>
-              <div className="divide-y divide-white/5">
+              <div className="min-w-[760px] divide-y divide-white/5">
                 {(employeeReport?.logs || []).length === 0 ? (
                   <div className="p-8 text-center text-zinc-400">{tr("empty.noEmployeeReport")}</div>
                 ) : (
@@ -2378,7 +2378,7 @@ function AttendanceWorkspace({
       ) : null}
 
       {selectedTab === "kiosk" ? (
-        <div className="grid gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-5">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("kiosk.mode")}</div>
             <h2 className="m1-section-title text-white">{tr("kiosk.openCloseShift")}</h2>
@@ -2457,15 +2457,15 @@ function AttendanceWorkspace({
               <AttendanceMetricCard label={tr("metrics.earlyLeave")} value={kioskSnapshot?.today_attendance?.early_leave_minutes || 0} tone="rose" isRtl={isArabic} />
               <AttendanceMetricCard label={statusLabel("overtime")} value={kioskSnapshot?.today_attendance?.overtime_minutes || 0} tone="blue" isRtl={isArabic} />
             </div>
-            <div className="mt-5 overflow-hidden rounded-[28px] border border-white/10">
-              <div className="grid grid-cols-5 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            <div className="mt-5 overflow-x-auto rounded-[28px] border border-white/10">
+              <div className="grid min-w-[620px] grid-cols-5 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                 <span>{tr("fields.employee")}</span>
                 <span>{tr("fields.branch")}</span>
                 <span>{tr("fields.shift")}</span>
                 <span>{tr("fields.checkIn")}</span>
                 <span>{t("common.status")}</span>
               </div>
-              <div className="divide-y divide-white/5">
+              <div className="min-w-[620px] divide-y divide-white/5">
                 {selectedEmployee ? (
                   <div className="grid grid-cols-5 items-center px-4 py-4 text-sm">
                     <span className="font-semibold text-white">{selectedEmployee.full_name}</span>

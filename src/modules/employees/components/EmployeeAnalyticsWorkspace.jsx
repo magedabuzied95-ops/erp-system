@@ -464,7 +464,7 @@ export default function EmployeeAnalyticsWorkspace() {
             <Users className="h-4 w-4 text-emerald-300" />
             {t("common.employeeHub.analytics.sections.salesPerformance")}
           </div>
-          <div className="overflow-hidden rounded-3xl border border-white/10">
+          <div className="overflow-x-auto rounded-3xl border border-white/10">
             <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
@@ -598,7 +598,7 @@ export default function EmployeeAnalyticsWorkspace() {
 
           <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
             <div className={isRtl ? "mb-4 text-xs font-bold text-primary" : "mb-4 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.commissions.transactions")}</div>
-            <div className="overflow-hidden rounded-3xl border border-white/10">
+            <div className="overflow-x-auto rounded-3xl border border-white/10">
               <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
@@ -694,7 +694,7 @@ export default function EmployeeAnalyticsWorkspace() {
 
           <div className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className={isRtl ? "mb-3 text-xs font-bold text-primary" : "mb-3 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
-            <div className="overflow-hidden rounded-3xl border border-white/10">
+            <div className="overflow-x-auto rounded-3xl border border-white/10">
               <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>

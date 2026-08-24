@@ -874,8 +874,8 @@ function MainLayout() {
                   <Menu className="h-5 w-5" />
                 </button>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-black text-[var(--text)]">{workspaceName}</div>
-                  <div className="truncate text-xs text-[var(--muted)]">{user?.name}</div>
+                  <div className="truncate text-sm font-black text-[var(--topbar-text)]">{workspaceName}</div>
+                  <div className="truncate text-xs text-[var(--topbar-text)] opacity-75">{user?.name}</div>
                 </div>
               </div>
 
@@ -900,7 +900,7 @@ function MainLayout() {
                   aria-label={t("sidebar.openStore")}
                   className={[
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
+                    "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                     isStoreActive
                       ? "border-emerald-400/55 bg-emerald-500/15 text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,0.24)]"
                       : "border-emerald-400/25 hover:-translate-y-0.5 hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:text-emerald-100 hover:shadow-[0_0_26px_rgba(16,185,129,0.2)]",
@@ -915,7 +915,7 @@ function MainLayout() {
                   aria-label={productsLabel}
                   className={[
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
+                    "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                     isProductsActive
                       ? "border-primary/55 bg-primary/15 text-primary shadow-[0_0_28px_rgba(14,165,233,0.24)]"
                       : "border-primary/25 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-[0_0_26px_rgba(14,165,233,0.2)]",
@@ -931,7 +931,7 @@ function MainLayout() {
                     aria-label={purchasesLabel}
                     className={[
                       "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                      "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
+                      "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                       isPurchasesActive
                         ? "border-amber-300/55 bg-amber-500/15 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.24)]"
                         : "border-amber-400/25 hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-amber-500/10 hover:text-amber-100 hover:shadow-[0_0_26px_rgba(245,158,11,0.2)]",
@@ -947,7 +947,7 @@ function MainLayout() {
                   aria-label={`${posLabel} (Alt+P)`}
                   className={[
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
+                    "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                     isPosActive
                       ? "border-violet-300/55 bg-violet-500/15 text-violet-100 shadow-[0_0_28px_rgba(139,92,246,0.24)]"
                       : "border-violet-400/25 hover:-translate-y-0.5 hover:border-violet-300/50 hover:bg-violet-500/10 hover:text-violet-100 hover:shadow-[0_0_26px_rgba(139,92,246,0.2)]",

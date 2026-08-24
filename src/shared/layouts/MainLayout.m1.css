@@ -28,3 +28,21 @@ html[data-theme="dark"] .m1-topbar-create-menu{border-color:var(--border);backgr
 html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;font-size:12px!important}html[data-density="compact"] .m1-shell-content{padding-top:16px!important}
 @media(min-width:1024px){.m1-shell-root{grid-template-columns:260px minmax(0,1fr)!important}.m1-shell-root.m1-shell-root--sidebar-compact{grid-template-columns:76px minmax(0,1fr)!important}.m1-shell-sidebar--compact{padding-inline:10px!important}}
 @media(max-width:1023px){.m1-shell-sidebar{width:min(88vw,284px)!important;padding:12px!important}.m1-shell-topbar{min-height:58px}.m1-shell-topbar>div:last-child{min-height:58px;padding-inline:12px!important}.m1-shell-content{padding:16px 12px 36px!important}}
+/* Below the sidebar breakpoint the action rail overflowed leftward out of its
+   own box - with justify-end that overflow is unreachable by scrolling - and
+   it covered the workspace identity, squeezed to 45px at 375. Wrapping the
+   rail onto its own row keeps every control reachable and the name readable;
+   it only wraps when the two groups genuinely do not fit, so a 1000px window
+   still renders a single 61px bar. */
+@media(max-width:1023px){.m1-shell-topbar>div:last-child{flex-wrap:wrap;row-gap:8px;padding-block:8px!important}.m1-shell-topbar>div:last-child>div:first-child{flex:1 1 auto;min-width:11rem}.m1-shell-topbar .m1-topbar-tools{flex:1 1 auto;max-width:none;justify-content:flex-start}}
+/* Phone: a grid that declares its columns only at a breakpoint (xl:grid-cols-2
+   and friends) falls back to ONE implicit `auto` track here. An `auto` track is
+   sized by its content rather than by its container, so a single item that
+   cannot shrink - a nowrap button, a table carrying min-width - makes the whole
+   page wider than the viewport, and .m1-shell-content's overflow-x:hidden then
+   clips the excess with no way to scroll to it. Capping the implicit track at
+   the container turns that silent clipping back into normal wrapping (or into
+   the inner scroller the table already has). Grids that DO declare a base
+   grid-cols utility are matched by the [class] tests and left untouched -
+   `xl:grid-cols-3` is a different class token than `grid-cols-3`. */
+@media(max-width:639px){.m1-shell-content .grid:not([class*=" grid-cols-"]):not([class^="grid-cols-"]){grid-template-columns:minmax(0,1fr)}}

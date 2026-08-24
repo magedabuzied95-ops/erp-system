@@ -19,7 +19,7 @@ export default function UsersTable({
 
   return (
 
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-x-auto">
 
       <table className="w-full">
 

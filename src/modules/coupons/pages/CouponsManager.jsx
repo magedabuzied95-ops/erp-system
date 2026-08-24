@@ -640,8 +640,8 @@ export default function CouponsManager() {
                     {cText("bulk.sendAll", "ابعت الكل ({{count}})", { count: Number(stats.pending_send_coupons) })}
                   </button>
                 ) : null}
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-                <div className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+                <div className="grid min-w-[560px] grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                   <div>{cText("headers.code", "الكود")}</div>
                   <div>{cText("headers.discount", "الخصم")}</div>
                   <div>{cText("headers.usage", "الاستخدام")}</div>
@@ -653,7 +653,7 @@ export default function CouponsManager() {
                   Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse border-t border-white/5 bg-white/[0.025]" />)
                 ) : coupons.length ? (
                   coupons.map((coupon) => (
-                    <div key={coupon.id} className={`grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${String(logCouponId) === String(coupon.id) ? "bg-violet-400/10" : ""}`}>
+                    <div key={coupon.id} className={`grid min-w-[560px] grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr_44px] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${String(logCouponId) === String(coupon.id) ? "bg-violet-400/10" : ""}`}>
                       <div className="min-w-0">
                         <button type="button" onClick={() => setLogCouponId((current) => (String(current) === String(coupon.id) ? null : coupon.id))} title={cText("log.showForCoupon", "عرض سجل استخدام هذا الكوبون")} className="block truncate text-start font-black text-white hover:text-violet-200">{coupon.code}</button>
                         {coupon.assigned_customer_id ? (
