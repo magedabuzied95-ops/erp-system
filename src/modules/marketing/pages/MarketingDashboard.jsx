@@ -82,7 +82,7 @@ export default function MarketingDashboard() {
                   className="inline-flex min-w-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface-hover)]"
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="truncate">{label}</span>
+                  <span className="truncate whitespace-normal sm:whitespace-nowrap">{label}</span>
                 </button>
               ))}
             </div>

@@ -653,10 +653,10 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
   const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-text-muted" };
   const body = (
     <article className={`flex h-full min-h-[172px] flex-col rounded-[var(--radius-card)] border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="line-clamp-2 min-h-8 min-w-0 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</div>
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] ${iconTones[tone] || iconTones.slate}`}>
-          <Icon className="h-5 w-5" />
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="line-clamp-3 min-h-8 min-w-0 text-[11px] font-black uppercase tracking-[0.04em] sm:line-clamp-2 sm:tracking-[0.14em] text-text-muted">{label}</div>
+        <div className={`grid h-8 w-8 shrink-0 sm:h-10 sm:w-10 place-items-center rounded-[var(--radius-control)] ${iconTones[tone] || iconTones.slate}`}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
         </div>
       </div>
       <div
