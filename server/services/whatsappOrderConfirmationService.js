@@ -8,7 +8,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
-import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -718,7 +718,27 @@ export const sendOrderConfirmation = async (order = {}) => {
         has_confirm_url: Boolean(confirmUrl),
       });
     }
-    result = await sendTextMessage({ phone, message });
+    // Buttons render since Evolution 2.4.0 (see docs/decisions/whatsapp-interactive-buttons-evolution.md).
+    // The message body keeps the secure link, so a client that fails to render the buttons still has a path.
+    try {
+      result = await sendOrderConfirmationInteractiveMessage({
+        phone,
+        title: "تأكيد الطلب",
+        text: message,
+        footer: "M1 Store",
+        orderId: current.id,
+      });
+      deliveryMode = text(result?.delivery_mode) || "interactive_buttons";
+    } catch (buttonsError) {
+      console.warn("[whatsapp:order-confirmation-buttons-unavailable]", {
+        orderId: current.id,
+        orderNumber: orderRef,
+        phoneSuffix: phone.slice(-4),
+        message: buttonsError?.message || String(buttonsError),
+        code: buttonsError?.code || "",
+      });
+      result = await sendTextMessage({ phone, message });
+    }
   } catch (error) {
     deliveryMode = "fallback_text";
     message = ORDER_CONFIRMATION_FALLBACK_TEXT;
@@ -799,7 +819,7 @@ export const sendOrderConfirmation = async (order = {}) => {
     phoneSuffix: phone.slice(-4),
     deliveryMode,
   });
-  return { sent: true, order: current, result, delivery_mode: deliveryMode, used_buttons: false };
+  return { sent: true, order: current, result, delivery_mode: deliveryMode, used_buttons: deliveryMode.startsWith("interactive") };
 };
 
 export const sendPaymentReviewNotification = async (order = {}) => {

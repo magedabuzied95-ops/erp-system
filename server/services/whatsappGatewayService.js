@@ -3211,7 +3211,63 @@ const parseWhatsappTimestamp = (value) => {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString();
 };
 
+// A button/list tap arrives as a structured reply (buttonsResponseMessage etc.) whose only
+// plain-text content is the QUOTED original prompt — so the recursive text fallback used to
+// return the prompt (which contains ALL action labels) instead of what the customer chose.
+const extractButtonReplySelection = (data = {}, payload = {}) => {
+  const root = { data, payload };
+  const messagePaths = [
+    "data.message",
+    "data.messages[0].message",
+    "payload.body.data.message",
+    "payload.data[0].message",
+  ];
+  for (const path of messagePaths) {
+    const message = getPathValue(root, path);
+    if (!message || typeof message !== "object") continue;
+    const buttonsReply = message.buttonsResponseMessage || {};
+    if (text(buttonsReply.selectedButtonId) || text(buttonsReply.selectedDisplayText)) {
+      return {
+        selectedId: text(buttonsReply.selectedButtonId),
+        selectedText: text(buttonsReply.selectedDisplayText),
+        source: "buttonsResponseMessage",
+      };
+    }
+    const templateReply = message.templateButtonReplyMessage || {};
+    if (text(templateReply.selectedId) || text(templateReply.selectedDisplayText)) {
+      return {
+        selectedId: text(templateReply.selectedId),
+        selectedText: text(templateReply.selectedDisplayText),
+        source: "templateButtonReplyMessage",
+      };
+    }
+    const listReply = message.listResponseMessage || {};
+    const listRowId = text(listReply.singleSelectReply?.selectedRowId || listReply.selectedRowId);
+    if (listRowId || text(listReply.title)) {
+      return { selectedId: listRowId, selectedText: text(listReply.title), source: "listResponseMessage" };
+    }
+    const nativeParams = text(message.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson);
+    if (nativeParams) {
+      let parsed = {};
+      try { parsed = JSON.parse(nativeParams); } catch { parsed = {}; }
+      const selectedId = text(parsed.id || parsed.selectedId);
+      const selectedText = text(parsed.display_text || parsed.displayText || message.interactiveResponseMessage?.body?.text);
+      if (selectedId || selectedText) return { selectedId, selectedText, source: "interactiveResponseMessage" };
+    }
+  }
+  return { selectedId: "", selectedText: "", source: "" };
+};
+
 const extractMessageText = (data = {}, payload = {}) => {
+  const buttonReply = extractButtonReplySelection(data, payload);
+  if (buttonReply.selectedId || buttonReply.selectedText) {
+    console.info("[evolution:button-reply-selection]", {
+      source: buttonReply.source,
+      selectedId: buttonReply.selectedId,
+      selectedText: buttonReply.selectedText.slice(0, 80),
+    });
+    return buttonReply.selectedText || buttonReply.selectedId;
+  }
   const root = { data, payload };
   const directPaths = [
     "data.message.conversation",
@@ -3571,6 +3627,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
   );
   const customerAvatarUrl = extractEvolutionProfilePictureUrl({ data, payload });
   const messageText = extractMessageText(data, payload);
+  const buttonReplySelection = extractButtonReplySelection(data, payload);
   const intentPayload = normalizeArabicIntentPayload(messageText);
   const normalizedMessage = intentPayload.normalizedText || normalizeArabicMessage(messageText);
   const normalizedForIntent = intentPayload.normalizedForIntent || normalizeArabicForIntent(messageText);
@@ -3663,6 +3720,8 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     isLid: replyTarget.isLid,
     text: messageText,
     original_message: messageText,
+    selectedButtonId: buttonReplySelection.selectedId,
+    selectedDisplayText: buttonReplySelection.selectedText,
     normalized_message: normalizedMessage,
     normalized_for_intent: normalizedForIntent,
     canonical_signals: intentPayload.canonicalSignals,
