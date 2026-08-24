@@ -2009,15 +2009,15 @@ export const queryProducts = async (tenantId, q, category, filters, saleOnly, li
 export const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
   queryProductsWithSql(storefrontProductsSqlWithoutVisibility, tenantId, q, category, filters, saleOnly, limit, offset);
 
-const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
+const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS, executor = db) => {
   const ids = productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
   if (!ids.length) return [];
-  let result = await db.query(
+  let result = await executor.query(
     buildCatalogQuery({ where: "AND p.id = ANY($2::bigint[])", trailing: "GROUP BY p.id, c.name, b.name, m.name" }),
     [tenantId, ids]
   );
   if (!result.rows.length && tenantId !== null) {
-    result = await db.query(
+    result = await executor.query(
       buildCatalogQuery({ where: "AND p.id = ANY($2::bigint[])", trailing: "GROUP BY p.id, c.name, b.name, m.name" }),
       [null, ids]
     );
@@ -5181,8 +5181,12 @@ export const createWebsiteOrder = async (req, res) => {
     const customer = await resolveCustomer(client, tenantId, checkout, checkoutColumns.customers, runCheckoutQuery);
     markCheckoutStep("upsert customer:done", { table: "customers", customerId: customer?.id });
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    // The canonical price tiers (manual override, purchase-invoice price) are optional columns; fall back to
+    // NULL rather than break checkout on a database that predates them.
+    const productPricingColumnSql = (column) => (checkoutColumns.products.has(column) ? `p.${column}` : "NULL");
     let subtotal = 0;
     const normalizedItems = [];
+    const lockedItems = [];
 
     for (const item of items) {
       const variantId = Number(item.variant_id || item.variantId || 0);
@@ -5208,6 +5212,9 @@ export const createWebsiteOrder = async (req, res) => {
           p.cost_price AS product_cost_price,
           COALESCE(NULLIF(p.regular_price, 0), p.price, 0) AS product_regular_price,
           COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS product_selling_price,
+          ${productPricingColumnSql("manual_price_override_active")} AS product_manual_price_override_active,
+          ${productPricingColumnSql("manual_selling_price")} AS product_manual_selling_price,
+          ${productPricingColumnSql("purchase_selling_price")} AS product_purchase_selling_price,
           p.sale_price AS product_sale_price,
           p.sale_price_enabled AS product_sale_price_enabled,
           p.sale_start_at AS product_sale_start_at,
@@ -5238,8 +5245,45 @@ export const createWebsiteOrder = async (req, res) => {
           product_name: variant.product_name,
         });
       }
+      lockedItems.push({ variant, quantity });
+      markCheckoutStep("decrement stock:lock variant:done", { table: "product_variants", variantId, productId: variant.product_id, stockBefore: variant.stock });
+    }
+
+    // Price the cart through the same catalog projection the product cards render from, so what the customer
+    // is charged cannot disagree with what the shelf advertised. The locking SELECT above reads only the
+    // legacy price columns, but for a large part of the catalogue the sole normal price is a manual override
+    // or a purchase-invoice price (see resolveCurrentSellingPrice) — those carts resolved to 0 and were
+    // rejected as "no valid selling price". Runs on the checkout client so the transaction keeps one
+    // connection. The per-row resolution below is the fallback for a product the projection cannot see.
+    const shelfPricedProducts = await queryProductsByIds(
+      tenantId,
+      [...new Set(lockedItems.map(({ variant }) => Number(variant.product_id)).filter(Boolean))],
+      pricingSettings,
+      client
+    );
+    const shelfPriceByVariantId = new Map();
+    for (const shelfProduct of shelfPricedProducts) {
+      for (const shelfVariant of shelfProduct.variants || []) {
+        const shelfPrice = roundMoney(shelfVariant.final_price || shelfVariant.price || shelfVariant.selling_price);
+        if (shelfPrice > 0) shelfPriceByVariantId.set(String(shelfVariant.id), shelfPrice);
+      }
+    }
+
+    for (const { variant, quantity } of lockedItems) {
       const originalPrice = roundMoney(variant.product_regular_price);
-      const sellingPrice = roundMoney(variant.selling_price || variant.price || variant.product_selling_price);
+      // The canonical normal-price ladder: manual override, then the purchase-invoice price, then the legacy
+      // columns — variant before product. Reading only selling_price/price here is what produced the 400.
+      const sellingPrice = roundMoney(
+        resolveCurrentSellingPrice({
+          product: {
+            manual_price_override_active: variant.product_manual_price_override_active,
+            manual_selling_price: variant.product_manual_selling_price,
+            purchase_selling_price: variant.product_purchase_selling_price,
+            selling_price: variant.product_selling_price,
+          },
+          variant,
+        }).value
+      );
       const resolvedPrice = resolveStorefrontActivePrice({
         originalPrice,
         sellingPrice,
@@ -5247,7 +5291,7 @@ export const createWebsiteOrder = async (req, res) => {
         pricingSettings,
         forcedOffer: isForcedOfferSale({ is_offer_story: variant.product_is_offer_story }) || isForcedOfferSale(variant),
       });
-      const price = resolvedPrice.activePrice;
+      const price = shelfPriceByVariantId.get(String(variant.id)) || resolvedPrice.activePrice;
       if (price <= 0) {
         throw checkoutValidationError("This product does not have a valid selling price", "items.price", {
           product_id: variant.product_id,
@@ -5270,7 +5314,6 @@ export const createWebsiteOrder = async (req, res) => {
         price,
         quantity,
       });
-      markCheckoutStep("decrement stock:lock variant:done", { table: "product_variants", variantId, productId: variant.product_id, stockBefore: variant.stock });
     }
 
     const orderSettings = await getStorefrontOrderSettings();
