@@ -247,8 +247,12 @@ const run = async () => {
    * touched — the sets differ and nothing is written.
    */
   if (only) {
-    const expected = [...only].sort((a, b) => a - b);
-    const actual = [...ids].sort((a, b) => a - b);
+    // Coerce both sides. `users.id` is a bigint, which node-postgres hands back as a
+    // STRING, so comparing it to a parsed --only value with === refuses a set that is
+    // in fact identical. It failed closed rather than open, which is the right direction
+    // for a guard to be wrong in, but a guard that always refuses is not a guard.
+    const expected = only.map(Number).sort((a, b) => a - b);
+    const actual = ids.map(Number).sort((a, b) => a - b);
     const same = expected.length === actual.length && expected.every((id, index) => id === actual[index]);
     if (!same) {
       console.log(`\nREFUSED. --only expected [${expected.join(", ")}] but the rules selected [${actual.join(", ")}].`);

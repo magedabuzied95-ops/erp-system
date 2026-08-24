@@ -115,6 +115,13 @@ test("--only turns the dry run into a precondition instead of a memory", async (
   // It compares SETS, so an extra account appearing between the dry run and the apply
   // refuses the write rather than silently disabling one more than was reviewed.
   assert.match(script, /const same = expected\.length === actual\.length && expected\.every/);
+
+  // Both sides must be coerced. `users.id` is a bigint and node-postgres returns bigints
+  // as STRINGS, so `11 === "11"` is false and the first cut refused a set that was in
+  // fact identical — it failed closed, which is the right direction, but a guard that
+  // always refuses protects nothing because it gets removed.
+  assert.match(script, /const expected = only\.map\(Number\)/);
+  assert.match(script, /const actual = ids\.map\(Number\)/);
   assert.match(script, /REFUSED\./);
   assert.match(script, /Nothing was written\./);
 
