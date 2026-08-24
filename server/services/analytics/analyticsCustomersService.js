@@ -210,9 +210,10 @@ const buildScope = ({ filters, columns }) => {
  */
 const customerCte = ({ scope, columns }) => {
   const revenue = orderRevenueExpr(columns.orderColumns);
+  // Net units per order line, aggregated in order_units below. Same net-of-returns basis
+  // as R2/R3 use: quantity minus returned_quantity, floored at zero.
   const units = columns.itemColumns.size
-    ? `(SELECT COALESCE(SUM(GREATEST(COALESCE(oi.quantity,0) - COALESCE(oi.returned_quantity,0), 0)), 0)
-         FROM order_items oi WHERE oi.order_id = o.id)`
+    ? "COALESCE(SUM(GREATEST(COALESCE(oi.quantity,0) - COALESCE(oi.returned_quantity,0), 0)), 0)"
     : "0";
 
   /*
@@ -267,12 +268,23 @@ const customerCte = ({ scope, columns }) => {
              ${columns.orderColumns.has("channel") ? "COALESCE(NULLIF(o.channel, ''), 'pos')" : "'pos'"} AS channel,
              ${columns.orderColumns.has("branch_id") ? "o.branch_id" : "NULL::bigint"}                   AS branch_id,
              ${revenue}                                                                                  AS revenue,
-             ${units}                                                                                    AS units,
              (${scope.inCurrent})                                                                        AS in_current,
              (${scope.inPrevious})                                                                       AS in_previous,
              (${scope.beforeCurrent})                                                                    AS before_current
       FROM orders o
       WHERE ${scope.orderWhere}
+    ),
+    order_units AS (
+      -- ONE grouped pass over the lines, not a correlated subquery per order.
+      --
+      -- The first cut computed units with a scalar subquery inside the order scan, which
+      -- EXPLAIN showed as "Seq Scan on order_items ... loops=74" — an aggregate per
+      -- order. It is cheap on a small dataset and it is exactly the shape that stops
+      -- being cheap, so it is a single aggregate joined once instead.
+      SELECT oi.order_id, ${units} AS units
+      FROM order_items oi
+      WHERE oi.order_id IN (SELECT id FROM scoped_orders)
+      GROUP BY oi.order_id
     ),
     per_customer AS (
       SELECT so.customer_id,
@@ -282,7 +294,7 @@ const customerCte = ({ scope, columns }) => {
              MAX(so.created_at)                                              AS last_order_at,
              COUNT(*) FILTER (WHERE so.in_current)                           AS orders_current,
              COALESCE(SUM(so.revenue) FILTER (WHERE so.in_current), 0)       AS revenue_current_gross,
-             COALESCE(SUM(so.units)   FILTER (WHERE so.in_current), 0)       AS units_current,
+             COALESCE(SUM(ou.units)   FILTER (WHERE so.in_current), 0)       AS units_current,
              COUNT(*) FILTER (WHERE so.in_previous)                          AS orders_previous,
              COALESCE(SUM(so.revenue) FILTER (WHERE so.in_previous), 0)      AS revenue_previous_gross,
              BOOL_OR(so.before_current)                                      AS ordered_before,
@@ -290,6 +302,7 @@ const customerCte = ({ scope, columns }) => {
              (ARRAY_AGG(so.channel ORDER BY so.created_at DESC))[1]          AS latest_channel,
              (ARRAY_AGG(so.branch_id ORDER BY so.created_at DESC))[1]        AS latest_branch_id
       FROM scoped_orders so
+      LEFT JOIN order_units ou ON ou.order_id = so.id
       GROUP BY so.customer_id
     ),
     netted AS (
@@ -732,7 +745,7 @@ export const getCustomersList = async ({ filters, permissions = {}, client = db 
 
   const sortKey = CUSTOMER_SORTS[filters.sort] || CUSTOMER_SORTS[DEFAULT_CUSTOMER_SORT];
   const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
-  const limit = Math.min(Math.max(filters.limit || 25, 1), 200);
+  const limit = Math.min(Math.max(filters.limit || 25, 1), 100);
   const offset = ((filters.page || 1) - 1) * limit;
 
   const searchClause = filters.search && showNames

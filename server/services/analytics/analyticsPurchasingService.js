@@ -819,7 +819,7 @@ export const getPurchasingProducts = async ({ filters, permissions = {}, client 
 
   const sortKey = PURCHASING_PRODUCT_SORTS[filters.sort] || PURCHASING_PRODUCT_SORTS[DEFAULT_PURCHASING_PRODUCT_SORT];
   const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
-  const limit = Math.min(Math.max(filters.limit || 25, 1), 200);
+  const limit = Math.min(Math.max(filters.limit || 25, 1), 100);
   const offset = ((filters.page || 1) - 1) * limit;
 
   const sql = `
@@ -935,7 +935,7 @@ export const getPurchasingSuppliers = async ({ filters, permissions = {}, client
 
   const sortKey = SUPPLIER_SORTS[filters.sort] || SUPPLIER_SORTS[DEFAULT_SUPPLIER_SORT];
   const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
-  const limit = Math.min(Math.max(filters.limit || 25, 1), 200);
+  const limit = Math.min(Math.max(filters.limit || 25, 1), 100);
   const offset = ((filters.page || 1) - 1) * limit;
 
   const returnsCte = columns.supplierReturnColumns.size

@@ -196,3 +196,60 @@ test("a warning always carries the evidence behind it", async () => {
   // The same code twice is noise; merging keeps one row per issue.
   assert.match(comparison, /const existing = this\.warnings\.find\(\(warning\) => warning\.code === code\)/);
 });
+
+/* ------------------------------------------------------- performance contract */
+
+test("no analytics query aggregates once per row of another query", async () => {
+  // EXPLAIN caught this in the first cut of the customer service: units were computed
+  // with a scalar subquery inside the order scan, which reads as
+  // "Seq Scan on order_items ... loops=74" — one aggregate per order. Cheap on a small
+  // dataset, and exactly the shape that stops being cheap.
+  const customers = await read("../../server/services/analytics/analyticsCustomersService.js");
+  assert.match(customers, /order_units AS \(/, "line units must be one grouped pass");
+  assert.match(customers, /LEFT JOIN order_units ou ON ou\.order_id = so\.id/);
+  assert.ok(
+    !/\(SELECT COALESCE\(SUM\([\s\S]{0,120}WHERE oi\.order_id = o\.id\)/.test(customers),
+    "the correlated per-order aggregate must not return"
+  );
+});
+
+test("every analytics query is bounded, and the services say how long they took", async () => {
+  for (const name of await serviceFiles()) {
+    const source = await read(`../../server/services/analytics/${name}`);
+    if (!/getPurchasing|getCustomers|getInventory|getSales|getExecutive/.test(source)) continue;
+
+    // The pool allows ten connections and statements are cut at fifteen seconds, so
+    // every list endpoint pages rather than returning a whole table.
+    if (/pagination:/.test(source)) {
+      // 100 across the whole Reporting Center: one page cap, not one per service.
+      assert.match(
+        source,
+        /Math\.min\(Math\.max\((?:Number\()?filters\.limit\)? \|\| 25, 1\), 100\)/,
+        `${name} does not bound its page size to the shared cap`
+      );
+    }
+    // And every query is timed, so a slow section names itself in the response meta
+    // rather than being guessed at from a stopwatch. R2 times inline and the later
+    // services use a runTimed helper; both record the same thing, so the assertion is on
+    // the recording, not on the shape it is written in.
+    assert.match(source, /timings\[name\] = Date\.now\(\) - startedAt/, `${name} does not time its queries`);
+    assert.match(source, /timings,/, `${name} does not report timings in its envelope`);
+  }
+});
+
+test("the guarded purchase-cost LATERAL is still guarded", async () => {
+  // The R2.5 optimisation: the purchase-history lookup only runs when the variant and
+  // product rungs both came back NULL. Removing skipWhenResolved would silently restore
+  // a 1448ms -> 31ms regression across accounting and every reporting page at once.
+  const canon = await read("../../server/services/analytics/accountingCanon.js");
+  assert.match(canon, /skipWhenResolved/, "the LATERAL guard must remain in the canon");
+
+  const metrics = await read("../../server/services/analytics/analyticsMetrics.js");
+  assert.match(metrics, /skipWhenResolved: preLookupUnitCostExpr/);
+
+  const inventory = await read("../../server/services/analytics/analyticsInventoryService.js");
+  assert.match(inventory, /skipWhenResolved: preLookup/);
+
+  const purchasing = await read("../../server/services/analytics/analyticsPurchasingService.js");
+  assert.match(purchasing, /buildCostContext\(\{/, "purchasing must reuse the canonical cost context");
+});
