@@ -692,6 +692,13 @@
     "whatsappCampaign": "حملة واتساب",
     "tiktokCampaign": "حملة تيك توك"
   },
+  "confirmation": {
+    "confirmed": "أكّد العميل",
+    "cancelled": "ألغى العميل",
+    "editRequested": "طلب تعديل",
+    "awaiting": "بانتظار التأكيد",
+    "notSent": "لم يُرسل طلب التأكيد"
+  },
   "whatsapp": {
     "cancelled": "ملغي عبر واتساب",
     "confirmed": "مؤكد عبر واتساب",

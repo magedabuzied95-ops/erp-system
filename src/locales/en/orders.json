@@ -692,6 +692,13 @@
     "whatsappCampaign": "WhatsApp campaign",
     "tiktokCampaign": "TikTok campaign"
   },
+  "confirmation": {
+    "confirmed": "Customer confirmed",
+    "cancelled": "Customer cancelled",
+    "editRequested": "Edit requested",
+    "awaiting": "Awaiting confirmation",
+    "notSent": "Confirmation not sent"
+  },
   "whatsapp": {
     "cancelled": "Cancelled via WhatsApp",
     "confirmed": "Confirmed via WhatsApp",

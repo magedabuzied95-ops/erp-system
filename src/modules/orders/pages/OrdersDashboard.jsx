@@ -42,6 +42,7 @@ import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { Pagination } from "../../../shared/ui";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
+import ConfirmationBadge from "../components/ConfirmationBadge";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import {
   buildSearchText,
@@ -1632,6 +1633,7 @@ function CustomerCell({ t, order }) {
     <div className="table-cell-stack px-2">
       <div className="truncate text-sm font-semibold text-text" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap items-center justify-center gap-1">
+        <ConfirmationBadge order={order} />
         {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{attribution}</div> : null}
       </div>
     </div>
@@ -1806,7 +1808,10 @@ function CompactOrderCard({ t, order, onClick }) {
           <OrderCode order={order} />
           <div className="mt-2 truncate text-sm font-semibold text-text">{order.customer_name || t("orders.fallback.customer")}</div>
         </div>
-        <StatusBadge value={order.status} />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <StatusBadge value={order.status} />
+          <ConfirmationBadge order={order} compact />
+        </div>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-muted">
         <span>{formatDateTime(order.created_at)}</span>
