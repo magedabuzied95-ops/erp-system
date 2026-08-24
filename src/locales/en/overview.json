@@ -309,5 +309,22 @@
       "removedNothing": "For the period shown nothing was removed: every order in range is a recognised sale."
     },
     "presetsWarning": "Your {{saved}} saved report presets live only in this browser, on this page. Nothing on the server can see them, so they cannot be restored if this page is ever retired — take a note of any you rely on."
+  },
+  "filters": {
+    "label": "Filters",
+    "all": "All",
+    "clear": "Clear filters",
+    "branch": "Branch",
+    "salesperson": "Salesperson",
+    "shift": "Shift",
+    "paymentMethod": "Payment method",
+    "channel": "Channel",
+    "optionsUnavailable": "Filter choices could not be loaded. The report below is unfiltered.",
+    "unsupportedNote": "Two controls from the old report are not offered here ({{names}}): they filter on columns nothing writes, so on the old page they quietly matched every order.",
+    "columns": "Columns",
+    "columnsAll": "Show all",
+    "columnsReset": "Reset to default",
+    "columnsHidden": "{{hidden}} hidden",
+    "columnsRestricted": "Withheld by your permissions"
   }
 }

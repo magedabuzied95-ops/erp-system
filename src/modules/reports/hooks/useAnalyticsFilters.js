@@ -117,7 +117,31 @@ export default function useAnalyticsFilters() {
   // Silently fall back rather than sending a comparison the backend would reject.
   const compare = allowed.includes(requestedCompare) ? requestedCompare : "previous_period";
 
-  const branchId = searchParams.get("branchId") || "";
+  /**
+   * The filters the legacy page had, now carried in the URL like everything else here.
+   *
+   * The URL matters more than convenience: it is what makes a filtered report shareable,
+   * bookmarkable and survivable across a refresh, and it is what lets a legacy
+   * `/reports?shiftId=25` bookmark be redirected to the equivalent Reporting Center view
+   * without losing the reader's intent.
+   *
+   * Values are read as strings and passed through untouched. Validation belongs on the
+   * server — `parseAnalyticsFilters` rejects anything that is not a positive id, and the
+   * client repeating that rule would create a second contract to keep in step.
+   */
+  const REPORT_FILTER_KEYS = ["branchId", "salespersonId", "shiftId", "paymentMethod", "channel"];
+
+  const reportFilters = useMemo(() => {
+    const values = {};
+    for (const key of REPORT_FILTER_KEYS) {
+      const value = searchParams.get(key);
+      if (value) values[key] = value;
+    }
+    return values;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
+
+  const branchId = reportFilters.branchId || "";
 
   const filters = useMemo(
     () => ({
@@ -126,9 +150,29 @@ export default function useAnalyticsFilters() {
       to: resolved.to,
       compare,
       branchId,
+      ...reportFilters,
       days: daysBetween(resolved.from, resolved.to),
     }),
-    [preset, resolved.from, resolved.to, compare, branchId]
+    [preset, resolved.from, resolved.to, compare, branchId, reportFilters]
+  );
+
+  /** Replace the whole filter set at once; an undefined value drops its parameter. */
+  const setFilters = useCallback(
+    (next = {}) => {
+      setSearchParams(
+        (current) => {
+          const params = new URLSearchParams(current);
+          for (const key of REPORT_FILTER_KEYS) {
+            const value = next[key];
+            if (value === undefined || value === null || value === "") params.delete(key);
+            else params.set(key, String(value));
+          }
+          return params;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
   );
 
   const setPreset = useCallback(
@@ -176,9 +220,13 @@ export default function useAnalyticsFilters() {
       to: filters.to,
       compare: filters.compare === "none" ? undefined : filters.compare,
       branchId: filters.branchId || undefined,
+      salespersonId: reportFilters.salespersonId || undefined,
+      shiftId: reportFilters.shiftId || undefined,
+      paymentMethod: reportFilters.paymentMethod || undefined,
+      channel: reportFilters.channel || undefined,
     }),
-    [filters.from, filters.to, filters.compare, filters.branchId]
+    [filters.from, filters.to, filters.compare, filters.branchId, reportFilters]
   );
 
-  return { filters, requestParams, allowedComparisons: allowed, setPreset, setCompare };
+  return { filters, requestParams, allowedComparisons: allowed, setPreset, setCompare, setFilters };
 }

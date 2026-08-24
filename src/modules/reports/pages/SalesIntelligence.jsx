@@ -8,6 +8,7 @@ import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchSalesBreakdown, fetchSalesProducts, fetchSalesSizes, fetchSalesSummary } from "../services/salesApi";
 
 import PeriodSelector from "../components/PeriodSelector";
+import ReportFilterBar from "../components/ReportFilterBar";
 import ReportExportMenu from "../components/ReportExportMenu";
 import KpiTile from "../components/KpiTile";
 import CoverageBadge from "../components/CoverageBadge";
@@ -130,6 +131,12 @@ export default function SalesIntelligence() {
             </button>
           </div>
         </ReportsHeader>
+
+      <ReportFilterBar
+        filters={filters.filters}
+        onChange={filters.setFilters}
+        period={{ from: filters.filters.from, to: filters.filters.to }}
+      />
 
         {showFilters || filters.activeFilterCount ? (
           <ActiveFilters filters={filters} t={t} language={i18n.language} />

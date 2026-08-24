@@ -5,6 +5,7 @@ import useCustomerFilters from "../hooks/useCustomerFilters";
 import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchCustomersBreakdown, fetchCustomersList, fetchCustomersSummary } from "../services/customersApi";
 import PeriodSelector from "../components/PeriodSelector";
+import ReportFilterBar from "../components/ReportFilterBar";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -124,6 +125,12 @@ export default function CustomerIntelligence() {
             />
           </div>
         </ReportsHeader>
+
+      <ReportFilterBar
+        filters={filters.filters}
+        onChange={filters.setFilters}
+        period={{ from: filters.filters.from, to: filters.filters.to }}
+      />
 
         <SectionNav sections={SECTIONS} namespace="customerAnalytics" />
 

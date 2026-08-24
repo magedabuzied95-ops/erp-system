@@ -28,3 +28,18 @@ export const fetchExecutiveOverview = async (filters = {}, options = {}) =>
     // state rather than a toast-worthy failure.
     suppressErrorStatuses: [403],
   });
+
+/**
+ * The values every filter control can take, scoped to the caller's tenant, the selected
+ * window and the canonical order predicate.
+ *
+ * Kept separate from the report requests on purpose: a failure here costs the reader
+ * their dropdowns, not their report, so the filter bar renders a one-line note and the
+ * page carries on.
+ */
+export const fetchFilterOptions = async ({ from, to } = {}, options = {}) =>
+  api.get(`/analytics/v2/filter-options${buildQuery({ from, to })}`, {
+    signal: options.signal,
+    timeoutMs: options.timeoutMs ?? 20000,
+    suppressErrorStatuses: [403],
+  });

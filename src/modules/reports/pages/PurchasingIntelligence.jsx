@@ -10,6 +10,7 @@ import {
   fetchPurchasingSuppliers,
 } from "../services/purchasingApi";
 import PeriodSelector from "../components/PeriodSelector";
+import ReportFilterBar from "../components/ReportFilterBar";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -122,6 +123,12 @@ export default function PurchasingIntelligence() {
             />
           </div>
         </ReportsHeader>
+
+      <ReportFilterBar
+        filters={filters.filters}
+        onChange={filters.setFilters}
+        period={{ from: filters.filters.from, to: filters.filters.to }}
+      />
 
         <SectionNav sections={SECTIONS} namespace="purchasingAnalytics" />
 

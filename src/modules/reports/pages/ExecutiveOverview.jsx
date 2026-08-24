@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import useAnalyticsFilters from "../hooks/useAnalyticsFilters";
 import useOverviewQuery from "../hooks/useOverviewQuery";
 import PeriodSelector from "../components/PeriodSelector";
+import ReportFilterBar from "../components/ReportFilterBar";
 import KpiTile from "../components/KpiTile";
 import CoverageBadge from "../components/CoverageBadge";
 import OverviewTrendChart from "../components/OverviewTrendChart";
@@ -38,7 +39,7 @@ export default function ExecutiveOverview() {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
 
-  const { filters, requestParams, allowedComparisons, setPreset, setCompare } = useAnalyticsFilters();
+  const { filters, requestParams, allowedComparisons, setPreset, setCompare, setFilters } = useAnalyticsFilters();
   const { status, data, meta, warnings, error, refresh } = useOverviewQuery(requestParams);
 
   const busy = status === "loading" || status === "refreshing";
@@ -72,6 +73,12 @@ export default function ExecutiveOverview() {
             />
           </div>
         </ReportsHeader>
+
+      <ReportFilterBar
+        filters={filters}
+        onChange={setFilters}
+        period={{ from: filters.from, to: filters.to }}
+      />
 
         {status === "forbidden" ? (
           <OverviewForbidden />

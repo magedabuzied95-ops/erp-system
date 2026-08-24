@@ -6,6 +6,7 @@ import useEmployeeFilters from "../hooks/useEmployeeFilters";
 import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchEmployeesBreakdown, fetchEmployeesList, fetchEmployeesSummary } from "../services/employeesApi";
 import PeriodSelector from "../components/PeriodSelector";
+import ReportFilterBar from "../components/ReportFilterBar";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -103,6 +104,12 @@ export default function EmployeeIntelligence() {
             />
           </div>
         </ReportsHeader>
+
+      <ReportFilterBar
+        filters={filters.filters}
+        onChange={filters.setFilters}
+        period={{ from: filters.filters.from, to: filters.filters.to }}
+      />
 
         <SectionNav sections={SECTIONS} namespace="employeeAnalytics" />
 

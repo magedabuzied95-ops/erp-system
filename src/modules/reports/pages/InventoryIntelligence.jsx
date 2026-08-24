@@ -12,6 +12,7 @@ import {
 } from "../services/inventoryApi";
 
 import PeriodSelector from "../components/PeriodSelector";
+import ReportFilterBar from "../components/ReportFilterBar";
 import ReportExportMenu from "../components/ReportExportMenu";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
@@ -119,6 +120,12 @@ export default function InventoryIntelligence() {
             </button>
           </div>
         </ReportsHeader>
+
+      <ReportFilterBar
+        filters={filters.filters}
+        onChange={filters.setFilters}
+        period={{ from: filters.filters.from, to: filters.filters.to }}
+      />
 
         {/* The one sentence that stops every ratio on this page being misread. */}
         <p className="flex items-start gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-[12px] leading-5 text-[var(--text-secondary)] 2xl:text-[13px]">
