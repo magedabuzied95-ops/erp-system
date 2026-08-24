@@ -135,6 +135,109 @@ test("POS still works without accounting.view, because it never used it", async 
   assert.match(block, /permit\("money_transactions", "adjust"\)/, "the POS adjustment is not gated on accounting.view");
 });
 
+/**
+ * The third layer, swept rather than spot-checked.
+ *
+ * The Reports Center hole was one unguarded route. Sweeping every financial route the
+ * same way found sixteen more — the whole accounting module, including the profit and
+ * loss, the trial balance, the general ledger and the audit trail — mounting for anyone
+ * with a session. The API refused them, but the page rendered and fired its requests, and
+ * a cashier who held accounting.view would have been served.
+ *
+ * Parsing App.jsx by route block rather than by a fixed slice, so a guard three lines
+ * below its path still counts and a guard on the NEXT route does not.
+ */
+const routeBlocks = (app) => {
+  const blocks = new Map();
+  for (const match of app.matchAll(/path="([^"]+)"/g)) {
+    const next = app.indexOf('path="', match.index + 6);
+    blocks.set(match[1], app.slice(match.index, next === -1 ? app.length : next));
+  }
+  return blocks;
+};
+
+const FINANCIAL_ROUTE = /^(accounting|reports|analytics|purchases|expenses)/;
+
+test("every financial route is guarded, or is a redirect that renders nothing", async () => {
+  const blocks = routeBlocks(await read("../src/App.jsx"));
+  const financial = [...blocks].filter(([path]) => FINANCIAL_ROUTE.test(path));
+  assert.ok(financial.length >= 30, `expected the financial surface, found ${financial.length} routes`);
+
+  const unguarded = financial
+    .filter(([, block]) => !/<ProtectedRoute/.test(block) && !/<Navigate to=/.test(block))
+    .map(([path]) => path);
+  assert.deepEqual(unguarded, [], `unguarded financial routes: ${unguarded.join(", ")}`);
+
+  // A guard with no permission list allows every signed-in user, which is not a guard.
+  const empty = financial
+    .filter(([, block]) => /<ProtectedRoute/.test(block) && !/requiredPermissions=\{\[\s*"/.test(block))
+    .map(([path]) => path);
+  assert.deepEqual(empty, [], `guarded with no permission: ${empty.join(", ")}`);
+});
+
+test("the ledgers, the P&L and the trial balance are gated on the permission that opens them", async () => {
+  const blocks = routeBlocks(await read("../src/App.jsx"));
+  for (const path of [
+    "accounting/profit-loss", "accounting/trial-balance", "accounting/general-ledger",
+    "accounting/accounts", "accounting/journal-entries", "accounting/reports",
+    "accounting/audit-trail", "accounting/income",
+  ]) {
+    const block = blocks.get(path);
+    assert.ok(block, `${path} must be routed`);
+    assert.match(block, /requiredPermissions=\{\["accounting\.view"\]\}/, `${path} must require accounting.view`);
+  }
+  // The cost-fix tool's own landing request is gated on edit, not view.
+  assert.match(blocks.get("accounting/cost-fix"), /requiredPermissions=\{\["accounting\.edit"\]\}/);
+});
+
+test("no frontend guard invents a permission the backend does not use", async () => {
+  const app = await read("../src/App.jsx");
+  const backend = [
+    await read("../server/routes/accounting.js"),
+    await read("../server/routes/expenses.js"),
+    await read("../server/routes/reports.js"),
+  ].join("\n");
+
+  const declared = new Set();
+  for (const [, permits] of backend.matchAll(/permit\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)/g).map((m) => [m, `${m[1]}.${m[2]}`])) {
+    declared.add(permits);
+  }
+
+  const blocks = routeBlocks(app);
+  for (const [path, block] of blocks) {
+    if (!FINANCIAL_ROUTE.test(path) || /^(reports|analytics|purchases)/.test(path)) continue;
+    for (const match of block.matchAll(/requiredPermissions=\{\[([^\]]*)\]\}/g)) {
+      for (const raw of match[1].split(",")) {
+        const permission = raw.trim().replace(/"/g, "");
+        if (!permission) continue;
+        assert.ok(
+          declared.has(permission),
+          `${path} requires "${permission}", which no accounting or expenses endpoint declares — ` +
+            "a guard nobody can satisfy locks out the people who should get in"
+        );
+      }
+    }
+  }
+});
+
+test("the backend still refuses on its own, which is the layer that actually matters", async () => {
+  // The frontend guard stops a page from mounting. It is not authorization: anyone can
+  // call the API directly. If an accounting endpoint ever ships without permit(), the
+  // guards above become decoration.
+  const routes = await read("../server/routes/accounting.js");
+  const handlers = [...routes.matchAll(/router\.(get|post|put|patch|delete)\(([\s\S]{0,700}?)\n\);/g)];
+  assert.ok(handlers.length >= 50, `expected the accounting surface, parsed ${handlers.length} routes`);
+
+  const naked = handlers
+    .filter(([, , body]) => !/permit\(/.test(body))
+    .map(([, method, body]) => `${method.toUpperCase()} ${(body.match(/"([^"]*)"/) || [])[1]}`);
+  assert.deepEqual(naked, [], `accounting endpoints with no permission check: ${naked.join(", ")}`);
+
+  for (const [, , body] of handlers) {
+    assert.match(body, /\bprotect\b/, "an accounting endpoint must authenticate before it authorizes");
+  }
+});
+
 test("the grant audit script covers the financial permission as well as the reporting ones", async () => {
   // Removing it from the preset does not revoke it from a role that already holds it:
   // permissions live in role_permissions, and the Roles screen wrote them there. The

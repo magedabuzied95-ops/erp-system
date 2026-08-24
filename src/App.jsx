@@ -1373,7 +1373,11 @@ function App() {
 
         <Route
           path="accounting"
-          element={<Accounting />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <Accounting />
+            </ProtectedRoute>
+          }
         />
 
         <Route
@@ -1383,21 +1387,37 @@ function App() {
 
         <Route
           path="accounting/treasury"
-          element={<Treasury />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view", "treasury.dashboard.view"]}>
+              <Treasury />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="accounting/cashbox"
-          element={<CashRegisters />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view", "money_accounts.view"]}>
+              <CashRegisters />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/financial-accounts"
-          element={<FinancialAccounts />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view", "money_accounts.view"]}>
+              <FinancialAccounts />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/payment-method-mappings"
-          element={<PaymentMethodMappings />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <PaymentMethodMappings />
+            </ProtectedRoute>
+          }
         />
 
         <Route
@@ -1407,22 +1427,38 @@ function App() {
 
         <Route
           path="accounting/expenses"
-          element={<Expenses />}
+          element={
+            <ProtectedRoute requiredPermissions={["expenses.view"]}>
+              <Expenses />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="expenses"
-          element={<Expenses />}
+          element={
+            <ProtectedRoute requiredPermissions={["expenses.view"]}>
+              <Expenses />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/income"
-          element={<Revenues />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <Revenues />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/journal-entries"
-          element={<JournalEntries />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <JournalEntries />
+            </ProtectedRoute>
+          }
         />
 
         <Route
@@ -1432,22 +1468,38 @@ function App() {
 
         <Route
           path="accounting/accounts"
-          element={<Accounts />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <Accounts />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/general-ledger"
-          element={<GeneralLedger />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <GeneralLedger />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/trial-balance"
-          element={<TrialBalance />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <TrialBalance />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/reports"
-          element={<FinancialReports />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <FinancialReports />
+            </ProtectedRoute>
+          }
         />
 
         <Route
@@ -1466,7 +1518,11 @@ function App() {
 
         <Route
           path="accounting/profit-loss"
-          element={<ProfitAndLoss />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <ProfitAndLoss />
+            </ProtectedRoute>
+          }
         />
 
         <Route
@@ -1476,12 +1532,20 @@ function App() {
 
         <Route
           path="accounting/cost-fix"
-          element={<CostFixCenter />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.edit"]}>
+              <CostFixCenter />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="accounting/audit-trail"
-          element={<AuditTrail />}
+          element={
+            <ProtectedRoute requiredPermissions={["accounting.view"]}>
+              <AuditTrail />
+            </ProtectedRoute>
+          }
         />
 
         {/* ORDERS */}
