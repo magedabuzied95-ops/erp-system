@@ -211,6 +211,15 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     sale_source: resolvedPrice.sale_source,
     sale_badge: resolvedPrice.sale_badge,
     sale_mode_applied: resolvedPrice.sale_mode_applied,
+    // Pricing INPUTS, not outputs: kept so repricePosCatalogProducts can re-run
+    // getPosEffectivePrice over an already-normalized catalog when the sale-mode
+    // toggle flips, instead of re-downloading ~9MB just to change the rule.
+    current_selling_price: row.current_selling_price ?? sourceProduct.current_selling_price ?? null,
+    purchase_selling_price: row.purchase_selling_price ?? sourceProduct.purchase_selling_price ?? null,
+    sale_price_enabled: normalizeBoolean(row.sale_price_enabled ?? sourceProduct.sale_price_enabled),
+    sale_start_at: row.sale_start_at ?? sourceProduct.sale_start_at ?? null,
+    sale_end_at: row.sale_end_at ?? sourceProduct.sale_end_at ?? null,
+    sale_reason: normalizeText(row.sale_reason ?? sourceProduct.sale_reason ?? ""),
     is_offer_story: shouldForceSalePriceForPos(sourceProduct) || shouldForceSalePriceForPos(row),
     isOfferStory: shouldForceSalePriceForPos(sourceProduct) || shouldForceSalePriceForPos(row),
     is_pos_favorite: normalizeBoolean(sourceProduct.is_pos_favorite ?? sourceProduct.isPosFavorite ?? row.is_pos_favorite ?? row.isPosFavorite),
@@ -501,6 +510,34 @@ export const normalizePosCatalogProduct = (product = {}) => {
     searchMatchType: product.searchMatchType ?? product.search_match_type ?? null,
   };
 };
+
+// Re-price an ALREADY-normalized catalog in memory. The sale-mode toggle changes
+// the pricing rule, not the data, so the full catalog download it used to trigger
+// was pure latency. Normalized variants carry every input getPosEffectivePrice
+// reads (regular/current/purchase selling price, stored_sale_price, offer flags,
+// sale enable+window, exclusion ids), so re-running it and rebuilding the product
+// roll-ups reproduces exactly what normalizePosSellableProducts(raw, settings)
+// would return for the new settings. Guarded by tests/pos-sale-toggle-reprice.test.js.
+export const repricePosCatalogProducts = (products = [], saleModeSettings = {}) =>
+  (Array.isArray(products) ? products : []).map((product) => {
+    const variants = Array.isArray(product?.variants) ? product.variants : [];
+    if (!variants.length) return product;
+    const repricedVariants = variants.map((variant) => {
+      const resolved = getPosEffectivePrice({ product: variant, variant, saleModeSettings });
+      const price = resolved.final_price || normalizeNumber(variant.regular_price);
+      return {
+        ...variant,
+        price,
+        sale_price: price,
+        final_price: price,
+        stored_sale_price: resolved.stored_sale_price,
+        sale_source: resolved.sale_source,
+        sale_badge: resolved.sale_badge,
+        sale_mode_applied: resolved.sale_mode_applied,
+      };
+    });
+    return normalizePosCatalogProduct(buildProductFromVariants(product, repricedVariants));
+  });
 
 export const getPosSellableProducts = async (saleModeSettings = {}, { requestOptions } = {}) => {
   // requestOptions lets callers (e.g. the AI Inbox picker) request the compact

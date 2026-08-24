@@ -7,7 +7,7 @@ import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/li
 // change to the pricing RULE leaves the watermark identical and a warm terminal would keep
 // selling at the old price. Curated Offers now set their own price, so bump this whenever
 // pricing logic changes: it is the only thing that re-normalizes an existing snapshot.
-export const POS_CATALOG_SCHEMA_VERSION = 5;
+export const POS_CATALOG_SCHEMA_VERSION = 6;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
@@ -95,6 +95,25 @@ const sanitizePosCatalogVariant = (variant = {}) => {
     regular_price: normalizeNumber(variant.regular_price ?? variant.original_price ?? variant.price ?? 0),
     original_price: normalizeNumber(variant.original_price ?? variant.regular_price ?? variant.price ?? 0),
     sale_price: normalizeNumber(variant.sale_price ?? variant.price ?? variant.final_price ?? 0),
+    // Pricing inputs + resolved sale display, so a warm-open snapshot can be
+    // re-priced in memory when the sale-mode toggle flips (and renders the same
+    // SALE badges a fresh download would). Without these, toggling on a warm
+    // session silently did nothing until a full catalog re-download.
+    stored_sale_price: normalizeNumber(variant.stored_sale_price ?? 0),
+    current_selling_price: variant.current_selling_price ?? null,
+    purchase_selling_price: variant.purchase_selling_price ?? null,
+    sale_price_enabled: Boolean(variant.sale_price_enabled),
+    sale_start_at: variant.sale_start_at ?? null,
+    sale_end_at: variant.sale_end_at ?? null,
+    sale_reason: normalizeText(variant.sale_reason || ""),
+    sale_source: normalizeText(variant.sale_source || ""),
+    sale_badge: normalizeText(variant.sale_badge || ""),
+    sale_mode_applied: Boolean(variant.sale_mode_applied),
+    is_offer_story: Boolean(variant.is_offer_story ?? variant.isOfferStory),
+    isOfferStory: Boolean(variant.isOfferStory ?? variant.is_offer_story),
+    category_id: variant.category_id ?? null,
+    parent_category_id: variant.parent_category_id ?? null,
+    brand_id: variant.brand_id ?? null,
     stock,
     stock_quantity: stock,
     available: stock > 0,
@@ -145,6 +164,14 @@ const sanitizePosCatalogProduct = (product = {}) => {
     sale_badge: normalizeText(product.sale_badge || ""),
     sale_source: normalizeText(product.sale_source || ""),
     sale_mode_applied: Boolean(product.sale_mode_applied),
+    stored_sale_price: normalizeNumber(product.stored_sale_price ?? 0),
+    sale_price_enabled: Boolean(product.sale_price_enabled),
+    sale_start_at: product.sale_start_at ?? null,
+    sale_end_at: product.sale_end_at ?? null,
+    sale_reason: normalizeText(product.sale_reason || ""),
+    is_offer_story: Boolean(product.is_offer_story ?? product.isOfferStory),
+    isOfferStory: Boolean(product.isOfferStory ?? product.is_offer_story),
+    parent_category_id: product.parent_category_id ?? product.parentCategoryId ?? null,
     is_pos_favorite: normalizeBoolean(product.is_pos_favorite ?? product.isPosFavorite),
     isPosFavorite: normalizeBoolean(product.isPosFavorite ?? product.is_pos_favorite),
     brand_id: product.brand_id ?? product.brandId ?? null,
