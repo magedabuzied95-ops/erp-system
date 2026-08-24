@@ -7,6 +7,7 @@ import {
   getStatus,
   handleIncomingWebhook,
   loadOrderForWhatsapp,
+  mayDecideOrderConfirmation,
   normalizeEgyptPhone,
   sendTextMessage,
   sendWhatsAppButtonsDebugTest,
@@ -206,9 +207,18 @@ router.post("/webhook", async (req, res) => {
         skipReason: normalized.skipReason || normalized.replyTargetReason || "evolution_noise",
       });
     }
-    const confirmation = normalized.text
+    const mayDecide = mayDecideOrderConfirmation(normalized);
+    const confirmation = mayDecide
       ? await processConfirmationReply(normalized)
-      : { action: "ignored", reason: "no_text" };
+      : { action: "ignored", reason: normalized.fromMe === true ? "own_outgoing_message" : "no_text" };
+    if (!mayDecide && normalized.text) {
+      console.info("[whatsapp:confirmation-skipped-own-echo]", {
+        messageId: normalized.messageId || "",
+        remoteJid: normalized.remoteJid || "",
+        rawEvent: normalized.rawEvent || "",
+        textPreview: String(normalized.text).slice(0, 80),
+      });
+    }
     const aiReply = normalized.text && !["confirmed", "cancelled", "cancelled_by_customer", "edit_requested", "cancel_reason_saved"].includes(confirmation?.action)
       ? await triggerWhatsappAiAutoReply(normalized).catch((error) => ({ triggered: false, sent: false, error: error?.message || "AI auto reply failed" }))
       : { triggered: false, sent: false, reason: confirmation?.action || "no_text" };

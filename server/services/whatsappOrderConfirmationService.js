@@ -1930,6 +1930,15 @@ const processConfirmationReplyLegacy = async (message = {}) => {
 export { applyConfirmationAction };
 
 export const processConfirmationReply = async (message = {}) => {
+  // Defense in depth: an order may only be decided by the customer. Our own outgoing prompt
+  // contains every action label, so echoing it back would confirm the order it just asked about.
+  if (message.fromMe === true) {
+    console.info("[whatsapp:confirmation-reply-ignored-own-message]", {
+      messageId: message.messageId || message.message_id || "",
+      remoteJid: message.remoteJid || "",
+    });
+    return { action: "ignored", reason: "own_outgoing_message" };
+  }
   const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
   const originalBody = text(message.original_message || message.text || message.message_text || message.body);
   const intentPayload = normalizeArabicIntentPayload(originalBody);

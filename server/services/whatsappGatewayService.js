@@ -59,6 +59,17 @@ const WHATSAPP_WEBHOOK_SKIP_REASONS = {
   nonMessageEvent: "non_message_event",
 };
 
+// An order may only ever be decided by the customer. Evolution echoes our own outgoing message
+// back as a `send.message` webhook, and the confirmation prompt we send lists every action
+// ("✅ تأكيد الطلب / ✏️ تعديل الطلب / ❌ إلغاء الطلب") — so an unguarded echo matches the confirm
+// keywords and confirms the very order it was asking about (INV-658 did this 0.8s after being sent).
+export const mayDecideOrderConfirmation = (message = {}) => {
+  if (!message || typeof message !== "object") return false;
+  if (message.fromMe === true) return false;
+  if (!String(message.text || "").trim()) return false;
+  return true;
+};
+
 export const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", messageId = "", textValue = "", hasMedia = false, fromMe = false } = {}) => {
   const normalizedEvent = String(event || "").toLowerCase();
   const hasMessageContent = Boolean(String(textValue || "").trim());
