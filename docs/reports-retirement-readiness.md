@@ -120,16 +120,19 @@ Both implementations run over the same window and compared, on production:
 
 | | value |
 |---|---|
-| legacy `/reports` total sales | 691 080 |
-| Reporting Center net sales | 687 650 |
-| difference | **3 430** |
+| legacy `/reports` total sales | 691 110 |
+| Reporting Center net sales | 690 930 |
+| difference | **180** |
 | D-16 correction, disclosed on the page | 11 200 |
 | sales agrees with the Executive Overview | **yes**, to the cent |
 | employee attribution | `salesperson_name`, 89% coverage |
 
-The remaining 3 430 is the Reporting Center's own declared divergences — D-04 soft-deleted
-and D-05 draft-pattern exclusions, plus its net-of-returns basis. It is quantified on
-`/reports/reconciliation` rather than left as a mystery.
+The remaining 180 is the Reporting Center's own declared divergences — D-04 soft-deleted
+and D-05 draft-pattern exclusions, plus its net-of-returns basis. It is quantified on `/reports/reconciliation` rather than left as a mystery.
+
+> The gap was 3 430 before D-21 was fixed. A refund whose order had already been removed
+> from the counted set was being deducted a second time; the reconciliation harness caught
+> it the first time a real return landed on production while it was watching.
 
 ---
 

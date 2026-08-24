@@ -116,9 +116,19 @@ test("data, export and permission parity are recorded with figures, not adjectiv
   for (const format of ["CSV", "Excel", "PDF", "print"]) {
     assert.ok(document.includes(format), `export parity must name ${format}`);
   }
-  // No "looks equivalent" claims: the data section must carry actual numbers.
-  assert.match(document, /691 080|691080/, "the legacy figure must be stated");
-  assert.match(document, /687 650|687650/, "the replacement figure must be stated");
+  /*
+   * No "looks equivalent" claims: the data section must carry actual numbers on both
+   * sides plus the difference between them. Matched by SHAPE rather than by value —
+   * pinning the exact figures would fail every time the shop makes a sale, which teaches
+   * the next person to delete the assertion rather than read it.
+   */
+  const dataSection = document.slice(document.indexOf("## 3."), document.indexOf("## 4."));
+  const figures = [...dataSection.matchAll(/\|\s*\*?\*?([\d][\d\s,]{4,})\*?\*?\s*\|/g)].map((m) => m[1].trim());
+  assert.ok(figures.length >= 3, `the data section must state both figures and their difference; found ${figures.length}`);
+  assert.match(dataSection, /legacy .*total sales/i);
+  assert.match(dataSection, /Reporting Center net sales/i);
+  assert.match(dataSection, /difference/i);
+  assert.match(dataSection, /agrees with the Executive Overview \| \*\*yes\*\*/, "the internal identity must be stated as holding");
 });
 
 test("the bare route stays live while the import path is still needed", async () => {
