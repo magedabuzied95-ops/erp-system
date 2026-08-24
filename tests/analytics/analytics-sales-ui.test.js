@@ -187,7 +187,9 @@ test("the new pages are grouped with the reporting entries, and the legacy one s
   // The Reporting Center owns its own sidebar group. It used to live inside Finance
   // beside the ledger screens, which buried six analytical pages under two accounting
   // ones and left a reader no way to tell the current reports from the legacy one.
-  assert.match(layout, /"Employees",\n  "Reports",\n  "Finance",/, "Reports must be its own sidebar group");
+  // \r?\n, not \n: core.autocrlf is true in this repository, so a file checked out after a
+  // merge carries CRLF and a \n-anchored assertion fails on content that is correct.
+  assert.match(layout, /"Employees",\r?\n  "Reports",\r?\n  "Finance",/, "Reports must be its own sidebar group");
   assert.match(
     layout,
     /if \(to === "\/reports" \|\| to\.startsWith\("\/reports\/"\)\) return "Reports";/,
