@@ -146,6 +146,13 @@ const run = async () => {
     else if (wildcard) path = "wildcard grant";
     else if (sensitiveHeld.length) path = `role_permissions via ${linkVia}`;
 
+    // A disabled account reaches nothing, whatever its grants say. `is_active = FALSE` is
+    // enforced at login (403 before a token is issued) AND on every authenticated request
+    // (403 even with a token issued earlier), so the grants below it are inert. Reporting
+    // it as reaching the financial reports would overstate the exposure and bury the
+    // accounts that genuinely do.
+    if (user.is_active === false && path !== "none") path = `disabled (would be: ${path})`;
+
     return {
       userId: user.id,
       label: user.label,
@@ -156,7 +163,7 @@ const run = async () => {
       resolvedRole: linkedRole ? `${linkedRole.name}${linkedRole.slug ? ` (${linkedRole.slug})` : ""}` : null,
       linkVia,
       isPosShaped: POS_ROLE_NAMES.includes(roleText) || (linkedRole ? POS_ROLE_NAMES.includes(normalise(linkedRole.name)) : false),
-      reachesFinancialReports: path !== "none",
+      reachesFinancialReports: path !== "none" && !path.startsWith("disabled"),
       path,
       sensitiveGrants: [...new Set(sensitiveHeld)].sort(),
     };
@@ -171,15 +178,25 @@ const run = async () => {
   }
 
   console.log(`\nEffective financial-report access, resolved per USER (${resolved.length} user(s))\n`);
-  console.log("  user                          role            link       reaches?  via");
-  console.log("  " + "-".repeat(86));
+  console.log("  user                          role            link       login  reaches?  via");
+  console.log("  " + "-".repeat(96));
   for (const user of resolved) {
     const mark = user.reachesFinancialReports ? (user.isPosShaped ? " >> " : "    ") : "    ";
     console.log(
       `${mark}#${String(user.userId).padEnd(4)} ${String(user.label).slice(0, 22).padEnd(23)} ` +
         `${String(user.roleText || "-").slice(0, 14).padEnd(15)} ${user.linkVia.padEnd(10)} ` +
+        `${(user.active === false ? "OFF" : "on ").padEnd(6)} ` +
         `${user.reachesFinancialReports ? "YES" : "no "}       ${user.path}`
     );
+  }
+
+  const disabled = resolved.filter((user) => user.active === false);
+  if (disabled.length) {
+    console.log(
+      `\n${disabled.length} account(s) are disabled (is_active = FALSE) and reach nothing, whatever` +
+        ` their\ngrants say — the flag is enforced at login and on every authenticated request:`
+    );
+    for (const user of disabled) console.log(`  #${user.userId} ${user.label}`);
   }
 
   console.log("");
