@@ -43,3 +43,30 @@ export const fetchFilterOptions = async ({ from, to } = {}, options = {}) =>
     timeoutMs: options.timeoutMs ?? 20000,
     suppressErrorStatuses: [403],
   });
+
+/* ------------------------------------------------------------- saved presets */
+
+/**
+ * Presets are owned by the caller. There is no parameter for whose presets to read —
+ * the server takes the owner from the session, so a client cannot ask for somebody
+ * else's saved views even by trying.
+ */
+export const fetchPresets = async (page, options = {}) =>
+  api.get(`/analytics/v2/presets${buildQuery({ page })}`, {
+    signal: options.signal,
+    timeoutMs: options.timeoutMs ?? 15000,
+    suppressErrorStatuses: [403],
+  });
+
+export const createPreset = async ({ page, name, filters }) =>
+  api.post("/analytics/v2/presets", { body: { page, name, filters } });
+
+export const updatePreset = async (id, patch) =>
+  api.patch(`/analytics/v2/presets/${encodeURIComponent(id)}`, { body: patch });
+
+export const deletePreset = async (id) =>
+  api.delete(`/analytics/v2/presets/${encodeURIComponent(id)}`);
+
+/** One-time migration of whatever this browser still holds from the legacy page. */
+export const importLegacyPresets = async (presets) =>
+  api.post("/analytics/v2/presets/import", { body: { presets } });

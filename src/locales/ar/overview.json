@@ -326,5 +326,18 @@
     "columnsReset": "رجّع الافتراضي",
     "columnsHidden": "{{hidden}} مخفي",
     "columnsRestricted": "محجوب حسب صلاحياتك"
+  },
+  "presets": {
+    "save": "احفظ العرض",
+    "namePrompt": "اسم العرض ده",
+    "pin": "تثبيت",
+    "unpin": "إلغاء التثبيت",
+    "delete": "حذف",
+    "confirmDelete": "تحذف العرض المحفوظ «{{name}}»؟",
+    "saveFailed": "تعذّر حفظ العرض.",
+    "importLegacy": "استورد {{saved}} من التقرير القديم",
+    "imported": "اتستوردوا {{count}} عرض محفوظ.",
+    "importedWithDrops": "اتستوردوا {{count}} عرض محفوظ. الفلاتر دي ما اتنقلتش لأنها بتفلتر على أعمدة مفيش حاجة بتكتب فيها: {{keys}}.",
+    "importFailed": "تعذّر استيراد العروض المحفوظة."
   }
 }

@@ -230,6 +230,23 @@ test("preferences are per user, so a shared terminal does not leak a layout", as
   assert.match(hook, /useEffect\(\(\) => \{ setHidden\(readHidden\(page, userId\)\); \}, \[page, userId\]\)/);
 });
 
+test("a column the permissions already withheld is not even offered", async () => {
+  const hook = await read("../../src/modules/reports/hooks/useColumnPreferences.js");
+
+  /*
+   * Some pages keep a restricted column in the spec and mark it invisible rather than
+   * omitting it — PurchasingIntelligence writes `visible: showCost`. Offering it in the
+   * menu would list a column the reader may not see, show it as ticked, and do nothing
+   * when unticked. The listing alone tells them a cost column exists.
+   */
+  assert.match(hook, /!column\.required && column\.visible !== false/);
+
+  const purchasing = await read("../../src/modules/reports/pages/PurchasingIntelligence.jsx");
+  assert.match(purchasing, /visible: showCost/, "this is the page the exclusion exists for");
+  assert.match(purchasing, /const showCost = summary\.meta\?\.permissions\?\.cost !== false/,
+    "and the flag must come from the server's own answer, not a client guess");
+});
+
 test("a required column cannot be hidden, and the last column cannot either", async () => {
   const hook = await read("../../src/modules/reports/hooks/useColumnPreferences.js");
   assert.match(hook, /!column\.required/);

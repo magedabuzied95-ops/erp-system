@@ -6,6 +6,9 @@ import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchCustomersBreakdown, fetchCustomersList, fetchCustomersSummary } from "../services/customersApi";
 import PeriodSelector from "../components/PeriodSelector";
 import ReportFilterBar from "../components/ReportFilterBar";
+import PresetBar from "../components/PresetBar";
+import ColumnChooser from "../components/ColumnChooser";
+import useColumnPreferences from "../hooks/useColumnPreferences";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -103,6 +106,9 @@ export default function CustomerIntelligence() {
     row.share = totalSegmentCustomers > 0 ? row.customers / totalSegmentCustomers : null;
   });
 
+  // Column preferences: hide-only, applied on top of the columns the server sent.
+  const columnPrefs = useColumnPreferences("customers", customerColumns({ t, language, showNames }));
+
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-5">
@@ -131,6 +137,17 @@ export default function CustomerIntelligence() {
         onChange={filters.setFilters}
         period={{ from: filters.filters.from, to: filters.filters.to }}
       />
+
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <ColumnChooser
+          choosable={columnPrefs.choosable}
+          hidden={columnPrefs.hidden}
+          hiddenCount={columnPrefs.hiddenCount}
+          onToggle={columnPrefs.toggle}
+          onReset={columnPrefs.reset}
+        />
+        <PresetBar page="customers" filters={filters.filters} onApply={filters.setFilters} />
+      </div>
 
         <SectionNav sections={SECTIONS} namespace="customerAnalytics" />
 
@@ -307,7 +324,7 @@ export default function CustomerIntelligence() {
           note={showNames ? t("customerAnalytics.privacy.namesVisible") : t("customerAnalytics.privacy.namesHidden")}
         >
           <AnalyticsTable
-            columns={customerColumns({ t, language, showNames })}
+            columns={columnPrefs.columns}
             rows={list.data?.rows || []}
             pagination={list.data?.pagination}
             sort={list.meta?.sort || { key: filters.sort, direction: filters.sortDir }}

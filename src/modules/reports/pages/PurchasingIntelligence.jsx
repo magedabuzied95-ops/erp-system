@@ -11,6 +11,9 @@ import {
 } from "../services/purchasingApi";
 import PeriodSelector from "../components/PeriodSelector";
 import ReportFilterBar from "../components/ReportFilterBar";
+import PresetBar from "../components/PresetBar";
+import ColumnChooser from "../components/ColumnChooser";
+import useColumnPreferences from "../hooks/useColumnPreferences";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -101,6 +104,9 @@ export default function PurchasingIntelligence() {
   const relationship = summary.data?.purchaseVsSales || null;
   const concentration = summary.data?.concentration || null;
 
+  // Column preferences: hide-only, applied on top of the columns the server sent.
+  const columnPrefs = useColumnPreferences("purchasing", supplierColumns({ t, language, showCost }));
+
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-5">
@@ -129,6 +135,17 @@ export default function PurchasingIntelligence() {
         onChange={filters.setFilters}
         period={{ from: filters.filters.from, to: filters.filters.to }}
       />
+
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <ColumnChooser
+          choosable={columnPrefs.choosable}
+          hidden={columnPrefs.hidden}
+          hiddenCount={columnPrefs.hiddenCount}
+          onToggle={columnPrefs.toggle}
+          onReset={columnPrefs.reset}
+        />
+        <PresetBar page="purchasing" filters={filters.filters} onApply={filters.setFilters} />
+      </div>
 
         <SectionNav sections={SECTIONS} namespace="purchasingAnalytics" />
 
@@ -252,7 +269,7 @@ export default function PurchasingIntelligence() {
           skeletonHeight={320}
         >
           <AnalyticsTable
-            columns={supplierColumns({ t, language, showCost })}
+            columns={columnPrefs.columns}
             rows={suppliers.data?.rows || []}
             pagination={suppliers.data?.pagination}
             sort={suppliers.meta?.sort || { key: filters.supplierSort, direction: filters.supplierSortDir }}

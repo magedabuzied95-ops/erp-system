@@ -5,6 +5,7 @@ import useAnalyticsFilters from "../hooks/useAnalyticsFilters";
 import useOverviewQuery from "../hooks/useOverviewQuery";
 import PeriodSelector from "../components/PeriodSelector";
 import ReportFilterBar from "../components/ReportFilterBar";
+import PresetBar from "../components/PresetBar";
 import KpiTile from "../components/KpiTile";
 import CoverageBadge from "../components/CoverageBadge";
 import OverviewTrendChart from "../components/OverviewTrendChart";
@@ -79,6 +80,10 @@ export default function ExecutiveOverview() {
         onChange={setFilters}
         period={{ from: filters.from, to: filters.to }}
       />
+
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <PresetBar page="overview" filters={filters} onApply={setFilters} />
+      </div>
 
         {status === "forbidden" ? (
           <OverviewForbidden />

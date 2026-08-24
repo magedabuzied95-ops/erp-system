@@ -70,13 +70,23 @@ export default function useColumnPreferences(page, columns = []) {
   );
 
   /**
-   * Columns the reader may choose between — everything the server sent that is not
-   * structurally required. A column marked `required` (the row's own identity, usually)
-   * is never offered, because a table with no name column is not a shorter table, it is
-   * an unreadable one.
+   * Columns the reader may choose between.
+   *
+   * Three exclusions, and the third is the security-relevant one:
+   *
+   *   - no key, so there is nothing to remember
+   *   - `required`: the row's own identity. A table with no name column is not a shorter
+   *     table, it is an unreadable one.
+   *   - **already withheld** (`visible === false` in the incoming spec). Some pages keep
+   *     a restricted column in the spec and mark it invisible rather than omitting it —
+   *     `PurchasingIntelligence` does exactly that with `visible: showCost`. Offering it
+   *     in the menu would list a column the reader may not see and show it as ticked.
+   *     Unticking it would do nothing, which reads as a broken control; and the mere
+   *     listing tells them a cost column exists. That is a permission decision, not a
+   *     preference, so it is not offered at all.
    */
   const choosable = useMemo(
-    () => columns.filter((column) => column && column.key && !column.required),
+    () => columns.filter((column) => column && column.key && !column.required && column.visible !== false),
     [columns]
   );
 

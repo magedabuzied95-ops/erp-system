@@ -9,6 +9,7 @@ import { fetchSalesBreakdown, fetchSalesProducts, fetchSalesSizes, fetchSalesSum
 
 import PeriodSelector from "../components/PeriodSelector";
 import ReportFilterBar from "../components/ReportFilterBar";
+import PresetBar from "../components/PresetBar";
 import ReportExportMenu from "../components/ReportExportMenu";
 import KpiTile from "../components/KpiTile";
 import CoverageBadge from "../components/CoverageBadge";
@@ -137,6 +138,10 @@ export default function SalesIntelligence() {
         onChange={filters.setFilters}
         period={{ from: filters.filters.from, to: filters.filters.to }}
       />
+
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <PresetBar page="sales" filters={filters.filters} onApply={filters.setFilters} />
+      </div>
 
         {showFilters || filters.activeFilterCount ? (
           <ActiveFilters filters={filters} t={t} language={i18n.language} />

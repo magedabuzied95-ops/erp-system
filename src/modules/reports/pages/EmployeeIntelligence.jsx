@@ -7,6 +7,9 @@ import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchEmployeesBreakdown, fetchEmployeesList, fetchEmployeesSummary } from "../services/employeesApi";
 import PeriodSelector from "../components/PeriodSelector";
 import ReportFilterBar from "../components/ReportFilterBar";
+import PresetBar from "../components/PresetBar";
+import ColumnChooser from "../components/ColumnChooser";
+import useColumnPreferences from "../hooks/useColumnPreferences";
 import KpiTile from "../components/KpiTile";
 import SectionCard from "../components/SectionCard";
 import SectionNav from "../components/SectionNav";
@@ -82,6 +85,9 @@ export default function EmployeeIntelligence() {
   const unattributedLabel = t("employeeAnalytics.sellers.unattributed");
   const label = (key) => (key === "__unattributed__" ? unattributedLabel : key);
 
+  // Column preferences: hide-only, applied on top of the columns the server sent.
+  const columnPrefs = useColumnPreferences("employees", sellerColumns({ t, language, unattributedLabel }));
+
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-5">
@@ -110,6 +116,17 @@ export default function EmployeeIntelligence() {
         onChange={filters.setFilters}
         period={{ from: filters.filters.from, to: filters.filters.to }}
       />
+
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <ColumnChooser
+          choosable={columnPrefs.choosable}
+          hidden={columnPrefs.hidden}
+          hiddenCount={columnPrefs.hiddenCount}
+          onToggle={columnPrefs.toggle}
+          onReset={columnPrefs.reset}
+        />
+        <PresetBar page="employees" filters={filters.filters} onApply={filters.setFilters} />
+      </div>
 
         <SectionNav sections={SECTIONS} namespace="employeeAnalytics" />
 
@@ -219,7 +236,7 @@ export default function EmployeeIntelligence() {
             </p>
           ) : (
             <AnalyticsTable
-              columns={sellerColumns({ t, language, unattributedLabel })}
+              columns={columnPrefs.columns}
               rows={list.data?.rows || []}
               pagination={list.data?.pagination}
               sort={list.meta?.sort || { key: filters.sort, direction: filters.sortDir }}

@@ -326,5 +326,18 @@
     "columnsReset": "Reset to default",
     "columnsHidden": "{{hidden}} hidden",
     "columnsRestricted": "Withheld by your permissions"
+  },
+  "presets": {
+    "save": "Save view",
+    "namePrompt": "Name this view",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "delete": "Delete",
+    "confirmDelete": "Delete the saved view \"{{name}}\"?",
+    "saveFailed": "The view could not be saved.",
+    "importLegacy": "Import {{saved}} from the old report",
+    "imported": "Imported {{count}} saved views.",
+    "importedWithDrops": "Imported {{count}} saved views. These filters could not be carried over because they filter on columns nothing writes: {{keys}}.",
+    "importFailed": "The saved views could not be imported."
   }
 }
