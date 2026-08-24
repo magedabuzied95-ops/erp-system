@@ -40,6 +40,9 @@ import {
 import { Pagination } from "../../../shared/ui";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { Navigate, useLocation } from "react-router-dom";
+
+import { resolveLegacyReportsTarget } from "../lib/legacyReportsRedirect";
 
 import i18n from "../../../i18n/i18n";
 
@@ -157,6 +160,34 @@ const normalizeChartRows = (rows = []) =>
 
 const getRowsFromReport = (report) => (Array.isArray(report?.rows) ? report.rows : []);
 
+
+/**
+ * Deep links redirect; the bare page does not.
+ *
+ * A DEEP LINK into this page is somebody's bookmark of a specific report, and the
+ * Reporting Center answers that question better — so `/reports?tab=sales&shiftId=25`
+ * lands on the equivalent view with its parameters translated. What survives is decided
+ * by `resolveLegacyReportsTarget`, which drops a filter rather than forwarding one the
+ * new contract would reject.
+ *
+ * The BARE `/reports` deliberately does NOT redirect. This page is where the preset
+ * import button lives, and those presets sit in browsers where no query can find them;
+ * redirecting the page away would strand every one that has not been imported. The
+ * retirement switch is deleting this wrapper's condition, once the import has been
+ * taken up.
+ *
+ * It is a wrapper rather than an early return inside Reports() because an early return
+ * above the hooks would make them conditional, which React forbids and which a build
+ * does not catch.
+ */
+export default function LegacyReportsRoute() {
+  const location = useLocation();
+  if (location.search) {
+    const target = resolveLegacyReportsTarget(location.search);
+    return <Navigate to={target.href} replace />;
+  }
+  return <Reports />;
+}
 
 function Reports() {
   const { t, i18n } = useTranslation();
@@ -823,4 +854,3 @@ function ReportTable({ columns, rows, sort, setSort, loading }) {
   );
 }
 
-export default Reports;
