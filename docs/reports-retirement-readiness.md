@@ -2,142 +2,196 @@
 
 Formal assessment of whether the legacy Reports Center page can be retired.
 
-Assessed 2026-08-24 at `6050bc1c`. Read-only: nothing on `/reports` was changed to produce
-this document, and the route remains live.
+First assessed 2026-08-24 at `6050bc1c` — **NOT_READY**, on four capability gaps.
+Re-assessed 2026-08-24 at `fe45f33` after the migration phase closed all four.
+
+`/reports` is still routed. See §7 for the one condition that keeps it that way, which is
+a migration window rather than a gap.
 
 ---
 
 ## Recommendation
 
-# NOT_READY_FOR_RETIREMENT
+# LEGACY_REPORTS_READY_FOR_RETIREMENT
 
-Data parity is complete. **Capability parity is not.** Eleven filter controls, saved
-presets, a column chooser and client-side table search exist only on the legacy page, and
-two of its filters are not reachable through the v2 API at all. Retiring `/reports` today
-would silently remove working controls from whoever uses them — and because presets live
-in each browser's `localStorage`, there is no way to measure who that is before the fact.
+Proven by `server/scripts/reportsParityMatrix.js`, which asks the code and the database
+rather than restating a claim: **77 cells, 0 failed, 0 unknown**, across seven legacy tabs
+and eleven dimensions, run against production.
 
-The four blocking gaps are listed at the bottom with what each would take.
+The verdict is the weakest cell in the matrix, so it is only reachable when every cell is
+`pass` or a reasoned `n/a`. Re-run it before acting on this document.
 
 ---
 
-## 1. Tab-by-tab replacement
+## 1. The four blockers, closed
 
-Every tab's question is answered correctly elsewhere. This half is settled.
+### B-1 · Filter parity — CLOSED
 
-| Legacy tab | Legacy endpoint | Canonical replacement | Verdict |
-|---|---|---|---|
-| Insights | `GET /api/reports/insights` | — | **Deliberately not replaced.** D-17: the figures were fabricated (`predictedSales = SUM(stock) × 1.08`, hardcoded `confidence = 84`, two fallback alerts). Deterministic, evidence-carrying highlights appear on every Reporting Center page instead. Nothing of value is lost. |
-| Sales | `GET /api/reports/sales` | `/reports/sales` | **Superset.** Breakdown by five dimensions, product matrix, size intelligence, comparison windows. D-16 corrected at source on both. |
-| Employees | `GET /api/reports/employees` | `/reports/employees` | **Superset.** R9 attributes by measured coverage and prints which column it used; the legacy tab joined `orders.employee_id` with no attribution statement at all. |
-| Inventory | `GET /api/reports/inventory` | `/reports/inventory` | **Corrected.** D-06/D-08: the legacy tab reads `products.stock`, a column nothing writes. v2 reads `product_variants.stock`. |
-| Customers | `GET /api/reports/customers` | `/reports/customers` | **Superset.** Behavioural and loyalty segmentation, returns netted per customer. |
-| Financial | `GET /api/reports/financial` | `/accounting/reports` + `/reports/reconciliation` | **Already canonical elsewhere.** The accounting module owns the P&L, ledgers, trial balance and balance sheet; the reconciliation screen publishes where the two deliberately differ. |
-| Export | `GET /api/reports/export` | The shared engine, on every page | **Superset.** See §2. |
+The Reporting Center exposed a period selector; the legacy page exposed eleven controls.
+There is now a filter bar on every page, and — more importantly — **one shared builder**
+that every order-scoped service uses.
 
-## 2. Export behaviour — parity confirmed
+That second part was the real defect. The filters had drifted service by service:
 
-Both surfaces call the same `exportReport` engine. There is one implementation, so a
-difference between them is not possible by construction.
-
-| Format | Legacy `/reports` | Reporting Center | Notes |
-|---|---|---|---|
-| CSV | ✅ | ✅ | UTF-8 BOM present, or Excel on Windows mangles every Arabic column. Quotes and separators escaped. Title and period written into the file. |
-| Excel (`.xlsx`) | ✅ | ✅ | Numbers stay numeric, so a column can be summed. |
-| PDF | ✅ | ✅ | Arabic face embedded from the repository asset, never falling back to a Latin-only one; strings shaped once with `setR2L` off; tables read right to left; header and dates repeat per page. |
-| Print | ✅ | ✅ | Header repeats, direction-aware. The four hand-rolled legacy implementations were deleted, not merely bypassed. |
-
-All nine reporting pages export — the eight Reporting Center pages and the legacy one.
-Permission-restricted columns are omitted from the file rather than blanked in it, so a
-caller who may not see cost cannot recover it from an export.
-
-## 3. Permissions — parity confirmed
-
-| | Legacy `/reports` | Reporting Center |
+| filter | honoured at, before | now |
 |---|---|---|
-| Frontend route guard | `reports.view` | `reports.view` |
-| Backend endpoint guard | `reports.view` on every `/api/reports/*` route | `reports.view` on all 21 endpoints |
-| Cost / profit columns | Withheld at the SELECT | Withheld at the SELECT |
-| Cashier reach | 0 of 17 financial endpoints (verified live) | 0 of 17 (verified live) |
+| `branchId` | 11 sites | every order-scoped service |
+| `channel` | 2 sites | every order-scoped service |
+| `customerId` | 1 site | every order-scoped service |
+| `paymentMethod` | **0 sites** | every order-scoped service |
+| `categoryId` | **0 sites** | superseded by the pages' own category filter |
 
-Retiring the page would neither open nor close any permission.
+Every one of them was parsed, validated and returned in the response envelope as though it
+had been applied. A control that silently does nothing on four pages out of six is worse
+than a missing control, because the reader believes they filtered.
 
-## 4. The blocking gaps
+A test fails if a service builds order clauses without the shared builder.
 
-Each is a working control on the legacy page with **no equivalent** in the Reporting
-Center. None is a defect — they are capabilities that were never rebuilt.
+### B-2 · `shiftId` and `salespersonId` — CLOSED, with defensible attribution
 
-### B-1 · Eleven filter controls versus one
+Both are now in the filter contract. Coverage was measured on production **before** a line
+was written:
 
-The Reporting Center UI exposes a **period selector only** — date range, comparison mode,
-refresh. The legacy page exposes eleven controls:
+| filter | column | foreign key | populated | distinct |
+|---|---|---|---|---|
+| `shiftId` | `orders.shift_id` | → `cash_drawer_shifts.id` | 578 / 581 (99.5%) | 24 |
+| `salespersonId` | `orders.salesperson_id` | → `employees.id` | 519 / 581 (89.3%) | 5 |
 
-```
-range · start · end · warehouseId · employeeId · productId · categoryId
-paymentMethod · customerId · shiftId · salespersonId
-```
+`salesperson_id` has **zero dangling references** and resolves to five named people. It
+also agrees with `sales_employee_id` on all 519 rows and disagrees on none, so the two
+columns are the same attribution stored twice.
 
-The v2 **API** accepts most of these as query parameters (`branchId`, `warehouseId`,
-`categoryId`, `brandId`, `supplierId`, `productId`, `customerId`, `employeeId`, `channel`,
-`paymentMethod`, plus product attributes) — so the backend work is largely done. The
-**controls** do not exist. A manager who filters by warehouse or payment method today has
-nowhere to do it after retirement.
+**Nothing is inferred.** An order with no salesperson falls *out* of the filtered set
+rather than being attributed to somebody, and the unattributed share is published by R9.
 
-**What it would take:** a shared filter bar over the existing `parseAnalyticsFilters`
-allowlist, wired into `ReportsLayout`. No backend change for nine of the eleven.
+### B-3 · Saved presets — CLOSED
 
-### B-2 · `shiftId` and `salespersonId` are not in the v2 allowlist
+Presets now live in `report_presets`, owned by `(tenant_id, user_id)`, with the ownership
+in the `WHERE` clause of every statement. Three properties were required and all three
+hold:
 
-Unlike the rest of B-1, these two cannot be passed to the v2 API at all —
-`parseAnalyticsFilters` does not accept them. Filtering a report to one shift or one
-salesperson is legacy-only, end to end.
+- **Not another user's.** Two people sharing a terminal cannot see each other's saved
+  views. `localStorage` could not promise this.
+- **No financial data.** A preset stores the *question*, never the answer — no figure, no
+  row, no total, no customer. So a preset can never become a way to read numbers a
+  permission would otherwise withhold.
+- **Validated against the server contract.** Keys outside the allowlist are dropped on the
+  way *in*, and the values must survive `parseAnalyticsFilters`, so a preset that cannot be
+  applied cannot be saved.
 
-**What it would take:** adding both to the filter allowlist and to the scope builders,
-then a control each. `orders` carries `shift_id`, and `salesperson_id` is one of the
-columns R9's attribution already measures, so the data supports both.
+Migration is a one-time, explicit import, offered only when that browser actually holds
+legacy presets. It translates before it stores (`startDate`/`endDate` → `from`/`to`, and
+the legacy range names to their real meaning), is idempotent by `(page, name)`, and
+reports which keys it dropped rather than pretending the import was lossless.
 
-### B-3 · Saved presets, and no way to measure who uses them
+### B-4 · Column chooser — CLOSED
 
-The legacy page saves named filter presets to `localStorage` under
-`erp.reports.presets.v1`, up to twelve, pinnable, restoring both the active tab and the
-whole filter set. The Reporting Center has no equivalent.
+Hide-only, per user, storing column keys and nothing else. Exports already filter on the
+same `visible` flag at all four format sites, so a hidden column is absent from the file
+rather than blank in it.
 
-**This is the gap that cannot be closed by inspection.** The presets live in each user's
-browser, not in the database, so there is no query that answers "does anybody rely on
-this?" — and retirement would delete them with no warning and no export.
-
-**What it would take:** either rebuild presets in the Reporting Center, or ship a
-one-time migration/export on the legacy page and confirm with the people who use it. The
-honest first step is asking the two or three people who open this page daily.
-
-### B-4 · Column chooser, table search, sort and page size
-
-The legacy table lets a reader hide columns, search across all values, sort any column and
-change the page size. The Reporting Center's tables are fixed-column and server-paged.
-
-**What it would take:** a column-visibility control on `AnalyticsTable`. Search and sort
-are partly present per page; the column chooser is not present anywhere.
-
----
-
-## 5. What is NOT blocking
-
-Recorded so these are not re-litigated later:
-
-- **Data parity** — settled, tab by tab, in §1.
-- **Export parity** — settled; one shared engine, four formats, Arabic PDF included.
-- **Permission parity** — settled; identical gates on both surfaces.
-- **The legacy defects** — every one is either corrected at source (D-15, D-16) or named
-  on the page by `LegacyReportNotice`, which is not dismissible and links to the specific
-  replacement for the tab the reader is on.
-- **Insights** — the one tab with no replacement, and deliberately so.
+**Permission outranks preference, and the code cannot express it any other way.** The
+chooser is handed only what the server sent; a withheld column is excluded from the menu
+entirely. One real defect was found here: `PurchasingIntelligence` keeps its cost column
+in the spec as `visible: showCost` rather than omitting it, so the chooser would have
+*listed* a column the reader may not see, shown it ticked, and done nothing when unticked
+— and the listing alone tells them a cost column exists.
 
 ---
 
-## 6. Re-assessment
+## 2. What was deliberately NOT reproduced
 
-Re-run this assessment when B-1 through B-4 are addressed. `tests/reports-retirement-readiness.test.js`
-fails if this document's recommendation is edited to `READY_FOR_RETIREMENT` while any
-blocking gap is still present in the code, so the verdict cannot drift from the evidence.
+Two legacy controls have no honest equivalent. Both are declared in
+`UNSUPPORTED_LEGACY_FILTERS` with the measurement behind them, surfaced in the filter bar,
+and dropped by the redirect rather than forwarded.
 
-The route stays live until the owner signs off, per `docs/reporting-center-architecture.md`.
+| control | measurement | what legacy actually did |
+|---|---|---|
+| `warehouseId` | `orders.warehouse_id` populated on **0 of 581** orders | rendered, and silently matched every order |
+| `employeeId` | `orders` has **no `employee_id` column** | rendered, and silently matched every order |
+
+Reproducing either would be reproducing a lie.
+
+---
+
+## 3. Data parity, measured
+
+Both implementations run over the same window and compared, on production:
+
+| | value |
+|---|---|
+| legacy `/reports` total sales | 691 080 |
+| Reporting Center net sales | 687 650 |
+| difference | **3 430** |
+| D-16 correction, disclosed on the page | 11 200 |
+| sales agrees with the Executive Overview | **yes**, to the cent |
+| employee attribution | `salesperson_name`, 89% coverage |
+
+The remaining 3 430 is the Reporting Center's own declared divergences — D-04 soft-deleted
+and D-05 draft-pattern exclusions, plus its net-of-returns basis. It is quantified on
+`/reports/reconciliation` rather than left as a mystery.
+
+---
+
+## 4. Export, print and permission parity
+
+Both surfaces call the same `exportReport` engine, so a difference between them is not
+possible by construction: CSV with a UTF-8 BOM, numeric Excel cells, an Arabic PDF with the
+face embedded and text shaped once, and a direction-aware print with a repeating header.
+
+Permissions are identical on both: `reports.view` at the route and the endpoint, with cost
+and profit withheld at the SELECT rather than blanked afterwards.
+
+---
+
+## 5. Redirect parity
+
+`resolveLegacyReportsTarget` is pure and exhaustively tested. Every legacy tab has a
+destination that is a routed page; every parameter is translated or dropped with a reason;
+a date that is not a date is refused rather than forwarded into an error; an unknown
+parameter is dropped rather than turned into a 400 on a link that used to work.
+
+`/reports?tab=sales&shiftId=25&startDate=2026-08-01` lands on
+`/reports/sales?from=2026-08-01&shiftId=25`.
+
+---
+
+## 6. Usage evidence
+
+From `server/scripts/legacyReportsUsage.js`. Each question answered from evidence, or
+reported as unanswerable — because "we could not tell" and "nobody uses it" are different
+findings and only one is safe to act on.
+
+| question | answer |
+|---|---|
+| Views saved in the Reporting Center? | Not yet; the table is created on first use |
+| Legacy presets in anybody's browser? | **UNANSWERABLE** — `localStorage`, per browser, no query reaches it |
+| Legacy-only filters backed by real data? | Measured; `warehouse_id` is populated 0 times |
+| Legacy `/api/reports/*` still routed? | Yes, deliberately |
+
+Internal navigation still pointing at `/reports`: the sidebar entry
+(`rbacStore.js`), the dashboard net-sales tile and top-sellers link, and the
+route-title map. All four continue to work — the bare route still renders.
+
+---
+
+## 7. The one condition holding retirement
+
+**The bare `/reports` is where the preset import button lives.**
+
+Legacy presets sit in browsers where no query can find them. Redirecting the page away
+would strand every one that has not yet been imported, and nobody could tell afterwards
+how many that was. That is a migration window, not a capability gap — every blocker in §1
+is closed.
+
+Retirement is deleting one condition in `LegacyReportsRoute`, which already redirects deep
+links today. The safe order is:
+
+1. Leave `/reports` reachable for a period long enough that anyone who uses it has opened
+   it at least once and seen the import prompt.
+2. Check `report_presets` for imported rows — that is now a query, which is the whole point
+   of moving them server-side.
+3. Then remove the condition, so the bare route redirects too.
+
+`tests/analytics/analytics-legacy-redirect.test.js` fails if the bare route is redirected
+while this document still says the import path is needed.

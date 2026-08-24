@@ -1,137 +1,140 @@
 /**
  * The retirement verdict must not drift from the evidence.
  *
- * `docs/reports-retirement-readiness.md` says NOT_READY_FOR_RETIREMENT, and names four
- * blocking gaps: the legacy page has eleven filter controls where the Reporting Center has
- * one, two of its filters are not in the v2 allowlist at all, it saves presets to
- * localStorage that nothing else can read, and it has a column chooser.
- *
- * A verdict in a document is worth nothing if the code can change underneath it. These
- * tests read the CODE and require the document to agree: flipping the recommendation to
- * READY while any gap is still real fails here, and so does quietly deleting a gap from
- * the document while it still exists.
+ * `docs/reports-retirement-readiness.md` now says LEGACY_REPORTS_READY_FOR_RETIREMENT.
+ * That is only true while the four blockers really are closed IN THE CODE, so these tests
+ * read the code and require the document to agree — in both directions. A verdict that
+ * outlives the thing it was based on is worse than no verdict, because somebody will act
+ * on it.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
-
 const readiness = () => read("../docs/reports-retirement-readiness.md");
 
-/** Each gap, and the check that decides whether it is still real. */
-const GAPS = [
+/** Each blocker, and the check that decides whether it is still open in the code. */
+const BLOCKERS = [
   {
     id: "B-1",
-    what: "the Reporting Center UI still exposes only a period selector",
+    what: "filter parity",
     stillOpen: async () => {
-      const legacy = await read("../src/modules/reports/pages/Reports.jsx");
-      const legacyControls = [...legacy.matchAll(/updateFilter\("(\w+)"/g)].map((m) => m[1]);
-      const distinct = new Set(legacyControls);
-
-      // Any filter control anywhere in the Reporting Center's own components.
-      const layout = await read("../src/modules/reports/components/ReportsLayout.jsx");
-      const period = await read("../src/modules/reports/components/PeriodSelector.jsx");
-      const hasFilterBar = /warehouseId|categoryId|paymentMethod|customerId/.test(layout + period);
-
-      return { open: distinct.size >= 8 && !hasFilterBar, detail: `${distinct.size} legacy controls, filter bar: ${hasFilterBar}` };
+      const bar = await read("../src/modules/reports/components/ReportFilterBar.jsx").catch(() => "");
+      const filters = await read("../server/services/analytics/analyticsOrderFilters.js").catch(() => "");
+      // The bar must exist AND the shared builder must be what every service uses.
+      const wired = ["ExecutiveOverview", "SalesIntelligence", "InventoryIntelligence",
+        "PurchasingIntelligence", "CustomerIntelligence", "EmployeeIntelligence"];
+      let mounted = 0;
+      for (const page of wired) {
+        const source = await read(`../src/modules/reports/pages/${page}.jsx`).catch(() => "");
+        if (source.includes("ReportFilterBar")) mounted += 1;
+      }
+      const open = !bar || !filters.includes("ORDER_FILTERS") || mounted < wired.length;
+      return { open, detail: `bar: ${Boolean(bar)}, builder: ${filters.includes("ORDER_FILTERS")}, mounted on ${mounted}/${wired.length}` };
     },
   },
   {
     id: "B-2",
-    what: "shiftId and salespersonId are not in the v2 filter allowlist",
+    what: "shiftId and salespersonId",
     stillOpen: async () => {
-      const filters = await read("../server/services/analytics/analyticsFilters.js");
-      const missing = ["shiftId", "salespersonId"].filter((key) => !filters.includes(key));
-      return { open: missing.length > 0, detail: `missing from parseAnalyticsFilters: ${missing.join(", ") || "none"}` };
+      const parse = await read("../server/services/analytics/analyticsFilters.js");
+      const builder = await read("../server/services/analytics/analyticsOrderFilters.js").catch(() => "");
+      const missing = ["shiftId", "salespersonId"].filter((key) => !parse.includes(key) || !builder.includes(key));
+      return { open: missing.length > 0, detail: `missing: ${missing.join(", ") || "none"}` };
     },
   },
   {
     id: "B-3",
-    what: "saved presets exist only on the legacy page, in localStorage",
+    what: "saved presets",
     stillOpen: async () => {
-      const legacy = await read("../src/modules/reports/pages/Reports.jsx");
-      const hasPresets = /PRESETS_KEY\s*=\s*"erp\.reports\.presets\.v1"/.test(legacy);
-      const layout = await read("../src/modules/reports/components/ReportsLayout.jsx");
-      const rebuilt = /preset/i.test(layout);
-      return { open: hasPresets && !rebuilt, detail: `legacy presets: ${hasPresets}, rebuilt: ${rebuilt}` };
+      const service = await read("../server/services/analytics/analyticsPresetsService.js").catch(() => "");
+      const bar = await read("../src/modules/reports/components/PresetBar.jsx").catch(() => "");
+      const open = !service.includes("report_presets") || !service.includes("importLegacyPresets") || !bar;
+      return { open, detail: `service: ${Boolean(service)}, import: ${service.includes("importLegacyPresets")}, ui: ${Boolean(bar)}` };
     },
   },
   {
     id: "B-4",
-    what: "the column chooser exists only on the legacy page",
+    what: "column chooser",
     stillOpen: async () => {
-      const legacy = await read("../src/modules/reports/pages/Reports.jsx");
-      const table = await read("../src/modules/reports/components/AnalyticsTable.jsx");
-      return {
-        open: /visibleColumns/.test(legacy) && !/visibleColumns|columnChooser/.test(table),
-        detail: "AnalyticsTable has no column-visibility control",
-      };
+      const hook = await read("../src/modules/reports/hooks/useColumnPreferences.js").catch(() => "");
+      const chooser = await read("../src/modules/reports/components/ColumnChooser.jsx").catch(() => "");
+      return { open: !hook || !chooser, detail: `hook: ${Boolean(hook)}, chooser: ${Boolean(chooser)}` };
     },
   },
 ];
 
-test("the recommendation is one of the two permitted values, stated once", async () => {
+test("the recommendation is one of the permitted values, stated once", async () => {
   const document = await readiness();
-  const ready = /^#\s*READY_FOR_RETIREMENT\s*$/m.test(document);
+  const ready = /^#\s*LEGACY_REPORTS_READY_FOR_RETIREMENT\s*$/m.test(document);
   const notReady = /^#\s*NOT_READY_FOR_RETIREMENT\s*$/m.test(document);
   assert.ok(ready !== notReady, "exactly one recommendation heading must be present");
 });
 
-test("the verdict matches what the code actually still lacks", async () => {
+test("the verdict matches what the code actually provides", async () => {
   const document = await readiness();
-  const notReady = /^#\s*NOT_READY_FOR_RETIREMENT\s*$/m.test(document);
+  const ready = /^#\s*LEGACY_REPORTS_READY_FOR_RETIREMENT\s*$/m.test(document);
 
   const open = [];
-  for (const gap of GAPS) {
-    const result = await gap.stillOpen();
-    if (result.open) open.push(`${gap.id} (${result.detail})`);
+  for (const blocker of BLOCKERS) {
+    const result = await blocker.stillOpen();
+    if (result.open) open.push(`${blocker.id} ${blocker.what} (${result.detail})`);
   }
 
   if (open.length) {
-    assert.ok(
-      notReady,
-      `the document says READY, but these gaps are still real in the code: ${open.join("; ")}`
-    );
+    assert.ok(!ready, `the document says READY, but these blockers are still open: ${open.join("; ")}`);
   } else {
-    assert.ok(
-      !notReady,
-      "every blocking gap has been closed in the code — the document must be re-assessed and the verdict updated"
-    );
+    assert.ok(ready, "every blocker is closed in the code — the document must say so");
   }
 });
 
-test("every gap the document names is still described where it can be checked", async () => {
-  const document = await readiness();
-  for (const gap of GAPS) {
-    const result = await gap.stillOpen();
-    if (!result.open) continue;
+test("the two filters with no honest equivalent are still refused", async () => {
+  // If either of these ever becomes a real control, the readiness reasoning changes and
+  // this document has to be rewritten rather than quietly inherited.
+  const { ORDER_FILTER_KEYS, UNSUPPORTED_LEGACY_FILTERS } =
+    await import("../server/services/analytics/analyticsOrderFilters.js");
+
+  for (const key of ["warehouseId", "employeeId"]) {
+    assert.ok(!ORDER_FILTER_KEYS.includes(key), `${key} must not be offered as a filter`);
     assert.ok(
-      document.includes(gap.id),
-      `${gap.id} is still real in the code (${result.detail}) but no longer appears in the readiness document`
+      UNSUPPORTED_LEGACY_FILTERS.some((entry) => entry.key === key),
+      `${key} must be declared unsupported with its reason`
     );
   }
+
+  const document = await readiness();
+  assert.match(document, /warehouseId/, "the document must name what was not reproduced");
+  assert.match(document, /employeeId/);
 });
 
-test("data, export and permission parity are recorded as settled, not as gaps", async () => {
+test("data, export and permission parity are recorded with figures, not adjectives", async () => {
   const document = await readiness();
-  for (const tab of ["Insights", "Sales", "Employees", "Inventory", "Customers", "Financial", "Export"]) {
-    assert.ok(document.includes(tab), `the tab table must account for ${tab}`);
+  for (const tab of ["B-1", "B-2", "B-3", "B-4"]) {
+    assert.ok(document.includes(tab), `the assessment must account for ${tab}`);
   }
-  for (const format of ["CSV", "Excel", "PDF", "Print"]) {
+  for (const format of ["CSV", "Excel", "PDF", "print"]) {
     assert.ok(document.includes(format), `export parity must name ${format}`);
   }
-  assert.match(document, /NOT blocking/, "what is settled must be recorded so it is not re-litigated");
+  // No "looks equivalent" claims: the data section must carry actual numbers.
+  assert.match(document, /691 080|691080/, "the legacy figure must be stated");
+  assert.match(document, /687 650|687650/, "the replacement figure must be stated");
 });
 
-test("the legacy route is still live while the verdict stands", async () => {
+test("the bare route stays live while the import path is still needed", async () => {
   const app = await read("../src/App.jsx");
   const document = await readiness();
-  if (/^#\s*NOT_READY_FOR_RETIREMENT\s*$/m.test(document)) {
+
+  if (/import button|import path is needed|migration window/.test(document)) {
     assert.match(app, /path="reports"\s*\n\s*element=\{\s*\n\s*<ProtectedRoute/, "/reports must remain routed");
     assert.ok(
       !/path="reports"\s+element=\{<Navigate/.test(app),
-      "/reports must not be redirected while the assessment says it is not ready"
+      "the bare /reports must not redirect while unmigrated presets may still exist"
     );
+
+    // Deep links, however, must already redirect — that half of item 7 is done.
+    const page = await read("../src/modules/reports/pages/Reports.jsx");
+    assert.match(page, /export default function LegacyReportsRoute/);
+    assert.match(page, /if \(location\.search\)/);
   }
 });
