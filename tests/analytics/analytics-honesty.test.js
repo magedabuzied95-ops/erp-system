@@ -1,0 +1,198 @@
+// Data honesty across the whole Reporting Center.
+//
+// The audit that started this work found fabricated figures presented as analysis (D-17)
+// and SQL failures silently converted into zeros (D-11) on the legacy pages. Both are
+// the same class of fault: a number on screen that the data never supported.
+//
+// These tests are the standing guard against it coming back. They cover every v2 service
+// and every reporting page as a set, so a new one cannot be added without meeting the
+// same bar.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+
+const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
+const dir = (relative) => readdir(new URL(relative, import.meta.url));
+
+const stripComments = (source) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+const serviceFiles = async () => {
+  const names = await dir("../../server/services/analytics/");
+  return names.filter((name) => name.endsWith(".js"));
+};
+
+const pageFiles = [
+  "ExecutiveOverview",
+  "SalesIntelligence",
+  "InventoryIntelligence",
+  "PurchasingIntelligence",
+  "CustomerIntelligence",
+];
+
+/* --------------------------------------------------- no failure becomes a number */
+
+test("no analytics service converts a failure into a value", async () => {
+  for (const name of await serviceFiles()) {
+    const code = stripComments(await read(`../../server/services/analytics/${name}`));
+
+    // The whole point of the v2 error policy: a query that fails must reach the
+    // controller and become a 500 naming the failing area. A catch here that returns a
+    // number, an empty object or an empty array is how a zero starts meaning "broken".
+    const catches = [...code.matchAll(/catch\s*(\([^)]*\))?\s*\{([\s\S]{0,220}?)\}/g)];
+    for (const [, , body] of catches) {
+      assert.ok(
+        /throw/.test(body),
+        `${name} has a catch block that does not rethrow:\n${body.trim().slice(0, 160)}`
+      );
+    }
+  }
+});
+
+test("the controller turns a failure into a 500 that names the metric", async () => {
+  const controller = await read("../../server/controllers/analyticsV2Controller.js");
+
+  // One handler shape for every area, so no endpoint can grow its own quieter policy.
+  assert.match(controller, /const analyticsHandler = \(area, name, code, run\)/);
+  assert.match(controller, /return res\.status\(500\)\.json\(\{/);
+  assert.match(controller, /metric: `\$\{area\}\.\$\{name\}`/);
+  // Every catch block in the controller must answer 500. Matching "200 near catch" would
+  // flag the ordinary success-then-catch sequence, which is exactly how it should read.
+  const catches = [...controller.matchAll(/catch\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}/g)];
+  assert.ok(catches.length >= 2, "expected the controller catch blocks to be found");
+  for (const [, body] of catches) {
+    if (/AnalyticsFilterError/.test(body)) continue; // a filter error is a deliberate 400
+    assert.match(body, /res\.status\(500\)/, "a query failure must answer 500");
+  }
+
+  for (const area of ["OVERVIEW", "SALES", "INVENTORY", "PURCHASING", "CUSTOMERS"]) {
+    assert.ok(controller.includes(`${area}_QUERY_FAILED`), `${area} has no failure code`);
+  }
+});
+
+/* ------------------------------------------------- unknown is null, never zero */
+
+test("the null semantics are defined once and used everywhere", async () => {
+  const comparison = await read("../../server/services/analytics/analyticsComparison.js");
+
+  // These three are the entire contract. toFiniteNumber refuses NaN; toMoney refuses to
+  // invent a zero; safeRatio refuses to divide by nothing.
+  assert.match(comparison, /export const toFiniteNumber = /);
+  assert.match(comparison, /return Number\.isFinite\(parsed\) \? parsed : null/);
+  assert.match(comparison, /export const toMoney = /);
+  assert.match(comparison, /return parsed === null \? null : Math\.round/);
+  assert.match(comparison, /export const safeRatio = /);
+  assert.match(comparison, /if \(a === null \|\| b === null \|\| b === 0\) return null/);
+
+  // A percentage change against a zero base is null, not 100. Legacy returns 100, which
+  // reads as "doubled" when the truth is "there was nothing to compare against".
+  assert.match(comparison, /if \(previousValue === 0\) \{/);
+  assert.match(comparison, /deltaPercent: null/);
+  assert.match(comparison, /COMPARISON_BASE_ZERO/);
+});
+
+test("every service builds its money through the shared helpers, not by hand", async () => {
+  for (const name of await serviceFiles()) {
+    if (["accountingCanon.js", "analyticsFilters.js", "analyticsMetrics.js", "inventoryMovementContract.js", "analyticsScope.js", "analyticsComparison.js"].includes(name)) continue;
+    const source = await read(`../../server/services/analytics/${name}`);
+    assert.match(source, /toMoney/, `${name} does not use the shared money helper`);
+    assert.match(source, /safeRatio/, `${name} does not use the shared ratio helper`);
+    // Number(x) || 0 is the classic way an unknown becomes a zero.
+    assert.ok(
+      !/Number\([^)]*\)\s*\|\|\s*0/.test(stripComments(source)),
+      `${name} coerces a possibly-unknown value to 0`
+    );
+  }
+});
+
+/* -------------------------------------------------- nothing is fabricated on screen */
+
+test("no reporting page invents a number, a score or a progress value", async () => {
+  for (const page of pageFiles) {
+    const code = stripComments(await read(`../../src/modules/reports/pages/${page}.jsx`));
+
+    assert.ok(!/Math\.random/.test(code), `${page} generates a random value`);
+    // A hardcoded percentage in a width or a value is a fabricated proportion.
+    assert.ok(!/width:\s*["'`]?\d{1,3}%/.test(code), `${page} hardcodes a proportion`);
+    // No forecast, prediction or confidence score ships without a documented model, and
+    // none of these pages has one.
+    assert.ok(!/forecast|predict|confidenceScore/i.test(code), `${page} presents a prediction`);
+  }
+});
+
+test("a restricted or unavailable value renders as absent, never as zero", async () => {
+  // The four non-value states must stay distinguishable: restricted (not permitted),
+  // unavailable (coverage too thin), null (no denominator) and a verified 0.
+  const tile = await read("../../src/modules/reports/components/KpiTile.jsx");
+  assert.match(tile, /restricted/);
+
+  const table = await read("../../src/modules/reports/components/AnalyticsTable.jsx");
+  assert.match(table, /export function Blank\(\)/);
+  assert.match(table, /—/, "a missing cell must render an em dash");
+
+  const engine = await read("../../src/modules/reports/lib/reportExport.js");
+  assert.match(engine, /if \(value === null \|\| value === undefined \|\| value === ""\) return "—"/);
+});
+
+test("a hidden metric is omitted from the payload, not blanked in it", async () => {
+  const scope = await read("../../server/services/analytics/analyticsScope.js");
+  // Hiding a value in React still ships it in the JSON. The service omits the column.
+  assert.match(scope, /RESTRICTED_COST_FIELDS/);
+  assert.match(scope, /RESTRICTED_PROFIT_FIELDS/);
+  assert.match(scope, /export const assertNoRestrictedFields = /);
+  // A masked KPI keeps its KEY so the UI can tell restricted from unavailable from zero.
+  // Only a numeric value is a leak.
+  assert.match(scope, /const isNumericLeak = \(value\) => typeof value === "number" && Number\.isFinite\(value\)/);
+});
+
+/* ------------------------------------------------- nothing is silently truncated */
+
+test("a capped list says how much it did not draw", async () => {
+  const bars = await read("../../src/modules/reports/components/BreakdownBars.jsx");
+  // Silent truncation reads as "this is everything", which is a claim the component has
+  // not earned.
+  assert.match(bars, /rows\.length > maxRows/);
+  assert.match(bars, /rows\.length - maxRows/);
+});
+
+test("a dimension with no meaningful split says so instead of drawing one bar", async () => {
+  const purchasing = await read("../../server/services/analytics/analyticsPurchasingService.js");
+  assert.match(purchasing, /DIMENSION_NOT_USABLE/);
+  assert.match(purchasing, /distinctMeaningfulValues/);
+});
+
+/* ------------------------------------------------------------- warning registry */
+
+test("every warning code a service raises has copy in both locales", async () => {
+  const bundles = {
+    en: JSON.parse(await read("../../src/locales/en/overview.json")),
+    ar: JSON.parse(await read("../../src/locales/ar/overview.json")),
+  };
+
+  // Codes the services raise directly by string literal, plus the shared registry.
+  const raised = new Set();
+  for (const name of await serviceFiles()) {
+    const source = await read(`../../server/services/analytics/${name}`);
+    for (const match of source.matchAll(/collector\.add\(\s*"([A-Z_]{4,})"/g)) raised.add(match[1]);
+  }
+
+  assert.ok(raised.size >= 6, `expected the raised warning codes to be found, got ${raised.size}`);
+
+  for (const code of raised) {
+    for (const locale of ["en", "ar"]) {
+      assert.ok(
+        bundles[locale].warnings?.[code],
+        `${code} has no ${locale} copy, so it would render as a raw code to a manager`
+      );
+    }
+  }
+});
+
+test("a warning always carries the evidence behind it", async () => {
+  const comparison = await read("../../server/services/analytics/analyticsComparison.js");
+  // The payload spread is what lets the UI interpolate real numbers rather than print a
+  // sentence that could be about anything.
+  assert.match(comparison, /export const createWarning = \(code, message, payload = \{\}\) => \(\{ code, message, \.\.\.payload \}\)/);
+  // The same code twice is noise; merging keeps one row per issue.
+  assert.match(comparison, /const existing = this\.warnings\.find\(\(warning\) => warning\.code === code\)/);
+});

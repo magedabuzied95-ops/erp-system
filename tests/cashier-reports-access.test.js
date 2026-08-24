@@ -92,3 +92,60 @@ test("the dashboard net-sales tile only links to reports when allowed", async ()
   assert.doesNotMatch(tile, /to:\s*"\/reports"/, "the tile must not link unconditionally");
   assert.match(tile, /to:\s*canOpenReports\s*\?\s*"\/reports"\s*:\s*null/, "the link must be gated");
 });
+
+/**
+ * The second half of the same hole.
+ *
+ * `reports.view` was revoked from Cashier, but `accounting.view` stayed on both presets
+ * — and it gates /financial-reports/{summary,profit-loss,ledgers,trial-balance,
+ * balance-sheet}. A cashier who could no longer open the Reports Center could still pull
+ * the company profit and loss. POS never needed it: the only accounting call the POS
+ * module makes is createManualMoneyAdjustment, which gates on money_transactions.adjust,
+ * a permission this preset does not grant.
+ */
+test("neither Cashier preset grants accounting.view, which unlocks the P&L", async () => {
+  for (const [label, path] of [
+    ["browser", "../src/modules/permissions/lib/rbacStore.js"],
+    ["server", "../server/services/rolesService.js"],
+  ]) {
+    const block = presetPermissions(await read(path), "cashier");
+    assert.doesNotMatch(block, /"accounting\.view"/, `${label} Cashier preset still grants accounting.view`);
+    for (const call of block.matchAll(/allow\(\[([^\]]*)\]/g)) {
+      assert.doesNotMatch(call[1], /"accounting"/, `${label} preset grants accounting inside an allow() spread`);
+    }
+  }
+});
+
+test("POS still works without accounting.view, because it never used it", async () => {
+  // If POS ever gains a call behind accounting.view, this fails and the removal above has
+  // to be reconsidered rather than quietly breaking the till.
+  const posFiles = [
+    "../src/modules/pos/pages/POSPro.jsx",
+    "../src/modules/pos/components/CartSidebar.jsx",
+  ];
+  const calls = new Set();
+  for (const file of posFiles) {
+    const source = await read(file);
+    for (const match of source.matchAll(/accountingApi\.(\w+)/g)) calls.add(match[1]);
+  }
+  assert.deepEqual([...calls], ["createManualMoneyAdjustment"], "the POS accounting surface changed");
+
+  const routes = await read("../server/routes/accounting.js");
+  const block = routes.slice(routes.indexOf('"/money-adjustments"'), routes.indexOf('"/money-adjustments"') + 200);
+  assert.match(block, /permit\("money_transactions", "adjust"\)/, "the POS adjustment is not gated on accounting.view");
+});
+
+test("the grant audit script covers the financial permission as well as the reporting ones", async () => {
+  // Removing it from the preset does not revoke it from a role that already holds it:
+  // permissions live in role_permissions, and the Roles screen wrote them there. The
+  // script is the only thing that closes an existing grant.
+  const script = await read("../server/scripts/auditReportsGrants.js");
+  assert.match(script, /\{ module: "reports" \}/);
+  assert.match(script, /\{ module: "accounting", action: "view" \}/);
+  // One filter drives the report, the console labels and the DELETE, so they cannot
+  // describe different sets — a revoke that is narrower than its own report is worse
+  // than no revoke at all.
+  assert.match(script, /const grantFilterSql = TARGET_GRANTS\.map/);
+  assert.match(script, /WHERE \$\{grantFilterSql\}/);
+  assert.match(script, /AND \(\$\{grantFilterSql\}\)/);
+});

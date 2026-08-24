@@ -351,7 +351,11 @@ export const DEFAULT_ROLES = [
       "loyalty.redeem",
       "attendance.view",
       "attendance.create",
-      "accounting.view",
+      // No `accounting.view` either, for the same reason as `reports`. It gates
+      // /financial-reports/{summary,profit-loss,ledgers,trial-balance,balance-sheet},
+      // so a cashier holding it can pull the company P&L. POS does not need it: the
+      // only accounting call the POS module makes is createManualMoneyAdjustment, and
+      // that gates on money_transactions.adjust, which this preset does not grant.
       "employees.view",
       "settings.view",
       "notifications.view",
