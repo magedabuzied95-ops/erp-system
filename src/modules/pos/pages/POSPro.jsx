@@ -82,6 +82,7 @@ import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSear
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
 import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
+import { parseSaleModeEnabled, persistPosSaleModeEnabled, resolvePosSaleModeForLoad } from "../lib/posSaleModeSettings";
 import { countUniqueVariantColors, getVariantColorKey, mergeCatalogProducts } from "../lib/posCatalogMerge";
 import {
   matchesQuickFilterGroups,
@@ -227,7 +228,6 @@ const isStandaloneDisplayMode = () =>
   isBrowser() && (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true);
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
-const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
 const POS_QUICK_CUSTOMER_ARABIC_KEYS_KEY = "pos.quickCustomer.arabicKeys";
 const POS_OPEN_INVOICES_KEY = "erp.pos.open-invoices";
 const POS_ACTIVE_INVOICE_KEY = "erp.pos.active-invoice";
@@ -374,37 +374,6 @@ const writeQuickCustomerArabicKeys = (value) => {
     // Persisted POS preferences are best-effort only.
   }
 };
-
-const readUseSalePrices = () => {
-  try {
-    const saved = window.localStorage.getItem(POS_USE_SALE_PRICES_KEY);
-    if (saved === "false" || saved === "0") return false;
-    if (saved === "true" || saved === "1") return true;
-  } catch {
-    // Persisted POS preferences are best-effort only.
-  }
-  return true;
-};
-
-const parseSaleModeEnabled = (value, fallback = undefined) => {
-  if (value === undefined || value === null || value === "") return fallback;
-  if (value === true || value === 1) return true;
-  if (value === false || value === 0) return false;
-  const normalized = String(value).trim().toLowerCase();
-  if (["true", "1", "yes", "on"].includes(normalized)) return true;
-  if (["false", "0", "no", "off"].includes(normalized)) return false;
-  return fallback;
-};
-
-const writeUseSalePrices = (value) => {
-  try {
-    window.localStorage.setItem(POS_USE_SALE_PRICES_KEY, String(Boolean(value)));
-  } catch {
-    // Persisted POS preferences are best-effort only.
-  }
-};
-
-const persistPosSaleModeEnabled = (value) => writeUseSalePrices(value);
 
 const getHeadMetaContent = (name) => {
   if (typeof document === "undefined") return "";
@@ -2514,7 +2483,7 @@ function POSPro() {
       const refreshedRawSaleMode =
         refreshed?.settings?.sale_mode_enabled ??
         refreshed?.sale_mode_enabled;
-      const parsedRefreshedSaleMode = parseSaleModeEnabled(refreshedRawSaleMode, true);
+      const parsedRefreshedSaleMode = parseSaleModeEnabled(refreshedRawSaleMode, Boolean(nextSaleModeEnabled));
       console.log("POS_SALE_MODE_AFTER_SAVE_GET", {
         response_sale_mode_enabled: refreshedRawSaleMode,
         refreshed_sale_mode_enabled: parsedRefreshedSaleMode,
@@ -2577,8 +2546,15 @@ function POSPro() {
         // instead of the full catalog. If it matches the cached snapshot's version, skip
         // the multi-MB catalog download entirely. Settings/manufacturers/customers are
         // small and always refreshed (settings also carries sale-mode).
-        const [websiteSettingsResult, versionResult, manufacturersResult, customersResult] = await Promise.allSettled([
+        const [websiteSettingsResult, publicSettingsResult, versionResult, manufacturersResult, customersResult] = await Promise.allSettled([
           api.get("/website/settings", {
+            signal: controller.signal,
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+          }),
+          // Cashier roles cannot read /website/settings (permit("website","settings")),
+          // so the permission-free public settings carry the sale-mode truth for them.
+          api.get("/settings/public", {
             signal: controller.signal,
             cache: "no-store",
             headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
@@ -2595,50 +2571,27 @@ function POSPro() {
           }),
         ]);
         const freshCatalogVersion = versionResult.status === "fulfilled" ? (versionResult.value || "") : "";
-        let saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: parseSaleModeEnabled(readUseSalePrices(), true) });
         const websiteSettings = websiteSettingsResult.status === "fulfilled" ? websiteSettingsResult.value : null;
-        if (websiteSettings) {
-          const backendSaleModeEnabledRaw = websiteSettings?.settings?.sale_mode_enabled;
-          const backendSaleModeEnabled = parseSaleModeEnabled(backendSaleModeEnabledRaw, true);
-          saleModeForLoad = normalizeSaleModeSettings({
-            ...(websiteSettings?.settings || {}),
-            sale_mode_enabled: backendSaleModeEnabled,
-          });
-          console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
-            sale_mode_enabled: backendSaleModeEnabledRaw,
-          });
-          console.debug("POS_SALE_MODE_HYDRATE_PARSED", {
-            backend_sale_mode_enabled: backendSaleModeEnabled,
-            source: "backend",
-          });
-          console.debug("POS_SALE_MODE_FINAL_STATE", {
-            sale_mode_enabled: saleModeForLoad.sale_mode_enabled,
-            backend_sale_mode_enabled: backendSaleModeEnabledRaw,
-            parsed_backend_sale_mode_enabled: backendSaleModeEnabled,
-            source: "backend",
-          });
-          setSaleModeSettings(saleModeForLoad);
-        } else {
-          const fallbackSaleModeEnabled = parseSaleModeEnabled(readUseSalePrices(), true);
-          saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: fallbackSaleModeEnabled });
-          console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
-            sale_mode_enabled: null,
-            fallback: true,
-          });
-          console.debug("POS_SALE_MODE_HYDRATE_PARSED", {
-            backend_sale_mode_enabled: undefined,
-            local_sale_mode_enabled: fallbackSaleModeEnabled,
-            source: "localStorage_fallback",
-          });
-          console.debug("POS_SALE_MODE_FINAL_STATE", {
-            sale_mode_enabled: saleModeForLoad.sale_mode_enabled,
-            backend_sale_mode_enabled: null,
-            parsed_backend_sale_mode_enabled: undefined,
-            local_sale_mode_enabled: fallbackSaleModeEnabled,
-            source: "localStorage_fallback",
-          });
-          setSaleModeSettings(saleModeForLoad);
+        const publicSettings = publicSettingsResult.status === "fulfilled" ? publicSettingsResult.value : null;
+        // Authority order: /website/settings -> /settings/public -> last persisted
+        // admin toggle, defaulting to SALE OFF. A settings read that fails or omits
+        // the key must never turn the sale on — that is how cashier machines (whose
+        // /website/settings read 403s) rang every stored sale price as the charged
+        // price while the super admin saw the toggle off.
+        const resolvedSaleMode = resolvePosSaleModeForLoad({ websiteSettings, publicSettings });
+        const saleModeForLoad = resolvedSaleMode.saleModeSettings;
+        console.debug("POS_SALE_MODE_FINAL_STATE", {
+          sale_mode_enabled: saleModeForLoad.sale_mode_enabled,
+          source: resolvedSaleMode.source,
+          backend_sale_mode_enabled: websiteSettings?.settings?.sale_mode_enabled ?? null,
+          public_sale_mode_enabled: publicSettings?.settings?.sale_mode_enabled ?? null,
+        });
+        // Keep the device's offline fallback in sync with the value we actually
+        // resolved, so an offline warm open during a real sale stays correct.
+        if (resolvedSaleMode.source !== "localStorage_fallback") {
+          persistPosSaleModeEnabled(saleModeForLoad.sale_mode_enabled);
         }
+        setSaleModeSettings(saleModeForLoad);
         const catalogUnchanged = Boolean(
           hasCachedCatalog && freshCatalogVersion && cachedCatalogVersion && freshCatalogVersion === cachedCatalogVersion
         );

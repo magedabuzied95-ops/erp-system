@@ -40,6 +40,19 @@ router.get("/public", async (req, res) => {
       sale_mode_enabled: saleModeEnabled ?? settings?.sale_mode_enabled,
       global_sale_enabled: websiteSettings?.global_sale_enabled ?? saleModeEnabled ?? settings?.global_sale_enabled,
       sale_prices_enabled: websiteSettings?.sale_prices_enabled ?? saleModeEnabled ?? settings?.sale_prices_enabled,
+      // Full sale-mode subset: the POS falls back to this endpoint when its
+      // /website/settings read is permission-denied (cashier roles), and needs
+      // the type/exclusions/margin knobs to price exactly like the admin path.
+      // Not a new exposure — the public storefront bootstrap already spreads
+      // the entire website-settings row.
+      sale_mode_type: websiteSettings?.sale_mode_type ?? settings?.sale_mode_type,
+      sale_mode_value: websiteSettings?.sale_mode_value ?? settings?.sale_mode_value,
+      sale_mode_label: websiteSettings?.sale_mode_label ?? settings?.sale_mode_label,
+      sale_mode_excluded_product_ids: websiteSettings?.sale_mode_excluded_product_ids ?? settings?.sale_mode_excluded_product_ids,
+      sale_mode_excluded_category_ids: websiteSettings?.sale_mode_excluded_category_ids ?? settings?.sale_mode_excluded_category_ids,
+      sale_mode_excluded_brand_ids: websiteSettings?.sale_mode_excluded_brand_ids ?? settings?.sale_mode_excluded_brand_ids,
+      sale_mode_min_price_protection_enabled: websiteSettings?.sale_mode_min_price_protection_enabled ?? settings?.sale_mode_min_price_protection_enabled,
+      sale_mode_min_margin_percent: websiteSettings?.sale_mode_min_margin_percent ?? settings?.sale_mode_min_margin_percent,
       storefront: {
         ...(settings?.storefront || {}),
         sale_mode_enabled: saleModeEnabled ?? settings?.storefront?.sale_mode_enabled,

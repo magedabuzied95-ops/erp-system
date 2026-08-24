@@ -7,7 +7,7 @@ import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/li
 // change to the pricing RULE leaves the watermark identical and a warm terminal would keep
 // selling at the old price. Curated Offers now set their own price, so bump this whenever
 // pricing logic changes: it is the only thing that re-normalizes an existing snapshot.
-export const POS_CATALOG_SCHEMA_VERSION = 4;
+export const POS_CATALOG_SCHEMA_VERSION = 5;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
