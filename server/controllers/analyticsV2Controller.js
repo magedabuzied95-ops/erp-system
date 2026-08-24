@@ -37,6 +37,7 @@ import {
   getEmployeesSummary,
 } from "../services/analytics/analyticsEmployeesService.js";
 import { runReconciliation } from "../services/analytics/analyticsReconciliationService.js";
+import { getFilterOptions } from "../services/analytics/analyticsFilterOptionsService.js";
 import { resolveAnalyticsPermissions } from "../services/analytics/analyticsScope.js";
 
 export async function getOverview(req, res) {
@@ -160,6 +161,13 @@ export const getEmployeesListController      = employeesHandler("list", getEmplo
 
 // R10 - Reconciliation. One engine, shared with the CLI script; this controller only
 // resolves permissions and maps errors, exactly like every other area.
+// Filter options. Same envelope and the same reports:view gate; the values themselves
+// are derived from the orders in scope, so a reader is never offered an id that would
+// return nothing.
+export const getFilterOptionsController = analyticsHandler(
+  "filters", "options", "FILTER_OPTIONS_QUERY_FAILED", getFilterOptions
+);
+
 export const getReconciliationController = analyticsHandler(
   "reconciliation", "report", "RECONCILIATION_QUERY_FAILED", runReconciliation
 );

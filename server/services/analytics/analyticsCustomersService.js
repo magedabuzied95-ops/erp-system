@@ -8,6 +8,7 @@ import {
   toMoney,
 } from "./analyticsComparison.js";
 import { coalesceColumnExpr } from "./accountingCanon.js";
+import { orderFilterClauses } from "./analyticsOrderFilters.js";
 import { canonicalOrderClauses, nanSafe, orderRevenueExpr } from "./analyticsMetrics.js";
 
 /**
@@ -176,9 +177,8 @@ const buildScope = ({ filters, columns }) => {
   // how long the gap before it was. The window filter is applied per aggregate instead.
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
-  if (filters.branchId && orderColumns.has("branch_id")) orderClauses.push(`o.branch_id = ${bind(filters.branchId)}`);
-  if (filters.channel && orderColumns.has("channel")) orderClauses.push(`LOWER(COALESCE(o.channel,'')) = LOWER(${bind(filters.channel)})`);
-  if (filters.customerId) orderClauses.push(`o.customer_id = ${bind(filters.customerId)}`);
+  // One shared builder — branch, customer, channel, payment method, shift, salesperson.
+  orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
   // A walk-in sale carries no customer_id. It is real revenue but it is not a customer,
   // so it is excluded here and its absence is reported rather than silently dropped.

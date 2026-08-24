@@ -95,6 +95,11 @@ test("every service builds its money through the shared helpers, not by hand", a
   for (const name of await serviceFiles()) {
     if (["accountingCanon.js", "analyticsFilters.js", "analyticsMetrics.js", "inventoryMovementContract.js", "analyticsScope.js", "analyticsComparison.js"].includes(name)) continue;
     const source = await read(`../../server/services/analytics/${name}`);
+    // Only services that RETURN money. The filter-options and order-filter modules return
+    // labels, counts and SQL fragments; demanding a money helper of them would be
+    // demanding an import they have nothing to use it on, which teaches the next person
+    // that this guard is decorative.
+    if (!/toMoney|SUM\(|revenue|amount/i.test(source)) continue;
     assert.match(source, /toMoney/, `${name} does not use the shared money helper`);
     assert.match(source, /safeRatio/, `${name} does not use the shared ratio helper`);
     // Number(x) || 0 is the classic way an unknown becomes a zero.

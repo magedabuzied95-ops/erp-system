@@ -16,6 +16,7 @@
 
 import db from "../../database/db.js";
 import { coalesceColumnExpr, whereSql } from "./accountingCanon.js";
+import { orderFilterClauses } from "./analyticsOrderFilters.js";
 import {
   COGS_COVERAGE_CRITICAL_THRESHOLD,
   WARNING_CODES,
@@ -116,7 +117,11 @@ const buildScope = ({ filters, columns }) => {
 
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
-  if (branchId && orderColumns.has("branch_id")) orderClauses.push(`o.branch_id = ${bind(branchId)}`);
+  // Every order filter, from the one shared builder in analyticsOrderFilters.js. These
+  // used to be applied service by service and had drifted badly: branchId was honoured at
+  // eleven sites, channel at two, customerId at one, paymentMethod at none — while every
+  // one of them came back in the response envelope as though it had been applied.
+  orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
 
   const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;

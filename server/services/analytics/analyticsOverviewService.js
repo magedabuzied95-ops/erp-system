@@ -15,6 +15,7 @@
 
 import db from "../../database/db.js";
 import { addScopedWhere, coalesceColumnExpr, whereSql } from "./accountingCanon.js";
+import { orderFilterClauses } from "./analyticsOrderFilters.js";
 import {
   COGS_COVERAGE_CRITICAL_THRESHOLD,
   COGS_COVERAGE_WARN_THRESHOLD,
@@ -446,7 +447,11 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
 
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
-  if (branchId && orderColumns.has("branch_id")) orderClauses.push(`o.branch_id = ${bind(branchId)}`);
+  // Every order filter, from the one shared builder. branchId used to be applied here by
+  // hand while channel, paymentMethod, customerId, shiftId and salespersonId were ignored
+  // on this page but honoured on others.
+  const orderFilters = orderFilterClauses({ filters, orderColumns, bind });
+  orderClauses.push(...orderFilters.clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
   // The scan must cover both windows so FILTER can split them.
   const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;

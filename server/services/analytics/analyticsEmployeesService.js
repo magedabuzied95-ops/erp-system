@@ -1,5 +1,6 @@
 import db from "../../database/db.js";
 import { coalesceColumnExpr } from "./accountingCanon.js";
+import { orderFilterClauses } from "./analyticsOrderFilters.js";
 import {
   WarningCollector,
   buildDelta,
@@ -151,8 +152,7 @@ const buildScope = ({ filters, columns }) => {
 
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
-  if (filters.branchId && orderColumns.has("branch_id")) orderClauses.push(`o.branch_id = ${bind(filters.branchId)}`);
-  if (filters.channel && orderColumns.has("channel")) orderClauses.push(`LOWER(COALESCE(o.channel,'')) = LOWER(${bind(filters.channel)})`);
+  orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
 
   const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;

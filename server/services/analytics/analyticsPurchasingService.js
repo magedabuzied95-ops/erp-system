@@ -1,4 +1,5 @@
 import db from "../../database/db.js";
+import { orderFilterClauses } from "./analyticsOrderFilters.js";
 import {
   WARNING_CODES,
   WarningCollector,
@@ -546,7 +547,10 @@ const loadPurchaseVsSales = async ({ filters, columns, client, timings, includeC
 
   const orderClauses = [];
   if (filters.tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
-  if (filters.branchId && orderColumns.has("branch_id")) orderClauses.push(`o.branch_id = ${bind(filters.branchId)}`);
+  // The ORDER side of purchasing — COGS and net sales — takes the same filters as every
+  // other page. The purchase side keeps its own, warehouseId included, because that column
+  // is real on `purchases` even though nothing writes it on `orders`.
+  orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
   orderClauses.push(`o.created_at >= ${from}::date AND o.created_at < (${to}::date + INTERVAL '1 day')`);
 

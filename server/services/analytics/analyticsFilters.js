@@ -217,6 +217,15 @@ export const parseAnalyticsFilters = (req = {}) => {
     employeeId: positiveInt(query.employeeId ?? query.employee_id),
     channel: cleanString(query.channel),
     paymentMethod: cleanString(query.paymentMethod ?? query.payment_method),
+    /*
+     * The two filters the legacy page had and this one did not. Both are backed by a real
+     * foreign key on `orders` with real coverage on production — shift_id -> and
+     * cash_drawer_shifts (576/579), salesperson_id -> employees (517/579, zero dangling).
+     * Neither infers anything: an order with no salesperson falls out of the filtered set
+     * rather than being attributed to somebody.
+     */
+    shiftId: positiveInt(query.shiftId ?? query.shift_id),
+    salespersonId: positiveInt(query.salespersonId ?? query.salesperson_id),
     dimension,
     granularity,
     limit,
