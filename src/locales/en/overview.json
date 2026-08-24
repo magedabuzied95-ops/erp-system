@@ -296,7 +296,11 @@
     "goTo": {
       "overview": "Open the Executive Overview",
       "sales": "Open Sales & Profit Intelligence",
-      "inventory": "Open Inventory Intelligence"
+      "inventory": "Open Inventory Intelligence",
+      "employees": "Open Employee & Channel Intelligence",
+      "customers": "Open Customer Intelligence",
+      "financial": "Open the Financial Reports",
+      "reconciliation": "Open Reconciliation"
     }
   }
 }

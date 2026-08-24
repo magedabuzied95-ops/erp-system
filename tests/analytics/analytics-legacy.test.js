@@ -9,33 +9,74 @@
 // These tests pin both halves: nothing was deleted, and nothing is left unlabelled.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 
-/* ------------------------------------------------------- nothing was deleted */
+/* -------------------------------------------- retired only once parity is proven */
 
-test("both legacy routes still exist and still resolve to their own pages", async () => {
+test("/analytics is retired to its replacement, now that parity is proven", async () => {
   const app = await read("../../src/App.jsx");
-  // Parity with the Reporting Center has not been proven for the employee tab or the
-  // export, so neither route may be removed or redirected yet.
-  assert.match(app, /path="reports"\s*\n\s*element=\{\s*\n\s*<ProtectedRoute/, "the legacy /reports route must remain");
-  assert.match(app, /path="analytics"/, "the legacy /analytics route must remain");
-  assert.ok(!/path="analytics"[\s\S]{0,200}Navigate to="\/reports/.test(app), "no redirect until parity is proven");
+  // Every capability it offered has a canonical home — the matrix is in
+  // docs/reporting-center-legacy-parity.md — and it was never linked from the navigation.
+  // A redirect rather than a 404, because a bookmark should land somewhere useful.
+  assert.match(app, /path="analytics" element=\{<Navigate to="\/reports\/overview" replace \/>\}/);
+
+  // The page file stays on disk, unrouted, so restoring the route is a one-line revert.
+  const dashboard = await read("../../src/modules/analytics/pages/AnalyticsDashboard.jsx");
+  assert.ok(dashboard.length > 400, "the legacy page must be kept, not deleted");
+
+  // But nothing may lazily import it, or the build ships a chunk no route can reach.
+  assert.ok(
+    !/lazy\(\(\) => import\("\.\/modules\/analytics\/pages\/AnalyticsDashboard"\)\)/.test(app),
+    "the unrouted page must not remain in the lazy-import list"
+  );
 });
 
-test("both legacy routes are permission gated on the frontend as well as the backend", async () => {
+test("/reports survives, because retiring it needs the owner's sign-off", async () => {
   const app = await read("../../src/App.jsx");
+  // Parity IS proven for every tab. The architecture document promises the legacy page is
+  // retired only on explicit sign-off, and keeping that promise outranks the tidiness of
+  // removing the route — so it stays routed, gated, and labelled.
+  assert.match(app, /path="reports"\s*\n\s*element=\{\s*\n\s*<ProtectedRoute/, "the legacy /reports route must remain");
 
-  for (const route of ["reports", "analytics"]) {
-    const index = app.indexOf(`path="${route}"`);
-    assert.ok(index > 0, `${route} must be routed`);
-    const block = app.slice(index, index + 320);
-    assert.match(
-      block,
-      /<ProtectedRoute requiredPermissions=\{\["reports\.view"\]\}>/,
-      `/${route} must not mount before the permission is checked`
-    );
+  const index = app.indexOf('path="reports"');
+  assert.ok(index > 0, "reports must be routed");
+  assert.match(
+    app.slice(index, index + 320),
+    /<ProtectedRoute requiredPermissions=\{\["reports\.view"\]\}>/,
+    "/reports must not mount before the permission is checked"
+  );
+});
+
+test("every legacy capability has a named, proven replacement", async () => {
+  const parity = await read("../../docs/reporting-center-legacy-parity.md");
+  // Retiring a page is only defensible if somebody can check the claim afterwards.
+  for (const tab of ["Insights", "Sales", "Employees", "Inventory", "Customers", "Financial", "Export"]) {
+    assert.ok(parity.includes(tab), `the parity matrix must account for the ${tab} tab`);
+  }
+  for (const capability of ["Dead stock", "Reorder suggestions", "AI insights", "Customer intelligence"]) {
+    assert.ok(parity.includes(capability), `the parity matrix must account for ${capability}`);
+  }
+  assert.match(parity, /explicit sign-off/, "and must record why /reports is still routed");
+});
+
+test("the eight dead stub pages are gone and cannot come back", async () => {
+  const files = await readdir(new URL("../../src/modules/reports/pages/", import.meta.url));
+  for (const stub of [
+    "AnalyticsReports.jsx", "CustomersReports.jsx", "InventoryReports.jsx", "OrdersReports.jsx",
+    "ProductsReports.jsx", "ProfitReports.jsx", "SalesReports.jsx", "TaxReports.jsx",
+  ]) {
+    assert.ok(!files.includes(stub), `${stub} was proven unused and deleted; it must not reappear`);
+  }
+
+  // And no page in the folder may be a placeholder that renders its own name back at the
+  // reader. A page that looks like a feature and is not is worse than no page at all.
+  for (const file of files.filter((name) => name.endsWith(".jsx"))) {
+    const source = await read(`../../src/modules/reports/pages/${file}`);
+    assert.ok(source.length > 400, `${file} is too small to be a real page`);
+    const spaced = file.replace(".jsx", "").replace(/([A-Z])/g, " $1").trim();
+    assert.ok(!source.includes(`${spaced} Page`), `${file} renders its own name as its content`);
   }
 });
 
@@ -44,7 +85,9 @@ test("both legacy routes are permission gated on the frontend as well as the bac
 test("both legacy pages carry the notice, above the numbers it is about", async () => {
   const reports = await read("../../src/modules/reports/pages/Reports.jsx");
   assert.match(reports, /import LegacyReportNotice/);
-  assert.match(reports, /<LegacyReportNotice variant="reports" \/>/);
+  // It is told which tab the reader is on, so its link answers the question in front of
+  // them rather than offering a generic pair they have to choose between.
+  assert.match(reports, /<LegacyReportNotice variant="reports" activeTab=\{activeTab\} \/>/);
   // It must be the first child of the page body, not buried under the header.
   const bodyIndex = reports.indexOf('<div className="mx-auto w-full space-y-5">');
   const noticeIndex = reports.indexOf("<LegacyReportNotice");
@@ -83,6 +126,31 @@ test("the notice names specific defects and cannot be dismissed", async () => {
     if (locale === "ar") {
       assert.match(bundle.legacy.title, /[؀-ۿ]/, "the Arabic notice must actually be Arabic");
     }
+  }
+});
+
+test("each legacy tab is offered the one page that replaces it", async () => {
+  const notice = await read("../../src/modules/reports/components/LegacyReportNotice.jsx");
+  assert.match(notice, /export const CANONICAL_REPLACEMENT/);
+
+  for (const [tab, route] of [
+    ["insights", "/reports/overview"],
+    ["sales", "/reports/sales"],
+    ["employees", "/reports/employees"],
+    ["inventory", "/reports/inventory"],
+    ["customers", "/reports/customers"],
+    ["financial", "/accounting/reports"],
+  ]) {
+    assert.ok(notice.includes(`${tab}: [`), `no replacement declared for the ${tab} tab`);
+    assert.ok(notice.includes(`"${route}"`), `${route} must be offered`);
+  }
+
+  // Every route named there has to be a route that exists, or the notice sends the reader
+  // to a blank screen — which is worse than the wrong number it was warning them about.
+  const app = await read("../../src/App.jsx");
+  for (const route of ["reports/overview", "reports/sales", "reports/employees",
+    "reports/inventory", "reports/customers", "reports/reconciliation", "accounting/reports"]) {
+    assert.ok(app.includes(`path="${route}"`), `/${route} is offered but not routed`);
   }
 });
 

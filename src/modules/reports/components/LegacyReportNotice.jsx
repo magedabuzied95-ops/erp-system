@@ -16,7 +16,24 @@ import { ArrowLeft, ArrowRight, TriangleAlert } from "lucide-react";
  * question correctly. Nothing here is dismissible: a notice a reader can close is a
  * notice that is absent on the visit that mattered.
  */
-export default function LegacyReportNotice({ variant = "reports" }) {
+/**
+ * Where each legacy tab's question is answered correctly now.
+ *
+ * Keyed by the legacy tab so the notice offers the ONE page that replaces what the
+ * reader is currently looking at, rather than a generic pair of links they have to
+ * choose between. Parity for every entry is recorded in
+ * docs/reporting-center-legacy-parity.md.
+ */
+export const CANONICAL_REPLACEMENT = Object.freeze({
+  insights: [{ to: "/reports/overview", key: "overview" }],
+  sales: [{ to: "/reports/sales", key: "sales" }],
+  employees: [{ to: "/reports/employees", key: "employees" }],
+  inventory: [{ to: "/reports/inventory", key: "inventory" }],
+  customers: [{ to: "/reports/customers", key: "customers" }],
+  financial: [{ to: "/accounting/reports", key: "financial" }, { to: "/reports/reconciliation", key: "reconciliation" }],
+});
+
+export default function LegacyReportNotice({ variant = "reports", activeTab = null }) {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const Arrow = isArabic ? ArrowLeft : ArrowRight;
@@ -26,8 +43,10 @@ export default function LegacyReportNotice({ variant = "reports" }) {
       ? ["scope", "stock", "dates"]
       : ["scope", "profit", "errors"];
 
+  // The tab the reader is on wins, so the link answers the question in front of them.
   const targets =
-    variant === "analytics"
+    (activeTab && CANONICAL_REPLACEMENT[activeTab]) ||
+    (variant === "analytics"
       ? [
           { to: "/reports/inventory", key: "inventory" },
           { to: "/reports/overview", key: "overview" },
@@ -35,7 +54,7 @@ export default function LegacyReportNotice({ variant = "reports" }) {
       : [
           { to: "/reports/overview", key: "overview" },
           { to: "/reports/sales", key: "sales" },
-        ];
+        ]);
 
   return (
     <section

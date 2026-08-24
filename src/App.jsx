@@ -168,7 +168,6 @@ const PurchasingIntelligence = lazy(() => import("./modules/reports/pages/Purcha
 const CustomerIntelligence = lazy(() => import("./modules/reports/pages/CustomerIntelligence"));
 const EmployeeIntelligence = lazy(() => import("./modules/reports/pages/EmployeeIntelligence"));
 const ReconciliationReport = lazy(() => import("./modules/reports/pages/ReconciliationReport"));
-const AnalyticsDashboard = lazy(() => import("./modules/analytics/pages/AnalyticsDashboard"));
 const EmployeeHub = lazy(() => import("./modules/employees/pages/EmployeeHub"));
 const EmployeeSalesPerformance = lazy(() => import("./modules/employees/pages/SalesPerformance"));
 const EmployeeCommissions = lazy(() => import("./modules/employees/pages/Commissions"));
@@ -1767,19 +1766,24 @@ function App() {
         />
 
         {/*
-          Legacy analytics. The backend already gates every /api/analytics endpoint on
-          reports.view, but without a route guard the page still mounted and fired nine
-          requests before each was refused — the same shape of gap that let a cashier
-          reach the Reports Center. The guard makes the frontend agree with the backend.
+          RETIRED 2026-08-24. Every capability /analytics offered now has a canonical
+          home, and parity is proven in docs/reporting-center-legacy-parity.md:
+
+            overview / sales / profit  -> /reports/overview and /reports/sales
+            inventory / dead stock     -> /reports/inventory
+            customers + intelligence   -> /reports/customers
+            reorder suggestions        -> /purchases/reorder-suggestions (already canonical)
+            AI insights                -> deliberately NOT carried over. D-17: the figures
+                                          were fabricated, so there is nothing to preserve.
+
+          It was never linked from the navigation, and it carried three confirmed defects
+          of its own (D-05 date filters, D-06 dead stock column, D-12 missing created_at).
+          A redirect rather than a 404, because a bookmark should land somewhere useful.
+
+          AnalyticsDashboard.jsx is deliberately KEPT on disk, unrouted, until the owner
+          signs off on deleting it — restoring the route is then a one-line revert.
         */}
-        <Route
-          path="analytics"
-          element={
-            <ProtectedRoute requiredPermissions={["reports.view"]}>
-              <AnalyticsDashboard />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="analytics" element={<Navigate to="/reports/overview" replace />} />
 
         {/* EMPLOYEES */}
 
