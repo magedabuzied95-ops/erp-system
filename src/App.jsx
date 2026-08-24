@@ -1746,9 +1746,19 @@ function App() {
           }
         />
 
+        {/*
+          Legacy analytics. The backend already gates every /api/analytics endpoint on
+          reports.view, but without a route guard the page still mounted and fired nine
+          requests before each was refused — the same shape of gap that let a cashier
+          reach the Reports Center. The guard makes the frontend agree with the backend.
+        */}
         <Route
           path="analytics"
-          element={<AnalyticsDashboard />}
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <AnalyticsDashboard />
+            </ProtectedRoute>
+          }
         />
 
         {/* EMPLOYEES */}

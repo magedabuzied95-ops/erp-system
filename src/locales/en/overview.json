@@ -249,5 +249,21 @@
     "empty": "There is nothing to export yet.",
     "failed": "The export could not be produced.",
     "blocked": "Your browser blocked the print window. Allow pop-ups for this site."
+  },
+  "legacy": {
+    "title": "This is the legacy report",
+    "intro": "These figures are kept for continuity, but a data audit confirmed they are computed differently from the Reporting Center. Where the two disagree, the Reporting Center is the corrected one.",
+    "defect": {
+      "scope": "Revenue here includes cancelled, draft, soft-deleted and personal orders, which the Reporting Center excludes.",
+      "profit": "Gross profit cannot be computed on this page, because order lines carry no cost column. It is shown as unavailable rather than as a number equal to revenue.",
+      "errors": "A failed query on this page returns zero rather than an error, so a zero here may mean a failure.",
+      "stock": "Inventory value here reads a stock column that nothing writes to, so it can disagree with the real stock on hand.",
+      "dates": "Date-filtered product figures on this page silently return nothing, because products carries no created date."
+    },
+    "goTo": {
+      "overview": "Open the Executive Overview",
+      "sales": "Open Sales & Profit Intelligence",
+      "inventory": "Open Inventory Intelligence"
+    }
   }
 }

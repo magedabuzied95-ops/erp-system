@@ -45,6 +45,8 @@ import i18n from "../../../i18n/i18n";
 
 /** Module scope: resolve through i18n at CALL time, never eagerly at import. */
 const tt = (key, options) => i18n.t(key, options);
+import LegacyReportNotice from "../components/LegacyReportNotice";
+import { exportReport } from "../lib/reportExport";
 import "./Reports.m1.css";
 
 import {
@@ -155,13 +157,6 @@ const normalizeChartRows = (rows = []) =>
 
 const getRowsFromReport = (report) => (Array.isArray(report?.rows) ? report.rows : []);
 
-const csvEscape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-
-const rowsToCsv = (rows = []) => {
-  if (!rows.length) return "";
-  const headers = Object.keys(rows[0]);
-  return [headers.map(csvEscape).join(","), ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].join("\n");
-};
 
 function Reports() {
   const { t, i18n } = useTranslation();
@@ -316,59 +311,57 @@ function Reports() {
 
   const exportRows = filteredRows.length ? filteredRows : activeRows;
 
-  const exportCsv = async () => {
-    const { saveAs } = await import("file-saver");
-    const blob = new Blob([rowsToCsv(exportRows)], { type: "text/csv;charset=utf-8" });
-    saveAs(blob, `${activeTab}-report.csv`);
+  /**
+   * Exports now go through the shared Reporting Center engine.
+   *
+   * The four hand-rolled implementations this replaces each had their own bugs, and one
+   * of them mattered: the PDF was built with jsPDF's default Helvetica, which carries no
+   * Arabic glyphs and no shaping, so every Arabic column printed as empty boxes. The
+   * shared engine embeds NotoSansArabic and shapes each string, and it also gives this
+   * page a UTF-8 BOM on the CSV, numeric cells in Excel, and a print document whose
+   * header repeats across pages.
+   */
+  const runExport = async (format) => {
+    try {
+      await exportReport({
+        format,
+        title: isArabic ? "التحليلات والتقارير" : "Analytics & Reports",
+        subtitle: activeDefinition.label,
+        filterSummary: `${filters.preset} · ${filters.startDate || "auto"} - ${filters.endDate || "auto"}`,
+        language: i18n.language,
+        fileName: `${activeTab}-report`,
+        sheets: [
+          {
+            name: activeDefinition.label,
+            // The legacy rows are flat objects keyed by their own column names, so the
+            // column list IS the key list.
+            columns: enabledColumns.map((column) => ({ key: column, label: column })),
+            rows: exportRows,
+          },
+        ],
+      });
+    } catch (error) {
+      if (error?.message === "NOTHING_TO_EXPORT") toast.error(t("overview.export.empty"));
+      else if (error?.message === "PRINT_WINDOW_BLOCKED") toast.error(t("overview.export.blocked"));
+      else toast.error(error?.message || t("overview.export.failed"));
+    }
   };
 
-  const exportExcel = async () => {
-    const [XLSX, { saveAs }] = await Promise.all([
-      import("xlsx"),
-      import("file-saver"),
-    ]);
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, activeDefinition.label.slice(0, 31));
-    const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buffer], { type: "application/octet-stream" }), `${activeTab}-report.xlsx`);
-  };
-
-  const exportPdf = async () => {
-    const [jspdfModule, autoTableModule] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ]);
-    const JsPDF = jspdfModule.jsPDF || jspdfModule.default || jspdfModule;
-    const autoTable = autoTableModule.default || autoTableModule.autoTable || autoTableModule;
-    const doc = new JsPDF({ orientation: "landscape" });
-    doc.text("Analytics & Reports", 14, 14);
-    doc.text(`${activeDefinition.label} | ${filters.preset} | ${filters.startDate || "auto"} - ${filters.endDate || "auto"}`, 14, 22);
-    autoTable(doc, {
-      startY: 30,
-      head: [enabledColumns],
-      body: exportRows.map((row) => enabledColumns.map((column) => String(row[column] ?? ""))),
-      styles: { fontSize: 8 },
-    });
-    doc.save(`${activeTab}-report.pdf`);
-  };
-
-  const printReport = () => {
-    const html = `
-      <html><head><title>Analytics & Reports</title>
-      <style>body{font-family:Arial;padding:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#111;color:#fff}</style>
-      </head><body><h1>Analytics & Reports</h1><h2>${activeDefinition.label}</h2>
-      <table><thead><tr>${enabledColumns.map((column) => `<th>${column}</th>`).join("")}</tr></thead>
-      <tbody>${exportRows.map((row) => `<tr>${enabledColumns.map((column) => `<td>${row[column] ?? ""}</td>`).join("")}</tr>`).join("")}</tbody></table>
-      <script>window.print()</script></body></html>`;
-    const win = window.open("", "_blank", "width=1200,height=800");
-    win?.document.write(html);
-    win?.document.close();
-  };
+  const exportCsv = () => runExport("csv");
+  const exportExcel = () => runExport("xlsx");
+  const exportPdf = () => runExport("pdf");
+  const printReport = () => runExport("print");
 
   return (
     <div className="m1-reports-page min-h-screen bg-[#080b10] px-3 py-4 text-white sm:px-5 lg:px-7" dir={isArabic ? "rtl" : "ltr"}>
       <div className="mx-auto w-full space-y-5">
+        {/*
+          First thing on the page, above the numbers it is about. The audit corrected
+          this screen's defects in the Reporting Center rather than in place, so that
+          they would not silently move figures a manager reads daily — and that choice
+          is only honest if the page says which figures are affected.
+        */}
+        <LegacyReportNotice variant="reports" />
         <header className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(6,78,59,0.72))] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
