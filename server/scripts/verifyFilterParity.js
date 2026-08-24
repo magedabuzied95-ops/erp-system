@@ -115,15 +115,32 @@ const run = async () => {
     const withValue = options.reduce((total, option) => total + option.orders, 0);
     const partitions = summed === withValue;
 
+    /*
+     * Narrowing can only be demonstrated when there is something to narrow TO. With a
+     * single distinct value — one branch, in this shop — the only possible slice is the
+     * whole, and requiring it to be smaller would fail a filter that is working perfectly.
+     *
+     * Partitioning is still required in that case, and it is the check that actually
+     * catches a filter matching everything: eight payment methods each returning all 570
+     * orders would sum to 4 560, not 570.
+     *
+     * The single-value case is reported as `ok-single` rather than `ok`, because "this
+     * filter narrows correctly" and "this filter has never had more than one value to
+     * choose between" are different claims and should not read the same.
+     */
+    const narrowingTestable = options.length > 1;
+    const passed = partitions && (!narrowingTestable || narrowedEvery);
+
     report.push({
       key: entry.key,
-      status: narrowedEvery && partitions ? "ok" : "FAIL",
+      status: passed ? (narrowingTestable ? "ok" : "ok-single") : "FAIL",
       values: options.length,
       whole: whole.orders,
       covered: withValue,
       unset: whole.orders - withValue,
       summed,
       narrowedEvery,
+      narrowingTestable,
       partitions,
     });
   }
@@ -148,11 +165,19 @@ const run = async () => {
   }
 
   const failures = report.filter((row) => row.status === "FAIL" || row.status === "MISMATCH");
-  console.log(
-    failures.length
-      ? `\nFAIL: ${failures.length} filter(s) did not narrow or did not partition.`
-      : `\nPASS: every supported filter narrows the data and partitions it exactly.`
-  );
+  const single = report.filter((row) => row.status === "ok-single");
+
+  if (failures.length) {
+    console.log(`\nFAIL: ${failures.length} filter(s) did not narrow or did not partition.`);
+  } else {
+    console.log("\nPASS: every supported filter partitions the data exactly.");
+    if (single.length) {
+      console.log(
+        `      ${single.map((row) => row.key).join(", ")} — only one value exists in this dataset,\n` +
+          "      so narrowing could not be demonstrated. Partitioning was."
+      );
+    }
+  }
   return failures.length;
 };
 
