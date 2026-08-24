@@ -92,10 +92,21 @@ const structural = (page) => {
   const source = pageSource(page);
   const has = (needle, where = source) => where.includes(needle);
 
+  /*
+   * Reconciliation is a whole-window integrity check: it asks whether two screens that
+   * answer the same question agree. Narrowing it to one salesperson or one payment method
+   * would compare two slices and prove nothing about the totals, and a saved view of a
+   * pass/fail check is a saved view of "it was fine on Tuesday". Both are absent by
+   * design, so both are n/a — a design decision recorded as one, not a gap dressed up.
+   */
+  const wholeWindowOnly = page === "reconciliation";
+
   return {
     filters: has("ReportFilterBar")
       ? pass(`filter bar mounted; ${UNSUPPORTED_LEGACY_FILTERS.length} legacy controls declared unsupported with a measured reason`)
-      : fail("no filter bar on this page"),
+      : wholeWindowOnly
+        ? na("reconciliation checks whole-window identities; filtering it would compare two slices and prove nothing")
+        : fail("no filter bar on this page"),
 
     permissions: /permissions\?\.(cost|profit|customers)/.test(source) || has("reports.view", sources.app)
       ? pass("route gated on reports.view; cost/profit/customers resolved server-side and omitted from the payload")
@@ -111,7 +122,9 @@ const structural = (page) => {
 
     savedSettings: has("PresetBar")
       ? pass("server-side presets, owned per user, filters only")
-      : fail("no saved views on this page"),
+      : wholeWindowOnly
+        ? na("a saved view of a pass/fail check would only record that it passed once")
+        : fail("no saved views on this page"),
 
     columnConfiguration: has("useColumnPreferences")
       ? pass("column chooser; hide-only, withheld columns not offered")
@@ -132,6 +145,21 @@ const structural = (page) => {
 };
 
 /* ------------------------------------------------------------------- numerical */
+
+/**
+ * KPI values arrive as a comparison object — { current, previous, delta, ... } — not as a
+ * bare number, and not under a "value" key.
+ *
+ * An earlier cut of this matrix read `.value` and reported every tab as returning
+ * nothing, which would have blocked retirement for a defect in the READER rather than in
+ * the code. Misreading a payload and calling it a failure is the same class of mistake as
+ * misreading it and calling it a pass; only the direction of the error is friendlier.
+ */
+const kpi = (kpis, name) => {
+  const entry = kpis?.[name];
+  if (entry === undefined || entry === null) return null;
+  return typeof entry === 'object' ? (entry.current ?? null) : Number(entry);
+};
 
 const money = (value) => (value === null || value === undefined ? null : Math.round(Number(value) * 100) / 100);
 const near = (a, b, tolerance = 0.01) =>
@@ -169,7 +197,7 @@ const numerical = async () => {
   const employees = await getEmployeesSummary({ filters: v2Filters, permissions: FULL_PERMISSIONS });
 
   const legacyRevenue = money(legacyDashboard?.kpis?.totalSales);
-  const v2NetSales = money(overview?.data?.kpis?.netSales?.value);
+  const v2NetSales = money(kpi(overview?.data?.kpis, "netSales"));
   const scopeCorrection = money(legacyDashboard?.scopeCorrection?.excludedValue ?? 0);
 
   return {
@@ -184,20 +212,20 @@ const numerical = async () => {
     },
     sales: {
       legacyRows: legacySales?.rows?.length ?? 0,
-      v2NetSales: money(sales?.data?.kpis?.netSales?.value),
-      agreesWithOverview: near(money(sales?.data?.kpis?.netSales?.value), v2NetSales),
+      v2NetSales: money(kpi(sales?.data?.kpis, "netSales")),
+      agreesWithOverview: near(money(kpi(sales?.data?.kpis, "netSales")), v2NetSales),
     },
     inventory: {
       legacyRows: legacyInventory?.rows?.length ?? 0,
-      v2Products: inventory?.data?.kpis?.stockedProducts?.value ?? null,
+      v2Products: kpi(inventory?.data?.kpis, "stockedProducts"),
     },
     customers: {
       legacyRows: legacyCustomers?.rows?.length ?? 0,
-      v2Customers: customers?.data?.kpis?.activeCustomers?.value ?? null,
+      v2Customers: kpi(customers?.data?.kpis, "activeCustomers"),
     },
     employees: {
       legacyRows: legacyEmployees?.rows?.length ?? 0,
-      v2Sellers: employees?.data?.kpis?.activeSellers?.value ?? null,
+      v2Sellers: kpi(employees?.data?.kpis, "activeSellers"),
       attribution: employees?.meta?.attribution?.field ?? null,
       coverage: employees?.meta?.attribution?.coverage ?? null,
     },
