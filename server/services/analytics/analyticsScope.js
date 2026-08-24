@@ -19,6 +19,14 @@ export const REPORTS_MODULE = "reports";
 export const COST_ACTION = "cost";
 export const PROFIT_ACTION = "profit";
 
+/**
+ * Customer identity is resolved here too, from the SAME row set as reports:*, so the
+ * reporting layer never grows a second way of asking "may this caller see who a customer
+ * is". R6 uses it to decide whether the top-customer list carries names or ranks; contact
+ * details are never returned to anybody regardless of this flag.
+ */
+export const CUSTOMERS_MODULE = "customers";
+
 const ADMIN_ROLES = ["admin", "super_admin", "super admin", "superadmin", "owner"];
 
 const normalizeRole = (value = "") =>
@@ -37,11 +45,11 @@ export const resolveAnalyticsPermissions = async (req, { client = db } = {}) => 
   const userId = req?.user?.id;
 
   if (isSuperAdminUser(req?.user)) {
-    return { view: true, cost: true, profit: true, source: "super_admin" };
+    return { view: true, cost: true, profit: true, customers: true, source: "super_admin" };
   }
 
   if (!userId) {
-    return { view: false, cost: false, profit: false, source: "anonymous" };
+    return { view: false, cost: false, profit: false, customers: false, source: "anonymous" };
   }
 
   const result = await client.query(
@@ -65,7 +73,7 @@ export const resolveAnalyticsPermissions = async (req, { client = db } = {}) => 
   const roleName = rows[0]?.role_name || rows[0]?.user_role || req?.user?.role_name || req?.user?.role || "";
 
   if (rows[0]?.is_super_admin || isAdminRole(roleName)) {
-    return { view: true, cost: true, profit: true, source: "admin" };
+    return { view: true, cost: true, profit: true, customers: true, source: "admin" };
   }
 
   const hasWildcard =
@@ -73,7 +81,7 @@ export const resolveAnalyticsPermissions = async (req, { client = db } = {}) => 
     (Array.isArray(req?.user?.permissions) && req.user.permissions.includes("*"));
 
   if (hasWildcard) {
-    return { view: true, cost: true, profit: true, source: "wildcard" };
+    return { view: true, cost: true, profit: true, customers: true, source: "wildcard" };
   }
 
   const granted = new Set(
@@ -89,6 +97,9 @@ export const resolveAnalyticsPermissions = async (req, { client = db } = {}) => 
     cost: has(COST_ACTION),
     // Profit is meaningless without cost, and granting it alone would leak margin.
     profit: has(PROFIT_ACTION) && has(COST_ACTION),
+    // Customer identity is a separate grant from reporting access: a manager may be
+    // trusted with the shape of the customer base without being trusted with the names.
+    customers: granted.has(`${CUSTOMERS_MODULE}:view`),
     source: "granted",
   };
 };

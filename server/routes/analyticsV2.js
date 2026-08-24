@@ -3,11 +3,18 @@ import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import {
+  getCustomersBreakdownController,
+  getCustomersListController,
+  getCustomersSummaryController,
   getInventoryBreakdownController,
   getInventoryProductsController,
   getInventorySizesController,
   getInventorySummaryController,
   getOverview,
+  getPurchasingBreakdownController,
+  getPurchasingProductsController,
+  getPurchasingSummaryController,
+  getPurchasingSuppliersController,
   getSalesBreakdownController,
   getSalesProductsController,
   getSalesSizesController,
@@ -36,5 +43,18 @@ router.get("/inventory/summary", protect, viewReports, getInventorySummaryContro
 router.get("/inventory/breakdown", protect, viewReports, getInventoryBreakdownController);
 router.get("/inventory/products", protect, viewReports, getInventoryProductsController);
 router.get("/inventory/sizes", protect, viewReports, getInventorySizesController);
+
+// R5 — Purchasing & Supplier Intelligence. Same shape again: summary, one-dimension
+// breakdown, per-product price trend, per-supplier performance.
+router.get("/purchasing/summary", protect, viewReports, getPurchasingSummaryController);
+router.get("/purchasing/breakdown", protect, viewReports, getPurchasingBreakdownController);
+router.get("/purchasing/products", protect, viewReports, getPurchasingProductsController);
+router.get("/purchasing/suppliers", protect, viewReports, getPurchasingSuppliersController);
+
+// R6 — Customer Intelligence. Aggregated intelligence only; the named list is gated a
+// second time on customers:view inside the service.
+router.get("/customers/summary", protect, viewReports, getCustomersSummaryController);
+router.get("/customers/breakdown", protect, viewReports, getCustomersBreakdownController);
+router.get("/customers/list", protect, viewReports, getCustomersListController);
 
 export default router;
