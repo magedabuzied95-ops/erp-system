@@ -23,6 +23,7 @@ import {
   completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
+import { syncMetaChannelAccounts } from "./channelAccountsService.js";
 import {
   noteGraphResponse,
   noteGraphRateLimitError,
@@ -5815,7 +5816,7 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
           status TEXT NOT NULL DEFAULT 'not_connected',
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE (tenant_id)
+          UNIQUE (tenant_id, facebook_page_id)
         )
       `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS facebook_page_name TEXT NOT NULL DEFAULT ''`);
@@ -5845,6 +5846,36 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_meta_integration_page ON meta_integration_configs (facebook_page_id)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_meta_integration_ig ON meta_integration_configs (instagram_business_account_id)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_meta_integration_verify ON meta_integration_configs (verify_token)`);
+      // Multi-page: config identity is (tenant, page), not tenant alone. The new
+      // unique index must exist before the legacy UNIQUE(tenant_id) is dropped so
+      // the ON CONFLICT upserts always have a target. Non-fatal on failure: the
+      // legacy constraint then simply keeps enforcing single-page behavior.
+      try {
+        await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_meta_integration_tenant_page ON meta_integration_configs (tenant_id, facebook_page_id)`);
+        await clientOrPool.query(`
+          DO $$
+          DECLARE con RECORD;
+          BEGIN
+            FOR con IN
+              SELECT c.conname
+              FROM pg_constraint c
+              WHERE c.conrelid = 'meta_integration_configs'::regclass
+                AND c.contype = 'u'
+                AND c.conkey = ARRAY[(
+                  SELECT attnum FROM pg_attribute
+                  WHERE attrelid = c.conrelid AND attname = 'tenant_id'
+                )]
+            LOOP
+              EXECUTE format('ALTER TABLE meta_integration_configs DROP CONSTRAINT %I', con.conname);
+            END LOOP;
+          END $$;
+        `);
+      } catch (error) {
+        console.error("[meta-integration] multi_page_constraint_migration_failed", {
+          message: error?.message || "unknown",
+          code: error?.code || "",
+        });
+      }
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS meta_oauth_states (
           id BIGSERIAL PRIMARY KEY,
@@ -6029,8 +6060,7 @@ const repairMetaConfigFromMarketingSettings = async ({ tenantId } = {}) => {
         token_expires_at, status, updated_at
       )
       VALUES ($1,$2,'','',$3,$4,'',$5,FALSE,FALSE,FALSE,TRUE,TRUE,$6,$6,$7::timestamp,'active',NOW())
-      ON CONFLICT (tenant_id) DO UPDATE SET
-        facebook_page_id = EXCLUDED.facebook_page_id,
+      ON CONFLICT (tenant_id, facebook_page_id) DO UPDATE SET
         page_access_token_encrypted = EXCLUDED.page_access_token_encrypted,
         instagram_business_account_id = EXCLUDED.instagram_business_account_id,
         verify_token = CASE WHEN meta_integration_configs.verify_token <> '' THEN meta_integration_configs.verify_token ELSE EXCLUDED.verify_token END,
@@ -9406,8 +9436,7 @@ export const saveMetaIntegrationConfig = async ({ tenantId, data = {} } = {}) =>
       facebook_publishing_enabled, instagram_publishing_enabled, token_expires_at, status, updated_at
     )
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NULLIF($20, '')::timestamp,$21,NOW())
-    ON CONFLICT (tenant_id) DO UPDATE SET
-      facebook_page_id = EXCLUDED.facebook_page_id,
+    ON CONFLICT (tenant_id, facebook_page_id) DO UPDATE SET
       page_name = EXCLUDED.page_name,
       facebook_page_name = EXCLUDED.facebook_page_name,
       page_access_token_encrypted = CASE WHEN EXCLUDED.page_access_token_encrypted <> '' THEN EXCLUDED.page_access_token_encrypted ELSE meta_integration_configs.page_access_token_encrypted END,
@@ -9508,6 +9537,12 @@ export const saveMetaIntegrationConfig = async ({ tenantId, data = {} } = {}) =>
       message: repairError?.message || "unknown",
     });
   });
+  await syncMetaChannelAccounts({ tenantId: scopedTenantId }).catch((syncError) => {
+    console.warn("[meta-integration] channel accounts sync failed", {
+      tenant_id: scopedTenantId,
+      message: syncError?.message || "unknown",
+    });
+  });
   return sanitizeConfig(saved);
   } catch (error) {
     console.error("[meta-integration] meta_config_save_failed", {
@@ -9535,8 +9570,15 @@ export const saveInstagramBusinessAccessToken = async ({ tenantId, accessToken =
   if (!token) throw Object.assign(new Error("Instagram access token is required."), { status: 400 });
 
   const existingResult = await db.query(
-    `SELECT * FROM meta_integration_configs WHERE tenant_id = $1 ORDER BY updated_at DESC LIMIT 1`,
-    [scopedTenantId]
+    `
+    SELECT * FROM meta_integration_configs
+    WHERE tenant_id = $1
+    ORDER BY
+      CASE WHEN $2::text <> '' AND TRIM(COALESCE(instagram_business_account_id, '')::text) = $2 THEN 0 ELSE 1 END,
+      updated_at DESC
+    LIMIT 1
+    `,
+    [scopedTenantId, text(expectedAccountId)]
   );
   const existing = existingResult.rows[0];
   if (!existing) {
@@ -9569,6 +9611,14 @@ export const saveInstagramBusinessAccessToken = async ({ tenantId, accessToken =
     subscriptionWarning = error?.message || "The token was saved, but Instagram webhook subscription still needs attention.";
   }
 
+  // With several pages per tenant, the token must land on exactly one row: the
+  // one already tied to this Instagram account if it exists, else the row the
+  // lookup above picked.
+  const matchingResult = await db.query(
+    `SELECT id FROM meta_integration_configs WHERE tenant_id = $1 AND TRIM(COALESCE(instagram_business_account_id, '')::text) = $2 LIMIT 1`,
+    [scopedTenantId, accountId]
+  );
+  const targetConfigId = matchingResult.rows[0]?.id || existing.id;
   const result = await db.query(
     `
     UPDATE meta_integration_configs
@@ -9582,10 +9632,10 @@ export const saveInstagramBusinessAccessToken = async ({ tenantId, accessToken =
         instagram_enabled = TRUE,
         instagram_dm_enabled = TRUE,
         updated_at = NOW()
-    WHERE tenant_id = $1
+    WHERE id = $1
     RETURNING *
     `,
-    [scopedTenantId, accountId, text(profile.username), encryptSecret(token), expiresAt || null, subscribed]
+    [targetConfigId, accountId, text(profile.username), encryptSecret(token), expiresAt || null, subscribed]
   );
   console.log("[meta-instagram] business token saved", {
     tenant_id: scopedTenantId,
@@ -9679,7 +9729,7 @@ export const testMetaIntegrationConfig = async ({ tenantId } = {}) => {
   const response = await fetch(target);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    await db.query(`UPDATE meta_integration_configs SET status = 'invalid', last_sync_at = NOW(), updated_at = NOW() WHERE tenant_id = $1`, [numberOrNull(tenantId)]);
+    await db.query(`UPDATE meta_integration_configs SET status = 'invalid', last_sync_at = NOW(), updated_at = NOW() WHERE id = $1`, [row.id]);
     throw Object.assign(new Error(payload?.error?.message || "Meta connection test failed"), { status: response.status, meta: payload?.error || null });
   }
   const pageName = text(payload.name || row.page_name);
@@ -9692,10 +9742,10 @@ export const testMetaIntegrationConfig = async ({ tenantId } = {}) => {
         status = 'active',
         last_sync_at = NOW(),
         updated_at = NOW()
-    WHERE tenant_id = $1
+    WHERE id = $1
     RETURNING *
     `,
-    [numberOrNull(tenantId), pageName, igId]
+    [row.id, pageName, igId]
   );
   return { config: sanitizeConfig(result.rows[0]), meta: { id: payload.id || "", name: pageName, instagram_business_account_id: igId } };
 };
@@ -9744,10 +9794,10 @@ const repairMetaWebhookEnabledForConfig = async (row = {}) => {
         END,
         last_sync_at = NOW(),
         updated_at = NOW()
-    WHERE tenant_id = $1
+    WHERE id = $1
     RETURNING *
     `,
-    [numberOrNull(row.tenant_id), json(nextCapabilityStatus)]
+    [numberOrNull(row.id), json(nextCapabilityStatus)]
   );
   return result.rows[0] || { ...row, webhook_enabled: true, capability_status: nextCapabilityStatus };
 };

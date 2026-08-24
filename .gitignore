@@ -130,6 +130,7 @@ server/services/*
 # deploy ships a cacheService that imports a file which does not exist, and
 # the backend dies at module load. That is exactly what happened once.
 !server/services/redisInfrastructure.js
+!server/services/channelAccountsService.js
 # AI brain rebuild. These are the new understanding/reasoning layer; without an
 # explicit un-ignore they are silently dropped from every commit and never deploy.
 !server/services/aiUnderstandingService.js

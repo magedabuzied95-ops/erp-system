@@ -148,6 +148,7 @@ import {
   updateAiInboxQuickReply,
 } from "../services/aiInboxQuickRepliesService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
+import { listChannelAccounts, syncEnvChannelAccounts, syncMetaChannelAccounts } from "../services/channelAccountsService.js";
 
 const router = express.Router();
 
@@ -2394,6 +2395,25 @@ router.post("/channels/meta/webhook", async (req, res) => {
   } catch (error) {
     console.error("[ai-agent:meta] webhook error", { message: error?.message, stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined });
     return res.status(200).json({ success: false, message: "Meta webhook handled with errors" });
+  }
+});
+
+// The account registry behind the multi-account inbox: every connected page,
+// Instagram account, WhatsApp number, and Telegram bot for this tenant. Synced
+// from the credential sources on each read so the list never goes stale.
+router.get("/channel-accounts", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    await Promise.all([
+      syncMetaChannelAccounts({ tenantId }).catch(() => []),
+      syncEnvChannelAccounts({ tenantId }).catch(() => []),
+    ]);
+    const includeInactive = String(req.query.include_inactive || "").toLowerCase() === "true";
+    const accounts = await listChannelAccounts({ tenantId, platform: envText(req.query.platform), includeInactive });
+    return res.json({ success: true, accounts });
+  } catch (error) {
+    console.error("[ai-agent] channel accounts list failed", { message: error?.message || "unknown" });
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Unable to list channel accounts" });
   }
 });
 
