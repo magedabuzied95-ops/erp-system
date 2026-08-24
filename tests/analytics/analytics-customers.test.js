@@ -301,3 +301,51 @@ test("a failure is a 500 that names the area, and the route is permission gated"
   assert.ok(index > 0, "the route must exist");
   assert.match(app.slice(index, index + 260), /ProtectedRoute requiredPermissions=\{\["reports\.view"\]\}/);
 });
+
+/* --------------------------------------------------------- returns are netted */
+
+test("customer revenue is net of returns, on the same basis as the Executive Overview", async () => {
+  const source = await read(SERVICE);
+
+  // Found by the reconciliation harness: customer revenue was gross of refunds while the
+  // Overview's net sales was net of them, so the two screens disagreed by exactly the
+  // returns total — 17,850 at 90d and 19,800 at 365d on the development data — and
+  // neither page said why.
+  assert.match(source, /customer_returns AS \(/, "returns must be aggregated per customer");
+  assert.match(source, /JOIN returns r ON r\.id = ri\.return_id/);
+  assert.match(source, /JOIN orders o  ON o\.id = r\.order_id/);
+  assert.match(source, /GROUP BY o\.customer_id/);
+
+  // Netted exactly once, in one CTE, so every downstream figure inherits the same basis
+  // rather than each section deciding for itself.
+  assert.match(source, /netted AS \(/);
+  assert.match(source, /pc\.revenue_current_gross\s+- COALESCE\(cr\.refunded_current, 0\)\s+AS revenue_current/);
+  assert.match(source, /pc\.lifetime_revenue_gross - COALESCE\(cr\.refunded_lifetime, 0\)\s+AS lifetime_revenue/);
+  assert.match(source, /FROM netted pc/, "the segmentation must read the netted rows");
+
+  // Refunds carry a NaN guard like every other money expression.
+  assert.match(source, /nanSafe\(refundExpr\)/);
+  // And cancelled or rejected returns are not refunds.
+  assert.match(source, /NOT IN \('cancelled','canceled','rejected','void','deleted'\)/);
+});
+
+test("the walk-in line is net too, or the identity does not close", async () => {
+  const source = await read(SERVICE);
+  // customerRevenue + walkInRevenue has to add back up to company net sales. If only one
+  // side deducts returns, the two screens disagree by the walk-in refunds.
+  assert.match(source, /const walkInRefunds = \(\{ scope, columns \}\) => \{/);
+  assert.match(source, /if \(!columns\.returnColumns\.size \|\| !columns\.returnItemColumns\.size\) return "0"/);
+  assert.match(source, /AND o\.customer_id IS NULL/);
+  assert.match(source, /- \$\{walkInRefunds\(\{ scope, columns \}\)\} AS revenue/);
+});
+
+test("a customer may show negative revenue for a period, and is not floored at zero", async () => {
+  const source = await read(SERVICE);
+  // A refund raised this window against an older order is a real negative for this
+  // window. GREATEST(x, 0) here would hide it and break the reconciliation identity.
+  assert.ok(
+    !/GREATEST\(pc\.revenue_current_gross[^)]*\)/.test(source),
+    "the netted revenue must not be floored"
+  );
+  assert.match(source, /rather than something to floor at zero/, "and the reason must be recorded");
+});

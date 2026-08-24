@@ -7,7 +7,8 @@ import {
   toFiniteNumber,
   toMoney,
 } from "./analyticsComparison.js";
-import { canonicalOrderClauses, orderRevenueExpr } from "./analyticsMetrics.js";
+import { coalesceColumnExpr } from "./accountingCanon.js";
+import { canonicalOrderClauses, nanSafe, orderRevenueExpr } from "./analyticsMetrics.js";
 
 /**
  * R6 — Customer Intelligence.
@@ -139,10 +140,12 @@ const loadColumns = async (client) => {
     );
     return new Set(result.rows.map((row) => row.column_name));
   };
-  const [customerColumns, orderColumns, itemColumns, branchColumns] = await Promise.all([
-    read("customers"), read("orders"), read("order_items"), read("branches"),
-  ]);
-  return { customerColumns, orderColumns, itemColumns, branchColumns };
+  const [customerColumns, orderColumns, itemColumns, branchColumns, returnColumns, returnItemColumns] =
+    await Promise.all([
+      read("customers"), read("orders"), read("order_items"), read("branches"),
+      read("returns"), read("return_items"),
+    ]);
+  return { customerColumns, orderColumns, itemColumns, branchColumns, returnColumns, returnItemColumns };
 };
 
 const TIME_BUCKETS = Object.freeze({
@@ -212,7 +215,51 @@ const customerCte = ({ scope, columns }) => {
          FROM order_items oi WHERE oi.order_id = o.id)`
     : "0";
 
+  /*
+   * Returns ARE attributable to a customer, and that is what makes the deduction below
+   * exact: return_items -> returns -> orders, and an order carries customer_id. R3 is
+   * right to refuse a per-PRODUCT allocation — a refund cannot be split back across the
+   * lines it reversed — but a per-customer one needs no allocation at all.
+   *
+   * Without this, "customer revenue" was gross of refunds while the Executive Overview's
+   * net sales was net of them, so the two screens disagreed by exactly the returns total
+   * and neither said why. The reconciliation harness caught it at 90d and at 365d.
+   *
+   * Deducted by RETURN date, matching the Executive Overview, so a refund raised in this
+   * window counts here even when the order it reverses predates the window. A customer
+   * can therefore show negative revenue for a period; that is the truth about the period
+   * rather than something to floor at zero.
+   */
+  const returnsAvailable = columns.returnColumns.size > 0 && columns.returnItemColumns.size > 0;
+  const refundExpr = coalesceColumnExpr("ri", columns.returnItemColumns, ["refund_amount", "total", "total_amount"], "0");
+  const returnStatus = "LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')";
+  const returnTenant = scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : "";
+  const inCurrentReturn = `r.created_at >= ${scope.currentFrom}::date AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day')`;
+  const inPreviousReturn = scope.previousFrom
+    ? `r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day')`
+    : "FALSE";
+
+  const customerReturns = returnsAvailable
+    ? `customer_returns AS (
+      SELECT o.customer_id,
+             COALESCE(SUM(${nanSafe(refundExpr)}) FILTER (WHERE ${inCurrentReturn}), 0)  AS refunded_current,
+             COALESCE(SUM(${nanSafe(refundExpr)}) FILTER (WHERE ${inPreviousReturn}), 0) AS refunded_previous,
+             COALESCE(SUM(${nanSafe(refundExpr)}), 0)                                     AS refunded_lifetime
+      FROM return_items ri
+      JOIN returns r ON r.id = ri.return_id
+      JOIN orders o  ON o.id = r.order_id
+      WHERE ${returnTenant}${returnStatus}
+        AND o.customer_id IS NOT NULL
+      GROUP BY o.customer_id
+    )`
+    : `customer_returns AS (
+      SELECT NULL::bigint AS customer_id, 0::numeric AS refunded_current,
+             0::numeric AS refunded_previous, 0::numeric AS refunded_lifetime
+      WHERE FALSE
+    )`;
+
   return `
+    ${customerReturns},
     scoped_orders AS (
       SELECT o.id,
              o.customer_id,
@@ -230,20 +277,32 @@ const customerCte = ({ scope, columns }) => {
     per_customer AS (
       SELECT so.customer_id,
              COUNT(*)                                                        AS lifetime_orders,
-             COALESCE(SUM(so.revenue), 0)                                    AS lifetime_revenue,
+             COALESCE(SUM(so.revenue), 0)                                    AS lifetime_revenue_gross,
              MIN(so.created_at)                                              AS first_order_at,
              MAX(so.created_at)                                              AS last_order_at,
              COUNT(*) FILTER (WHERE so.in_current)                           AS orders_current,
-             COALESCE(SUM(so.revenue) FILTER (WHERE so.in_current), 0)       AS revenue_current,
+             COALESCE(SUM(so.revenue) FILTER (WHERE so.in_current), 0)       AS revenue_current_gross,
              COALESCE(SUM(so.units)   FILTER (WHERE so.in_current), 0)       AS units_current,
              COUNT(*) FILTER (WHERE so.in_previous)                          AS orders_previous,
-             COALESCE(SUM(so.revenue) FILTER (WHERE so.in_previous), 0)      AS revenue_previous,
+             COALESCE(SUM(so.revenue) FILTER (WHERE so.in_previous), 0)      AS revenue_previous_gross,
              BOOL_OR(so.before_current)                                      AS ordered_before,
              MAX(so.created_at) FILTER (WHERE so.in_current)                 AS last_order_in_window,
              (ARRAY_AGG(so.channel ORDER BY so.created_at DESC))[1]          AS latest_channel,
              (ARRAY_AGG(so.branch_id ORDER BY so.created_at DESC))[1]        AS latest_branch_id
       FROM scoped_orders so
       GROUP BY so.customer_id
+    ),
+    netted AS (
+      -- Gross becomes net here, once, so every downstream figure — KPI, segment,
+      -- breakdown and list row — is on the same basis as the Executive Overview.
+      SELECT pc.*,
+             COALESCE(cr.refunded_current, 0)                               AS refunded_current,
+             COALESCE(cr.refunded_previous, 0)                              AS refunded_previous,
+             pc.revenue_current_gross  - COALESCE(cr.refunded_current, 0)   AS revenue_current,
+             pc.revenue_previous_gross - COALESCE(cr.refunded_previous, 0)  AS revenue_previous,
+             pc.lifetime_revenue_gross - COALESCE(cr.refunded_lifetime, 0)  AS lifetime_revenue
+      FROM per_customer pc
+      LEFT JOIN customer_returns cr ON cr.customer_id = pc.customer_id
     ),
     segmented AS (
       SELECT pc.*,
@@ -256,9 +315,29 @@ const customerCte = ({ scope, columns }) => {
                WHEN GREATEST(EXTRACT(DAY FROM (${scope.currentTo}::date + INTERVAL '1 day') - pc.last_order_at), 0) >= ${CUSTOMER_SEGMENT_RULES.atRiskAfterDays}  THEN 'at_risk'
                ELSE 'recent'
              END AS segment
-      FROM per_customer pc
+      FROM netted pc
     )
   `;
+};
+
+/**
+ * Refunds on orders that carry no customer record, for the walk-in line.
+ *
+ * Returns the literal "0" when the returns tables are absent, so the surrounding
+ * subtraction stays valid SQL rather than needing its own conditional.
+ */
+const walkInRefunds = ({ scope, columns }) => {
+  if (!columns.returnColumns.size || !columns.returnItemColumns.size) return "0";
+  const refundExpr = coalesceColumnExpr("ri", columns.returnItemColumns, ["refund_amount", "total", "total_amount"], "0");
+  const tenant = scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : "";
+  return `(SELECT COALESCE(SUM(${nanSafe(refundExpr)}), 0)
+             FROM return_items ri
+             JOIN returns r ON r.id = ri.return_id
+             JOIN orders o  ON o.id = r.order_id
+            WHERE ${tenant}LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
+              AND o.customer_id IS NULL
+              AND r.created_at >= ${scope.currentFrom}::date
+              AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day'))`;
 };
 
 const runTimed = async (client, sql, params, timings, name) => {
@@ -347,12 +426,23 @@ export const getCustomersSummary = async ({ filters, permissions = {}, client = 
       GROUP BY 1
     ),
     walkins AS (
-      SELECT COUNT(*) AS orders, COALESCE(SUM(${orderRevenueExpr(columns.orderColumns)}), 0) AS revenue
-      FROM orders o
-      WHERE ${scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : ""}
-            o.customer_id IS NULL
-        AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
-        AND ${scope.inCurrent}
+      -- Net of walk-in refunds, for the same reason the customer figures are. Otherwise
+      -- customer revenue plus walk-in revenue does not add back up to the company net
+      -- sales, and two screens disagree with no explanation on either of them.
+      SELECT
+        (SELECT COUNT(*)
+           FROM orders o
+          WHERE ${scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : ""}
+                o.customer_id IS NULL
+            AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
+            AND ${scope.inCurrent}) AS orders,
+        (SELECT COALESCE(SUM(${orderRevenueExpr(columns.orderColumns)}), 0)
+           FROM orders o
+          WHERE ${scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : ""}
+                o.customer_id IS NULL
+            AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
+            AND ${scope.inCurrent})
+        - ${walkInRefunds({ scope, columns })} AS revenue
     )
     SELECT
       (SELECT row_to_json(t) FROM totals t)   AS totals,
