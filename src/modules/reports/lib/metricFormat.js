@@ -48,6 +48,16 @@ export const METRIC_KIND = Object.freeze({
   ordersPerCustomer: "decimal",
   lapsedCustomers: "integer",
   registeredInWindow: "integer",
+  // R9 employee and channel metrics.
+  sellerNetSales: "currency",
+  sellerOrders: "integer",
+  sellerUnits: "integer",
+  activeSellers: "integer",
+  activeCashiers: "integer",
+  activeChannels: "integer",
+  salesPerSeller: "currency",
+  attributionCoverage: "percent",
+  unattributedNetSales: "currency",
 });
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);

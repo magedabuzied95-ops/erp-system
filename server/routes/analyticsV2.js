@@ -6,6 +6,9 @@ import {
   getCustomersBreakdownController,
   getCustomersListController,
   getCustomersSummaryController,
+  getEmployeesBreakdownController,
+  getEmployeesListController,
+  getEmployeesSummaryController,
   getInventoryBreakdownController,
   getInventoryProductsController,
   getInventorySizesController,
@@ -56,5 +59,11 @@ router.get("/purchasing/suppliers", protect, viewReports, getPurchasingSuppliers
 router.get("/customers/summary", protect, viewReports, getCustomersSummaryController);
 router.get("/customers/breakdown", protect, viewReports, getCustomersBreakdownController);
 router.get("/customers/list", protect, viewReports, getCustomersListController);
+
+// R9 — Employee & Channel Intelligence. Who sold it, who rang it up, through which
+// channel. Revenue only: COGS lives on the line and a line has no seller.
+router.get("/employees/summary", protect, viewReports, getEmployeesSummaryController);
+router.get("/employees/breakdown", protect, viewReports, getEmployeesBreakdownController);
+router.get("/employees/list", protect, viewReports, getEmployeesListController);
 
 export default router;

@@ -166,6 +166,7 @@ const InventoryIntelligence = lazy(() => import("./modules/reports/pages/Invento
 const CouponsPerformance = lazy(() => import("./modules/reports/pages/CouponsPerformance"));
 const PurchasingIntelligence = lazy(() => import("./modules/reports/pages/PurchasingIntelligence"));
 const CustomerIntelligence = lazy(() => import("./modules/reports/pages/CustomerIntelligence"));
+const EmployeeIntelligence = lazy(() => import("./modules/reports/pages/EmployeeIntelligence"));
 const AnalyticsDashboard = lazy(() => import("./modules/analytics/pages/AnalyticsDashboard"));
 const EmployeeHub = lazy(() => import("./modules/employees/pages/EmployeeHub"));
 const EmployeeSalesPerformance = lazy(() => import("./modules/employees/pages/SalesPerformance"));
@@ -1580,6 +1581,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["reports.view"]}>
               <CustomerIntelligence />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/employees"
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <EmployeeIntelligence />
             </ProtectedRoute>
           }
         />

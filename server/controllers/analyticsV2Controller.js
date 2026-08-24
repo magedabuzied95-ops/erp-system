@@ -31,6 +31,11 @@ import {
   getCustomersList,
   getCustomersSummary,
 } from "../services/analytics/analyticsCustomersService.js";
+import {
+  getEmployeesBreakdown,
+  getEmployeesList,
+  getEmployeesSummary,
+} from "../services/analytics/analyticsEmployeesService.js";
 import { resolveAnalyticsPermissions } from "../services/analytics/analyticsScope.js";
 
 export async function getOverview(req, res) {
@@ -142,3 +147,12 @@ const customersHandler = (name, run) => analyticsHandler("customers", name, "CUS
 export const getCustomersSummaryController   = customersHandler("summary", getCustomersSummary);
 export const getCustomersBreakdownController = customersHandler("breakdown", getCustomersBreakdown);
 export const getCustomersListController      = customersHandler("list", getCustomersList);
+
+// R9 - Employee & Channel Intelligence. The seller attribution field is resolved from
+// measured coverage inside the service and reported in meta.attribution, because the
+// contract's declared precedence names a column that is empty on production.
+const employeesHandler = (name, run) => analyticsHandler("employees", name, "EMPLOYEES_QUERY_FAILED", run);
+
+export const getEmployeesSummaryController   = employeesHandler("summary", getEmployeesSummary);
+export const getEmployeesBreakdownController = employeesHandler("breakdown", getEmployeesBreakdown);
+export const getEmployeesListController      = employeesHandler("list", getEmployeesList);

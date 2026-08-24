@@ -72,7 +72,16 @@
     "averageCustomerValue": "Value per customer",
     "ordersPerCustomer": "Orders per customer",
     "lapsedCustomers": "Lapsed customers",
-    "registeredInWindow": "Registered this period"
+    "registeredInWindow": "Registered this period",
+    "sellerNetSales": "Attributed net sales",
+    "sellerOrders": "Orders",
+    "sellerUnits": "Units sold",
+    "activeSellers": "Active sellers",
+    "activeCashiers": "Active cashiers",
+    "activeChannels": "Active channels",
+    "salesPerSeller": "Sales per seller",
+    "attributionCoverage": "Attribution coverage",
+    "unattributedNetSales": "Unattributed sales"
   },
   "definition": {
     "netSales": "Total sales after discounts and returns, per the approved reporting rules.",
@@ -105,7 +114,16 @@
     "averageCustomerValue": "Customer revenue divided by active customers.",
     "ordersPerCustomer": "Customer orders divided by active customers.",
     "lapsedCustomers": "Customers who have stopped: at risk plus dormant.",
-    "registeredInWindow": "Customer records created in the period, whether or not they ordered."
+    "registeredInWindow": "Customer records created in the period, whether or not they ordered.",
+    "sellerNetSales": "Net sales over the period, on the same canonical basis as the Executive Overview. Includes orders with no seller.",
+    "sellerOrders": "Recognised orders in the period.",
+    "sellerUnits": "Units sold, net of returned quantity.",
+    "activeSellers": "Distinct sellers named on an order in the period.",
+    "activeCashiers": "Distinct users who rang up an order. This is not the same question as who sold it.",
+    "activeChannels": "Distinct sales channels used in the period.",
+    "salesPerSeller": "Attributed net sales divided by the number of active sellers. Unattributed sales are excluded from the numerator.",
+    "attributionCoverage": "Share of orders in the period that carry a seller. Below 20% the per-person breakdown is withheld.",
+    "unattributedNetSales": "Net sales on orders that carry no seller. Never shared out across the named sellers."
   },
   "formula": {
     "netSales": "Gross sales − discounts − returns",
@@ -135,7 +153,16 @@
     "averageCustomerValue": "customer revenue / active customers",
     "ordersPerCustomer": "customer orders / active customers",
     "lapsedCustomers": "at risk + dormant",
-    "registeredInWindow": "COUNT(customers created in the period)"
+    "registeredInWindow": "COUNT(customers created in the period)",
+    "sellerNetSales": "SUM(order revenue) − SUM(refunds)",
+    "sellerOrders": "COUNT(recognised orders)",
+    "sellerUnits": "SUM(quantity − returned quantity)",
+    "activeSellers": "COUNT(DISTINCT seller)",
+    "activeCashiers": "COUNT(DISTINCT cashier user)",
+    "activeChannels": "COUNT(DISTINCT channel)",
+    "salesPerSeller": "attributed net sales / active sellers",
+    "attributionCoverage": "orders with a seller / orders",
+    "unattributedNetSales": "SUM(net sales) WHERE seller IS NULL"
   },
   "coverage": {
     "label": "Cost coverage",
@@ -220,7 +247,11 @@
     "CUSTOMER_TOTALS_DIVERGENCE": "The stored customer total does not match the canonical order total. Every figure here uses the canonical total; the stored column needs rebuilding.",
     "WALK_IN_ORDERS_EXCLUDED": "Orders with no customer record are excluded from this page, because they cannot be attributed to a customer.",
     "CUSTOMER_SEGMENT_UNCLASSIFIED": "Customer segmentation produced a class the contract does not describe.",
-    "CUSTOMER_NAMES_RESTRICTED": "Customer names are hidden because this account does not hold the customers permission. Every figure is unaffected."
+    "CUSTOMER_NAMES_RESTRICTED": "Customer names are hidden because this account does not hold the customers permission. Every figure is unaffected.",
+    "SELLER_ATTRIBUTION_UNAVAILABLE": "No column on the order carries a usable seller, so sales cannot be attributed to a person in this period. The channel and cashier views are unaffected.",
+    "SELLER_ATTRIBUTION_TOO_THIN": "Too few orders carry a seller for a per-person breakdown to mean anything, so it is not shown.",
+    "SELLER_ATTRIBUTION_PARTIAL": "Not every order carries a seller. The per-person figures cover only the ones that do, and the remainder is shown as its own row.",
+    "SELLER_UNATTRIBUTED_ORDERS": "Some orders carry no seller. They are shown as their own row and are never shared out across the named sellers."
   },
   "states": {
     "loading": "Loading data...",

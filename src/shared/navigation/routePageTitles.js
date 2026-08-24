@@ -103,6 +103,7 @@ const EXACT_ROUTE_TITLES = Object.freeze({
   "/reports/inventory": "Inventory Intelligence",
   "/reports/purchasing": "Purchasing Intelligence",
   "/reports/customers": "Customer Intelligence",
+  "/reports/employees": "Employee & Channel Intelligence",
   "/reports/coupons": "Coupon Performance",
   "/analytics": "Analytics Dashboard",
 

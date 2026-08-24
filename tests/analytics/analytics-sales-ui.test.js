@@ -205,6 +205,7 @@ test("the new pages are grouped with the reporting entries, and the legacy one s
     "/reports/inventory",
     "/reports/purchasing",
     "/reports/customers",
+    "/reports/employees",
     "/reports/coupons",
     "/reports",
   ].map((route) => order.indexOf(`"${route}"`));

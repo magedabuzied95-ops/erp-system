@@ -290,6 +290,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
       "/reports/inventory",
       "/reports/purchasing",
       "/reports/customers",
+      "/reports/employees",
       "/reports/coupons",
       "/reports",
     ],

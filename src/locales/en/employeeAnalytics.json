@@ -1,0 +1,119 @@
+{
+  "title": "Employee & Channel Intelligence",
+  "subtitle": "Who sold it, who rang it up, and through which channel.",
+  "nav": {
+    "label": "Sections",
+    "overview": "Overview",
+    "breakdown": "Breakdown",
+    "sellers": "Sellers"
+  },
+  "groups": {
+    "primary": "The team",
+    "operating": "Activity",
+    "health": "Attribution"
+  },
+  "sections": {
+    "trend": "Sales over time",
+    "attribution": "How sales are attributed",
+    "breakdown": "Breakdown",
+    "sellers": "Per seller",
+    "highlights": "What to look at"
+  },
+  "attribution": {
+    "subtitle": "Which column on the order carries the seller, chosen by measuring the data rather than assuming.",
+    "using": "Attributing from",
+    "coverage": "Coverage",
+    "attributed": "Orders with a seller",
+    "total": "Orders in the period",
+    "unavailable": "No column on the order carries a usable seller, so sales cannot be attributed to a person in this period.",
+    "candidates": "Columns considered",
+    "candidateCoverage": "{{covered}} of {{total}}",
+    "chosen": "chosen",
+    "note": "The field is chosen by measured coverage, not by a fixed order. A column that exists but is empty attributes nothing, and a column whose id points at an empty table attributes nothing either.",
+    "unattributedNote": "Orders with no seller are their own row. They are never shared out across the named sellers, because that would credit performance nobody earned."
+  },
+  "breakdown": {
+    "subtitle": "Revenue is net of returns, on the same basis as the Executive Overview.",
+    "dimension": {
+      "label": "Group by",
+      "seller": "Seller",
+      "cashier": "Cashier",
+      "channel": "Channel",
+      "branch": "Branch"
+    },
+    "columns": {
+      "key": "Name",
+      "orders": "Orders",
+      "units": "Units",
+      "revenue": "Net sales",
+      "share": "Share",
+      "averageOrder": "Avg order",
+      "growth": "Change",
+      "lastSale": "Last sale"
+    },
+    "empty": "Nothing to break down in this period.",
+    "withheld": "The per-seller breakdown is withheld: too few orders in this period carry a seller for it to mean anything.",
+    "cashierNote": "The cashier is who rang the sale up. That is a different question from who sold it."
+  },
+  "sellers": {
+    "subtitle": "Revenue only. Cost of goods sits on the order line, and a line has no seller, so there is no per-seller margin.",
+    "columns": {
+      "seller": "Seller",
+      "orders": "Orders",
+      "units": "Units",
+      "netSales": "Net sales",
+      "share": "Share",
+      "averageOrder": "Avg order",
+      "refunded": "Refunded",
+      "channels": "Channels",
+      "growth": "Change",
+      "lastSale": "Last sale"
+    },
+    "unattributed": "No seller recorded",
+    "empty": "No seller sold anything in this period."
+  },
+  "concentration": {
+    "title": "Seller concentration",
+    "subtitle": "How much of the attributed revenue rests on how few people.",
+    "topShare": "Top seller",
+    "topThreeShare": "Top three",
+    "hhi": "Concentration index",
+    "sellers": "Sellers",
+    "unavailable": "Fewer than two sellers in this period, so there is nothing to concentrate."
+  },
+  "trend": {
+    "subtitle": "Net sales and the number of sellers active in each period.",
+    "revenue": "Net sales",
+    "sellers": "Sellers",
+    "empty": "No sales in this period."
+  },
+  "table": {
+    "search": "Search sellers",
+    "showing": "{{from}}–{{to}} of {{total}}",
+    "prev": "Previous page",
+    "next": "Next page",
+    "empty": "Nothing to show."
+  },
+  "highlights": {
+    "title": "What to look at",
+    "empty": "Nothing needs attention in this period.",
+    "attributionUnavailable": "Sales cannot be attributed to a person in this period, because no order carries a seller.",
+    "attributionPartial": "{{coveragePercent}} of orders carry a seller. {{unattributedValue}} of net sales is not attributed to anybody.",
+    "sellerConcentration": "{{sharePercent}} of attributed sales came from one seller, out of {{sellers}}.",
+    "teamUp": "Net sales rose {{changePercent}} against the comparison period.",
+    "teamDown": "Net sales fell {{changePercent}} against the comparison period."
+  },
+  "basis": {
+    "title": "How these figures are built",
+    "revenue": "Net sales is canonical order revenue less returns — the same arithmetic as the Executive Overview, so the totals agree.",
+    "noProfit": "There is no per-seller profit. Cost of goods is attributable to an order line, and a line carries no seller; splitting an order's cost to reach a seller margin would be an allocation the data does not support.",
+    "notCommission": "This is not commission. Commission and payroll are calculated in the Employees module, with their own rules."
+  },
+  "states": {
+    "empty": "There were no sales in this period.",
+    "emptyHint": "Try a longer period, or clear the filters.",
+    "error": "The employee report could not be loaded.",
+    "forbidden": "You do not have access to reports.",
+    "retry": "Try again"
+  }
+}

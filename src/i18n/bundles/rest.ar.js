@@ -11,6 +11,7 @@ import branches from "../../locales/ar/branches.json";
 import customerAnalytics from "../../locales/ar/customerAnalytics.json";
 import customers from "../../locales/ar/customers.json";
 import dashboard from "../../locales/ar/dashboard.json";
+import employeeAnalytics from "../../locales/ar/employeeAnalytics.json";
 import employeePortal from "../../locales/ar/employeePortal.json";
 import expenses from "../../locales/ar/expenses.json";
 import inventory from "../../locales/ar/inventory.json";
@@ -44,6 +45,7 @@ export default {
   "customerAnalytics": customerAnalytics,
   "customers": customers,
   "dashboard": dashboard,
+  "employeeAnalytics": employeeAnalytics,
   "employeePortal": employeePortal,
   "expenses": expenses,
   "inventory": inventory,
