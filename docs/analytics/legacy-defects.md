@@ -332,14 +332,46 @@ Rows 3-4 are not profit; they subtract purchases made in the period from sales i
 
 ---
 
-## D-16 · `/reports` counts cancelled, draft and personal orders as revenue — S1
+## D-16 · `/reports` counts cancelled, draft and personal orders as revenue — S1 — **CORRECTED AT SOURCE 2026-08-24**
 
-`reportsService.buildOrderScope:201-222` filters tenant, date, branch, warehouse, employee, customer, shift and payment
-method — and never `status`, `payment_status`, `deleted_at` or `is_personal_transaction`.
+`reportsService.buildOrderScope` filtered tenant, date, branch, warehouse, employee, customer, shift and payment
+method — and never `status`, `payment_status`, `deleted_at` or `is_personal_transaction`. A second site,
+the employee sales subquery in `getEmployeeRows`, named the table instead of aliasing it and so bypassed
+`buildOrderScope` entirely.
 
-Dev magnitude: every `/reports` sales figure includes 3 cancelled orders (1 149.99), 14 returned (18 010),
+Dev magnitude: every `/reports` sales figure included 3 cancelled orders (1 149.99), 14 returned (18 010),
 1 personal (1 850) and 2 soft-deleted (3 720). Same for all of `analyticsController`.
+
 **v2 status.** Canonical predicate everywhere.
+
+### The correction, and what it moved
+
+Both sites now use `paidOrderClauses` — the SAME predicate the accounting profit and loss uses. Deliberately
+that one and not the stricter v2 predicate: it leaves the business with two definitions instead of three, and
+the two are reconciled on `/reports/reconciliation`. The Reporting Center adds D-04 and D-05 on top, which is
+why its figures can still sit slightly below the legacy page's.
+
+Measured read-only against production (tenant 1, all 572 orders on file, 2026-08-24):
+
+| | orders | revenue |
+|---|---|---|
+| Before (legacy scope) | 572 | 690 830.00 |
+| After (recognised sales) | 563 | 681 330.00 |
+| Removed | 9 | **9 500.00** (1.38%) |
+
+The nine are 8 `pending`/`unpaid` orders (7 950.00) and 1 `returned`/`refunded` order (1 550.00). Production
+carries no cancelled, draft, personal or soft-deleted orders at all, so the dev magnitudes above do not
+reproduce there — the register's dev figures are kept because they are what the audit measured, not because
+they describe production.
+
+**Not silent.** `getReportPayload` returns `scopeCorrection` on every tab — `{ definition, applied,
+excludedOrders, excludedValue }`, computed for the period the reader has selected — and the legacy notice
+states it in words above the numbers. A manager reconciling against a figure they wrote down last week can
+see exactly how large the gap is and what it consists of.
+
+`analyticsController` still carries the defect. `/analytics` is retired to a redirect and no routed page
+calls those endpoints (`analyticsApi.js` is imported only by the unrouted `AnalyticsDashboard.jsx`), so
+correcting it would move numbers nobody reads.
 
 ---
 
@@ -405,7 +437,7 @@ the process lifetime with every distinct filter combination.
 | D-13 | `warehouse_inventory` columns | S2 | schema | v2 only |
 | D-14 | Four profit definitions | S1 | code | v2 only |
 | D-15 | Gross profit = revenue | S1 | code | v2 only |
-| D-16 | Unfiltered order scope | S1 | code | v2 only |
+| D-16 | Unfiltered order scope | S1 | code | **fixed at source 2026-08-24**, −9 500.00 (1.38%) on production, announced on the page |
 | D-17 | Fabricated figures | S2 | code | v2 only |
 | D-18 | Wrong export permission | S3 | code | v2 only |
 | D-19 | Orphan return items | S4 | data | warned in v2 |
@@ -413,3 +445,9 @@ the process lifetime with every distinct filter combination.
 
 Per your hybrid instruction, only the two **S3** security defects were fixed in place. Everything else is corrected in
 Analytics v2 and reported as a reconciliation delta against the legacy number.
+
+**Amended 2026-08-24.** D-15 and D-16 were subsequently fixed at the source as well. Both meet the condition the
+hybrid rule was protecting against: the before/after was measured on production, the size of the move is published
+on the page itself, and the canonical definition each now uses is named. D-15 replaces a wrong number with NULL
+rather than a corrected one; D-16 removes orders that no reading of the word "revenue" admits. Nothing else on
+these screens has been changed in place.

@@ -65,17 +65,18 @@ export const addScopedWhere = ({ clauses, params, alias, columns, tenantId, from
 export const whereSql = (clauses) => (clauses.length ? `WHERE ${clauses.join(" AND ")}` : "");
 
 /**
- * THE canonical "this order is a recognised sale" predicate. Assumes alias `o`.
+ * THE canonical "this order is a recognised sale" predicate. Defaults to alias `o`;
+ * pass `{ alias }` for a query that names the table instead of aliasing it.
  *
  * Known gaps, deliberately preserved here so accounting output does not shift, and
  * corrected only in the Analytics v2 layer (see docs/analytics/legacy-defects.md):
  *   D-04  does not test `o.deleted_at IS NULL`
  *   D-05  matches 'draft' literally, so `ai_draft` survives this clause
  */
-export const paidOrderClauses = (orderColumns) => {
-  const statusExpr = orderColumns.has("status") ? "LOWER(COALESCE(o.status, ''))" : "''";
-  const paymentStatusExpr = orderColumns.has("payment_status") ? "LOWER(COALESCE(o.payment_status, ''))" : "''";
-  const personalExpr = orderColumns.has("is_personal_transaction") ? "COALESCE(o.is_personal_transaction, FALSE)" : "FALSE";
+export const paidOrderClauses = (orderColumns, { alias = "o" } = {}) => {
+  const statusExpr = orderColumns.has("status") ? `LOWER(COALESCE(${alias}.status, ''))` : "''";
+  const paymentStatusExpr = orderColumns.has("payment_status") ? `LOWER(COALESCE(${alias}.payment_status, ''))` : "''";
+  const personalExpr = orderColumns.has("is_personal_transaction") ? `COALESCE(${alias}.is_personal_transaction, FALSE)` : "FALSE";
   return [
     `${statusExpr} NOT IN ('cancelled', 'canceled', 'void', 'refunded', 'returned', 'draft', 'deleted')`,
     `${personalExpr} = FALSE`,

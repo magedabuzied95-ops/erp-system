@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { paidOrderClauses } from "./analytics/accountingCanon.js";
 
 const cache = new Map();
 const CACHE_TTL_MS = 60_000;
@@ -213,7 +214,22 @@ const buildOrderScope = async (tenantId, filters) => {
   const qtyExpr = col("oi", itemColumns, ["quantity", "qty"], "0");
   const itemTotalExpr = col("oi", itemColumns, ["total_amount", "total", "line_total", "subtotal"], "0");
   const createdExpr = col("o", orderColumns, ["created_at", "order_date", "date"], "CURRENT_DATE");
-  const where = buildWhere({
+
+  // D-16, corrected 2026-08-24. This scope filtered tenant, date, branch, warehouse,
+  // employee, customer, shift and payment method — and never asked whether the order was
+  // a sale. Unpaid, cancelled, returned, personal and soft-deleted orders were all
+  // counted as revenue, on every tab of this page and in every export taken from it.
+  //
+  // The correction adopts paidOrderClauses, which is the SAME predicate the accounting
+  // module uses for the profit and loss. That is deliberate: it gives the business two
+  // definitions instead of three, and the two are reconciled on /reports/reconciliation.
+  // The Reporting Center adds D-04 and D-05 on top, which is why its figures can still
+  // sit slightly below these.
+  //
+  // The change is NOT silent. `where` below drops the excluded orders, `unscopedWhere`
+  // reproduces the old scope, and getScopeCorrection subtracts one from the other so
+  // every response carries exactly how many orders and how much value moved.
+  const scopeArgs = {
     alias: "o",
     columns: orderColumns,
     tenantId,
@@ -222,10 +238,48 @@ const buildOrderScope = async (tenantId, filters) => {
     extra: [
       ({ add }) => (filters.salespersonId && orderColumns.has("salesperson_id") ? `o.salesperson_id = ${add(filters.salespersonId)}` : ""),
     ],
-  });
+  };
+  const recognisedSale = paidOrderClauses(orderColumns);
+  const where = buildWhere({ ...scopeArgs, extra: [...scopeArgs.extra, ...recognisedSale] });
+  const unscopedWhere = buildWhere(scopeArgs);
 
-  return { orderColumns, itemColumns, productColumns, totalExpr, costExpr, costResolved, qtyExpr, itemTotalExpr, createdExpr, where };
+  return {
+    orderColumns, itemColumns, productColumns, totalExpr, costExpr, costResolved,
+    qtyExpr, itemTotalExpr, createdExpr, where, unscopedWhere, recognisedSale,
+  };
 };
+
+/**
+ * What the D-16 correction removed, for the period the reader is looking at.
+ *
+ * Returned with every legacy report so the page can state the difference rather than
+ * quietly showing a smaller number than it showed yesterday. A manager reconciling
+ * against a figure they wrote down last week needs to be able to find the gap.
+ */
+const getScopeCorrection = async (tenantId, filters) =>
+  cached(`scope:${tenantId || "all"}:${JSON.stringify(filters)}`, async () => {
+    const orders = await buildOrderScope(tenantId, filters);
+    if (!orders.recognisedSale.length) {
+      return { definition: "recognised_sale", applied: false, excludedOrders: 0, excludedValue: 0 };
+    }
+
+    const clause = orders.recognisedSale.join(" AND ");
+    const row = await safeQuery(
+      `
+      SELECT COUNT(*)::int AS orders, COALESCE(SUM(${orders.totalExpr}), 0)::numeric AS value
+      FROM orders o
+      ${orders.unscopedWhere.where}${orders.unscopedWhere.where ? " AND" : "WHERE"} NOT (${clause})
+      `,
+      orders.unscopedWhere.params
+    );
+
+    return {
+      definition: "recognised_sale",
+      applied: true,
+      excludedOrders: Number(row?.[0]?.orders || 0),
+      excludedValue: Number(row?.[0]?.value || 0),
+    };
+  });
 
 export const getDashboardReport = async ({ tenantId, filters }) => {
   const cacheKey = `dashboard:${tenantId || "all"}:${JSON.stringify(filters)}`;
@@ -469,13 +523,20 @@ export const getEmployeeRows = async (tenantId, filters, options = {}) => {
     filters,
     dateColumns: ["assigned_at", "created_at"],
   });
-  const salesWhere = buildLiteralWhere({
+  // D-16 again. This subquery names the table rather than aliasing it, so it never went
+  // through buildOrderScope and would have kept crediting employees with revenue from
+  // orders that were never sales.
+  const salesScope = buildLiteralWhere({
     table: "orders",
     columns: orderColumns,
     tenantId,
     filters,
     dateColumns: ["created_at", "order_date", "date"],
   });
+  const salesRecognised = paidOrderClauses(orderColumns, { alias: "orders" });
+  const salesWhere = salesRecognised.length
+    ? `${salesScope || "WHERE TRUE"} AND ${salesRecognised.join(" AND ")}`
+    : salesScope;
   const salesSubquery = orderColumns.has("employee_id")
     ? `
       SELECT employee_id, COUNT(*) AS orders_count, SUM(${col("orders", orderColumns, ["total_amount", "total"], "0")}) AS revenue
@@ -845,16 +906,22 @@ export const getBusinessInsights = async ({ tenantId, filters }) => {
 };
 
 export const getReportPayload = async ({ type, tenantId, filters }) => {
-  if (type === "dashboard") return getDashboardReport({ tenantId, filters });
-  if (type === "insights") return getBusinessInsights({ tenantId, filters });
-  if (type === "employees") return { filters, rows: await getEmployeeRows(tenantId, filters) };
-  if (type === "inventory") return { filters, rows: await getInventoryRows(tenantId, filters) };
-  if (type === "customers") return { filters, rows: await getCustomerRows(tenantId, filters) };
-  if (type === "financial") return { filters, rows: await getFinancialRows(tenantId, filters) };
-  return {
+  // Every tab carries the D-16 correction, because every tab counts orders. Computed
+  // once here rather than inside each getter, and never allowed to fail the report:
+  // a page that cannot describe the change is still better than no page.
+  const scopeCorrection = await getScopeCorrection(tenantId, filters).catch(() => null);
+  const withScope = (payload) => ({ ...payload, scopeCorrection });
+
+  if (type === "dashboard") return withScope(await getDashboardReport({ tenantId, filters }));
+  if (type === "insights") return withScope(await getBusinessInsights({ tenantId, filters }));
+  if (type === "employees") return withScope({ filters, rows: await getEmployeeRows(tenantId, filters) });
+  if (type === "inventory") return withScope({ filters, rows: await getInventoryRows(tenantId, filters) });
+  if (type === "customers") return withScope({ filters, rows: await getCustomerRows(tenantId, filters) });
+  if (type === "financial") return withScope({ filters, rows: await getFinancialRows(tenantId, filters) });
+  return withScope({
     filters,
     rows: await getSalesRows(tenantId, filters, { mode: filters.groupBy || "summary" }),
-  };
+  });
 };
 
 export const toCsv = (rows = []) => {

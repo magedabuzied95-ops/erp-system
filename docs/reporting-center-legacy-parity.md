@@ -42,7 +42,7 @@ the page that replaces the tab the reader is actually on.
 | Legacy tab | Endpoint | Canonical replacement | Parity |
 |---|---|---|---|
 | Insights | `reports/insights` | `/reports/overview` | **Not carried over by design.** D-17 again: fabricated figures presented as analysis. |
-| Sales | `reports/sales` | `/reports/sales` | **Superset and corrected.** D-16: legacy revenue includes cancelled, draft, soft-deleted and personal orders. |
+| Sales | `reports/sales` | `/reports/sales` | **Superset.** D-16 — the legacy revenue scope — was fixed at the source on 2026-08-24, so the legacy page now uses the accounting definition of a sale. It still differs from the Reporting Center by D-04 and D-05, which the reconciliation screen quantifies. |
 | Employees | `reports/employees` | `/reports/employees` | **Closed 2026-08-24.** This was the last real gap: R9 attributes sales by measured coverage and states which column it used. |
 | Inventory | `reports/inventory` | `/reports/inventory` | **Corrected.** Same dead-column defect as `/analytics`. |
 | Customers | `reports/customers` | `/reports/customers` | **Superset.** |

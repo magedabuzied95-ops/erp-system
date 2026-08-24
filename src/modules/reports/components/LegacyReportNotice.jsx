@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Scale, TriangleAlert } from "lucide-react";
+
+import { formatMoney } from "../lib/metricFormat";
 
 /**
  * The notice that sits at the top of a legacy reporting page.
@@ -33,15 +35,18 @@ export const CANONICAL_REPLACEMENT = Object.freeze({
   financial: [{ to: "/accounting/reports", key: "financial" }, { to: "/reports/reconciliation", key: "reconciliation" }],
 });
 
-export default function LegacyReportNotice({ variant = "reports", activeTab = null }) {
+export default function LegacyReportNotice({ variant = "reports", activeTab = null, scopeCorrection = null }) {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const Arrow = isArabic ? ArrowLeft : ArrowRight;
 
+  // D-16 was corrected at the source on /reports, so it is no longer in this list — the
+  // page announces the correction below instead. /analytics still carries it, and is
+  // retired for other reasons.
   const defects =
     variant === "analytics"
       ? ["scope", "stock", "dates"]
-      : ["scope", "profit", "errors"];
+      : ["profit", "errors"];
 
   // The tab the reader is on wins, so the link answers the question in front of them.
   const targets =
@@ -77,6 +82,29 @@ export default function LegacyReportNotice({ variant = "reports", activeTab = nu
               </li>
             ))}
           </ul>
+
+          {/*
+            The one defect that WAS corrected in place, announced rather than applied
+            quietly. A manager reconciling against a figure they wrote down last week has
+            to be able to find the gap, so the exact size of it is stated for the period
+            they are looking at.
+          */}
+          {scopeCorrection?.applied ? (
+            <div className="mt-2.5 flex items-start gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2">
+              <Scale className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
+              <p className="max-w-[80ch] text-[12px] leading-5 text-[var(--text-secondary)]">
+                <span className="font-semibold text-[var(--text)]">{t("overview.legacy.scopeFix.title")}</span>{" "}
+                {t("overview.legacy.scopeFix.body")}{" "}
+                {scopeCorrection.excludedOrders > 0
+                  ? t("overview.legacy.scopeFix.removed", {
+                      orders: scopeCorrection.excludedOrders,
+                      value: formatMoney(scopeCorrection.excludedValue, i18n.language),
+                    })
+                  : t("overview.legacy.scopeFix.removedNothing")}
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             {targets.map((target) => (
               <Link

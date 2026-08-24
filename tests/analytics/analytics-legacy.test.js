@@ -87,7 +87,7 @@ test("both legacy pages carry the notice, above the numbers it is about", async 
   assert.match(reports, /import LegacyReportNotice/);
   // It is told which tab the reader is on, so its link answers the question in front of
   // them rather than offering a generic pair they have to choose between.
-  assert.match(reports, /<LegacyReportNotice variant="reports" activeTab=\{activeTab\} \/>/);
+  assert.match(reports, /<LegacyReportNotice variant="reports" activeTab=\{activeTab\}/);
   // It must be the first child of the page body, not buried under the header.
   const bodyIndex = reports.indexOf('<div className="mx-auto w-full space-y-5">');
   const noticeIndex = reports.indexOf("<LegacyReportNotice");
@@ -174,6 +174,95 @@ test("the legacy page no longer publishes revenue as if it were gross profit", a
     !/COALESCE\(SUM\(\$\{orders\.itemTotalExpr\}\) - SUM\(\$\{orders\.costExpr\}\), 0\)::numeric AS gross_profit/.test(service),
     "the unguarded gross_profit expression must not remain"
   );
+});
+
+/* -------------------------------------------- D-16 fixed at the source, out loud */
+
+test("the legacy order scope now asks whether the order was a sale", async () => {
+  const service = await read("../../server/services/reportsService.js");
+
+  // D-16: the scope filtered tenant, date, branch, warehouse, employee, customer, shift
+  // and payment method, and never asked whether the order was a sale at all.
+  assert.match(service, /import \{ paidOrderClauses \} from "\.\/analytics\/accountingCanon\.js"/);
+  assert.match(service, /const recognisedSale = paidOrderClauses\(orderColumns\)/);
+  assert.match(service, /const where = buildWhere\(\{ \.\.\.scopeArgs, extra: \[\.\.\.scopeArgs\.extra, \.\.\.recognisedSale\] \}\)/);
+
+  // It is the ACCOUNTING predicate, not the stricter v2 one. Two definitions in the
+  // business, reconciled against each other — not three.
+  assert.ok(!/canonicalOrderClauses/.test(service), "the legacy page must not adopt the v2-only exclusions");
+
+  // The employee sales subquery names the table rather than aliasing it, so it never went
+  // through buildOrderScope and had to be corrected separately.
+  assert.match(service, /const salesRecognised = paidOrderClauses\(orderColumns, \{ alias: "orders" \}\)/);
+  assert.match(service, /const salesWhere = salesRecognised\.length/);
+});
+
+test("the correction announces itself instead of moving the numbers quietly", async () => {
+  const service = await read("../../server/services/reportsService.js");
+
+  // The old scope is kept alongside the new one for exactly one purpose: measuring the
+  // difference. Without it the page could only assert that something changed.
+  assert.match(service, /const unscopedWhere = buildWhere\(scopeArgs\)/);
+  assert.match(service, /NOT \(\$\{clause\}\)/, "the delta must be measured, not estimated");
+  assert.match(service, /excludedOrders: Number/);
+  assert.match(service, /excludedValue: Number/);
+
+  // Every tab, not just the sales tab — every tab counts orders.
+  assert.match(service, /const scopeCorrection = await getScopeCorrection\(tenantId, filters\)\.catch\(\(\) => null\)/);
+  assert.match(service, /const withScope = \(payload\) => \(\{ \.\.\.payload, scopeCorrection \}\)/);
+  for (const type of ["dashboard", "insights", "employees", "inventory", "customers", "financial"]) {
+    assert.match(
+      service,
+      new RegExp(`if \\(type === "${type}"\\) return withScope\\(`),
+      `the ${type} tab must carry the correction too`
+    );
+  }
+
+  // And a failure to describe the change must not take the report down with it.
+  assert.match(service, /\.catch\(\(\) => null\)/);
+});
+
+test("the page says what the correction removed, in both languages", async () => {
+  const notice = await read("../../src/modules/reports/components/LegacyReportNotice.jsx");
+  assert.match(notice, /scopeCorrection\?\.applied \? \(/);
+  assert.match(notice, /overview\.legacy\.scopeFix\.removed/);
+  assert.match(notice, /overview\.legacy\.scopeFix\.removedNothing/);
+  // Zero excluded is a real answer, not a reason to hide the notice.
+  assert.match(notice, /scopeCorrection\.excludedOrders > 0/);
+
+  const page = await read("../../src/modules/reports/pages/Reports.jsx");
+  assert.match(page, /scopeCorrection=\{dashboard\?\.scopeCorrection\}/);
+
+  for (const locale of ["en", "ar"]) {
+    const bundle = JSON.parse(await read(`../../src/locales/${locale}/overview.json`));
+    const copy = bundle.legacy?.scopeFix;
+    assert.ok(copy, `${locale} has no scope-correction copy`);
+    for (const key of ["title", "body", "removed", "removedNothing"]) {
+      assert.ok(copy[key]?.length > 20, `${locale} scopeFix.${key} is missing or too vague`);
+    }
+    // The numbers have to reach the sentence, or it says a change happened without
+    // saying how big — which is the thing this whole mechanism exists to avoid.
+    assert.match(copy.removed, /\{\{orders\}\}/);
+    assert.match(copy.removed, /\{\{value\}\}/);
+    if (locale === "ar") assert.match(copy.title, /[؀-ۿ]/, "the Arabic notice must actually be Arabic");
+  }
+
+  // The defect list on /reports must no longer claim a defect that was fixed.
+  assert.match(notice, /\? \["scope", "stock", "dates"\]\s*\n\s*: \["profit", "errors"\]/);
+});
+
+test("the shared predicate can be aliased without a second copy of it", async () => {
+  const { paidOrderClauses } = await import("../../server/services/analytics/accountingCanon.js");
+  const columns = new Set(["status", "payment_status", "is_personal_transaction"]);
+
+  const aliased = paidOrderClauses(columns, { alias: "orders" }).join(" AND ");
+  assert.ok(aliased.includes("orders.status"), "the alias must reach every column reference");
+  assert.ok(!/\bo\.status\b/.test(aliased), "no reference may stay pinned to the default alias");
+
+  // Default unchanged, because eight accounting call sites depend on it.
+  const original = paidOrderClauses(columns).join(" AND ");
+  assert.ok(original.includes("o.status"));
+  assert.equal(original, aliased.replaceAll("orders.", "o."));
 });
 
 /* --------------------------------------------- the legacy exports were repaired */
