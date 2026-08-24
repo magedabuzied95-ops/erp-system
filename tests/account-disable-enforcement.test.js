@@ -91,6 +91,39 @@ test("the disable script cannot touch an account that carries real work", async 
   assert.match(script, /UPDATE users SET is_active = TRUE WHERE id = \$\{user\.id\};/);
 });
 
+test("the pool covers BOTH ways an account reaches the financial surface unbidden", async () => {
+  const script = await read("../server/scripts/disableQaTestAccounts.js");
+
+  // permissionMiddleware short-circuits twice before it ever reads role_permissions: the
+  // is_super_admin flag, and an admin-shaped role NAME. The first sweep only looked at the
+  // flag, so two `role = 'admin'` debug accounts reaching all seventeen financial
+  // endpoints were invisible to it. A pool narrower than the exposure is not an audit.
+  assert.match(script, /WHERE COALESCE\(u\.is_super_admin, FALSE\)\s*\n\s*OR LOWER\(REGEXP_REPLACE/);
+  for (const role of ["admin", "super admin", "superadmin", "owner"]) {
+    assert.ok(script.includes(`'${role}'`), `the admin-shaped pool must include ${role}`);
+  }
+
+  // Widening the POOL must not widen what gets DISABLED. The three rules still decide, and
+  // they are what keeps a real admin — who is in this pool by definition — untouched.
+  assert.match(script, /category: reasons\.length === 0 \? "A" : "C"/);
+});
+
+test("--only turns the dry run into a precondition instead of a memory", async () => {
+  const script = await read("../server/scripts/disableQaTestAccounts.js");
+
+  assert.match(script, /--only=/, "the flag must exist");
+  // It compares SETS, so an extra account appearing between the dry run and the apply
+  // refuses the write rather than silently disabling one more than was reviewed.
+  assert.match(script, /const same = expected\.length === actual\.length && expected\.every/);
+  assert.match(script, /REFUSED\./);
+  assert.match(script, /Nothing was written\./);
+
+  // The refusal must come BEFORE the UPDATE, or it is a report rather than a guard.
+  const refusal = script.indexOf("REFUSED.");
+  const update = script.indexOf("SET is_active = FALSE\n");
+  assert.ok(refusal > 0 && update > 0 && refusal < update, "the --only check must precede the write");
+});
+
 test("the access audit reports a disabled account as reaching nothing", async () => {
   const script = await read("../server/scripts/auditCashierEffectiveAccess.js");
 
