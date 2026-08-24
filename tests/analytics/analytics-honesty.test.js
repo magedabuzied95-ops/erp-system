@@ -41,9 +41,21 @@ test("no analytics service converts a failure into a value", async () => {
     // number, an empty object or an empty array is how a zero starts meaning "broken".
     const catches = [...code.matchAll(/catch\s*(\([^)]*\))?\s*\{([\s\S]{0,220}?)\}/g)];
     for (const [, , body] of catches) {
+      /*
+       * A catch must either rethrow, or RECORD the failure somewhere that reaches the
+       * response. The second case is not a loophole: importing twelve presets where one
+       * carries an unusable date range should import eleven and report the twelfth, not
+       * refuse the lot. What is forbidden is the third case — swallowing the error and
+       * returning a value, which is how a zero starts meaning "broken".
+       *
+       * `error.message` must appear, so the reported failure says what went wrong rather
+       * than that something did.
+       */
+      const rethrows = /throw/.test(body);
+      const reports = /(skipped|warnings|errors|collector)\s*[.[]/.test(body) && /error\.message|error\.code/.test(body);
       assert.ok(
-        /throw/.test(body),
-        `${name} has a catch block that does not rethrow:\n${body.trim().slice(0, 160)}`
+        rethrows || reports,
+        `${name} has a catch block that neither rethrows nor reports the failure:\n${body.trim().slice(0, 160)}`
       );
     }
   }
@@ -62,6 +74,17 @@ test("the controller turns a failure into a 500 that names the metric", async ()
   assert.ok(catches.length >= 2, "expected the controller catch blocks to be found");
   for (const [, body] of catches) {
     if (/AnalyticsFilterError/.test(body)) continue; // a filter error is a deliberate 400
+    /*
+     * The preset handlers are not query handlers. "This preset does not exist" is a 404
+     * and "you already have twenty-four" is a 409 — answering 500 to either would be
+     * lying about whose fault it is. They still fall back to 500 for anything
+     * unrecognised, and they still log it, which is what this guard is protecting.
+     */
+    if (/error\.status \|\| 500/.test(body)) {
+      assert.match(body, /status >= 500/, "an unrecognised preset failure must still be logged as a server error");
+      assert.match(body, /console\.error/);
+      continue;
+    }
     assert.match(body, /res\.status\(500\)/, "a query failure must answer 500");
   }
 

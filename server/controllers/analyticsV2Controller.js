@@ -38,6 +38,13 @@ import {
 } from "../services/analytics/analyticsEmployeesService.js";
 import { runReconciliation } from "../services/analytics/analyticsReconciliationService.js";
 import { getFilterOptions } from "../services/analytics/analyticsFilterOptionsService.js";
+import {
+  createPreset,
+  deletePreset,
+  importLegacyPresets,
+  listPresets,
+  updatePreset,
+} from "../services/analytics/analyticsPresetsService.js";
 import { resolveAnalyticsPermissions } from "../services/analytics/analyticsScope.js";
 
 export async function getOverview(req, res) {
@@ -170,4 +177,52 @@ export const getFilterOptionsController = analyticsHandler(
 
 export const getReconciliationController = analyticsHandler(
   "reconciliation", "report", "RECONCILIATION_QUERY_FAILED", runReconciliation
+);
+
+/* --------------------------------------------------------------- saved presets */
+
+/**
+ * Presets are owned by a USER, not a tenant, so every handler passes the caller's own id
+ * and the service puts it in the WHERE clause. There is no endpoint that can read
+ * somebody else's saved views, and none that returns a figure: a preset stores the
+ * question, never the answer.
+ */
+const presetOwner = (req) => ({
+  tenantId: req.user?.tenant_id ?? req.user?.tenantId ?? null,
+  userId: req.user?.id ?? null,
+});
+
+const presetHandler = (run) => async (req, res) => {
+  try {
+    const payload = await run(req);
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) {
+      console.error("[analytics-v2] presets failed", {
+        requestId: req.id, userId: req.user?.id, message: error.message, stack: error.stack,
+      });
+    }
+    return res.status(status).json({ success: false, code: "PRESET_FAILED", message: error.message });
+  }
+};
+
+export const listPresetsController = presetHandler((req) =>
+  listPresets({ ...presetOwner(req), page: req.query.page })
+);
+
+export const createPresetController = presetHandler((req) =>
+  createPreset({ ...presetOwner(req), page: req.body?.page, name: req.body?.name, filters: req.body?.filters })
+);
+
+export const updatePresetController = presetHandler((req) =>
+  updatePreset({ ...presetOwner(req), id: req.params.id, name: req.body?.name, pinned: req.body?.pinned })
+);
+
+export const deletePresetController = presetHandler((req) =>
+  deletePreset({ ...presetOwner(req), id: req.params.id })
+);
+
+export const importPresetsController = presetHandler((req) =>
+  importLegacyPresets({ ...presetOwner(req), presets: req.body?.presets })
 );

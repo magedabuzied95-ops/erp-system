@@ -13,7 +13,12 @@ import {
   getInventoryProductsController,
   getInventorySizesController,
   getInventorySummaryController,
+  createPresetController,
+  deletePresetController,
   getFilterOptionsController,
+  importPresetsController,
+  listPresetsController,
+  updatePresetController,
   getOverview,
   getReconciliationController,
   getPurchasingBreakdownController,
@@ -74,5 +79,16 @@ router.get("/reconciliation", protect, viewReports, getReconciliationController)
 
 // The values every filter control can take, scoped to what this caller can see.
 router.get("/filter-options", protect, viewReports, getFilterOptionsController);
+
+/*
+ * Saved presets. Same reports:view gate as every report — a preset is a saved question
+ * about the reports, so anyone who may read a report may save one. Ownership is enforced
+ * inside the service by user id in the WHERE clause, not by the route.
+ */
+router.get("/presets", protect, viewReports, listPresetsController);
+router.post("/presets", protect, viewReports, createPresetController);
+router.patch("/presets/:id", protect, viewReports, updatePresetController);
+router.delete("/presets/:id", protect, viewReports, deletePresetController);
+router.post("/presets/import", protect, viewReports, importPresetsController);
 
 export default router;
