@@ -1586,7 +1586,7 @@ const postWhatsAppMessage = async ({ payload, config }) => {
   return { ...data, message_id: messageId };
 };
 
-const postEvolutionWhatsAppMessage = async ({ recipient, text = "", imageUrl = "", caption = "", kind = "text" } = {}) => {
+const postEvolutionWhatsAppMessage = async ({ recipient, text = "", imageUrl = "", caption = "", kind = "text", instance = "" } = {}) => {
   const gateway = await import("./whatsappGatewayService.js");
   const normalizedRecipient = toText(recipient);
   if (kind === "image") {
@@ -1602,6 +1602,7 @@ const postEvolutionWhatsAppMessage = async ({ recipient, text = "", imageUrl = "
       phone: normalizedRecipient,
       imageUrl,
       caption,
+      instance,
     });
     const messageId = response?.result?.key?.id || response?.result?.message_id || response?.result?.id || "";
     console.info("[whatsapp-evolution-send-response]", {
@@ -1625,6 +1626,7 @@ const postEvolutionWhatsAppMessage = async ({ recipient, text = "", imageUrl = "
   const response = await gateway.sendTextMessage({
     phone: normalizedRecipient,
     message: text,
+    instance,
   });
   const messageId = response?.result?.key?.id || response?.result?.message_id || response?.result?.id || "";
   console.info("[whatsapp-evolution-send-response]", {
@@ -1653,7 +1655,7 @@ const visualAttachmentImageUrls = (reply = {}) =>
     .filter((url) => /^https?:\/\//i.test(url))
     .slice(0, 6);
 
-export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" } = {}) => {
+export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "", instance = "" } = {}) => {
   const config = whatsappConfig();
   logWhatsAppConfig("[whatsapp-cloud-send][config]", config);
   const recipient = toText(to);
@@ -1799,7 +1801,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       const body = (text || productCardTexts.join("\n\n")).slice(0, 4096);
       const textResponse =
         selectedTransport === "evolution"
-          ? await postEvolutionWhatsAppMessage({ recipient, text: body, kind: "text" })
+          ? await postEvolutionWhatsAppMessage({ recipient, text: body, kind: "text", instance })
           : await postWhatsAppMessage({
               config,
               payload: {
@@ -1835,7 +1837,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
         try {
           const imageResponse =
             selectedTransport === "evolution"
-              ? await postEvolutionWhatsAppMessage({ recipient, imageUrl: productImage, caption: productText || "", kind: "image" })
+              ? await postEvolutionWhatsAppMessage({ recipient, imageUrl: productImage, caption: productText || "", kind: "image", instance })
               : await postWhatsAppMessage({
                   config,
                   payload: {
@@ -1862,7 +1864,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
             try {
               const fallbackResponse =
                 selectedTransport === "evolution"
-                  ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
+                  ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text", instance })
                   : await postWhatsAppMessage({
                       config,
                       payload: {
@@ -1886,7 +1888,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
         try {
           const textResponse =
             selectedTransport === "evolution"
-              ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
+              ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text", instance })
               : await postWhatsAppMessage({
                   config,
                   payload: {
@@ -1916,7 +1918,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
     try {
       const imageResponse =
         selectedTransport === "evolution"
-          ? await postEvolutionWhatsAppMessage({ recipient, imageUrl, kind: "image" })
+          ? await postEvolutionWhatsAppMessage({ recipient, imageUrl, kind: "image", instance })
           : await postWhatsAppMessage({
               config,
               payload: {

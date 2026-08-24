@@ -99,6 +99,18 @@ export const upsertChannelAccount = async ({
   return result.rows[0] || null;
 };
 
+export const setChannelAccountActive = async ({ tenantId, accountId, isActive = true } = {}) => {
+  await ensureChannelAccountsSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const scopedAccountId = numberOrNull(accountId);
+  if (!scopedTenantId || !scopedAccountId) return null;
+  const result = await db.query(
+    `UPDATE channel_accounts SET is_active = $3, updated_at = NOW() WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    [scopedTenantId, scopedAccountId, isActive !== false]
+  );
+  return result.rows[0] || null;
+};
+
 export const listChannelAccounts = async ({ tenantId, platform = "", includeInactive = false } = {}) => {
   await ensureChannelAccountsSchema();
   const scopedTenantId = numberOrNull(tenantId);

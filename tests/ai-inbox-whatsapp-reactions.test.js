@@ -83,7 +83,9 @@ test("outbound WhatsApp reactions use Evolution's reaction endpoint and are pers
   assert.match(gateway, /key:\s*\{[\s\S]*remoteJid: safeRemoteJid,[\s\S]*fromMe: targetFromMe === true,[\s\S]*id: safeTargetMessageId/);
   assert.match(gateway, /reaction: safeEmoji/);
   assert.match(routes, /\/conversations\/:conversationId\/reaction/);
-  assert.match(routes, /sendWhatsappReaction\(\{ remoteJid, targetMessageId, targetFromMe, emoji: normalizedEmoji \}\)/);
+  // Multi-number: the reaction must also name the instance that owns the
+  // conversation, so it leaves from the number the customer wrote to.
+  assert.match(routes, /sendWhatsappReaction\(\{\s*remoteJid,\s*targetMessageId,\s*targetFromMe,\s*emoji: normalizedEmoji,\s*instance:/);
   assert.match(routes, /upsertAiSupportMessageReaction\(\{/);
   assert.doesNotMatch(routes, /SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone, direction/);
 });

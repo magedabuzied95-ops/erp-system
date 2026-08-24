@@ -297,8 +297,14 @@ const clearSentImageDuplicateEntry = ({ phone = "", imageUrl = "" } = {}) => {
   return duplicate_cache_key;
 };
 
-const requireEvolutionConfig = () => {
+// `instance` selects which WhatsApp number sends: a registered Evolution
+// instance name from channel_accounts, or empty for the env default. Every
+// caller that has a conversation should pass that conversation's instance so
+// the reply leaves from the number the customer actually wrote to.
+const requireEvolutionConfig = (instance = "") => {
   const current = config();
+  const selectedInstance = String(instance || "").trim();
+  if (selectedInstance) current.instanceName = selectedInstance;
   if (current.provider !== "evolution") throw gatewayError("Unsupported WhatsApp gateway provider", "WHATSAPP_PROVIDER_UNSUPPORTED", 409);
   if (!current.apiUrl) throw gatewayError("EVOLUTION_API_URL is not configured", "EVOLUTION_API_URL_MISSING", 409);
   if (!apiKey()) throw gatewayError("EVOLUTION_API_KEY is not configured", "EVOLUTION_API_KEY_MISSING", 409);
@@ -385,6 +391,38 @@ const evolutionMessageText = (record = {}) => {
   );
 };
 
+// Which WhatsApp number owns this conversation. The webhook stamps the
+// instance into conversation metadata on every inbound message (latest number
+// the customer wrote to wins); older rows only carry it on message rows.
+// Empty means "unknown" and callers fall back to the env default instance.
+export const resolveWhatsappConversationInstance = async ({ tenantId, conversationId = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const sessionId = normalizeWhatsappSessionId(conversationId);
+  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || !sessionId) return "";
+  const conversation = await db.query(
+    `
+    SELECT COALESCE(NULLIF(metadata->>'whatsapp_instance', ''), NULLIF(metadata->>'instance', '')) AS instance
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1 AND channel = 'whatsapp' AND external_conversation_id = $2
+    LIMIT 1
+    `,
+    [safeTenantId, sessionId]
+  ).catch(() => ({ rows: [] }));
+  const fromConversation = text(conversation.rows[0]?.instance);
+  if (fromConversation) return fromConversation;
+  const message = await db.query(
+    `
+    SELECT whatsapp_instance
+    FROM ai_support_messages
+    WHERE tenant_id = $1 AND session_id = $2 AND COALESCE(whatsapp_instance, '') <> ''
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, sessionId]
+  ).catch(() => ({ rows: [] }));
+  return text(message.rows[0]?.whatsapp_instance);
+};
+
 export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, conversationId, limit = 50 } = {}) => {
   const safeTenantId = Number(tenantId);
   const sessionId = normalizeWhatsappSessionId(conversationId);
@@ -394,7 +432,8 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
   }
   const remoteJid = `${phone}@s.whatsapp.net`;
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 50));
-  const payload = await evolutionFetch(`/chat/findMessages/${encodeURIComponent(instanceName())}`, {
+  const conversationInstance = await resolveWhatsappConversationInstance({ tenantId: safeTenantId, conversationId: sessionId }) || instanceName();
+  const payload = await evolutionFetch(`/chat/findMessages/${encodeURIComponent(conversationInstance)}`, {
     method: "POST",
     body: JSON.stringify({ where: { key: { remoteJid } }, page: 1, offset: safeLimit }),
     timeoutMs: EVOLUTION_CONVERSATION_HISTORY_FETCH_TIMEOUT_MS,
@@ -477,23 +516,24 @@ export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, con
     ON CONFLICT DO NOTHING
     RETURNING id
     `,
-    [safeTenantId, sessionId, instanceName(), remoteJid, phone, JSON.stringify(uniqueRecords)]
+    [safeTenantId, sessionId, conversationInstance, remoteJid, phone, JSON.stringify(uniqueRecords)]
   );
   const synced = result.rowCount || 0;
   console.info("[whatsapp:conversation-history-sync]", { tenantId: safeTenantId, sessionId, scanned: rows.length, synced });
   return { scanned: rows.length, synced };
 };
 
-const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) => {
+const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false, instance = "" } = {}) => {
   const safeTenantId = Number(tenantId);
+  const syncInstance = text(instance) || instanceName();
   if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || provider() !== "evolution") {
     return { scanned: 0, eligible: 0, synced: 0, skipped: true };
   }
-  const cacheKey = `${safeTenantId}:${instanceName()}`;
+  const cacheKey = `${safeTenantId}:${syncInstance}`;
   const cached = evolutionInboxRecoveryCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.at < EVOLUTION_INBOX_RECOVERY_TTL_MS) return cached.result;
 
-  const payload = await evolutionFetch(`/chat/findChats/${encodeURIComponent(instanceName())}`, {
+  const payload = await evolutionFetch(`/chat/findChats/${encodeURIComponent(syncInstance)}`, {
     method: "POST",
     body: "{}",
     // Bounded so the recovery scan (and any caller awaiting it) never hangs on a
@@ -571,6 +611,7 @@ const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) 
                'resolved_reply_jid', r.remote_jid,
                'resolved_phone', r.phone,
                'instance', $3::text,
+               'whatsapp_instance', $3::text,
                'source', 'evolution_chat_recovery',
                'last_message_from_me', r.last_message_from_me
              ),
@@ -588,7 +629,7 @@ const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) 
         last_message_at = GREATEST(ai_channel_conversations.last_message_at, EXCLUDED.last_message_at),
         updated_at = GREATEST(ai_channel_conversations.updated_at, EXCLUDED.updated_at)
       `,
-      [safeTenantId, JSON.stringify(records), instanceName()]
+      [safeTenantId, JSON.stringify(records), syncInstance]
     );
     await client.query("COMMIT");
   } catch (error) {
@@ -608,23 +649,62 @@ const runEvolutionChatsToAiInboxSync = async ({ tenantId, force = false } = {}) 
 // loads (foreground + background) share a single in-flight scan instead of each
 // firing its own external Evolution call.
 const evolutionInboxSyncInFlight = new Map();
-export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = {}) => {
-  const safeTenantId = Number(tenantId);
-  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || provider() !== "evolution") {
-    return { scanned: 0, eligible: 0, synced: 0, skipped: true };
+
+// Every WhatsApp number the recovery scan must cover: the env default plus the
+// active registered instances. Registry failures degrade to the default alone.
+const listWhatsappSyncInstances = async ({ tenantId } = {}) => {
+  const instances = new Set([instanceName()].filter(Boolean));
+  try {
+    const { listChannelAccounts } = await import("./channelAccountsService.js");
+    const accounts = await listChannelAccounts({ tenantId, platform: "whatsapp" });
+    for (const account of accounts) {
+      const name = text(account.external_account_id);
+      if (name) instances.add(name);
+    }
+  } catch (error) {
+    console.warn("[whatsapp:instance-registry-read-failed]", { message: error?.message || String(error) });
   }
-  const cacheKey = `${safeTenantId}:${instanceName()}`;
+  return [...instances];
+};
+
+const syncEvolutionChatsToAiInboxForInstance = async ({ tenantId, force = false, instance = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const syncInstance = text(instance) || instanceName();
+  const cacheKey = `${safeTenantId}:${syncInstance}`;
   const cached = evolutionInboxRecoveryCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.at < EVOLUTION_INBOX_RECOVERY_TTL_MS) return cached.result;
   const existing = evolutionInboxSyncInFlight.get(cacheKey);
   if (existing) return existing;
-  const promise = runEvolutionChatsToAiInboxSync({ tenantId, force });
+  const promise = runEvolutionChatsToAiInboxSync({ tenantId, force, instance: syncInstance });
   evolutionInboxSyncInFlight.set(cacheKey, promise);
   try {
     return await promise;
   } finally {
     evolutionInboxSyncInFlight.delete(cacheKey);
   }
+};
+
+export const syncEvolutionChatsToAiInbox = async ({ tenantId, force = false } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || provider() !== "evolution") {
+    return { scanned: 0, eligible: 0, synced: 0, skipped: true };
+  }
+  const instances = await listWhatsappSyncInstances({ tenantId: safeTenantId });
+  const totals = { scanned: 0, eligible: 0, synced: 0, instances: [] };
+  for (const instance of instances) {
+    // One dead instance (unplugged number, stale registry row) must not hide
+    // the chats of the numbers that are still connected.
+    const result = await syncEvolutionChatsToAiInboxForInstance({ tenantId: safeTenantId, force, instance })
+      .catch((error) => {
+        console.warn("[whatsapp:inbox-recovery-sync-instance-failed]", { instance, message: error?.message || String(error) });
+        return { scanned: 0, eligible: 0, synced: 0, failed: true };
+      });
+    totals.scanned += Number(result?.scanned || 0);
+    totals.eligible += Number(result?.eligible || 0);
+    totals.synced += Number(result?.synced || 0);
+    totals.instances.push({ instance, ...result });
+  }
+  return totals;
 };
 
 export const normalizeEgyptPhone = (phone = "") => {
@@ -871,8 +951,10 @@ export const refreshWhatsappConversationAvatar = async ({ tenantId = null, conve
   return { found: true, updated: avatarUrl !== previous, avatar_url: avatarUrl };
 };
 
-export const getStatus = async () => {
+export const getStatus = async ({ instance = "" } = {}) => {
   const current = config();
+  const selectedInstance = text(instance);
+  if (selectedInstance) current.instanceName = selectedInstance;
   if (current.provider !== "evolution" || !current.apiUrl || !current.apiKeyConfigured || !current.instanceName) {
     console.info("[whatsapp:status]", { ...current, connected: false, configured: false });
     return { ...current, configured: false, connected: false, state: "not_configured" };
@@ -884,7 +966,7 @@ export const getStatus = async () => {
   return { ...current, configured: true, connected, state: state || "unknown", raw: data };
 };
 
-export const sendTextMessage = async ({ phone, message } = {}) => {
+export const sendTextMessage = async ({ phone, message, instance = "" } = {}) => {
   // A customer who hides their number behind a WhatsApp username reaches us with
   // a LID and nothing else — the webhook carries no phone number anywhere. The
   // LID addresses that one chat, so it is the only way to answer them.
@@ -894,7 +976,7 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
   const body = String(message ?? "");
   if (!sendTarget) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!body.trim()) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const hasLink = /https?:\/\/[^\s]+/i.test(body);
   const requestBody = JSON.stringify({
     number: sendTarget,
@@ -973,7 +1055,7 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
   }
 };
 
-export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "", targetFromMe = false, emoji = "" } = {}) => {
+export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "", targetFromMe = false, emoji = "", instance = "" } = {}) => {
   // Accepts any spelling of the chat identity — whatsapp:lid:<id>, <id>@lid, a
   // phone, a phone JID — and hands Evolution a real JID. Stripping the prefix
   // alone left a LID chat addressed as "lid:<id>", which is not a JID at all.
@@ -983,7 +1065,7 @@ export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "
   const safeEmoji = String(emoji ?? "").trim();
   if (!safeRemoteJid) throw gatewayError("WhatsApp conversation target is required", "WHATSAPP_REACTION_TARGET_REQUIRED", 400);
   if (!safeTargetMessageId) throw gatewayError("WhatsApp message id is required", "WHATSAPP_REACTION_MESSAGE_ID_REQUIRED", 400);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const endpoint = `/message/sendReaction/${encodeURIComponent(current.instanceName)}`;
   const payload = {
     key: {
@@ -1013,7 +1095,7 @@ export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "
 // against created_at; this is the number both sides agree on.
 export const WHATSAPP_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
-export const editWhatsappTextMessage = async ({ remoteJid = "", targetMessageId = "", messageText = "" } = {}) => {
+export const editWhatsappTextMessage = async ({ remoteJid = "", targetMessageId = "", messageText = "", instance = "" } = {}) => {
   // Same LID-safe addressing as sendWhatsappReaction: a username customer has no
   // phone, so the edit has to travel over the @lid JID the message went out on.
   const safeRemoteJid = normalizeWhatsappRemoteJid(remoteJid)
@@ -1023,7 +1105,7 @@ export const editWhatsappTextMessage = async ({ remoteJid = "", targetMessageId 
   if (!safeRemoteJid) throw gatewayError("WhatsApp conversation target is required", "WHATSAPP_EDIT_TARGET_REQUIRED", 400);
   if (!safeTargetMessageId) throw gatewayError("WhatsApp message id is required", "WHATSAPP_EDIT_MESSAGE_ID_REQUIRED", 400);
   if (!body) throw gatewayError("Message body is required", "WHATSAPP_EDIT_MESSAGE_REQUIRED", 400);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const endpoint = `/chat/updateMessage/${encodeURIComponent(current.instanceName)}`;
   const payload = {
     number: safeRemoteJid,
@@ -1049,7 +1131,7 @@ export const editWhatsappTextMessage = async ({ remoteJid = "", targetMessageId 
   };
 };
 
-export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) => {
+export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance = "" } = {}) => {
   // Same LID addressing as sendTextMessage: a username customer has no number,
   // so product photos have to travel over the LID too.
   const lid = normalizeWhatsappLid(phone);
@@ -1059,7 +1141,7 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) =
   const mimetype = imageMimeType(media) || "image/jpeg";
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!isPublicImageUrl(media)) throw gatewayError("A valid public image URL is required", "WHATSAPP_IMAGE_URL_REQUIRED", 400);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const endpoint = `/message/sendMedia/${encodeURIComponent(current.instanceName)}`;
   const payload = {
     number: normalizedPhone,
@@ -5670,7 +5752,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
           text_preview: outboundPlan.text.slice(0, 120),
         });
       }
-      result = await sendTextMessage({ phone: sendTargetNumber, message: safeText });
+      result = await sendTextMessage({ phone: sendTargetNumber, message: safeText, instance: text(message.instance || "") });
     }
     const runtimeProductId = outboundPlan.selected_product_ids[0] || null;
     const runtimeColorsFound = [...new Set(dedupedOutboundCards.map((card) => text(card.color || card.product?.color || card.matched_variant_color || "")).filter(Boolean))];
@@ -5744,6 +5826,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
           phone: sendTargetNumber,
           imageUrl: imageSourceUrl,
           caption: productImageCaption(captionProduct),
+          instance: text(message.instance || ""),
         });
         markSentImageDuplicateEntry({
           phone: sendTargetNumber,
@@ -5790,6 +5873,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
             await sendTextMessage({
               phone: sendTargetNumber,
               message: fallbackMessage,
+              instance: text(message.instance || ""),
             });
             console.info("[whatsapp-image-send-fallback-text]", {
               conversation_id: generated.sessionId || "",

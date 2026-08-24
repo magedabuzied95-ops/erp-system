@@ -136,7 +136,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, sendImageMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -148,7 +148,7 @@ import {
   updateAiInboxQuickReply,
 } from "../services/aiInboxQuickRepliesService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
-import { listChannelAccounts, syncEnvChannelAccounts, syncMetaChannelAccounts } from "../services/channelAccountsService.js";
+import { listChannelAccounts, setChannelAccountActive, syncEnvChannelAccounts, syncMetaChannelAccounts, upsertChannelAccount } from "../services/channelAccountsService.js";
 
 const router = express.Router();
 
@@ -1734,6 +1734,8 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
           to: message.external_customer_id,
           reply: whatsappReply,
           messageText: whatsappReplyText,
+          instance: envText(message.raw?.instance || message.raw?.whatsapp_instance)
+            || await resolveWhatsappConversationInstance({ tenantId, conversationId: message.external_conversation_id }).catch(() => ""),
         });
         const providerMessageId = envText(sendResult?.message_id || sendResult?.messages?.[0]?.id || sendResult?.results?.[0]?.message_id || "");
         const outboundRow = await appendChannelOutboundSupportReply({
@@ -2417,6 +2419,63 @@ router.get("/channel-accounts", protect, permit("settings", "view"), async (req,
   }
 });
 
+// Register an additional WhatsApp number: the Evolution instance must already
+// exist and be scanned (QR) on the Evolution server; this records it so the
+// inbox syncs its chats and routes replies through it. Meta accounts are NOT
+// registered here — they arrive via the OAuth wizard and the sync above.
+router.post("/channel-accounts", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const platform = envText(req.body?.platform || "whatsapp").toLowerCase();
+    if (platform !== "whatsapp") {
+      return res.status(400).json({ success: false, message: "Only WhatsApp instances can be registered manually." });
+    }
+    const instance = envText(req.body?.instance || req.body?.external_account_id);
+    if (!instance) {
+      return res.status(400).json({ success: false, message: "Evolution instance name is required." });
+    }
+    // Prove the instance actually exists on the Evolution server before it can
+    // start owning conversations. An unreachable name is a typo, not a number.
+    const status = await getWhatsappGatewayStatus({ instance }).catch((error) => ({
+      configured: false,
+      connected: false,
+      state: "unreachable",
+      error: error?.message || String(error),
+    }));
+    const account = await upsertChannelAccount({
+      tenantId,
+      platform: "whatsapp",
+      externalAccountId: instance,
+      displayName: envText(req.body?.display_name) || instance,
+      provider: "evolution",
+      metadata: { source: "manual", registered_state: status?.state || "unknown" },
+    });
+    return res.json({
+      success: true,
+      account,
+      connection: { configured: status?.configured === true, connected: status?.connected === true, state: status?.state || "unknown", error: status?.error || "" },
+    });
+  } catch (error) {
+    console.error("[ai-agent] channel account register failed", { message: error?.message || "unknown" });
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Unable to register channel account" });
+  }
+});
+
+router.patch("/channel-accounts/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const account = await setChannelAccountActive({
+      tenantId,
+      accountId: req.params.id,
+      isActive: req.body?.is_active !== false,
+    });
+    if (!account) return res.status(404).json({ success: false, message: "Channel account not found" });
+    return res.json({ success: true, account });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Unable to update channel account" });
+  }
+});
+
 router.get("/channels/status", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -2583,6 +2642,8 @@ router.post("/channels/whatsapp/test-send", protect, permit("settings", "edit"),
       to,
       reply: { text: message, visual_attachments: [], product_cards: [], suggested_quick_replies: [] },
       messageText: message,
+      // Lets the admin prove a newly registered number works before any customer writes to it.
+      instance: envText(req.body?.instance),
     });
     await logChannelEvent({
       tenantId,
@@ -2624,7 +2685,7 @@ router.post("/channels/:channel/test-send", protect, permit("settings", "edit"),
   const message = envText(req.body?.message || "AI Agent channel test message.");
   try {
     if (channel === AI_AGENT_CHANNELS.WHATSAPP) {
-      const result = await sendWhatsAppCloudReply({ to, reply: { text: message }, messageText: message });
+      const result = await sendWhatsAppCloudReply({ to, reply: { text: message }, messageText: message, instance: envText(req.body?.instance) });
       return res.json({
         success: result?.delivery_status === "sent",
         sent: result?.sent === true,
@@ -5465,7 +5526,13 @@ router.post("/conversations/:conversationId/reaction", protect, inboxReply(), as
             facebookPageId: conversation.channel_metadata?.facebook_page_id || conversation.channel_metadata?.page_id || "",
             preferredConfigId: conversation.channel_metadata?.config_id || null,
           })
-      : await sendWhatsappReaction({ remoteJid, targetMessageId, targetFromMe, emoji: normalizedEmoji });
+      : await sendWhatsappReaction({
+          remoteJid,
+          targetMessageId,
+          targetFromMe,
+          emoji: normalizedEmoji,
+          instance: envText(conversation.channel_metadata?.whatsapp_instance || conversation.channel_metadata?.instance),
+        });
     const providerMessageId = envText(delivery?.result?.key?.id || delivery?.result?.messageId || delivery?.result?.message_id || `staff-reaction:${targetMessageId}:${Date.now()}`);
     // Store what the provider actually applied, not what the picker asked for:
     // a bare ❤ is sent as ❤️, and the bubble has to agree with the thread.
@@ -5585,7 +5652,12 @@ router.post("/conversations/:conversationId/message/edit", protect, inboxReply()
     const remoteJid = normalizeWhatsappRemoteJid(rawRemoteJid)
       || (rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "");
     const previousText = envText(target.message_text || target.staff_message || target.ai_answer || target.customer_message);
-    await editWhatsappTextMessage({ remoteJid, targetMessageId, messageText: nextText });
+    await editWhatsappTextMessage({
+      remoteJid,
+      targetMessageId,
+      messageText: nextText,
+      instance: envText(conversation.channel_metadata?.whatsapp_instance || conversation.channel_metadata?.instance),
+    });
     // Only rewrite our copy of the thread after WhatsApp accepted the edit, so
     // the inbox can never show text the customer never received.
     await db.query(
@@ -5858,6 +5930,7 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
         to: recipientId,
         reply: { text: messageText },
         messageText,
+        instance: envText(conversation?.channel_metadata?.whatsapp_instance || conversation?.channel_metadata?.instance),
       });
       deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
       if (deliveryStatus === "stored_only") {
@@ -6235,6 +6308,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
           to: externalCustomerId,
           reply: { text: fallbackText, product_cards: productCards },
           messageText: fallbackText,
+          instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult?.sent === true ? "sent" : "failed");
         if (deliveryStatus === "stored_only") {
@@ -6526,7 +6600,12 @@ router.post(
       } else if (!recipientId) {
         sendResult = { sent: false, delivery_status: "failed", delivery_error: "The conversation has no reachable recipient id." };
       } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
-        sendResult = await sendImageMessage({ phone: recipientId, imageUrl: relativeUrl, caption }).catch((error) => ({
+        sendResult = await sendImageMessage({
+          phone: recipientId,
+          imageUrl: relativeUrl,
+          caption,
+          instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
+        }).catch((error) => ({
           sent: false,
           delivery_status: "failed",
           delivery_error: error?.message || "WhatsApp did not accept the image",
