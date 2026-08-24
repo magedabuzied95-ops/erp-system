@@ -151,3 +151,122 @@ test("F-02: no analytics query returns customer contact details without a tenant
     );
   }
 });
+
+/* ------------------------------------------------ F-03: the shape that keeps recurring */
+
+/**
+ * Every read of `orders` in the v2 layer must be tenant-scoped.
+ *
+ * This has now escaped twice in one day, both times in a subquery rather than a main
+ * query, because a subquery does not inherit the outer scope and nothing was checking:
+ *
+ *   - R9's refunds CTE aggregated `return_items -> returns -> orders` with no tenant
+ *     clause on the original order, so one shop's seller totals absorbed every shop's
+ *     refunds.
+ *   - The first cut of exchangeOriginalReversedExpr looked up `orders orig` by an id
+ *     taken from the request body, with no tenant comparison.
+ *
+ * Neither would have been caught by a main-query test. So this sweeps every `FROM orders`
+ * in the layer and demands one of three things: a literal tenant comparison, an
+ * interpolated WHERE built elsewhere, or an interpolated clause list — and then checks
+ * that every such builder in the file does in fact push a tenant clause.
+ */
+test("F-03: every read of orders in the analytics layer is tenant-scoped", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const dir = new URL("../../server/services/analytics/", import.meta.url);
+  const files = (await readdir(dir)).filter((name) => name.endsWith(".js"));
+  assert.ok(files.length >= 8, `expected the analytics service layer, found ${files.length} files`);
+
+  let checked = 0;
+  for (const file of files) {
+    const raw = await read(`../../server/services/analytics/${file}`);
+    // Strip comments first. A comment explaining the tenant rule sits within a few lines
+    // of the query it explains, so it satisfies a naive keyword search — which is exactly
+    // how a mutation that deleted the real clause survived the first cut of this test.
+    const source = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+
+    for (const match of source.matchAll(/FROM\s+orders\s+(\w+)/gi)) {
+      const window = source.slice(match.index, match.index + 320);
+
+      // 1. The column itself appears in the SQL — `o.tenant_id = $1`, or `${alias}.tenant_id`.
+      //    Matching the COLUMN, not the word: a variable merely NAMED `tenant` satisfies a
+      //    keyword search while holding an empty string, which is how the first cut of this
+      //    test survived a mutation that deleted the clause.
+      if (/\.tenant_id/.test(window)) { checked += 1; continue; }
+
+      // 2. A WHERE built by the shared scope resolver, which is tested on its own.
+      if (/\$\{[\w.]*[Ww]here[\w.]*\}/.test(window)) { checked += 1; continue; }
+
+      // 3. Any other interpolated scope — a clause list, a fragment — is only a scope if
+      //    its own declaration in this file pushes a tenant clause.
+      const interpolations = [...window.matchAll(/\$\{(\w+)[\s\S]{0,24}?\}/g)].map((m) => m[1]);
+      const resolved = interpolations.some((name) =>
+        new RegExp(`const ${name} =[\\s\\S]{0,900}?tenant_id`).test(source)
+      );
+      assert.ok(
+        resolved,
+        `${file}: "${match[0]}" is scoped by nothing that resolves to a tenant clause ` +
+          `(interpolations seen: ${interpolations.join(", ") || "none"})`
+      );
+      checked += 1;
+    }
+  }
+
+  assert.ok(checked >= 10, `expected to sweep the order reads, only saw ${checked}`);
+});
+
+/**
+ * The returns join, specifically.
+ *
+ * `returns -> orders` is where the R9 leak lived, and it is the join most likely to be
+ * written without a tenant clause, because the tenant belongs to the ORDER rather than to
+ * the return being aggregated. Every one of these must carry a tenant fragment, and the
+ * fragment must resolve to something that names the column.
+ */
+test("F-03: every returns-to-orders join carries a tenant fragment that resolves", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const dir = new URL("../../server/services/analytics/", import.meta.url);
+  const files = (await readdir(dir)).filter((name) => name.endsWith(".js"));
+
+  let checked = 0;
+  for (const file of files) {
+    const raw = await read(`../../server/services/analytics/${file}`);
+    const source = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+
+    for (const match of source.matchAll(/JOIN\s+orders\s+(\w+)\s+ON\s+\1\.id\s*=\s*r\.order_id/gi)) {
+      const window = source.slice(match.index, match.index + 260);
+      const fragments = [...window.matchAll(/\$\{(?:scope\.)?(\w+)\}/g)].map((m) => m[1]);
+      const tenantish = fragments.filter((name) => /tenant/i.test(name));
+      assert.ok(
+        tenantish.length,
+        `${file}: a returns-to-orders join with no tenant fragment at all — ` +
+          `fragments seen: ${fragments.join(", ") || "none"}`
+      );
+      // And the fragment has to be built from the column, not merely named after it.
+      // Resolved through one level of indirection, because the overview builds its
+      // fragments with a shared `tenantClause(alias, columns)` helper rather than inline.
+      const resolves = tenantish.some((name) => {
+        const direct = new RegExp(`${name}\\s*[:=][\\s\\S]{0,200}?tenant_id`).test(source);
+        if (direct) return true;
+        const viaHelper = new RegExp(`${name}\\s*[:=]\\s*(\\w+)\\(`).exec(source);
+        return Boolean(viaHelper) &&
+          new RegExp(`(const|function)\\s+${viaHelper[1]}[\\s\\S]{0,300}?tenant_id`).test(source);
+      });
+      assert.ok(resolves, `${file}: ${tenantish.join("/")} is named for the tenant but never built from tenant_id`);
+      checked += 1;
+    }
+  }
+
+  assert.ok(checked >= 4, `expected the returns joins, only saw ${checked}`);
+});
+
+test("F-03: the two subqueries that escaped are pinned individually", async () => {
+  const employees = await read("../../server/services/analytics/analyticsEmployeesService.js");
+  // The refund inherits the ORIGINAL order's tenant, not the return's.
+  assert.match(employees, /const refundTenant = scope\.tenantScoped && columns\.orderColumns\.has\("tenant_id"\)/);
+  assert.match(employees, /WHERE \$\{refundTenant\}\$\{returnStatus\}/);
+
+  const metrics = await read("../../server/services/analytics/analyticsMetrics.js");
+  // original_order_id is an unconstrained bigint arriving from a request body.
+  assert.match(metrics, /AND orig\.tenant_id = \$\{alias\}\.tenant_id/);
+});

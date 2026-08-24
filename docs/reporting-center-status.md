@@ -3,7 +3,8 @@
 Living record of what the Reporting Center is, what it deliberately is not, and the
 decisions that would otherwise have to be rediscovered from the code.
 
-Last updated 2026-08-24, after R5 (purchasing), R6 (customers) and the export engine.
+Last updated 2026-08-24, at `63e31097` — R9 (employees and channels), R10 (reconciliation
+screen), the legacy migration, and the financial route guards. Deployed and verified live.
 
 ---
 
@@ -16,14 +17,19 @@ Last updated 2026-08-24, after R5 (purchasing), R6 (customers) and the export en
 | `/reports/inventory` | ذكاء المخزون | R4 | `v2/inventory/{summary,breakdown,products,sizes}` |
 | `/reports/purchasing` | ذكاء المشتريات والموردين | R5 | `v2/purchasing/{summary,breakdown,products,suppliers}` |
 | `/reports/customers` | ذكاء العملاء | R6 | `v2/customers/{summary,breakdown,list}` |
+| `/reports/employees` | ذكاء الموظفين والقنوات | R9 | `v2/employees/{summary,breakdown,list}` |
+| `/reports/reconciliation` | المطابقة | R10 | `v2/reconciliation` |
 | `/reports/coupons` | أداء الكوبونات | — | `coupons/reports/performance` |
-| `/reports` | التقارير والتحليلات | legacy | `reports/*` |
-| `/analytics` | ذكاء المبيعات والتنبؤ | legacy | `analytics/*` |
+| `/reports` | التقارير والتحليلات | legacy, notice-bearing | `reports/*` |
+| `/analytics` | — | **retired** → `/reports/overview` | — |
 
-All eight are gated on `reports.view` at the route **and** at the endpoint. Every money
-figure is additionally gated on `reports.cost` / `reports.profit`, resolved in
-`analyticsScope.js` and applied by omitting the column from the SELECT — a value the
-caller may not see never enters the JSON, so it cannot leak through an export either.
+All are gated on `reports.view` at the route **and** at the endpoint. Every money figure is
+additionally gated on `reports.cost` / `reports.profit`, resolved in `analyticsScope.js`
+and applied by omitting the column from the SELECT — a value the caller may not see never
+enters the JSON, so it cannot leak through an export either.
+
+Verified live on 2026-08-24: all twenty `v2/*` paths plus the coupons report answer 401,
+not 404, with a deliberately bogus path answering 404 as the control.
 
 ## 2. What is deliberately NOT built
 
@@ -74,7 +80,15 @@ either.
 
 ## 4. Reconciliation
 
-`node server/scripts/reconcileReportingCenter.js` — read-only, safe against production.
+`/reports/reconciliation` (R10) and `node server/scripts/reconcileReportingCenter.js` are
+the **same engine**: `analyticsReconciliationService.js` issues no SQL of its own and calls
+the section services, so the screen and the script cannot drift. The screen renders the
+service's verdict and never re-decides pass or fail. Both are read-only and safe against
+production.
+
+Last run in production, 2026-08-24 at `63e31097`, over 7/30/90/365-day windows:
+**all 36 internal checks agree to within 0.01**, and every declared divergence against
+accounting came back Δ 0. Net sales at 365 days: 684 250 on both sides.
 
 It draws a line the audit docs implied but nothing enforced:
 
@@ -128,14 +142,32 @@ naming the specific defects rather than carrying a vague label — a reader has 
 which figure to distrust. The notice is not dismissible and links to the page that answers
 the same question correctly.
 
-One defect was fixed at the source rather than annotated: D-15, where `gross_profit` was
-revenue minus a cost expression that resolved to the literal `0`, because `order_items`
-carries none of the columns it looked for. It now returns NULL, so the page reports the
-figure as unavailable. Correcting it to a *real* profit would have moved a number nobody
-asked to have changed, and the Reporting Center already answers that question.
+**Two** defects were fixed at the source rather than annotated, both because leaving them
+would mean publishing a number no reading of the word defends:
 
-Neither legacy route is deleted or redirected. Parity has not been proven for the employee
-tab or the export, and the rule is that nothing goes until it has.
+- **D-15** — `gross_profit` was revenue minus a cost expression that resolved to the
+  literal `0`, because `order_items` carries none of the columns it looked for. It now
+  returns NULL, so the page reports the figure as unavailable. Correcting it to a *real*
+  profit would have moved a number nobody asked to have changed.
+- **D-16** — the order scope never asked whether an order was a sale. Fixed 2026-08-24 by
+  adopting `paidOrderClauses`, the same predicate the accounting P&L uses, at both sites
+  (the shared scope and the employee sales subquery that bypassed it). Measured on
+  production first: **690 830 → 681 330, −9 500 (1.38%)** across 9 orders — 8 unpaid
+  `pending` and 1 `returned`/`refunded`. Every response now carries `scopeCorrection` for
+  the reader's own period, and the notice states it in words, so the change is announced
+  rather than applied quietly.
+
+`/analytics` is **retired** to a redirect. Every capability it offered has a canonical
+home, proven in `docs/reporting-center-legacy-parity.md`; its page file stays on disk,
+unrouted, so restoring the route is a one-line revert.
+
+`/reports` stays routed. Parity **is** proven for all seven of its tabs now that R9 closed
+the employee gap, but `docs/reporting-center-architecture.md` promises it is retired only
+on your explicit sign-off, and keeping that promise outranks the tidiness of removing a
+route. What retiring it would take is written down in the parity matrix.
+
+Eight nine-line placeholder pages under `src/modules/reports/pages/` were deleted after
+proving nothing imported them. A test fails if a file of that shape reappears.
 
 ## 7. Permissions
 
@@ -156,12 +188,55 @@ gated on `money_transactions.adjust`, which the preset does not grant.
 it.** Grants live in `role_permissions` and the Roles screen wrote them there.
 `node server/scripts/auditReportsGrants.js` reports; `--apply` revokes.
 
+### The grant a role audit cannot see
+
+`auditReportsGrants.js` returned `users=0` for every role on production, which is not
+plausible for a live shop — so it was distrusted rather than believed. The reason is that
+`permissionMiddleware` resolves a user four ways, and only one of them is
+`role_permissions` via `role_id`:
+
+1. `is_super_admin`, or an admin-shaped role name — **everything, with no grant rows at all**
+2. a wildcard permission row
+3. `role_permissions` via `users.role_id`
+4. `role_permissions` via `users.role` matched by name or slug
+
+`auditCashierEffectiveAccess.js` starts from the USER and reproduces all four. On
+production it found the till account, **#49 "Cashier", carrying `is_super_admin = true`**:
+its Cashier role granted nothing sensitive, but the flag short-circuited every `permit()`
+check *and* set the tenant scope to NULL — every tenant's data, not only its own.
+
+Cleared on 2026-08-24 with `revokePosSuperAdmin.js --apply`, which classifies admin shapes
+first and never touches them. Re-audited immediately after: **"No POS-shaped user reaches
+the financial reports."** Admin accounts (#1, #4) unchanged. The role's own 22 grants are
+untouched, which is everything the till needs — `pos.sell`, `orders.create/edit/view`,
+`customers.create/view`, `products.view/edit`, `attendance`, `loyalty`, `dashboard.view`.
+Reversal, if it is ever wrong: `UPDATE users SET is_super_admin = TRUE WHERE id = 49;`
+
+What that account **loses** is stated plainly rather than glossed: anything it held only
+through the flag. Within the POS surface that is `money_transactions.adjust` — the treasury
+recharge panel in the cart sidebar — plus `customers.edit/delete` and
+`products.create/delete`. None of them is on the path of ringing up a sale. If the shop
+wants any of them for cashiers, grant it explicitly on the role, which is where such a
+decision belongs.
+
+### Frontend guards on the financial surface
+
+The Reports Center hole was one unguarded route. Sweeping the whole financial surface the
+same way found **sixteen more** — every accounting page, P&L and ledgers included, mounting
+for any signed-in user. Each now carries a `ProtectedRoute` whose permission was read off
+the API rather than guessed, and `ProtectedRoute` is `anyOf`, so naming `accounting.view`
+beside a specialised permission cannot lock out someone holding only the specialised one.
+
+The guard is not the authorization. A test asserts all 52 accounting endpoints still carry
+`protect()` and `permit()`, and another asserts no guard names a permission the backend
+never declares.
+
 ## 8. Known gaps
 
 | Gap | Status |
 |---|---|
 | `purchases(tenant_id, created_at)` index | Deferred — cannot be measured on a reachable dataset |
-| Legacy `/reports` and `/analytics` retirement | Blocked on parity for the employee tab and the export |
-| Legacy revenue scope (D-16) | Left in place, disclosed on the page |
-| Employees and channels reporting | Not built. `orders` has no `employee_id`; attribution runs through three competing columns and must be named on screen before it ships |
-| Reconciliation screen | Script exists; no page |
+| Legacy `/reports` retirement | Parity proven; held for your explicit sign-off |
+| Exchange orders created through `POST /orders` | The endpoint accepts `exchange_mode` with no evidence of a return, so an API client can still mint the double-counting shape. It cannot create the return itself — the sale payload carries no returned-item detail. The reporting layer detects the shape instead. Zero such orders exist on production |
+| `analyticsController` still carries D-16 | `/analytics` is retired and no routed page calls those endpoints, so correcting it would move numbers nobody reads |
+| Thirteen admin-shaped QA accounts hold `is_super_admin` on production | Out of scope here and deliberately untouched, but they are real logins with full financial access. Worth a separate pass |
