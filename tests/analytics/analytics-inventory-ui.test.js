@@ -272,26 +272,37 @@ test("Arabic and English inventory bundles have identical key shapes", async () 
 });
 
 test("the bundle is registered under its own file and namespace", async () => {
-  const i18n = await read("../../src/i18n/i18n.js");
-  assert.match(i18n, /inventoryAnalytics\.json/);
-  assert.match(i18n, /inventoryAnalytics: inventoryAnalyticsAr/);
+  // Locale wiring moved out of i18n.js when the critical-path split landed: the branch
+  // map lives in localeManifest.js and the JSON imports live in the generated
+  // src/i18n/bundles/{core,rest}.{ar,en}.js modules. Assert against both, because a
+  // bundle present in one and absent from the other ships a page whose keys resolve to
+  // raw dotted paths at runtime — see the manifest/runtime wiring gap.
+  const manifest = await read("../../src/i18n/localeManifest.js");
 
   // This bundle used to be assigned to the `inventory` branch, which already
   // held the operational inventory bundle — the second assignment silently
   // replaced the first. The branch wiring now lives in the manifest, and
   // tests/i18n-dictionary-parity.test.js fails on a duplicate branch.
-  const manifest = await read("../../src/i18n/localeManifest.js");
   assert.match(manifest, /branch: "inventoryAnalytics", file: "inventoryAnalytics"/);
 
-  // One bundle file per import binding — the collision that broke the commissions screen.
-  const imports = [...i18n.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/locales\/(\w+)\/([\w.-]+)"/gm)];
-  const byFile = new Map();
-  for (const [, binding, language, file] of imports) {
-    const key = `${language}/${file}`;
-    byFile.set(key, [...(byFile.get(key) || []), binding]);
-  }
-  for (const [file, bindings] of byFile) {
-    assert.equal(bindings.length, 1, `${file} is imported as ${bindings.join(" and ")}`);
+  for (const locale of ["ar", "en"]) {
+    const bundle = await read(`../../src/i18n/bundles/rest.${locale}.js`);
+    assert.ok(
+      bundle.includes(`import inventoryAnalytics from "../../locales/${locale}/inventoryAnalytics.json"`),
+      `rest.${locale}.js must import the inventoryAnalytics bundle`
+    );
+
+    // One bundle file per import binding — the collision that broke the commissions screen.
+    const imports = [...bundle.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/\.\.\/locales\/(\w+)\/([\w.-]+)"/gm)];
+    assert.ok(imports.length > 10, `expected the locale imports to be found in rest.${locale}.js`);
+    const byFile = new Map();
+    for (const [, binding, language, file] of imports) {
+      const key = `${language}/${file}`;
+      byFile.set(key, [...(byFile.get(key) || []), binding]);
+    }
+    for (const [file, bindings] of byFile) {
+      assert.equal(bindings.length, 1, `${file} is imported as ${bindings.join(" and ")}`);
+    }
   }
 });
 

@@ -125,7 +125,12 @@ test("the filter round trip sends the stored value, never the label", async () =
 test("the sales route is additive and does not shadow the legacy reports route", async () => {
   const app = await read("../../src/App.jsx");
   assert.match(app, /path="reports\/sales"/, "the R3 route must exist");
-  assert.match(app, /path="reports"\s*\n\s*element=\{<Reports \/>\}/, "the legacy /reports route must remain");
+  // The legacy route survives, now carrying the same reports.view guard as its siblings.
+  assert.match(
+    app,
+    /path="reports"\s*\n\s*element=\{\s*\n\s*<ProtectedRoute requiredPermissions=\{\["reports\.view"\]\}>\s*\n\s*<Reports \/>/,
+    "the legacy /reports route must remain, behind reports.view"
+  );
   assert.match(app, /path="reports\/overview"/, "the R2 route must remain");
 
   // React Router matches by specificity, but ordering still documents intent: the
@@ -516,26 +521,40 @@ test("Arabic and English sales bundles have identical key shapes", async () => {
 });
 
 test("the sales bundle is registered under the key the components address", async () => {
-  const i18n = await read("../../src/i18n/i18n.js");
-  assert.match(i18n, /salesAnalytics/, "the bundle must be registered as salesAnalytics");
+  // Branch wiring lives in the manifest since the critical-path locale split; the JSON
+  // itself is imported by the generated bundle modules. Both have to agree, or the page
+  // ships with keys that render as their own dotted paths.
+  const manifest = await read("../../src/i18n/localeManifest.js");
+  assert.match(manifest, /branch: "salesAnalytics", file: "salesAnalytics"/, "the bundle must be registered as salesAnalytics");
+
+  for (const locale of ["ar", "en"]) {
+    const bundle = await read(`../../src/i18n/bundles/rest.${locale}.js`);
+    assert.ok(
+      bundle.includes(`import salesAnalytics from "../../locales/${locale}/salesAnalytics.json"`),
+      `rest.${locale}.js must import the salesAnalytics bundle`
+    );
+  }
 });
 
 test("no two i18n namespaces share a bundle file", async () => {
-  const i18n = await read("../../src/i18n/i18n.js");
-
   // The analytics bundle was first written to locales/*/sales.json, a path already held
   // by the Employee Sales Commissions bundle. Both namespaces then imported the same
   // file, so the commissions screen would have shipped with entirely the wrong copy.
-  const imports = [...i18n.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/locales\/(\w+)\/([\w.-]+)"/gm)];
-  assert.ok(imports.length > 10, "expected the locale imports to be found");
+  for (const locale of ["ar", "en"]) {
+    for (const scope of ["core", "rest"]) {
+      const bundle = await read(`../../src/i18n/bundles/${scope}.${locale}.js`);
+      const imports = [...bundle.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/\.\.\/locales\/(\w+)\/([\w.-]+)"/gm)];
+      if (scope === "rest") assert.ok(imports.length > 10, `expected the locale imports to be found in rest.${locale}.js`);
 
-  const byFile = new Map();
-  for (const [, binding, language, file] of imports) {
-    const key = `${language}/${file}`;
-    byFile.set(key, [...(byFile.get(key) || []), binding]);
-  }
-  for (const [file, bindings] of byFile) {
-    assert.equal(bindings.length, 1, `${file} is imported as ${bindings.join(" and ")}; one bundle, one namespace`);
+      const byFile = new Map();
+      for (const [, binding, language, file] of imports) {
+        const key = `${language}/${file}`;
+        byFile.set(key, [...(byFile.get(key) || []), binding]);
+      }
+      for (const [file, bindings] of byFile) {
+        assert.equal(bindings.length, 1, `${file} is imported as ${bindings.join(" and ")}; one bundle, one namespace`);
+      }
+    }
   }
 });
 
