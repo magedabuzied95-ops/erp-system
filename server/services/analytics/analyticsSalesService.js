@@ -282,7 +282,7 @@ const buildMoversQuery = ({ scope, itemColumns, includeCost }) => `
  * return_items, scoped by returns.created_at (a return lands in the period it was
  * processed). Net sales is not net sales without this deduction — R2 and R3 must agree.
  */
-const buildReturnsQuery = ({ scope, returnItemColumns, tenantScoped }) => {
+const buildReturnsQuery = ({ scope, returnItemColumns, orderColumns, tenantScoped }) => {
   const refundExpr = coalesceColumnExpr("ri", returnItemColumns, ["refund_amount", "total", "total_amount"], "0");
   const tenantClause = tenantScoped ? "r.tenant_id = $1 AND" : "";
   return `
@@ -295,7 +295,11 @@ const buildReturnsQuery = ({ scope, returnItemColumns, tenantScoped }) => {
     JOIN returns r ON r.id = ri.return_id
     JOIN orders o ON o.id = r.order_id
     WHERE ${tenantClause}
-      LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')`;
+      LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
+      -- D-21: only deduct a refund whose sale is still in the counted set. A fully
+      -- returned order has its status flipped and has already left every window, so
+      -- deducting its refund as well reverses it twice.
+      AND ${canonicalOrderClauses(orderColumns).clauses.join(" AND ")}`;
 };
 
 const buildOrderTotalsQuery = ({ scope, orderColumns }) => {
@@ -562,7 +566,7 @@ export const getSalesSummary = async ({ filters, permissions = {}, client = db }
     runTimed(client, buildTrendQuery({ scope, itemColumns: columns.itemColumns, includeCost, granularity }), scope.params, timings, "trend"),
     runTimed(client, buildMoversQuery({ scope, itemColumns: columns.itemColumns, includeCost }), scope.params, timings, "movers"),
     columns.returnItemColumns.size
-      ? runTimed(client, buildReturnsQuery({ scope, returnItemColumns: columns.returnItemColumns, tenantScoped: filters.tenantId !== null }), scope.params, timings, "returns")
+      ? runTimed(client, buildReturnsQuery({ scope, returnItemColumns: columns.returnItemColumns, orderColumns: columns.orderColumns, tenantScoped: filters.tenantId !== null }), scope.params, timings, "returns")
       : Promise.resolve({ rows: [{ returns_current: null, returns_previous: null }] }),
   ]);
 

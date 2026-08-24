@@ -323,6 +323,10 @@ const employeeCte = ({ scope, columns, attribution }) => {
       JOIN returns r ON r.id = ri.return_id
       JOIN orders o  ON o.id = r.order_id
       WHERE ${refundTenant}${returnStatus}
+        -- D-21: only deduct a refund whose sale is still in the counted set. A fully
+        -- returned order has already left every window; deducting its refund as a
+        -- negative contribution on top would reverse the same sale twice.
+        AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
       GROUP BY 1, 2, 3, 4, 5
     )`
     : `order_refunds AS (

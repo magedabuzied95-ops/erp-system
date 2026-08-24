@@ -488,3 +488,44 @@ hybrid rule was protecting against: the before/after was measured on production,
 on the page itself, and the canonical definition each now uses is named. D-15 replaces a wrong number with NULL
 rather than a corrected one; D-16 removes orders that no reading of the word "revenue" admits. Nothing else on
 these screens has been changed in place.
+
+---
+
+## D-21 · A refund whose order was already removed is deducted twice — S1 — **FIXED 2026-08-24**
+
+Found by the reconciliation harness the first time a real return landed on production while
+the harness was watching. `customers.customerRevenuePlusWalkIns` read **161 320** while the
+Executive Overview read **159 620** — a constant **1 700** apart at 7, 30, 90 and 365 days,
+which is exactly the total of order #563, returned that afternoon.
+
+**The mechanism.** When a whole order is returned, `returnOrder` flips it to
+`status = 'returned'`. That fails `paidOrderClauses`, so the sale leaves *every* window,
+including the one it was sold in — the ERP erases the sale rather than reversing it at the
+moment of refund. Four separate queries then deducted the refund on top:
+
+| site | behaviour before |
+|---|---|
+| `analyticsOverviewService` returns block | deducted → net sales 1 700 too low |
+| `analyticsSalesService` returns query | deducted |
+| `analyticsCustomersService` per-customer refunds | did **not** deduct (its join drops when the order leaves scope) |
+| `analyticsCustomersService` walk-in refunds | deducted |
+
+So the Overview subtracted revenue that had never been added, and Customers did not — and
+the two screens disagreed by the whole order, with nothing on either page to explain it.
+
+**The fix.** A refund is only a deduction if the sale it reverses is still IN the counted
+set. All four sites now carry `canonicalOrderClauses` on the refunded order. A partial
+return still deducts normally, because a partially returned order keeps a recognised
+status and stays in scope.
+
+**Why not the other way round.** Keeping the sale and deducting the refund would mean
+removing `'returned'` from the canonical predicate, which is `paidOrderClauses` — the
+expression the accounting profit and loss shares. Changing it would move published
+accounting output for every period at once. The narrow fix touches only the reporting
+layer and leaves the canon alone.
+
+**Known consequence, stated rather than hidden.** Because this ERP erases a fully returned
+sale from its original window, a return raised in a later period does not show as a
+deduction in that later period — the revenue simply disappears from the earlier one. That
+is the ERP's model, not a choice made here. It is the same reason `/reports/reconciliation`
+compares net sales rather than gross-minus-returns.

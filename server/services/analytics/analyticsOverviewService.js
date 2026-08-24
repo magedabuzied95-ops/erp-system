@@ -218,6 +218,7 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
          JOIN orders o ON o.id = r.order_id
         WHERE ${scope.returnTenant}
           AND LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
+          AND ${scope.refundedOrderCanonical}
           AND r.created_at >= ${scope.currentFrom}::date AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
       ) AS returns_current,
       (SELECT COALESCE(SUM(${nanSafe(refundExpr)}), 0)
@@ -226,6 +227,7 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
          JOIN orders o ON o.id = r.order_id
         WHERE ${scope.returnTenant}
           AND LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
+          AND ${scope.refundedOrderCanonical}
           AND ${scope.previousFrom ? `r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day')` : "FALSE"}
       ) AS returns_previous,
       (SELECT COUNT(*)::int FROM return_items ri
@@ -471,6 +473,18 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
     itemTenantClause: tenantId !== null && itemColumns.has("tenant_id") ? "WHERE oi.tenant_id = $1" : "",
     itemTenantClauseAnd: tenantId !== null && itemColumns.has("tenant_id") ? "AND oi.tenant_id = $1" : "",
     returnTenant: tenantClause("r", returnColumns),
+    /*
+     * D-21. A refund is only a deduction if the sale it reverses is still IN the counted
+     * set. When a whole order is returned this ERP flips its status to `returned`, which
+     * already removes the sale from every window — deducting the refund on top subtracts
+     * revenue that was never added, and the screens that do not deduct it then disagree
+     * with the ones that do.
+     *
+     * Found by the reconciliation harness the first time a real return landed on
+     * production: customer revenue read 161,320 while the Overview read 159,620, a
+     * constant 1,700 apart at every window, which was exactly the returned order's total.
+     */
+    refundedOrderCanonical: canonicalOrderClauses(orderColumns).clauses.join(" AND "),
     customerTenant: tenantClause("c", customerColumns),
     variantTenant: tenantClause("pv", variantColumns),
     productTenant: tenantClause("p", productColumns),

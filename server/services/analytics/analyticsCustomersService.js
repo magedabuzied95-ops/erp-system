@@ -251,6 +251,8 @@ const customerCte = ({ scope, columns }) => {
       JOIN orders o  ON o.id = r.order_id
       WHERE ${returnTenant}${returnStatus}
         AND o.customer_id IS NOT NULL
+        -- D-21: only deduct a refund whose sale is still in the counted set.
+        AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
       GROUP BY o.customer_id
     )`
     : `customer_returns AS (
@@ -349,6 +351,8 @@ const walkInRefunds = ({ scope, columns }) => {
              JOIN orders o  ON o.id = r.order_id
             WHERE ${tenant}LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
               AND o.customer_id IS NULL
+              -- D-21, on the walk-in side too, or the halves stop adding back up.
+              AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
               AND r.created_at >= ${scope.currentFrom}::date
               AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day'))`;
 };
