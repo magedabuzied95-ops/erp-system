@@ -90,7 +90,7 @@ import {
   normalizeMultiFilterValue,
   toggleMultiFilterValue,
 } from "../lib/posQuickFilterLogic";
-import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
+import { normalizePosCatalogProduct, normalizePosSellableProducts, repricePosCatalogProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
   createOfflineOrderIdempotencyKey,
   listOfflineOrders,
@@ -2474,34 +2474,26 @@ function POSPro() {
         next: Boolean(nextSaleModeEnabled),
         payload,
       });
-      console.debug("POS_SALE_MODE_PUT_PAYLOAD", payload);
-      await api.put("/website/settings", payload);
-      const refreshed = await api.get("/website/settings", {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      }).catch(() => null);
-      const refreshedRawSaleMode =
-        refreshed?.settings?.sale_mode_enabled ??
-        refreshed?.sale_mode_enabled;
-      const parsedRefreshedSaleMode = parseSaleModeEnabled(refreshedRawSaleMode, Boolean(nextSaleModeEnabled));
-      console.log("POS_SALE_MODE_AFTER_SAVE_GET", {
-        response_sale_mode_enabled: refreshedRawSaleMode,
-        refreshed_sale_mode_enabled: parsedRefreshedSaleMode,
-        parsed_sale_mode_enabled: parsedRefreshedSaleMode,
+      // One round trip: the PUT route answers with the saved settings row, so the
+      // follow-up GET the toggle used to make was pure latency.
+      const putResponse = await api.put("/website/settings", payload);
+      const responseSettings = putResponse?.settings && typeof putResponse.settings === "object" ? putResponse.settings : null;
+      const savedRawSaleMode = responseSettings?.sale_mode_enabled ?? putResponse?.sale_mode_enabled;
+      const parsedSavedSaleMode = parseSaleModeEnabled(savedRawSaleMode, Boolean(nextSaleModeEnabled));
+      console.log("POS_SALE_MODE_AFTER_SAVE", {
+        response_sale_mode_enabled: savedRawSaleMode,
+        parsed_sale_mode_enabled: parsedSavedSaleMode,
       });
-      setSaleModeSettings((prev) => ({
-        ...prev,
-        sale_mode_enabled: parsedRefreshedSaleMode,
-      }));
-      persistPosSaleModeEnabled(parsedRefreshedSaleMode);
-      const nextSaleModeSettings = normalizeSaleModeSettings({ sale_mode_enabled: parsedRefreshedSaleMode });
-      const refreshedCatalog = await refreshCatalogProducts({
-        setProducts,
-        setLoading,
-        manageLoading: false,
-        saleModeSettings: nextSaleModeSettings,
+      const nextSaleModeSettings = normalizeSaleModeSettings({
+        ...(responseSettings || saleModeSettings || {}),
+        sale_mode_enabled: parsedSavedSaleMode,
       });
-      catalogFallbackActiveRef.current = false;
+      setSaleModeSettings(nextSaleModeSettings);
+      persistPosSaleModeEnabled(parsedSavedSaleMode);
+      // The toggle changes the pricing RULE, not the catalog data — re-price the
+      // products already in memory instead of re-downloading the ~9MB catalog.
+      const repricedCatalog = repricePosCatalogProducts(products, nextSaleModeSettings);
+      setProducts(repricedCatalog);
       setCart((current) => {
         if (editingOrder?.id) {
           console.log("[cart-reset-blocked-edit-mode]", {
@@ -2511,9 +2503,15 @@ function POSPro() {
           });
           return current;
         }
-        return reconcileCartWithCatalog(current, refreshedCatalog).nextCart;
+        return reconcileCartWithCatalog(current, repricedCatalog).nextCart;
       });
-      toast.success(parsedRefreshedSaleMode ? "Existing sale prices enabled" : "Existing sale prices disabled");
+      // Re-stamp the offline snapshot in the background: the PUT moved the server
+      // catalog-version watermark (it includes website_settings), so without this
+      // the next warm open would see a version mismatch and re-download anyway.
+      void getPosCatalogVersion({})
+        .then((version) => savePosCatalogSnapshot(repricedCatalog, version || ""))
+        .catch(() => {});
+      toast.success(parsedSavedSaleMode ? "Existing sale prices enabled" : "Existing sale prices disabled");
       return nextSaleModeSettings;
     } catch (error) {
       toast.error(error.message || "Failed to save existing sale prices setting");
@@ -2521,7 +2519,7 @@ function POSPro() {
     } finally {
       setSaleModeSaving(false);
     }
-  }, [editingOrder?.id]);
+  }, [editingOrder?.id, products, saleModeSettings]);
 
   useEffect(() => {
     let active = true;
