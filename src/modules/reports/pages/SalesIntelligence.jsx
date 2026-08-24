@@ -8,6 +8,7 @@ import useAnalyticsResource from "../hooks/useAnalyticsResource";
 import { fetchSalesBreakdown, fetchSalesProducts, fetchSalesSizes, fetchSalesSummary } from "../services/salesApi";
 
 import PeriodSelector from "../components/PeriodSelector";
+import ReportExportMenu from "../components/ReportExportMenu";
 import KpiTile from "../components/KpiTile";
 import CoverageBadge from "../components/CoverageBadge";
 import OverviewTrendChart from "../components/OverviewTrendChart";
@@ -107,6 +108,13 @@ export default function SalesIntelligence() {
               onCompareChange={filters.setCompare}
               onRefresh={() => { summary.refresh(); breakdown.refresh(); products.refresh(); sizes.refresh(); }}
               busy={summary.status === "loading" || summary.status === "refreshing"}
+            />
+            <ReportExportMenu
+              reportKey="sales"
+              title={t("salesAnalytics.title")}
+              filters={filters.filters}
+              language={i18n.language}
+              sheets={() => buildSalesSheets({ t, language: i18n.language, showProfit, summary, breakdown, products })}
             />
             <button
               type="button"
@@ -320,3 +328,72 @@ function ActiveFilters({ filters, t, language }) {
     </div>
   );
 }
+
+/**
+ * Export payload for this screen.
+ *
+ * Built from the rows already on the page, so the file and the screen can never
+ * disagree. Profit and margin columns are OMITTED — not blanked — when the caller lacks
+ * the permission, because an export is otherwise a way around a mask the page enforces.
+ */
+const buildSalesSheets = ({ t, language, showProfit, summary, breakdown, products }) => {
+  const sheets = [];
+  const kpis = summary.data?.kpis || {};
+  const metricKeys = Object.keys(kpis).filter((metric) => kpis[metric] && !kpis[metric].restricted);
+
+  if (metricKeys.length) {
+    sheets.push({
+      name: t("salesAnalytics.title"),
+      columns: [
+        { key: "metric", label: t("salesAnalytics.table.product") },
+        { key: "value", label: t("salesAnalytics.table.netSales"), align: "end" },
+        { key: "previous", label: t("overview.compare.label"), align: "end" },
+      ],
+      rows: metricKeys.map((metric) => ({
+        metric: t(`overview.kpi.${metric}`, { defaultValue: metric }),
+        value: kpis[metric].current,
+        previous: kpis[metric].previous ?? null,
+      })),
+    });
+  }
+
+  if (breakdown.data?.rows?.length) {
+    sheets.push({
+      name: t("salesAnalytics.breakdown.title"),
+      columns: [
+        { key: "key", label: t("salesAnalytics.table.product") },
+        { key: "netSales", label: t("salesAnalytics.table.netSales"), align: "end" },
+        { key: "units", label: t("salesAnalytics.table.units"), align: "end" },
+        ...(showProfit
+          ? [
+              { key: "grossProfit", label: t("salesAnalytics.table.profit"), align: "end" },
+              { key: "grossMargin", label: t("salesAnalytics.table.margin"), align: "end", kind: "percent" },
+            ]
+          : []),
+      ],
+      rows: breakdown.data.rows,
+    });
+  }
+
+  if (products.data?.rows?.length) {
+    sheets.push({
+      name: t("salesAnalytics.sections.table"),
+      columns: [
+        { key: "productName", label: t("salesAnalytics.table.product") },
+        { key: "units", label: t("salesAnalytics.table.units"), align: "end" },
+        { key: "netSales", label: t("salesAnalytics.table.netSales"), align: "end" },
+        ...(showProfit
+          ? [
+              { key: "grossProfit", label: t("salesAnalytics.table.profit"), align: "end" },
+              { key: "grossMargin", label: t("salesAnalytics.table.margin"), align: "end", kind: "percent" },
+            ]
+          : []),
+        { key: "discountRate", label: t("salesAnalytics.table.discount"), align: "end", kind: "percent" },
+        { key: "growth", label: t("salesAnalytics.table.change"), align: "end", kind: "percent" },
+      ],
+      rows: products.data.rows,
+    });
+  }
+
+  return { sheets, language };
+};

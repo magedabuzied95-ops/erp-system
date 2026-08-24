@@ -358,9 +358,16 @@ test("every backend warning code and highlight messageKey has Arabic copy", asyn
   }
 });
 
-test("legacy reporting routes are untouched by R2", async () => {
+test("legacy reporting routes survive R2 and are permission-gated", async () => {
   const app = await read("../../src/App.jsx");
-  assert.match(app, /path="reports"\s*\n\s*element=\{<Reports \/>\}/, "the legacy /reports route must remain");
+  // The legacy page still exists — R2 was additive and never replaced it. It is no
+  // longer a bare element: it carries the same reports.view guard as its v2 siblings,
+  // because without it a cashier could open the whole Reports Center.
+  assert.match(
+    app,
+    /path="reports"\s*\n\s*element=\{\s*\n\s*<ProtectedRoute requiredPermissions=\{\["reports\.view"\]\}>\s*\n\s*<Reports \/>/,
+    "the legacy /reports route must remain, behind reports.view"
+  );
   assert.match(app, /path="reports\/overview"/, "the v2 route must be additive");
   assert.match(app, /path="analytics"/, "the legacy /analytics route must remain");
 });
@@ -390,17 +397,25 @@ test("cards are min-w-0 so grid columns can shrink", async () => {
   const layout = await read("../../src/modules/reports/components/ReportsLayout.jsx");
   // A grid item defaults to min-width:auto, which lets a wide child (the chart) pin the
   // column open so it never shrinks back on a narrow viewport.
-  assert.match(layout, /className=\{`flex min-w-0 flex-col rounded-2xl/, "Card must be min-w-0");
+  // The radius comes from the canonical token, not a literal Tailwind step.
+  assert.match(layout, /className=\{`flex min-w-0 flex-col rounded-\[var\(--radius-card\)\]/, "Card must be min-w-0");
   assert.match(layout, /<section className=\{`min-w-0/, "Subtle must be min-w-0");
 });
 
-test("the reporting pages claim more width than the ERP default on a large monitor", async () => {
+test("the reporting pages take the full workspace rather than re-capping width", async () => {
   const layout = await read("../../src/modules/reports/components/ReportsLayout.jsx");
-  // 1480px is the ERP-wide token. Analytics opts into more only above it, so laptops
-  // and the rest of the ERP are unaffected.
-  assert.match(layout, /max-w-\[var\(--content-max\)\]/, "must keep the shared token as the base");
-  assert.match(layout, /2xl:max-w-\[1600px\]/, "must widen on a large desktop");
-  assert.match(layout, /min-\[1800px\]:max-w-\[1680px\]/, "and again on a very large one");
+  // Under the fluid-workspace ruling every operational ERP surface takes the width the
+  // shell offers. These pages used to step 1480 -> 1600 -> 1680px; the caps were removed
+  // deliberately, because a cap re-introduces the empty margin on a wide monitor and
+  // shrinks the trend chart, which is the one element that most needs the room.
+  assert.match(layout, /<div className="mx-auto w-full">/, "the shell must not cap its own width");
+  assert.ok(!/max-w-\[var\(--content-max\)\]/.test(layout), "no --content-max cap");
+  assert.ok(!/max-w-\[1600px\]/.test(layout), "no 1600px step-up");
+  assert.ok(!/max-w-\[1680px\]/.test(layout), "no 1680px step-up");
+
+  // And never re-add horizontal padding: .m1-shell-content already applies --page-inline,
+  // and applying it twice cost ~60px of chart width on a 1920 monitor for no visual gain.
+  assert.ok(!/min-h-full bg-\[var\(--bg\)\][^"]*\bp[xs]-/.test(layout), "no horizontal padding on the page shell");
 
   // The pages must go through the shell rather than setting their own container.
   for (const page of ["ExecutiveOverview", "SalesIntelligence"]) {

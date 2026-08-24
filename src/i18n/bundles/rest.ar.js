@@ -8,6 +8,7 @@ import aiSupport from "../../locales/ar/aiSupport.json";
 import analytics from "../../locales/ar/analytics.json";
 import attendance from "../../locales/ar/attendance.json";
 import branches from "../../locales/ar/branches.json";
+import customerAnalytics from "../../locales/ar/customerAnalytics.json";
 import customers from "../../locales/ar/customers.json";
 import dashboard from "../../locales/ar/dashboard.json";
 import employeePortal from "../../locales/ar/employeePortal.json";
@@ -22,6 +23,7 @@ import overview from "../../locales/ar/overview.json";
 import pos from "../../locales/ar/pos.json";
 import products from "../../locales/ar/products.json";
 import purchases from "../../locales/ar/purchases.json";
+import purchasingAnalytics from "../../locales/ar/purchasingAnalytics.json";
 import reports from "../../locales/ar/reports.json";
 import saas from "../../locales/ar/saas.json";
 import sales from "../../locales/ar/sales.json";
@@ -39,6 +41,7 @@ export default {
   "analytics": analytics,
   "attendance": attendance,
   "branches": branches,
+  "customerAnalytics": customerAnalytics,
   "customers": customers,
   "dashboard": dashboard,
   "employeePortal": employeePortal,
@@ -53,6 +56,7 @@ export default {
   "pos": pos,
   "products": products,
   "purchases": purchases,
+  "purchasingAnalytics": purchasingAnalytics,
   "reports": reports,
   "saas": saas,
   "sales": sales,

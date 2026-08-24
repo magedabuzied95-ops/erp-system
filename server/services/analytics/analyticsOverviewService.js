@@ -642,11 +642,24 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters,
 
   /* -------------------------------------------------------------- categories */
 
-  const categoryTotal = categoryRows.reduce((sum, row) => sum + (Number(row.net_sales) || 0), 0);
+  // Sum through the shared helper, and COUNT what it refused. Number(x) || 0 would let a
+  // non-finite category contribute zero and disappear from the total, understating it
+  // with nothing on screen to say so — the same fault as D-01, one layer up.
+  let unusableCategoryRows = 0;
+  const categoryNet = (row) => {
+    const value = num(row.net_sales);
+    if (value === null) {
+      unusableCategoryRows += 1;
+      return 0;
+    }
+    return value;
+  };
+
+  const categoryTotal = categoryRows.reduce((sum, row) => sum + categoryNet(row), 0);
   const named = categoryRows.filter((row) => row.category);
   const unnamedTotal = categoryRows
     .filter((row) => !row.category)
-    .reduce((sum, row) => sum + (Number(row.net_sales) || 0), 0);
+    .reduce((sum, row) => sum + categoryNet(row), 0);
 
   const TOP_N = 8;
   const top = named.slice(0, TOP_N).map((row) => {
@@ -668,7 +681,7 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters,
 
   // Never let a residual bucket hide a dominant amount: it carries its own value and
   // the number of categories it represents.
-  const remainder = named.slice(TOP_N).reduce((sum, row) => sum + (Number(row.net_sales) || 0), 0) + unnamedTotal;
+  const remainder = named.slice(TOP_N).reduce((sum, row) => sum + categoryNet(row), 0) + unnamedTotal;
   const categories = {
     rows: top,
     other: remainder > 0
@@ -681,6 +694,14 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters,
       : null,
     total: toMoney(categoryTotal),
   };
+
+  if (unusableCategoryRows > 0) {
+    collector.add(
+      WARNING_CODES.NAN_VALUES_IGNORED,
+      "Some category sales totals are not a usable number and were treated as zero, so the category breakdown understates the period.",
+      { rows: unusableCategoryRows, metric: "categories.netSales" }
+    );
+  }
 
   if (unnamedTotal > 0 && categoryTotal > 0 && unnamedTotal / categoryTotal > 0.2) {
     collector.add(WARNING_CODES.UNCATEGORISED_SALES_HIGH, "A large share of sales has no category assigned.", {

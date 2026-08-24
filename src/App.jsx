@@ -164,6 +164,8 @@ const ExecutiveOverview = lazy(() => import("./modules/reports/pages/ExecutiveOv
 const SalesIntelligence = lazy(() => import("./modules/reports/pages/SalesIntelligence"));
 const InventoryIntelligence = lazy(() => import("./modules/reports/pages/InventoryIntelligence"));
 const CouponsPerformance = lazy(() => import("./modules/reports/pages/CouponsPerformance"));
+const PurchasingIntelligence = lazy(() => import("./modules/reports/pages/PurchasingIntelligence"));
+const CustomerIntelligence = lazy(() => import("./modules/reports/pages/CustomerIntelligence"));
 const AnalyticsDashboard = lazy(() => import("./modules/analytics/pages/AnalyticsDashboard"));
 const EmployeeHub = lazy(() => import("./modules/employees/pages/EmployeeHub"));
 const EmployeeSalesPerformance = lazy(() => import("./modules/employees/pages/SalesPerformance"));
@@ -1565,6 +1567,24 @@ function App() {
         />
 
         <Route
+          path="reports/purchasing"
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <PurchasingIntelligence />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/customers"
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <CustomerIntelligence />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="reports/coupons"
           element={
             <ProtectedRoute requiredPermissions={["reports.view"]}>
@@ -1726,9 +1746,19 @@ function App() {
           }
         />
 
+        {/*
+          Legacy analytics. The backend already gates every /api/analytics endpoint on
+          reports.view, but without a route guard the page still mounted and fired nine
+          requests before each was refused — the same shape of gap that let a cashier
+          reach the Reports Center. The guard makes the frontend agree with the backend.
+        */}
         <Route
           path="analytics"
-          element={<AnalyticsDashboard />}
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <AnalyticsDashboard />
+            </ProtectedRoute>
+          }
         />
 
         {/* EMPLOYEES */}

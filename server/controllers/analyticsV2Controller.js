@@ -20,6 +20,17 @@ import {
   getInventorySizes,
   getInventorySummary,
 } from "../services/analytics/analyticsInventoryService.js";
+import {
+  getPurchasingBreakdown,
+  getPurchasingProducts,
+  getPurchasingSummary,
+  getPurchasingSuppliers,
+} from "../services/analytics/analyticsPurchasingService.js";
+import {
+  getCustomersBreakdown,
+  getCustomersList,
+  getCustomersSummary,
+} from "../services/analytics/analyticsCustomersService.js";
 import { resolveAnalyticsPermissions } from "../services/analytics/analyticsScope.js";
 
 export async function getOverview(req, res) {
@@ -111,3 +122,23 @@ export const getInventorySummaryController   = inventoryHandler("summary", getIn
 export const getInventoryBreakdownController = inventoryHandler("breakdown", getInventoryBreakdown);
 export const getInventoryProductsController  = inventoryHandler("products", getInventoryProducts);
 export const getInventorySizesController     = inventoryHandler("sizes", getInventorySizes);
+
+// R5 - Purchasing & Supplier Intelligence. Entry is reports:view like every other
+// analytics screen; every money figure is additionally gated on reports:cost INSIDE the
+// service, which omits the column rather than blanking it after the fact.
+const purchasingHandler = (name, run) => analyticsHandler("purchasing", name, "PURCHASING_QUERY_FAILED", run);
+
+export const getPurchasingSummaryController   = purchasingHandler("summary", getPurchasingSummary);
+export const getPurchasingBreakdownController = purchasingHandler("breakdown", getPurchasingBreakdown);
+export const getPurchasingProductsController  = purchasingHandler("products", getPurchasingProducts);
+export const getPurchasingSuppliersController = purchasingHandler("suppliers", getPurchasingSuppliers);
+
+// R6 - Customer Intelligence. Aggregated only: no phone number and no email address ever
+// leaves these endpoints. The NAMED top-customer list is additionally gated on
+// customers:view inside the service; without it the same rows come back ranked and
+// anonymised, so the shape of the business is still visible without the identities.
+const customersHandler = (name, run) => analyticsHandler("customers", name, "CUSTOMERS_QUERY_FAILED", run);
+
+export const getCustomersSummaryController   = customersHandler("summary", getCustomersSummary);
+export const getCustomersBreakdownController = customersHandler("breakdown", getCustomersBreakdown);
+export const getCustomersListController      = customersHandler("list", getCustomersList);

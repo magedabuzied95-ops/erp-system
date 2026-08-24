@@ -53,7 +53,26 @@
     "stockedProducts": "Stocked products",
     "stockedVariants": "Stocked variants",
     "unitsSoldPeriod": "Sold in period",
-    "netSalesPeriod": "Net sales in period"
+    "netSalesPeriod": "Net sales in period",
+    "purchaseSpend": "Purchase spend",
+    "purchaseOrders": "Purchase orders",
+    "purchaseUnits": "Units purchased",
+    "averagePurchaseValue": "Average purchase",
+    "averageUnitCost": "Average unit cost",
+    "activeSuppliers": "Active suppliers",
+    "purchasedProducts": "Products purchased",
+    "unpaidPurchaseValue": "Unpaid to suppliers",
+    "supplierReturnUnits": "Returned to suppliers",
+    "totalCustomers": "Customers on file",
+    "activeCustomers": "Active customers",
+    "returningCustomers": "Repeat customers",
+    "repeatPurchaseRate": "Repeat purchase rate",
+    "customerOrders": "Customer orders",
+    "customerRevenue": "Customer revenue",
+    "averageCustomerValue": "Value per customer",
+    "ordersPerCustomer": "Orders per customer",
+    "lapsedCustomers": "Lapsed customers",
+    "registeredInWindow": "Registered this period"
   },
   "definition": {
     "netSales": "Total sales after discounts and returns, per the approved reporting rules.",
@@ -67,7 +86,26 @@
     "returns": "Refunded value for returns processed in the period.",
     "returnRate": "Returns as a share of gross sales.",
     "newCustomers": "Customers registered for the first time in the period.",
-    "inventoryValue": "Current on-hand stock valued at cost."
+    "inventoryValue": "Current on-hand stock valued at cost.",
+    "purchaseSpend": "What was owed to suppliers on purchases recognised in this period. Drafts, cancellations and reversals are excluded.",
+    "purchaseOrders": "Number of recognised purchase orders in the period.",
+    "purchaseUnits": "Units received across all purchase lines in the period.",
+    "averagePurchaseValue": "Purchase spend divided by the number of purchase orders.",
+    "averageUnitCost": "Total line value divided by total units. Weighted, so one odd single-unit line cannot distort it.",
+    "activeSuppliers": "Suppliers with at least one recognised purchase in the period.",
+    "purchasedProducts": "Distinct products appearing on purchase lines in the period.",
+    "unpaidPurchaseValue": "Total minus paid, on purchases recognised in this period only. This is not the supplier ledger balance.",
+    "supplierReturnUnits": "Units raised to suppliers in the period. These come from customer returns, so they are not drawn from the units purchased here.",
+    "totalCustomers": "Customer records on file for this tenant.",
+    "activeCustomers": "Customers who placed at least one order in the period.",
+    "returningCustomers": "Active customers who have bought more than once in total.",
+    "repeatPurchaseRate": "Repeat customers as a share of active customers.",
+    "customerOrders": "Orders in the period that are attached to a customer record.",
+    "customerRevenue": "Net sales from orders attached to a customer record. Walk-in sales are excluded.",
+    "averageCustomerValue": "Customer revenue divided by active customers.",
+    "ordersPerCustomer": "Customer orders divided by active customers.",
+    "lapsedCustomers": "Customers who have stopped: at risk plus dormant.",
+    "registeredInWindow": "Customer records created in the period, whether or not they ordered."
   },
   "formula": {
     "netSales": "Gross sales − discounts − returns",
@@ -78,7 +116,26 @@
     "discountRate": "Discounts ÷ gross sales",
     "returnRate": "Returns ÷ gross sales",
     "inventoryValue": "On-hand quantity × unit cost",
-    "itemsSold": "Sum of quantities − returns"
+    "itemsSold": "Sum of quantities − returns",
+    "purchaseSpend": "SUM(purchase total) over recognised purchases",
+    "purchaseOrders": "COUNT(recognised purchases)",
+    "purchaseUnits": "SUM(purchase line quantity)",
+    "averagePurchaseValue": "purchase spend / purchase orders",
+    "averageUnitCost": "SUM(line value) / SUM(line quantity)",
+    "activeSuppliers": "COUNT(DISTINCT supplier)",
+    "purchasedProducts": "COUNT(DISTINCT product on a purchase line)",
+    "unpaidPurchaseValue": "SUM(MAX(total - paid, 0))",
+    "supplierReturnUnits": "SUM(supplier return quantity)",
+    "totalCustomers": "COUNT(customers)",
+    "activeCustomers": "COUNT(DISTINCT customer with an order in the period)",
+    "returningCustomers": "COUNT(active customers with more than one lifetime order)",
+    "repeatPurchaseRate": "repeat customers / active customers",
+    "customerOrders": "COUNT(orders with a customer)",
+    "customerRevenue": "SUM(order revenue) where customer is set",
+    "averageCustomerValue": "customer revenue / active customers",
+    "ordersPerCustomer": "customer orders / active customers",
+    "lapsedCustomers": "at risk + dormant",
+    "registeredInWindow": "COUNT(customers created in the period)"
   },
   "coverage": {
     "label": "Cost coverage",
@@ -155,8 +212,15 @@
     "UNKNOWN_MOVEMENT_TYPE": "Inventory movement types are present that the system does not define; they are excluded from every calculation rather than classified by guess.",
     "VELOCITY_UNKNOWN_AGE": "Some products have no receipt history, so their movement class (fast/slow/stagnant) cannot be determined.",
     "VELOCITY_UNCLASSIFIED": "Some products fall between the classification thresholds and are shown without a movement class.",
-    "DIMENSION_NOT_USABLE": "This dimension has no real segmentation in the current catalogue.",
-    "MISSING_SIZES": "Some sizes exist as variants but currently have no stock."
+    "DIMENSION_NOT_USABLE": "This breakdown has no meaningful split for the data in this period.",
+    "MISSING_SIZES": "Some sizes exist as variants but currently have no stock.",
+    "PURCHASE_LINE_HEADER_DELTA": "Purchase lines do not add up to the purchase totals. Spend figures use the totals; every per-product and per-supplier figure uses the lines, so the two will not match.",
+    "SUPPLIER_RETURN_COHORT_MISMATCH": "Supplier returns are raised from customer returns, so the return rate is not a share of the units purchased in this period. Read it as a signal.",
+    "PRICE_TREND_NEEDS_COMPARISON": "Choose a comparison period to see how each purchase price moved.",
+    "CUSTOMER_TOTALS_DIVERGENCE": "The stored customer total does not match the canonical order total. Every figure here uses the canonical total; the stored column needs rebuilding.",
+    "WALK_IN_ORDERS_EXCLUDED": "Orders with no customer record are excluded from this page, because they cannot be attributed to a customer.",
+    "CUSTOMER_SEGMENT_UNCLASSIFIED": "Customer segmentation produced a class the contract does not describe.",
+    "CUSTOMER_NAMES_RESTRICTED": "Customer names are hidden because this account does not hold the customers permission. Every figure is unaffected."
   },
   "states": {
     "loading": "Loading data...",
@@ -173,5 +237,33 @@
   },
   "actions": {
     "refresh": "Refresh"
+  },
+  "export": {
+    "label": "Export",
+    "working": "Preparing…",
+    "pdf": "PDF",
+    "xlsx": "Excel",
+    "csv": "CSV",
+    "print": "Print",
+    "window": "Period {{from}} to {{to}}",
+    "empty": "There is nothing to export yet.",
+    "failed": "The export could not be produced.",
+    "blocked": "Your browser blocked the print window. Allow pop-ups for this site."
+  },
+  "legacy": {
+    "title": "This is the legacy report",
+    "intro": "These figures are kept for continuity, but a data audit confirmed they are computed differently from the Reporting Center. Where the two disagree, the Reporting Center is the corrected one.",
+    "defect": {
+      "scope": "Revenue here includes cancelled, draft, soft-deleted and personal orders, which the Reporting Center excludes.",
+      "profit": "Gross profit cannot be computed on this page, because order lines carry no cost column. It is shown as unavailable rather than as a number equal to revenue.",
+      "errors": "A failed query on this page returns zero rather than an error, so a zero here may mean a failure.",
+      "stock": "Inventory value here reads a stock column that nothing writes to, so it can disagree with the real stock on hand.",
+      "dates": "Date-filtered product figures on this page silently return nothing, because products carries no created date."
+    },
+    "goTo": {
+      "overview": "Open the Executive Overview",
+      "sales": "Open Sales & Profit Intelligence",
+      "inventory": "Open Inventory Intelligence"
+    }
   }
 }

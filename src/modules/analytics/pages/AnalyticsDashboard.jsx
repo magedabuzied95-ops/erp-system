@@ -42,6 +42,7 @@ import {
 } from "../lib/analyticsExport";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
+import LegacyReportNotice from "../../reports/components/LegacyReportNotice";
 
 const AnalyticsCharts = lazy(async () => {
   const startedAt = performance.now();
@@ -489,6 +490,8 @@ function AnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Same reasoning as the legacy /reports page: named defects, not a vague label. */}
+      <LegacyReportNotice variant="analytics" />
       <div className="rounded-[34px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">

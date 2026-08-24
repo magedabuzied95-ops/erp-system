@@ -1,0 +1,139 @@
+{
+  "title": "Purchasing & Supplier Intelligence",
+  "subtitle": "What you bought, from whom, at what price, and whether that price is moving.",
+  "nav": {
+    "label": "Sections",
+    "overview": "Overview",
+    "relationship": "Buying vs selling",
+    "breakdown": "Breakdown",
+    "suppliers": "Suppliers",
+    "products": "Products"
+  },
+  "groups": {
+    "primary": "Spend",
+    "operating": "Activity",
+    "health": "Exposure"
+  },
+  "sections": {
+    "relationship": "Buying against selling",
+    "concentration": "Supplier concentration",
+    "breakdown": "Spend breakdown",
+    "suppliers": "Supplier performance",
+    "products": "Purchased products and price movement",
+    "highlights": "What to look at"
+  },
+  "relationship": {
+    "subtitle": "Purchase spend against the cost of what actually sold, over the same period.",
+    "spend": "Purchase spend",
+    "cogs": "Cost of goods sold",
+    "netSales": "Net sales",
+    "ratio": "Spend to COGS",
+    "buildingUp": "Buying faster than selling",
+    "drawingDown": "Selling down existing stock",
+    "balanced": "Buying roughly in step with sales",
+    "unavailable": "Nothing sold in this period, so there is no cost to compare against.",
+    "note": "Above 1 means stock is building up; below 1 means it is being drawn down."
+  },
+  "concentration": {
+    "subtitle": "How much of the spend rests on how few suppliers.",
+    "topShare": "Largest supplier",
+    "topThreeShare": "Top three",
+    "hhi": "Concentration index",
+    "suppliers": "Suppliers",
+    "hhiHint": "Sum of squared shares. 1.00 is a single supplier; 0.10 is about ten equal ones.",
+    "unavailable": "Fewer than two suppliers bought from in this period, so there is nothing to concentrate."
+  },
+  "breakdown": {
+    "subtitle": "Attributed from purchase lines, so it will not match the spend total exactly when line and header disagree.",
+    "dimension": {
+      "label": "Group by",
+      "supplier": "Supplier",
+      "product_type": "Product type",
+      "brand": "Brand",
+      "category": "Category"
+    },
+    "columns": {
+      "key": "Name",
+      "spend": "Spend",
+      "share": "Share",
+      "units": "Units",
+      "purchases": "Purchases",
+      "products": "Products",
+      "unitCost": "Avg unit cost",
+      "growth": "Change"
+    },
+    "empty": "No purchases in this period."
+  },
+  "suppliers": {
+    "subtitle": "Spend is per purchase order; units and products come from the lines.",
+    "columns": {
+      "supplier": "Supplier",
+      "spend": "Spend",
+      "share": "Share",
+      "purchases": "Purchases",
+      "units": "Units",
+      "products": "Products",
+      "averagePurchase": "Avg purchase",
+      "unitCost": "Avg unit cost",
+      "costChange": "Cost change",
+      "unpaid": "Unpaid",
+      "returns": "Returns",
+      "lastPurchase": "Last purchase"
+    },
+    "empty": "No supplier was bought from in this period."
+  },
+  "products": {
+    "subtitle": "Unit cost is quantity-weighted. A price change is only shown when both periods have units.",
+    "columns": {
+      "product": "Product",
+      "units": "Units",
+      "spend": "Spend",
+      "unitCost": "Unit cost",
+      "previousCost": "Previous",
+      "costChange": "Change",
+      "purchases": "Purchases",
+      "suppliers": "Suppliers",
+      "lastPurchase": "Last bought"
+    },
+    "priceMove": {
+      "up": "Up",
+      "down": "Down",
+      "stable": "Stable",
+      "unknown": "Not comparable"
+    },
+    "empty": "No product was purchased in this period."
+  },
+  "table": {
+    "search": "Search products",
+    "searchSuppliers": "Search suppliers",
+    "showing": "{{from}}–{{to}} of {{total}}",
+    "prev": "Previous page",
+    "next": "Next page",
+    "empty": "Nothing to show."
+  },
+  "highlights": {
+    "title": "What to look at",
+    "empty": "Nothing needs attention in this period.",
+    "spendUp": "Purchase spend rose {{changePercent}} against the comparison period.",
+    "spendDown": "Purchase spend fell {{changePercent}} against the comparison period.",
+    "stockBuilding": "You spent {{ratio}} times what sold cost. Stock is building up.",
+    "stockDrawdown": "You spent well below what sold cost. Stock is being drawn down.",
+    "concentration": "{{sharePercent}} of spend went to a single supplier.",
+    "unpaid": "{{amountValue}} of this period's purchases is still unpaid.",
+    "supplierReturns": "{{units}} units were raised back to suppliers.",
+    "resumed": "Purchasing restarted after a period with none."
+  },
+  "basis": {
+    "title": "How these figures are built",
+    "spend": "Spend comes from the purchase total — what was owed to the supplier.",
+    "attribution": "Anything per product, category or brand comes from the purchase lines, because a purchase total cannot be attributed to a single product."
+  },
+  "states": {
+    "empty": "There were no purchases in this period.",
+    "emptyHint": "Try a longer period, or clear the filters.",
+    "error": "The purchasing report could not be loaded.",
+    "forbidden": "You do not have access to reports.",
+    "retry": "Try again"
+  },
+  "restricted": "Purchase costs are hidden because this account does not hold the cost permission. Quantities and supplier activity are unaffected."
+}

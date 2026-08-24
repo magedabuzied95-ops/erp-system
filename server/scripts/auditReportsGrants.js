@@ -1,5 +1,6 @@
 /**
- * Audit — and optionally revoke — `reports.*` grants held by POS-facing roles.
+ * Audit — and optionally revoke — reporting and financial-report grants held by
+ * POS-facing roles.
  *
  * `reports.view` is not a small permission: it unlocks every endpoint behind
  * `permit("reports", "view")`, which is the whole Reports Center — company
@@ -7,6 +8,11 @@
  * and the AI insights built on top of them. The server-side Cashier preset in
  * services/rolesService.js never grants it, but the browser-side preset used to,
  * so a role seeded or reset from the Roles screen could pick it up.
+ *
+ * `accounting.view` is audited alongside them. It is not a reporting permission by
+ * name, but it gates /financial-reports/{summary,profit-loss,ledgers,trial-balance,
+ * balance-sheet} — so a role holding it can pull the company P&L whether or not it
+ * holds anything under `reports`. Both Cashier presets used to grant it.
  *
  * Read-only by default. Nothing is written without `--apply`.
  *
@@ -23,6 +29,23 @@ import db from "../database/db.js";
 const argv = process.argv.slice(2);
 const apply = argv.includes("--apply");
 const listEveryRole = argv.includes("--all");
+
+/**
+ * What counts as a sensitive grant.
+ *
+ * An entry with no action covers the whole module. Kept as data so the report, the
+ * DELETE and the console labels cannot end up describing different sets.
+ */
+const TARGET_GRANTS = [
+  { module: "reports" },
+  { module: "accounting", action: "view" },
+];
+
+const grantFilterSql = TARGET_GRANTS.map((grant) =>
+  grant.action ? `(p.module = '${grant.module}' AND p.action = '${grant.action}')` : `p.module = '${grant.module}'`
+).join(" OR ");
+
+const grantLabel = TARGET_GRANTS.map((grant) => `${grant.module}.${grant.action || "*"}`).join(" / ");
 
 const rolesArg = argv.find((value) => value.startsWith("--roles="));
 const DEFAULT_TARGET_ROLES = ["cashier", "pos cashier", "pos"];
@@ -75,13 +98,13 @@ const run = async () => {
     FROM roles r
     JOIN role_permissions rp ON rp.role_id = r.id
     JOIN permissions p ON p.id = rp.permission_id
-    WHERE p.module = 'reports'
-    ORDER BY r.id, p.action
+    WHERE ${grantFilterSql}
+    ORDER BY r.id, p.module, p.action
     `
   );
 
   if (!grants.rows.length) {
-    console.log("No role holds any reports.* permission.");
+    console.log(`No role holds any of: ${grantLabel}.`);
     return;
   }
 
@@ -94,7 +117,7 @@ const run = async () => {
   const byRole = new Map();
   grants.rows.forEach((row) => {
     const entry = byRole.get(row.role_id) || { ...row, actions: [], permissionIds: [] };
-    entry.actions.push(row.action);
+    entry.actions.push(`${row.module}.${row.action}`);
     entry.permissionIds.push(row.permission_id);
     byRole.set(row.role_id, entry);
   });
@@ -102,25 +125,25 @@ const run = async () => {
   const rows = Array.from(byRole.values());
   const flagged = rows.filter(isTarget);
 
-  console.log(`reports.* grants across ${rows.length} role(s):\n`);
+  console.log(`${grantLabel} grants across ${rows.length} role(s):\n`);
   rows.forEach((row) => {
     if (!listEveryRole && !isTarget(row)) return;
     const marker = isTarget(row) ? "  >>" : "    ";
     const tenant = row.tenant_id == null ? "-" : row.tenant_id;
     console.log(
       `${marker} role #${row.role_id} "${row.role_name}"${row.role_slug ? ` (${row.role_slug})` : ""}` +
-        ` tenant=${tenant} users=${row.user_count} :: ${row.actions.map((a) => `reports.${a}`).join(", ")}`
+        ` tenant=${tenant} users=${row.user_count} :: ${row.actions.join(", ")}`
     );
   });
 
   if (!listEveryRole) {
     console.log(
-      `\n(${rows.length - flagged.length} other role(s) also hold reports.* — re-run with --all to list them.)`
+      `\n(${rows.length - flagged.length} other role(s) also hold one of these — re-run with --all to list them.)`
     );
   }
 
   if (!flagged.length) {
-    console.log(`\nNone of the targeted roles (${targetRoles.join(", ")}) hold reports.*. Nothing to revoke.`);
+    console.log(`\nNone of the targeted roles (${targetRoles.join(", ")}) hold ${grantLabel}. Nothing to revoke.`);
     return;
   }
 
@@ -128,7 +151,7 @@ const run = async () => {
 
   if (!apply) {
     console.log(
-      `\nDRY RUN. ${flagged.length} targeted role(s), ${affectedUsers} user(s) would lose reports.*.` +
+      `\nDRY RUN. ${flagged.length} targeted role(s), ${affectedUsers} user(s) would lose ${grantLabel}.` +
         `\nRe-run with --apply to revoke.`
     );
     return;
@@ -140,7 +163,7 @@ const run = async () => {
     DELETE FROM role_permissions rp
     USING permissions p
     WHERE rp.permission_id = p.id
-      AND p.module = 'reports'
+      AND (${grantFilterSql})
       AND rp.role_id = ANY($1::bigint[])
     `,
     [roleIds]

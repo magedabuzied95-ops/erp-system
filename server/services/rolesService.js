@@ -314,7 +314,9 @@ const ROLE_SEED_DEFINITIONS = [
       "loyalty.redeem",
       "attendance.view",
       "attendance.create",
-      "accounting.view",
+      // accounting.view removed: it gates the financial reports (P&L, ledgers, trial
+      // balance, balance sheet) and POS never calls anything behind it. Its only
+      // accounting call, createManualMoneyAdjustment, gates on money_transactions.adjust.
       "employees.view",
       "settings.view",
       "notifications.view",

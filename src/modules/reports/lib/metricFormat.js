@@ -27,6 +27,27 @@ export const METRIC_KIND = Object.freeze({
   stockedVariants: "integer",
   unitsSoldPeriod: "integer",
   netSalesPeriod: "currency",
+  // R5 purchasing metrics.
+  purchaseSpend: "currency",
+  purchaseOrders: "integer",
+  purchaseUnits: "integer",
+  averagePurchaseValue: "currency",
+  averageUnitCost: "currency",
+  activeSuppliers: "integer",
+  purchasedProducts: "integer",
+  unpaidPurchaseValue: "currency",
+  supplierReturnUnits: "integer",
+  // R6 customer metrics.
+  totalCustomers: "integer",
+  activeCustomers: "integer",
+  returningCustomers: "integer",
+  repeatPurchaseRate: "percent",
+  customerOrders: "integer",
+  customerRevenue: "currency",
+  averageCustomerValue: "currency",
+  ordersPerCustomer: "decimal",
+  lapsedCustomers: "integer",
+  registeredInWindow: "integer",
 });
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);

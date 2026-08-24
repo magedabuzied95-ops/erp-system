@@ -31,6 +31,7 @@ const ENTERPRISE_GROUPS = [
   "Products & Inventory",
   "Purchasing",
   "Employees",
+  "Reports",
   "Finance",
   "AI & Marketing",
   "System Settings",
@@ -43,6 +44,7 @@ const GROUP_TITLE_KEYS = {
   "Products & Inventory": "sidebar.groups.productsInventory",
   Purchasing: "sidebar.groups.purchasing",
   Employees: "sidebar.groups.employees",
+  Reports: "sidebar.groups.reports",
   Finance: "sidebar.groups.finance",
   "AI & Marketing": "sidebar.groups.aiMarketing",
   "System Settings": "sidebar.groups.systemSettings",
@@ -209,14 +211,16 @@ const sidebarItemMatchesSearch = (item, groupTitle, query) => {
 const groupForSidebarItem = (sectionTitle, item) => {
   const to = String(item.to || "");
 
-  if (sectionTitle === "Employees" && to === "/reports") return "Employees";
+  // Everything under /reports belongs to the Reporting Center group, wherever the
+  // permission matrix happens to have declared it.
+  if (to === "/reports" || to.startsWith("/reports/")) return "Reports";
   if (to === "/dashboard" || to === "/workspace" || to === "/notifications") return "Main";
   if (to === "/pos" || to === "/orders" || to === "/orders?channel=website" || to === "/orders/returns" || to === "/customers") return "Sales";
   if (to === "/operations/shipping") return "Operations";
   if (to === "/products" || to === "/products/add" || to === "/inventory" || to === "/inventory/count" || to === "/warehouses" || to === "/stock-transfers") return "Products & Inventory";
   if (to === "/purchases" || to === "/suppliers") return "Purchasing";
   if (to === "/employees" || to.startsWith("/employees/")) return "Employees";
-  if (to === "/accounting" || to === "/expenses" || to === "/reports" || to === "/reports/overview" || to === "/reports/sales" || to === "/reports/inventory" || to === "/reports/coupons") return "Finance";
+  if (to === "/accounting" || to === "/expenses") return "Finance";
   if (to === "/marketing/ai-center" || to === "/admin/ai-inbox" || to === "/admin/ai-followups" || to === "/admin/ai-agent-analytics" || to === "/admin/ai-support-knowledge-base" || to === "/admin/ai-agent-settings") return "AI & Marketing";
   if (to === "/branches" || to === "/settings/users" || to === "/admin/tenants" || to === "/settings/permissions" || to === "/settings/company" || to === "/settings/storefront" || to === "/settings/shipping" || to === "/settings/payments" || to === "/settings") return "System Settings";
 
@@ -277,8 +281,19 @@ const buildEnterpriseSidebarGroups = (sections) => {
     Operations: ["/operations/shipping"],
     "Products & Inventory": ["/products", "/products/add", "/inventory", "/inventory/count", "/warehouses", "/stock-transfers"],
     Purchasing: ["/purchases", "/suppliers"],
-    Employees: ["/employees", "/employees/attendance", "/reports"],
-    Finance: ["/accounting", "/expenses", "/reports/overview", "/reports/sales", "/reports/inventory", "/reports/coupons", "/reports"],
+    Employees: ["/employees", "/employees/attendance"],
+    // Current Reporting Center first, in the order a manager reads them; the legacy page
+    // stays reachable but sits last so it never reads as the primary report.
+    Reports: [
+      "/reports/overview",
+      "/reports/sales",
+      "/reports/inventory",
+      "/reports/purchasing",
+      "/reports/customers",
+      "/reports/coupons",
+      "/reports",
+    ],
+    Finance: ["/accounting", "/expenses"],
     "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
     "System Settings": ["/settings", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments", "/branches", "/settings/users", "/admin/tenants", "/settings/permissions"],
   };

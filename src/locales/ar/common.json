@@ -879,7 +879,8 @@
       "employees": "الموظفون",
       "finance": "المالية",
       "aiMarketing": "الذكاء والتسويق",
-      "systemSettings": "إعدادات النظام"
+      "systemSettings": "إعدادات النظام",
+      "reports": "التقارير"
     },
     "searchModules": "بحث في الوحدات...",
     "executiveOverview": "النظرة التنفيذية",

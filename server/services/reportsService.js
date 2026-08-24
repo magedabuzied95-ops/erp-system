@@ -203,7 +203,13 @@ const buildOrderScope = async (tenantId, filters) => {
   const itemColumns = await getColumns("order_items");
   const productColumns = await getColumns("products");
   const totalExpr = col("o", orderColumns, ["total_amount", "total", "grand_total", "net_total"], "0");
+  // D-15. order_items carries NONE of these columns, so this resolved to the literal
+  // "0" and every "gross profit" on this page was revenue minus nothing — that is,
+  // revenue, presented as profit. The expression is kept for the day a cost column
+  // exists, and costResolved records whether it found one, so a query can publish NULL
+  // instead of a number that is definitionally wrong.
   const costExpr = col("oi", itemColumns, ["cost_total", "purchase_cost", "cost"], "0");
+  const costResolved = costExpr !== "0";
   const qtyExpr = col("oi", itemColumns, ["quantity", "qty"], "0");
   const itemTotalExpr = col("oi", itemColumns, ["total_amount", "total", "line_total", "subtotal"], "0");
   const createdExpr = col("o", orderColumns, ["created_at", "order_date", "date"], "CURRENT_DATE");
@@ -218,7 +224,7 @@ const buildOrderScope = async (tenantId, filters) => {
     ],
   });
 
-  return { orderColumns, itemColumns, productColumns, totalExpr, costExpr, qtyExpr, itemTotalExpr, createdExpr, where };
+  return { orderColumns, itemColumns, productColumns, totalExpr, costExpr, costResolved, qtyExpr, itemTotalExpr, createdExpr, where };
 };
 
 export const getDashboardReport = async ({ tenantId, filters }) => {
@@ -387,7 +393,9 @@ export const getSalesRows = async (tenantId, filters, options = {}) => {
         ${productName} AS name,
         COALESCE(SUM(${orders.qtyExpr}), 0)::numeric AS quantity,
         COALESCE(SUM(${orders.itemTotalExpr}), 0)::numeric AS revenue,
-        COALESCE(SUM(${orders.itemTotalExpr}) - SUM(${orders.costExpr}), 0)::numeric AS gross_profit
+        ${orders.costResolved
+          ? `COALESCE(SUM(${orders.itemTotalExpr}) - SUM(${orders.costExpr}), 0)::numeric`
+          : "NULL::numeric"} AS gross_profit
       FROM order_items oi
       LEFT JOIN orders o ON o.id = oi.order_id
       LEFT JOIN products p ON p.id = oi.product_id

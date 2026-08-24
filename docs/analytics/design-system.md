@@ -3,6 +3,11 @@
 Frozen 2026-08-11 after R3.6 and the micro-pass. R2 (`/reports/overview`) and R3
 (`/reports/sales`) are the reference implementations.
 
+**Amended 2026-08-24**, when R5 (purchasing) and R6 (customers) were built against it and
+the export engine landed. Two amendments only, both marked below: the width rule changed
+under the fluid-workspace ruling, and four shared components were added rather than being
+forked per page. Everything else is unchanged.
+
 **New reporting pages reuse these patterns. They do not invent new ones.** If a pattern
 genuinely does not fit, extend the shared component rather than forking a local variant.
 
@@ -22,8 +27,17 @@ genuinely does not fit, extend the shared component rather than forking a local 
 page** — the app shell's `.m1-shell-content` already applies `--page-inline`, and doing
 it again costs ~60px of chart width on a wide monitor.
 
-Width: `max-w-[var(--content-max)]` (1480, shared with the ERP) → `2xl:max-w-[1600px]`
-→ `min-[1800px]:max-w-[1680px]`. The global token is never changed.
+Width: **no cap.** The page takes the full workspace the shell offers
+(`<div className="mx-auto w-full">`).
+
+> **Amended 2026-08-24.** This used to step 1480 → 1600 → 1680px. The fluid-workspace
+> ruling removed the caps from every operational ERP surface, and the Reporting Center is
+> operational rather than a reading view: charts, tables and the quadrant matrix all gain
+> from the room. A cap here re-introduces the empty margin on a wide monitor and shrinks
+> the trend chart, which is the one element that most needs the width.
+>
+> The guard in `tests/analytics/analytics-overview-ui.test.js` is inverted accordingly:
+> it now fails if a cap is ever re-added.
 
 ## 2. Card hierarchy
 
@@ -34,6 +48,7 @@ Two surfaces only, so the page has few perceived layers:
 | `Card` | An elevated panel with a header rule. For charts, tables, contribution panels. |
 | `Subtle` | A grouped area with just a heading — no border, no elevation. For KPI clusters. |
 | `SectionCard` | `Card` plus per-section loading / error / retry / collapse. R3-style sections. |
+| `LegacyReportNotice` | The named-defect banner at the top of `/reports` and `/analytics`. Not dismissible. |
 
 Grids use `items-start` so a card is as tall as its content and never stretches to match
 a taller neighbour.
@@ -92,6 +107,47 @@ was handed. Permission-gated columns are removed, not blanked.
 The table is the only thing allowed to exceed the viewport, and only inside its own
 scroller. `document.scrollWidth` must never exceed `clientWidth`.
 
+## 8b. Shared analytical components — added 2026-08-24
+
+R5 and R6 needed four more tables and three more breakdowns between them. Four more forks
+of the same sorting, paging and search machinery would have been four more places for a
+pagination bug to live, so these are shared. R3's `ProductTable` and R4's
+`InventoryTable` stay as they are — their cells are genuinely different (a thumbnail, a
+velocity chip) and rewriting working screens buys nothing.
+
+| Component | Use |
+|---|---|
+| `AnalyticsTable` | A table described by a column spec. Server-side sort/search/page, sticky header, bounded scroller. A column with `visible: false` is **not rendered at all**, never rendered empty. |
+| `Blank` | The one place a missing analytical value is drawn: an em dash. Never a zero. |
+| `BreakdownBars` | A one-dimension breakdown as proportional bars rather than a pie. Two adjacent pie slices are hard to compare and need a legend; a sorted bar list puts the label, the number and the proportion on one line and reads the same in both directions. Scales against the largest row, not the total, so a long tail does not collapse into slivers. Says how many rows it did not draw. |
+| `SeriesChart` | A time series described by a series spec, for pages that are not the Overview's specific net-sales-and-profit shape. Same dual resize measurement as `OverviewTrendChart`, for the same reason. A null point stays null so recharts draws a gap. |
+| `ReportExportMenu` | The export control. Takes a thunk over the rows the page already rendered. |
+
+## 8c. Exports — `lib/reportExport.js`
+
+One engine, four formats, every reporting page. It takes the rows the page has already
+rendered rather than issuing its own request, so a file can never disagree with the screen
+it came from — and a column hidden because the caller lacks `reports:cost` is absent from
+the file rather than blank in it.
+
+**Arabic PDF.** jsPDF's built-in faces carry no Arabic glyphs and no shaping, which is why
+every legacy PDF rendered Arabic as empty boxes. The engine embeds
+`server/assets/fonts/NotoSansArabic.ttf` into the document VFS and runs each string
+through `doc.processArabic()`, which shapes **and** visually reorders.
+**`setR2L` must stay false afterwards** — turning it on reverses an already-reordered
+string into mirrored gibberish. Column order is reversed for Arabic and every cell
+right-aligned, because autoTable has no RTL mode of its own.
+
+**CSV** carries a UTF-8 BOM; without it Excel on Windows reads the file as the system
+codepage and turns every Arabic column into mojibake. **Excel** keeps numbers numeric so a
+column can be summed, sizes columns from the longest cell and freezes the header.
+**Print** opens a purpose-built document rather than fighting the sidebar, the section
+navigator and a self-measuring chart through a print stylesheet.
+
+Every format carries the report title, the period, the comparison and the company name —
+read from settings, and left EMPTY when unknown rather than stamping a hardcoded shop name
+onto someone else's financial document.
+
 ## 9. Empty / error / loading states
 
 Every state says what happened and why. A bare frame is a bug — see the three size-analysis
@@ -126,8 +182,7 @@ compacts the number only, never the currency string.
 
 | Width | Behaviour |
 |---|---|
-| ≥1800 | 1680px content |
-| ≥1536 (`2xl`) | 1600px content, larger type step |
+| ≥1536 (`2xl`) | Larger type step, wider grid gaps |
 | ≥1280 (`xl`) | Two-column analytical grids |
 | ≥1024 (`lg`) | Section navigator visible; analytical sections open |
 | <1024 | Sections collapse; navigator hidden |

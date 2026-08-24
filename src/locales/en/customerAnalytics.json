@@ -1,0 +1,130 @@
+{
+  "title": "Customer Intelligence",
+  "subtitle": "Which parts of the customer base are growing, and which are slipping away.",
+  "nav": {
+    "label": "Sections",
+    "overview": "Overview",
+    "segments": "Segments",
+    "breakdown": "Breakdown",
+    "customers": "Customers"
+  },
+  "groups": {
+    "primary": "The base",
+    "operating": "Behaviour",
+    "health": "Retention"
+  },
+  "sections": {
+    "segments": "Behaviour against loyalty tier",
+    "trend": "Customers over time",
+    "breakdown": "Breakdown",
+    "customers": "Top customers",
+    "highlights": "What to look at"
+  },
+  "segment": {
+    "new": "New",
+    "new_repeat": "New, already repeating",
+    "active_repeat": "Returning",
+    "recent": "Recent, outside this period",
+    "at_risk": "At risk",
+    "dormant": "Dormant",
+    "never_ordered": "Never ordered"
+  },
+  "segmentHint": {
+    "new": "First order ever fell inside this period.",
+    "new_repeat": "Won in this period and has already bought again.",
+    "active_repeat": "Bought before this period and bought again inside it.",
+    "recent": "Bought within {{atRisk}} days, but not inside the selected period.",
+    "at_risk": "No order for {{atRisk}} days or more.",
+    "dormant": "No order for {{dormant}} days or more.",
+    "never_ordered": "A customer record with no recognised order."
+  },
+  "segments": {
+    "subtitle": "Behaviour is what the orders say; the tier is what the loyalty programme decided. They disagree, and the disagreement is the useful part.",
+    "behaviour": "By behaviour",
+    "tier": "By loyalty tier",
+    "customers": "Customers",
+    "revenue": "Revenue",
+    "orders": "Orders",
+    "lapsed": "Lapsed",
+    "lapsedHint": "Customers on this tier who have stopped buying.",
+    "empty": "No customer ordered in this period."
+  },
+  "trend": {
+    "subtitle": "Active customers and newly won customers, per bucket.",
+    "active": "Active",
+    "new": "New",
+    "revenue": "Revenue",
+    "empty": "No customer activity in this period."
+  },
+  "breakdown": {
+    "subtitle": "Every figure is computed from orders, never from the stored customer totals.",
+    "dimension": {
+      "label": "Group by",
+      "segment": "Behaviour",
+      "tier": "Loyalty tier",
+      "channel": "Channel",
+      "branch": "Branch"
+    },
+    "columns": {
+      "key": "Name",
+      "customers": "Customers",
+      "active": "Active",
+      "orders": "Orders",
+      "units": "Units",
+      "revenue": "Revenue",
+      "share": "Share",
+      "perCustomer": "Per customer",
+      "averageOrder": "Avg order",
+      "growth": "Change"
+    },
+    "empty": "Nothing to break down in this period."
+  },
+  "customers": {
+    "subtitle": "Ranked by net sales in the selected period.",
+    "columns": {
+      "customer": "Customer",
+      "segment": "Behaviour",
+      "tier": "Tier",
+      "orders": "Orders",
+      "units": "Units",
+      "netSales": "Net sales",
+      "share": "Share",
+      "averageOrder": "Avg order",
+      "lifetime": "Lifetime",
+      "lastOrder": "Last order",
+      "sinceLast": "Days since"
+    },
+    "anonymised": "Customer #{{rank}}",
+    "empty": "No customer ordered in this period."
+  },
+  "table": {
+    "search": "Search customers",
+    "showing": "{{from}}–{{to}} of {{total}}",
+    "prev": "Previous page",
+    "next": "Next page",
+    "empty": "Nothing to show."
+  },
+  "highlights": {
+    "title": "What to look at",
+    "empty": "Nothing needs attention in this period.",
+    "lapsedExceedsEngaged": "{{lapsed}} customers have stopped buying, against {{engaged}} still active.",
+    "atRisk": "{{customers}} customers have not bought for {{afterDays}} days or more.",
+    "newCustomers": "{{customers}} new customers, {{alreadyRepeated}} of whom have already bought again.",
+    "baseGrowing": "The active customer base grew {{changePercent}} against the comparison period.",
+    "baseShrinking": "The active customer base shrank {{changePercent}} against the comparison period.",
+    "noRepeat": "None of the {{active}} customers who bought this period has bought more than once."
+  },
+  "privacy": {
+    "title": "What this page does not carry",
+    "contact": "Phone numbers and email addresses are never returned by this report, for any account.",
+    "namesVisible": "Customer names are visible because this account holds the customers permission.",
+    "namesHidden": "Customer names are hidden. Every figure on this page is unaffected."
+  },
+  "states": {
+    "empty": "No customer ordered in this period.",
+    "emptyHint": "Try a longer period, or clear the filters.",
+    "error": "The customer report could not be loaded.",
+    "forbidden": "You do not have access to reports.",
+    "retry": "Try again"
+  }
+}

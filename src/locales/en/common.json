@@ -866,7 +866,8 @@
       "employees": "Employees",
       "finance": "Finance",
       "aiMarketing": "AI & Marketing",
-      "systemSettings": "System Settings"
+      "systemSettings": "System Settings",
+      "reports": "Reports"
     },
     "noMatchingModules": "No matching modules found",
     "quickAccess": {

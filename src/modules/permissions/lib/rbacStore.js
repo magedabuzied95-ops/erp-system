@@ -14,6 +14,8 @@ import {
   Settings2,
   ShoppingBag,
   ShoppingCart,
+  PackageSearch,
+  UserRoundSearch,
   Sparkles,
   Store,
   TrendingUp,
@@ -349,7 +351,11 @@ export const DEFAULT_ROLES = [
       "loyalty.redeem",
       "attendance.view",
       "attendance.create",
-      "accounting.view",
+      // No `accounting.view` either, for the same reason as `reports`. It gates
+      // /financial-reports/{summary,profit-loss,ledgers,trial-balance,balance-sheet},
+      // so a cashier holding it can pull the company P&L. POS does not need it: the
+      // only accounting call the POS module makes is createManualMoneyAdjustment, and
+      // that gates on money_transactions.adjust, which this preset does not grant.
       "employees.view",
       "settings.view",
       "notifications.view",
@@ -475,6 +481,8 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Executive Overview", to: "/reports/overview", permission: "reports.view", icon: LineChart, keywords: "overview executive analytics reporting center نظرة تنفيذية تحليلات" },
       { label: "Sales Intelligence", to: "/reports/sales", permission: "reports.view", icon: TrendingUp, keywords: "sales profit intelligence products sizes ذكاء المبيعات الأرباح المقاسات" },
       { label: "Inventory Intelligence", to: "/reports/inventory", permission: "reports.view", icon: Boxes, keywords: "inventory stock value velocity dead slow sizes ذكاء المخزون قيمة المخزون الركود المقاسات" },
+      { label: "Purchasing Intelligence", to: "/reports/purchasing", permission: "reports.view", icon: PackageSearch, keywords: "purchasing suppliers spend cost price supplier concentration ذكاء المشتريات الموردين الإنفاق تكلفة الشراء" },
+      { label: "Customer Intelligence", to: "/reports/customers", permission: "reports.view", icon: UserRoundSearch, keywords: "customers segments retention repeat churn loyalty ذكاء العملاء الفئات الاحتفاظ التكرار" },
       { label: "Coupon Performance", to: "/reports/coupons", permission: "reports.view", icon: TicketPercent, keywords: "coupon coupons campaign redemption discount أداء الكوبونات حملات الخصم الاستخدام" },
       { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],
