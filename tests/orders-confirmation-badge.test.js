@@ -119,3 +119,26 @@ test("the orders list renders the badge in both the table and the kanban card", 
   );
   assert.match(kanbanCard, /<ConfirmationBadge order=\{order\} compact \/>/);
 });
+
+test("a customer's WhatsApp action updates the open orders list without a manual reload", () => {
+  // The page only ever listened for `new_order`, so an edit or cancellation arriving from WhatsApp
+  // left staff looking at the state the list was loaded with (INV-660 read "طلب تعديل" long after
+  // the customer had cancelled it).
+  const confirmationService = fs.readFileSync(
+    new URL("../server/services/whatsappOrderConfirmationService.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(confirmationService, /emitToRooms\(\[`tenant:\$\{tenantId\}`\], "order_updated"/);
+  assert.match(confirmationService, /order: updatedOrder,/);
+
+  assert.match(dashboardSource, /socket\.on\("order_updated", handleOrderUpdated\)/);
+  assert.match(dashboardSource, /socket\.off\("order_updated", handleOrderUpdated\)/);
+  const handler = dashboardSource.slice(
+    dashboardSource.indexOf("const handleOrderUpdated = (payload) => {"),
+    dashboardSource.indexOf('socket.on("new_order"')
+  );
+  // it must patch the existing row, not append a duplicate
+  assert.match(handler, /findIndex/);
+  assert.match(handler, /if \(index === -1\) return prev/);
+  assert.match(handler, /normalizeOrder\(\{ \.\.\.prev\[index\], \.\.\.updated \}/);
+});

@@ -682,8 +682,27 @@ function OrdersDashboard() {
       setOrders((prev) => [normalizeOrder(newOrder, { items: [] }), ...prev]);
     };
 
+    // A customer confirming, editing or cancelling from WhatsApp changes the row while staff are
+    // looking at it. Without this the list kept showing the state it was loaded with.
+    const handleOrderUpdated = (payload) => {
+      const updated = payload?.order;
+      if (!updated?.id) return;
+      setOrders((prev) => {
+        const index = prev.findIndex((order) => String(order.id) === String(updated.id));
+        if (index === -1) return prev;
+        const next = prev.slice();
+        // Keep the items/details the list already loaded — the socket payload carries the order row only.
+        next[index] = normalizeOrder({ ...prev[index], ...updated }, { items: prev[index]?.items || [] });
+        return next;
+      });
+    };
+
     socket.on("new_order", handleNewOrder);
-    return () => socket.off("new_order", handleNewOrder);
+    socket.on("order_updated", handleOrderUpdated);
+    return () => {
+      socket.off("new_order", handleNewOrder);
+      socket.off("order_updated", handleOrderUpdated);
+    };
   }, [loadOrders]);
 
   useEffect(() => {

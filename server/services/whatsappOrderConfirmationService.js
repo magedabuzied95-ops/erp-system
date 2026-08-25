@@ -2178,6 +2178,18 @@ export const processConfirmationReply = async (message = {}) => {
         at: new Date().toISOString(),
       });
     }
+    if (tenantId) {
+      // The orders page only ever listened for `new_order`, so a customer confirming, editing or
+      // cancelling from WhatsApp changed the row underneath a staff member who kept seeing the old
+      // state until they reloaded by hand. Carry the updated order so the list can patch in place.
+      emitToRooms([`tenant:${tenantId}`], "order_updated", {
+        tenant_id: tenantId,
+        order_id: updatedOrder.id,
+        action,
+        order: updatedOrder,
+        at: new Date().toISOString(),
+      });
+    }
 
     return {
       action: action === "edit" ? "edit_requested" : action === "cancel" ? "cancelled_by_customer" : "confirmed",
