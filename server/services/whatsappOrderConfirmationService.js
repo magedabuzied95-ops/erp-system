@@ -9,7 +9,7 @@ import {
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
 import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
-import { buildInvoiceReceiptWhatsappMessage, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
+import { buildInvoiceReceiptWhatsappMessage, INVOICE_RECEIPT_GREETING, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -1095,8 +1095,11 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
     try {
       result = await sendCtaUrlMessage({
         phone,
-        title: "شكراً لثقتكم بنا",
-        text: message,
+        // Evolution always renders the title, so it cannot be blank ("**") or absent
+        // ("*undefined*"). The receipt's own greeting becomes that header, and the body drops it
+        // so it is not printed twice.
+        title: INVOICE_RECEIPT_GREETING,
+        text: buildInvoiceReceiptWhatsappMessage({ invoiceNumber, invoiceUrl, withGreeting: false }),
         footer: "M1 Store",
         displayText: "⭐ قيّمنا على جوجل",
         url: getGoogleReviewUrl(),

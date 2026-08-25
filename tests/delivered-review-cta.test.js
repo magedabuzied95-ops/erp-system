@@ -91,3 +91,32 @@ test("both review asks use the same label and the same link", () => {
     assert.ok(!/g\.page\/r\//.test(src), "the Place ID lives in one place only");
   }
 });
+
+test("a CTA title is always non-empty and never repeats the body", () => {
+  // Evolution always renders the title: blank prints "**" on the phone, omitting the key prints
+  // "*undefined*". So the header has to carry real words - and not the same words as line one.
+  for (const [name, src] of [["delivery", shipping], ["receipt", confirmation]]) {
+    const from = src.indexOf("sendCtaUrlMessage({");
+    assert.ok(from > -1, name + " sends a CTA");
+    const call = src.slice(from, src.indexOf("});", from));
+    const title = (call.match(/title: ([A-Za-z_][A-Za-z0-9_.]*|"[^"]*")/) || [])[1];
+    assert.ok(title, name + " passes a title");
+    assert.notEqual(title, '""', name + " title must not be blank - it renders as **");
+  }
+});
+
+test("the receipt greeting moves into the title instead of being printed twice", () => {
+  const from = confirmation.indexOf("sendCtaUrlMessage({");
+  const call = confirmation.slice(from, confirmation.indexOf("});", from));
+  assert.ok(call.includes("title: INVOICE_RECEIPT_GREETING"), "the greeting is the header");
+  assert.ok(call.includes("withGreeting: false"), "and the body drops it");
+  assert.ok(call.includes("fallbackText: message"), "the plain fallback keeps the full text");
+});
+
+test("the delivery headline comes from the editable template, not a hardcoded string", () => {
+  assert.ok(shipping.includes("const [deliveredHeadline"), "the headline is split off the template");
+  const from = shipping.indexOf("sendCtaUrlMessage({");
+  const call = shipping.slice(from, shipping.indexOf("});", from));
+  assert.ok(call.includes("title: deliveredHeadline"), "the header is the template first line");
+  assert.ok(call.includes("text: deliveredBody"), "the body is the remainder");
+});

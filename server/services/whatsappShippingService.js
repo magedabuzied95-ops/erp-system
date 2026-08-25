@@ -132,13 +132,21 @@ const sendShippingNotification = async (order = {}, type) => {
     // reply buttons, so this is the whole message; if the button cannot render, sendCtaUrlMessage
     // falls back to text and the customer still gets told their parcel arrived.
     const reviewUrl = type === "delivered" ? getGoogleReviewUrl() : "";
+    // Split the rendered template on its first blank line: the headline becomes the CTA header,
+    // the remainder the body. Templates are editable, so this reads them rather than hardcoding.
+    const [deliveredHeadline, ...deliveredRest] = String(message).split(/\n\s*\n/);
+    const deliveredBody = deliveredRest.join("\n\n").trim();
+
     let result;
     if (reviewUrl) {
       try {
         result = await sendCtaUrlMessage({
           phone,
-          title: "رأيك يهمنا",
-          text: message,
+          // Evolution always renders the title — blank prints "**", absent prints "*undefined*".
+          // The delivery template opens with its own headline, so that line becomes the header
+          // and the body carries the rest; the news stays first and nothing is said twice.
+          title: deliveredHeadline,
+          text: deliveredBody,
           footer: "M1 Store",
           displayText: "⭐ قيّمنا على جوجل",
           url: reviewUrl,
