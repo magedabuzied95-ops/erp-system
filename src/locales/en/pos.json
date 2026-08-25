@@ -547,14 +547,17 @@
       "return": "Return",
       "edit": "Edit",
       "permanentDelete": "Permanent delete",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "whatsapp": "WhatsApp"
     },
     "toasts": {
       "reprintQueued": "The invoice was queued for printing again",
       "cannotReturn": "This invoice cannot be returned",
       "deleteConfirmRequired": "Type DELETE to confirm",
       "deleted": "The invoice was permanently deleted",
-      "selectItemsToReturn": "Select the products to return"
+      "selectItemsToReturn": "Select the products to return",
+      "whatsappResent": "Invoice {{invoice}} was sent on WhatsApp",
+      "whatsappResendFailed": "The invoice could not be sent on WhatsApp"
     },
     "deleteModal": {
       "title": "Permanent delete",
@@ -600,6 +603,26 @@
       "total": "Total",
       "history": "Invoice history",
       "noHistory": "No history is available for this invoice"
+    },
+    "whatsappResend": {
+      "title": "Resend the invoice on WhatsApp",
+      "question": "Send this invoice to the customer again?",
+      "detail": "The invoice link goes out on WhatsApp, and the message appears in the customer's AI Inbox thread.",
+      "invoice": "Invoice",
+      "customer": "Customer",
+      "phone": "WhatsApp number",
+      "total": "Total",
+      "confirm": "Confirm send",
+      "sending": "Sending...",
+      "buttonHint": "Resend the invoice on WhatsApp",
+      "reasons": {
+        "order_missing": "The invoice no longer exists",
+        "missing_phone": "This customer has no WhatsApp number on file",
+        "missing_invoice_number": "The invoice has no number, so it cannot be sent",
+        "missing_invoice_url": "The invoice link could not be built",
+        "cancelled_order": "A cancelled invoice cannot be resent",
+        "gateway_error": "WhatsApp could not send it. Check that the store number is connected."
+      }
     }
   },
   "restock": {

@@ -547,14 +547,17 @@
       "return": "مرتجع",
       "edit": "تعديل",
       "permanentDelete": "حذف نهائي",
-      "cancel": "إلغاء"
+      "cancel": "إلغاء",
+      "whatsapp": "واتساب"
     },
     "toasts": {
       "reprintQueued": "تم تجهيز الفاتورة للطباعة مرة أخرى",
       "cannotReturn": "لا يمكن عمل مرتجع لهذه الفاتورة",
       "deleteConfirmRequired": "اكتب DELETE أو حذف للتأكيد",
       "deleted": "تم حذف الفاتورة نهائيًا",
-      "selectItemsToReturn": "اختر المنتجات المراد إرجاعها"
+      "selectItemsToReturn": "اختر المنتجات المراد إرجاعها",
+      "whatsappResent": "تم إرسال الفاتورة {{invoice}} على واتساب",
+      "whatsappResendFailed": "تعذر إرسال الفاتورة على واتساب"
     },
     "deleteModal": {
       "title": "حذف نهائي",
@@ -600,6 +603,26 @@
       "total": "الإجمالي",
       "history": "سجل الفاتورة",
       "noHistory": "لا يوجد سجل متاح لهذه الفاتورة"
+    },
+    "whatsappResend": {
+      "title": "إعادة إرسال الفاتورة على واتساب",
+      "question": "هل تريد إرسال الفاتورة مرة أخرى للعميل؟",
+      "detail": "هيتبعت رابط الفاتورة على واتساب، والرسالة هتظهر في محادثة العميل داخل AI Inbox.",
+      "invoice": "الفاتورة",
+      "customer": "العميل",
+      "phone": "رقم الواتساب",
+      "total": "الإجمالي",
+      "confirm": "تأكيد الإرسال",
+      "sending": "جارٍ الإرسال...",
+      "buttonHint": "إعادة إرسال الفاتورة على واتساب",
+      "reasons": {
+        "order_missing": "الفاتورة غير موجودة",
+        "missing_phone": "لا يوجد رقم واتساب مسجل لهذا العميل",
+        "missing_invoice_number": "الفاتورة بدون رقم، لا يمكن إرسالها",
+        "missing_invoice_url": "تعذر تجهيز رابط الفاتورة",
+        "cancelled_order": "لا يمكن إعادة إرسال فاتورة ملغاة",
+        "gateway_error": "تعذر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل."
+      }
     }
   },
   "restock": {

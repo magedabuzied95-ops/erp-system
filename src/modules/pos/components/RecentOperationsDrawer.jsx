@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Eye,
   Loader2,
+  MessageCircle,
   Pencil,
   Printer,
   RefreshCw,
@@ -43,6 +44,18 @@ const getOrderTotal = (order = {}) => Number(order.total_amount ?? order.total ?
 const getOrderInvoiceNumber = (order = {}) => order.invoice_number || (order.id ? `INV-${order.id}` : "INV-PENDING");
 
 const getOrderActionKey = (order = {}, action = "") => `${order.id || getOrderInvoiceNumber(order)}:${action}`;
+
+const getOrderCustomerPhone = (order = {}) =>
+  String(order.customer_phone || order.phone || order.customer?.phone || order.whatsapp || order.mobile || "").trim();
+
+// The API names why a send was refused with a stable code; the Arabic text it also sends
+// is the fallback for a code this build does not have a translation for yet.
+const resolveResendFailureMessage = (payload) => {
+  const reason = String(payload?.reason || "").trim();
+  const fallback = String(payload?.message || "").trim();
+  if (!reason) return fallback;
+  return tt(`pos.recentOps.whatsappResend.reasons.${reason}`, { defaultValue: "" }) || fallback;
+};
 
 const arabicFallbacks = {
   "walk-in customer": "عميل نقدي",
@@ -316,6 +329,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   const [returnOrder, setReturnOrder] = useState(null);
   const [permanentDeleteOrder, setPermanentDeleteOrder] = useState(null);
   const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState("");
+  const [whatsappResendOrder, setWhatsappResendOrder] = useState(null);
   const [loadingActions, setLoadingActions] = useState({});
   const requestSeqRef = useRef(0);
   const ordersLengthRef = useRef(0);
@@ -590,6 +604,37 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     });
   };
 
+  const openWhatsappResend = (order) => {
+    const phone = getOrderCustomerPhone(order);
+    if (!phone) {
+      toast.error(tt("pos.recentOps.whatsappResend.reasons.missing_phone"));
+      return;
+    }
+    if (isCancelledOrder(order)) {
+      toast.error(tt("pos.recentOps.whatsappResend.reasons.cancelled_order"));
+      return;
+    }
+    setWhatsappResendOrder(order);
+  };
+
+  const handleWhatsappResend = async () => {
+    const order = whatsappResendOrder;
+    if (!order?.id) return;
+    await runOrderAction(order, "whatsapp-resend", async () => {
+      try {
+        const response = await api.post(`/orders/${order.id}/resend-invoice-whatsapp`, {});
+        // The endpoint answers 4xx on a refusal, but a body that says it did not send is
+        // still a refusal - reporting a delivery that never happened is the one outcome
+        // the cashier cannot recover from.
+        if (response?.sent === false) throw new Error(resolveResendFailureMessage(response));
+        setWhatsappResendOrder(null);
+        toast.success(tt("pos.recentOps.toasts.whatsappResent", { invoice: getOrderInvoiceNumber(order) }));
+      } catch (err) {
+        toast.error(resolveResendFailureMessage(err.responseBody) || err.message || tt("pos.recentOps.toasts.whatsappResendFailed"));
+      }
+    });
+  };
+
   const handleViewDetails = async (order) => {
     if (!order?.id) {
       setSelectedOrder(order);
@@ -778,6 +823,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
                   currentUser={currentUser}
                   editLockHours={editLockHours}
                   onReprint={handleReprint}
+                  onResendWhatsapp={openWhatsappResend}
                   onViewDetails={handleViewDetails}
                   onEdit={handleEditClick}
                   onReturn={handleReturn}
@@ -829,21 +875,75 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
           onConfirm={handlePermanentDelete}
         />
       ) : null}
+
+      {whatsappResendOrder ? (
+        <WhatsappResendModal
+          order={whatsappResendOrder}
+          loading={Boolean(loadingActions[getOrderActionKey(whatsappResendOrder, "whatsapp-resend")])}
+          onClose={() => setWhatsappResendOrder(null)}
+          onConfirm={handleWhatsappResend}
+        />
+      ) : null}
     </div>,
     document.body
   );
 }
 
-function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprint, onViewDetails, onEdit, onReturn, onPermanentDelete, onPrefetch }) {
+function WhatsappResendModal({ order, loading, onClose, onConfirm }) {
+  const { t } = useTranslation();
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center" dir="rtl">
+      <div className="w-full max-w-md rounded-3xl border border-emerald-400/30 bg-zinc-950 p-5 text-white shadow-2xl shadow-emerald-950/20">
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl bg-emerald-500/15 p-2 text-emerald-200"><MessageCircle className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black">{t("pos.recentOps.whatsappResend.title")}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-emerald-100">{t("pos.recentOps.whatsappResend.question")}</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-300">{t("pos.recentOps.whatsappResend.detail")}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Info label={t("pos.recentOps.whatsappResend.invoice")} value={getOrderInvoiceNumber(order)} />
+          <Info label={t("pos.recentOps.whatsappResend.customer")} value={getOrderCustomer(order)} />
+          <Info label={t("pos.recentOps.whatsappResend.phone")} value={getOrderCustomerPhone(order) || "-"} />
+          <Info label={t("pos.recentOps.whatsappResend.total")} value={formatDrawerCurrency(getOrderTotal(order))} />
+        </div>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={loading} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
+            {t("pos.recentOps.actions.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-black text-white ${loading ? "cursor-wait bg-emerald-500/35 opacity-60" : "bg-emerald-600 hover:bg-emerald-500"}`}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {loading ? t("pos.recentOps.whatsappResend.sending") : t("pos.recentOps.whatsappResend.confirm")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprint, onResendWhatsapp, onViewDetails, onEdit, onReturn, onPermanentDelete, onPrefetch }) {
   const { t } = useTranslation();
   const lock = getInvoiceLock(order, currentUser, editLockHours);
   const badges = getStatusBadges(order);
   const isActionLoading = (action) => Boolean(loadingActions[getOrderActionKey(order, action)]);
   const detailsLoading = isActionLoading("details");
   const printLoading = isActionLoading("print");
+  const whatsappLoading = isActionLoading("whatsapp-resend");
   const returnLoading = isActionLoading("return");
   const editLoading = isActionLoading("edit");
   const deleteLoading = isActionLoading("permanent-delete");
+  // Say why the button is dead instead of leaving a greyed-out control with no answer.
+  const whatsappBlockedReason = !getOrderCustomerPhone(order)
+    ? t("pos.recentOps.whatsappResend.reasons.missing_phone")
+    : isCancelledOrder(order)
+      ? t("pos.recentOps.whatsappResend.reasons.cancelled_order")
+      : "";
   const statusBadge = badges[0] || { label: getOrderStatus(order), className: "border-white/10 bg-white/[0.04] text-zinc-200" };
   // A "partly paid" / "credit" badge is only actionable next to the amount still owed.
   // A return leaves paid_amount/remaining_amount untouched, so that number would be
@@ -901,6 +1001,14 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
                     <Action icon={Eye} label={t("pos.recentOps.actions.details")} loading={detailsLoading} disabled={detailsLoading} onClick={() => onViewDetails(order)} />
                     <Action icon={Printer} label={t("pos.recentOps.actions.print")} loading={printLoading} disabled={printLoading} onClick={() => onReprint(order)} />
+                    <Action
+                      icon={MessageCircle}
+                      label={t("pos.recentOps.actions.whatsapp")}
+                      loading={whatsappLoading}
+                      disabled={whatsappLoading || Boolean(whatsappBlockedReason)}
+                      title={whatsappBlockedReason || t("pos.recentOps.whatsappResend.buttonHint")}
+                      onClick={() => onResendWhatsapp(order)}
+                    />
                     <Action icon={RotateCcw} label={t("pos.recentOps.actions.return")} loading={returnLoading} disabled={!canReturnOrder(order) || returnLoading || isCashierUser(currentUser)} onClick={() => onReturn(order)} />
                     <Action icon={Pencil} label={t("pos.recentOps.actions.edit")} loading={editLoading} disabled={lock.locked || editLoading} title={lock.reason} onClick={() => onEdit(order)} />
                     <span className="mx-0.5 h-5 w-px bg-white/10" />

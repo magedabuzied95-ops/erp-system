@@ -977,43 +977,48 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
         skipped: "[whatsapp:invoice-skipped]",
         error: "[whatsapp:invoice-error]",
       };
-  const posAutoSendEnabled = isPosInvoice
-    ? options.autoSendEnabled !== undefined
+  // A manual resend is a human asking for this receipt to go out again, so it clears the
+  // guards that exist only to keep the automatic send from firing twice, from firing on
+  // the wrong kind of order, or from firing while the shop has auto-send switched off.
+  // What it cannot clear is a message we are unable to build - no phone, no invoice
+  // number, no link - or an invoice that no longer stands.
+  const isManualResend = options.force === true;
+  const posAutoSendEnabled = !isPosInvoice || isManualResend
+    ? true
+    : options.autoSendEnabled !== undefined
       ? options.autoSendEnabled !== false
-      : await getSetting("pos.auto_send_pos_invoice_whatsapp", true).catch(() => true)
-    : true;
+      : await getSetting("pos.auto_send_pos_invoice_whatsapp", true).catch(() => true);
   const status = text(current?.status).toLowerCase();
+  const missingPieceReason = !phone
+    ? "missing_phone"
+    : !invoiceNumber
+      ? "missing_invoice_number"
+      : !invoiceUrl
+        ? "missing_invoice_url"
+        : "";
   const reason = !current?.id
     ? "order_missing"
-    : isPosInvoice && !posAutoSendEnabled
-      ? "setting_disabled"
-      : isPosInvoice && ["cancelled", "canceled"].includes(status)
+    : isManualResend
+      ? ["cancelled", "canceled"].includes(status)
         ? "cancelled_order"
-        : isPosInvoice
-          ? source !== "pos"
-            ? "not_pos_order"
-            : current.whatsapp_invoice_sent_at
-              ? "already_sent"
-              : !phone
-                ? "missing_phone"
-                : !invoiceNumber
-                  ? "missing_invoice_number"
-                  : !invoiceUrl
-                    ? "missing_invoice_url"
-                    : ""
-          : !STOREFRONT_SOURCES.has(source)
-            ? "not_storefront_order"
-            : isCodPayment(current) && status === "pending_confirmation"
-              ? "cod_pending_confirmation"
-            : current.whatsapp_invoice_sent_at
-              ? "already_sent"
-              : !phone
-                ? "missing_phone"
-                : !invoiceNumber
-                  ? "missing_invoice_number"
-                  : !invoiceUrl
-                    ? "missing_invoice_url"
-                    : "";
+        : missingPieceReason
+      : isPosInvoice && !posAutoSendEnabled
+        ? "setting_disabled"
+        : isPosInvoice && ["cancelled", "canceled"].includes(status)
+          ? "cancelled_order"
+          : isPosInvoice
+            ? source !== "pos"
+              ? "not_pos_order"
+              : current.whatsapp_invoice_sent_at
+                ? "already_sent"
+                : missingPieceReason
+            : !STOREFRONT_SOURCES.has(source)
+              ? "not_storefront_order"
+              : isCodPayment(current) && status === "pending_confirmation"
+                ? "cod_pending_confirmation"
+                : current.whatsapp_invoice_sent_at
+                  ? "already_sent"
+                  : missingPieceReason;
   const shouldSend = !reason;
   const checkPayload = {
     order_id: current?.id || null,
@@ -1024,6 +1029,7 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
     status: current?.status || "",
     auto_send_pos_invoice_whatsapp: isPosInvoice ? Boolean(posAutoSendEnabled) : undefined,
     customer_phone: current?.customer_phone || current?.phone || "",
+    manual_resend: isManualResend,
     should_send: shouldSend,
     ...(shouldSend ? {} : { reason }),
   };
@@ -1111,6 +1117,7 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       orderNumber: orderNumber(current),
       invoiceNumber,
       invoiceUrl,
+      manual_resend: isManualResend,
       phoneSuffix: phone.slice(-4),
     });
     return { sent: true, order: current, result, invoiceUrl };

@@ -25,6 +25,7 @@ import {
   getSingleOrder,
   getOrdersCount,
   logOrderReprint,
+  resendOrderInvoiceWhatsapp,
   markPosEditTiming,
   permanentDeleteOrder,
   returnOrder,
@@ -106,6 +107,15 @@ router.post(
   protect,
   permit("orders", "view"),
   logOrderReprint
+);
+
+// Re-sending a receipt is the digital twin of reprinting it, so it sits behind the same
+// grant - the cashier who can hand the paper slip over again can resend the link.
+router.post(
+  "/:id/resend-invoice-whatsapp",
+  protect,
+  permit("orders", "view"),
+  resendOrderInvoiceWhatsapp
 );
 
 router.get(
