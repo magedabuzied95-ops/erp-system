@@ -1256,6 +1256,12 @@ export const testBostaWebhookPayload = async (payload = BOSTA_WEBHOOK_SAMPLE_PAY
 
 export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
   await ensureShippingSchema();
+  // Ensured BEFORE the transaction opens, never inside it. This runs ALTER TABLE on `orders`,
+  // which needs ACCESS EXCLUSIVE, while the transaction below holds a FOR UPDATE row lock on the
+  // same table — the ALTER waits for the transaction and the transaction waits for the ALTER, so
+  // every "delivered" callback died on a statement timeout. That is the one callback that settles
+  // the COD money, tells the customer the parcel arrived, and completes the tracking bar.
+  await ensureCourierSettlementSchema();
   console.log("[bosta-webhook]", safeJson(payload));
   const auth = req ? await verifyBostaWebhookAuth({ req, payload }) : { verified: true, mode: "internal" };
   const parsed = extractBostaWebhook(payload);
@@ -1360,7 +1366,6 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     // customer's balance and open the courier's. Same transaction as the status write
     // so a parcel can never be "delivered" and still "آجل" at the same time.
     if (parsed.status === "delivered") {
-      await ensureCourierSettlementSchema();
       const collection = await markCourierCollected(client, updatedOrder, { source: "bosta_webhook", at: parsed.occurredAt || null });
       if (collection.applied) updatedOrder = collection.order;
     }
