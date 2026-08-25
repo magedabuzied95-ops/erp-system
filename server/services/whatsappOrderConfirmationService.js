@@ -24,7 +24,7 @@ const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_trans
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
 const ORDER_CONFIRMATION_CODE_LENGTH = 7;
 const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
-const ORDER_CONFIRMATION_FALLBACK_TEXT = buildCodOrderConfirmationMessage();
+const ORDER_CONFIRMATION_FALLBACK_TEXT = buildCodOrderConfirmationMessage({ withActions: true });
 const ORDER_CONFIRMATION_PROTECTED_STATUSES = new Set(["shipped", "out_for_delivery", "delivered", "completed", "shipment_created", "ready_to_ship"]);
 const ORDER_CONFIRMATION_SINGLE_USE_ACTIONS = new Set(["confirm", "edit", "cancel"]);
 const ORDER_CONFIRMATION_ACTION_META = {
@@ -441,6 +441,23 @@ const loadOrderById = async (orderId, trace = {}) => {
   return attachOrderConfirmationItems(result.rows[0] || null);
 };
 
+// The invoice receipt message is a number and a link. Going through loadOrderById to
+// build it also loaded the order's items with their product-image fallback chain
+// (1647ms in production) and the shipping address block (895ms) - 2.5s of a 9.5s
+// resend, and not one field of either reaches the message. The guards below read only
+// columns of `orders`, so read only `orders`.
+const loadOrderForInvoiceSend = async (orderId) => {
+  const result = await timedOrderConfirmationQuery({
+    client: db,
+    queryName: "orders_lookup_for_invoice_send",
+    sql: `SELECT * FROM orders WHERE id = $1 LIMIT 1`,
+    params: [orderId],
+    orderId,
+    action: "invoice_send",
+  });
+  return result.rows[0] || null;
+};
+
 const loadLatestOrderByPhone = async (phone) => {
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) return null;
@@ -614,10 +631,16 @@ const buildOrderConfirmationPublicUrl = (code = "") => {
   const baseUrl = text(resolvePublicAppUrl() || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").replace(/\/+$/, "");
   return baseUrl ? `${baseUrl}/c/${encodeURIComponent(safeCode)}` : `/c/${encodeURIComponent(safeCode)}`;
 };
-const buildOrderConfirmationLinksMessage = ({ customerName = "", publicUrl = "" } = {}) =>
+// Two shapes of the same message. The buttons carry the actions, so the interactive body has no
+// link in it; the text fallback has no buttons, so it keeps the secure link as the way to act.
+const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", publicUrl = "", withLink = false, withActions = false } = {}) =>
   buildCodOrderConfirmationMessage({
     customerName: firstName(customerName),
-    confirmationLink: publicUrl,
+    confirmationLink: withLink ? publicUrl : "",
+    order,
+    items: order?.items || [],
+    invoiceUrl: order ? buildPublicInvoiceUrl(orderNumber(order)) : "",
+    withActions,
   });
 
 const storeOrderConfirmationCode = async (client, { tenantId, orderId, action, expiresAt, code }) => {
@@ -723,6 +746,7 @@ export const sendOrderConfirmation = async (order = {}) => {
     });
     const confirmUrl = buildOrderConfirmationPublicUrl(confirmCode.code);
     message = buildOrderConfirmationLinksMessage({
+      order: current,
       customerName: current.customer_name,
       publicUrl: confirmUrl,
     });
@@ -753,6 +777,15 @@ export const sendOrderConfirmation = async (order = {}) => {
         message: buttonsError?.message || String(buttonsError),
         code: buttonsError?.code || "",
       });
+      // No buttons rendered, so the customer needs the link back as the way to act.
+      message = buildOrderConfirmationLinksMessage({
+        order: current,
+        customerName: current.customer_name,
+        publicUrl: confirmUrl,
+        withLink: true,
+        withActions: true,
+      });
+      deliveryMode = "link_text";
       result = await sendTextMessage({ phone, message });
     }
   } catch (error) {
