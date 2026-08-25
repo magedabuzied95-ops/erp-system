@@ -100,6 +100,7 @@
     "cancel": "إلغاء",
     "cancelRequiresBackend": "إلغاء المحدد يحتاج تأكيد آمن من الخادم لاسترجاع المخزون.",
     "selectPhoneFirst": "اختر طلبا يحتوي على هاتف العميل أولا.",
+    "printPreparing": "جارٍ تجهيز الطباعة...",
     "whatsappMessage": "تحديث الطلب {{order}}: {{status}}"
   },
   "table": {

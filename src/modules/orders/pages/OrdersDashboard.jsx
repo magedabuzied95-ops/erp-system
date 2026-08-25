@@ -39,6 +39,8 @@ import { socket } from "../../../socket";
 import { api } from "../../../shared/api/api";
 import { fetchAllOrders, ORDERS_MAX_ROWS } from "../../../shared/api/ordersFetch";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
+import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
+import useOrderPrintSheet from "../../../shared/components/print/useOrderPrintSheet";
 import { Pagination } from "../../../shared/ui";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
@@ -739,6 +741,10 @@ function OrdersDashboard() {
   const visibleOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectedOrders = useMemo(() => orders.filter((order) => selectedIds.includes(order.id)), [orders, selectedIds]);
   const selectedCount = selectedIds.length;
+  // Resolved once here so the sheet prints the tenant template rather than the
+  // defaults each card would still be showing while fetching its own.
+  const invoiceTemplate = useInvoiceTemplate();
+  const printSheet = useOrderPrintSheet(invoiceTemplate);
   useEffect(() => {
     if (!ORDERS_DEBUG || !selectedOrder) return;
     console.log("SELECTED ORDER", selectedOrder);
@@ -916,6 +922,42 @@ function OrdersDashboard() {
     setSelectedIds([]);
   };
 
+  /*
+   * The list endpoint returns rows, not item lines, so printing straight off a
+   * selected row produced an invoice with an empty products table. Each order is
+   * hydrated from /orders/:id first -- the same call opening one makes -- and an
+   * order whose fetch fails still prints with what the list holds instead of
+   * silently dropping out of the batch.
+   */
+  const hydrateForPrint = async (order) => {
+    try {
+      const data = await api.get(`/orders/${order.id}`);
+      return normalizeOrder(data.order || data, {
+        items: Array.isArray(data.items) ? data.items : Array.isArray(data.order?.items) ? data.order.items : order.items || [],
+        total: data.order?.total ?? data.order?.total_amount ?? data.order?.total_price ?? order.total,
+      });
+    } catch (err) {
+      if (ORDERS_DEBUG) console.log("[orders-dashboard] print hydrate failed", err);
+      return order;
+    }
+  };
+
+  const printOrders = async (rows) => {
+    const list = (Array.isArray(rows) ? rows : [rows]).filter((order) => order?.id);
+    if (!list.length) return;
+    const toastId = toast.loading(t("orders.bulk.printPreparing"));
+    try {
+      const hydrated = await Promise.all(list.map(hydrateForPrint));
+      printSheet.print(hydrated.map((order) => ({
+        key: order.id,
+        order,
+        items: (Array.isArray(order.items) ? order.items : []).map((item) => normalizePreviewOrderItem(item, order)),
+      })));
+    } finally {
+      toast.dismiss(toastId);
+    }
+  };
+
   const exportSelected = () => {
     const rows = selectedOrders.length ? selectedOrders : filteredOrders;
     const csv = [
@@ -994,7 +1036,7 @@ function OrdersDashboard() {
                 selectedCount={selectedCount}
                 onConfirm={() => bulkSetStatus("Confirmed")}
                 onShip={() => bulkSetStatus("Shipped")}
-                onPrint={() => window.print()}
+                onPrint={() => { void printOrders(selectedOrders); }}
                 onExport={exportSelected}
                 onWhatsapp={bulkWhatsapp}
               />
@@ -1058,13 +1100,14 @@ function OrdersDashboard() {
               updateShippingPayment={updateShippingPayment}
               navigate={navigate}
               editOrder={openEditOrder}
+              onPrint={(row) => { void printOrders(row); }}
               compact
             />
           </aside>
         ) : null}
       </div>
 
-      <OrderDrawer t={t} order={selectedOrder} onClose={() => setSelectedOrder(null)} updateShippingPayment={updateShippingPayment} navigate={navigate} editOrder={openEditOrder} inlinePreview={workspace === "table"} />
+      <OrderDrawer t={t} order={selectedOrder} onClose={() => setSelectedOrder(null)} updateShippingPayment={updateShippingPayment} navigate={navigate} editOrder={openEditOrder} onPrint={(row) => { void printOrders(row); }} inlinePreview={workspace === "table"} />
       <OrderEditModal t={t} order={editingOrder} saving={savingEdit} onClose={() => setEditingOrder(null)} onSave={saveOrderEdit} />
       <CancelOrderModal t={t} order={cancelTarget} cancelling={cancellingOrder} onClose={() => setCancelTarget(null)} onConfirm={confirmCancelOrder} />
       <ArchiveOrderModal t={t} order={archiveTarget} archiving={archivingOrder} onClose={() => setArchiveTarget(null)} onConfirm={confirmArchiveOrder} />
@@ -1081,6 +1124,7 @@ function OrdersDashboard() {
         onConfirm={confirmPermanentDeleteOrder}
       />
       </div>
+      {printSheet.sheet}
     </OrdersShell>
   );
 }
@@ -1435,7 +1479,7 @@ function ReturnsView({ t, orders, openOrder }) {
   );
 }
 
-function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editOrder, inlinePreview = false }) {
+function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editOrder, onPrint, inlinePreview = false }) {
   if (!order) return null;
   const items = Array.isArray(order.items) ? order.items : [];
   const previewItems = items.map((item) => normalizePreviewOrderItem(item, order));
@@ -1519,14 +1563,14 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
           }} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">WhatsApp</button>
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-[var(--radius-control)] bg-rose-500 px-3 py-2 text-sm font-black text-text disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
-          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.bulk.print")}</button>
+          <button type="button" onClick={() => onPrint?.(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.bulk.print")}</button>
         </footer>
       </section>
     </div>
   );
 }
 
-function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate, editOrder }) {
+function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate, editOrder, onPrint }) {
   if (!order) return null;
   const items = Array.isArray(order.items) ? order.items : [];
   const previewItems = items.map((item) => normalizePreviewOrderItem(item, order));
@@ -1602,7 +1646,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
           <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.actionsMenu.openDetailsPage")}</button>
           <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.actionsMenu.editOrder")}</button>
           <button type="button" onClick={openWhatsapp} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">WhatsApp</button>
-          <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.bulk.print")}</button>
+          <button type="button" onClick={() => onPrint?.(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold hover:bg-surface-hover">{t("orders.bulk.print")}</button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>

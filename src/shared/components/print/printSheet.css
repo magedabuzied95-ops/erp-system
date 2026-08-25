@@ -1,0 +1,75 @@
+/* ---------------------------------------------------------------------------
+   Printable sheet
+   ---------------------------------------------------------------------------
+   src/index.css hides the app for printing with `body * { visibility: hidden }`,
+   which leaves every hidden node's BOX in the flow. An ERP page is several
+   viewports tall, so a bare `window.print()` produced that page count in blank
+   sheets with nothing on any of them -- which is exactly what the Orders
+   "print" button did, on the phone and on the desktop alike.
+
+   A sheet mounts as its own child of <body> and the app is taken out of the
+   print layout with `display: none`, so the paper carries the sheet and nothing
+   else. The body class is set by the sheet while it is mounted, so printing is
+   unchanged for every page that does not use one.
+
+   Nothing here depends on load order: the visibility rule wins on `!important`
+   over the unlayered rule in index.css, and the rest has no competitor.
+   ------------------------------------------------------------------------- */
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  body.printing-sheet > *:not(.print-sheet) {
+    display: none !important;
+  }
+
+  body.printing-sheet {
+    background: #fff !important;
+  }
+
+  .print-sheet {
+    display: block !important;
+    background: #fff !important;
+  }
+
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* An invoice taller than one page is clipped at the break by the card's own
+     `overflow: hidden`, and its shadow only costs ink. Neither is unwound any
+     deeper than the card root, so rounded photo frames inside still hold. */
+  .print-sheet-page,
+  .print-sheet-page > * {
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  /* One order per sheet of paper; the last one must not push out a blank page. */
+  .print-sheet-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-sheet-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+/* Matches what index.css already does for the POS receipt and the public
+   invoice, which this sheet is a third rendering of. */
+html[dir="rtl"] .print-sheet {
+  direction: rtl;
+  text-align: right;
+  font-family: var(--app-font), "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+}
+
+html[dir="rtl"] .print-sheet .tabular-nums {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

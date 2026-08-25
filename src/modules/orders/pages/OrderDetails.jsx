@@ -41,6 +41,7 @@ import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
+import useOrderPrintSheet from "../../../shared/components/print/useOrderPrintSheet";
 import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { formatOrderPaymentMethods } from "../../../../shared/paymentMethods";
@@ -400,6 +401,7 @@ function OrderDetails() {
   // Resolved once for the page and handed to every surface that draws this invoice —
   // the preview card, the PDF, and the WhatsApp message — so all three agree.
   const invoiceTemplate = useInvoiceTemplate();
+  const printSheet = useOrderPrintSheet(invoiceTemplate);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -842,18 +844,16 @@ function OrderDetails() {
     writePackingChecklist(order.id || id, next);
   };
 
+  /*
+   * This used to write the invoice markup into a popup and call close() on the
+   * very next line. Two things were wrong with that: the popup carried none of
+   * the app's stylesheets, so the sheet printed as unstyled stacked text, and
+   * iOS prints asynchronously, so closing the tab immediately killed the job
+   * before it rendered. The sheet is printed out of this document instead.
+   */
   const handlePrint = () => {
-    const node = invoiceRef.current;
-    if (!node) return;
-    const popup = window.open("", "_blank", "width=900,height=1200");
-    if (!popup) {
-      toast.error(t("orders.details.popupBlocked"));
-      return;
-    }
-    popup.document.write(`<html><head><title>${order.invoice_number}</title></head><body>${node.innerHTML}</body></html>`);
-    popup.document.close();
-    popup.print();
-    popup.close();
+    if (!order?.id) return;
+    printSheet.print([{ key: order.id, order, items: previewItems }]);
   };
 
   const handlePdf = async () => {
@@ -1822,6 +1822,8 @@ function OrderDetails() {
           <OrderInvoiceCard order={order} items={previewItems} template={invoiceTemplate} compact={pdfFormat === "thermal"} />
         </div>
       </div>
+
+      {printSheet.sheet}
 
       {paymentProofModalOpen && paymentProofUrl ? (
         <ModalShell title={t("orders.payment.proof")} onClose={() => setPaymentProofModalOpen(false)} closeLabel={t("common.close")}>
