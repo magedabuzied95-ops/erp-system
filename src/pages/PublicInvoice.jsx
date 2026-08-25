@@ -43,10 +43,12 @@ const normalizePublicUrl = (value) => {
 
 const getSocialLinks = (invoice, tpl) => {
   if (!tpl?.social?.enabled) return [];
+  // The review ask lives in the WhatsApp message that carries this link, not on the invoice
+  // itself: a customer who just opened their receipt is being asked to rate a purchase they
+  // have not received yet. Instagram and WhatsApp stay - those are contact, not solicitation.
   return [
-    { key: "google", label: invoicePrintLabel("rateGoogle", "قيّمنا على Google"), url: normalizePublicUrl(invoice?.google_review_url || tpl.social.google_review_url) },
-    { key: "facebook", label: invoicePrintLabel("rateFacebook", "قيّمنا على Facebook"), url: normalizePublicUrl(invoice?.facebook_review_url || tpl.social.facebook_review_url) },
     { key: "instagram", label: invoicePrintLabel("followInstagram", "تابعنا على Instagram"), url: normalizePublicUrl(invoice?.instagram_url || tpl.social.instagram_url) },
+    { key: "facebookPage", label: invoicePrintLabel("followFacebook", "تابعنا على فيسبوك"), url: normalizePublicUrl(invoice?.facebook_review_url || tpl.social.facebook_review_url) },
   ].filter((link) => link.url);
 };
 
@@ -170,10 +172,10 @@ export default function PublicInvoice() {
   );
   const socialLinks = useMemo(() => getSocialLinks(invoice, tpl), [invoice, tpl]);
 
-  // "Rate us on Google / Facebook" — shown at the top on mobile, at the bottom
-  // on desktop.
-  const reviewLinks = useMemo(
-    () => socialLinks.filter((link) => link.key === "google" || link.key === "facebook"),
+  // Shown at the top on mobile, where the customer is far more likely to tap a social link
+  // than to print. These are follow links now — the review ask moved to the WhatsApp message.
+  const followLinks = useMemo(
+    () => socialLinks.filter((link) => link.key === "instagram" || link.key === "facebookPage"),
     [socialLinks]
   );
   // The Instagram button and the mobile contact row moved into the `social` block, so
@@ -224,11 +226,10 @@ export default function PublicInvoice() {
             {invoicePrintLabel("back", "عودة")}
           </Link>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-            {/* Mobile puts the two review buttons here, where download/print used
-                to sit: on a phone the customer is far more likely to rate the
-                store than to print an invoice. Download and print stay on
-                desktop, where printing actually happens. */}
-            {reviewLinks.map((link) => (
+            {/* Mobile puts the social links here, where download/print used to sit: on a phone the
+                customer is far more likely to follow the store than to print an invoice.
+                Download and print stay on desktop, where printing actually happens. */}
+            {followLinks.map((link) => (
               <SocialBrandButton key={`top-${link.key}`} link={link} className="inline-flex sm:hidden" />
             ))}
             <a

@@ -87,10 +87,14 @@ export const buildOrderTrackingUrl = (orderNumber, phone = "", baseUrl = resolve
   return `${String(baseUrl).replace(/\/+$/, "")}/track?${query.toString()}`;
 };
 
-export const buildArabicReceiptMessage = ({ invoiceUrl = "" } = {}) =>
+// The greeting is separable because the receipt can go out two ways: as a plain message, where
+// it opens the text, or as a CTA-button message, where it becomes the bold header — Evolution
+// always renders the title, so leaving it empty prints "**" and omitting it prints "*undefined*".
+export const INVOICE_RECEIPT_GREETING = "🙏 شكراً لثقتكم بنا";
+
+export const buildArabicReceiptMessage = ({ invoiceUrl = "", withGreeting = true } = {}) =>
   [
-    "🙏 شكراً لثقتكم بنا",
-    "",
+    ...(withGreeting ? [INVOICE_RECEIPT_GREETING, ""] : []),
     "🧾 عرض الفاتورة:",
     invoiceUrl || "",
     "",
@@ -99,8 +103,8 @@ export const buildArabicReceiptMessage = ({ invoiceUrl = "" } = {}) =>
     "نتمنى لك تجربة ممتعة 🌹",
   ].join("\n");
 
-export const buildInvoiceReceiptWhatsappMessage = ({ invoiceNumber, invoiceUrl } = {}) =>
-  buildArabicReceiptMessage({ invoiceUrl: invoiceUrl || buildPublicInvoiceUrl(invoiceNumber) });
+export const buildInvoiceReceiptWhatsappMessage = ({ invoiceNumber, invoiceUrl, withGreeting = true } = {}) =>
+  buildArabicReceiptMessage({ invoiceUrl: invoiceUrl || buildPublicInvoiceUrl(invoiceNumber), withGreeting });
 
 export const buildOrderStatusMessageTemplate = ({ invoiceNumber, customerName, status, paymentStatus, trackingNumber, deliveryStatus, total, companyName = "ERP Store" }) =>
   [

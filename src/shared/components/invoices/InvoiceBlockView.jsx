@@ -145,10 +145,12 @@ const socialLinks = (template, language, invoice) => {
   // A review link the ORDER carries wins over the template's, because a store that
   // stamps a per-order link means it.
   const override = invoice?.socialOverrides || {};
+  // The review ask lives in the WhatsApp message that carries this link, not on the invoice
+  // itself: a customer who just opened their receipt is being asked to rate a purchase they
+  // have not received yet. Instagram and WhatsApp stay - those are contact, not solicitation.
   return [
-    { key: "google", label: isArabic ? "قيّمنا على Google" : "Rate us on Google", url: override.google_review_url || template.social.google_review_url },
-    { key: "facebook", label: isArabic ? "قيّمنا على Facebook" : "Rate us on Facebook", url: override.facebook_review_url || template.social.facebook_review_url },
     { key: "instagram", label: isArabic ? "تابعنا على Instagram" : "Follow us on Instagram", url: override.instagram_url || template.social.instagram_url },
+    { key: "facebookPage", label: isArabic ? "تابعنا على فيسبوك" : "Follow us on Facebook", url: override.facebook_review_url || template.social.facebook_review_url },
     { key: "whatsapp", label: isArabic ? "تواصل معنا واتساب" : "Chat on WhatsApp", url: whatsappHref(template) },
   ].filter((link) => link.url);
 };

@@ -67,26 +67,58 @@ const confirmation = fs.readFileSync(
   new URL("../server/services/whatsappOrderConfirmationService.js", import.meta.url), "utf8"
 );
 
-test("the review ask exists in exactly one place", () => {
-  // Only the delivery message asks. The receipt deliberately does not - a review ask on a
-  // just-issued invoice is asking before there is anything to review.
-  assert.ok(shipping.includes("getGoogleReviewUrl()"), "the delivery message asks");
-  assert.ok(!confirmation.includes("getGoogleReviewUrl"), "the receipt does not");
-  assert.ok(!confirmation.includes("sendCtaUrlMessage"), "the receipt sends plain text");
+test("the POS receipt carries the review button too", () => {
+  const from = confirmation.indexOf("result = await sendCtaUrlMessage(");
+  assert.ok(from > -1, "the receipt sends via the CTA sender");
+  const block = confirmation.slice(from, confirmation.indexOf("console.info(logTags.sent", from));
+  assert.ok(block.includes("getGoogleReviewUrl()"), "it uses the one shared review link");
+  assert.ok(block.includes("قيّمنا على جوجل"), "the label names where the button goes");
+});
+
+test("a failing button never costs the customer their invoice", () => {
+  const from = confirmation.indexOf("catch (ctaError)");
+  assert.ok(from > -1, "the receipt CTA is wrapped");
+  const catchBlock = confirmation.slice(from, confirmation.indexOf("console.info(logTags.sent", from));
+  assert.ok(catchBlock.includes("result = await sendTextMessage({ phone, message })"), "it falls back to the plain receipt");
+  assert.ok(!catchBlock.includes("throw "), "a failed button must not propagate");
+});
+
+test("both review asks use the same label and the same link", () => {
+  const labels = [shipping, confirmation].map((src) => (src.match(/displayText: "([^"]+)"/) || [])[1]);
+  assert.equal(labels[0], labels[1], "delivery and receipt say the same thing");
   for (const src of [shipping, confirmation]) {
-    assert.ok(!src.includes("g.page/r/"), "the Place ID lives in one place only");
+    assert.ok(src.includes("getGoogleReviewUrl()"), "no hardcoded review link");
+    assert.ok(!/g\.page\/r\//.test(src), "the Place ID lives in one place only");
   }
 });
 
-test("the CTA title is non-empty and comes from the template", () => {
+test("a CTA title is always non-empty and never repeats the body", () => {
   // Evolution always renders the title: blank prints "**" on the phone, omitting the key prints
-  // "*undefined*". Both were seen on live sends, so the header must carry real words.
+  // "*undefined*". So the header has to carry real words - and not the same words as line one.
+  for (const [name, src] of [["delivery", shipping], ["receipt", confirmation]]) {
+    const from = src.indexOf("sendCtaUrlMessage({");
+    assert.ok(from > -1, name + " sends a CTA");
+    const call = src.slice(from, src.indexOf("});", from));
+    const title = (call.match(/title: ([A-Za-z_][A-Za-z0-9_.]*|"[^"]*")/) || [])[1];
+    assert.ok(title, name + " passes a title");
+    assert.notEqual(title, '""', name + " title must not be blank - it renders as **");
+  }
+});
+
+test("the receipt greeting moves into the title instead of being printed twice", () => {
+  const from = confirmation.indexOf("sendCtaUrlMessage({");
+  const call = confirmation.slice(from, confirmation.indexOf("});", from));
+  assert.ok(call.includes("title: INVOICE_RECEIPT_GREETING"), "the greeting is the header");
+  assert.ok(call.includes("withGreeting: false"), "and the body drops it");
+  assert.ok(call.includes("fallbackText: message"), "the plain fallback keeps the full text");
+});
+
+test("the delivery headline comes from the editable template, not a hardcoded string", () => {
+  assert.ok(shipping.includes("const [deliveredFirstLine"), "the headline is split off the template");
   const from = shipping.indexOf("sendCtaUrlMessage({");
-  assert.ok(from > -1, "the delivery message sends a CTA");
   const call = shipping.slice(from, shipping.indexOf("});", from));
   assert.ok(call.includes("title: deliveredHeadline"), "the header is the template first line");
   assert.ok(call.includes("text: deliveredBody"), "the body is the remainder");
-  assert.ok(shipping.includes("const [deliveredFirstLine"), "the headline is split off the template");
 });
 
 
