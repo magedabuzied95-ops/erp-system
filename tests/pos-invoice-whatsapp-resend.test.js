@@ -104,3 +104,34 @@ test("both bundles carry the resend confirmation copy", () => {
     assert.ok(String(recentOps?.toasts?.whatsappResendFailed || "").trim(), `whatsappResendFailed missing in ${locale}`);
   }
 });
+
+test("the receipt send does not pay for data the receipt never carries", () => {
+  const block = between(serviceSource, "export const sendInvoiceWhatsapp", "export const findPendingOrderByPhone");
+  // loadOrderById drags in the order's items with their product-image fallback chain
+  // (1647ms measured) and the shipping address block (895ms). The receipt is a number
+  // and a link, so this path reads `orders` and nothing else.
+  assert.match(block, /const current = order\?\.id \? await loadOrderForInvoiceSend\(order\.id\) : order;/);
+  assert.ok(!block.includes("loadOrderById"), "sendInvoiceWhatsapp must not go through the item-loading order fetch");
+
+  const loader = between(serviceSource, "const loadOrderForInvoiceSend", "const loadLatestOrderByPhone");
+  assert.match(loader, /SELECT \* FROM orders WHERE id = \$1 LIMIT 1/);
+  assert.ok(!/JOIN/i.test(loader), "the invoice-send loader must not join anything");
+});
+
+test("the caller is not held for bookkeeping that happens after delivery", () => {
+  const block = between(serviceSource, "export const sendInvoiceWhatsapp", "export const findPendingOrderByPhone");
+  // The ledger write and the socket emit run behind the return, so a send that landed
+  // is reported the moment it lands - and a failed write can no longer be thrown as a
+  // failed send.
+  assert.match(block, /void recordDelivery\(\)\.catch\(/);
+  assert.ok(!/await recordDelivery\(\)/.test(block), "recordDelivery must not be awaited");
+  const sendIndex = block.indexOf("await sendTextMessage(");
+  const returnIndex = block.indexOf("return { sent: true");
+  const transcriptIndex = block.indexOf("appendWhatsappOutboundSupportReply(");
+  const detachIndex = block.indexOf("void recordDelivery()");
+  assert.ok(sendIndex >= 0 && transcriptIndex > sendIndex, "the transcript write belongs after the send");
+  assert.ok(detachIndex > transcriptIndex && returnIndex > detachIndex, "the return must follow the detached record call");
+  // UPDATE orders lives inside recordDelivery, not on the response path.
+  const recordBlock = block.slice(block.indexOf("const recordDelivery"), detachIndex);
+  assert.match(recordBlock, /UPDATE orders/);
+});

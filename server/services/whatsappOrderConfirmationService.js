@@ -989,7 +989,7 @@ export const sendPaymentReviewNotification = async (order = {}) => {
 
 export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
-  const current = order?.id ? await loadOrderById(order.id) : order;
+  const current = order?.id ? await loadOrderForInvoiceSend(order.id) : order;
   const messageTenantId = tenantIdForMessage(current, current);
   const phone = normalizeEgyptPhone(current?.customer_phone || current?.phone || current?.whatsapp || current?.mobile);
   const invoiceNumber = text(current?.invoice_number);
@@ -1087,16 +1087,28 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       exactFirst300Chars: messageDebug.firstChars,
     });
     const result = await sendTextMessage({ phone, message });
-    await db.query(
-      `
-      UPDATE orders
-      SET whatsapp_invoice_sent_at = COALESCE(whatsapp_invoice_sent_at, NOW()),
-          updated_at = NOW()
-      WHERE id = $1
-      `,
-      [current.id]
-    );
-    try {
+    console.info(logTags.sent, {
+      orderId: current.id,
+      orderNumber: orderNumber(current),
+      invoiceNumber,
+      invoiceUrl,
+      manual_resend: isManualResend,
+      phoneSuffix: phone.slice(-4),
+    });
+    // From here down the customer already has the message and everything left is
+    // bookkeeping. Holding the caller for it cost 3s of a 9.5s resend - a cashier
+    // watching a spinner for a send that had already landed - and an error in it used
+    // to be thrown as if the send itself had failed. Record it behind the return.
+    const recordDelivery = async () => {
+      await db.query(
+        `
+        UPDATE orders
+        SET whatsapp_invoice_sent_at = COALESCE(whatsapp_invoice_sent_at, NOW()),
+            updated_at = NOW()
+        WHERE id = $1
+        `,
+        [current.id]
+      );
       const transcriptMessage = await appendWhatsappOutboundSupportReply({
         tenantId: messageTenantId,
         sessionId: `whatsapp:${phone}`,
@@ -1138,20 +1150,13 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
           at: new Date().toISOString(),
         });
       }
-    } catch (persistError) {
+    };
+    void recordDelivery().catch((persistError) => {
       console.warn("[whatsapp:invoice-transcript-save-failed]", {
         order_id: current?.id || null,
         invoice_number: invoiceNumber,
         message: persistError?.message || String(persistError),
       });
-    }
-    console.info(logTags.sent, {
-      orderId: current.id,
-      orderNumber: orderNumber(current),
-      invoiceNumber,
-      invoiceUrl,
-      manual_resend: isManualResend,
-      phoneSuffix: phone.slice(-4),
     });
     return { sent: true, order: current, result, invoiceUrl };
   } catch (error) {
