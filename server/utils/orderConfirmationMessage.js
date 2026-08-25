@@ -118,34 +118,22 @@ export const buildCodOrderConfirmationMessage = ({
 export const buildOrderConfirmedMessage = ({
   customerName = "عميلنا",
   order = null,
-  items = [],
   trackingUrl = "",
-  invoiceUrl = "",
 } = {}) => {
   const name = clean(customerName) || "عميلنا";
   const source = order || {};
   const orderRef = clean(
     source.public_order_number || source.display_order_number || source.invoice_number || source.order_number || source.id
   ).replace(/^#/, "");
-  const collect = formatAmount(
-    Number(source.cod_amount) > 0 ? source.cod_amount : (source.total_amount ?? source.total_price ?? source.total)
-  );
-  const products = productLines(items.length ? items : source.items || []);
-  const address = addressLine(source);
 
-  const details = [
-    orderRef && `🔢 رقم الطلب: ${orderRef}`,
-    collect && `💰 مبلغ التحصيل: ${collect} جنيه`,
-    products && `🛍️ المنتجات:\n${products}`,
-    address && `📍 عنوان التوصيل: ${address}`,
-  ].filter(Boolean).join("\n");
-
+  // Deliberately short. The customer read the full order seconds ago in the message they just
+  // pressed the button on — repeating it here only buries the one thing this reply adds, which
+  // is the tracking link. The order number stays in the headline so the reply still says which
+  // order it is answering for, without a details block to scroll past.
   return [
-    `✅ تم تأكيد طلبك يا ${name}`,
-    details,
-    "🚚 فريقنا بدأ تجهيز طلبك للشحن، وهنبعتلك رسالة أول ما يوصلك.",
+    orderRef ? `✅ تم تأكيد طلبك رقم ${orderRef} يا ${name}` : `✅ تم تأكيد طلبك يا ${name}`,
+    "🚚 فريقنا بدأ تجهيز طلبك للشحن، وهنتابع معاك لحد ما يوصلك.",
     trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
-    invoiceUrl && `🧾 فاتورتك:\n${invoiceUrl}`,
     "شكراً لاختيارك M1 Store ❤️",
   ].filter(Boolean).join("\n\n");
 };

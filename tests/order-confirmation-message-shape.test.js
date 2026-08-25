@@ -90,15 +90,6 @@ test("whole pounds drop the trailing zeros, piastres survive", () => {
 import { buildOrderConfirmedMessage } from "../server/utils/orderConfirmationMessage.js";
 import { buildOrderTrackingUrl } from "../server/utils/whatsapp.js";
 
-test("the confirmation reply repeats the order instead of just saying confirmed", () => {
-  const msg = buildOrderConfirmedMessage({ customerName: "ماجد", order: ORDER, items: ITEMS });
-  assert.match(msg, /تم تأكيد طلبك يا ماجد/);
-  assert.match(msg, /رقم الطلب: INV-660/);
-  assert.match(msg, /مبلغ التحصيل: 3,340 جنيه/);
-  assert.match(msg, /New balance 530/);
-  assert.match(msg, /عنوان التوصيل: /);
-});
-
 test("the tracking link lands on the customer's own order, not a lookup form", () => {
   const url = buildOrderTrackingUrl("INV-660", "201024960585");
   // /track auto-submits only when it receives the order in the query
@@ -124,7 +115,21 @@ test("a tracking link is never rendered half-built", () => {
   assert.ok(!noLinks.includes("فاتورتك"), "no invoice label without an invoice url");
 });
 
-test("the confirmation reply promises only the delivery message that actually follows", () => {
-  const msg = buildOrderConfirmedMessage({ customerName: "ماجد", order: ORDER, items: ITEMS });
-  assert.match(msg, /أول ما يوصلك/);
+test("the confirmation reply stays short and names the order it answers for", () => {
+  // The customer read the full order seconds ago in the message they pressed the button on.
+  // Repeating it here buried the one thing this reply adds — the tracking link.
+  const msg = buildOrderConfirmedMessage({ customerName: "ماجد", order: ORDER });
+  assert.match(msg, /تم تأكيد طلبك رقم INV-660 يا ماجد/);
+  assert.ok(!msg.includes("مبلغ التحصيل"), "no amount block");
+  assert.ok(!msg.includes("المنتجات"), "no product list");
+  assert.ok(!msg.includes("عنوان التوصيل"), "no address block");
+  assert.ok(!msg.includes("فاتورتك"), "no invoice link");
+  assert.ok(msg.length < 260, `reply is ${msg.length} chars; it must stay glanceable`);
 });
+
+test("an order with no readable number still gets a confirmation", () => {
+  const msg = buildOrderConfirmedMessage({ customerName: "ماجد", order: {} });
+  assert.match(msg, /تم تأكيد طلبك يا ماجد/);
+  assert.ok(!msg.includes("رقم  يا"), "no dangling empty order number");
+});
+

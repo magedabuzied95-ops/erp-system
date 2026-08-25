@@ -2202,9 +2202,7 @@ export const processConfirmationReply = async (message = {}) => {
         ? buildOrderConfirmedMessage({
             customerName: firstName(updatedOrder.customer_name),
             order: updatedOrder,
-            items: updatedOrder.items || [],
             trackingUrl: buildOrderTrackingUrl(orderNumber(updatedOrder), phone),
-            invoiceUrl: buildPublicInvoiceUrl(orderNumber(updatedOrder)),
           })
         : action === "edit"
           ? `وصلنا طلب التعديل على طلبك رقم ${orderNumber(updatedOrder)}. سيقوم الفريق بمراجعته الآن.`
