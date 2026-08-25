@@ -8,9 +8,8 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
-import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
-import { buildInvoiceReceiptWhatsappMessage, INVOICE_RECEIPT_GREETING, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
-import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage } from "./whatsappGatewayService.js";
+import { buildInvoiceReceiptWhatsappMessage, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
@@ -1087,33 +1086,7 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       codePoints: messageDebug.codePoints,
       exactFirst300Chars: messageDebug.firstChars,
     });
-    // The receipt is the other moment the customer is thinking about the shop, so it carries the
-    // same review button as the delivery message. A CTA cannot be mixed with reply buttons, so it
-    // is the whole message; if the button will not render the receipt still goes as plain text —
-    // losing a review ask is nothing, losing the customer's invoice is not.
-    let result;
-    try {
-      result = await sendCtaUrlMessage({
-        phone,
-        // Evolution always renders the title, so it cannot be blank ("**") or absent
-        // ("*undefined*"). The receipt's own greeting becomes that header, and the body drops it
-        // so it is not printed twice.
-        title: INVOICE_RECEIPT_GREETING,
-        text: buildInvoiceReceiptWhatsappMessage({ invoiceNumber, invoiceUrl, withGreeting: false }),
-        footer: "M1 Store",
-        displayText: "⭐ قيّمنا على جوجل",
-        url: getGoogleReviewUrl(),
-        fallbackText: message,
-      });
-    } catch (ctaError) {
-      console.warn("[whatsapp:invoice-review-cta-unavailable]", {
-        order_id: current.id,
-        invoice_number: invoiceNumber,
-        message: ctaError?.message || String(ctaError),
-        code: ctaError?.code || "",
-      });
-      result = await sendTextMessage({ phone, message });
-    }
+    const result = await sendTextMessage({ phone, message });
     console.info(logTags.sent, {
       orderId: current.id,
       orderNumber: orderNumber(current),
