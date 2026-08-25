@@ -88,7 +88,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
-import { forceCleanReload, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
+import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
@@ -1815,29 +1815,29 @@ const productCardIsNew = (product = {}) => {
 
 const repairedDefaultEgyptShippingLocations = defaultEgyptShippingLocations;
 
-const OrderInvoiceCard = lazy(() => import("../shared/components/invoices/OrderInvoiceCard"));
-const Select = lazy(() => import("react-select"));
+// Every route below is a separate chunk fetched at click time, which is exactly
+// when a customer is least willing to see a failure. importWithChunkRetry gives
+// each one a second chance past a CDN edge that cached a 404, and falls back to
+// a silent reload only when the chunk is really gone.
+const OrderInvoiceCard = lazy(() => importWithChunkRetry(() => import("../shared/components/invoices/OrderInvoiceCard")));
+const Select = lazy(() => importWithChunkRetry(() => import("react-select")));
 const LazyFiltersDrawer = lazy(() => Promise.resolve({ default: MobileFilterDrawer }));
 const LazyStorefrontProductListingPage = lazy(() =>
-  import("./pages/StorefrontProductListingPage.jsx")
+  importWithChunkRetry(() => import("./pages/StorefrontProductListingPage.jsx"))
     .then((module) => ({ default: module.StorefrontProductListingPage }))
-    .catch((error) => {
-      recoverFromChunkLoadError(error);
-      throw error;
-    })
 );
-const LazyStorefrontProductDetailPage = lazy(() => import("./pages/StorefrontProductDetailPage.jsx").then((module) => ({ default: module.StorefrontProductDetailPage })));
+const LazyStorefrontProductDetailPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontProductDetailPage.jsx")).then((module) => ({ default: module.StorefrontProductDetailPage })));
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));
-const LazyStorefrontCheckoutSummary = lazy(() => import("./components/StorefrontCheckoutSummary"));
-const LazyStorefrontProductGallery = lazy(() => import("./components/StorefrontProductGallery"));
-const LazyStorefrontCartPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.CartPageRoute })));
-const LazyStorefrontTrackOrderPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.TrackOrderPage })));
-const LazyStorefrontAccountPage = lazy(() => import("./pages/StorefrontAccountPage.jsx").then((module) => ({ default: module.StorefrontAccountPage })));
-const LazyStorefrontWishlistPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.WishlistPageRoute })));
-const LazyStorefrontRecentPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.RecentPageRoute })));
-const LazyStorefrontSizeGuidePage = lazy(() => import("./pages/StorefrontSizeGuidePage.jsx").then((module) => ({ default: module.default })));
-const LazyOrderConfirmationActionPage = lazy(() => import("./pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
+const LazyStorefrontCheckoutSummary = lazy(() => importWithChunkRetry(() => import("./components/StorefrontCheckoutSummary")));
+const LazyStorefrontProductGallery = lazy(() => importWithChunkRetry(() => import("./components/StorefrontProductGallery")));
+const LazyStorefrontCartPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.CartPageRoute })));
+const LazyStorefrontTrackOrderPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.TrackOrderPage })));
+const LazyStorefrontAccountPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAccountPage.jsx")).then((module) => ({ default: module.StorefrontAccountPage })));
+const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.WishlistPageRoute })));
+const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
+const LazyStorefrontSizeGuidePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontSizeGuidePage.jsx")).then((module) => ({ default: module.default })));
+const LazyOrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
 
 const CART_KEY = "storefront.cart";
 const WISHLIST_KEY = "storefront.wishlist";
@@ -11512,11 +11512,20 @@ const playSuccess = () => playSoftClick();
 class StorefrontErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, recovering: false };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    // A chunk that failed to load is a deploy artefact, not a crash: the reload
+    // in componentDidCatch fixes it on its own, and the customer lands on the
+    // section they asked for. Showing them an error card for the second that
+    // takes turns a recovery they never needed to know about into a visible
+    // failure -- so while a reload is still possible they get the same skeleton
+    // any slow route shows. The card is reserved for what a reload cannot fix.
+    return {
+      hasError: true,
+      recovering: isChunkLoadError(error) && (isChunkRecoveryInFlight() || !hasChunkReloadAttempted()),
+    };
   }
 
   componentDidCatch(error) {
@@ -11526,6 +11535,7 @@ class StorefrontErrorBoundary extends Component {
   }
 
   render() {
+    if (this.state.recovering) return <StorefrontPageFallback />;
     if (this.state.hasError) {
       return (
         <div dir="rtl" className="min-h-screen bg-[#f7f4ee] px-4 py-10 text-center text-stone-950">

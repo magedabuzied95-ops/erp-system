@@ -113,11 +113,31 @@ const clearStaleBuildState = async () => {
   });
 };
 
+// A recovery the customer sits and watches reads as a crash, whatever the copy
+// says. Cache and service-worker teardown gets a budget rather than an
+// open-ended await, so a slow or wedged storage layer can never hold the tab on
+// the error state longer than the reload itself takes.
+const CLEANUP_BUDGET_MS = 1200;
+
+// The sessionStorage guard cannot answer "is a reload already on its way?" --
+// it is written the moment one starts, so anything asking afterwards is told a
+// reload has been *used up* and concludes nothing can help. An error boundary
+// reading it that way paints a failure over a recovery that is seconds from
+// landing. This flag is the honest answer, and it lives in memory because a
+// reload is exactly what ends its usefulness.
+let recoveryInFlight = false;
+
+export const isChunkRecoveryInFlight = () => recoveryInFlight;
+
 export const forceCleanReload = async () => {
   if (typeof window === "undefined") return false;
 
+  recoveryInFlight = true;
   markChunkReloadAttempted();
-  await clearStaleBuildState();
+  await Promise.race([
+    clearStaleBuildState(),
+    new Promise((resolve) => { window.setTimeout(resolve, CLEANUP_BUDGET_MS); }),
+  ]);
   window.location.replace(buildCacheBustedUrl());
   return true;
 };
@@ -129,6 +149,58 @@ export const recoverFromChunkLoadError = async (error) => {
   await forceCleanReload();
   return true;
 };
+
+// Both Vite and rolldown name the chunk in the rejection text ("Failed to fetch
+// dynamically imported module: <url>"), and a failed <script> carries it on the
+// event target. That URL is what makes a targeted retry possible at all.
+const CHUNK_URL_PATTERN = /https?:\/\/[^\s"'()]+?\.m?js(?:\?[^\s"'()]*)?/i;
+
+export const extractChunkUrl = (error) => {
+  const fromTarget = String(error?.target?.src || "");
+  if (fromTarget) return fromTarget;
+
+  const text = [
+    error?.message,
+    error?.reason?.message,
+    String(error?.reason || ""),
+  ].filter(Boolean).join(" ");
+
+  const match = text.match(CHUNK_URL_PATTERN);
+  return match ? match[0] : "";
+};
+
+/**
+ * A chunk that 404s is not always a chunk that is gone.
+ *
+ * vercel.json stamps every /assets/* response with `max-age=31536000,
+ * immutable`, and that header lands on 404s too -- so the CDN in front of the
+ * app stores "this chunk does not exist" and keeps serving it from that edge
+ * long after the file is healthy. One 404 served inside a deploy window becomes
+ * a lasting one for everybody routed through that edge.
+ *
+ * A query string is a different cache key, so re-importing the SAME chunk with
+ * one goes past the poisoned entry to the origin and succeeds. The customer
+ * sees nothing at all. Only if the retry fails too is the chunk genuinely gone
+ * -- a newer deployment replaced it -- and a reload is the only way back.
+ */
+export const importWithChunkRetry = (load) => load().catch(async (error) => {
+  if (typeof window === "undefined" || !isChunkLoadError(error)) throw error;
+
+  const url = extractChunkUrl(error);
+  if (url) {
+    try {
+      const retryUrl = new URL(url, window.location.href);
+      retryUrl.searchParams.set("__m1_chunk", String(Date.now()));
+      return await import(/* @vite-ignore */ retryUrl.toString());
+    } catch {
+      // Genuinely missing rather than merely cached as missing -- fall through
+      // to the reload, which is the only thing left that can work.
+    }
+  }
+
+  await recoverFromChunkLoadError(error);
+  throw error;
+});
 
 export const installChunkLoadRecovery = () => {
   if (typeof window === "undefined") return () => undefined;
