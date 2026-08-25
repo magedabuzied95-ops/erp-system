@@ -76,6 +76,17 @@ export const buildPublicInvoiceUrl = (invoiceNumber, baseUrl = resolvePublicAppU
   return `${String(baseUrl).replace(/\/+$/, "")}/invoice/${encodeURIComponent(code)}`;
 };
 
+// /track auto-submits when it gets both params, so the customer lands straight on their order
+// instead of a form asking them to retype what we already know.
+export const buildOrderTrackingUrl = (orderNumber, phone = "", baseUrl = resolvePublicAppUrl()) => {
+  const code = String(orderNumber || "").trim().replace(/^#/, "");
+  if (!code || !baseUrl) return "";
+  const query = new URLSearchParams({ order: code });
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  if (digits) query.set("phone", digits);
+  return `${String(baseUrl).replace(/\/+$/, "")}/track?${query.toString()}`;
+};
+
 export const buildArabicReceiptMessage = ({ invoiceUrl = "" } = {}) =>
   [
     "🙏 شكراً لثقتكم بنا",

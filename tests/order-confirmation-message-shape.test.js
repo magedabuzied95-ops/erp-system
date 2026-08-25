@@ -85,3 +85,46 @@ test("whole pounds drop the trailing zeros, piastres survive", () => {
   const partial = buildCodOrderConfirmationMessage({ order: { invoice_number: "X", cod_amount: 1895.5 } });
   assert.match(partial, /1,895\.50 جنيه/);
 });
+
+// ---- the reply the customer gets after pressing ✅ ----
+import { buildOrderConfirmedMessage } from "../server/utils/orderConfirmationMessage.js";
+import { buildOrderTrackingUrl } from "../server/utils/whatsapp.js";
+
+test("the confirmation reply repeats the order instead of just saying confirmed", () => {
+  const msg = buildOrderConfirmedMessage({ customerName: "ماجد", order: ORDER, items: ITEMS });
+  assert.match(msg, /تم تأكيد طلبك يا ماجد/);
+  assert.match(msg, /رقم الطلب: INV-660/);
+  assert.match(msg, /مبلغ التحصيل: 3,340 جنيه/);
+  assert.match(msg, /New balance 530/);
+  assert.match(msg, /عنوان التوصيل: /);
+});
+
+test("the tracking link lands on the customer's own order, not a lookup form", () => {
+  const url = buildOrderTrackingUrl("INV-660", "201024960585");
+  // /track auto-submits only when it receives the order in the query
+  assert.match(url, /\/track\?/);
+  assert.match(url, /order=INV-660/);
+  assert.match(url, /phone=201024960585/);
+  const page = fs.readFileSync(
+    new URL("../src/storefront/pages/StorefrontAsyncPages.jsx", import.meta.url), "utf8"
+  );
+  const track = page.slice(page.indexOf("export function TrackOrderPage"), page.indexOf("export function", page.indexOf("export function TrackOrderPage") + 10));
+  assert.match(track, /params\.get\("order"\)/, "the page reads the order param this link sets");
+  assert.match(track, /params\.get\("phone"\)/, "the page reads the phone param this link sets");
+  assert.match(track, /hasOrderFromQuery/, "the page auto-submits from the query");
+});
+
+test("a tracking link is never rendered half-built", () => {
+  assert.equal(buildOrderTrackingUrl(""), "");
+  assert.equal(buildOrderTrackingUrl(null, "201024960585"), "");
+  // a missing phone still gives a usable link, just one that asks for the phone
+  assert.match(buildOrderTrackingUrl("INV-9"), /\/track\?order=INV-9$/);
+  const noLinks = buildOrderConfirmedMessage({ customerName: "ماجد", order: ORDER, items: ITEMS });
+  assert.ok(!noLinks.includes("تابع طلبك من هنا"), "no tracking label without a tracking url");
+  assert.ok(!noLinks.includes("فاتورتك"), "no invoice label without an invoice url");
+});
+
+test("the confirmation reply promises only the delivery message that actually follows", () => {
+  const msg = buildOrderConfirmedMessage({ customerName: "ماجد", order: ORDER, items: ITEMS });
+  assert.match(msg, /أول ما يوصلك/);
+});

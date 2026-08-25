@@ -9,13 +9,13 @@ import {
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
 import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage } from "./whatsappGatewayService.js";
-import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
+import { buildInvoiceReceiptWhatsappMessage, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
-import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMessage.js";
+import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage } from "../utils/orderConfirmationMessage.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
 const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
@@ -2199,7 +2199,13 @@ export const processConfirmationReply = async (message = {}) => {
 
     if (phone) {
       const notificationMessage = action === "confirm"
-        ? `تم تأكيد طلبك رقم ${orderNumber(updatedOrder)}. شكراً لك.`
+        ? buildOrderConfirmedMessage({
+            customerName: firstName(updatedOrder.customer_name),
+            order: updatedOrder,
+            items: updatedOrder.items || [],
+            trackingUrl: buildOrderTrackingUrl(orderNumber(updatedOrder), phone),
+            invoiceUrl: buildPublicInvoiceUrl(orderNumber(updatedOrder)),
+          })
         : action === "edit"
           ? `وصلنا طلب التعديل على طلبك رقم ${orderNumber(updatedOrder)}. سيقوم الفريق بمراجعته الآن.`
           : `تم إلغاء طلبك رقم ${orderNumber(updatedOrder)}. نأسف لعدم إكمال الطلب.`;
