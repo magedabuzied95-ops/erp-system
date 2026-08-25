@@ -14,20 +14,23 @@ export const getConfirmationState = (order = {}) => {
       className: "border-rose-400/25 bg-rose-400/10 text-rose-200",
     };
   }
-  if (order?.whatsapp_confirmed_at) {
-    return {
-      key: "confirmed",
-      labelKey: "orders.confirmation.confirmed",
-      fallback: "أكّد العميل",
-      className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
-    };
-  }
+  // Ahead of the confirmed check on purpose: a customer may confirm and THEN ask for a change,
+  // which leaves whatsapp_confirmed_at set while the order has moved on. The badge must report
+  // where the order is now, not the furthest point it once reached.
   if (status === "edit_requested") {
     return {
       key: "edit_requested",
       labelKey: "orders.confirmation.editRequested",
       fallback: "طلب تعديل",
       className: "border-orange-400/25 bg-orange-400/10 text-orange-200",
+    };
+  }
+  if (order?.whatsapp_confirmed_at) {
+    return {
+      key: "confirmed",
+      labelKey: "orders.confirmation.confirmed",
+      fallback: "أكّد العميل",
+      className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
     };
   }
   if (order?.whatsapp_confirmation_sent_at && status === "pending_confirmation") {

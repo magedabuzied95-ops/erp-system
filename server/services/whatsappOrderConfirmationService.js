@@ -1277,7 +1277,9 @@ async function applyConfirmationAction({
 
     let updated = null;
     if (normalizedAction === "confirm") {
-      if (!["pending_confirmation", "confirmed"].includes(currentStatus)) {
+      // edit_requested is allowed back: the customer asks for a change, we fix it, and the same
+      // buttons are still sitting in their chat for them to confirm the corrected order.
+      if (!["pending_confirmation", "confirmed", "edit_requested"].includes(currentStatus)) {
         if (shouldManageTransaction) {
           await timedOrderConfirmationQuery({
             client,

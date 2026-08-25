@@ -31,6 +31,16 @@ test("an edit request is accepted after the customer already confirmed", () => {
   assert.match(whitelist[1], /"pending_confirmation"/);
 });
 
+test("a corrected order can be confirmed again after an edit request", () => {
+  const confirmGate = applySource.slice(
+    applySource.indexOf('if (normalizedAction === "confirm") {'),
+    applySource.indexOf('} else if (normalizedAction === "edit") {')
+  );
+  const whitelist = confirmGate.match(/\[([^\]]*)\]\.includes\(currentStatus\)/);
+  assert.ok(whitelist, "confirm still gates on a status whitelist");
+  assert.match(whitelist[1], /"edit_requested"/, "an edited order must be confirmable again");
+});
+
 test("dispatched orders are still protected", () => {
   // the protected-status refusal must remain ahead of every action branch
   const guardIndex = applySource.indexOf("isOrderConfirmationProtectedStatus(currentStatus)");

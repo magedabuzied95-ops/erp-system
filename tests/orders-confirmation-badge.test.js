@@ -55,6 +55,26 @@ test("an edit request is its own state, not silence", () => {
   assert.equal(state.key, "edit_requested");
 });
 
+test("confirming and THEN asking for a change reads as the change, not the confirmation", () => {
+  // INV-660: confirmed 00:39:49, edit requested 00:40:03. whatsapp_confirmed_at stays set, so a
+  // badge that checks it first reports where the order HAS BEEN instead of where it is.
+  const state = getConfirmationState({
+    status: "edit_requested",
+    whatsapp_confirmation_sent_at: "2026-08-25T00:39:00Z",
+    whatsapp_confirmed_at: "2026-08-25T00:39:49Z",
+  });
+  assert.equal(state.key, "edit_requested");
+});
+
+test("a cancellation still outranks an edit request", () => {
+  const state = getConfirmationState({
+    status: "cancelled_by_customer",
+    whatsapp_confirmed_at: "2026-08-25T00:39:49Z",
+    whatsapp_cancelled_at: "2026-08-25T00:41:00Z",
+  });
+  assert.equal(state.key, "cancelled");
+});
+
 test("a sent-but-unanswered request reads as awaiting", () => {
   const state = getConfirmationState({ status: "pending_confirmation", whatsapp_confirmation_sent_at: "2026-08-24T21:00:00Z" });
   assert.equal(state.key, "awaiting");
