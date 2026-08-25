@@ -6,7 +6,7 @@ import "./index.css";
 import "./theme/foundation.css";
 import "./theme/reference.css";
 import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?m1PreviewApi=2";
-import { installChunkLoadRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
+import { installChunkLoadRecovery, installStylesheetRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
 import { installDayFirstDateInputs } from "./shared/utils/dateInputLocale";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
@@ -70,6 +70,7 @@ const clearStaleApiOverrides = () => {
 
 clearStaleApiOverrides();
 installChunkLoadRecovery();
+installStylesheetRecovery();
 installDayFirstDateInputs();
 
 
