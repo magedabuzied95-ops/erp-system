@@ -1,5 +1,6 @@
 import db from "../database/db.js";
-import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { normalizeEgyptPhone, sendTextMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
+import { getGoogleReviewUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 import { getSetting } from "./settingsService.js";
@@ -126,7 +127,34 @@ const sendShippingNotification = async (order = {}, type) => {
     const claimed = claim.rows[0] || null;
     if (!claimed) return { sent: false, reason: "already_sent" };
 
-    const result = await sendTextMessage({ phone, message });
+    // The delivery message carries the review ask as a single CTA button — one message, at the
+    // one moment the customer has the product in their hands. Evolution forbids mixing a CTA with
+    // reply buttons, so this is the whole message; if the button cannot render, sendCtaUrlMessage
+    // falls back to text and the customer still gets told their parcel arrived.
+    const reviewUrl = type === "delivered" ? getGoogleReviewUrl() : "";
+    let result;
+    if (reviewUrl) {
+      try {
+        result = await sendCtaUrlMessage({
+          phone,
+          title: "رأيك يهمنا",
+          text: message,
+          footer: "M1 Store",
+          displayText: "⭐ قيّم M1 Store",
+          url: reviewUrl,
+          fallbackText: message,
+        });
+      } catch (ctaError) {
+        console.warn("[whatsapp:delivered-review-cta-unavailable]", {
+          orderId: claimed?.id || null,
+          message: ctaError?.message || String(ctaError),
+          code: ctaError?.code || "",
+        });
+        result = await sendTextMessage({ phone, message });
+      }
+    } else {
+      result = await sendTextMessage({ phone, message });
+    }
     try {
       const transcriptMessage = await appendWhatsappOutboundSupportReply({
         tenantId: claimed.tenant_id || order?.tenant_id || null,

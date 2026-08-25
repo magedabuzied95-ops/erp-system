@@ -28,3 +28,11 @@ export const getMetaWebhookUrl = () => {
 };
 
 export default getPublicAppUrl;
+
+// The Google review link for the store. It has always lived in ordersController for the invoice
+// footer; the delivery WhatsApp message needs the same one, and two copies of a Place ID are two
+// chances for a customer to end up reviewing somebody else's shop.
+const DEFAULT_GOOGLE_REVIEW_URL = "https://g.page/r/Ccj4YSNAoHbVEAE/review";
+
+export const getGoogleReviewUrl = () =>
+  clean(process.env.GOOGLE_REVIEW_URL) || DEFAULT_GOOGLE_REVIEW_URL;

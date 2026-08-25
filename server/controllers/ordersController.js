@@ -43,6 +43,7 @@ import {
   resyncSettledOrderEmployeeAdvance,
 } from "../services/employeeAdvanceSalesService.js";
 import { getShippingProvider, normalizeShippingProviderKey } from "../services/shippingProviders/index.js";
+import { getGoogleReviewUrl } from "../utils/publicUrl.js";
 
 const POS_CHECKOUT_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_CHECKOUT_DEBUG || "").trim().toLowerCase());
 const POS_DEBUG = POS_CHECKOUT_DEBUG || ["1", "true", "yes", "on"].includes(String(process.env.POS_DEBUG || "").trim().toLowerCase());
@@ -1412,12 +1413,8 @@ const buildShortPublicInvoiceUrl = (req, token) => {
   return origin ? `${origin}${invoicePath}` : invoicePath;
 };
 
-const DEFAULT_GOOGLE_REVIEW_URL =
-  "https://g.page/r/Ccj4YSNAoHbVEAE/review";
-
-const getGoogleReviewUrl = () =>
-  String(process.env.GOOGLE_REVIEW_URL || DEFAULT_GOOGLE_REVIEW_URL).trim() ||
-  DEFAULT_GOOGLE_REVIEW_URL;
+// getGoogleReviewUrl now lives in utils/publicUrl.js — the delivery WhatsApp message needs the
+// same link, and a second copy of the Place ID is a second chance to point customers elsewhere.
 
 const normalizeInvoiceMoney = (value) => Number(Number(value || 0).toFixed(2));
 

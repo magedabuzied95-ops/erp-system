@@ -1760,6 +1760,38 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
     };
 };
 
+
+// A single call-to-action button carrying a URL. Evolution refuses to mix these with reply
+// buttons in one message ("Reply buttons cannot be mixed with CTA or PIX buttons"), so a CTA
+// message is always a message of its own. Callers pass a fallback: a button that fails to render
+// must never cost the customer the message it was attached to.
+export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = "", footer = "", displayText = "", url = "", fallbackText = "" } = {}) => {
+  if (provider() !== "evolution") throw gatewayError("CTA buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  if (!text(url) || !text(displayText)) throw gatewayError("A CTA button needs a url and a label", "WHATSAPP_CTA_INCOMPLETE", 400);
+  const current = requireEvolutionConfig();
+  const payload = {
+    number: normalizedPhone,
+    title: text(title),
+    description: text(bodyText),
+    footer: text(footer),
+    buttons: [{ type: "url", displayText: text(displayText), url: text(url) }],
+  };
+  const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
+  const logBase = { order_id: null, phoneSuffix: normalizedPhone.slice(-4), buttonIds: ["cta_url"] };
+  return sendEvolutionButtonsMessage({
+    current,
+    endpoint,
+    requestBody: JSON.stringify(payload),
+    requestTimeoutMs: 9000,
+    logBase,
+    phone: normalizedPhone,
+    fallbackOnNotDelivered: async () =>
+      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || `${text(bodyText)}\n\n${text(url)}` }),
+  });
+};
+
 export const buildOrderConfirmationMessage = (order = {}) => {
   const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
   return buildCodOrderConfirmationMessage({
