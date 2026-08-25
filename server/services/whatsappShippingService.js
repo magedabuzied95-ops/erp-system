@@ -134,8 +134,13 @@ const sendShippingNotification = async (order = {}, type) => {
     const reviewUrl = type === "delivered" ? getGoogleReviewUrl() : "";
     // Split the rendered template on its first blank line: the headline becomes the CTA header,
     // the remainder the body. Templates are editable, so this reads them rather than hardcoding.
-    const [deliveredHeadline, ...deliveredRest] = String(message).split(/\n\s*\n/);
-    const deliveredBody = deliveredRest.join("\n\n").trim();
+    const [deliveredFirstLine, ...deliveredRest] = String(message).split(/\n\s*\n/);
+    const deliveredRemainder = deliveredRest.join("\n\n").trim();
+    // A template can render down to a single line — {{customer_name}} on the headline drops that
+    // whole line for a nameless customer. Splitting then would put the only line in the header and
+    // leave the body empty, so a one-line message keeps its text and takes a fixed header instead.
+    const deliveredHeadline = deliveredRemainder ? deliveredFirstLine.trim() : "تم التسليم";
+    const deliveredBody = deliveredRemainder || String(message).trim();
 
     let result;
     if (reviewUrl) {

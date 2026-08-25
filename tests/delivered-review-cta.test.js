@@ -86,5 +86,16 @@ test("the CTA title is non-empty and comes from the template", () => {
   const call = shipping.slice(from, shipping.indexOf("});", from));
   assert.ok(call.includes("title: deliveredHeadline"), "the header is the template first line");
   assert.ok(call.includes("text: deliveredBody"), "the body is the remainder");
-  assert.ok(shipping.includes("const [deliveredHeadline"), "the headline is split off the template");
+  assert.ok(shipping.includes("const [deliveredFirstLine"), "the headline is split off the template");
+});
+
+
+test("a one-line template does not leave the message body empty", () => {
+  // {{customer_name}} sits on the headline, and renderShipmentTemplate drops any line whose
+  // token has no value — so a nameless customer collapses the template to a single line.
+  // Splitting that would put the only line in the header and send an empty body.
+  assert.ok(shipping.includes('deliveredRemainder ? deliveredFirstLine.trim() : "تم التسليم"'),
+    "a collapsed template falls back to a fixed header");
+  assert.ok(shipping.includes("deliveredRemainder || String(message).trim()"),
+    "and keeps its text as the body");
 });
