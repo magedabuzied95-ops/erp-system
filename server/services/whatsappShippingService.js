@@ -140,7 +140,7 @@ const sendShippingNotification = async (order = {}, type) => {
           title: "رأيك يهمنا",
           text: message,
           footer: "M1 Store",
-          displayText: "⭐ قيّم M1 Store",
+          displayText: "⭐ قيّمنا على جوجل",
           url: reviewUrl,
           fallbackText: message,
         });
