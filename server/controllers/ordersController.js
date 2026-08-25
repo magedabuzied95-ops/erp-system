@@ -9,7 +9,7 @@ import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
-import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
+import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
 import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, resolveReceiptCoupon, syncRedemptionForOrder, validateCoupon } from "../services/couponsService.js";
@@ -7701,13 +7701,26 @@ export const returnOrder = async (req, res) => {
       paymentStatus,
     });
 
-    if (paymentStatus === "refunded") {
-      await reverseOrderLoyalty(client, {
-        ...loaded.order,
-        ...updatedOrder.rows[0],
-        userId: req.user?.id || null,
-      });
-    }
+    // Points follow the goods back: a partial return takes its share of what the
+    // order earned, a full one takes whatever is left.
+    const loyaltyReversal = await reverseOrderLoyaltyForReturn(client, {
+      tenantId,
+      orderId: loaded.order.id,
+      returnId: returnRow.id,
+      customerId: loaded.order.customer_id || null,
+      refundAmount: refundTotal,
+      orderTotal: Number(loaded.order.total_amount ?? loaded.order.total ?? 0),
+      fullyReturned: projectedReturnedAll,
+      userId: req.user?.id || null,
+    });
+    logReturnFlowStep(routeName, {
+      orderId: loaded.order.id,
+      tenantId,
+      step: "loyalty_reversed",
+      returnId: returnRow.id,
+      pointsReversed: loyaltyReversal.pointsReversed || 0,
+      loyaltyReason: loyaltyReversal.reason || null,
+    });
 
     let walletResult = null;
     if (refundMethod === "wallet") {
@@ -8197,6 +8210,8 @@ export const createReturn = async (req, res) => {
 
     // Cost of the restocked goods, so the return reverses COGS the way the sale posted it.
     let returnCogsTotal = 0;
+    // The prorated money actually going back, which is what the loyalty claw-back is measured against.
+    let proratedRefundTotal = 0;
     const returnedLineSummary = [];
 
     const refundProrationFactor = await resolveRefundProrationFactor(client, orderRow);
@@ -8234,6 +8249,7 @@ export const createReturn = async (req, res) => {
         throw error;
       }
       const variantId = originalItem.variant_id || null;
+      proratedRefundTotal += refund;
       returnedLineSummary.push({
         name: originalItem.product_name || "منتج",
         quantity,
@@ -8298,6 +8314,36 @@ export const createReturn = async (req, res) => {
       step: "return_items_processed",
       returnId: returnRow.id,
       itemsCount: items.length,
+    });
+
+    // Points follow the goods back: the customer keeps only what they still own.
+    const outstandingItems = await client.query(
+      `
+      SELECT COUNT(*)::int AS remaining
+      FROM order_items
+      WHERE order_id = $1
+        AND COALESCE(returned_quantity, 0) < COALESCE(quantity, 0)
+      `,
+      [orderId]
+    );
+    const fullyReturned = Number(outstandingItems.rows[0]?.remaining || 0) === 0;
+    const loyaltyReversal = await reverseOrderLoyaltyForReturn(client, {
+      tenantId,
+      orderId,
+      returnId: returnRow.id,
+      customerId: orderRow?.customer_id || null,
+      refundAmount: proratedRefundTotal || effectiveRefundAmount,
+      orderTotal: Number(orderRow?.total_amount ?? orderRow?.total ?? 0),
+      fullyReturned,
+      userId: req.user?.id || null,
+    });
+    logReturnFlowStep(routeName, {
+      orderId,
+      tenantId,
+      step: "loyalty_reversed",
+      returnId: returnRow.id,
+      pointsReversed: loyaltyReversal.pointsReversed || 0,
+      loyaltyReason: loyaltyReversal.reason || null,
     });
 
     logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:before", returnId: returnRow.id });

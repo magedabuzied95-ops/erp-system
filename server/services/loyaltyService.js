@@ -348,10 +348,26 @@ export const reverseOrderLoyalty = async (client, order = {}) => {
   const earnedRow = earned.rows[0];
   if (!earnedRow) return { reversed: false, reason: "no_points_to_reverse" };
 
+  // A return may already have clawed part of this order back, so cancelling it
+  // afterwards must only take what is still standing.
+  const alreadyReversed = await client.query(
+    `
+    SELECT COALESCE(SUM(ABS(points_change)), 0) AS points
+    FROM customer_loyalty_history
+    WHERE customer_id = $1
+      AND order_id = $2
+      AND (reason = 'order_reversed' OR split_part(reason, ':', 1) = 'return_reversed')
+      AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
+    `,
+    [customerId, orderId, tenantId]
+  );
+  const earnedPoints = Math.abs(Number(earnedRow.points_change || 0));
+  const points = Math.max(0, earnedPoints - Number(alreadyReversed.rows[0]?.points || 0));
+  if (points <= 0) return { reversed: false, reason: "already_reversed" };
+
   const customer = await readCustomerBalance(client, { tenantId, customerId });
-  const points = Math.abs(Number(earnedRow.points_change || 0));
   const nextPoints = Math.max(0, Number(customer.loyalty_points || 0) - points);
-  const nextSpent = Math.max(0, Number(customer.total_spent || 0) - orderTotal);
+  const nextSpent = Math.max(0, Number(customer.total_spent || 0) - orderTotal * (points / Math.max(1, earnedPoints)));
   const nextOrders = Math.max(0, Number(customer.total_orders || 0) - 1);
 
   const inserted = await client.query(
@@ -403,6 +419,130 @@ export const reverseOrderLoyalty = async (client, order = {}) => {
   return { reversed: true, pointsReversed: points, availablePoints: nextPoints, tier: summary.tier };
 };
 
+// A return claws back the points the refunded money earned. Partial returns take
+// their share, a full return takes whatever is left, and the same return applied
+// twice is a no-op because its reason key is unique per return row.
+export const reverseOrderLoyaltyForReturn = async (client, {
+  tenantId = null,
+  orderId,
+  returnId,
+  customerId = null,
+  refundAmount = 0,
+  orderTotal = 0,
+  fullyReturned = false,
+  userId = null,
+} = {}) => {
+  await ensureLoyaltySchema(client);
+  if (!orderId || !returnId) return { reversed: false, reason: "missing_order_or_return" };
+  const finalTenantId = await resolveTenantIdForOrder(client, { tenantId, orderId });
+  if (!hasTenantId(finalTenantId)) return { reversed: false, reason: "missing_tenant" };
+
+  let finalCustomerId = customerId;
+  if (!finalCustomerId) {
+    const owner = await client.query(`SELECT customer_id FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
+    finalCustomerId = owner.rows[0]?.customer_id || null;
+  }
+  if (!finalCustomerId) return { reversed: false, reason: "missing_customer" };
+
+  const earned = await client.query(
+    `
+    SELECT source, points_change
+    FROM customer_loyalty_history
+    WHERE customer_id = $1
+      AND order_id = $2
+      AND reason = 'order_earned'
+      AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    [finalCustomerId, orderId, finalTenantId]
+  );
+  const earnedRow = earned.rows[0];
+  if (!earnedRow) return { reversed: false, reason: "no_points_to_reverse" };
+
+  const earnedPoints = Math.abs(Number(earnedRow.points_change || 0));
+  const alreadyReversed = await client.query(
+    `
+    SELECT COALESCE(SUM(ABS(points_change)), 0) AS points
+    FROM customer_loyalty_history
+    WHERE customer_id = $1
+      AND order_id = $2
+      AND (reason = 'order_reversed' OR split_part(reason, ':', 1) = 'return_reversed')
+      AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
+    `,
+    [finalCustomerId, orderId, finalTenantId]
+  );
+  const remaining = Math.max(0, earnedPoints - Number(alreadyReversed.rows[0]?.points || 0));
+  if (remaining <= 0) return { reversed: false, reason: "already_reversed" };
+
+  const refund = Math.max(0, Number(refundAmount || 0));
+  const total = Math.max(0, Number(orderTotal || 0));
+  const share = fullyReturned || total <= 0 ? 1 : Math.min(1, refund / total);
+  const points = fullyReturned ? remaining : Math.min(remaining, Math.round(earnedPoints * share));
+  if (points <= 0) return { reversed: false, reason: "zero_points" };
+
+  const customer = await readCustomerBalance(client, { tenantId: finalTenantId, customerId: finalCustomerId });
+  const spentReversal = fullyReturned ? Math.max(refund, total ? total * (points / Math.max(1, earnedPoints)) : refund) : refund;
+  const nextPoints = Math.max(0, Number(customer.loyalty_points || 0) - points);
+  const nextSpent = Math.max(0, Number(customer.total_spent || 0) - spentReversal);
+  const nextOrders = fullyReturned
+    ? Math.max(0, Number(customer.total_orders || 0) - 1)
+    : Number(customer.total_orders || 0);
+  const source = String(earnedRow.source || "pos");
+
+  const inserted = await client.query(
+    `
+    INSERT INTO customer_loyalty_history (
+      tenant_id,
+      customer_id,
+      order_id,
+      source,
+      points_change,
+      balance_after,
+      reason
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7)
+    ON CONFLICT DO NOTHING
+    RETURNING *
+    `,
+    [finalTenantId, finalCustomerId, orderId, source, -points, nextPoints, `return_reversed:${returnId}`]
+  );
+  if (!inserted.rows[0]) return { reversed: false, duplicate: true, reason: "already_reversed" };
+
+  await client.query(
+    `
+    INSERT INTO loyalty_transactions (
+      tenant_id,
+      customer_id,
+      order_id,
+      transaction_type,
+      points,
+      amount_value,
+      description,
+      created_by
+    )
+    VALUES ($1,$2,$3,'reversed',$4,$5,$6,$7)
+    `,
+    [finalTenantId, finalCustomerId, orderId, -points, refund, `Reversed ${points} points for return #${returnId} on order #${orderId}`, userId]
+  );
+
+  const summary = await syncCustomerLoyalty(client, {
+    tenantId: finalTenantId,
+    customerId: finalCustomerId,
+    points: nextPoints,
+    totalSpent: nextSpent,
+    totalOrders: nextOrders,
+  });
+
+  return {
+    reversed: true,
+    pointsReversed: points,
+    availablePoints: nextPoints,
+    tier: summary.tier,
+    fullyReturned: Boolean(fullyReturned),
+  };
+};
+
 export const rebuildCustomerLoyalty = async (client, customerId, tenantId = null) => {
   await ensureLoyaltySchema(client);
   await readCustomerBalance(client, { tenantId, customerId });
@@ -411,7 +551,7 @@ export const rebuildCustomerLoyalty = async (client, customerId, tenantId = null
     `
     DELETE FROM customer_loyalty_history
     WHERE customer_id = $1
-      AND reason IN ('order_earned', 'order_reversed')
+      AND (reason IN ('order_earned', 'order_reversed') OR split_part(reason, ':', 1) = 'return_reversed')
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
     `,
     [customerId, tenantId]
@@ -428,10 +568,36 @@ export const rebuildCustomerLoyalty = async (client, customerId, tenantId = null
     [customerId, tenantId]
   );
 
+  const returnsTable = await client.query(`SELECT to_regclass('public.returns') AS regclass`);
+  const hasReturnsTable = Boolean(returnsTable.rows[0]?.regclass);
+
   await syncCustomerLoyalty(client, { tenantId, customerId, points: 0, totalSpent: 0, totalOrders: 0 });
   for (const order of orders.rows) {
     if (isCancelled(order.status) || isCancelled(order.payment_status)) continue;
     await applyOrderLoyalty(client, order);
+    if (!hasReturnsTable) continue;
+    // Replay the returns too, otherwise a rebuild hands back points the customer
+    // already gave up when the goods came back.
+    const orderReturns = await client.query(
+      `
+      SELECT id, refund_amount
+      FROM returns
+      WHERE order_id = $1
+        AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void', 'voided', 'rejected')
+      ORDER BY id ASC
+      `,
+      [order.id]
+    );
+    for (const returnRow of orderReturns.rows) {
+      await reverseOrderLoyaltyForReturn(client, {
+        tenantId,
+        orderId: order.id,
+        returnId: returnRow.id,
+        customerId,
+        refundAmount: Number(returnRow.refund_amount || 0),
+        orderTotal: Number(order.total_amount ?? order.total ?? order.total_price ?? 0),
+      });
+    }
   }
 
   const summary = await getCustomerLoyaltySummary(client, customerId, tenantId);
