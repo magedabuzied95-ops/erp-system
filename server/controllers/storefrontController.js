@@ -5862,17 +5862,60 @@ export const trackOrder = async (req, res) => {
   }
 };
 
+// The courier's own vocabulary, in the order a parcel actually travels. Bosta's webhook writes
+// these onto shipment_status/shipping_status (BOSTA_STATE_CODES maps its numeric states onto
+// them), so reaching any stage implies every earlier one — a parcel cannot be out for delivery
+// without having been created. Ranking beats per-stage lists: those listed "created" while the
+// webhook writes "shipment_created", and never listed out_for_delivery at all, so two of the six
+// stages could never light up from a real Bosta callback.
+const SHIPPING_STAGE_RANK = {
+  pending: 0,
+  ready_to_ship: 1,
+  shipment_created: 2,
+  created: 2,
+  picked_up: 3,
+  in_transit: 3,
+  out_for_delivery: 4,
+  delivered: 5,
+};
+
+const ORDER_STAGE_RANK = {
+  pending: 0,
+  pending_confirmation: 0,
+  edit_requested: 0,
+  confirmed: 1,
+  ready_to_ship: 2,
+  shipment_created: 3,
+  shipped: 3,
+  out_for_delivery: 4,
+  delivered: 5,
+};
+
+// Order stage 1 == confirmed, shipping stage 1 == ready_to_ship, so the two scales are compared
+// against the timeline's own indexes rather than each other.
+const TIMELINE_STAGES = [
+  { key: "received", label: "تم استلام الطلب", order: 0, shipping: 0 },
+  { key: "confirmed", label: "تم تأكيد الطلب", order: 1, shipping: 1 },
+  { key: "ready_to_ship", label: "جاهز للشحن", order: 2, shipping: 1 },
+  { key: "shipment_created", label: "تم إنشاء الشحنة", order: 3, shipping: 2 },
+  { key: "out_for_delivery", label: "خرج للتسليم", order: 4, shipping: 4 },
+  { key: "delivered", label: "تم التسليم", order: 5, shipping: 5 },
+];
+
 const buildOrderTimeline = (order = {}) => {
   const status = normalizeOrderLifecycleStatus(order.status || "", "pending");
   const shipping = normalizeShippingLifecycleStatus(order.shipment_status || order.shipping_status || "", "pending");
-  return [
-    { key: "received", label: "تم استلام الطلب", done: true },
-    { key: "confirmed", label: "Confirmed", done: ["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "created", "picked_up", "in_transit", "delivered"].includes(shipping) },
-    { key: "ready_to_ship", label: "Ready to ship", done: ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "created", "picked_up", "in_transit", "delivered"].includes(shipping) },
-    { key: "shipment_created", label: "Shipment created", done: ["created", "picked_up", "in_transit", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(status) },
-    { key: "out_for_delivery", label: "Out for delivery", done: ["picked_up", "in_transit", "delivered"].includes(shipping) || ["out_for_delivery", "delivered"].includes(status) },
-    { key: "delivered", label: "تم التسليم", done: status === "delivered" || shipping === "delivered" },
-  ];
+  const orderRank = ORDER_STAGE_RANK[status] ?? 0;
+  const shippingRank = SHIPPING_STAGE_RANK[shipping] ?? 0;
+  // A cancelled or returned parcel is not "further along"; it leaves the happy path, and the
+  // stages it never reached must not light up because the order ended somewhere else.
+  const derailed = ["cancelled", "cancelled_by_customer", "returned", "failed_delivery"].includes(status)
+    || ["cancelled", "returned", "failed_delivery"].includes(shipping);
+  return TIMELINE_STAGES.map((stage) => ({
+    key: stage.key,
+    label: stage.label,
+    done: stage.key === "received" || (!derailed && (orderRank >= stage.order || shippingRank >= stage.shipping)),
+  }));
 };
 
 export const accountByPhone = async (req, res) => {
