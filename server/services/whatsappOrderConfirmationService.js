@@ -563,6 +563,22 @@ const buildOrderActionLogMessage = ({ action = "", order = {} } = {}) => {
   return `تحديث الطلب ${orderRef}`;
 };
 
+// applyConfirmationAction refuses by silently returning the order UNCHANGED, so the only honest
+// way to know whether a customer's tap took effect is to look at the status it left behind.
+// Trusting the call is what let INV-659 be told "we received your edit request" while nothing
+// anywhere recorded it.
+export const ORDER_ACTION_EXPECTED_STATUS = {
+  confirm: "confirmed",
+  edit: "edit_requested",
+  cancel: "cancelled_by_customer",
+};
+
+export const orderActionRefusalReason = ({ action = "", resultingStatus = "" } = {}) => {
+  const expected = ORDER_ACTION_EXPECTED_STATUS[String(action).toLowerCase()];
+  if (!expected) return "unknown_action";
+  return String(resultingStatus || "").trim().toLowerCase() === expected ? "" : "status_not_applicable";
+};
+
 const isOrderConfirmationProtectedStatus = (status = "") => {
   const raw = text(status).toLowerCase();
   return ORDER_CONFIRMATION_PROTECTED_STATUSES.has(raw);
@@ -1294,7 +1310,10 @@ async function applyConfirmationAction({
         label: ORDER_CONFIRMATION_ACTION_META.confirm.label,
       }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "edit") {
-      if (!["pending_confirmation", "edit_requested"].includes(currentStatus)) {
+      // A customer who confirms and THEN notices the wrong size still needs to reach us. WhatsApp
+      // buttons cannot be withdrawn once sent, so a late tap is normal, not abuse. Anything past
+      // dispatch is still refused above by isOrderConfirmationProtectedStatus.
+      if (!["pending_confirmation", "edit_requested", "confirmed"].includes(currentStatus)) {
         if (shouldManageTransaction) {
           await timedOrderConfirmationQuery({
             client,
@@ -2031,25 +2050,74 @@ export const processConfirmationReply = async (message = {}) => {
   if (!action && isEditReply) action = "edit";
   if (!action && isCancelReply) action = "cancel";
 
-  if (action === "confirm" && currentStatus === "confirmed") {
-    return { action: "confirmed", order };
-  }
-  if (action === "edit" && currentStatus === "edit_requested") {
-    return { action: "edit_requested", order };
-  }
-  if (action === "cancel" && currentStatus === "cancelled_by_customer") {
-    return { action: "cancelled_by_customer", order };
+  // Re-tapping a button the order already reflects is a no-op, but silence reads as a broken
+  // system. Acknowledge the state the order is actually in, and never re-run the side effects.
+  const alreadyInState = {
+    confirm: currentStatus === "confirmed" ? `طلبك رقم ${orderNumber(order)} مؤكد بالفعل ✅ وإحنا بنجهّزه.` : "",
+    edit: currentStatus === "edit_requested" ? `طلب التعديل على طلبك رقم ${orderNumber(order)} وصلنا بالفعل، والفريق بيراجعه.` : "",
+    cancel: currentStatus === "cancelled_by_customer" ? `طلبك رقم ${orderNumber(order)} ملغي بالفعل.` : "",
+  }[action];
+  if (action && alreadyInState) {
+    if (phone) await sendTextMessage({ phone, message: alreadyInState }).catch(() => {});
+    return {
+      action: action === "edit" ? "edit_requested" : action === "cancel" ? "cancelled_by_customer" : "confirmed",
+      order,
+      repeated: true,
+    };
   }
 
   if (action) {
-    const updatedOrder = await applyConfirmationAction({
-      orderId: order?.id || actionFromButton?.orderId || "",
-      action,
-      reason: originalBody,
-      source: "whatsapp_webhook",
-      actorType: "customer",
-    });
+    // WhatsApp buttons stay tappable forever, so a tap can land on an order that has moved on.
+    // Whatever we answer must be TRUE: applyConfirmationAction silently returns the unchanged
+    // order when it refuses, and throws for dispatched orders. Both used to end with the customer
+    // being told their request was received while nothing was recorded anywhere (INV-659).
+    let updatedOrder = null;
+    let refusalReason = "";
+    try {
+      updatedOrder = await applyConfirmationAction({
+        orderId: order?.id || actionFromButton?.orderId || "",
+        action,
+        reason: originalBody,
+        source: "whatsapp_webhook",
+        actorType: "customer",
+      });
+    } catch (applyError) {
+      if (applyError?.code !== "ORDER_CONFIRMATION_LINK_LOCKED") throw applyError;
+      refusalReason = "order_dispatched";
+      updatedOrder = order;
+    }
     if (!updatedOrder) return { action: "ignored", order };
+
+    if (!refusalReason) {
+      refusalReason = orderActionRefusalReason({ action, resultingStatus: updatedOrder.status });
+    }
+
+    if (refusalReason) {
+      console.warn("[whatsapp:order-action-refused]", {
+        orderId: updatedOrder?.id || order?.id || null,
+        orderNumber: orderNumber(updatedOrder),
+        action,
+        currentStatus: text(updatedOrder.status).toLowerCase(),
+        reason: refusalReason,
+        phoneSuffix: phone.slice(-4),
+      });
+      if (phone) {
+        const refusalMessage = refusalReason === "order_dispatched"
+          ? `طلبك رقم ${orderNumber(updatedOrder)} خرج للشحن بالفعل، فمش هينفع نعدّله أو نلغيه من هنا. كلّمنا وهنشوف نساعدك إزاي.`
+          : `معلش، مش هينفع ننفّذ الطلب ده على طلبك رقم ${orderNumber(updatedOrder)} في حالته الحالية. كلّمنا وهنساعدك.`;
+        await sendTextMessage({ phone, message: refusalMessage }).catch(() => {});
+      }
+      // A refusal is still a customer asking for something — put it in front of a human.
+      await markAiSupportConversationEscalated({
+        tenantId: tenantIdForMessage(message, updatedOrder),
+        sessionId: `whatsapp:${phone}`,
+        reason: `customer_${action}_refused_${refusalReason}`,
+        keyword: `${action}_order`,
+        actorUserId: message.user_id || message.actor_user_id || null,
+        source: "whatsapp_order_confirmation",
+      }).catch(() => {});
+      return { action: "refused", reason: refusalReason, order: updatedOrder };
+    }
 
     const actionMessage = action === "confirm"
       ? `✅ تأكيد الطلب ${orderNumber(updatedOrder)}`
