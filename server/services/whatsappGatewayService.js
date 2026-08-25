@@ -988,11 +988,16 @@ export const sendTextMessage = async ({ phone, message, instance = "" } = {}) =>
   if (!sendTarget) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!body.trim()) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
   const current = requireEvolutionConfig(instance);
+  // Link previews are OFF, and that is load-bearing: with them on, Baileys fetches preview
+  // metadata for the URL and - proven live on 2026-08-25 - the message is acked with DELIVERY_ACK
+  // and then never renders on the phone. Every message carrying a link vanished silently: the
+  // tracking link, the invoice receipt, the COD confirmation link itself. A preview card adds
+  // nothing to a transactional message; arriving does.
   const hasLink = /https?:\/\/[^\s]+/i.test(body);
   const requestBody = JSON.stringify({
     number: sendTarget,
     text: body,
-    ...(hasLink ? { linkPreview: true } : {}),
+    ...(hasLink ? { linkPreview: false } : {}),
   });
   const targetSuffix = sendTarget.slice(-4);
   const messageDebug = buildWhatsappTextDebug(body, 300);
