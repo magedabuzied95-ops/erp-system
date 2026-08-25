@@ -8,8 +8,9 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
-import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage } from "./whatsappGatewayService.js";
+import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
+import { getGoogleReviewUrl } from "../utils/publicUrl.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
@@ -1086,7 +1087,30 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       codePoints: messageDebug.codePoints,
       exactFirst300Chars: messageDebug.firstChars,
     });
-    const result = await sendTextMessage({ phone, message });
+    // The receipt is the other moment the customer is thinking about the shop, so it carries the
+    // same review button as the delivery message. A CTA cannot be mixed with reply buttons, so it
+    // is the whole message; if the button will not render the receipt still goes as plain text —
+    // losing a review ask is nothing, losing the customer's invoice is not.
+    let result;
+    try {
+      result = await sendCtaUrlMessage({
+        phone,
+        title: "شكراً لثقتكم بنا",
+        text: message,
+        footer: "M1 Store",
+        displayText: "⭐ قيّمنا على جوجل",
+        url: getGoogleReviewUrl(),
+        fallbackText: message,
+      });
+    } catch (ctaError) {
+      console.warn("[whatsapp:invoice-review-cta-unavailable]", {
+        order_id: current.id,
+        invoice_number: invoiceNumber,
+        message: ctaError?.message || String(ctaError),
+        code: ctaError?.code || "",
+      });
+      result = await sendTextMessage({ phone, message });
+    }
     console.info(logTags.sent, {
       orderId: current.id,
       orderNumber: orderNumber(current),
