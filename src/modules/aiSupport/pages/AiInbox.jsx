@@ -100,7 +100,7 @@ import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLa
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
-import { backendChannelFilter, channelWindow, channelsForFilter, mergeConversationPages } from "../services/inboxChannels";
+import { backendChannelFilter, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import "./AiInboxOrderComposer.m1.css";
@@ -2201,7 +2201,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2316,6 +2316,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                         {sourceLabel}
                       </span>
                     </Pill>
+                    {accountLabel ? <Pill tone="zinc"><span dir="auto" className="max-w-[9rem] truncate">{accountLabel}</span></Pill> : null}
                   </div>
                 </>
               )}
@@ -5475,6 +5476,10 @@ export default function AiInbox({ reviewerMode = false }) {
   const [favoriteFilter, setFavoriteFilter] = useState("all");
   const [readFilter, setReadFilter] = useState("all"); // all | unread | read
   const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
+  // Which specific account (WhatsApp number / page) within the selected channel;
+  // stores the channel_accounts row id as a string, or "all".
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [channelAccounts, setChannelAccounts] = useState([]);
   const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -5906,13 +5911,15 @@ export default function AiInbox({ reviewerMode = false }) {
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
         api.get("/ai-agent/settings/ai-assistant-global", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.globalAi" }).catch(() => ({ ai_assistant_global_enabled: true })),
         api.get("/employees", { params: { active: true, limit: 200 }, headers, perfComponent: "AiInbox.employees" }).catch(() => ({ employees: [] })),
-      ]).then(([draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload]) => {
+        api.get("/ai-agent/channel-accounts", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channelAccounts" }).catch(() => ({ accounts: [] })),
+      ]).then(([draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload, accountsPayload]) => {
         if (seq !== requestSeqRef.current) return;
         setDrafts(asArray(draftsPayload.drafts));
         setAnalytics(analyticsPayload.analytics || {});
         setChannelStatus(channelPayload.channels || {});
         setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
         setEmployees(asArray(employeesPayload?.employees || employeesPayload?.data || employeesPayload || []));
+        setChannelAccounts(asArray(accountsPayload?.accounts));
       }).catch(() => {});
 
       const socialCommentsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
@@ -6215,6 +6222,56 @@ export default function AiInbox({ reviewerMode = false }) {
     [conversations]
   );
   const activePanelConversations = inboxSection === "social_comments" ? socialCommentPanelConversations : conversationPanelConversations;
+  // Multi-account: active registry rows grouped by platform. The badge and the
+  // account sub-filter only appear for a platform with MORE than one account —
+  // a single-number tenant sees exactly the inbox it had before.
+  const accountsByPlatform = useMemo(() => {
+    const grouped = new Map();
+    for (const account of channelAccounts) {
+      if (account?.is_active === false) continue;
+      const platform = clean(account?.platform).toLowerCase();
+      if (!platform) continue;
+      if (!grouped.has(platform)) grouped.set(platform, []);
+      grouped.get(platform).push(account);
+    }
+    return grouped;
+  }, [channelAccounts]);
+  // account key (instance name / page id / IG id) -> display label, per platform.
+  const accountDirectory = useMemo(() => {
+    const directory = new Map();
+    for (const account of channelAccounts) {
+      const platform = clean(account?.platform).toLowerCase();
+      const label = clean(account?.display_name) || clean(account?.external_account_id);
+      if (!platform || !label) continue;
+      for (const key of [clean(account?.external_account_id), clean(account?.metadata?.page_id)]) {
+        if (key) directory.set(`${platform}:${key}`, label);
+      }
+    }
+    return directory;
+  }, [channelAccounts]);
+  const conversationAccountLabel = useCallback((conversation = {}) => {
+    const platform = normalizeConversationChannel(conversation);
+    if ((accountsByPlatform.get(platform) || []).length < 2) return "";
+    const key = conversationAccountKey(conversation);
+    if (!key) return "";
+    return accountDirectory.get(`${platform}:${key}`) || key;
+  }, [accountDirectory, accountsByPlatform]);
+  const accountFilterOptions = useMemo(() => {
+    const platform = backendChannelFilter(channelFilter);
+    const accounts = accountsByPlatform.get(platform) || [];
+    return accounts.length > 1
+      ? accounts.map((account) => ({ id: String(account.id), label: clean(account.display_name) || clean(account.external_account_id) }))
+      : [];
+  }, [accountsByPlatform, channelFilter]);
+  // The keys this filter accepts: the account's own id plus its page id, so an
+  // Instagram thread stamped with either identifier still matches.
+  const selectedAccountKeys = useMemo(() => {
+    if (accountFilter === "all") return null;
+    const account = channelAccounts.find((row) => String(row?.id) === accountFilter);
+    if (!account) return null;
+    const keys = new Set([clean(account.external_account_id), clean(account.metadata?.page_id)].filter(Boolean));
+    return keys.size ? keys : null;
+  }, [accountFilter, channelAccounts]);
   const filteredConversations = useMemo(() => {
     const items = [...conversations];
     const activeChannelFilterAllowed = inboxSection === "social_comments"
@@ -6251,6 +6308,8 @@ export default function AiInbox({ reviewerMode = false }) {
       if (channelFilter === "all" || !activeChannelFilterAllowed) return true;
       return normalizeConversationChannel(conversation) === channelFilter;
     };
+    const matchesAccountFilter = (conversation = {}) =>
+      !selectedAccountKeys || selectedAccountKeys.has(conversationAccountKey(conversation));
     const matchesInboxFilter = (conversation = {}) => {
       if (filter === "all") return true;
       if (filter === "messages") return isMessageThread(conversation) && matchesMessagePlatform(conversation, messagePlatformFilter);
@@ -6271,7 +6330,7 @@ export default function AiInbox({ reviewerMode = false }) {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesChannelFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesChannelFilter).filter(matchesAccountFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -6279,7 +6338,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter]);
+  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter, selectedAccountKeys]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -9804,6 +9863,7 @@ export default function AiInbox({ reviewerMode = false }) {
             onSelectChannel={() => {
               setInboxSection("conversations");
               setChannelFilter("all");
+              setAccountFilter("all");
               setSelectedSocialCommentId("");
               setMobileView("list");
             }}
@@ -10019,6 +10079,7 @@ export default function AiInbox({ reviewerMode = false }) {
               onSelectChannel={(value) => {
                 setInboxSection("conversations");
                 setChannelFilter(value);
+                setAccountFilter("all");
                 setMobileView("list");
               }}
             />
@@ -10069,6 +10130,21 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <CheckCheck className="h-4 w-4" />
 	                    </button>
 	                  </div>
+	                  {accountFilterOptions.length ? (
+	                    <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/70 p-1">
+	                      {[{ id: "all", label: t("aiSupport.inbox.ui.accountFilterAll") }, ...accountFilterOptions].map((option) => (
+	                        <button
+	                          key={option.id}
+	                          type="button"
+	                          onClick={() => setAccountFilter(option.id)}
+	                          aria-pressed={accountFilter === option.id}
+	                          className={`shrink-0 truncate rounded-lg px-2.5 py-1.5 text-[11px] font-black transition ${accountFilter === option.id ? "bg-cyan-400/15 text-cyan-100" : "text-slate-400 hover:text-white"}`}
+	                        >
+	                          {option.label}
+	                        </button>
+	                      ))}
+	                    </div>
+	                  ) : null}
 	                </div>
 	              ) : null}
 	            </div>
@@ -10089,6 +10165,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                          <InboxConversationCard
 	                            key={itemKey}
 	                            item={item}
+	                            accountLabel={conversationAccountLabel(item)}
 	                            unseen={unseenSessions.includes(itemKey)}
 	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}

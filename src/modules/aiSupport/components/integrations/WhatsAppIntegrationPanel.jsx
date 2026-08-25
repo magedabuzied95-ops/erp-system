@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, RefreshCw, Send, ShieldCheck } from "lucide-react";
+import { MessageCircle, Phone, Plus, RefreshCw, Send, ShieldCheck } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
 import {
@@ -34,7 +34,10 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
   const [gateway, setGateway] = useState(null);
   const [cloud, setCloud] = useState({});
   const [busy, setBusy] = useState("");
-  const [test, setTest] = useState({ phone: "", message: "" });
+  const [test, setTest] = useState({ phone: "", message: "", instance: "" });
+  const [accounts, setAccounts] = useState([]);
+  const [newInstance, setNewInstance] = useState({ instance: "", displayName: "" });
+  const [instanceResult, setInstanceResult] = useState(null);
   const mountedRef = useRef(true);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -46,13 +49,15 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
-    const [gatewayResult, channelsResult] = await Promise.allSettled([
+    const [gatewayResult, channelsResult, accountsResult] = await Promise.allSettled([
       api.get("/whatsapp/status", { headers, ...SUPPRESSED }),
       api.get("/ai-agent/channels/status", { headers, ...SUPPRESSED }),
+      api.get("/ai-agent/channel-accounts", { params: { platform: "whatsapp", include_inactive: "true" }, headers, ...SUPPRESSED }),
     ]);
     if (!mountedRef.current) return;
     setGateway(gatewayResult.status === "fulfilled" ? gatewayResult.value?.status || null : null);
     setCloud(channelsResult.status === "fulfilled" ? channelsResult.value?.channels?.whatsapp || {} : {});
+    setAccounts(accountsResult.status === "fulfilled" && Array.isArray(accountsResult.value?.accounts) ? accountsResult.value.accounts : []);
     if (!silent) setLoading(false);
   }, [headers]);
 
@@ -63,7 +68,13 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
     setBusy("test");
     setTestResult(null);
     try {
-      await api.post("/whatsapp/send-test", test, { headers });
+      // A specific number goes through the instance-aware endpoint; the legacy
+      // route stays the default so single-number behaviour is untouched.
+      if (test.instance) {
+        await api.post("/ai-agent/channels/whatsapp/test-send", { to: test.phone, message: test.message, instance: test.instance }, { headers });
+      } else {
+        await api.post("/whatsapp/send-test", { phone: test.phone, message: test.message }, { headers });
+      }
       if (!mountedRef.current) return;
       setTestResult({ ok: true, text: t("aiSupport.integrations.whatsapp.testSent") });
       await load({ silent: true });
@@ -73,6 +84,44 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
       if (mountedRef.current) setBusy("");
     }
   }, [headers, load, t, test]);
+
+  const addInstance = useCallback(async () => {
+    setBusy("instance");
+    setInstanceResult(null);
+    try {
+      const payload = await api.post(
+        "/ai-agent/channel-accounts",
+        { platform: "whatsapp", instance: newInstance.instance.trim(), display_name: newInstance.displayName.trim() },
+        { headers }
+      );
+      if (!mountedRef.current) return;
+      const state = clean(payload?.connection?.state) || "unknown";
+      setInstanceResult({
+        ok: payload?.connection?.connected === true,
+        text: payload?.connection?.connected === true
+          ? t("aiSupport.integrations.whatsapp.instances.added")
+          : `${t("aiSupport.integrations.whatsapp.instances.addedNotConnected")} (${state})`,
+      });
+      setNewInstance({ instance: "", displayName: "" });
+      await load({ silent: true });
+    } catch (error) {
+      if (mountedRef.current) setInstanceResult({ ok: false, text: error?.message || t("aiSupport.integrations.whatsapp.instances.addFailed") });
+    } finally {
+      if (mountedRef.current) setBusy("");
+    }
+  }, [headers, load, newInstance, t]);
+
+  const toggleInstance = useCallback(async (account) => {
+    setBusy(`toggle:${account.id}`);
+    try {
+      await api.patch(`/ai-agent/channel-accounts/${encodeURIComponent(account.id)}`, { is_active: account.is_active === false }, { headers });
+      await load({ silent: true });
+    } catch (error) {
+      if (mountedRef.current) setInstanceResult({ ok: false, text: error?.message || t("aiSupport.integrations.whatsapp.instances.updateFailed") });
+    } finally {
+      if (mountedRef.current) setBusy("");
+    }
+  }, [headers, load, t]);
 
   const cloudConfigured = cloud.env_enabled === true && cloud.access_token_configured === true && cloud.phone_number_id_configured === true;
   const cloudState = cloud.effective_enabled === true && cloudConfigured ? "connected" : cloudConfigured || cloud.env_enabled === true ? "partial" : "off";
@@ -135,6 +184,23 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
             <div className="text-xs font-black text-white">{t("aiSupport.integrations.whatsapp.gateway.testTitle")}</div>
+            {accounts.length ? (
+              <label className="mt-2 block">
+                <span className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{t("aiSupport.integrations.whatsapp.instances.testInstance")}</span>
+                <select
+                  value={test.instance}
+                  onChange={(event) => setTest((current) => ({ ...current, instance: event.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold text-white outline-none focus:border-cyan-300/40"
+                >
+                  <option value="">{t("aiSupport.integrations.whatsapp.instances.defaultInstance")}{clean(gateway?.instanceName) ? ` (${gateway.instanceName})` : ""}</option>
+                  {accounts.filter((account) => account.is_active !== false).map((account) => (
+                    <option key={account.id} value={account.external_account_id}>
+                      {clean(account.display_name) || account.external_account_id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <TextInput
               label={t("aiSupport.integrations.whatsapp.gateway.testPhone")}
               className="mt-2"
@@ -171,6 +237,74 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
             ) : null}
           </div>
         </div>
+      </PanelSection>
+
+      <PanelSection
+        icon={Phone}
+        title={t("aiSupport.integrations.whatsapp.instances.title")}
+        subtitle={t("aiSupport.integrations.whatsapp.instances.subtitle")}
+        tone="slate"
+      >
+        <div className="grid gap-2">
+          <FieldRow
+            label={t("aiSupport.integrations.whatsapp.instances.defaultInstance")}
+            value={gateway?.instanceName}
+            fallback={t("aiSupport.integrations.whatsapp.gateway.instanceMissing")}
+          />
+          {accounts.map((account) => (
+            <div key={account.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
+              <div className="min-w-0">
+                <div dir="auto" className="truncate text-sm font-black text-white">{clean(account.display_name) || account.external_account_id}</div>
+                <div dir="ltr" className="truncate text-[11px] text-slate-500">{account.external_account_id}</div>
+              </div>
+              <ActionButton
+                tone={account.is_active === false ? "ghost" : "emerald"}
+                loading={busy === `toggle:${account.id}`}
+                onClick={() => toggleInstance(account)}
+              >
+                {account.is_active === false
+                  ? t("aiSupport.integrations.whatsapp.instances.inactive")
+                  : t("aiSupport.integrations.whatsapp.instances.active")}
+              </ActionButton>
+            </div>
+          ))}
+          {!accounts.length ? (
+            <p className="rounded-xl border border-white/10 bg-slate-950/40 p-3 text-[11px] leading-5 text-slate-500">
+              {t("aiSupport.integrations.whatsapp.instances.empty")}
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <TextInput
+            label={t("aiSupport.integrations.whatsapp.instances.name")}
+            dir="ltr"
+            placeholder="store-branch-2"
+            value={newInstance.instance}
+            onChange={(event) => setNewInstance((current) => ({ ...current, instance: event.target.value }))}
+          />
+          <TextInput
+            label={t("aiSupport.integrations.whatsapp.instances.displayName")}
+            dir="auto"
+            value={newInstance.displayName}
+            onChange={(event) => setNewInstance((current) => ({ ...current, displayName: event.target.value }))}
+          />
+        </div>
+        <ActionButton
+          tone="emerald"
+          icon={Plus}
+          loading={busy === "instance"}
+          disabled={!newInstance.instance.trim()}
+          onClick={addInstance}
+          className="mt-2"
+        >
+          {t("aiSupport.integrations.whatsapp.instances.add")}
+        </ActionButton>
+        {instanceResult ? (
+          <p className={`mt-2 rounded-xl border p-2.5 text-[11px] font-bold ${instanceResult.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
+            {instanceResult.text}
+          </p>
+        ) : null}
+        <p className="mt-3 text-[11px] leading-5 text-slate-500">{t("aiSupport.integrations.whatsapp.instances.note")}</p>
       </PanelSection>
     </div>
   );

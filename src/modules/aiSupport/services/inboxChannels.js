@@ -55,6 +55,23 @@ export const channelsForFilter = (uiChannelFilter = "") => {
   return selected ? [selected] : [...AI_INBOX_MESSAGE_CHANNELS];
 };
 
+// Which specific ACCOUNT owns a conversation — the WhatsApp number (Evolution
+// instance), Facebook page, or Instagram account. The webhook stamps these keys
+// into conversation metadata on every inbound message; "" means unknown (old
+// rows from before the stamping, or platforms with a single account).
+export const conversationAccountKey = (conversation = {}) => {
+  const metadata = conversation.channel_metadata || conversation.metadata || {};
+  const channel = clean(conversation.channel || conversation.source).toLowerCase();
+  if (channel.includes("whatsapp")) return clean(metadata.whatsapp_instance || metadata.instance);
+  if (channel.includes("instagram")) {
+    return clean(metadata.instagram_business_account_id || metadata.resolved_page_id || metadata.page_id || metadata.recipient_page_id);
+  }
+  if (channel.includes("facebook") || channel.includes("messenger")) {
+    return clean(metadata.resolved_page_id || metadata.page_id || metadata.facebook_page_id || metadata.recipient_page_id);
+  }
+  return "";
+};
+
 export const conversationActivityAt = (conversation = {}) =>
   new Date(
     conversation.last_message_at ||

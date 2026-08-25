@@ -25,7 +25,8 @@ test("conversation list is fetched on its own, not bundled in a blocking wave wi
 
 test("drafts / analytics / employees are deferred (non-blocking), not on the list critical path", () => {
   // they appear in a fire-and-forget Promise.all(...).then, not awaited before render
-  assert.match(region, /\]\)\.then\(\(\[draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload\]\) =>/);
+  // channel accounts (multi-number registry) ride the same deferred wave.
+  assert.match(region, /\]\)\.then\(\(\[draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload, accountsPayload\]\) =>/);
   // none of the deferred endpoints is awaited in the critical path
   assert.doesNotMatch(region, /await api\.get\("\/ai-agent\/analytics"/);
   assert.doesNotMatch(region, /await api\.get\("\/ai-agent\/orders\/drafts"/);

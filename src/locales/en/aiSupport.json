@@ -1023,6 +1023,7 @@
       "readFilterAll": "All",
       "readFilterUnread": "Unread",
       "readFilterRead": "Read",
+      "accountFilterAll": "All accounts",
       "markRead": "Mark as read",
       "markUnread": "Mark as unread",
       "markAllRead": "Mark all as read",
@@ -1972,6 +1973,23 @@
         "testPhone": "Egyptian phone number",
         "testMessage": "Message",
         "sendTest": "Send test"
+      },
+      "instances": {
+        "title": "WhatsApp numbers",
+        "subtitle": "Several WhatsApp numbers working side by side — every conversation is answered from the number the customer wrote to.",
+        "defaultInstance": "Default number",
+        "name": "Evolution instance name",
+        "displayName": "Display name (optional)",
+        "add": "Add number",
+        "added": "Number registered and connected.",
+        "addedNotConnected": "Number registered but not connected yet",
+        "addFailed": "Could not register the number",
+        "updateFailed": "Could not update the number",
+        "empty": "No numbers registered besides the default one.",
+        "active": "Active",
+        "inactive": "Paused",
+        "testInstance": "Send from number",
+        "note": "Create the instance and scan its QR with the new number on the Evolution server first, then register it here by name. Inbound events arrive through the existing webhook."
       }
     },
     "tiktok": {
