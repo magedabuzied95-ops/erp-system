@@ -630,9 +630,13 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
   <section data-tone={tone} className={`manager-portal-card overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)] ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-2">
       {avatar}
+      {/* `title` is free text a manager typed (a task title, a branch name), so
+          it can be one unbroken run with no wrap opportunity. `min-w-0` caps the
+          MIN-content contribution but not the max-content one — break-words caps
+          both, so a pasted link can never widen the card. */}
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{subtitle}</div>
-        <h2 className="m1-section-title mt-1 text-text">{title}</h2>
+        <div className="break-words text-[11px] font-black leading-5 tracking-normal text-text-muted">{subtitle}</div>
+        <h2 className="m1-section-title mt-1 break-words text-text">{title}</h2>
       </div>
       {headerAction}
       {Icon ? <div className="manager-portal-card-icon rounded-[var(--radius-card)] border border-border bg-surface-soft p-2 text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
@@ -2289,7 +2293,16 @@ export default function ManagerPortal() {
       }}
       className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-background px-3 text-right text-text md:px-4`}
     >
-      <div className="mx-auto grid max-w-[96rem] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
+      {/* The base `grid-cols-[minmax(0,1fr)]` is load-bearing on phones. Without
+          it this grid declares columns only at `lg`, so below that it falls back
+          to ONE implicit `auto` track — sized by max-content, not by the
+          container. A single long task title then stretched the track to 500px
+          inside a 355px shell and every tab painted 135px off the start edge,
+          clipped with no scrollbar — the portal looked "broken" the moment a
+          manager saved a task with a long title. The ERP shell has a global
+          guard for this in MainLayout.m1.css, but it is scoped to
+          `.m1-shell-content` and the portal renders outside that shell. */}
+      <div className="mx-auto grid max-w-[96rem] grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-slate-950 p-3 text-white">
@@ -2942,7 +2955,10 @@ export default function ManagerPortal() {
                   <div key={key} className="flex min-w-0 items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
                     <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${tone}`}><Icon className="h-3.5 w-3.5" /></span>
                     <div className="min-w-0">
-                      <div className="truncate text-[11px] font-black leading-4 text-text-muted">{label}</div>
+                      {/* Wraps rather than truncates: a third of a phone row leaves
+                          51px, and "المهام المفتوحة" needs 84px — truncating cut it
+                          to "المهام ال…". Two short lines fit. */}
+                      <div className="text-[11px] font-black leading-[1.2] text-text-muted">{label}</div>
                       <div className="text-base font-black leading-5 text-text">{formatNumber(value)}</div>
                     </div>
                   </div>
@@ -4021,8 +4037,11 @@ export default function ManagerPortal() {
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
-                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
                 </span>
+                {/* Inline, the unread count added 22px to a 47px cell and pushed
+                    "المزيد" out of its own button. It rides the corner like the
+                    stock-count badge instead, so the label sets the width. */}
+                {tab === "more" && unreadCount > 0 ? <span className="absolute -top-1 right-0 min-w-4 rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{formatNumber(unreadCount)}</span> : null}
                 {tab === "inventory" && pendingInventoryApprovalsCount > 0 ? <span className="absolute -top-1 right-0 min-w-4 rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{formatNumber(pendingInventoryApprovalsCount)}</span> : null}
               </button>
             );
