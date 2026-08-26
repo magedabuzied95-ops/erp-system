@@ -178,8 +178,12 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
         {items.length > 1 ? <span className="text-slate-500">{t("aiSupport.inbox.productCard.productCount", { count: items.length })}</span> : null}
       </div>
 
-      <div className={`${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} grid ${items.length > 1 ? "sm:grid-cols-2" : ""}`}>
-        {items.slice(0, 4).map((card, index) => {
+      {/* Multi-card renders as the same horizontal swipe strip WhatsApp shows the customer —
+          the transcript's job here is to mirror what actually left, card for card. */}
+      <div className={items.length > 1
+        ? `${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} flex snap-x snap-mandatory overflow-x-auto pb-1`
+        : `${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} grid`}>
+        {items.map((card, index) => {
           const image = cardImage(card);
           const priceValue = Number(card.price ?? card.final_price ?? 0);
           const storefrontUrl = resolveStorefrontUrl(card);
@@ -187,14 +191,14 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
           return (
             <div
               key={cardKey || index}
-              className={`overflow-hidden border border-white/10 bg-slate-950/70 ${compact ? "rounded-xl" : "rounded-2xl"}`}
+              className={`overflow-hidden border border-white/10 bg-slate-950/70 ${compact ? "rounded-xl" : "rounded-2xl"} ${items.length > 1 ? "w-52 shrink-0 snap-start" : ""}`}
             >
               {storefrontUrl ? (
                 <a href={storefrontUrl} target="_blank" rel="noreferrer" className="block">
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "h-56 w-full bg-white object-contain" : "aspect-[16/10] w-full object-cover"} loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "aspect-square w-full bg-white object-contain" : "aspect-square w-full bg-white object-contain"} loading="lazy" decoding="async" />
                   ) : (
-                    <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "h-40" : "aspect-[16/10]"}`}>
+                    <div className={`grid w-full place-items-center bg-white/[0.05] aspect-square`}>
                       <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
                     </div>
                   )}
@@ -206,7 +210,7 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
                       {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.sizeValue", { size: card.size })}</span> : null}
                     </div>
                     <div className={`${compact ? "mt-2 rounded-lg px-2.5 py-1.5 text-[10px]" : "mt-3 rounded-xl px-3 py-2 text-[11px]"} inline-flex items-center gap-1.5 border border-cyan-300/20 bg-cyan-300/10 font-black text-cyan-100`}>
-                      {t("aiSupport.inbox.productCard.openProduct")}
+                      {card.color && (card.variant_id || card.id) ? t("aiSupport.inbox.productCard.chooseColorButton") : t("aiSupport.inbox.productCard.openProduct")}
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </div>
                   </div>
@@ -214,9 +218,9 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
               ) : (
                 <div className={compact ? "p-2.5" : "p-3"}>
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "h-56 w-full rounded-lg bg-white object-contain" : "aspect-[16/10] w-full rounded-xl object-cover"} loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "aspect-square w-full rounded-lg bg-white object-contain" : "aspect-square w-full rounded-xl bg-white object-contain"} loading="lazy" decoding="async" />
                   ) : (
-                    <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "h-40 rounded-lg" : "aspect-[16/10] rounded-xl"}`}>
+                    <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "aspect-square rounded-lg" : "aspect-square rounded-xl"}`}>
                       <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
                     </div>
                   )}

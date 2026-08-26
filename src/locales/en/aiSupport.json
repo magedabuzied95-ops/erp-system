@@ -794,6 +794,7 @@
       "chooseProducts": "Choose the products to send",
       "priceUnavailable": "No price on record",
       "openProduct": "Open product",
+      "chooseColorButton": "Order this colour ✅",
       "multipleMatches": "More than one product matches — choose the product",
       "productToSend": "Product to send",
       "noImage": "No image",
@@ -1407,6 +1408,7 @@
       "currencyValue": "{{value}} EGP",
       "openOrder": "Open order",
       "openProduct": "Open product",
+      "chooseColorButton": "Order this colour ✅",
       "high": "High",
       "medium": "Medium",
       "low": "Low"
@@ -1620,7 +1622,8 @@
       "product": "Product",
       "colorValue": "Colour: {{color}}",
       "sizeValue": "Size: {{size}}",
-      "openProduct": "Open product"
+      "openProduct": "Open product",
+      "chooseColorButton": "Order this colour ✅"
     },
     "picker": {
       "aiInbox": "AI Inbox",

@@ -71,7 +71,7 @@ import {
   updateAiOrderStatus,
 } from "../services/aiAgentOrderService.js";
 import { buildPublicInvoiceUrl } from "../utils/whatsapp.js";
-import { productCardReplyText } from "../services/aiProductCards.js";
+import { normalizeProductCards, productCardReplyText } from "../services/aiProductCards.js";
 import {
   buildAiSalesCloserPlan,
   buildAiSalesCloserLookupKeys,
@@ -6339,6 +6339,75 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
   }
 });
 
+
+// ── One card per colour, expanded SERVER-side ────────────────────────────────────────────────
+// The AI Inbox frontend sends one HTTP request per picked product (Phase 13.4 FE-sequential), so
+// the adapter's carousel branch never saw two cards and every send left as a single image — which
+// is exactly how the first live attempt went out. The expansion has to happen here, where the
+// whole catalog row is one query away: a product with two or more available colour groups swells
+// into the colour cards aiProductCards already knows how to build (photo, per-variant price,
+// sizes, variant_id), and the adapter then carries them as one swipeable carousel. A product with
+// one colour — or any failure — keeps the original single card; expansion is an upgrade, never a
+// new reason a card fails to send.
+const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
+  const expanded = [];
+  for (const card of cards) {
+    const productId = Number(card?.product_id || card?.id || 0);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      expanded.push(card);
+      continue;
+    }
+    try {
+      const productResult = await db.query(
+        `SELECT * FROM products WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
+        [productId, tenantId || null]
+      );
+      const product = productResult.rows[0];
+      if (!product) {
+        expanded.push(card);
+        continue;
+      }
+      const variantsResult = await db.query(
+        `SELECT id, color, size, stock,
+                COALESCE(NULLIF(selling_price,0), NULLIF(price,0), NULLIF(regular_price,0)) AS price,
+                sale_price, image_url, is_active
+         FROM product_variants
+         WHERE product_id = $1 AND COALESCE(is_active, TRUE) IS DISTINCT FROM FALSE AND deleted_at IS NULL`,
+        [productId]
+      );
+      const colorCards = normalizeProductCards(
+        [{ ...product, variants: variantsResult.rows, storefront_url: card.storefront_url || card.product_url || "" }],
+        { limit: 10 }
+      );
+      if (colorCards.length >= 2) {
+        for (const colorCard of colorCards) {
+          expanded.push({
+            ...card,
+            ...colorCard,
+            storefront_url: colorCard.storefront_url || card.storefront_url || card.product_url || "",
+            product_url: colorCard.product_url || card.product_url || card.storefront_url || "",
+          });
+        }
+        console.info("[ai-inbox][product-card-send] expanded to colour cards", {
+          product_id: productId,
+          colors: colorCards.length,
+        });
+      } else {
+        expanded.push(card);
+      }
+    } catch (expandError) {
+      console.warn("[ai-inbox][product-card-send] colour expansion failed; sending the single card", {
+        product_id: productId,
+        message: expandError?.message || String(expandError),
+      });
+      expanded.push(card);
+    }
+  }
+  // Evolution's carousel caps at 10 cards; the adapter chunks, but a runaway expansion of a
+  // multi-product batch should not multiply into dozens of cards from one click.
+  return expanded.slice(0, 10);
+};
+
 router.post("/conversations/:conversationId/product-card/send", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
@@ -6353,9 +6422,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
   const normalizedProductCards = rawCards.map(normalizeSelectedProductCard).filter((card) =>
     Boolean(card.product_id || card.variant_id || card.product_name || card.image_url || card.storefront_url)
   );
-  const productCards = await Promise.all(
+  const enrichedProductCards = await Promise.all(
     normalizedProductCards.map((card) => enrichSelectedProductCard({ tenantId, card }))
   );
+  const productCards = await expandProductCardsByColor({ tenantId, cards: enrichedProductCards });
   if (!productCards.length) {
     return sendError(res, Object.assign(new Error("product_cards are required"), { status: 400 }), "product_cards are required");
   }

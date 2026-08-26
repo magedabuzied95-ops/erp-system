@@ -56,3 +56,39 @@ test("a colour tap is rewritten into the exact catalog wording before the AI see
   assert.match(handler, /لون \$\{picked\.color\}/, "the rewrite uses the colour exactly as the catalog spells it");
   assert.match(handler, /catch \(colorTapError\)/, "a failed lookup falls through to the original text");
 });
+
+// ── the fix for the first live failure: expansion happens SERVER-side ──
+const orderRoutes = fs.readFileSync(
+  new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8"
+);
+const inboxRenderer = fs.readFileSync(
+  new URL("../src/modules/aiSupport/components/ProductCardMessage.jsx", import.meta.url), "utf8"
+);
+
+test("the send route expands colours itself - the FE sends one card per request", () => {
+  // Phase 13.4 FE-sequential means the adapter never sees two cards from the inbox, so the
+  // carousel branch could not fire; the first live attempt left as a single image because of it.
+  assert.match(orderRoutes, /const expandProductCardsByColor = async/);
+  const route = orderRoutes.slice(orderRoutes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  const expandIndex = route.indexOf("expandProductCardsByColor({ tenantId, cards: enrichedProductCards })");
+  const sendIndex = route.indexOf("sendWhatsAppCloudReply({");
+  assert.ok(expandIndex > -1, "the route expands after enrichment");
+  assert.ok(sendIndex > -1 && expandIndex < sendIndex, "expansion happens before the send");
+});
+
+test("expansion failure keeps the original card - an upgrade, never a lost send", () => {
+  const fn = orderRoutes.slice(orderRoutes.indexOf("const expandProductCardsByColor"), orderRoutes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  assert.match(fn, /catch \(expandError\)/);
+  assert.match(fn, /expanded\.push\(card\)/, "the single card survives every failure path");
+  assert.match(fn, /colorCards\.length >= 2/, "a one-colour product is not wrapped in a carousel");
+  assert.match(fn, /\.slice\(0, 10\)/, "a multi-product click cannot multiply past the carousel cap");
+});
+
+test("the inbox transcript mirrors the WhatsApp strip", () => {
+  // multi-card renders as a horizontal swipe strip with square white-canvas photos - the same
+  // thing the customer sees - and shows every card, not the first four.
+  assert.match(inboxRenderer, /snap-x snap-mandatory overflow-x-auto/);
+  assert.ok(!inboxRenderer.includes("items.slice(0, 4)"), "no hidden card cap");
+  assert.match(inboxRenderer, /aspect-square w-full bg-white object-contain/);
+  assert.match(inboxRenderer, /chooseColorButton/, "the card footer mirrors the WhatsApp button label");
+});

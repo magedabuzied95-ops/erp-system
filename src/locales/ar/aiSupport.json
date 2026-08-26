@@ -794,6 +794,7 @@
       "chooseProducts": "اختار المنتجات اللي هتتبعت",
       "priceUnavailable": "السعر مش متسجّل",
       "openProduct": "فتح المنتج",
+      "chooseColorButton": "اطلب اللون ده ✅",
       "multipleMatches": "فيه أكتر من منتج مطابق — اختر المنتج",
       "productToSend": "المنتج اللي هيتبعت",
       "noImage": "لا صورة",
@@ -1415,6 +1416,7 @@
       "currencyValue": "{{value}} ج.م",
       "openOrder": "فتح الطلب",
       "openProduct": "فتح المنتج",
+      "chooseColorButton": "اطلب اللون ده ✅",
       "high": "مرتفع",
       "medium": "متوسط",
       "low": "منخفض"
@@ -1628,7 +1630,8 @@
       "product": "منتج",
       "colorValue": "اللون: {{color}}",
       "sizeValue": "المقاس: {{size}}",
-      "openProduct": "فتح المنتج"
+      "openProduct": "فتح المنتج",
+      "chooseColorButton": "اطلب اللون ده ✅"
     },
     "picker": {
       "aiInbox": "صندوق الذكاء",
