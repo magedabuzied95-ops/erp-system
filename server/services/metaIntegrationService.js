@@ -25339,6 +25339,487 @@ export const processMetaWebhook = async ({ req } = {}) => {
   return { processed: results.length, social_comment_events_processed: storedCommentEvents.length, results };
 };
 
+// ---------------------------------------------------------------------------
+// Historical conversation sync (Messenger + Instagram DM).
+// Webhooks only carry NEW events, so an inbox connected after the conversations
+// happened stays empty forever. This pulls the page's existing conversation
+// list (and each thread's recent messages) from the Graph API and persists them
+// through the SAME tables and dedupe keys the webhook path uses — a message
+// that already arrived live is skipped, never duplicated.
+// ---------------------------------------------------------------------------
+
+const META_SYNC_CONVERSATION_FIELDS = "id,updated_time,message_count,unread_count,participants";
+const META_SYNC_MESSAGE_FIELDS = "id,message,from,created_time,attachments{id,mime_type,name,image_data,video_data,file_url}";
+
+const metaSyncErrorEntry = ({ endpoint = "", error = {} } = {}) => ({
+  endpoint,
+  http_status: Number(error?.status || 0) || null,
+  meta_code: error?.meta?.code ?? error?.metaResponse?.error?.code ?? null,
+  meta_subcode: error?.meta?.error_subcode ?? error?.metaResponse?.error?.error_subcode ?? null,
+  message: text(error?.meta?.message || error?.message || "Meta Graph request failed").slice(0, 300),
+});
+
+// Follows Graph cursor pagination (after=...) — Meta rarely returns everything
+// in one response. Absolute paging.next URLs embed the access token, so cursors
+// are used instead and the token never lands in a log line.
+const fetchMetaGraphPaged = async ({ endpoint, token, params = {}, maxItems = 50, pageSize = 25, errors = null, errorLabel = "", meta = null }) => {
+  const items = [];
+  let after = "";
+  let currentPageSize = Math.max(1, Math.min(pageSize, maxItems));
+  let retriesLeft = 2;
+  while (items.length < maxItems) {
+    let payload;
+    try {
+      payload = await callMetaGet({
+        endpoint,
+        token,
+        params: { ...params, limit: String(Math.min(currentPageSize, maxItems - items.length)), ...(after ? { after } : {}) },
+      });
+    } catch (error) {
+      // Graph error code 1 ("Please reduce the amount of data you're asking
+      // for") is a page-size complaint and code -2 / subcode 2534084 is a
+      // server-side timeout — both recover with a smaller page, not a bail-out.
+      const metaCode = Number(error?.meta?.code ?? error?.metaResponse?.error?.code ?? 0);
+      const metaSubcode = Number(error?.meta?.error_subcode ?? error?.metaResponse?.error?.error_subcode ?? 0);
+      const isShrinkable = metaCode === 1 || metaCode === -2 || metaSubcode === 2534084;
+      if (isShrinkable && currentPageSize > 1) {
+        currentPageSize = Math.max(1, Math.floor(currentPageSize / 2));
+        continue;
+      }
+      if (isShrinkable && (retriesLeft -= 1) >= 0) continue;
+      // A timeout AFTER some items arrived means Meta cut the listing short
+      // (persistent on some Instagram accounts) — that is truncation, not
+      // failure; only a listing that produced nothing is reported as an error.
+      if (!items.length) {
+        if (Array.isArray(errors)) errors.push(metaSyncErrorEntry({ endpoint: errorLabel || endpoint, error }));
+      } else if (meta && typeof meta === "object") {
+        meta.truncated = true;
+        meta.truncation = metaSyncErrorEntry({ endpoint: errorLabel || endpoint, error });
+      }
+      break;
+    }
+    const data = Array.isArray(payload?.data) ? payload.data : [];
+    items.push(...data);
+    after = text(payload?.paging?.cursors?.after);
+    if (!after || !data.length) break;
+  }
+  return items.slice(0, maxItems);
+};
+
+const mapMetaSyncAttachments = (message = {}) =>
+  (Array.isArray(message?.attachments?.data) ? message.attachments.data : [])
+    .map((attachment) => {
+      const url = text(attachment?.image_data?.url || attachment?.video_data?.url || attachment?.file_url || "");
+      const mime = lower(attachment?.mime_type || "");
+      const type = mime.startsWith("image") || attachment?.image_data ? "image" : mime.startsWith("video") || attachment?.video_data ? "video" : "file";
+      return { type, url, image_url: url, title: text(attachment?.name || "") };
+    })
+    .filter((attachment) => attachment.url);
+
+// Best-effort profile lookup so a synced thread carries a real name and avatar
+// instead of a bare id. A failure here must never fail the sync.
+const fetchMetaSyncProfile = async ({ userId, token }) => {
+  try {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(userId)}`,
+      token,
+      params: { fields: "first_name,last_name,name,username,profile_pic" },
+    });
+    const name = text(payload?.name) || [text(payload?.first_name), text(payload?.last_name)].filter(Boolean).join(" ") || text(payload?.username);
+    return { name, username: text(payload?.username), avatar: text(payload?.profile_pic) };
+  } catch {
+    return null;
+  }
+};
+
+const persistMetaSyncedMessage = async ({ tenantId, sessionRefId, sessionId, channel, customerName, customerAvatarUrl, graphMessage, businessIds }) => {
+  const mid = text(graphMessage?.id);
+  const body = text(graphMessage?.message);
+  const attachments = mapMetaSyncAttachments(graphMessage);
+  if (!mid || (!body && !attachments.length)) return { skipped: true };
+  const createdAt = toIsoOrNull(graphMessage?.created_time) || nowIso();
+  const fromBusiness = businessIds.has(text(graphMessage?.from?.id));
+  const displayText = body || inboundAttachmentLabel(attachments) || "[attachment]";
+  // The webhook path keys inbound rows by the Meta mid (dedupe_key = mid), so a
+  // message that already arrived live conflicts here and is skipped. Outbound
+  // rows written by the send path carry the mid in provider/external_message_id
+  // with a different dedupe_key — the EXISTS guard covers those.
+  const existing = await db.query(
+    `
+    SELECT 1 FROM ai_support_messages
+    WHERE tenant_id = $1 AND session_id = $2
+      AND (dedupe_key = $3 OR external_message_id = $3 OR provider_message_id = $3)
+    LIMIT 1
+    `,
+    [tenantId, sessionId, mid]
+  );
+  if (existing.rows.length) return { existing: true };
+  const inserted = await db.query(
+    `
+    INSERT INTO ai_support_messages (
+      session_ref_id, tenant_id, session_id, channel, customer_name, customer_avatar_url, last_message, message_text,
+      customer_message, ai_answer, staff_message, confidence, needs_human_support, sources_used, suggested_products,
+      visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, manual_message,
+      external_message_id, provider_message_id, dedupe_key, source_path, insert_source, created_at
+    )
+    VALUES (
+      $1, $2, $3::text, $4::text, $5::text, $6::text, $7::text, $7::text,
+      $8::text, '', $9::text, 0, FALSE, '[]'::jsonb, '[]'::jsonb,
+      $10::jsonb, '[]'::jsonb, '', '', $11::text, FALSE,
+      $12, $12, $12, 'meta_history_sync', 'meta_history_sync', $13::timestamp
+    )
+    ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
+    RETURNING id
+    `,
+    [
+      sessionRefId || null,
+      tenantId,
+      sessionId,
+      channel,
+      customerName,
+      fromBusiness ? "" : customerAvatarUrl,
+      displayText,
+      fromBusiness ? "" : displayText,
+      fromBusiness ? displayText : "",
+      json(attachments),
+      fromBusiness ? "staff" : "customer",
+      mid,
+      createdAt,
+    ]
+  );
+  return inserted.rows[0] ? { inserted: true } : { existing: true };
+};
+
+const syncMetaConversationsForConfig = async ({ config, channel, conversationLimit, messagesPerConversation }) => {
+  const alias = channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook";
+  const result = {
+    config_id: config.id || null,
+    page_id: text(config.facebook_page_id),
+    channel: alias,
+    conversations_found: 0,
+    conversations_synced: 0,
+    messages_synced: 0,
+    messages_existing: 0,
+    errors: [],
+  };
+  let token = "";
+  try {
+    token = decryptSecret(config.page_access_token_encrypted);
+  } catch (error) {
+    result.errors.push({ endpoint: "token", http_status: null, meta_code: null, meta_subcode: null, message: "Stored page access token could not be decrypted — reconnect Meta." });
+    return result;
+  }
+  if (!token) {
+    result.errors.push({ endpoint: "token", http_status: null, meta_code: null, meta_subcode: null, message: "No page access token stored — connect Meta first." });
+    return result;
+  }
+  const pageId = text(config.facebook_page_id);
+  const igBusinessId = text(config.instagram_business_account_id);
+  const businessIds = new Set([pageId, igBusinessId].filter(Boolean));
+  const isInstagram = channel === AI_AGENT_CHANNELS.INSTAGRAM;
+  const listMeta = {};
+  const conversations = await fetchMetaGraphPaged({
+    endpoint: `/${encodeURIComponent(pageId)}/conversations`,
+    token,
+    params: {
+      platform: isInstagram ? "instagram" : "messenger",
+      // Instagram's conversations endpoint times out far more easily than
+      // Messenger's, so it gets the lean field list and small pages.
+      fields: isInstagram ? "id,updated_time" : META_SYNC_CONVERSATION_FIELDS,
+    },
+    maxItems: conversationLimit,
+    pageSize: isInstagram ? 10 : 25,
+    errors: result.errors,
+    errorLabel: `/{page_id}/conversations?platform=${isInstagram ? "instagram" : "messenger"}`,
+    meta: listMeta,
+  });
+  if (listMeta.truncated) {
+    result.list_truncated = true;
+    result.list_truncation = listMeta.truncation || null;
+  }
+  if (isInstagram) {
+    // Meta's Instagram conversations edge times out on cursor pages for some
+    // accounts (code -2 / subcode 2534084, reproducible even at limit=1), so
+    // the list alone can stop at the newest thread. Recover the rest through
+    // the documented user_id filter, fed by every IGSID this tenant has ever
+    // stored — prior webhook traffic and previously synced sessions.
+    const seenThreadIds = new Set(conversations.map((item) => text(item?.id)).filter(Boolean));
+    try {
+      const knownIgsids = await db.query(
+        `
+        SELECT DISTINCT igsid FROM (
+          SELECT external_customer_id AS igsid
+          FROM ai_channel_conversations
+          WHERE tenant_id = $1 AND channel = 'instagram' AND external_customer_id <> ''
+          UNION
+          SELECT SPLIT_PART(session_id, ':', 2) AS igsid
+          FROM ai_support_sessions
+          WHERE tenant_id = $1 AND session_id LIKE 'instagram:%'
+        ) candidates
+        WHERE igsid ~ '^[0-9]{5,}$'
+        LIMIT 150
+        `,
+        [config.tenant_id]
+      );
+      for (const candidate of knownIgsids.rows) {
+        const igsid = text(candidate.igsid);
+        if (!igsid || igsid === igBusinessId) continue;
+        try {
+          const payload = await callMetaGet({
+            endpoint: `/${encodeURIComponent(pageId)}/conversations`,
+            token,
+            params: { platform: "instagram", user_id: igsid, fields: "id,updated_time,participants" },
+          });
+          for (const item of Array.isArray(payload?.data) ? payload.data : []) {
+            const threadId = text(item?.id);
+            if (threadId && !seenThreadIds.has(threadId)) {
+              seenThreadIds.add(threadId);
+              conversations.push(item);
+            }
+          }
+        } catch (error) {
+          const metaCode = Number(error?.meta?.code ?? 0);
+          const metaSubcode = Number(error?.meta?.error_subcode ?? 0);
+          // (#100)/1772042 = "not a valid Instagram user id (for this page)" —
+          // an expected miss for stale ids, not a sync failure.
+          if (metaCode === 100 && metaSubcode === 1772042) continue;
+          result.errors.push(metaSyncErrorEntry({ endpoint: "/{page_id}/conversations?platform=instagram&user_id=…", error }));
+        }
+      }
+    } catch (error) {
+      result.errors.push({ endpoint: "db:known_igsids", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
+    }
+  }
+  result.conversations_found = conversations.length;
+  for (const conversation of conversations) {
+    try {
+    const conversationId = text(conversation?.id);
+    if (!conversationId) continue;
+    let participants = Array.isArray(conversation?.participants?.data) ? conversation.participants.data : [];
+    if (!participants.length) {
+      // The lean Instagram list omits participants; one per-thread lookup
+      // restores them (this call is reliable even when the list times out).
+      try {
+        const detail = await callMetaGet({
+          endpoint: `/${encodeURIComponent(conversationId)}`,
+          token,
+          params: { fields: "participants,updated_time" },
+        });
+        participants = Array.isArray(detail?.participants?.data) ? detail.participants.data : [];
+        if (!conversation.updated_time && detail?.updated_time) conversation.updated_time = detail.updated_time;
+      } catch (error) {
+        result.errors.push(metaSyncErrorEntry({ endpoint: "/{conversation_id}?fields=participants", error }));
+      }
+    }
+    const customer = participants.find((participant) => text(participant?.id) && !businessIds.has(text(participant.id)));
+    if (!customer) {
+      result.errors.push({ endpoint: `/{conversation_id}`, http_status: null, meta_code: null, meta_subcode: null, message: `Conversation has no non-business participant (participants: ${participants.length})` });
+      continue;
+    }
+    const customerId = text(customer.id);
+    const sessionId = `${channel}:${customerId}`;
+    const updatedAt = toIsoOrNull(conversation?.updated_time) || nowIso();
+    let customerName = text(customer.name) || text(customer.username);
+    let customerAvatarUrl = "";
+    if (!customerName || channel === AI_AGENT_CHANNELS.INSTAGRAM) {
+      const profile = await fetchMetaSyncProfile({ userId: customerId, token });
+      if (profile) {
+        customerName = customerName || profile.name || profile.username;
+        customerAvatarUrl = profile.avatar || "";
+      }
+    }
+    const graphMessages = await fetchMetaGraphPaged({
+      endpoint: `/${encodeURIComponent(conversationId)}/messages`,
+      token,
+      params: { fields: META_SYNC_MESSAGE_FIELDS },
+      maxItems: messagesPerConversation,
+      errors: result.errors,
+      errorLabel: "/{conversation_id}/messages",
+    });
+    if (!graphMessages.length) continue;
+    // Graph returns messages newest-first; the first entry is the thread preview.
+    const newest = graphMessages[0] || {};
+    const previewText = text(newest?.message) || inboundAttachmentLabel(mapMetaSyncAttachments(newest)) || "[attachment]";
+    const session = await db.query(
+      `
+      INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, customer_avatar_url, last_message, updated_at)
+      VALUES ($1, $2, $3::text, $3::text, $4::text, $5::text, $6::text, $7::timestamp)
+      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        customer_name = COALESCE(NULLIF(ai_support_sessions.customer_name, ''), NULLIF(EXCLUDED.customer_name, ''), ''),
+        customer_avatar_url = COALESCE(NULLIF(ai_support_sessions.customer_avatar_url, ''), NULLIF(EXCLUDED.customer_avatar_url, ''), ''),
+        last_message = CASE WHEN EXCLUDED.updated_at >= ai_support_sessions.updated_at THEN COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message) ELSE ai_support_sessions.last_message END,
+        updated_at = GREATEST(ai_support_sessions.updated_at, EXCLUDED.updated_at)
+      RETURNING id
+      `,
+      [config.tenant_id, sessionId, channel, customerName, customerAvatarUrl, previewText, updatedAt]
+    );
+    const sessionRefId = session.rows[0]?.id || null;
+    await upsertChannelConversationMapping({
+      tenantId: config.tenant_id,
+      channel,
+      externalConversationId: sessionId,
+      externalCustomerId: customerId,
+      customerName,
+      customerAvatarUrl,
+      metadata: {
+        page_id: pageId,
+        facebook_page_id: pageId,
+        instagram_business_account_id: igBusinessId,
+        channel: alias,
+        thread_kind: "dm",
+        graph_conversation_id: conversationId,
+        history_synced_at: nowIso(),
+        last_message: previewText,
+      },
+      lastMessageAt: updatedAt,
+    }).catch((error) => {
+      result.errors.push({ endpoint: "db:ai_channel_conversations", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
+    });
+    let insertedAny = false;
+    for (const graphMessage of graphMessages) {
+      try {
+        const outcome = await persistMetaSyncedMessage({
+          tenantId: config.tenant_id,
+          sessionRefId,
+          sessionId,
+          channel,
+          customerName,
+          customerAvatarUrl,
+          graphMessage,
+          businessIds,
+        });
+        if (outcome.inserted) { result.messages_synced += 1; insertedAny = true; }
+        else if (outcome.existing) result.messages_existing += 1;
+      } catch (error) {
+        result.errors.push({ endpoint: "db:ai_support_messages", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
+      }
+    }
+    result.conversations_synced += 1;
+    if (insertedAny) {
+      console.log("[meta-history-sync] conversation_synced", {
+        tenant_id: config.tenant_id,
+        channel: alias,
+        session_id: sessionId,
+        graph_conversation_id: maskIdForLog(conversationId),
+        messages_in_thread: graphMessages.length,
+      });
+    }
+    } catch (error) {
+      // One broken thread must never abort the whole run — record it and move on.
+      result.errors.push({ endpoint: "db:conversation_upsert", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
+    }
+  }
+  return result;
+};
+
+export const syncMetaConversationHistoryForTenant = async ({
+  tenantId,
+  channels = ["facebook", "instagram"],
+  conversationLimit = 50,
+  messagesPerConversation = 25,
+} = {}) => {
+  await ensureMetaIntegrationSchema();
+  await ensureAiSupportLogSchema();
+  const safeTenantId = numberOrNull(tenantId);
+  if (!safeTenantId) throw Object.assign(new Error("tenant_id is required"), { status: 400 });
+  const safeConversationLimit = Math.min(200, Math.max(1, Number(conversationLimit) || 50));
+  const safeMessageLimit = Math.min(100, Math.max(1, Number(messagesPerConversation) || 25));
+  const wantedChannels = new Set(
+    (Array.isArray(channels) ? channels : [channels])
+      .map((value) => lower(value))
+      .map((value) => (["facebook", "facebook_messenger", "messenger"].includes(value) ? "facebook" : value === "instagram_dm" ? "instagram" : value))
+      .filter((value) => ["facebook", "instagram"].includes(value))
+  );
+  if (!wantedChannels.size) { wantedChannels.add("facebook"); wantedChannels.add("instagram"); }
+  const configsResult = await db.query(
+    `
+    SELECT id, tenant_id, facebook_page_id, facebook_page_name, instagram_business_account_id, instagram_username,
+           page_access_token_encrypted, messenger_enabled, instagram_enabled, status
+    FROM meta_integration_configs
+    WHERE tenant_id = $1
+      AND facebook_page_id <> ''
+      AND page_access_token_encrypted <> ''
+    ORDER BY updated_at DESC, id DESC
+    `,
+    [safeTenantId]
+  );
+  const configs = configsResult.rows || [];
+  const results = [];
+  if (!configs.length) {
+    return {
+      success: false,
+      message: "No connected Meta page with a stored access token was found. Connect Meta (OAuth) first.",
+      results,
+      facebook: { conversations_synced: 0, messages_synced: 0 },
+      instagram: { conversations_synced: 0, messages_synced: 0 },
+    };
+  }
+  for (const config of configs) {
+    if (wantedChannels.has("facebook")) {
+      results.push(await syncMetaConversationsForConfig({
+        config,
+        channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+        conversationLimit: safeConversationLimit,
+        messagesPerConversation: safeMessageLimit,
+      }));
+    }
+    if (wantedChannels.has("instagram") && text(config.instagram_business_account_id)) {
+      results.push(await syncMetaConversationsForConfig({
+        config,
+        channel: AI_AGENT_CHANNELS.INSTAGRAM,
+        conversationLimit: safeConversationLimit,
+        messagesPerConversation: safeMessageLimit,
+      }));
+    } else if (wantedChannels.has("instagram")) {
+      results.push({
+        config_id: config.id || null,
+        page_id: text(config.facebook_page_id),
+        channel: "instagram",
+        conversations_found: 0,
+        conversations_synced: 0,
+        messages_synced: 0,
+        messages_existing: 0,
+        errors: [{ endpoint: "config", http_status: null, meta_code: null, meta_subcode: null, message: "No Instagram Business Account is linked to this page in the stored config." }],
+      });
+    }
+  }
+  const totals = (alias) => results
+    .filter((entry) => entry.channel === alias)
+    .reduce((acc, entry) => ({
+      conversations_found: acc.conversations_found + entry.conversations_found,
+      conversations_synced: acc.conversations_synced + entry.conversations_synced,
+      messages_synced: acc.messages_synced + entry.messages_synced,
+      messages_existing: acc.messages_existing + entry.messages_existing,
+      errors: acc.errors + entry.errors.length,
+    }), { conversations_found: 0, conversations_synced: 0, messages_synced: 0, messages_existing: 0, errors: 0 });
+  await db.query(`UPDATE meta_integration_configs SET last_sync_at = NOW(), updated_at = NOW() WHERE tenant_id = $1`, [safeTenantId]).catch(() => {});
+  // Realtime repair, same action as the settings "verify webhook" button: make
+  // sure the page is subscribed to the app's webhooks so NEW messages keep
+  // arriving without another manual sync. Best effort — history sync already
+  // succeeded either way.
+  let webhook = null;
+  try {
+    const subscription = await verifyMetaWebhookEnablement({ tenantId: safeTenantId });
+    webhook = {
+      subscribed: Boolean(subscription?.webhook_enabled && subscription?.subscribed_apps_verified),
+      webhook_enabled: subscription?.webhook_enabled === true,
+      subscribed_apps_verified: subscription?.subscribed_apps_verified === true,
+      error: text(subscription?.error || ""),
+    };
+  } catch (error) {
+    webhook = { subscribed: false, error: text(error?.message || "webhook subscription check failed").slice(0, 300) };
+  }
+  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", { tenant_id: safeTenantId, at: nowIso(), source: "meta_history_sync" });
+  const summary = { facebook: totals("facebook"), instagram: totals("instagram") };
+  console.log("[meta-history-sync] completed", {
+    tenant_id: safeTenantId,
+    facebook: summary.facebook,
+    instagram: summary.instagram,
+    webhook,
+  });
+  return { success: true, results, webhook, ...summary };
+};
+
 export const getPublicWebhookVerificationConfig = async ({ verifyToken } = {}) => {
   const config = await findMetaConfigForWebhookVerification({ verifyToken });
   if (config) return config;

@@ -5585,6 +5585,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [aiTrace, setAiTrace] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [profileSyncing, setProfileSyncing] = useState(false);
+  const [metaHistorySyncing, setMetaHistorySyncing] = useState(false);
   const [profileDebugging, setProfileDebugging] = useState(false);
   const [resettingAiState, setResettingAiState] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
@@ -7255,6 +7256,36 @@ export default function AiInbox({ reviewerMode = false }) {
       setProfileSyncing(false);
     }
   }, [headers, loadAll, messengerProfileSyncAttemptedRef, patchConversation, selectedConversation, selectedConversationRouteId, setError, setProfileSyncing, setToast, tenantId]);
+  // Historical Meta sync — webhooks only carry new events, so this asks the
+  // backend to pull the page's existing Messenger + Instagram DM threads from
+  // the Graph API into the inbox (safe to re-run; deduped by Meta message id).
+  const syncMetaConversations = useCallback(async () => {
+    if (metaHistorySyncing) return;
+    setMetaHistorySyncing(true);
+    try {
+      const payload = await api.post(
+        "/ai-inbox/sync-meta-conversations",
+        { tenant_id: tenantId },
+        { headers, perfComponent: "AiInbox.syncMetaConversations" }
+      );
+      const fb = payload?.facebook || {};
+      const ig = payload?.instagram || {};
+      if (payload?.success === false) {
+        setToast({ tone: "rose", text: payload?.message || "تعذرت مزامنة محادثات Meta" });
+      } else {
+        const errorCount = Number(fb.errors || 0) + Number(ig.errors || 0);
+        setToast({
+          tone: errorCount ? "amber" : "emerald",
+          text: `Facebook: ${Number(fb.conversations_synced || 0)} conversations synced · Instagram: ${Number(ig.conversations_synced || 0)} conversations synced${errorCount ? ` · ${errorCount} errors (see server log)` : ""}`,
+        });
+      }
+      await loadAll({ silent: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذرت مزامنة محادثات Meta" });
+    } finally {
+      setMetaHistorySyncing(false);
+    }
+  }, [api, headers, loadAll, metaHistorySyncing, setToast, tenantId]);
   useEffect(() => {
     if (!selectedConversation || !canSyncMessengerProfile(selectedConversation)) return;
     const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || "");
@@ -9536,6 +9567,16 @@ export default function AiInbox({ reviewerMode = false }) {
             >
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => void syncMetaConversations()}
+              disabled={metaHistorySyncing}
+              title="جلب محادثات Messenger وInstagram الحالية من Meta"
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white transition hover:border-white/20 disabled:opacity-50"
+            >
+              {metaHistorySyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FaFacebookMessenger className="h-3.5 w-3.5" />}
+              Sync Meta
             </button>
           </div>
         </div>

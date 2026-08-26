@@ -17,6 +17,7 @@ import {
   sendMessengerInboxReaction,
   sendMetaInboxOutboundMessage,
   syncMessengerProfileForConversation,
+  syncMetaConversationHistoryForTenant,
 } from "../services/metaIntegrationService.js";
 import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
@@ -2767,10 +2768,39 @@ router.get("/inbox", protect, inboxView(), async (req, res) => {
   }
 });
 
+// Self-healing Meta backfill: a tenant whose Meta channels are EMPTY (fresh
+// connect, or the connection predates history sync) gets one background
+// history pull when someone opens the inbox — throttled hard, and never once
+// the channels hold conversations (from then on webhooks own the data).
+const metaHistorySyncState = new Map();
+const META_HISTORY_SYNC_COOLDOWN_MS = 60 * 60 * 1000;
+const kickMetaHistorySyncIfEmpty = (tenantId) => {
+  const last = metaHistorySyncState.get(tenantId) || 0;
+  if (Date.now() - last < META_HISTORY_SYNC_COOLDOWN_MS) return;
+  metaHistorySyncState.set(tenantId, Date.now());
+  (async () => {
+    const counts = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE channel IN ('facebook_messenger', 'facebook', 'messenger'))::int AS fb,
+         COUNT(*) FILTER (WHERE channel = 'instagram')::int AS ig
+       FROM ai_channel_conversations WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    const fb = Number(counts.rows[0]?.fb || 0);
+    const ig = Number(counts.rows[0]?.ig || 0);
+    if (fb > 0 && ig > 0) return;
+    const channels = [...(fb > 0 ? [] : ["facebook"]), ...(ig > 0 ? [] : ["instagram"])];
+    await syncMetaConversationHistoryForTenant({ tenantId, channels });
+  })().catch((error) => {
+    console.warn("[meta-history-sync] inbox-open kick failed", { tenantId, message: error?.message || String(error) });
+  });
+};
+
 router.get("/conversations", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     await kickEvolutionInboxSync(tenantId);
+    kickMetaHistorySyncIfEmpty(tenantId);
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
@@ -2797,6 +2827,28 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
 
 router.get("/debug-ping", (req, res) => {
   return res.json({ ok: true, version: "ai-debug-v1" });
+});
+
+// Historical Meta sync — webhooks only deliver NEW events, so this pulls the
+// page's existing Messenger + Instagram DM threads from the Graph API into the
+// same inbox tables. Safe to re-run: message dedupe is keyed by the Meta mid.
+router.post("/sync-meta-conversations", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await syncMetaConversationHistoryForTenant({
+      tenantId,
+      channels: req.body?.channels,
+      conversationLimit: req.body?.conversation_limit,
+      messagesPerConversation: req.body?.message_limit,
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error("[meta-history-sync] route failed", {
+      message: error?.message || "unknown",
+      status: error?.status || 500,
+    });
+    return sendError(res, error, "Failed to sync Meta conversations");
+  }
 });
 
 router.get("/conversations/:conversationId/messages", protect, inboxView(), async (req, res) => {

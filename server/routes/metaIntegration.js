@@ -23,6 +23,7 @@ import {
   removeInstagramAppSecret,
   selectMetaOAuthPage,
   startMetaOAuth,
+  syncMetaConversationHistoryForTenant,
   testMetaMessageCapability,
   testMetaIntegrationConfig,
   testMetaPublishCapability,
@@ -435,6 +436,15 @@ webhookRouter.post("/oauth/select-page", protect, permit("marketing", "settings"
       pageId: req.body?.page_id || req.body?.pageId,
     });
     const status = await getMetaIntegrationStatus({ tenantId, req });
+    // First-connect backfill: webhooks only carry NEW events, so pull the
+    // page's existing Messenger + Instagram threads in the background. Best
+    // effort — a failure here must never fail the page selection itself.
+    syncMetaConversationHistoryForTenant({ tenantId }).catch((error) => {
+      console.warn("[meta-history-sync] post-connect sync failed", {
+        tenant_id: tenantId,
+        message: error?.message || "unknown",
+      });
+    });
     res.json({ success: true, data: result, ...result, status });
   } catch (error) {
     sendError(res, error, "Unable to save selected Meta Page");
