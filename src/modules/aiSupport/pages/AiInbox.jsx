@@ -7265,7 +7265,7 @@ export default function AiInbox({ reviewerMode = false }) {
     try {
       const payload = await api.post(
         "/ai-inbox/sync-meta-conversations",
-        { tenant_id: tenantId },
+        { tenant_id: tenantId, conversation_limit: 200 },
         { headers, perfComponent: "AiInbox.syncMetaConversations" }
       );
       const fb = payload?.facebook || {};
@@ -7273,10 +7273,16 @@ export default function AiInbox({ reviewerMode = false }) {
       if (payload?.success === false) {
         setToast({ tone: "rose", text: payload?.message || "تعذرت مزامنة محادثات Meta" });
       } else {
+        const runs = Array.isArray(payload?.results) ? payload.results : [];
+        const profileBlocked = runs.reduce((sum, run) => sum + Number(run?.profile_lookups_blocked || 0), 0);
+        const igBlocked = runs.reduce((sum, run) => sum + Number(run?.instagram_permission_blocked || 0), 0);
+        const notes = [];
+        if (profileBlocked) notes.push("صور العملاء محجوبة من Meta — تحتاج موافقة Business Asset User Profile Access في App Review");
+        if (igBlocked) notes.push("محادثات إنستجرام الأقدم محجوبة — تحتاج Advanced Access على instagram_manage_messages");
         const errorCount = Number(fb.errors || 0) + Number(ig.errors || 0);
         setToast({
           tone: errorCount ? "amber" : "emerald",
-          text: `Facebook: ${Number(fb.conversations_synced || 0)} conversations synced · Instagram: ${Number(ig.conversations_synced || 0)} conversations synced${errorCount ? ` · ${errorCount} errors (see server log)` : ""}`,
+          text: `Facebook: ${Number(fb.conversations_synced || 0)} conversations synced · Instagram: ${Number(ig.conversations_synced || 0)} conversations synced${notes.length ? ` · ${notes.join(" · ")}` : errorCount ? ` · ${errorCount} errors (see server log)` : ""}`,
         });
       }
       await loadAll({ silent: true });

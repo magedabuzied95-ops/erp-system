@@ -25417,13 +25417,15 @@ const mapMetaSyncAttachments = (message = {}) =>
     .filter((attachment) => attachment.url);
 
 // Best-effort profile lookup so a synced thread carries a real name and avatar
-// instead of a bare id. A failure here must never fail the sync.
-const fetchMetaSyncProfile = async ({ userId, token }) => {
+// instead of a bare id. A failure here must never fail the sync. The field
+// list is per-network: `username` is Instagram-only, and asking a Messenger
+// PSID for it fails the WHOLE call with (#100).
+const fetchMetaSyncProfile = async ({ userId, token, instagram = false }) => {
   try {
     const payload = await callMetaGet({
       endpoint: `/${encodeURIComponent(userId)}`,
       token,
-      params: { fields: "first_name,last_name,name,username,profile_pic" },
+      params: { fields: instagram ? "name,username,profile_pic" : "first_name,last_name,name,profile_pic" },
     });
     const name = text(payload?.name) || [text(payload?.first_name), text(payload?.last_name)].filter(Boolean).join(" ") || text(payload?.username);
     return { name, username: text(payload?.username), avatar: text(payload?.profile_pic) };
@@ -25547,16 +25549,25 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
     try {
       const knownIgsids = await db.query(
         `
-        SELECT DISTINCT igsid FROM (
-          SELECT external_customer_id AS igsid
+        SELECT igsid FROM (
+          SELECT external_customer_id AS igsid, updated_at AS seen_at
           FROM ai_channel_conversations
           WHERE tenant_id = $1 AND channel = 'instagram' AND external_customer_id <> ''
-          UNION
-          SELECT SPLIT_PART(session_id, ':', 2) AS igsid
+          UNION ALL
+          SELECT SPLIT_PART(session_id, ':', 2) AS igsid, updated_at AS seen_at
           FROM ai_support_sessions
           WHERE tenant_id = $1 AND session_id LIKE 'instagram:%'
+          UNION ALL
+          -- Instagram commenters are IGSIDs too — the ones who also DM'd
+          -- resolve to their thread; the rest return code 100/1772042 and are
+          -- skipped. This is the widest id source the tenant already owns.
+          SELECT commenter_id AS igsid, created_at AS seen_at
+          FROM social_comment_automation_runs
+          WHERE tenant_id = $1 AND platform = 'instagram' AND commenter_id <> ''
         ) candidates
         WHERE igsid ~ '^[0-9]{5,}$'
+        GROUP BY igsid
+        ORDER BY MAX(seen_at) DESC NULLS LAST
         LIMIT 150
         `,
         [config.tenant_id]
@@ -25580,14 +25591,32 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
         } catch (error) {
           const metaCode = Number(error?.meta?.code ?? 0);
           const metaSubcode = Number(error?.meta?.error_subcode ?? 0);
-          // (#100)/1772042 = "not a valid Instagram user id (for this page)" —
-          // an expected miss for stale ids, not a sync failure.
-          if (metaCode === 100 && metaSubcode === 1772042) continue;
+          // Expected misses, not sync failures:
+          //  100/1772042 — not a valid Instagram user id for this page
+          //  100/2534001 — the thread was archived/deleted by its owner
+          if (metaCode === 100 && [1772042, 2534001].includes(metaSubcode)) continue;
+          // 200/2534048 — the app lacks ADVANCED access to
+          // instagram_manage_messages, so Meta refuses other users' threads.
+          // Count it once instead of one error line per candidate: the fix is
+          // in the Meta App dashboard (App Review), not in this code.
+          if (metaCode === 200 && metaSubcode === 2534048) {
+            result.instagram_permission_blocked = (result.instagram_permission_blocked || 0) + 1;
+            continue;
+          }
           result.errors.push(metaSyncErrorEntry({ endpoint: "/{page_id}/conversations?platform=instagram&user_id=…", error }));
         }
       }
     } catch (error) {
       result.errors.push({ endpoint: "db:known_igsids", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
+    }
+    if (result.instagram_permission_blocked) {
+      result.errors.push({
+        endpoint: "/{page_id}/conversations?platform=instagram&user_id=…",
+        http_status: 400,
+        meta_code: 200,
+        meta_subcode: 2534048,
+        message: `Meta blocked ${result.instagram_permission_blocked} Instagram thread lookups: the app needs ADVANCED access to instagram_manage_messages (Meta App dashboard → App Review). New DMs still arrive via webhook.`,
+      });
     }
   }
   result.conversations_found = conversations.length;
@@ -25620,12 +25649,27 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
     const sessionId = `${channel}:${customerId}`;
     const updatedAt = toIsoOrNull(conversation?.updated_time) || nowIso();
     let customerName = text(customer.name) || text(customer.username);
+    // Avatars: the conversations edge never returns profile pictures, so the
+    // list rendered grey placeholders. Reuse a stored avatar when one exists;
+    // otherwise one profile lookup per thread fills name + picture for BOTH
+    // channels (Messenger included — participants carry a name but no photo).
     let customerAvatarUrl = "";
-    if (!customerName || channel === AI_AGENT_CHANNELS.INSTAGRAM) {
-      const profile = await fetchMetaSyncProfile({ userId: customerId, token });
+    try {
+      const existingRow = await db.query(
+        `SELECT customer_avatar_url, customer_name FROM ai_channel_conversations
+         WHERE tenant_id = $1 AND channel = $2 AND external_conversation_id = $3 LIMIT 1`,
+        [config.tenant_id, channel, sessionId]
+      );
+      customerAvatarUrl = text(existingRow.rows[0]?.customer_avatar_url || "");
+      if (!customerName) customerName = text(existingRow.rows[0]?.customer_name || "");
+    } catch { /* best effort — a read failure just means we fetch the profile */ }
+    if (!customerAvatarUrl || !customerName) {
+      const profile = await fetchMetaSyncProfile({ userId: customerId, token, instagram: isInstagram });
       if (profile) {
         customerName = customerName || profile.name || profile.username;
-        customerAvatarUrl = profile.avatar || "";
+        customerAvatarUrl = customerAvatarUrl || profile.avatar || "";
+      } else {
+        result.profile_lookups_blocked = (result.profile_lookups_blocked || 0) + 1;
       }
     }
     const graphMessages = await fetchMetaGraphPaged({
@@ -25645,8 +25689,10 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
       INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, customer_avatar_url, last_message, updated_at)
       VALUES ($1, $2, $3::text, $3::text, $4::text, $5::text, $6::text, $7::timestamp)
       ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        source = EXCLUDED.source,
+        channel = EXCLUDED.channel,
         customer_name = COALESCE(NULLIF(ai_support_sessions.customer_name, ''), NULLIF(EXCLUDED.customer_name, ''), ''),
-        customer_avatar_url = COALESCE(NULLIF(ai_support_sessions.customer_avatar_url, ''), NULLIF(EXCLUDED.customer_avatar_url, ''), ''),
+        customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), NULLIF(ai_support_sessions.customer_avatar_url, ''), ''),
         last_message = CASE WHEN EXCLUDED.updated_at >= ai_support_sessions.updated_at THEN COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message) ELSE ai_support_sessions.last_message END,
         updated_at = GREATEST(ai_support_sessions.updated_at, EXCLUDED.updated_at)
       RETURNING id
@@ -25654,6 +25700,36 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
       [config.tenant_id, sessionId, channel, customerName, customerAvatarUrl, previewText, updatedAt]
     );
     const sessionRefId = session.rows[0]?.id || null;
+    if (isInstagram) {
+      // Visibility diagnostic: an Instagram thread that syncs but never shows
+      // in the list is being excluded by a WHERE clause, and the two usual
+      // suspects are a stale source/channel value and the regression-marker
+      // NOT EXISTS. Log both so the cause is readable straight from the logs.
+      try {
+        const stored = await db.query(
+          `SELECT source, channel FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
+          [config.tenant_id, sessionId]
+        );
+        const regression = await db.query(
+          `SELECT COUNT(*)::int AS n FROM ai_support_messages
+           WHERE tenant_id = $1 AND session_id = $2
+             AND (
+               COALESCE(external_message_id, '') LIKE 'mock-product-card:%'
+               OR LOWER(COALESCE(customer_message, '')) LIKE '%regression inbound%'
+               OR LOWER(COALESCE(ai_answer, '')) LIKE '%example.com/regression/%'
+               OR LOWER(COALESCE(staff_message, '')) LIKE '%example.com/regression/%'
+             )`,
+          [config.tenant_id, sessionId]
+        );
+        console.log("[meta-history-sync] instagram_session_diagnostic", {
+          tenant_id: config.tenant_id,
+          session_id: sessionId,
+          stored_source: stored.rows[0]?.source || "(missing)",
+          stored_channel: stored.rows[0]?.channel || "(missing)",
+          regression_marker_rows: regression.rows[0]?.n ?? null,
+        });
+      } catch { /* diagnostics never fail the sync */ }
+    }
     await upsertChannelConversationMapping({
       tenantId: config.tenant_id,
       channel,
@@ -25709,6 +25785,18 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
       result.errors.push({ endpoint: "db:conversation_upsert", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
     }
   }
+  // Meta answers 100/33 on /{psid} profile lookups for everyone except
+  // app-role users until "Business Asset User Profile Access" is approved in
+  // App Review — one summarised note beats a line per customer.
+  if (result.profile_lookups_blocked > 2) {
+    result.errors.push({
+      endpoint: "/{user_id}?fields=name,profile_pic",
+      http_status: 400,
+      meta_code: 100,
+      meta_subcode: 33,
+      message: `Meta blocked ${result.profile_lookups_blocked} profile lookups (names/avatars): approve the "Business Asset User Profile Access" feature in the Meta App dashboard (App Review) to unlock customer profile pictures.`,
+    });
+  }
   return result;
 };
 
@@ -25722,7 +25810,7 @@ export const syncMetaConversationHistoryForTenant = async ({
   await ensureAiSupportLogSchema();
   const safeTenantId = numberOrNull(tenantId);
   if (!safeTenantId) throw Object.assign(new Error("tenant_id is required"), { status: 400 });
-  const safeConversationLimit = Math.min(200, Math.max(1, Number(conversationLimit) || 50));
+  const safeConversationLimit = Math.min(300, Math.max(1, Number(conversationLimit) || 50));
   const safeMessageLimit = Math.min(100, Math.max(1, Number(messagesPerConversation) || 25));
   const wantedChannels = new Set(
     (Array.isArray(channels) ? channels : [channels])
