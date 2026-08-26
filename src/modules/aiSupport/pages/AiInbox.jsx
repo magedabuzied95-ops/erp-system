@@ -7268,30 +7268,47 @@ export default function AiInbox({ reviewerMode = false }) {
         { tenant_id: tenantId, conversation_limit: 200 },
         { headers, perfComponent: "AiInbox.syncMetaConversations" }
       );
-      const fb = payload?.facebook || {};
-      const ig = payload?.instagram || {};
       if (payload?.success === false) {
         setToast({ tone: "rose", text: payload?.message || "تعذرت مزامنة محادثات Meta" });
-      } else {
-        const runs = Array.isArray(payload?.results) ? payload.results : [];
-        const profileBlocked = runs.reduce((sum, run) => sum + Number(run?.profile_lookups_blocked || 0), 0);
-        const igBlocked = runs.reduce((sum, run) => sum + Number(run?.instagram_permission_blocked || 0), 0);
-        const notes = [];
-        if (profileBlocked) notes.push("صور العملاء محجوبة من Meta — تحتاج موافقة Business Asset User Profile Access في App Review");
-        if (igBlocked) notes.push("محادثات إنستجرام الأقدم محجوبة — تحتاج Advanced Access على instagram_manage_messages");
-        const errorCount = Number(fb.errors || 0) + Number(ig.errors || 0);
-        setToast({
-          tone: errorCount ? "amber" : "emerald",
-          text: `Facebook: ${Number(fb.conversations_synced || 0)} conversations synced · Instagram: ${Number(ig.conversations_synced || 0)} conversations synced${notes.length ? ` · ${notes.join(" · ")}` : errorCount ? ` · ${errorCount} errors (see server log)` : ""}`,
-        });
+        setMetaHistorySyncing(false);
+        return;
       }
-      await loadAll({ silent: true });
+      if (payload?.already_running) {
+        setToast({ tone: "amber", text: "مزامنة Meta شغالة بالفعل — استنى النتيجة" });
+        return; // keep the spinner: the running sync's done event will clear it
+      }
+      // Backend acks immediately and finishes in the background; the result
+      // arrives on the ai_inbox:meta_sync_done socket event, which clears the
+      // spinner and shows the counts.
+      setToast({ tone: "emerald", text: "بدأت مزامنة Meta في الخلفية — المحادثات هتظهر أول بأول والنتيجة هتوصلك هنا" });
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "تعذرت مزامنة محادثات Meta" });
-    } finally {
       setMetaHistorySyncing(false);
     }
-  }, [api, headers, loadAll, metaHistorySyncing, setToast, tenantId]);
+  }, [api, headers, metaHistorySyncing, setToast, tenantId]);
+  // Completion of the background Meta sync (and a safety valve: never let the
+  // spinner outlive a lost socket event by more than 8 minutes).
+  useEffect(() => {
+    const onMetaSyncDone = (payload = {}) => {
+      setMetaHistorySyncing(false);
+      const fb = payload?.facebook || {};
+      const ig = payload?.instagram || {};
+      const notes = [];
+      if (Number(payload?.profile_lookups_blocked || 0)) notes.push("صور العملاء محجوبة من Meta — تحتاج موافقة Business Asset User Profile Access في App Review");
+      if (Number(payload?.instagram_permission_blocked || 0)) notes.push("محادثات إنستجرام الأقدم محجوبة — تحتاج Advanced Access على instagram_manage_messages");
+      setToast({
+        tone: notes.length ? "amber" : "emerald",
+        text: `Facebook: ${Number(fb.conversations_synced || 0)} conversations synced · Instagram: ${Number(ig.conversations_synced || 0)} conversations synced${notes.length ? ` · ${notes.join(" · ")}` : ""}`,
+      });
+      void loadAll({ silent: true });
+    };
+    return subscribeRealtime("ai_inbox:meta_sync_done", onMetaSyncDone);
+  }, [loadAll, setToast]);
+  useEffect(() => {
+    if (!metaHistorySyncing) return undefined;
+    const timer = window.setTimeout(() => setMetaHistorySyncing(false), 8 * 60 * 1000);
+    return () => window.clearTimeout(timer);
+  }, [metaHistorySyncing]);
   useEffect(() => {
     if (!selectedConversation || !canSyncMessengerProfile(selectedConversation)) return;
     const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || "");

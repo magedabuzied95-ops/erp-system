@@ -25800,6 +25800,10 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
   return result;
 };
 
+// One history pull per tenant at a time: the run makes hundreds of Graph
+// calls, and a second click while one is in flight would only duplicate them.
+const activeMetaHistoryTenantSyncs = new Set();
+
 export const syncMetaConversationHistoryForTenant = async ({
   tenantId,
   channels = ["facebook", "instagram"],
@@ -25810,6 +25814,9 @@ export const syncMetaConversationHistoryForTenant = async ({
   await ensureAiSupportLogSchema();
   const safeTenantId = numberOrNull(tenantId);
   if (!safeTenantId) throw Object.assign(new Error("tenant_id is required"), { status: 400 });
+  if (activeMetaHistoryTenantSyncs.has(safeTenantId)) return { success: true, already_running: true };
+  activeMetaHistoryTenantSyncs.add(safeTenantId);
+  try {
   const safeConversationLimit = Math.min(300, Math.max(1, Number(conversationLimit) || 50));
   const safeMessageLimit = Math.min(100, Math.max(1, Number(messagesPerConversation) || 25));
   const wantedChannels = new Set(
@@ -25899,13 +25906,42 @@ export const syncMetaConversationHistoryForTenant = async ({
   }
   emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", { tenant_id: safeTenantId, at: nowIso(), source: "meta_history_sync" });
   const summary = { facebook: totals("facebook"), instagram: totals("instagram") };
+  const blocked = results.reduce(
+    (acc, entry) => ({
+      profile: acc.profile + Number(entry.profile_lookups_blocked || 0),
+      instagram: acc.instagram + Number(entry.instagram_permission_blocked || 0),
+    }),
+    { profile: 0, instagram: 0 }
+  );
   console.log("[meta-history-sync] completed", {
     tenant_id: safeTenantId,
     facebook: summary.facebook,
     instagram: summary.instagram,
     webhook,
   });
-  return { success: true, results, webhook, ...summary };
+  // The route answers immediately (the pull outlives the 60s request cut), so
+  // completion is announced on the tenant socket room — the inbox listens and
+  // shows the result toast.
+  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:meta_sync_done", {
+    tenant_id: safeTenantId,
+    at: nowIso(),
+    facebook: summary.facebook,
+    instagram: summary.instagram,
+    webhook,
+    profile_lookups_blocked: blocked.profile,
+    instagram_permission_blocked: blocked.instagram,
+  });
+  return {
+    success: true,
+    results,
+    webhook,
+    profile_lookups_blocked: blocked.profile,
+    instagram_permission_blocked: blocked.instagram,
+    ...summary,
+  };
+  } finally {
+    activeMetaHistoryTenantSyncs.delete(safeTenantId);
+  }
 };
 
 export const getPublicWebhookVerificationConfig = async ({ verifyToken } = {}) => {

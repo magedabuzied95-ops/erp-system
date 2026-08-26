@@ -2842,13 +2842,31 @@ router.get("/debug-ping", (req, res) => {
 router.post("/sync-meta-conversations", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const result = await syncMetaConversationHistoryForTenant({
+    // A 200-thread pull takes minutes — far past the 60s request cut, which
+    // used to 503 the browser while the sync kept running and then crash the
+    // late res.json with "headers already sent". So the run is detached: the
+    // caller gets an immediate ack, and completion arrives on the tenant
+    // socket room as ai_inbox:meta_sync_done (plus ai_inbox:refresh).
+    const syncPromise = syncMetaConversationHistoryForTenant({
       tenantId,
       channels: req.body?.channels,
       conversationLimit: req.body?.conversation_limit,
       messagesPerConversation: req.body?.message_limit,
     });
-    return res.json(result);
+    syncPromise.catch((error) => {
+      console.error("[meta-history-sync] background run failed", {
+        tenant_id: tenantId,
+        message: error?.message || "unknown",
+      });
+    });
+    // The per-tenant lock answers instantly, so a double-click is told the
+    // truth instead of silently starting nothing.
+    const early = await Promise.race([
+      syncPromise.then((result) => (result?.already_running ? result : null)).catch(() => null),
+      new Promise((resolve) => setTimeout(resolve, 400)),
+    ]);
+    if (early?.already_running) return res.json({ success: true, already_running: true });
+    return res.status(202).json({ success: true, started: true });
   } catch (error) {
     console.error("[meta-history-sync] route failed", {
       message: error?.message || "unknown",
