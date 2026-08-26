@@ -87,3 +87,12 @@ test("the scheduler is wired and failure-isolated", () => {
   assert.match(tick, /catch\(\(error\) =>/);
   assert.match(server, /backgroundIntervals\.add\(abandonedCartInterval\)/);
 });
+
+test("the setting's category is one the registry actually accepts", async () => {
+  // setSetting refuses any category normalizeSettingsCategory does not know; "marketing" was not
+  // one of them, which made the setting impossible to save from the very screen it was built for.
+  const { normalizeSettingsCategory, settingsByKey } = await import("../shared/settingsRegistry.js");
+  const def = settingsByKey["marketing.abandoned_cart_reminder"];
+  assert.ok(def, "the setting is registered");
+  assert.equal(normalizeSettingsCategory(def.category), def.category, "its category is a real category");
+});
