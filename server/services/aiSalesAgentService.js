@@ -5336,7 +5336,7 @@ export const buildAiSalesCloserPlan = async ({ tenantId, conversationId, product
   }
   const recommendations = products.length
     ? { products }
-    : await loadAiInboxRecommendations({ tenantId, conversationId: conversation.session_id, limit: 8 });
+    : await loadAiInboxRecommendations({ tenantId, conversationId: conversation.session_id, limit: 8, conversation });
   const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
   const intent = parseAiSalesCloserIntent({ message: lastMessage, products: recommendations.products, conversation });
   const lead = scoreAiSalesLead({ conversation, intent, products: recommendations.products });
