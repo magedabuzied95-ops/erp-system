@@ -759,6 +759,7 @@ const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNo
 const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = await import("./services/transactionalEmail/orderEmailService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.js");
+const { runAbandonedCartReminderTick } = await import("./services/abandonedCartReminderService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
@@ -2380,6 +2381,15 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, 60 * 1000);
       backgroundIntervals.add(workflowAutomationInterval);
+      // Abandoned-cart WhatsApp reminder. No-op unless marketing.abandoned_cart_reminder.enabled
+      // is switched on in settings; failure-isolated like every other background tick.
+      const abandonedCartInterval = setInterval(() => {
+        void runAbandonedCartReminderTick().catch((error) => {
+          console.error("[server] abandoned cart reminder tick error", { message: error?.message || String(error) });
+        });
+      }, 5 * 60 * 1000);
+      backgroundIntervals.add(abandonedCartInterval);
+      console.log("[server] abandoned cart reminder scheduler started");
       console.log("[server] workflow automation scheduler started");
       console.log("[server] staff task schedulers started");
       console.log("[server] story scheduler started");

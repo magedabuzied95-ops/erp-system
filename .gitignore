@@ -57,6 +57,7 @@ server/services/*
 !server/services/aiInboxGroundingGate.js
 !server/services/footwearSizeResolver.js
 !server/services/invoiceTemplateService.js
+!server/services/abandonedCartReminderService.js
 # Reporting & Analytics Center v2. `server/services/*` above ignores the whole
 # directory, so the analytics package needs its directory un-ignored before its
 # contents can be matched.
@@ -107,6 +108,7 @@ server/services/*
 !server/services/aiInboxGroundingGate.js
 !server/services/footwearSizeResolver.js
 !server/services/invoiceTemplateService.js
+!server/services/abandonedCartReminderService.js
 # Reporting & Analytics Center v2. `server/services/*` above ignores the whole
 # directory, so the analytics package needs its directory un-ignored before its
 # contents can be matched.

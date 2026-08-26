@@ -2,6 +2,7 @@ import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js"
 import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
 import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
 import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.js";
+import { ABANDONED_CART_DEFAULTS } from "./abandonedCartDefaults.js";
 
 const label = (en, ar) => ({ en, ar });
 
@@ -137,6 +138,7 @@ const definitions = [
   ["orders.return_exchange_window_days", "orders", "number", 14, "Return/exchange window days", "مدة الاسترجاع والاستبدال", "Allowed return and exchange period.", "مدة السماح بالاسترجاع والاستبدال.", { validation: { min: 0 }, isPublic: true, usedBy: ["Storefront Returns Policy", "Merchant Listings"] }],
   ["orders.shipping_provider", "shipping", "select", "in_store_delivery", "Shipping provider", "شركة الشحن", "Default shipping provider.", "شركة الشحن الافتراضية.", { options: [option("bosta", "Bosta", "بوسطة"), option("mylerz", "Mylerz", "مايلرز"), option("shipblu", "ShipBlu", "شيب بلو"), option("in_store_delivery", "In Store Delivery", "توصيل داخلي")], usedBy: ["Orders", "Shipping"] }],
   ["orders.shipment_notifications", "shipping", "json", SHIPMENT_NOTIFICATION_DEFAULTS, "Shipment WhatsApp notifications", "رسائل الشحن على واتساب", "Per-status message templates and on/off switches. Edited from the gear in the Shipping Center.", "قوالب رسائل الشحن وتشغيلها أو إيقافها لكل حالة. تُعدَّل من ترس الإعدادات في مركز الشحن.", { usedBy: ["Shipping", "WhatsApp"] }],
+  ["marketing.abandoned_cart_reminder", "marketing", "json", ABANDONED_CART_DEFAULTS, "Abandoned cart WhatsApp reminder", "تذكير السلة المتروكة على واتساب", "One carousel per abandonment: the saved cart's products as cards with a complete-order button. enabled / delay_minutes / max_cards / body / button_text.", "رسالة واحدة لكل سلة متروكة: منتجات السلة ككروت مع زر أكمل الطلب. التشغيل، مدة الانتظار بالدقائق، عدد الكروت، نص الرسالة ونص الزر.", { usedBy: ["Marketing", "WhatsApp"] }],
   ["orders.whatsapp_order_confirmation_template", "orders", "textarea", "تم استلام طلبك رقم {{order_number}}.", "WhatsApp order confirmation template", "رسالة تأكيد الطلب واتساب", "Template for order confirmation messages.", "قالب رسالة تأكيد الطلب."],
   ["orders.bosta_api_base_url", "shipping", "url", "https://app.bosta.co/api/v2", "Bosta API base URL", "Bosta API base URL", "Base URL for Bosta API requests.", "Base URL for Bosta API requests.", { usedBy: ["Shipping"] }],
   ["orders.bosta_api_key", "shipping", "secret", "", "Bosta API key", "مفتاح بوسطة", "Secret key for Bosta shipping.", "مفتاح سري لتكامل بوسطة.", { isSecret: true, usedBy: ["Shipping"] }],

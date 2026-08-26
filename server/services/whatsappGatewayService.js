@@ -1792,6 +1792,39 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
   });
 };
 
+
+// A product carousel: shared body text, then swipeable cards each with an image, a caption and
+// one URL button. Proven live on 2.4.0 (2026-08-26): renders like the courier-style card lists.
+// Same family as the CTA sender, so the same rule applies — a card that cannot render must never
+// cost the customer the message, hence the plain-text fallback with the same link.
+export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fallbackText = "" } = {}) => {
+  if (provider() !== "evolution") throw gatewayError("Carousel messages are only supported on the Evolution provider", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const normalizedCards = (Array.isArray(cards) ? cards : [])
+    .map((card) => ({
+      image: resolvePublicImageUrl(card?.imageUrl || card?.image || ""),
+      body: text(card?.body),
+      buttons: [{ type: "url", displayText: text(card?.buttonText) || "أكمل الطلب 🛒", url: text(card?.url) }],
+    }))
+    .filter((card) => card.body && card.buttons[0].url);
+  if (!normalizedCards.length || !text(body)) throw gatewayError("A carousel needs a body and at least one card", "WHATSAPP_CAROUSEL_EMPTY", 400);
+  const current = requireEvolutionConfig();
+  const endpoint = `/message/sendCarousel/${encodeURIComponent(current.instanceName)}`;
+  const requestBody = JSON.stringify({ number: normalizedPhone, body: text(body), cards: normalizedCards });
+  const logBase = { order_id: null, phoneSuffix: normalizedPhone.slice(-4), buttonIds: ["carousel"] };
+  return sendEvolutionButtonsMessage({
+    current,
+    endpoint,
+    requestBody,
+    requestTimeoutMs: 15000,
+    logBase,
+    phone: normalizedPhone,
+    fallbackOnNotDelivered: async () =>
+      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(body) }),
+  });
+};
+
 export const buildOrderConfirmationMessage = (order = {}) => {
   const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
   return buildCodOrderConfirmationMessage({
