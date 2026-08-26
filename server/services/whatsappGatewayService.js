@@ -1803,7 +1803,9 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const normalizedCards = (Array.isArray(cards) ? cards : [])
     .map((card) => ({
-      image: resolvePublicImageUrl(card?.imageUrl || card?.image || ""),
+      // Evolution's carousel schema names this `imageUrl` — a card sent with `image` is accepted
+      // and silently rendered without its picture, which is exactly how the first live send went out.
+      imageUrl: resolvePublicImageUrl(card?.imageUrl || card?.image || ""),
       body: text(card?.body),
       buttons: [{ type: "url", displayText: text(card?.buttonText) || "أكمل الطلب 🛒", url: text(card?.url) }],
     }))

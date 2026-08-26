@@ -78,6 +78,8 @@ test("the carousel sender exists and falls back to text with the same link", () 
   assert.match(fn, /sendCarousel/);
   assert.match(fn, /fallbackOnNotDelivered/);
   assert.match(fn, /resolvePublicImageUrl/, "relative /uploads images are resolved to public URLs");
+  // Evolution accepts a card with `image` and silently drops the picture; only `imageUrl` renders.
+  assert.match(fn, /imageUrl: resolvePublicImageUrl/, "cards use the field name Evolution actually reads");
   assert.match(fn, /sendTextMessage\(\{ phone: normalizedPhone/);
 });
 
