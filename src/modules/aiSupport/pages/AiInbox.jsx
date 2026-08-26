@@ -8774,7 +8774,15 @@ export default function AiInbox({ reviewerMode = false }) {
           ? (isVariantOptionsSuggestion ? "variant_options_batch" : "recommendation_batch")
           : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none")));
     // Send the INLINE-edited text when the employee edited the suggestion; otherwise the unchanged suggestion.
-    const textToSend = editingAiDraft && clean(aiSuggestionEditText) ? clean(aiSuggestionEditText) : activeAiSuggestionText;
+    // A variant-options batch is the exception: the AI's suggestion text lists every colour with its
+    // sizes, price and link — which is exactly what the colour carousel is about to show as cards.
+    // Sending both means the customer reads the same catalogue twice, so the text leg shrinks to a
+    // one-line lead. An employee's manual edit still wins: edited words are deliberate.
+    const editedText = editingAiDraft && clean(aiSuggestionEditText) ? clean(aiSuggestionEditText) : "";
+    const variantOptionsLead = isVariantOptionsSuggestion && cardsToSend.length >= 2
+      ? `${clean(cardsToSend[0]?.product_name || cardsToSend[0]?.name || "المنتج")} متوفر بالألوان دي — اختار اللي يعجبك 👇`
+      : "";
+    const textToSend = editedText || variantOptionsLead || activeAiSuggestionText;
     const result = await sendCurrentReply(textToSend, {
       allowSameTextCorrection: true,
       flow: "approve",

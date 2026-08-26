@@ -6425,7 +6425,11 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
   const enrichedProductCards = await Promise.all(
     normalizedProductCards.map((card) => enrichSelectedProductCard({ tenantId, card }))
   );
-  const productCards = await expandProductCardsByColor({ tenantId, cards: enrichedProductCards });
+  // WhatsApp-only: Evolution renders the colour cards as one carousel. Meta and Telegram have no
+  // carousel transport here, so expanding for them would fan one product into N separate images.
+  const productCards = envText(req.params.conversationId).startsWith("whatsapp")
+    ? await expandProductCardsByColor({ tenantId, cards: enrichedProductCards })
+    : enrichedProductCards;
   if (!productCards.length) {
     return sendError(res, Object.assign(new Error("product_cards are required"), { status: 400 }), "product_cards are required");
   }
@@ -6471,7 +6475,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
       },
     });
     const previewText = formatProductCardPreviewText(productCards[0] || {});
-    const fallbackText = buildProductCardFallbackText(productCards);
+    const expandedToColorCarousel = productCards.length >= 2 && enrichedProductCards.length === 1;
+    const fallbackText = expandedToColorCarousel
+      ? `${envText(productCards[0]?.product_name || productCards[0]?.name || "المنتج")} — اختار اللون اللي يعجبك 👇`
+      : buildProductCardFallbackText(productCards);
     const conversationRecipientId = recipientIdFromConversationKey({
       conversationId: conversation.session_id || conversation.external_conversation_id || conversationId,
       channel: normalizedChannel,

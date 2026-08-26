@@ -92,3 +92,21 @@ test("the inbox transcript mirrors the WhatsApp strip", () => {
   assert.match(inboxRenderer, /aspect-square w-full bg-white object-contain/);
   assert.match(inboxRenderer, /chooseColorButton/, "the card footer mirrors the WhatsApp button label");
 });
+
+test("a colour carousel is never narrated twice", () => {
+  // The AI's variant-options suggestion text lists every colour with sizes, price and link — the
+  // exact content the carousel shows as cards. Sending both made the customer read the same
+  // catalogue twice (live complaint, 2026-08-27).
+  const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  assert.match(routes, /expandedToColorCarousel/, "the route knows when it expanded");
+  assert.match(routes, /اختار اللون اللي يعجبك 👇/, "an expanded send leads with one line, not the dump");
+  const inbox = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+  assert.match(inbox, /variantOptionsLead/, "approve-and-send shrinks the text leg for colour batches");
+  assert.match(inbox, /editedText \|\| variantOptionsLead \|\| activeAiSuggestionText/, "a manual edit still wins");
+});
+
+test("expansion is WhatsApp-only - Meta has no carousel to carry it", () => {
+  const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  assert.match(routes, /startsWith\("whatsapp"\)\s*\r?\n?\s*\? await expandProductCardsByColor/,
+    "a Messenger conversation keeps one card per product instead of N separate images");
+});
