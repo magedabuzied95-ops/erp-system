@@ -193,3 +193,42 @@ export const ensureLocalProductImageVariants = async (sourcePath = "", widths = 
 
   return summary;
 };
+
+/*
+ * A square (1:1) card image for WhatsApp carousels. The card's frame and zoom are whatever the
+ * customer's WhatsApp decides — even a perfectly square source gets edge-cropped by some
+ * clients. So the only lever that works is padding: the product sits on a white square canvas
+ * with a margin around it, and whatever slice the client trims comes out of the margin, never
+ * out of the product. JPEG on purpose: Meta's media pipeline has rejected WebP elsewhere, and a
+ * card photo that sometimes does not render is worse than a slightly larger file.
+ */
+export const WHATSAPP_CARD_IMAGE_SIZE = 800;
+// The product occupies this share of the canvas; the rest is the crop-safety margin.
+const WHATSAPP_CARD_PRODUCT_SHARE = 0.8;
+
+export const ensureSquareCardImageUrl = async (value = "") => {
+  const reference = parseLocalProductUploadReference(value);
+  const sourcePath = resolveLocalProductImageSourcePath(value);
+  if (!reference || !sourcePath || !(await ensureFileExists(sourcePath))) return "";
+  const ext = path.extname(sourcePath).toLowerCase();
+  if (ext && !supportedSourceExtensions.has(ext)) return "";
+  const root = knownUploadRoots.find((candidate) => isPathInside(sourcePath, candidate));
+  if (!root) return "";
+  const stem = sanitizeFileStem(path.parse(sourcePath).name);
+  const fileName = `${stem}-sq${WHATSAPP_CARD_IMAGE_SIZE}.jpg`;
+  const outputPath = path.join(root, PRODUCT_IMAGE_VARIANT_DIR, fileName);
+  if (!(await ensureFileExists(outputPath))) {
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    const inner = Math.round(WHATSAPP_CARD_IMAGE_SIZE * WHATSAPP_CARD_PRODUCT_SHARE);
+    const margin = Math.round((WHATSAPP_CARD_IMAGE_SIZE - inner) / 2);
+    await sharp(sourcePath, { animated: false })
+      .rotate()
+      .flatten({ background: "#ffffff" })
+      .resize({ width: inner, height: inner, fit: "contain", background: "#ffffff" })
+      .extend({ top: margin, bottom: margin, left: margin, right: margin, background: "#ffffff" })
+      .jpeg({ quality: 85 })
+      .toFile(outputPath);
+  }
+  const publicRelative = `/uploads/products/${PRODUCT_IMAGE_VARIANT_DIR}/${fileName}`;
+  return reference.kind === "url" ? new URL(publicRelative, reference.origin).toString() : publicRelative;
+};

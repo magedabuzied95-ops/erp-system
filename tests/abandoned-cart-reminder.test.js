@@ -98,3 +98,21 @@ test("the setting's category is one the registry actually accepts", async () => 
   assert.ok(def, "the setting is registered");
   assert.equal(normalizeSettingsCategory(def.category), def.category, "its category is a real category");
 });
+
+test("card photos are swapped for the padded square variant before building", () => {
+  const svc = fs.readFileSync(new URL("../server/services/abandonedCartReminderService.js", import.meta.url), "utf8");
+  const tick = svc.slice(svc.indexOf("export const runAbandonedCartReminderTick"));
+  const swapIndex = tick.indexOf("ensureSquareCardImageUrl");
+  const buildIndex = tick.indexOf("buildAbandonedCartCarousel(items");
+  assert.ok(swapIndex > -1, "the tick squares the images");
+  assert.ok(buildIndex > -1 && swapIndex < buildIndex, "squaring happens before the cards are built");
+  assert.match(tick, /squared \? \{ \.\.\.item, image_url: squared \} : item/, "a failed square keeps the original photo");
+});
+
+test("the square variant pads instead of cropping, so no client crop can eat the product", () => {
+  const variants = fs.readFileSync(new URL("../server/services/productImageVariantService.js", import.meta.url), "utf8");
+  const fn = variants.slice(variants.indexOf("export const ensureSquareCardImageUrl"));
+  assert.match(fn, /fit: "contain"/, "the product is contained, never cover-cropped");
+  assert.match(fn, /\.extend\(\{ top: margin/, "the margin is real canvas, not a resize artifact");
+  assert.match(fn, /\.jpeg\(/, "output is JPEG - Meta has rejected WebP elsewhere");
+});

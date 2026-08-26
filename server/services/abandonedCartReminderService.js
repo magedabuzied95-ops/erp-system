@@ -3,6 +3,7 @@ import { getSetting } from "./settingsService.js";
 import { sendCartCarouselMessage } from "./whatsappGatewayService.js";
 import { resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { ABANDONED_CART_DEFAULTS } from "../../shared/abandonedCartDefaults.js";
+import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
 
 /*
  * The abandoned-cart reminder. A signed-in storefront customer's cart is saved server-side per
@@ -107,7 +108,16 @@ export const runAbandonedCartReminderTick = async () => {
 
   let sent = 0;
   for (const row of due.rows) {
-    const { body, cards, fallbackText } = buildAbandonedCartCarousel(row.cart, config);
+    // Swap each product photo for its padded square variant BEFORE building the cards. WhatsApp
+    // clients crop the card frame however they like; the padding keeps the product whole. A failed
+    // or non-local image keeps its original URL — a slightly cropped photo beats no photo.
+    const items = await Promise.all((Array.isArray(row.cart) ? row.cart : []).map(async (item) => {
+      const original = String(item?.image_url || item?.image || item?.product_image || "").trim();
+      if (!original) return item;
+      const squared = await ensureSquareCardImageUrl(original).catch(() => "");
+      return squared ? { ...item, image_url: squared } : item;
+    }));
+    const { body, cards, fallbackText } = buildAbandonedCartCarousel(items, config);
     if (!cards.length) {
       // nothing renderable (nameless items) — claim anyway so it is not retried forever
       await claimCart(row).catch(() => {});
