@@ -10141,7 +10141,19 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.rail.conversations")}</div>
 	                      <div className="mt-0.5 text-xs text-slate-500">{t("aiSupport.inbox.rail.subtitle")}</div>
 	                    </div>
-	                    <Pill tone="cyan">{filteredConversations.length}</Pill>
+	                    <div className="flex shrink-0 items-center gap-2">
+	                      <button
+	                        type="button"
+	                        onClick={() => void syncMetaConversations()}
+	                        disabled={metaHistorySyncing}
+	                        title="جلب محادثات Messenger وInstagram الحالية والقديمة من Meta"
+	                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-sky-300/30 bg-sky-400/10 px-2.5 text-[10px] font-black text-sky-100 transition hover:border-sky-300/50 hover:bg-sky-400/20 disabled:opacity-50"
+	                      >
+	                        {metaHistorySyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FaFacebookMessenger className="h-3.5 w-3.5" />}
+	                        Sync Meta
+	                      </button>
+	                      <Pill tone="cyan">{filteredConversations.length}</Pill>
+	                    </div>
 	                  </div>
 	                  <div className="flex items-center gap-2">
 	                    <label className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-950/70 h-10">
