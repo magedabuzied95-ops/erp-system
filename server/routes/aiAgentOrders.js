@@ -2779,17 +2779,24 @@ const kickMetaHistorySyncIfEmpty = (tenantId) => {
   if (Date.now() - last < META_HISTORY_SYNC_COOLDOWN_MS) return;
   metaHistorySyncState.set(tenantId, Date.now());
   (async () => {
+    // A channel needs the one-shot backfill while it has no conversations at
+    // all OR none that came from a history sync (webhook-era rows exist but
+    // the gap the dead-webhook window left was never pulled). After one
+    // successful run the history_synced_at marker ends the auto-kicks.
     const counts = await db.query(
       `SELECT
          COUNT(*) FILTER (WHERE channel IN ('facebook_messenger', 'facebook', 'messenger'))::int AS fb,
-         COUNT(*) FILTER (WHERE channel = 'instagram')::int AS ig
+         COUNT(*) FILTER (WHERE channel IN ('facebook_messenger', 'facebook', 'messenger') AND metadata ? 'history_synced_at')::int AS fb_synced,
+         COUNT(*) FILTER (WHERE channel = 'instagram')::int AS ig,
+         COUNT(*) FILTER (WHERE channel = 'instagram' AND metadata ? 'history_synced_at')::int AS ig_synced
        FROM ai_channel_conversations WHERE tenant_id = $1`,
       [tenantId]
     );
-    const fb = Number(counts.rows[0]?.fb || 0);
-    const ig = Number(counts.rows[0]?.ig || 0);
-    if (fb > 0 && ig > 0) return;
-    const channels = [...(fb > 0 ? [] : ["facebook"]), ...(ig > 0 ? [] : ["instagram"])];
+    const row = counts.rows[0] || {};
+    const fbNeedsSync = Number(row.fb || 0) === 0 || Number(row.fb_synced || 0) === 0;
+    const igNeedsSync = Number(row.ig || 0) === 0 || Number(row.ig_synced || 0) === 0;
+    if (!fbNeedsSync && !igNeedsSync) return;
+    const channels = [...(fbNeedsSync ? ["facebook"] : []), ...(igNeedsSync ? ["instagram"] : [])];
     await syncMetaConversationHistoryForTenant({ tenantId, channels });
   })().catch((error) => {
     console.warn("[meta-history-sync] inbox-open kick failed", { tenantId, message: error?.message || String(error) });
