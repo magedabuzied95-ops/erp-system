@@ -478,6 +478,40 @@ const friendlyOutboundDeliveryError = (value = "") => {
   }
   return raw || "لم يتم إرسال الرسالة";
 };
+// Burst guard: when the provider just refused an outbound message for a
+// conversation-level reason (Meta's 24-hour window), every retry within the
+// next seconds fails identically — a card batch or a hammered Send once
+// stacked six identical فشل bubbles in one second. Refuse fast instead. A
+// newer customer message reopens the window, so it lifts the guard.
+const recentWindowFailureBlock = async ({ tenantId, sessionId }) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT f.delivery_error
+      FROM ai_support_messages f
+      WHERE f.tenant_id = $1
+        AND f.session_id = $2
+        AND f.sender_type = 'staff'
+        AND f.delivery_status = 'failed'
+        AND f.created_at > NOW() - INTERVAL '30 seconds'
+        AND f.delivery_error LIKE '%24 ساعة%'
+        AND NOT EXISTS (
+          SELECT 1 FROM ai_support_messages m2
+          WHERE m2.tenant_id = f.tenant_id
+            AND m2.session_id = f.session_id
+            AND m2.sender_type = 'customer'
+            AND m2.created_at > f.created_at
+        )
+      ORDER BY f.created_at DESC
+      LIMIT 1
+      `,
+      [tenantId, sessionId]
+    );
+    return envText(result.rows[0]?.delivery_error || "");
+  } catch {
+    return "";
+  }
+};
 const regressionMockDeliveryRequested = (req) =>
   req.body?.mock_delivery === true ||
   req.body?.mockDelivery === true ||
@@ -6028,6 +6062,20 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
       }
     }
 
+    if (!mockDelivery && isMetaConversation) {
+      const recentWindowError = await recentWindowFailureBlock({ tenantId, sessionId: conversation.session_id || conversationId });
+      if (recentWindowError) {
+        return res.status(429).json({
+          success: false,
+          sent: false,
+          code: "OUTBOUND_WINDOW_CLOSED",
+          delivery_status: "failed",
+          delivery_error: recentWindowError,
+          message: recentWindowError,
+        });
+      }
+    }
+
     let sendResult = null;
     let deliveryStatus = "sent";
     let deliveryError = "";
@@ -6389,6 +6437,20 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
         image_url: card.image_url || card.image || "",
       })),
     });
+    if (!mockDelivery && [AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel)) {
+      const recentWindowError = await recentWindowFailureBlock({ tenantId, sessionId: conversation.session_id || conversationId });
+      if (recentWindowError) {
+        return res.status(429).json({
+          success: false,
+          sent: false,
+          code: "OUTBOUND_WINDOW_CLOSED",
+          delivery_status: "failed",
+          delivery_error: recentWindowError,
+          message: recentWindowError,
+        });
+      }
+    }
+
     let sendResult = { sent: true, delivery_status: "stored" };
     let deliveryStatus = "stored";
     let deliveryError = "";

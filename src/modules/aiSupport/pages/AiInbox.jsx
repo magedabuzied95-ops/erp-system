@@ -9079,9 +9079,30 @@ export default function AiInbox({ reviewerMode = false }) {
             needsRefresh = true;
             patchConversation(conversationId, (conversation) => ({ ...conversation, latest_message_preview: cardPreview, last_activity_at: cardNow, updated_at: cardNow }));
           }
+          // The route answers 201 even when the provider REFUSED the message
+          // (delivery_status: "failed") — treating that as ok is what once
+          // stacked six identical فشل bubbles in one second. One failure means
+          // every remaining card meets the same wall (24h window, thread
+          // control, token) — stop the batch and say so.
+          const cardDeliveryFailed = payload?.delivery_status === "failed" || payload?.success === false;
+          if (cardDeliveryFailed) {
+            const deliveryError = clean(payload?.delivery_error || payload?.message_text || "") || "تعذر إرسال المنتج";
+            results.push({ key, ok: false, error: deliveryError });
+            for (const rest of cards.slice(cards.indexOf(card) + 1)) {
+              results.push({ key: productSelectionKey(rest), ok: false, error: "توقف الإرسال بعد أول فشل — نفس السبب كان هيمنع الباقي" });
+            }
+            break;
+          }
           results.push({ key, ok: true });
         } catch (err) {
-          results.push({ key, ok: false, error: err?.message || "تعذر إرسال المنتج" });
+          const requestError = clean(err?.responseBody?.delivery_error || err?.responseBody?.message || err?.message || "") || "تعذر إرسال المنتج";
+          results.push({ key, ok: false, error: requestError });
+          // A refused request (429 burst guard / 4xx) applies to the whole
+          // conversation right now — never march on through the rest.
+          for (const rest of cards.slice(cards.indexOf(card) + 1)) {
+            results.push({ key: productSelectionKey(rest), ok: false, error: "توقف الإرسال بعد أول فشل" });
+          }
+          break;
         }
       }
     } finally {

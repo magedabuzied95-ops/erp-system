@@ -916,6 +916,26 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           )
           AND delivery_error <> 'لم يتم الإرسال لأن آخر تفاعل من العميل مر عليه أكثر من 24 ساعة. اطلب من العميل إرسال رسالة جديدة أولًا.'
       `);
+      // A card batch used to keep sending after the first 24h-window refusal,
+      // stacking identical فشل rows in the same minute (six in one second in
+      // production). The send paths now stop at the first refusal; this keeps
+      // ONE honest failure per burst and drops the redundant clones. Additive
+      // cleanup, deliberately non-fatal — see the boot-bricking memory.
+      await clientOrPool.query(`
+        DELETE FROM ai_support_messages a
+        USING ai_support_messages b
+        WHERE a.tenant_id = b.tenant_id
+          AND a.session_id = b.session_id
+          AND a.id > b.id
+          AND a.sender_type = 'staff'
+          AND b.sender_type = 'staff'
+          AND a.delivery_status = 'failed'
+          AND b.delivery_status = 'failed'
+          AND a.delivery_error LIKE '%24 ساعة%'
+          AND b.delivery_error LIKE '%24 ساعة%'
+          AND COALESCE(a.message_text, '') = COALESCE(b.message_text, '')
+          AND date_trunc('minute', a.created_at) = date_trunc('minute', b.created_at)
+      `).catch(() => {});
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS added_to_cart_after_chat BOOLEAN NULL`);
       // Canonicalise legacy WhatsApp keys to whatsapp:<digits>.
