@@ -1,4 +1,5 @@
 import express from "express";
+import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -206,6 +207,42 @@ router.post("/webhook", async (req, res) => {
         message: "skipped",
         skipReason: normalized.skipReason || normalized.replyTargetReason || "evolution_noise",
       });
+    }
+    // ── Colour-card tap ────────────────────────────────────────────────────────────────────────
+    // A tap on a colour carousel card arrives as a button reply whose id names the exact variant.
+    // The AI pipeline grounds colours from TEXT, so the tap is rewritten into the one sentence the
+    // grounding gate resolves deterministically — the product name and the colour string exactly
+    // as the catalog spells them. The customer's tap label ("اطلب اللون ده") says nothing usable;
+    // this rewrite is what turns it into an unambiguous colour choice.
+    const colorTap = String(normalized.selectedButtonId || "").match(/^choose_color:(\d+)$/);
+    if (colorTap) {
+      try {
+        const variantRow = await db.query(
+          `SELECT v.id, v.color, p.name AS product_name
+           FROM product_variants v JOIN products p ON p.id = v.product_id
+           WHERE v.id = $1 LIMIT 1`,
+          [Number(colorTap[1])]
+        );
+        const picked = variantRow.rows[0];
+        if (picked) {
+          const rewritten = `عايز ${picked.product_name}${picked.color ? ` لون ${picked.color}` : ""}`;
+          console.info("[whatsapp:color-choice-tap]", {
+            variant_id: picked.id,
+            color: picked.color || "",
+            product: picked.product_name || "",
+            rewritten,
+          });
+          normalized.text = rewritten;
+          normalized.original_message = rewritten;
+          normalized.normalized_message = "";
+          normalized.normalized_for_intent = "";
+        }
+      } catch (colorTapError) {
+        console.warn("[whatsapp:color-choice-tap-failed]", {
+          selected: normalized.selectedButtonId || "",
+          message: colorTapError?.message || String(colorTapError),
+        });
+      }
     }
     const mayDecide = mayDecideOrderConfirmation(normalized);
     const confirmation = mayDecide

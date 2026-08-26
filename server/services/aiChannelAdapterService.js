@@ -1819,6 +1819,65 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
       deliveryError = deliveryError || error?.message || "WhatsApp text send failed";
     }
   }
+  // ── Colour carousel (Evolution only) ─────────────────────────────────────────────────────────
+  // Two or more cards to one customer used to go out as N separate image messages. On Evolution
+  // they go as ONE swipeable carousel: a card per colour with its photo, price and sizes, and a
+  // REPLY button whose id carries the exact variant (choose_color:<variant_id>) — so a tap comes
+  // back through the webhook as structured data, not free text for the AI to guess a colour from.
+  // Any failure falls straight through to the proven per-card image loop; the carousel is an
+  // upgrade, never a new way to lose the message.
+  let carouselHandled = false;
+  if (selectedTransport === "evolution" && productCards.length >= 2) {
+    try {
+      const gateway = await import("./whatsappGatewayService.js");
+      const carouselBody = (text || "اختار اللون اللي يعجبك 👇").slice(0, 1024);
+      const carouselCards = productCards.map((product) => {
+        const cardLines = [
+          toText(product.color) || toText(product.name),
+          toText(product.price_text),
+          Array.isArray(product.sizes) && product.sizes.length
+            ? `المقاسات: ${product.sizes.slice(0, 6).join(" / ")}`
+            : "",
+        ].filter(Boolean);
+        const variantId = toText(product.variant_id || product.price_variant_id || "");
+        return {
+          imageUrl: toText(product.image_url || product.image || product.main_image || ""),
+          body: cardLines.join("\n").slice(0, 160),
+          ...(variantId
+            ? { buttonId: `choose_color:${variantId}`, buttonText: "اطلب اللون ده ✅" }
+            : { url: toText(product.storefront_url || product.product_url || ""), buttonText: "شوف المنتج 🛒" }),
+        };
+      }).filter((card) => card.imageUrl && (card.buttonId || card.url));
+      if (carouselCards.length >= 2) {
+        // Evolution caps a carousel at 10 cards; chunk instead of silently truncating.
+        for (let i = 0; i < carouselCards.length; i += 10) {
+          const response = await gateway.sendCartCarouselMessage({
+            phone: recipient,
+            body: carouselBody,
+            cards: carouselCards.slice(i, i + 10),
+            fallbackText: productCardTexts.join("\n\n").slice(0, 4096) || carouselBody,
+          });
+          firstMessageId = firstMessageId || trackSuccess("product_carousel", response);
+          successCount += 1;
+        }
+        productCardSentCount += productCards.length;
+        for (const batchSummary of productCardBatchSummaries) batchSummary.sent_count = batchSummary.normalized_count;
+        carouselHandled = true;
+        console.info("[ai-agent:whatsapp] product carousel sent", {
+          to: recipient,
+          cards: carouselCards.length,
+          with_variant_buttons: carouselCards.filter((c) => c.buttonId).length,
+        });
+      }
+    } catch (carouselError) {
+      console.warn("[ai-agent:whatsapp] product carousel failed; falling back to per-card sends", {
+        to: recipient,
+        message: carouselError?.message,
+        code: carouselError?.code || "",
+      });
+    }
+  }
+  if (!carouselHandled)
   for (let batchIndex = 0; batchIndex < normalizedProductCardBatches.length; batchIndex += 1) {
     const batch = normalizedProductCardBatches[batchIndex];
     const requestedBatch = productCardBatches[batchIndex] || [];

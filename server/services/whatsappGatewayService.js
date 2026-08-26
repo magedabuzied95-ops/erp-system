@@ -13,6 +13,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
+import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
 import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus, upsertAiSupportMessageReaction } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
@@ -1801,15 +1802,27 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
   if (provider() !== "evolution") throw gatewayError("Carousel messages are only supported on the Evolution provider", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
-  const normalizedCards = (Array.isArray(cards) ? cards : [])
-    .map((card) => ({
-      // Evolution's carousel schema names this `imageUrl` — a card sent with `image` is accepted
-      // and silently rendered without its picture, which is exactly how the first live send went out.
-      imageUrl: resolvePublicImageUrl(card?.imageUrl || card?.image || ""),
+  const normalizedCards = (await Promise.all((Array.isArray(cards) ? cards : []).map(async (card) => {
+    // Evolution's carousel schema names this `imageUrl` — a card sent with `image` is accepted
+    // and silently rendered without its picture, which is exactly how the first live send went out.
+    // Every photo rides the padded square canvas here, in the sender, so no consumer can forget it;
+    // an already-squared or non-local URL passes through unchanged.
+    const rawImage = text(card?.imageUrl || card?.image || "");
+    const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
+    // A reply button (buttonId) carries a structured choice back through the webhook —
+    // proven live with choose_color ids; a url button opens a page. One per card.
+    const buttonId = text(card?.buttonId);
+    const url = text(card?.url);
+    const button = buttonId
+      ? { type: "reply", displayText: text(card?.buttonText) || "اختار ده ✅", id: buttonId }
+      : { type: "url", displayText: text(card?.buttonText) || "أكمل الطلب 🛒", url };
+    return {
+      imageUrl: resolvePublicImageUrl(squared || rawImage),
       body: text(card?.body),
-      buttons: [{ type: "url", displayText: text(card?.buttonText) || "أكمل الطلب 🛒", url: text(card?.url) }],
-    }))
-    .filter((card) => card.body && card.buttons[0].url);
+      buttons: [button],
+    };
+  })))
+    .filter((card) => card.body && (card.buttons[0].url || card.buttons[0].id));
   if (!normalizedCards.length || !text(body)) throw gatewayError("A carousel needs a body and at least one card", "WHATSAPP_CAROUSEL_EMPTY", 400);
   const current = requireEvolutionConfig();
   const endpoint = `/message/sendCarousel/${encodeURIComponent(current.instanceName)}`;
