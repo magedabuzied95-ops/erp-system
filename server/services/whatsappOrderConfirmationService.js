@@ -162,7 +162,20 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
   return schemaReadyPromise;
 };
 
+// DDL takes an ACCESS EXCLUSIVE lock on the support tables; this runs per
+// forwarded message, so it must only ever hit the database once per process.
+let aiForwardingSchemaReadyPromise = null;
 const ensureAiForwardingSchema = async () => {
+  if (!aiForwardingSchemaReadyPromise) {
+    aiForwardingSchemaReadyPromise = runEnsureAiForwardingSchema().catch((error) => {
+      aiForwardingSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return aiForwardingSchemaReadyPromise;
+};
+
+const runEnsureAiForwardingSchema = async () => {
   await ensureAiSalesAgentSchema().catch(() => {});
   await db.query(`
     CREATE TABLE IF NOT EXISTS ai_support_sessions (

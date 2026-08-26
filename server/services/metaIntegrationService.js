@@ -2508,7 +2508,20 @@ const callMetaGet = async ({ endpoint, token, params = {} }) => {
   return payload;
 };
 
+// DDL here takes an ACCESS EXCLUSIVE lock on hot inbox tables; unguarded it ran
+// per message/conversation and serialized the whole pool (prod outage 2026-08-26).
+let messengerProfileStorageEnsurePromise = null;
 const ensureMessengerProfileStorage = async () => {
+  if (!messengerProfileStorageEnsurePromise) {
+    messengerProfileStorageEnsurePromise = runEnsureMessengerProfileStorage().catch((error) => {
+      messengerProfileStorageEnsurePromise = null;
+      throw error;
+    });
+  }
+  return messengerProfileStorageEnsurePromise;
+};
+
+const runEnsureMessengerProfileStorage = async () => {
   await ensureAiSupportLogSchema();
   await ensureAiSalesAgentSchema();
   await db.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
