@@ -2404,13 +2404,23 @@ router.post("/channels/meta/webhook", async (req, res) => {
 // The account registry behind the multi-account inbox: every connected page,
 // Instagram account, WhatsApp number, and Telegram bot for this tenant. Synced
 // from the credential sources on each read so the list never goes stale.
+// The provider reconciliation behind the account list makes live Graph calls;
+// account membership changes on the order of days, so the list is served from
+// the DB and the reconciliation runs at most once a minute per tenant (awaited
+// only when due, so a stale first read still self-heals in one request).
+const channelAccountsSyncLastRun = new Map();
+const CHANNEL_ACCOUNTS_SYNC_COOLDOWN_MS = 60 * 1000;
 router.get("/channel-accounts", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    await Promise.all([
-      syncMetaChannelAccounts({ tenantId }).catch(() => []),
-      syncEnvChannelAccounts({ tenantId }).catch(() => []),
-    ]);
+    const lastRun = Number(channelAccountsSyncLastRun.get(tenantId) || 0);
+    if (Date.now() - lastRun >= CHANNEL_ACCOUNTS_SYNC_COOLDOWN_MS) {
+      channelAccountsSyncLastRun.set(tenantId, Date.now());
+      await Promise.all([
+        syncMetaChannelAccounts({ tenantId }).catch(() => []),
+        syncEnvChannelAccounts({ tenantId }).catch(() => []),
+      ]);
+    }
     const includeInactive = String(req.query.include_inactive || "").toLowerCase() === "true";
     const accounts = await listChannelAccounts({ tenantId, platform: envText(req.query.platform), includeInactive });
     return res.json({ success: true, accounts });
@@ -2477,9 +2487,17 @@ router.patch("/channel-accounts/:id", protect, permit("settings", "edit"), async
   }
 });
 
+// getAiChannelsStatus makes live Graph calls per channel; the inbox refetches
+// this on every open. 30s of staleness on a health panel is invisible.
+const channelsStatusCache = new Map();
+const CHANNELS_STATUS_CACHE_TTL_MS = 30 * 1000;
 router.get("/channels/status", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    const cachedStatus = channelsStatusCache.get(tenantId);
+    if (cachedStatus && Date.now() - cachedStatus.at < CHANNELS_STATUS_CACHE_TTL_MS) {
+      return res.json({ ...cachedStatus.body, cached: true });
+    }
     const status = await getAiChannelsStatus({ tenantId });
     const globalSettings = await getAISettings();
     const aiAgentSettings = await getAiAgentSettings({ tenantId }).catch(() => ({}));
@@ -2488,7 +2506,10 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
       getAIChannelSettings(AI_AGENT_CHANNELS.INSTAGRAM, AI_AGENT_CHANNELS.INSTAGRAM),
       getAIChannelSettings(AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, "facebook"),
     ]);
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 500 }).catch(() => ({ conversations: [] }));
+    // Only channel + conversation_status are read below (human-takeover flags),
+    // so the summary projection is enough — the full load hydrated 500
+    // transcripts into a status endpoint.
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 500, summaryOnly: true }).catch(() => ({ conversations: [] }));
     const hasHumanOverride = (channel) => (inbox.conversations || []).some((conversation) => {
       const source = envText(conversation.channel || conversation.source || conversation.source_channel).toLowerCase();
       return source === channel && conversation.conversation_status === "human_takeover";
@@ -2532,7 +2553,7 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
         ai_assistant_global_enabled: assistantGlobalEnabled,
       };
     };
-    return res.json({
+    const responseBody = {
       success: true,
       ai_assistant_global_enabled: aiAgentSettings.ai_assistant_global_enabled !== false,
       channels: {
@@ -2552,7 +2573,9 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
           verify_test_ready: status[AI_AGENT_CHANNELS.FACEBOOK_MESSENGER].verify_token_configured,
         },
       },
-    });
+    };
+    channelsStatusCache.set(tenantId, { at: Date.now(), body: responseBody });
+    return res.json(responseBody);
   } catch (error) {
     return sendError(res, error, "Failed to load AI channel status");
   }
@@ -2570,6 +2593,8 @@ router.patch("/channels/:channel/settings", protect, permit("settings", "edit"),
         auto_reply_mode: req.body?.auto_reply_mode || req.body?.mode || "",
       },
     });
+    // A settings change must be visible on the next status read.
+    channelsStatusCache.delete(tenantId);
     const status = await getAiChannelsStatus({ tenantId });
     return res.json({ success: true, settings, channels: status });
   } catch (error) {
@@ -2740,7 +2765,15 @@ router.post("/channels/:channel/test-send", protect, permit("settings", "edit"),
 // pile-up) and its DB upserts surface on the next load / realtime refresh. This
 // keeps GET /conversations DB-fast while still reconciling missed WhatsApp chats.
 const EVOLUTION_INBOX_SYNC_MAX_WAIT_MS = 1200;
+// The reconciliation exists to catch chats the webhook missed — a once-a-minute
+// concern. Unthrottled it ran on EVERY list request (the AiInbox polls five
+// channels per refresh), so each page load paid for five Evolution sweeps.
+const EVOLUTION_INBOX_SYNC_COOLDOWN_MS = 60 * 1000;
+const evolutionInboxSyncLastRun = new Map();
 const kickEvolutionInboxSync = (tenantId) => {
+  const lastRun = Number(evolutionInboxSyncLastRun.get(tenantId) || 0);
+  if (Date.now() - lastRun < EVOLUTION_INBOX_SYNC_COOLDOWN_MS) return Promise.resolve();
+  evolutionInboxSyncLastRun.set(tenantId, Date.now());
   const running = syncEvolutionChatsToAiInbox({ tenantId }).catch((error) => {
     console.warn("[whatsapp:inbox-recovery-sync-error]", { tenantId, message: error?.message || String(error) });
   });
@@ -3820,7 +3853,7 @@ router.post("/conversations/:conversationId/sync-messenger-profile", protect, in
       conversationId,
       externalCustomerId: req.body?.external_customer_id || req.body?.psid || "",
     });
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000, messageLimit: 30 });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", sessionKeys: [conversationId], limit: 5, messageLimit: 30 });
     const conversation = (inbox.conversations || []).find((item) => item.session_id === conversationId) || null;
     return res.json({ success: true, ...result, conversation });
   } catch (error) {
@@ -4840,12 +4873,16 @@ router.post("/conversations/:conversationId/create-draft-order", protect, inboxR
       conversation_id: conversationId,
       requested_product_id: req.body?.product_id || req.body?.product?.id || req.body?.product?.product_id || null,
     });
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
-    const conversation = inbox.conversations.find((item) =>
+    const targetedInbox = await loadAiInbox({ tenantId, filter: "all", sessionKeys: [conversationId], limit: 5 });
+    const matchDraftConversation = (item) =>
       item.session_id === conversationId ||
       item.external_conversation_id === conversationId ||
-      item.external_customer_id === conversationId
-    );
+      item.external_customer_id === conversationId;
+    let conversation = targetedInbox.conversations.find(matchDraftConversation);
+    if (!conversation) {
+      const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+      conversation = inbox.conversations.find(matchDraftConversation);
+    }
     if (!conversation) throw Object.assign(new Error("Conversation not found"), { status: 404 });
 
     // Cart path: the agent picked exact variants in the product picker, so the
@@ -5112,7 +5149,7 @@ router.get("/conversations/:conversationId/ai-harness", protect, inboxView(), as
       return res.json({ success: true, harness: cached, cached: true });
     }
 
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", sessionKeys: [conversationId], limit: 5, messageLimit: 12, summaryOnly: false });
     const conversation = (inbox.conversations || []).find((item) =>
       item.session_id === conversationId ||
       item.conversation_id === conversationId ||
@@ -7939,15 +7976,27 @@ router.patch("/social-automation/settings", protect, permit("settings", "edit"),
   }
 });
 
+// Heavy aggregate the inbox requests on open; 60s of staleness is invisible in
+// a dashboard and saves ~10s of query work per refresh.
+const aiAnalyticsCache = new Map();
+const AI_ANALYTICS_CACHE_TTL_MS = 60 * 1000;
 router.get("/analytics", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const analytics = await loadAiSalesAnalytics({
-      tenantId,
-      fromDate: req.query?.from_date || req.query?.fromDate || "",
-      toDate: req.query?.to_date || req.query?.toDate || "",
-      branchId: req.query?.branch_id || req.query?.branchId || null,
-    });
+    const fromDate = req.query?.from_date || req.query?.fromDate || "";
+    const toDate = req.query?.to_date || req.query?.toDate || "";
+    const branchId = req.query?.branch_id || req.query?.branchId || null;
+    const cacheKey = `${tenantId}|${fromDate}|${toDate}|${branchId || ""}`;
+    const cached = aiAnalyticsCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < AI_ANALYTICS_CACHE_TTL_MS) {
+      return res.json({ success: true, analytics: cached.analytics, cached: true });
+    }
+    const analytics = await loadAiSalesAnalytics({ tenantId, fromDate, toDate, branchId });
+    aiAnalyticsCache.set(cacheKey, { at: Date.now(), analytics });
+    if (aiAnalyticsCache.size > 200) {
+      const oldestKey = aiAnalyticsCache.keys().next().value;
+      aiAnalyticsCache.delete(oldestKey);
+    }
     return res.json({ success: true, analytics });
   } catch (error) {
     return sendError(res, error, "Failed to load AI sales analytics");

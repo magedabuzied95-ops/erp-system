@@ -2274,7 +2274,7 @@ const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
     OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
   )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, beforeActivityAt = "", beforeSessionId = "" } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [] } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2376,6 +2376,16 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   // browser makes "starred" mean every starred conversation instead of the
   // starred ones that happen to be in the newest page.
   if (favoriteOnly === true) clauses.push("COALESCE(s.is_favorite, FALSE) = TRUE");
+  // Targeted lookup: several callers need ONE conversation and used to load the
+  // whole inbox (messages included) to .find() it — 30s+ per open. The keys
+  // match every identity a route id can arrive as; explicit ::text[] on each
+  // use keeps the reused parameter's type pinned.
+  const sessionKeyList = [...new Set((Array.isArray(sessionKeys) ? sessionKeys : [sessionKeys]).map(text).filter(Boolean))];
+  if (sessionKeyList.length) {
+    params.push(sessionKeyList);
+    const keysIdx = `$${params.length}`;
+    clauses.push(`(s.session_id = ANY(${keysIdx}::text[]) OR c.external_conversation_id = ANY(${keysIdx}::text[]) OR c.external_customer_id = ANY(${keysIdx}::text[]))`);
+  }
 
   const summaryActivitySql = "COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at)";
   const cursorActivityAt = text(beforeActivityAt);
@@ -5062,8 +5072,18 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
 };
 
 export const loadAiInboxRecommendations = async ({ tenantId, conversationId, limit = 8, inbox = null, conversation = null, understanding = null } = {}) => {
-  const resolvedInbox = inbox || await loadAiInbox({ tenantId, filter: "all", limit: 100 });
-  const resolvedConversation = conversation || asArray(resolvedInbox.conversations).find((item) => item.session_id === conversationId);
+  // Targeted single-conversation load; the 100-transcript sweep stays only as
+  // a fallback for callers that passed neither an inbox nor a conversation.
+  let resolvedInbox = inbox;
+  let resolvedConversation = conversation;
+  if (!resolvedConversation) {
+    resolvedInbox = resolvedInbox || await loadAiInbox({ tenantId, filter: "all", sessionKeys: [conversationId], limit: 5 });
+    resolvedConversation = asArray(resolvedInbox.conversations).find((item) => item.session_id === conversationId);
+  }
+  if (!resolvedConversation && !inbox) {
+    resolvedInbox = await loadAiInbox({ tenantId, filter: "all", limit: 100 });
+    resolvedConversation = asArray(resolvedInbox.conversations).find((item) => item.session_id === conversationId);
+  }
   if (!resolvedConversation) {
     console.warn("ai_inbox_recommendations_failed", {
       tenant_id: tenantId,
@@ -5249,8 +5269,14 @@ const conversationMatchesKeys = (conversation = {}, keys = []) => {
 };
 
 const findAiInboxConversationByKeys = async ({ tenantId, keys = [] } = {}) => {
+  // Targeted first: the keys cover every identity a route id can arrive as, so
+  // this resolves in one small query instead of loading 1000 transcripts.
+  const targeted = await loadAiInbox({ tenantId, filter: "all", sessionKeys: keys, limit: 5 });
+  let conversation = asArray(targeted.conversations).find((item) => conversationMatchesKeys(item, keys));
+  if (conversation) return { conversation, loaded_count: targeted.conversations.length, searched: "session_keys" };
+
   const all = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
-  let conversation = asArray(all.conversations).find((item) => conversationMatchesKeys(item, keys));
+  conversation = asArray(all.conversations).find((item) => conversationMatchesKeys(item, keys));
   if (conversation) return { conversation, loaded_count: all.conversations.length, searched: "all" };
 
   for (const key of keys) {
