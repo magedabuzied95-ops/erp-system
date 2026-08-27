@@ -2795,17 +2795,33 @@ export default function ManagerPortal() {
                           const difference = Number(operation.difference || 0);
                           const money = operationMoneyLine(operation);
                           const credit = Number(operation.exchange_credit_amount || 0);
-                          const itemLine = (item, index, direction) => (
-                            <div key={`${direction}-${index}`} className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-200">
-                              <span className="min-w-0 flex-1 truncate">
-                                <span className={`me-1 font-black ${direction === "out" ? "text-rose-400" : "text-emerald-400"}`}>{direction === "out" ? "−" : "+"}</span>
-                                <InlineName>{portalText(item.name)}</InlineName>
-                                {item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[11px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null}
-                                {` × ${formatNumber(item.quantity || 0)}`}
-                              </span>
-                              <span className="shrink-0 font-black text-white">{formatCurrency(item.line_total || 0)}</span>
-                            </div>
-                          );
+                          // A swap is a picture question — "he brought back WHICH one?" — and two
+                          // product names differing by a size read as the same shoe. The border
+                          // colour carries the direction onto the photo, so the eye gets it before
+                          // it reaches the − / + sign.
+                          // The frame stays the neutral one the invoice items right above use. A
+                          // red/green border was tried first and could not be made to stick: this
+                          // design system normalises border colours to the --border token, hard
+                          // enough that even an inline `!important` measured as the token beige
+                          // (and it remaps the palette generally — `text-rose-400` computes to
+                          // rgb(209,67,67), not rose). Direction is carried by the − / + sign,
+                          // which does take the mapped colour.
+                          const itemLine = (item, index, direction) => {
+                            return (
+                              <div key={`${direction}-${index}`} className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                                {item.image_url
+                                  ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-11 w-11 shrink-0 rounded-[var(--radius-card)] border border-slate-700 bg-white object-cover" loading="lazy" />
+                                  : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-slate-700 bg-slate-900"><Package className="h-4 w-4 text-slate-400" /></div>}
+                                <span className="min-w-0 flex-1 truncate">
+                                  <span className={`me-1 font-black ${direction === "out" ? "text-rose-400" : "text-emerald-400"}`}>{direction === "out" ? "−" : "+"}</span>
+                                  <InlineName>{portalText(item.name)}</InlineName>
+                                  {item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[11px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null}
+                                  {` × ${formatNumber(item.quantity || 0)}`}
+                                </span>
+                                <span className="shrink-0 font-black text-white">{formatCurrency(item.line_total || 0)}</span>
+                              </div>
+                            );
+                          };
                           return (
                             <article key={row.key} className="rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right shadow-sm">
                               <button
