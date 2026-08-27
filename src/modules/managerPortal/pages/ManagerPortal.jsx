@@ -959,7 +959,8 @@ export default function ManagerPortal() {
   const [todayOperations, setTodayOperations] = useState({ operations: [], summary: null });
   const [daySummary, setDaySummary] = useState(null);
   const [daySummaryLoading, setDaySummaryLoading] = useState(false);
-  const [daySelection, setDaySelection] = useState({ branchId: "all", cashierUserId: "all" });
+  const [daySelection, setDaySelection] = useState({ branchId: "all", shiftId: "all" });
+  const [expandedDayBranches, setExpandedDayBranches] = useState({});
   const [expensesOpen, setExpensesOpen] = useState(false);
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [operationsRange, setOperationsRange] = useState("month");
@@ -1296,25 +1297,13 @@ export default function ManagerPortal() {
     const difference = Number(operation.difference || 0);
     return { paid: difference >= 0, amount: Math.abs(difference), methods };
   };
-  // With "all branches" picked there is no single branch to read cashiers from, so the tree
-  // flattens; picking a branch narrows it to that drawer's people. Deduped by user id because
-  // one cashier can open several shifts in a day.
-  const dayCashiers = useMemo(() => {
-    const branches = Array.isArray(daySummary?.branches) ? daySummary.branches : [];
-    const scoped = daySelection.branchId === "all"
-      ? branches
-      : branches.filter((branch) => String(branch.id) === String(daySelection.branchId));
-    const byUser = new Map();
-    for (const branch of scoped) {
-      for (const cashier of branch.cashiers || []) {
-        if (!cashier?.user_id) continue;
-        const existing = byUser.get(String(cashier.user_id));
-        if (existing) existing.open_shifts += Number(cashier.open_shifts || 0);
-        else byUser.set(String(cashier.user_id), { ...cashier, open_shifts: Number(cashier.open_shifts || 0) });
-      }
-    }
-    return Array.from(byUser.values());
-  }, [daySummary, daySelection.branchId]);
+  const dayBranches = Array.isArray(daySummary?.branches) ? daySummary.branches : [];
+  const dayInvoices = Array.isArray(daySummary?.invoices) ? daySummary.invoices : [];
+  // A branch opens when it is picked, so choosing a branch already shows the drawers inside it
+  // — the manager never has to hunt for a second control to get down to a till.
+  const isDayBranchOpen = (branchId) => (
+    expandedDayBranches[String(branchId)] ?? String(daySelection.branchId) === String(branchId)
+  );
   // One timeline, not two lists. A sale, an edit and a return all happened AT a time, and the
   // manager reads the day in that order — an exchange at 8pm belongs under the 8pm sale, not in
   // a separate box at the top. An exchange INVOICE is its own order row, so it would otherwise
@@ -1714,7 +1703,7 @@ export default function ManagerPortal() {
     let cancelled = false;
     setDaySummaryLoading(true);
     managerPortalApi
-      .daySummary(token, { branch_id: daySelection.branchId, cashier_user_id: daySelection.cashierUserId })
+      .daySummary(token, { branch_id: daySelection.branchId, shift_id: daySelection.shiftId })
       .then((response) => {
         if (cancelled) return;
         setDaySummary(normalizeManagerPortalPayload("daySummary", response?.daySummary || null));
@@ -1726,7 +1715,7 @@ export default function ManagerPortal() {
         if (!cancelled) setDaySummaryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [token, loading, activeTab, daySelection.branchId, daySelection.cashierUserId]);
+  }, [token, loading, activeTab, daySelection.branchId, daySelection.shiftId]);
 
   const markNotificationRead = async (id) => {
     const previous = notifications;
@@ -2793,136 +2782,173 @@ export default function ManagerPortal() {
                   subtitle={tt("managerPortal.dayAccounts.subtitle")}
                   icon={Store}
                   compact
-                  bodyClassName="space-y-2"
-                  action={(
-                    <div className="space-y-2">
-                      {daySummary?.selection?.branch_locked ? null : (
-                        <div className="flex flex-wrap gap-2">
-                          {[{ id: "all", name: tt("managerPortal.dayAccounts.allBranches") }, ...(daySummary?.branches || [])].map((branch) => {
-                            const active = String(daySelection.branchId) === String(branch.id);
-                            return (
-                              <button
-                                key={`day-branch-${branch.id}`}
-                                type="button"
-                                // Changing branch clears the cashier: a cashier account belongs to
-                                // one drawer, so keeping the old pick would show an empty day.
-                                onClick={() => setDaySelection({ branchId: String(branch.id), cashierUserId: "all" })}
-                                className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-slate-900 bg-slate-900 text-white dark:border-white/40" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
-                              >
-                                {portalText(branch.name)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {dayCashiers.length ? (
-                        <div className="flex flex-wrap gap-2">
-                          {[{ user_id: "all", name: tt("managerPortal.dayAccounts.allCashiers") }, ...dayCashiers].map((cashier) => {
-                            const active = String(daySelection.cashierUserId) === String(cashier.user_id);
-                            return (
-                              <button
-                                key={`day-cashier-${cashier.user_id}`}
-                                type="button"
-                                onClick={() => setDaySelection((current) => ({ ...current, cashierUserId: String(cashier.user_id) }))}
-                                className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-400/10 dark:text-amber-100" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
-                              >
-                                {portalText(cashier.name)}
-                                {cashier.open_shifts ? " •" : ""}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
+                  bodyClassName="space-y-3"
                 >
+                  {/* ONE list: every branch, and the drawers under it, in the same column.
+                      Picking a branch opens it, so getting from "all branches" down to a single
+                      till is two taps in one place instead of two separate controls. */}
+                  <div className="space-y-1">
+                    {daySummary?.selection?.branch_locked ? null : (
+                      <button
+                        type="button"
+                        onClick={() => setDaySelection({ branchId: "all", shiftId: "all" })}
+                        className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border px-3 py-2.5 text-right text-sm font-black transition ${daySelection.branchId === "all" && daySelection.shiftId === "all" ? "border-slate-900 bg-slate-900 text-white dark:border-white/40" : "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"}`}
+                      >
+                        <span>{tt("managerPortal.dayAccounts.allBranches")}</span>
+                      </button>
+                    )}
+
+                    {dayBranches.map((branch) => {
+                      const open = isDayBranchOpen(branch.id);
+                      const branchSelected = String(daySelection.branchId) === String(branch.id) && daySelection.shiftId === "all";
+                      return (
+                        <div key={`day-branch-${branch.id}`} className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDaySelection({ branchId: String(branch.id), shiftId: "all" });
+                              setExpandedDayBranches((current) => ({ ...current, [String(branch.id)]: true }));
+                            }}
+                            className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-card)] border px-3 py-2.5 text-right text-sm font-black transition ${branchSelected ? "border-slate-900 bg-slate-900 text-white dark:border-white/40" : "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"}`}
+                          >
+                            <span className="min-w-0 truncate"><InlineName>{portalText(branch.name)}</InlineName></span>
+                            <span className="inline-flex shrink-0 items-center gap-2">
+                              <span className="text-[11px] font-bold opacity-70">{formatNumber((branch.shifts || []).length)}</span>
+                              <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+                            </span>
+                          </button>
+
+                          {open ? (
+                            (branch.shifts || []).length ? (
+                              <div className="space-y-1 ps-3">
+                                {branch.shifts.map((shiftRow) => {
+                                  const selected = String(daySelection.shiftId) === String(shiftRow.id);
+                                  return (
+                                    <button
+                                      key={`day-shift-${shiftRow.id}`}
+                                      type="button"
+                                      onClick={() => setDaySelection({ branchId: String(branch.id), shiftId: String(shiftRow.id) })}
+                                      className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-right text-xs font-bold transition ${selected ? "border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-400/10 dark:text-amber-100" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
+                                    >
+                                      <span className="min-w-0 truncate">
+                                        <InlineName>{portalText(shiftRow.cashier_name)}</InlineName>
+                                        <span className="opacity-70">
+                                          {" · "}{shiftRow.status === "open" ? tt("managerPortal.dayAccounts.openShift") : tt("managerPortal.dayAccounts.closedShift")}
+                                        </span>
+                                      </span>
+                                      <span className="shrink-0 font-black">{formatCurrency(shiftRow.expected_cash || 0)}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="ps-3 text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.noShiftsHint")}</div>
+                            )
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {daySummaryLoading && !daySummary ? (
                     <div className="flex items-center justify-center py-6 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /></div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
-                        <span className="text-sm font-black text-slate-800 dark:text-slate-100">{tt("managerPortal.dayAccounts.sales")}</span>
-                        <span className="text-left">
-                          <span className="block text-sm font-black text-emerald-600 dark:text-emerald-300">{formatCurrency(daySummary?.sales?.total || 0)}</span>
-                          {/* Pre-formatted: i18next's own count formatting renders Latin digits
-                              beside every other Arabic-Indic number on the card. */}
-                          <span className="block text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.invoices", { count: formatNumber(daySummary?.sales?.invoice_count || 0) })}</span>
-                        </span>
-                      </div>
-
-                      {(daySummary?.payment_methods || []).map((row) => (
-                        <div key={`day-method-${row.method}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-bold dark:border-white/10 dark:bg-white/[0.03]">
-                          <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-200"><span className="h-2 w-2 rounded-full bg-emerald-500" />{paymentMethodLabel(row.method)}</span>
-                          <span className="inline-flex items-center gap-2">
-                            <span className="font-black text-slate-950 dark:text-white">{formatCurrency(row.total || 0)}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">{formatNumber(row.count || 0)}</span>
-                          </span>
+                    <>
+                      {/* The invoices of whatever is selected — the drawer's own tape. */}
+                      <div>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tt("managerPortal.dayAccounts.invoicesTitle")}</span>
+                          <span className="text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.invoices", { count: formatNumber(daySummary?.sales?.invoice_count || 0) })}</span>
                         </div>
-                      ))}
-
-                      <button
-                        type="button"
-                        onClick={() => setExpensesOpen((open) => !open)}
-                        className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-amber-300 bg-amber-50 px-3 py-2.5 text-right dark:border-amber-400/20 dark:bg-amber-400/10"
-                      >
-                        <span className="min-w-0">
-                          <span className="block text-sm font-black text-amber-900 dark:text-amber-100">{tt("managerPortal.dayAccounts.expenses")}</span>
-                          <span className="block text-[11px] font-bold text-amber-800/80 dark:text-amber-200/70">{tt("managerPortal.dayAccounts.expensesHint")}</span>
-                        </span>
-                        <span className="shrink-0 text-left">
-                          <span className="block text-sm font-black text-rose-600 dark:text-rose-300">{formatCurrency(daySummary?.expenses?.total || 0)}</span>
-                          <span className="block text-[11px] font-bold text-amber-800/80 dark:text-amber-200/70">{formatNumber(daySummary?.expenses?.count || 0)}</span>
-                        </span>
-                        <ChevronDown className={`h-4 w-4 shrink-0 text-amber-700 transition dark:text-amber-200 ${expensesOpen ? "rotate-180" : ""}`} />
-                      </button>
-
-                      {expensesOpen ? (
-                        (daySummary?.expenses?.items || []).length ? (
-                          <div className="space-y-1 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-                            {daySummary.expenses.items.map((expense) => (
-                              <div key={`day-expense-${expense.id}`} className="flex items-start justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0 dark:border-white/5">
+                        {dayInvoices.length ? (
+                          <div className="max-h-72 space-y-1 overflow-y-auto rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                            {dayInvoices.map((invoice) => (
+                              <div key={`day-invoice-${invoice.id}`} className="flex items-start justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0 dark:border-white/5">
                                 <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-xs font-black text-slate-800 dark:text-slate-100"><InlineName>{portalText(expense.title)}</InlineName></span>
+                                  <span className="block truncate text-xs font-black text-slate-800 dark:text-slate-100">{portalText(invoice.invoice_number)}</span>
                                   <span className="block truncate text-[11px] font-bold text-slate-500">
-                                    {[portalText(expense.category), paymentMethodLabel(expense.payment_method), portalText(expense.actor_name), formatDateTime(expense.at)].filter(Boolean).join(" · ")}
+                                    {[portalText(invoice.customer_name), portalText(invoice.seller_name), formatDateTime(invoice.at)].filter(Boolean).join(" · ")}
                                   </span>
-                                  {expense.notes ? <span className="block truncate text-[11px] font-semibold text-slate-400"><InlineName>{portalText(expense.notes)}</InlineName></span> : null}
                                 </span>
-                                <span className="shrink-0 text-xs font-black text-rose-600 dark:text-rose-300">{formatCurrency(expense.amount || 0)}</span>
+                                <span className="shrink-0 text-left">
+                                  <span className="block text-xs font-black text-emerald-600 dark:text-emerald-300">{formatCurrency(invoice.total || 0)}</span>
+                                  <span className="block text-[10px] font-bold text-slate-500">{paymentMethodLabel(invoice.payment_method)}</span>
+                                </span>
                               </div>
                             ))}
-                            {daySummary.expenses.advances_total > 0 ? (
-                              <div className="pt-1 text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.advances")}: {formatCurrency(daySummary.expenses.advances_total)}</div>
-                            ) : null}
                           </div>
                         ) : (
-                          <EmptyState compact title={tt("managerPortal.dayAccounts.noExpenses")} body={tt("managerPortal.dayAccounts.noExpensesHint")} />
-                        )
-                      ) : null}
+                          <EmptyState compact title={tt("managerPortal.dayAccounts.noInvoices")} body={tt("managerPortal.dayAccounts.subtitle")} />
+                        )}
+                      </div>
 
-                      <div className="rounded-[var(--radius-card)] border border-emerald-300 bg-emerald-50 px-3 py-2.5 dark:border-emerald-400/20 dark:bg-emerald-400/10">
-                        <div className="flex items-center justify-between gap-3">
+                      {/* Everything that answers "so how much, and in what?" lives here, at the
+                          very bottom, under one heading — payment methods, then expenses, then
+                          what should be left in the drawer. */}
+                      <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-white/10">
+                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tt("managerPortal.dayAccounts.totalsTitle")}</div>
+
+                        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+                          <span className="text-sm font-black text-slate-800 dark:text-slate-100">{tt("managerPortal.dayAccounts.sales")}</span>
+                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-300">{formatCurrency(daySummary?.sales?.total || 0)}</span>
+                        </div>
+
+                        {(daySummary?.payment_methods || []).map((row) => (
+                          <div key={`day-method-${row.method}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-bold dark:border-white/10 dark:bg-white/[0.03]">
+                            <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-200"><span className="h-2 w-2 rounded-full bg-emerald-500" />{paymentMethodLabel(row.method)}</span>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="font-black text-slate-950 dark:text-white">{formatCurrency(row.total || 0)}</span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">{formatNumber(row.count || 0)}</span>
+                            </span>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => setExpensesOpen((open) => !open)}
+                          className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-amber-300 bg-amber-50 px-3 py-2.5 text-right dark:border-amber-400/20 dark:bg-amber-400/10"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-black text-amber-900 dark:text-amber-100">{tt("managerPortal.dayAccounts.expenses")}</span>
+                            <span className="block text-[11px] font-bold text-amber-800/80 dark:text-amber-200/70">{tt("managerPortal.dayAccounts.expensesHint")}</span>
+                          </span>
+                          <span className="shrink-0 text-left">
+                            <span className="block text-sm font-black text-rose-600 dark:text-rose-300">{formatCurrency(daySummary?.expenses?.total || 0)}</span>
+                            <span className="block text-[11px] font-bold text-amber-800/80 dark:text-amber-200/70">{formatNumber(daySummary?.expenses?.count || 0)}</span>
+                          </span>
+                          <ChevronDown className={`h-4 w-4 shrink-0 text-amber-700 transition dark:text-amber-200 ${expensesOpen ? "rotate-180" : ""}`} />
+                        </button>
+
+                        {expensesOpen ? (
+                          (daySummary?.expenses?.items || []).length ? (
+                            <div className="space-y-1 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                              {daySummary.expenses.items.map((expense) => (
+                                <div key={`day-expense-${expense.id}`} className="flex items-start justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0 dark:border-white/5">
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-xs font-black text-slate-800 dark:text-slate-100"><InlineName>{portalText(expense.title)}</InlineName></span>
+                                    <span className="block truncate text-[11px] font-bold text-slate-500">
+                                      {[portalText(expense.category), paymentMethodLabel(expense.payment_method), portalText(expense.actor_name), formatDateTime(expense.at)].filter(Boolean).join(" · ")}
+                                    </span>
+                                    {expense.notes ? <span className="block truncate text-[11px] font-semibold text-slate-400"><InlineName>{portalText(expense.notes)}</InlineName></span> : null}
+                                  </span>
+                                  <span className="shrink-0 text-xs font-black text-rose-600 dark:text-rose-300">{formatCurrency(expense.amount || 0)}</span>
+                                </div>
+                              ))}
+                              {daySummary.expenses.advances_total > 0 ? (
+                                <div className="pt-1 text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.advances")}: {formatCurrency(daySummary.expenses.advances_total)}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <EmptyState compact title={tt("managerPortal.dayAccounts.noExpenses")} body={tt("managerPortal.dayAccounts.noExpensesHint")} />
+                          )
+                        ) : null}
+
+                        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-emerald-300 bg-emerald-50 px-3 py-2.5 dark:border-emerald-400/20 dark:bg-emerald-400/10">
                           <span className="text-sm font-black text-emerald-900 dark:text-emerald-100">{tt("managerPortal.dayAccounts.drawer")}</span>
                           <span className="text-sm font-black text-emerald-700 dark:text-emerald-200">{formatCurrency(daySummary?.drawer?.expected_total || 0)}</span>
                         </div>
-                        {(daySummary?.drawer?.shifts || []).length ? (
-                          <div className="mt-2 space-y-1 border-t border-emerald-200 pt-2 dark:border-emerald-400/20">
-                            {daySummary.drawer.shifts.map((shiftRow) => (
-                              <div key={`day-shift-${shiftRow.id}`} className="flex items-center justify-between gap-2 text-[11px] font-bold text-emerald-900/80 dark:text-emerald-100/80">
-                                <span className="min-w-0 flex-1 truncate">
-                                  <InlineName>{portalText(shiftRow.cashier_name)}</InlineName>
-                                  {shiftRow.branch_name ? ` · ${portalText(shiftRow.branch_name)}` : ""}
-                                  {` · ${shiftRow.status === "open" ? tt("managerPortal.dayAccounts.openShift") : tt("managerPortal.dayAccounts.closedShift")}`}
-                                </span>
-                                <span className="shrink-0 font-black">{formatCurrency(shiftRow.expected_cash || 0)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="mt-2 border-t border-emerald-200 pt-2 text-[11px] font-bold text-emerald-900/70 dark:border-emerald-400/20 dark:text-emerald-100/70">{tt("managerPortal.dayAccounts.noShiftsHint")}</div>
-                        )}
                       </div>
-                    </div>
+                    </>
                   )}
                 </Card>
               </section>

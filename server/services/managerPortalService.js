@@ -1902,31 +1902,30 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   };
 };
 
-// The day, read the way the shop is actually organised: branch → cashier account → the
-// money that passed through that drawer. The dashboard KPIs answer "the whole tenant
-// today"; this answers "this drawer today", which is the question a manager asks when a
-// close does not match. Deliberately its own endpoint — it is heavier than the home and
-// nobody should pay for it until they open the section.
+// The day, read the way the shop is organised: one list of branches, each opening onto the
+// drawers under it, and picking a drawer narrows the whole card to that till — its invoices,
+// then its money at the bottom. The dashboard KPIs answer "the whole tenant today"; this
+// answers "this drawer today", which is the question a manager asks when a close disagrees.
+// Deliberately its own endpoint — heavier than the home, and it re-runs on every pick.
 export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   // A branch-scoped manager can never widen past their own branch, whatever they send.
   const forcedBranchId = branchFilterValue(manager);
   const requestedBranchId = lower(clean(query.branch_id)) === "all" ? null : numberOrNull(query.branch_id);
   const branchId = forcedBranchId || requestedBranchId;
-  const cashierUserId = lower(clean(query.cashier_user_id)) === "all" ? null : numberOrNull(query.cashier_user_id);
+  const shiftId = lower(clean(query.shift_id)) === "all" ? null : numberOrNull(query.shift_id);
 
-  const [hasShifts, hasExpenses, hasBranches, hasCashEvents, hasReturns, hasOrderCashier] = await Promise.all([
+  const [hasShifts, hasExpenses, hasBranches, hasCashEvents, hasReturns] = await Promise.all([
     tableExists("cash_drawer_shifts"),
     tableExists("expenses"),
     tableExists("branches"),
     tableExists("cash_drawer_shift_events"),
     tableExists("returns"),
-    columnExists("orders", "cashier_user_id"),
   ]);
 
   // Scoped by what the manager is ALLOWED to see, never by what they currently have picked —
-  // filtering this by the selection would delete every other branch from the selector and
-  // strand them on the one they just chose.
+  // filtering this by the selection would delete every other branch from the list and strand
+  // them on the one they just chose.
   const branches = hasBranches
     ? await safeQuery(
         `
@@ -1941,8 +1940,9 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
       )
     : [];
 
-  // A shift opened before midnight UTC and still open belongs to today's drawer just as
-  // much as one opened this morning — the money in it has not been counted yet.
+  // Every drawer the manager may see, for the list itself — NOT narrowed by the current pick,
+  // for the same reason the branch list is not. A shift opened before midnight UTC and still
+  // open belongs to today's drawer: the money in it has not been counted yet.
   const shiftRows = hasShifts
     ? await safeQuery(
         `
@@ -1962,38 +1962,39 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         ORDER BY s.opened_at DESC
         LIMIT 60
         `,
-        [tenantId, branchId],
+        [tenantId, forcedBranchId],
         []
       )
     : [];
 
-  const scopedShifts = cashierUserId
-    ? shiftRows.filter((row) => numberOrNull(row.opened_by) === cashierUserId)
-    : shiftRows;
+  // What the figures below cover: one drawer if picked, else every drawer in the picked
+  // branch, else everything visible.
+  const scopedShifts = shiftId
+    ? shiftRows.filter((row) => Number(row.id) === shiftId)
+    : branchId
+      ? shiftRows.filter((row) => numberOrNull(row.branch_id) === branchId)
+      : shiftRows;
   const scopedShiftIds = scopedShifts.map((row) => Number(row.id)).filter(Boolean);
 
-  // Sales are scoped by shift when a cashier is picked, so a sale rung on someone else's
-  // drawer never lands under this cashier even if the branch matches.
-  const orderParams = [tenantId, branchId];
+  // Picking a drawer scopes by shift_id ALONE — a sale rung on another till in the same branch
+  // is not this drawer's money, however much the branch matches.
+  const orderParams = [tenantId];
   let orderScopeClause = "";
-  if (cashierUserId) {
-    if (scopedShiftIds.length) {
-      orderParams.push(scopedShiftIds);
-      orderScopeClause = ` AND o.shift_id = ANY($${orderParams.length}::bigint[])`;
-      if (hasOrderCashier) {
-        orderParams.push(cashierUserId);
-        orderScopeClause = ` AND (o.shift_id = ANY($${orderParams.length - 1}::bigint[]) OR o.cashier_user_id = $${orderParams.length})`;
-      }
-    } else if (hasOrderCashier) {
-      orderParams.push(cashierUserId);
-      orderScopeClause = ` AND o.cashier_user_id = $${orderParams.length}`;
-    } else {
-      orderScopeClause = " AND FALSE";
-    }
+  if (shiftId) {
+    orderParams.push(shiftId);
+    orderScopeClause = ` AND o.shift_id = $${orderParams.length}`;
+  } else if (branchId) {
+    orderParams.push(branchId);
+    orderScopeClause = ` AND o.branch_id = $${orderParams.length}`;
   }
   const orderRows = await safeQuery(
     `
     SELECT
+      o.id,
+      COALESCE(NULLIF(o.invoice_number, ''), '#' || o.id) AS invoice_number,
+      COALESCE(NULLIF(o.customer_name, ''), '') AS customer_name,
+      COALESCE(NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), NULLIF(o.cashier_name, ''), '') AS seller_name,
+      o.created_at,
       COALESCE(NULLIF(o.payment_method, ''), 'unknown') AS payment_method,
       COALESCE(o.total_amount, o.total, 0) AS total_amount,
       COALESCE(o.payment_breakdown, '[]'::jsonb) AS payment_breakdown,
@@ -2003,26 +2004,24 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     FROM orders o
     WHERE o.created_at >= CURRENT_DATE
       AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
-      AND ($2::bigint IS NULL OR o.branch_id = $2::bigint)
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
       ${personalOrderClause("o")}
       ${orderScopeClause}
+    ORDER BY o.created_at DESC
+    LIMIT 300
     `,
     orderParams,
     []
   );
 
-  const expenseParams = [tenantId, branchId];
+  const expenseParams = [tenantId];
   let expenseScopeClause = "";
-  if (cashierUserId) {
-    if (scopedShiftIds.length) {
-      expenseParams.push(scopedShiftIds);
-      expenseParams.push(cashierUserId);
-      expenseScopeClause = ` AND (e.shift_id = ANY($${expenseParams.length - 1}::bigint[]) OR e.created_by = $${expenseParams.length})`;
-    } else {
-      expenseParams.push(cashierUserId);
-      expenseScopeClause = ` AND e.created_by = $${expenseParams.length}`;
-    }
+  if (shiftId) {
+    expenseParams.push(shiftId);
+    expenseScopeClause = ` AND e.shift_id = $${expenseParams.length}`;
+  } else if (branchId) {
+    expenseParams.push(branchId);
+    expenseScopeClause = ` AND e.branch_id = $${expenseParams.length}`;
   }
   const expenseRows = hasExpenses
     ? await safeQuery(
@@ -2048,7 +2047,6 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         LEFT JOIN users u ON u.id = e.created_by
         WHERE COALESCE(e.created_at, e.expense_date::timestamp) >= CURRENT_DATE
           AND ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
-          AND ($2::bigint IS NULL OR e.branch_id = $2::bigint)
           AND LOWER(COALESCE(e.status, '')) NOT IN ('rejected', 'cancelled', 'canceled', 'void')
           ${expenseScopeClause}
         ORDER BY e.created_at DESC
@@ -2062,7 +2060,8 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
   // The drawer figure has ONE definition, and it is buildPosShiftReport's net_cash_expected:
   // opening + cash sales + cash-in − cash expenses − cash returns − cash-out. Reproduced here
   // as laterals so N shifts cost one round trip instead of N reports — keep the two in step.
-  const drawerRows = scopedShiftIds.length
+  const allShiftIds = shiftRows.map((row) => Number(row.id)).filter(Boolean);
+  const drawerRows = allShiftIds.length
     ? await safeQuery(
         `
         SELECT
@@ -2104,29 +2103,37 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         ) ret ON TRUE` : "LEFT JOIN LATERAL (SELECT 0 AS cash_total) ret ON TRUE"}
         WHERE s.id = ANY($1::bigint[])
         `,
-        [scopedShiftIds],
+        [allShiftIds],
         []
       )
     : [];
   const expectedByShift = new Map(drawerRows.map((row) => [String(row.id), toNumber(row.expected_cash)]));
 
-  const cashiersByBranch = new Map();
+  const buildShift = (row) => {
+    const status = lower(clean(row.status)) || "open";
+    return {
+      id: Number(row.id),
+      status,
+      branch_id: numberOrNull(row.branch_id),
+      branch_name: repairManagerPortalPayload(clean(row.branch_name)),
+      cashier_name: repairManagerPortalPayload(clean(row.cashier_name)),
+      cashier_user_id: numberOrNull(row.opened_by),
+      opened_at: row.opened_at,
+      closed_at: row.closed_at,
+      opening_cash: toNumber(row.opening_cash),
+      // A closed drawer reports what was actually counted; an open one has to be computed.
+      expected_cash: status === "open"
+        ? (expectedByShift.get(String(row.id)) ?? toNumber(row.stored_expected_cash))
+        : toNumber(row.actual_cash ?? row.stored_expected_cash),
+    };
+  };
+
+  const shiftsByBranch = new Map();
   for (const row of shiftRows) {
     const key = String(numberOrNull(row.branch_id) ?? "none");
-    const list = cashiersByBranch.get(key) || new Map();
-    const userId = numberOrNull(row.opened_by);
-    if (userId) {
-      const existing = list.get(String(userId)) || {
-        user_id: userId,
-        name: repairManagerPortalPayload(clean(row.cashier_name)),
-        shift_ids: [],
-        open_shifts: 0,
-      };
-      existing.shift_ids.push(Number(row.id));
-      if (lower(row.status) === "open") existing.open_shifts += 1;
-      list.set(String(userId), existing);
-    }
-    cashiersByBranch.set(key, list);
+    const list = shiftsByBranch.get(key) || [];
+    list.push(buildShift(row));
+    shiftsByBranch.set(key, list);
   }
 
   const expenses = expenseRows.map((row) => ({
@@ -2142,42 +2149,30 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     actor_name: repairManagerPortalPayload(clean(row.created_by_name)),
     is_employee_advance: row.is_employee_advance === true,
   }));
-  const expenseTotal = Number(expenses.reduce((sum, row) => sum + row.amount, 0).toFixed(2));
-  const expenseCashTotal = Number(
-    expenses.filter((row) => row.payment_method === "cash").reduce((sum, row) => sum + row.amount, 0).toFixed(2)
-  );
-  const advancesTotal = Number(
-    expenses.filter((row) => row.is_employee_advance).reduce((sum, row) => sum + row.amount, 0).toFixed(2)
-  );
+  const sumAmounts = (rows) => Number(rows.reduce((sum, row) => sum + row.amount, 0).toFixed(2));
 
-  const drawerShifts = scopedShifts.map((row) => ({
-    id: Number(row.id),
-    status: lower(clean(row.status)) || "open",
-    branch_id: numberOrNull(row.branch_id),
-    branch_name: repairManagerPortalPayload(clean(row.branch_name)),
-    cashier_name: repairManagerPortalPayload(clean(row.cashier_name)),
-    cashier_user_id: numberOrNull(row.opened_by),
-    opened_at: row.opened_at,
-    closed_at: row.closed_at,
-    opening_cash: toNumber(row.opening_cash),
-    // A closed shift's drawer is what was actually counted; an open one has to be computed.
-    expected_cash: lower(clean(row.status)) === "open"
-      ? (expectedByShift.get(String(row.id)) ?? toNumber(row.stored_expected_cash))
-      : toNumber(row.actual_cash ?? row.stored_expected_cash),
-  }));
-  const drawerTotal = Number(drawerShifts.reduce((sum, row) => sum + row.expected_cash, 0).toFixed(2));
+  const drawerShifts = scopedShifts.map(buildShift);
 
   return {
     generated_at: new Date().toISOString(),
     selection: {
       branch_id: branchId,
-      cashier_user_id: cashierUserId,
+      shift_id: shiftId,
       branch_locked: Boolean(forcedBranchId),
     },
     branches: branches.map((row) => ({
       id: Number(row.id),
       name: repairManagerPortalPayload(clean(row.name)),
-      cashiers: Array.from((cashiersByBranch.get(String(row.id)) || new Map()).values()),
+      shifts: shiftsByBranch.get(String(row.id)) || [],
+    })),
+    invoices: orderRows.map((row) => ({
+      id: Number(row.id),
+      invoice_number: repairManagerPortalPayload(clean(row.invoice_number)),
+      customer_name: repairManagerPortalPayload(clean(row.customer_name)),
+      seller_name: repairManagerPortalPayload(clean(row.seller_name)),
+      total: toNumber(row.total_amount),
+      payment_method: lower(clean(row.payment_method)),
+      at: row.created_at,
     })),
     sales: {
       total: Number(orderRows.reduce((sum, row) => sum + toNumber(row.total_amount), 0).toFixed(2)),
@@ -2185,14 +2180,14 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     },
     payment_methods: aggregatePaymentDistribution(orderRows),
     expenses: {
-      total: expenseTotal,
-      cash_total: expenseCashTotal,
-      advances_total: advancesTotal,
+      total: sumAmounts(expenses),
+      cash_total: sumAmounts(expenses.filter((row) => row.payment_method === "cash")),
+      advances_total: sumAmounts(expenses.filter((row) => row.is_employee_advance)),
       count: expenses.length,
       items: expenses,
     },
     drawer: {
-      expected_total: drawerTotal,
+      expected_total: Number(drawerShifts.reduce((sum, row) => sum + row.expected_cash, 0).toFixed(2)),
       shifts: drawerShifts,
     },
   };
