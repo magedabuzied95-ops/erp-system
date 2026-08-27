@@ -93,6 +93,18 @@ import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGu
 import { animateFlyToCart } from "./lib/flyToCart";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
+import { splitProductDisplayName } from "./lib/productDisplayName";
+import {
+  HomeCategoryRail,
+  HomeDeferred,
+  HomeEditorial,
+  HomeHero,
+  HomeProductGrid,
+  HomeProductRail,
+  HomeSectionHeader,
+  HomeTrustStrip,
+} from "./home/HomeSections.jsx";
+import { buildHomeProductCard, useHomeReveal } from "./home/homeModel";
 import "./storefront-light.css";
 import {
   isStorefrontCheckoutFlowPath,
@@ -910,8 +922,15 @@ const fallbackProductImage = (event) => {
   node.removeAttribute("srcset");
   node.removeAttribute("sizes");
   const originalSrc = String(node.dataset.originalSrc || "").trim();
-  if (originalSrc && node.dataset.originalTried !== "true" && node.src !== originalSrc) {
+  if (originalSrc && node.dataset.originalTried !== "true") {
     node.dataset.originalTried = "true";
+    // Re-assigning the identical URL is the point. The common failure is a
+    // missing -wN.webp derivative while the original JPEG is fine, and in that
+    // case src already holds the original -- so the old `node.src !== originalSrc`
+    // guard skipped straight past a working image to the site favicon. Dropping
+    // srcset does not by itself start a new load; assigning src does, and it now
+    // resolves against the empty srcset. If the original is dead too, onError
+    // fires again with originalTried set and the alternates still run.
     node.src = originalSrc;
     return;
   }
@@ -1675,27 +1694,6 @@ const isExclusiveCategoryAudience = (product = {}, audience = "") => {
     return !(audiences.includes("men") && audiences.includes("women"));
   }
   return true;
-};
-const categoryCardProductText = (product = {}) =>
-  [
-    product.name,
-    product.name_ar,
-    product.title,
-    product.category,
-    product.product_type,
-    product.productType,
-  ]
-    .flatMap((value) => {
-      if (Array.isArray(value)) return value;
-      if (value && typeof value === "object") return Object.values(value);
-      return value;
-    })
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-const categoryCardHasCrocs = (product = {}) => {
-  const text = categoryCardProductText(product);
-  return text.includes("crocs") || text.includes("crocband") || text.includes("croc");
 };
 const productCardKey = (product = {}, fallback = "") =>
   product.card_id ||
@@ -2777,125 +2775,6 @@ const uniqueClassificationOptions = (options = []) => {
 
 
 
-// Men's category motion clip (Pexels video 33294342, free to use).
-// Product/category media from the API still takes priority when configured.
-const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180878_640_360_24fps.mp4";
-// Men's slippers motion clip (Pexels video 8994975). The SD rendition is ~425 KB.
-const MEN_SLIPPERS_VIDEO_URL = "https://videos.pexels.com/video-files/8994975/8994975-sd_360_640_25fps.mp4";
-const MEN_SLIPPERS_POSTER_URL = "https://images.pexels.com/videos/8994975/pexels-photo-8994975.jpeg?auto=compress&cs=tinysrgb&w=480";
-// Women's category motion clip (Pexels video 7877138, free to use).
-const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4";
-// Women's slippers motion clip (Pexels video 6919220, free to use).
-// The 720px rendition is ~1.42 MB versus ~9.21 MB for the original UHD file.
-const WOMEN_SLIPPERS_VIDEO_URL = "https://videos.pexels.com/video-files/6919220/6919220-hd_720_1366_30fps.mp4";
-const WOMEN_SLIPPERS_POSTER_URL = "https://images.pexels.com/videos/6919220/pexels-photo-6919220.jpeg?auto=compress&cs=tinysrgb&w=480";
-const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/8456205/8456205-sd_640_360_25fps.mp4";
-const SALE_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/5889624/5889624-sd_426_240_25fps.mp4";
-
-const mainHomeCategoryCards = [
-  {
-    id: "men",
-    titleAr: "رجالي",
-    titleEn: "Men",
-    subtitleAr: "أحدث Nike و Adidas و Jordan",
-    subtitleEn: "Latest Nike, Adidas & Jordan",
-    href: "/men?product_type=sneakers",
-    test: (product) => isExclusiveCategoryAudience(product, "men") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
-    icon: Briefcase,
-    overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
-    video: MEN_CATEGORY_TRIAL_VIDEO_URL,
-    poster: "/storefront/category-posters/men.webp",
-  },
-  {
-    id: "men-slipper",
-    titleAr: "سليبر رجالي",
-    titleEn: "Men Slipper",
-    subtitleAr: "راحة خفيفة للاستخدام اليومي",
-    subtitleEn: "Light comfort for every day",
-    href: "/slippers?gender=men",
-    test: (product) => isExclusiveCategoryAudience(product, "men") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
-    icon: Footprints,
-    overlay: "from-cyan-950/90 via-slate-950/30 to-transparent",
-    video: MEN_SLIPPERS_VIDEO_URL,
-    poster: MEN_SLIPPERS_POSTER_URL,
-    preferDefinitionVideo: true,
-  },
-  {
-    id: "women",
-    titleAr: "حريمي",
-    titleEn: "Women",
-    subtitleAr: "راحة وأناقة لكل يوم",
-    subtitleEn: "Comfort and style for every day",
-    href: "/women?product_type=sneakers",
-    test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
-    icon: Users,
-    overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
-    video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,
-    poster: "/storefront/category-posters/women.webp",
-    preferDefinitionVideo: true,
-  },
-  {
-    id: "women-slipper",
-    titleAr: "سليبر حريمي",
-    titleEn: "Women Slipper",
-    subtitleAr: "راحة خفيفة لكل يوم",
-    subtitleEn: "Light comfort for every day",
-    href: "/slippers?gender=women",
-    test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
-    icon: Footprints,
-    overlay: "from-fuchsia-950/90 via-rose-950/30 to-transparent",
-    video: WOMEN_SLIPPERS_VIDEO_URL,
-    poster: WOMEN_SLIPPERS_POSTER_URL,
-    preferDefinitionVideo: true,
-  },
-  {
-    id: "kids",
-    titleAr: "أطفال",
-    titleEn: "Kids",
-    subtitleAr: "مصممة للمدرسة واللعب والحركة",
-    subtitleEn: "Built for school, play and movement",
-    href: "/kids?product_type=sneakers",
-    test: (product) => productAudienceValues(product).includes("kids") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
-    icon: Baby,
-    overlay: "from-amber-950/90 via-amber-950/25 to-transparent",
-    video: KIDS_CATEGORY_TRIAL_VIDEO_URL,
-    poster: "/storefront/category-posters/kids.webp",
-  },
-  {
-    id: "offers",
-    titleAr: "عروض",
-    titleEn: "Offers",
-    subtitleAr: "عروض الموسم",
-    subtitleEn: "Season offers",
-    overlay: "from-red-950/95 via-red-950/35 to-transparent",
-    href: "/offers",
-    test: (product) => isOfferStory(product),
-    icon: BadgePercent,
-    video: SALE_CATEGORY_TRIAL_VIDEO_URL,
-    poster: "/storefront/category-posters/sale.webp",
-    preferDefinitionVideo: true,
-  },
-  {
-    id: "crocs",
-    titleAr: "كروكس",
-    titleEn: "Crocs",
-    subtitleAr: "راحة سهلة لكل يوم",
-    subtitleEn: "Easy comfort for every day",
-    href: "/crocs",
-    test: (product) => categoryCardHasCrocs(product),
-    icon: Footprints,
-  },
-  {
-    id: "last-sizes",
-    titleAr: "آخر المقاسات",
-    titleEn: "Last Sizes",
-    subtitleAr: "مقاسات محدودة قبل النفاد",
-    subtitleEn: "Limited pairs before they disappear",
-    href: "/products?stock=last",
-    test: (product) => isLastPieceProduct(product),
-    icon: PackageSearch,
-  },
-];
 
 const homeProductWithImage = (product = {}) => {
   const slide = featuredSlideProduct(product);
@@ -2908,600 +2787,377 @@ const homeProductWithImage = (product = {}) => {
 
 
 
+// Category tiles for the homepage rail. Same destinations the previous grid
+// used; the Pexels stock clips that used to autoplay behind them are gone --
+// six looping stock videos read as a template rather than as M1's own
+// merchandising, and they cost a video decode each on the phones most of this
+// traffic uses. Where M1 has its own poster the poster wins; otherwise the tile
+// borrows a real photo from a product that actually matches the filter.
+const HOME_CATEGORY_TILES = [
+  {
+    id: "men",
+    titleAr: "رجالي",
+    titleEn: "Men",
+    href: "/men?product_type=sneakers",
+    poster: "/storefront/category-posters/men.webp",
+    test: (product) => isExclusiveCategoryAudience(product, "men") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
+  },
+  {
+    id: "women",
+    titleAr: "حريمي",
+    titleEn: "Women",
+    href: "/women?product_type=sneakers",
+    poster: "/storefront/category-posters/women.webp",
+    test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
+  },
+  {
+    id: "kids",
+    titleAr: "أطفال",
+    titleEn: "Kids",
+    href: "/kids?product_type=sneakers",
+    poster: "/storefront/category-posters/kids.webp",
+    test: (product) => productAudienceValues(product).includes("kids") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
+  },
+];
+
+// Real M1 campaign photography exists for three of the six product groups. The
+// other three would have to borrow a cut-out product shot on white, which next
+// to a lifestyle tile reads as two different components in one row -- so they
+// are links instead. Same destinations, no invented art direction.
+const HOME_CATEGORY_LINKS = [
+  { id: "slippers", titleAr: "سليبر", titleEn: "Slippers", href: "/slippers" },
+  { id: "bags", titleAr: "شنط", titleEn: "Bags", href: "/bags" },
+  { id: "crocs", titleAr: "كروكس", titleEn: "Crocs", href: "/crocs" },
+  // Mirror Original is deliberately absent: the hero headline names it and its
+  // primary button already goes there. A third link to the same place in the
+  // same viewport is repetition, not navigation.
+];
+
+// Two catalogue rows can be different products and still paint the same card:
+// "Adidas sneakers - Black & White" and "Adidas Sneakers - Black & White" are
+// separate ids with separate photos, and after the brand line is split off they
+// read letter for letter alike. Nothing is wrong with the data -- the homepage
+// is a shop window showing 8 of ~1,500 products, and spending two of those eight
+// slots on cards a shopper cannot tell apart is the waste. Only the homepage
+// selection is thinned; every one of these rows is still reachable from the
+// listing, search and category pages.
+const dedupeHomeCardsByLabel = (products = [], knownBrands = []) => {
+  const seen = new Set();
+  return products.filter((product) => {
+    const { brand, title } = splitProductDisplayName(product, { knownBrands });
+    const price = Number(featuredSlideProduct(product).price || 0);
+    const signature = `${brand}|${title}|${price}`.toLowerCase();
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+};
+
+// The offer collection is the one homepage block that needs a request of its
+// own, so it is mounted behind <HomeDeferred> and does not start until the
+// reader is most of the way down the page. Boot still costs one /storefront/home
+// call, exactly as before.
+function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishlist, onImageError }) {
+  const { products, loading } = useProducts({ offer_story: 1, sort: "newest", limit: 12 });
+  // `is_offer_story` is re-checked on the client on purpose: an ignored filter
+  // param comes back as a 200 with the whole catalogue in it, and that would
+  // quietly file ordinary stock under an "Offers" heading.
+  const offerProducts = useMemo(
+    () => dedupeHomeCardsByLabel(
+      uniqueProductsByIdentity(products).filter(
+        (product) => isOfferStory(product) && isAvailableProduct(product) && homeProductWithImage(product)
+      ),
+      knownBrands
+    ).slice(0, 10),
+    [knownBrands, products]
+  );
+  const cards = useMemo(() => offerProducts.map((product) => buildHomeProductCard(product, cardCtx)), [cardCtx, offerProducts]);
+  const leadImage = offerProducts.length ? homeProductWithImage(offerProducts[0])?.image || "" : "";
+  const isFavorite = useCallback(
+    (product) => (Array.isArray(wishlist) ? wishlist : []).some((entry) => String(entry.id) === String(product?.id)),
+    [wishlist]
+  );
+
+  if (!loading && !cards.length) return null;
+
+  return (
+    <>
+      <HomeEditorial
+        isRtl={isRtl}
+        eyebrow={isRtl ? "عروض M1" : "M1 offers"}
+        title={isRtl ? "أسعار الموسم" : "This season's prices"}
+        text={isRtl
+          ? "مجموعة العروض الحالية في مكان واحد — والمتاح منها بيتحرك بسرعة."
+          : "The current offer edit in one place — and what is left of it moves fast."}
+        ctaLabel={isRtl ? "تصفح كل العروض" : "Browse all offers"}
+        href="/offers"
+        image={leadImage ? imageFor(leadImage) : ""}
+        imageProps={leadImage ? responsiveImageProps(leadImage, "hero") : {}}
+        onImageError={onImageError}
+      />
+      <HomeProductRail
+        title={isRtl ? "من العروض" : "From the offers"}
+        href="/offers"
+        linkLabel={sfText("common.viewAll")}
+        cards={cards}
+        loading={loading}
+        prevLabel={isRtl ? "السابق" : "Previous"}
+        nextLabel={isRtl ? "التالي" : "Next"}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleWishlist}
+        onImageError={onImageError}
+        favoriteLabel={isRtl ? "أضف إلى المفضلة" : "Add to wishlist"}
+      />
+    </>
+  );
+}
+
 function PremiumHomePage(props) {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
-  const homeMotionRootRef = useRef(null);
+  const homeRootRef = useRef(null);
   const lang = i18n.language || "ar";
   const isRtl = normalizeLanguage(lang) === "ar";
   const themeMode = props.themeMode || "light";
   const themeTokens = useMemo(() => getStorefrontThemeTokens(themeMode), [themeMode]);
-  const brandName = props.brandName || "M1 Store";
   const brandFilter = params.get("brand") || "";
+  const wishlist = useMemo(() => (Array.isArray(props.wishlist) ? props.wishlist : []), [props.wishlist]);
+  const toggleWishlist = props.toggleWishlist;
   const storefrontHome = useStorefrontHome();
   const { brands, loading: brandsLoading } = useStorefrontBrands();
-  const storefrontHomeProducts = useMemo(
-    () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
-    [storefrontHome.collections]
-  );
-  const products = storefrontHomeProducts;
   const loading = storefrontHome.loading;
-  const saleProducts = useMemo(() => products.filter(isOfferStory), [products]);
-  const mirrorProducts = useMemo(
-    () => uniqueProductsByIdentity(storefrontHome.mirrorProducts || []).filter(isMirrorProduct),
-    [storefrontHome.mirrorProducts]
-  );
-  const mirrorLoading = storefrontHome.loading;
-  const womenCategoryProducts = useMemo(
-    () => products.filter((product) => productAudienceValues(product).includes("women")),
-    [products]
-  );
-  const womenCategoryLoading = storefrontHome.loading;
 
   useEffect(() => {
     if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
     navigate(productsPath({ brand: brandFilter }), { replace: true });
   }, [brandFilter, location.pathname, navigate]);
 
-  const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
-  const railProducts = useMemo(() => (merchProducts.length ? merchProducts : products), [merchProducts, products]);
-  const saleRailProducts = useMemo(() => saleProducts.filter(isAvailableProduct), [saleProducts]);
-  const saleFallback = useMemo(() => railProducts.filter(isOfferStory), [railProducts]);
-  const bestBase = useMemo(
-    () => uniqueProductsByIdentity([...railProducts].sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a))),
-    [railProducts]
+  const knownBrandNames = useMemo(
+    () => (Array.isArray(brands) ? brands : []).map((brand) => brand?.name).filter(Boolean),
+    [brands]
   );
-  const freshBase = useMemo(
-    () => uniqueProductsByIdentity([...railProducts].sort((a, b) => newestScore(b) - newestScore(a))),
-    [railProducts]
+  const visibleBrands = useMemo(
+    () => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url),
+    [brands]
   );
-  const saleBase = useMemo(
-    () => uniqueProductsByIdentity([...(saleRailProducts.length ? saleRailProducts : saleProducts), ...saleFallback].filter(isOfferStory)),
-    [saleFallback, saleProducts, saleRailProducts]
+
+  const storefrontHomeProducts = useMemo(
+    () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
+    [storefrontHome.collections]
   );
-  const homepageProductPool = useMemo(
-    () => uniqueProductsByIdentity([...railProducts, ...storefrontHomeProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),
-    [bestBase, freshBase, railProducts, saleBase, saleProducts, storefrontHomeProducts]
+  const mirrorProducts = useMemo(
+    () => uniqueProductsByIdentity(storefrontHome.mirrorProducts || []).filter(isMirrorProduct),
+    [storefrontHome.mirrorProducts]
   );
+  const homepageProductPool = useMemo(() => {
+    const available = storefrontHomeProducts.filter(isAvailableProduct);
+    return uniqueProductsByIdentity([...(available.length ? available : storefrontHomeProducts), ...storefrontHomeProducts]);
+  }, [storefrontHomeProducts]);
   const homepageProductsWithImages = useMemo(
-    () => homepageProductPool.filter((product) => isAvailableProduct(product) && homeProductWithImage(product)),
-    [homepageProductPool]
+    () => dedupeHomeCardsByLabel(
+      homepageProductPool.filter((product) => isAvailableProduct(product) && homeProductWithImage(product)),
+      knownBrandNames
+    ),
+    [homepageProductPool, knownBrandNames]
   );
-  const mirrorHeroSlides = useMemo(() => {
-    const mirrorCandidates = uniqueProductsByIdentity([
+
+  // Five hero slides, not twelve: a hero that has to cycle a dozen products is a
+  // carousel of everything, and nothing in it gets looked at.
+  const heroSlides = useMemo(() => {
+    const candidates = uniqueProductsByIdentity([
       ...(Array.isArray(mirrorProducts) ? mirrorProducts : []),
       ...homepageProductPool.filter(isMirrorProduct),
     ])
       .filter((product) => isAvailableProduct(product) && homeProductWithImage(product))
       .sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a));
-    return mirrorCandidates.slice(0, 12).map(featuredSlideProduct);
-  }, [homepageProductPool, mirrorProducts]);
-  const heroSlide = useMemo(() => {
-    if (mirrorHeroSlides.length) return mirrorHeroSlides[0];
-    const candidate = storefrontHome.hero && isMirrorProduct(storefrontHome.hero) ? storefrontHome.hero : null;
-    return candidate ? featuredSlideProduct(candidate) : null;
-  }, [mirrorHeroSlides, storefrontHome.hero]);
-  const heroCollection = storefrontHome.collections[0] || null;
-  const homeCategoryCards = useMemo(() => {
-    const sourceProducts = uniqueProductsByIdentity([...womenCategoryProducts, ...homepageProductPool]).filter((product) => product?.id && product?.name && isAvailableProduct(product));
-    return mainHomeCategoryCards.slice(0, 6).map((definition) => {
-      const matchingProducts = sourceProducts.filter((product) => {
-        if (definition.id === "offers") return isOfferStory(product);
-        if (isOfferStory(product)) return false;
-        return definition.test(product, productSearchText(product));
-      });
-      const offerVisualProduct = definition.id === "offers"
-        ? saleProducts.find((product) => isAvailableProduct(product) && homeProductWithImage(product))
-        : null;
-      const match = matchingProducts.find((product) => homeProductWithImage(product)) || offerVisualProduct || matchingProducts[0];
-      const matchSlide = match ? homeProductWithImage(match) : null;
-      const totalMatches = definition.id === "offers" ? Math.max(matchingProducts.length, saleProducts.length) : matchingProducts.length;
+    const heroFallback = storefrontHome.hero && isMirrorProduct(storefrontHome.hero) ? [storefrontHome.hero] : [];
+    return (candidates.length ? candidates : heroFallback).slice(0, 5).map((product, index) => {
+      const slide = featuredSlideProduct(product);
+      const { brand, title } = splitProductDisplayName(product, { knownBrands: knownBrandNames });
       return {
-        ...definition,
-        title: isRtl ? definition.titleAr : definition.titleEn,
-        subtitle: isRtl ? definition.subtitleAr : definition.subtitleEn,
-        image: definition.poster || matchSlide?.image || "",
-        video: compactImageValue(definition.preferDefinitionVideo
-          ? definition.video
-          : (
-            match?.category_video_url ||
-            match?.storefront_video_url ||
-            match?.promo_video_url ||
-            match?.primary_video_url ||
-            match?.video_url ||
-            match?.media?.video_url ||
-            definition.video ||
-            ""
-          )),
-        count: totalMatches,
+        key: productIdentityKey(product, index),
+        href: productUrl(product),
+        image: slide.image ? imageFor(slide.image) : "",
+        imageProps: slide.image ? responsiveImageProps(slide.image, "hero") : {},
+        rawImage: slide.image || "",
+        name: [brand, title].filter(Boolean).join(" "),
+        priceText: Number(slide.price) > 0 ? money(slide.price) : "",
       };
     });
-  }, [homepageProductPool, isRtl, saleProducts, womenCategoryProducts]);
-  const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url), [brands]);
-  const homeSections = useMemo(() => {
+  }, [homepageProductPool, knownBrandNames, mirrorProducts, storefrontHome.hero]);
+
+  const cardCtx = useMemo(
+    () => ({
+      imageFor,
+      responsiveImageProps,
+      money,
+      productUrl,
+      pricing: featuredSlideProduct,
+      knownBrands: knownBrandNames,
+      // No brand inside the name and none on the record: fall back to the
+      // product type, which is a real catalogue field, rather than inventing a
+      // label just to keep the row filled.
+      fallbackEyebrow: (product) => getProductTypeLabel(product?.product_type || product?.productType || "", isRtl ? "ar" : "en"),
+      isLastPiece: isLastPieceProduct,
+      lastPieceLabel: isRtl ? "آخر قطعة" : "Last pair",
+    }),
+    [isRtl, knownBrandNames]
+  );
+
+  const categoryTiles = useMemo(
+    () => HOME_CATEGORY_TILES.map((tile) => {
+      const match = homepageProductsWithImages.find((product) => tile.test(product, productSearchText(product)));
+      const image = tile.poster || (match ? homeProductWithImage(match)?.image || "" : "");
+      return {
+        id: tile.id,
+        href: tile.href,
+        title: isRtl ? tile.titleAr : tile.titleEn,
+        image: image ? imageFor(image) : "",
+      };
+    }).filter((tile) => tile.image),
+    [homepageProductsWithImages, isRtl]
+  );
+  const categoryLinks = useMemo(
+    () => HOME_CATEGORY_LINKS.map((link) => ({ href: link.href, label: isRtl ? link.titleAr : link.titleEn })),
+    [isRtl]
+  );
+
+  // Two collections, two purposes, and no product allowed to appear in both.
+  const collections = useMemo(() => {
     const used = new Set();
-    const pick = ({ preferred = [], fallback = [], limit = 8, allowRepeatIfEmpty = false } = {}) => {
-      let selected = pickHomeProducts({ preferred, fallback, exclude: used, limit });
-      if (!selected.length && allowRepeatIfEmpty) {
-        selected = pickHomeProducts({ preferred, fallback, limit });
-      }
+    const pick = (preferred) => {
+      const selected = pickHomeProducts({ preferred, fallback: homepageProductsWithImages, exclude: used, limit: 8 });
       selected.forEach((product, index) => {
         const key = productIdentityKey(product, index);
         if (key) used.add(key);
       });
       return selected;
     };
+    const popular = uniqueProductsByIdentity(
+      [...homepageProductsWithImages].sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a))
+    );
+    const newest = uniqueProductsByIdentity([...homepageProductsWithImages].sort((a, b) => newestScore(b) - newestScore(a)));
+    return { popular: pick(popular), newest: pick(newest) };
+  }, [homepageProductsWithImages]);
 
-    const popularPreferred = uniqueProductsByIdentity([...homepageProductPool]
-      .filter((product) => homeProductWithImage(product))
-      .sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a)));
-    const newestPreferred = freshBase.filter((product) => homeProductWithImage(product));
+  const popularCards = useMemo(
+    () => collections.popular.map((product) => buildHomeProductCard(product, cardCtx)),
+    [cardCtx, collections.popular]
+  );
+  const newestCards = useMemo(
+    () => collections.newest.map((product) => buildHomeProductCard(product, cardCtx)),
+    [cardCtx, collections.newest]
+  );
 
-    return {
-      mostPopular: pick({ preferred: popularPreferred, fallback: homepageProductsWithImages, limit: 8 }),
-      newArrivals: pick({ preferred: newestPreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
-    };
-  }, [freshBase, homepageProductPool, homepageProductsWithImages]);
+  const isFavorite = useCallback(
+    (product) => wishlist.some((entry) => String(entry.id) === String(product?.id)),
+    [wishlist]
+  );
+  const preloadSlide = useCallback((slide) => {
+    if (slide?.rawImage) preloadStorefrontImage(slide.rawImage, "hero");
+  }, []);
+
+  useHomeReveal(homeRootRef, [
+    categoryTiles.length,
+    popularCards.length,
+    newestCards.length,
+    visibleBrands.length,
+    loading,
+  ]);
 
   const heroCopy = isRtl
     ? {
-        badge: "مختارات M1 Store",
-        title: "اختيارات مميزة.\nستايل يلفت من أول خطوة.",
-        subtitle: "اكتشف أحدث الموديلات والمقاسات المتاحة، مع توصيل سريع ودفع عند الاستلام.",
-        mobileTitle: "ستايلك يبدأ من هنا",
-        mobileSubtitle: "أحدث الموديلات والمقاسات في مكان واحد",
-        primary: "تسوق الجديد",
-        secondary: "استكشف العروض",
+        eyebrow: "مختارات M1",
+        title: "ميرور أوريجنال",
+        subtitle: "موديلات مختارة بمقاسات متاحة، وتوصيل لكل محافظات مصر.",
+        primaryLabel: "تسوق ميرور أوريجنال",
+        primaryHref: productsPath({ quality: "mirror_original", sort: "newest" }),
+        secondaryLabel: "شوف العروض",
+        secondaryHref: "/offers",
+        slidesLabel: "اختيارات ميرور",
       }
     : {
-        badge: "Curated by M1 Store",
-        title: "Standout picks.\nStyle that starts with every step.",
-        subtitle: "Discover the latest models and available sizes, with fast delivery and cash on delivery.",
-        mobileTitle: "Your style starts here",
-        mobileSubtitle: "The latest models and sizes in one place",
-        primary: "Shop new arrivals",
-        secondary: "Explore offers",
+        eyebrow: "M1 picks",
+        title: "Mirror Original",
+        subtitle: "Selected models, sizes in stock, delivered across Egypt.",
+        primaryLabel: "Shop Mirror Original",
+        primaryHref: productsPath({ quality: "mirror_original", sort: "newest" }),
+        secondaryLabel: "See offers",
+        secondaryHref: "/offers",
+        slidesLabel: "Mirror picks",
       };
 
-  useEffect(() => {
-    const root = homeMotionRootRef.current;
-    if (!root || typeof window === "undefined") return undefined;
-    const elements = Array.from(root.querySelectorAll(".sf-home-motion"));
-    if (!elements.length) return undefined;
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const saveData = Boolean(window.navigator?.connection?.saveData);
-    if (reduceMotion || saveData || typeof IntersectionObserver === "undefined") {
-      root.classList.remove("sf-home-motion-ready");
-      elements.forEach((element) => element.classList.add("is-visible"));
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
-      });
-    }, { threshold: 0.08, rootMargin: "0px 0px -7% 0px" });
-    elements.forEach((element) => {
-      if (!element.classList.contains("is-visible")) observer.observe(element);
-    });
-    root.classList.add("sf-home-motion-ready");
-    return () => observer.disconnect();
-  }, [brandsLoading, homeSections.mostPopular.length, homeSections.newArrivals.length, loading, storefrontHome.loading, visibleBrands.length, womenCategoryLoading]);
+  const favoriteLabel = isRtl ? "أضف إلى المفضلة" : "Add to wishlist";
 
   return (
     <div
-      ref={homeMotionRootRef}
-      className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
+      ref={homeRootRef}
+      className="m1h sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
       data-theme={themeTokens.resolvedMode}
-      style={{
-        background: themeTokens.background,
-        color: themeTokens.textPrimary,
-      }}
     >
-      <HomePremiumHero
-        lang={lang}
-        brandName={brandName}
-        themeTokens={themeTokens}
-        loading={loading || mirrorLoading || storefrontHome.loading}
-        heroSlide={heroSlide}
-        heroSlides={mirrorHeroSlides}
-        heroCollection={heroCollection}
-        heroCopy={{
-          ...heroCopy,
-          badge: isRtl ? "ميرور أوريجنال • مختارات M1" : "Mirror Original • M1 Picks",
-          title: isRtl ? "ميرور أوريجنال.\nموديلات تستاهل تكون اختيارك." : "Mirror Original.\nModels made to stand out.",
-          subtitle: isRtl ? "اختيارات مميزة بصور واضحة وأسعار مباشرة، علشان تختار موديلك من أول نظرة." : "Premium picks, clear imagery, and direct pricing so you can choose at first sight.",
-          mobileTitle: isRtl ? "اختار ميرور أوريجنال" : "Choose Mirror Original",
-          mobileSubtitle: isRtl ? "موديلات مميزة، أسعار واضحة، ومقاسات جاهزة للطلب" : "Standout models, clear prices, and sizes ready to order",
-          primary: isRtl ? "تسوق ميرور أوريجنال" : "Shop Mirror Original",
-        }}
+      <HomeHero
+        isRtl={isRtl}
+        loading={loading}
+        slides={heroSlides}
+        copy={heroCopy}
+        onImageError={fallbackProductImage}
+        onPreloadSlide={preloadSlide}
       />
-      <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || womenCategoryLoading || storefrontHome.loading} />
-      <SimpleHomeProductGrid
-        title={isRtl ? "الأكثر طلبًا" : "Most Wanted"}
-        subtitle={isRtl ? "مختارات قوية من القطع الأكثر جذبًا." : "The strongest edits and the most wanted picks."}
-        viewAllTo="/products?sort=trending"
-        loading={loading || storefrontHome.loading}
-        products={homeSections.mostPopular}
-        themeTokens={themeTokens}
-        lang={lang}
+
+      <HomeCategoryRail
+        title={isRtl ? "تسوّق حسب القسم" : "Shop by category"}
+        cards={categoryTiles}
+        links={categoryLinks}
+        loading={loading}
+        onImageError={fallbackProductImage}
       />
-      <SimpleHomeProductGrid
-        title={isRtl ? "وصل حديثًا" : "New Arrivals"}
-        subtitle={isRtl ? "أحدث القطع المختارة حديثًا للعرض الأول." : "Fresh arrivals with a calmer, more premium presentation."}
-        viewAllTo="/products?sort=newest"
-        loading={loading || storefrontHome.loading}
-        products={homeSections.newArrivals}
-        themeTokens={themeTokens}
-        lang={lang}
+
+      <HomeProductRail
+        title={isRtl ? "الأكثر طلبًا" : "Most wanted"}
+        href={productsPath({ sort: "trending" })}
+        linkLabel={sfText("common.viewAll")}
+        cards={popularCards}
+        loading={loading}
+        prevLabel={isRtl ? "السابق" : "Previous"}
+        nextLabel={isRtl ? "التالي" : "Next"}
+        eagerFirst
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleWishlist}
+        onImageError={fallbackProductImage}
+        favoriteLabel={favoriteLabel}
       />
+
+      <HomeProductGrid
+        title={isRtl ? "وصل حديثًا" : "New arrivals"}
+        href={productsPath({ sort: "newest" })}
+        linkLabel={sfText("common.viewAll")}
+        cards={newestCards}
+        loading={loading}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleWishlist}
+        onImageError={fallbackProductImage}
+        favoriteLabel={favoriteLabel}
+      />
+
+      <HomeDeferred minHeight={420}>
+        <HomeOfferCampaign
+          isRtl={isRtl}
+          cardCtx={cardCtx}
+          knownBrands={knownBrandNames}
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onImageError={fallbackProductImage}
+        />
+      </HomeDeferred>
+
       <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
-      <HomeWhySection lang={lang} themeTokens={themeTokens} />
+      <HomeTrustStrip isRtl={isRtl} />
       <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
     </div>
   );
 }
-
-function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}, loading = false, heroSlide = null, heroSlides = [], heroCollection = null, heroCopy = {} }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const availableHeroSlides = useMemo(() => {
-    const slides = Array.isArray(heroSlides) ? heroSlides.filter((slide) => slide?.image && slide?.product) : [];
-    if (slides.length) return slides;
-    return heroSlide ? [heroSlide] : [];
-  }, [heroSlide, heroSlides]);
-  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
-  useEffect(() => {
-    setActiveHeroIndex(0);
-  }, [availableHeroSlides.length]);
-  useEffect(() => {
-    availableHeroSlides
-      .slice(0, 6)
-      .forEach((slide) => preloadStorefrontImage(slide?.image || "", "hero"));
-  }, [availableHeroSlides]);
-  useEffect(() => {
-    if (availableHeroSlides.length < 2) return undefined;
-    let cancelled = false;
-    const nextIndex = (activeHeroIndex + 1) % availableHeroSlides.length;
-    const nextImage = availableHeroSlides[nextIndex]?.image || "";
-    const displayTimer = window.setTimeout(() => {
-      Promise.race([
-        preloadStorefrontImage(nextImage, "hero"),
-        new Promise((resolve) => window.setTimeout(() => resolve(false), 900)),
-      ]).finally(() => {
-        if (!cancelled) setActiveHeroIndex(nextIndex);
-      });
-    }, 2800);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(displayTimer);
-    };
-  }, [activeHeroIndex, availableHeroSlides]);
-  const activeHeroSlide = availableHeroSlides[activeHeroIndex] || heroSlide;
-  const heroImage = activeHeroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
-  const heroTitle = heroCopy.title || (isRtl ? "اختيارات مميزة.\nستايل يلفت من أول خطوة." : "Standout picks.\nStyle that starts with every step.");
-  const heroSubtitle = heroCopy.subtitle || (isRtl ? "اكتشف أحدث الموديلات والمقاسات المتاحة، مع توصيل سريع ودفع عند الاستلام." : "Discover the latest models and available sizes, with fast delivery and cash on delivery.");
-  const heroMobileTitle = heroCopy.mobileTitle || (isRtl ? "ستايلك يبدأ من هنا" : "Your style starts here");
-  const heroMobileSubtitle = heroCopy.mobileSubtitle || (isRtl ? "أحدث الموديلات والمقاسات في مكان واحد" : "The latest models and sizes in one place");
-  const activePrice = Number(activeHeroSlide?.price || 0);
-  const comparePrice = Number(activeHeroSlide?.comparePrice || 0);
-  const heroPrice = activePrice > 0 ? money(activePrice) : "";
-  const heroComparePrice = comparePrice > activePrice && activePrice > 0 ? money(comparePrice) : "";
-  const heroDiscount = heroComparePrice ? Math.max(1, Math.round(((comparePrice - activePrice) / comparePrice) * 100)) : 0;
-  const heroProduct = activeHeroSlide?.product || {};
-  const heroProductHref = heroProduct?.id ? productUrl(heroProduct) : "/products";
-  const heroSizes = extractOfferSizes(heroProduct).slice(0, 4);
-  const trustItems = [
-    { icon: Truck, ar: "شحن سريع", en: "Fast delivery" },
-    { icon: PackageCheck, ar: "دفع عند الاستلام", en: "Cash on delivery" },
-    { icon: RefreshCcw, ar: "استبدال سهل", en: "Easy exchange" },
-  ];
-
-  if (loading && !heroImage && !heroProduct?.id) {
-    return (
-      <section data-testid="mirror-hero-loading" className="sf-home-hero-v2 mx-auto max-w-[1400px] px-3 pt-3 sm:px-4 md:pt-8" aria-busy="true" aria-label={isRtl ? "جاري تجهيز واجهة المتجر" : "Preparing storefront"}>
-        <div
-          className="relative min-h-[564px] overflow-hidden rounded-[1.7rem] border sm:min-h-[604px] md:min-h-[720px] md:rounded-[2.4rem] lg:min-h-[700px]"
-          style={{ background: themeTokens.heroGradient, borderColor: themeTokens.border, boxShadow: themeTokens.shadow }}
-        >
-          <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
-          <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full border border-[#b4860b]/10" />
-          <div className="relative grid min-h-[inherit] items-stretch lg:grid-cols-[1.02fr_0.98fr]">
-            <div className="hidden min-w-0 flex-col justify-center px-14 py-14 lg:flex">
-              <div className="sf-skeleton-shimmer h-9 w-44 rounded-full" style={{ background: themeTokens.cardSoft }} />
-              <div className="sf-skeleton-shimmer mt-7 h-16 w-[82%] rounded-2xl" style={{ background: themeTokens.cardSoft }} />
-              <div className="sf-skeleton-shimmer mt-4 h-6 w-[65%] rounded-full" style={{ background: themeTokens.cardSoft }} />
-              <div className="sf-skeleton-shimmer mt-3 h-6 w-[48%] rounded-full" style={{ background: themeTokens.cardSoft }} />
-              <div className="sf-skeleton-shimmer mt-9 h-14 w-48 rounded-full" style={{ background: themeTokens.cardSoft }} />
-            </div>
-
-            <div className="relative min-h-[564px] p-3 sm:min-h-[604px] sm:p-5 md:min-h-[720px] md:p-7 lg:min-h-[700px] lg:p-9">
-              <div className="relative flex h-full min-h-[540px] flex-col items-center justify-center overflow-hidden rounded-[1.45rem] border px-6 py-10 text-center sm:min-h-[564px] md:min-h-[666px] md:rounded-[2rem] lg:min-h-[628px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(212,175,55,0.18),transparent_48%)]" />
-                <span className="absolute end-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-[#b4860b]/20 bg-white/90 px-3 py-1.5 text-[10px] font-black text-stone-800 shadow-md md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
-                  <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
-                  {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
-                </span>
-                <div className="relative grid h-24 w-24 place-items-center rounded-full border border-[#b4860b]/20 bg-[#fff7df]/80 shadow-[0_18px_55px_rgba(180,134,11,0.16)] md:h-28 md:w-28">
-                  <span className="sf-home-hero-loader__ring absolute inset-[-10px] rounded-full border border-[#b4860b]/20" />
-                  <ShoppingBag className="h-9 w-9 text-[#9a7108] md:h-11 md:w-11" strokeWidth={1.8} />
-                </div>
-                <h2 className="relative mt-7 text-xl font-black md:text-2xl" style={{ color: themeTokens.textPrimary }}>
-                  {isRtl ? "بنجهز لك أحدث الاختيارات" : "Preparing the latest picks"}
-                </h2>
-                <p className="relative mt-2 max-w-xs text-sm font-bold leading-6 md:text-base" style={{ color: themeTokens.textSecondary }}>
-                  {isRtl ? "لحظات وتظهر الصور والأسعار والمقاسات كاملة" : "Images, prices, and sizes will be ready in a moment"}
-                </p>
-                <div className="relative mt-7 flex items-center gap-2" aria-hidden="true">
-                  <span className="sf-home-hero-loader__dot h-2 w-2 rounded-full bg-[#b4860b]" />
-                  <span className="sf-home-hero-loader__dot h-2 w-2 rounded-full bg-[#b4860b]" />
-                  <span className="sf-home-hero-loader__dot h-2 w-2 rounded-full bg-[#b4860b]" />
-                </div>
-                <div className="absolute inset-x-5 bottom-5 rounded-[1.2rem] border p-4 md:inset-x-7 md:bottom-7" style={{ background: themeTokens.card, borderColor: themeTokens.border }}>
-                  <div className="sf-skeleton-shimmer h-4 w-28 rounded-full" style={{ background: themeTokens.cardSoft }} />
-                  <div className="sf-skeleton-shimmer mt-3 h-7 w-[72%] rounded-full" style={{ background: themeTokens.cardSoft }} />
-                  <div className="mt-4 flex items-center justify-between gap-4 border-t pt-4" style={{ borderColor: themeTokens.border }}>
-                    <div className="sf-skeleton-shimmer h-7 w-24 rounded-full" style={{ background: themeTokens.cardSoft }} />
-                    <div className="sf-skeleton-shimmer h-9 w-28 rounded-full" style={{ background: themeTokens.cardSoft }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="sf-home-hero-v2 mx-auto max-w-[1400px] px-3 pt-3 sm:px-4 md:pt-8">
-      <div
-        className="relative overflow-hidden rounded-[1.7rem] border md:rounded-[2.4rem]"
-        style={{ background: themeTokens.heroGradient, borderColor: themeTokens.border, boxShadow: themeTokens.shadow }}
-      >
-        <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
-        <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full border border-[#b4860b]/10" />
-        <div className="relative grid items-stretch gap-0 lg:grid-cols-[1.02fr_0.98fr]">
-          <div data-testid="mirror-hero-copy" className="order-2 hidden min-w-0 flex-col justify-center px-5 pb-7 pt-5 text-start sm:px-7 md:px-10 md:pb-10 lg:order-1 lg:flex lg:px-14 lg:py-14 xl:px-16">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#b4860b]/20 bg-[#fff7df]/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#8a6508] shadow-sm md:px-4 md:py-2 md:text-xs">
-              <Sparkles className="h-3.5 w-3.5" />
-              {heroCopy.badge || (isRtl ? "مختارات M1 Store" : "Curated by M1 Store")}
-            </div>
-            <h1 className="mt-4 max-w-2xl whitespace-pre-line text-[2.15rem] font-black leading-[1.04] tracking-[-0.035em] sm:text-[2.7rem] md:mt-6 md:text-[3.65rem] lg:text-[4.35rem] xl:text-[4.8rem]" style={{ color: themeTokens.textPrimary }}>
-              <span className="md:hidden">{heroMobileTitle}</span>
-              <span className="hidden md:inline">{heroTitle}</span>
-            </h1>
-            <p className="mt-3 max-w-xl text-[0.95rem] font-bold leading-7 md:mt-5 md:text-lg md:leading-8" style={{ color: themeTokens.textSecondary }}>
-              <span className="md:hidden">{heroMobileSubtitle}</span>
-              <span className="hidden md:inline">{heroSubtitle}</span>
-            </p>
-            <div className="mt-5 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap md:mt-8 md:gap-3">
-              <Link to={productsPath({ quality: "mirror_original", sort: "newest" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-stone-950 px-6 text-sm font-black text-white shadow-[0_16px_34px_rgba(28,25,23,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-stone-800 active:scale-[0.99] md:min-h-14 md:px-7 md:text-base">
-                {heroCopy.primary || (isRtl ? "تسوق الجديد" : "Shop new arrivals")}
-                <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
-              </Link>
-              <Link to="/offers" className="inline-flex min-h-12 items-center justify-center rounded-full border px-6 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99] md:min-h-14 md:px-7 md:text-base" style={{ background: themeTokens.card, color: themeTokens.textPrimary, borderColor: themeTokens.borderStrong }}>
-                {heroCopy.secondary || (isRtl ? "استكشف العروض" : "Explore offers")}
-              </Link>
-            </div>
-            <div className="mt-6 grid grid-cols-3 gap-2 border-t pt-5 md:mt-9 md:gap-3 md:pt-6" style={{ borderColor: themeTokens.border }}>
-              {trustItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.en} className="flex min-w-0 flex-col items-center gap-1.5 text-center sm:flex-row sm:text-start">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#fff7df] text-[#8a6508] md:h-9 md:w-9"><Icon className="h-4 w-4" /></span>
-                    <span className="text-[10px] font-black leading-4 sm:text-[11px] md:text-xs" style={{ color: themeTokens.textSecondary }}>{isRtl ? item.ar : item.en}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="order-1 relative min-h-[540px] p-3 sm:min-h-[580px] sm:p-5 md:min-h-[680px] md:p-7 lg:order-2 lg:min-h-[700px] lg:p-9">
-            <Link to={heroProductHref} className="group relative flex h-full min-h-[516px] flex-col overflow-hidden rounded-[1.45rem] border p-0 sm:min-h-[540px] md:min-h-[626px] md:rounded-[2rem] lg:min-h-[628px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(212,175,55,0.14),transparent_46%)]" />
-              <span className="sf-home-hero-badge absolute end-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-800 shadow-lg backdrop-blur md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
-                <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
-                {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
-              </span>
-              <div className="sf-home-hero-product-stage relative z-[1] flex min-h-[315px] w-full flex-1 items-center justify-center px-3 pb-3 pt-14 sm:min-h-[350px] sm:px-5 md:min-h-[430px] md:px-7 md:pb-5 md:pt-20 lg:min-h-[440px]">
-                {loading && !heroImage ? (
-                  <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
-                ) : heroImage ? (
-                  <img key={`${activeHeroIndex}:${heroImage}`} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="sf-hero-image-transition h-full w-full max-h-[290px] rounded-[1.15rem] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] md:rounded-[1.5rem] lg:max-h-[420px]" loading="eager" decoding="async" fetchPriority="high" width="900" height="720" />
-                ) : (
-                  <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
-                    {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
-                  </div>
-                )}
-              </div>
-              {availableHeroSlides.length > 1 ? (
-                <div data-testid="hero-slide-progress" className="sf-home-hero-progress relative z-10 mx-3 mb-2 flex min-h-9 w-[calc(100%-1.5rem)] shrink-0 items-center justify-center gap-1.5 rounded-full border border-stone-200/90 bg-stone-50/95 px-3 py-2 shadow-sm sm:mx-4 sm:w-[calc(100%-2rem)] md:mb-3 md:min-h-10">
-                  <span className="me-1 text-[10px] font-black tabular-nums text-stone-600 md:text-xs">{activeHeroIndex + 1}/{availableHeroSlides.length}</span>
-                  {availableHeroSlides.map((slide, index) => (
-                    <span key={productIdentityKey(slide.product, index)} className={`h-1.5 rounded-full transition-all duration-300 ${index === activeHeroIndex ? "w-5 bg-[#b4860b]" : "w-1.5 bg-stone-300"}`} />
-                  ))}
-                </div>
-              ) : null}
-              <div className="sf-home-hero-details relative z-10 mx-3 mb-3 w-[calc(100%-1.5rem)] shrink-0 rounded-[1.2rem] border border-white/80 bg-white/95 p-3.5 shadow-[0_18px_45px_rgba(28,25,23,0.16)] backdrop-blur-xl sm:mx-4 sm:mb-4 sm:w-[calc(100%-2rem)] md:rounded-[1.5rem] md:p-4.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#9a7108] md:text-[10px]">{isRtl ? "اختيار ميرور مميز" : "Featured mirror pick"}</p>
-                    <h2 className="mt-1 line-clamp-2 h-12 overflow-hidden break-words text-[1.05rem] font-black leading-6 text-stone-950 md:h-14 md:text-xl md:leading-7">{heroProduct?.name || brandName}</h2>
-                  </div>
-                  {heroDiscount ? <span className="shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black text-white shadow-sm md:text-xs">{isRtl ? `وفر ${heroDiscount}%` : `Save ${heroDiscount}%`}</span> : null}
-                </div>
-                <div className="mt-2.5 flex items-end justify-between gap-3 border-t border-stone-200/80 pt-2.5">
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    {heroPrice ? <span className="text-lg font-black text-stone-950 md:text-2xl">{heroPrice}</span> : null}
-                    {heroComparePrice ? <span className="text-[11px] font-bold text-stone-400 line-through md:text-sm">{heroComparePrice}</span> : null}
-                  </div>
-                  <span className="sf-home-hero-cta inline-flex shrink-0 items-center gap-1.5 rounded-full bg-stone-950 px-3 py-2 text-[11px] font-black text-white md:px-4 md:text-sm">
-                    <ShoppingBag className="h-3.5 w-3.5" />
-                    {isRtl ? "اطلب الآن" : "Shop now"}
-                  </span>
-                </div>
-                <div className="mt-2 flex min-h-7 items-center gap-1.5 overflow-hidden">
-                  {heroSizes.length ? (
-                    <>
-                    <span className="shrink-0 text-[10px] font-bold text-stone-500">{isRtl ? "المقاسات:" : "Sizes:"}</span>
-                    {heroSizes.map((size) => <span key={size} className="grid h-7 min-w-7 place-items-center rounded-full border border-stone-200 bg-stone-50 px-1.5 text-[10px] font-black text-stone-700 md:h-8 md:min-w-8 md:text-xs">{size}</span>)}
-                    </>
-                  ) : <span className="text-[10px] font-bold text-stone-400">{isRtl ? "اختر الموديل لمعرفة المقاسات" : "Open the model to view sizes"}</span>}
-                </div>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HomeCategoryMotionMedia({ video = "", image = "", alt = "" }) {
-  const videoRef = useRef(null);
-  const [videoFailed, setVideoFailed] = useState(false);
-  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
-
-  useEffect(() => {
-    setVideoFailed(false);
-    setShouldLoadVideo(false);
-  }, [video]);
-
-  useEffect(() => {
-    const element = videoRef.current;
-    if (!element || !video || videoFailed || typeof window === "undefined") return undefined;
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const saveData = Boolean(window.navigator?.connection?.saveData);
-    if (reduceMotion || saveData) return undefined;
-    if (typeof IntersectionObserver === "undefined") {
-      setShouldLoadVideo(true);
-      return undefined;
-    }
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry?.isIntersecting) return;
-      setShouldLoadVideo(true);
-      observer.disconnect();
-    }, { threshold: 0.12, rootMargin: "80px 0px" });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [video, videoFailed]);
-
-  useEffect(() => {
-    const element = videoRef.current;
-    if (!element || !shouldLoadVideo || videoFailed) return undefined;
-    element.play().catch(() => {});
-    return () => element.pause();
-  }, [shouldLoadVideo, videoFailed]);
-
-  if (video && !videoFailed) {
-    return (
-      <video
-        ref={videoRef}
-        src={shouldLoadVideo ? video : undefined}
-        poster={image ? imageFor(image) : undefined}
-        className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]"
-        muted
-        loop
-        playsInline
-        preload="none"
-        onCanPlay={() => videoRef.current?.play().catch(() => {})}
-        onError={() => setVideoFailed(true)}
-        aria-label={alt}
-      />
-    );
-  }
-
-  return image ? (
-    <img
-      src={imageFor(image)}
-      {...responsiveImageProps(image, "hero")}
-      alt={alt}
-      onError={fallbackProductImage}
-      className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.07]"
-      loading="lazy"
-      decoding="async"
-      width="720"
-      height="900"
-    />
-  ) : (
-    <div className="h-full w-full bg-[radial-gradient(circle_at_50%_28%,rgba(212,175,55,0.30),transparent_40%),linear-gradient(145deg,#292524,#0c0a09)]" />
-  );
-}
-
-function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading = false }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const visibleCards = Array.isArray(cards) ? cards.filter(Boolean) : [];
-  if (!visibleCards.length && !loading) return null;
-
-  return (
-    <section className="sf-home-motion sf-home-motion--stagger mx-auto max-w-[1400px] px-4 py-7 md:py-10">
-      <div className="mb-5 flex items-end justify-between gap-3 md:mb-7">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: themeTokens.accent }}>
-            {isRtl ? "تسوّق حسب القسم" : "Shop by category"}
-          </p>
-          <h2 className="mt-1.5 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
-            {isRtl ? "اختار ستايلك وابدأ" : "Pick your style and start"}
-          </h2>
-        </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {(loading && !visibleCards.length ? Array.from({ length: 4 }) : visibleCards).map((card, index) => {
-          const Icon = card?.icon || Sparkles;
-          return (
-            <Link
-              key={card?.id || index}
-              to={card?.href || "/products"}
-              className="sf-home-motion-item group relative isolate min-h-[390px] overflow-hidden rounded-[1.75rem] border border-white/15 bg-stone-950 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_28px_75px_rgba(15,23,42,0.28)] active:scale-[0.99] sm:min-h-[430px] md:rounded-[2rem]"
-              style={{ "--sf-motion-index": index }}
-            >
-              {card ? (
-                <>
-                  <div className="absolute inset-0">
-                    <HomeCategoryMotionMedia video={card.video} image={card.image} alt={card.title} />
-                  </div>
-                  <div className={`absolute inset-0 bg-gradient-to-t ${card.overlay || "from-stone-950/95 via-stone-950/35 to-transparent"}`} />
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.35),transparent_34%,transparent_58%,rgba(0,0,0,0.18))]" />
-                  <div className="relative z-10 flex min-h-[390px] flex-col justify-between p-5 sm:min-h-[430px] md:p-6">
-                    <div className="flex items-start justify-end gap-3">
-                      {Number(card.count || 0) > 0 ? (
-                        <span className="rounded-full border border-white/20 bg-black/30 px-3 py-2 text-[10px] font-black text-white backdrop-blur-md">
-                          {card.count} {isRtl ? "موديل" : "styles"}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div>
-                      <h3 className="text-[2rem] font-black leading-none tracking-tight text-white drop-shadow-[0_3px_16px_rgba(0,0,0,0.55)] md:text-[2.35rem]">
-                        {card.title}
-                      </h3>
-                      <p className="mt-2.5 max-w-[17rem] text-sm font-bold leading-6 text-white/82 drop-shadow-md">
-                        {card.subtitle}
-                      </p>
-                      <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/20 pt-4">
-                        <span className="text-sm font-black text-white">{isRtl ? "تسوّق الآن" : "Shop now"}</span>
-                        <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-stone-950 shadow-xl transition duration-300 group-hover:-translate-x-1 group-hover:scale-105 rtl:group-hover:translate-x-1">
-                          <ChevronLeft className={`h-5 w-5 ${isRtl ? "" : "rotate-180"}`} />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="h-full min-h-[390px] animate-pulse bg-stone-800 sm:min-h-[430px]" />
-              )}
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = false }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const visibleBrands = Array.isArray(brands) ? brands.filter((brand) => brand?.id && brand?.name && brand?.logo_url) : [];
@@ -3570,15 +3226,12 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   if (!loading && !visibleBrands.length) return null;
 
   return (
-    <section className="sf-home-brands sf-home-motion mt-8 md:mt-12" dir={isRtl ? "rtl" : "ltr"}>
-      <div
-        className="mx-auto max-w-[1400px] overflow-hidden px-5 py-9 md:px-8 md:py-14"
-      >
-        <div className="sf-home-brands__header pb-5 md:pb-6">
-          <h2 className="sf-home-brands__title text-xl font-black md:text-2xl">
-            {isRtl ? "العلامات التجارية" : "Brands"}
-          </h2>
-        </div>
+    // sf-home-brands is kept for the marquee's dark-mode logo treatment (white
+    // frame plus multiply blend); the section's own band, gold wash and rule are
+    // neutralised in home.css so it sits on the same rhythm as every other block.
+    <section className="sf-home-brands m1h-block m1h-reveal" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="m1h-shell overflow-hidden">
+        <HomeSectionHeader title={isRtl ? "العلامات التجارية" : "Brands"} />
 
         <div className="sf-brand-marquee" dir="ltr">
         <div
@@ -3707,7 +3360,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <footer data-testid="storefront-modern-footer" dir={isRtl ? "rtl" : "ltr"} className="border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
+    <footer data-testid="storefront-modern-footer" data-theme={themeTokens.resolvedMode || "light"} dir={isRtl ? "rtl" : "ltr"} className="sf-footer border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
       <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr_1.15fr]">
           <div>
@@ -3722,17 +3375,17 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               </div>
             </div>
             <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
-            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#121212] dark:text-white dark:hover:text-[#f3d77a]">
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="sf-footer__contact mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#121212] dark:text-white dark:hover:text-[#f3d77a]">
               <FaWhatsapp className="h-5 w-5 text-[#25D366]" />
               {isRtl ? "خدمة العملاء" : "Customer service"}
             </a>
-            <a href={`mailto:${supportEmail}`} className="mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#121212] dark:text-white/80 dark:hover:text-[#f3d77a]">
+            <a href={`mailto:${supportEmail}`} className="sf-footer__contact mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#121212] dark:text-white/80 dark:hover:text-[#f3d77a]">
               <Mail className="h-5 w-5 text-[#121212] dark:text-[#d4af37]" />
               <span dir="ltr">{supportEmail}</span>
             </a>
             <div className="mt-5 flex flex-wrap gap-2">
               {socialLinks.map(({ label, href, icon: SocialIcon }) => (
-                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#121212] hover:text-[#121212] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
+                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="sf-footer__social grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#121212] hover:text-[#121212] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
                   <SocialIcon className="h-4 w-4" />
                 </a>
               ))}
@@ -3752,7 +3405,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             <h3 className="text-base font-black">{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
             <div className="mt-4 grid gap-3">
               {categoryLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3761,7 +3414,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             <h3 className="text-base font-black">{isRtl ? "روابط مهمة" : "Important links"}</h3>
             <div className="mt-4 grid gap-3">
               {importantLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3772,8 +3425,8 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               {isRtl ? "تابع آخر العروض والمنتجات الجديدة مباشرة على بريدك." : "Receive the latest offers and new arrivals in your inbox."}
             </p>
             <form className="mt-4 grid gap-2" onSubmit={(event) => { event.preventDefault(); toast.success(isRtl ? "تم الاشتراك بنجاح" : "Subscribed successfully"); }}>
-              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#121212] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
-              <button type="submit" className="h-12 rounded-xl bg-[#121212] px-4 text-sm font-black text-white transition hover:bg-[#000] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
+              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="sf-footer__input h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#121212] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
+              <button type="submit" className="sf-footer__submit h-12 rounded-xl bg-[#121212] px-4 text-sm font-black text-white transition hover:bg-[#000] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
                 {isRtl ? "اشترك دلوقتي" : "Subscribe now"}
               </button>
             </form>
@@ -3785,128 +3438,21 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
         <div className="mt-10 border-t border-stone-200 pt-7 dark:border-white/10">
           <div className="flex flex-wrap items-center gap-3">
             {paymentMarks.map(({ label, icon: PaymentIcon, className }) => (
-              <span key={label} title={label} aria-label={label} className="grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
+              <span key={label} title={label} aria-label={label} className="sf-footer__mark grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
                 <PaymentIcon className={`h-8 w-14 ${className}`} />
               </span>
             ))}
-            <span title="Meeza" aria-label="Meeza" className="grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
+            <span title="Meeza" aria-label="Meeza" className="sf-footer__mark grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
               <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-8 w-14 object-contain" width="56" height="32" loading="lazy" decoding="async" />
             </span>
           </div>
         </div>
       </div>
 
-      <div className="bg-[#050505] px-5 py-5 text-center text-sm font-bold text-white dark:text-white/55">
+      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-sm font-bold text-white dark:text-white/55">
         {isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}
       </div>
     </footer>
-  );
-}
-
-function SimpleHomeProductGrid({ title, subtitle, viewAllTo = "/products", products = [], loading = false, themeTokens = getStorefrontThemeTokens("dark"), lang = "ar" }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const visibleProducts = (Array.isArray(products) ? products : []).filter((product) => product?.id && product?.name).slice(0, 8);
-  if (!visibleProducts.length && !loading) return null;
-
-  return (
-    <section className="sf-home-motion sf-home-motion--stagger mx-auto max-w-[1400px] px-4 py-5 md:py-7">
-      <div
-        className="overflow-hidden rounded-[2rem] border"
-        style={{
-          background: themeTokens.surface,
-          borderColor: themeTokens.border,
-          boxShadow: themeTokens.shadowSoft,
-        }}
-      >
-        <div className="flex flex-col gap-4 border-b px-4 py-5 md:flex-row md:items-end md:justify-between md:px-6" style={{ borderColor: themeTokens.border }}>
-        <div className="min-w-0">
-          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
-            {isRtl ? "الأقسام المختارة" : "Selected section"}
-          </div>
-          <h2 className="text-[1.9rem] font-black tracking-tight md:text-[3.15rem]" style={{ color: themeTokens.textPrimary }}>{title}</h2>
-          {subtitle ? <p className="mt-1.5 text-xs font-bold md:text-sm" style={{ color: themeTokens.textSecondary }}>{subtitle}</p> : null}
-        </div>
-        <Link
-          to={viewAllTo}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border px-4 py-2 text-xs font-black transition hover:-translate-y-0.5 active:scale-[0.98]"
-          style={{
-            background: themeTokens.card,
-            borderColor: themeTokens.border,
-            color: themeTokens.textPrimary,
-          }}
-        >
-          {sfText("common.viewAll")}
-        </Link>
-      </div>
-      {loading && !visibleProducts.length ? (
-        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 md:p-6">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-[320px] animate-pulse rounded-[1.45rem] border" style={{ background: themeTokens.cardSoft, borderColor: themeTokens.border }} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 md:p-6">
-          {visibleProducts.map((product, index) => {
-            const slide = featuredSlideProduct(product);
-            const price = Number(slide.price || product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
-            const comparePrice = Number(slide.comparePrice || 0) || 0;
-            const image = slide.image || product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
-            return (
-            <Link
-              key={product.card_id || product.id || index}
-              to={productUrl(product)}
-              className="sf-home-motion-item group min-w-0 overflow-hidden rounded-[1.45rem] border text-right transition duration-300 hover:-translate-y-1 active:scale-[0.99]"
-              style={{
-                "--sf-motion-index": index,
-                background: themeTokens.card,
-                borderColor: themeTokens.border,
-                boxShadow: themeTokens.shadowSoft,
-              }}
-            >
-              <div className="relative aspect-[0.98/1] overflow-hidden" style={{ background: themeTokens.surface }}>
-                <img
-                  src={imageFor(image)}
-                  {...responsiveImageProps(image, "grid")}
-                  alt={product.name || ""}
-                  onError={fallbackProductImage}
-                  className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.05]"
-                  loading="lazy"
-                  decoding="async"
-                  width="360"
-                  height="360"
-                />
-                {price > 0 && comparePrice > price ? (
-                  <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-black" style={{ background: themeTokens.accent, color: themeTokens.accentText }}>
-                    {Math.max(1, Math.round(((comparePrice - price) / comparePrice) * 100))}%
-                  </span>
-                ) : null}
-              </div>
-              <div className="p-4">
-                <h3 className="line-clamp-2 min-h-12 text-[0.98rem] font-black leading-5" style={{ color: themeTokens.textPrimary }}>{product.name}</h3>
-                <div className="mt-2 flex items-end justify-between gap-2">
-                  <div className="text-[1.05rem] font-black" style={{ color: themeTokens.textPrimary }}>
-                    {price > 0 ? money(price) : "-"}
-                  </div>
-                  {comparePrice > price ? (
-                    <div className="text-xs font-bold line-through" style={{ color: themeTokens.muted }}>{money(comparePrice)}</div>
-                  ) : null}
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <span className="inline-flex rounded-full border px-3 py-1 text-[11px] font-black" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textSecondary }}>
-                    {isRtl ? "تفاصيل" : "Details"}
-                  </span>
-                  <span className="inline-flex rounded-full px-3 py-1 text-[11px] font-black" style={{ background: themeTokens.accentSoft, color: themeTokens.accent }}>
-                    {isRtl ? "تسوق" : "Shop"}
-                  </span>
-                </div>
-              </div>
-            </Link>
-            );
-          })}
-        </div>
-      )}
-      </div>
-    </section>
   );
 }
 
@@ -4971,7 +4517,11 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   return (
     <Link
       to={to}
-      className={`sf-header-action border border-stone-200/80 bg-white/92 text-stone-800 shadow-[0_12px_28px_rgba(15,23,42,0.08)] transition duration-200 ease-out hover:-translate-y-px hover:border-[var(--sf-purple)] hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.06] dark:text-white/82 dark:shadow-[0_14px_30px_rgba(0,0,0,0.24)] dark:hover:bg-white/[0.10] ${className}`}
+      // The light chip and its shadow were spelled out here as utilities and the
+      // dark: counterparts never fire in the storefront, so this one action
+      // stayed a white pill on a black header while its neighbours went flat.
+      // Appearance now comes from .sf-header-action alone, like the others.
+      className={`sf-header-action transition duration-200 ease-out active:scale-[0.98] ${className}`}
       aria-label={label}
       title={label}
     >
@@ -5053,7 +4603,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
 
   const renderHeaderLogo = ({ mobile = false } = {}) => {
     const frameClassName = mobile
-      ? "sf-header-wordmark relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden bg-transparent transition"
+      ? "sf-header-wordmark relative inline-flex h-[60px] w-[58px] shrink-0 items-center justify-center overflow-hidden bg-transparent transition"
       : "sf-header-wordmark relative inline-flex h-[72px] w-[82px] shrink-0 items-center justify-center overflow-hidden bg-transparent transition group-hover:scale-[1.02]";
     const imageSize = mobile ? 160 : 240;
 
@@ -5462,10 +5012,13 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
           <div className="sf-announcement-track sf-announcement-track-ltr absolute inset-y-0 left-0 items-center">
             {[0, 1].map((copyIndex) => (
               <span key={copyIndex} className="inline-flex shrink-0 items-center gap-10 pe-10">
+                {/* No icon per item: five sparkles chasing each other across the
+                    ticker is decoration competing with the words it decorates. A
+                    dot separates them and stays out of the way. */}
                 {announcementItems.map((announcement, itemIndex) => (
-                  <span key={`${copyIndex}-${itemIndex}`} dir="auto" className="inline-flex shrink-0 items-center gap-2 text-[10px] font-bold tracking-[0.04em] text-stone-100/88 md:text-[12px] md:tracking-wide">
-                    <Sparkles className="sf-header-announcement-icon h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span key={`${copyIndex}-${itemIndex}`} dir="auto" className="inline-flex shrink-0 items-center gap-10 text-[11px] font-medium tracking-normal text-stone-100/80 md:text-[12px]">
                     {announcement}
+                    <span className="sf-header-announcement-dot" aria-hidden="true" />
                   </span>
                 ))}
               </span>
@@ -5473,32 +5026,40 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
           </div>
         </div>
       </div>
-      <div className="sf-mobile-header-shell md:hidden" dir="rtl">
-        <div className="px-3 pb-2.5 pt-[calc(0.5rem+env(safe-area-inset-top))]">
+      {/* dir follows the language rather than being pinned to rtl: with the menu
+          hard-coded to the right, an English reader met the hamburger on the
+          wrong edge on every page. Search takes the slot the theme toggle used
+          to hold -- the toggle is still in the menu drawer, one tap away, and
+          search was the control buried there instead. */}
+      <div className="sf-mobile-header-shell md:hidden" dir={mobileMenuIsRtl ? "rtl" : "ltr"}>
+        <div className="px-3 pb-2 pt-[calc(0.4rem+env(safe-area-inset-top))]">
           <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             <button
-              className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
+              className="sf-mobile-header-button grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.94]"
               onClick={() => setMobileMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu")}
               type="button"
             >
-              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {menuOpen ? <X className="h-[22px] w-[22px]" /> : <Menu className="h-[22px] w-[22px]" />}
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               {renderHeaderLogo({ mobile: true })}
             </Link>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
-                onClick={onThemeToggle}
-                className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
-                aria-label={themeToggleLabel}
-                title={themeToggleLabel}
+                onClick={() => {
+                  setMobileMenuOpen(true);
+                  setSearchOpen(true);
+                  setMobileSearchOpen(true);
+                }}
+                className="sf-mobile-header-button grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.94]"
+                aria-label={t("storefront.header.search")}
               >
-                {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                <Search className="h-[22px] w-[22px]" />
               </button>
-              <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
-                <ShoppingCart className="h-5 w-5" />
+              <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.94]" aria-label={t("storefront.cart.title")} type="button">
+                <ShoppingCart className="h-[22px] w-[22px]" />
                 {cartCount ? <span key={cartCount} className="sf-action-badge sf-mobile-cart-badge sf-cart-count-pop">{cartCount}</span> : null}
               </button>
             </div>
@@ -5531,10 +5092,12 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
         </div>
       </div>
       <div className="sf-main-row sf-header-main sf-header-main-v2 relative mx-auto hidden max-w-7xl px-4 py-3 md:block">
-        <div className="flex w-full items-center gap-3 md:gap-6" dir="rtl">
+        {/* Same fix as the mobile row: the desktop header was pinned to rtl, so an
+            English reader found the logo on the right and the cart on the left. */}
+        <div className="flex w-full items-center gap-3 md:gap-6" dir={mobileMenuIsRtl ? "rtl" : "ltr"}>
           <div className="flex shrink-0 items-center gap-2 md:gap-4">
             <button
-              className="sf-header-menu-button grid h-12 w-12 shrink-0 place-items-center rounded-full border transition duration-200 ease-out hover:-translate-y-px active:scale-[0.98]"
+              className="sf-header-action sf-header-menu-button grid h-12 w-12 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
               onClick={() => setMobileMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu")}
               type="button"
@@ -5551,7 +5114,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
               <NavLink
                 key={`${label}-${to}`}
                 to={to}
-                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative overflow-hidden rounded-full px-3.5 py-2.5 transition duration-200 ease-out after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-center after:bg-current after:transition-transform after:duration-200 ${isActive ? "active text-stone-950 dark:text-white after:scale-x-100" : "text-stone-700/90 hover:bg-white/55 hover:text-stone-950 dark:text-stone-300/90 dark:hover:bg-white/8 dark:hover:text-white after:scale-x-0 hover:after:scale-x-100"}`}
+                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative overflow-hidden rounded-full px-3.5 py-2.5 transition duration-200 ease-out after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-center after:bg-current after:transition-transform after:duration-200 ${isActive ? "active after:scale-x-100" : "after:scale-x-0 hover:after:scale-x-100"}`}
               >
                 {label}
               </NavLink>
@@ -10318,7 +9881,7 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
       <nav
         dir={isRtl ? "rtl" : "ltr"}
         className="sf-mobile-bottom-nav fixed left-1/2 z-[110] md:hidden"
-        style={{ bottom: "calc(8px + env(safe-area-inset-bottom))", width: "calc(100% - 40px)", maxWidth: "410px", transform: "translateX(-50%)" }}
+        style={{ bottom: "calc(8px + env(safe-area-inset-bottom))", width: "calc(100% - 24px)", maxWidth: "430px", transform: "translateX(-50%)" }}
         data-theme={isDarkMode ? "dark" : "light"}
         aria-label={sfText("storefront.nav.mobileNavigation")}
       >
@@ -10328,15 +9891,15 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
               const active = isActive(item);
               const Icon = item.icon;
               const baseClass = [
-                "sf-mobile-bottom-nav__item group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[0.95rem] px-0.5 text-[8.5px] leading-none transition duration-200 ease-out active:scale-[0.96]",
+                "sf-mobile-bottom-nav__item group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[0.95rem] px-0 text-[11px] leading-none transition duration-200 ease-out active:scale-[0.96]",
                 active ? "is-active" : "",
               ].join(" ");
               const content = (
                 <>
-                  <span className="sf-mobile-bottom-nav__icon grid h-7 w-7 place-items-center rounded-[0.65rem] transition duration-200">
-                    <Icon className="sf-mobile-bottom-nav__svg h-[19px] w-[19px]" strokeWidth={2.45} aria-hidden="true" />
+                  <span className="sf-mobile-bottom-nav__icon grid h-6 w-6 place-items-center transition duration-200">
+                    <Icon className="sf-mobile-bottom-nav__svg h-[22px] w-[22px]" strokeWidth={1.9} aria-hidden="true" />
                   </span>
-                  <span className="sf-mobile-bottom-nav__label max-w-full min-w-[2.45rem] truncate text-center text-[8.5px] font-black">{item.label}</span>
+                  <span className="sf-mobile-bottom-nav__label w-full truncate text-center text-[11px] font-medium">{item.label}</span>
                 </>
               );
               if (item.action === "categories") {
@@ -11037,9 +10600,12 @@ function Storefront() {
           setCustomerAuth(readStorefrontCustomerAuth());
         }
       } finally {
-        if (!cancelled) {
-          setCartSyncReady(true);
-        }
+        // Enable saving even if this run was cancelled. The effect re-runs whenever `recent` or
+        // `wishlist` change — which they do as the customer browses products — and a re-run with
+        // the same token returns early WITHOUT restarting this sync. So guarding on `cancelled`
+        // here meant a browse during a slow mobile sync cancelled the only run that would ever flip
+        // the flag, leaving saving OFF forever: reads worked, every cart PUT was silently skipped.
+        setCartSyncReady(true);
       }
     };
 
@@ -11047,7 +10613,10 @@ function Storefront() {
     return () => {
       cancelled = true;
     };
-  }, [customerAuth.token, recent, setProfile, setRecent, setWishlist, wishlist]);
+    // Intentionally token-only: recent/wishlist are read through their current closures for the
+    // one-time merge, but must NOT re-trigger this sync — that churn is what stuck the flag off.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerAuth.token]);
 
   useEffect(() => {
     const token = String(customerAuth.token || "").trim();
