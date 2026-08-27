@@ -1271,7 +1271,11 @@ export default function ManagerPortal() {
   const hasMoreLeads = mobileAlertBuckets.leads.length > visibleLeads.length;
   const visibleLowStock = showMoreLowStock ? [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock] : [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].slice(0, 3);
   const hasMoreLowStock = [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].length > visibleLowStock.length;
-  const todayInvoices = Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices : [];
+  // Memoized because todayFeed sorts it: a fresh array literal every render would re-sort the
+  // whole day's feed on every keystroke elsewhere in the page.
+  const todayInvoices = useMemo(() => (
+    Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices : []
+  ), [dashboard?.overview?.recentInvoices]);
   // Field-only edits (address, shipping status) moved neither goods nor money — they belong in
   // the operations tab, not on a home card whose whole point is "money moved and you can't see it".
   const todayOperationsList = useMemo(() => (
@@ -1288,6 +1292,23 @@ export default function ManagerPortal() {
     const difference = Number(operation.difference || 0);
     return { paid: difference >= 0, amount: Math.abs(difference), methods };
   };
+  // One timeline, not two lists. A sale, an edit and a return all happened AT a time, and the
+  // manager reads the day in that order — an exchange at 8pm belongs under the 8pm sale, not in
+  // a separate box at the top. An exchange INVOICE is its own order row, so it would otherwise
+  // appear twice: once as a sale, once as the operation that explains it.
+  const todayFeed = useMemo(() => {
+    const explainedOrderIds = new Set(
+      todayOperationsList
+        .filter((operation) => operation.mechanism === "exchange_invoice")
+        .map((operation) => String(operation.order_id)),
+    );
+    return [
+      ...todayInvoices
+        .filter((invoice) => !explainedOrderIds.has(String(invoice.id)))
+        .map((invoice) => ({ kind: "invoice", key: `invoice-${invoice.id}`, at: invoice.created_at, invoice })),
+      ...todayOperationsList.map((operation) => ({ kind: "operation", key: `operation-${operation.id}`, at: operation.at, operation })),
+    ].sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
+  }, [todayInvoices, todayOperationsList]);
   const setTaskExpanded = (taskId, expanded) => {
     setExpandedTaskIds((current) => ({ ...current, [taskId]: expanded }));
   };
@@ -2722,144 +2743,138 @@ export default function ManagerPortal() {
                 </>
               )}
 
-              {todayOperationsList.length ? (
-                <section>
+              {todayFeed.length || !isMobilePortal ? (
+                <section ref={liveFeedSectionRef} className="scroll-mt-28">
                   <Card
-                    title={tt("managerPortal.operations.homeTitle")}
-                    subtitle={tt("managerPortal.operations.homeSubtitle")}
-                    icon={ArrowLeftRight}
+                    title={tt("managerPortal.sections.todayInvoices")}
+                    subtitle={[
+                      `${formatNumber(todayInvoices.length)} فاتورة اليوم`,
+                      todayOperationsList.length ? `${formatNumber(todayOperationsList.length)} عملية` : "",
+                    ].filter(Boolean).join(" · ")}
+                    icon={ClipboardList}
                     compact
-                    tone="amber"
                     bodyClassName="space-y-2"
-                    action={(
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("operations")}
-                        className="rounded-full border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900 dark:bg-amber-400/10 dark:text-amber-100"
-                      >
-                        {tt("managerPortal.operations.viewAll")}
-                      </button>
-                    )}
                   >
-                    {todayOperationsList.map((operation) => {
-                      const difference = Number(operation.difference || 0);
-                      const money = operationMoneyLine(operation);
-                      const credit = Number(operation.exchange_credit_amount || 0);
-                      const itemLine = (item, index, tone) => (
-                        <div key={`${tone}-${index}`} className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="min-w-0 flex-1 truncate">
-                            <span className={`me-1 font-black ${tone === "out" ? "text-rose-600" : "text-emerald-600"}`}>{tone === "out" ? "−" : "+"}</span>
-                            <InlineName>{portalText(item.name)}</InlineName>
-                            {item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[11px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null}
-                            {` × ${formatNumber(item.quantity || 0)}`}
-                          </span>
-                          <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
-                        </div>
-                      );
-                      return (
-                        <div key={`today-operation-${operation.id}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-right shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setExpandedOperationIds((current) => ({ ...current, [String(operation.id)]: true }));
-                              setActiveTab("operations");
-                            }}
-                            className="flex w-full items-start justify-between gap-3 text-right"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <StatusPill tone={operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber"} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
-                                <span className="text-sm font-black text-slate-950 dark:text-white">{portalText(operation.invoice_number)}</span>
-                              </div>
-                              <div className="mt-1 truncate text-xs font-bold text-slate-600 dark:text-slate-300">
-                                <InlineName>{portalText(operation.customer_name)}</InlineName>
-                                {operation.actor_name ? ` · ${portalText(operation.actor_name)}` : ""} · {formatDateTime(operation.at)}
-                              </div>
-                              {operation.original_invoice_number ? (
-                                <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">
-                                  {tt("managerPortal.operations.replaces")} {portalText(operation.original_invoice_number)}
+                    {todayFeed.length ? (
+                      <div className="space-y-2">
+                        {todayFeed.map((row) => {
+                          if (row.kind === "invoice") {
+                            const invoice = row.invoice;
+                            return (
+                              <article key={row.key} className="rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right shadow-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-black text-white">{tt("managerPortal.invoice.label")} {portalText(invoice.invoice_number || invoice.id || "")}</div>
+                                    <div className="mt-1 text-xs font-semibold text-slate-400">{portalText(invoice.customer_name || tt("managerPortal.invoices.walkInCustomer"))} · {formatDateTime(invoice.created_at)}</div>
+                                    {invoice.seller_name ? (
+                                      <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{tt("managerPortal.common.seller")}: <InlineName>{portalText(invoice.seller_name)}</InlineName></div>
+                                    ) : null}
+                                  </div>
+                                  <div className="shrink-0 text-left">
+                                    <div className="text-sm font-black text-emerald-300">{formatCurrency(invoice.total || 0)}</div>
+                                    <div className="mt-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] font-black text-amber-200">{paymentMethodLabel(invoice.payment_method || invoice.payment_type)}</div>
+                                  </div>
+                                </div>
+                                <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+                                  {(invoice.items || []).map((item) => (
+                                    <div key={item.id || `${invoice.id}-${item.product_id}-${item.variant_id}`} className="flex items-center gap-2">
+                                      {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-[var(--radius-card)] border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-xs font-black text-white">{portalText(item.product_name || tt("managerPortal.common.product"))}</div>
+                                        <div className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{[portalText(item.color || ""), portalText(item.size || ""), `${formatNumber(item.quantity || 0)} قطعة`].filter(Boolean).join(" · ")}</div>
+                                      </div>
+                                      <div className="shrink-0 text-xs font-black text-white">{formatCurrency(item.line_total || item.price || 0)}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </article>
+                            );
+                          }
+
+                          const operation = row.operation;
+                          const difference = Number(operation.difference || 0);
+                          const money = operationMoneyLine(operation);
+                          const credit = Number(operation.exchange_credit_amount || 0);
+                          const itemLine = (item, index, direction) => (
+                            <div key={`${direction}-${index}`} className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-200">
+                              <span className="min-w-0 flex-1 truncate">
+                                <span className={`me-1 font-black ${direction === "out" ? "text-rose-400" : "text-emerald-400"}`}>{direction === "out" ? "−" : "+"}</span>
+                                <InlineName>{portalText(item.name)}</InlineName>
+                                {item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[11px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null}
+                                {` × ${formatNumber(item.quantity || 0)}`}
+                              </span>
+                              <span className="shrink-0 font-black text-white">{formatCurrency(item.line_total || 0)}</span>
+                            </div>
+                          );
+                          return (
+                            <article key={row.key} className="rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right shadow-sm">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedOperationIds((current) => ({ ...current, [String(operation.id)]: true }));
+                                  setActiveTab("operations");
+                                }}
+                                className="flex w-full items-start justify-between gap-3 text-right"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <StatusPill tone={operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber"} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
+                                    <span className="text-sm font-black text-white">{portalText(operation.invoice_number)}</span>
+                                  </div>
+                                  <div className="mt-1 truncate text-xs font-semibold text-slate-400">
+                                    <InlineName>{portalText(operation.customer_name)}</InlineName> · {formatDateTime(operation.at)}
+                                  </div>
+                                  {operation.actor_name ? (
+                                    <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{tt("managerPortal.common.seller")}: <InlineName>{portalText(operation.actor_name)}</InlineName></div>
+                                  ) : null}
+                                  {operation.original_invoice_number ? (
+                                    <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{tt("managerPortal.operations.replaces")} {portalText(operation.original_invoice_number)}</div>
+                                  ) : null}
+                                </div>
+                                <div className="shrink-0 text-left">
+                                  <div className={`text-sm font-black ${difference > 0 ? "text-emerald-300" : difference < 0 ? "text-rose-300" : "text-slate-400"}`}>
+                                    {difference > 0 ? "+" : ""}{formatCurrency(difference)}
+                                  </div>
+                                  {/* dir=ltr so before → after keeps pointing at the new total inside the RTL page. */}
+                                  <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
+                                    {formatCurrency(operation.old_total || 0)} → {formatCurrency(operation.new_total || 0)}
+                                  </div>
+                                </div>
+                              </button>
+
+                              {operation.items_out?.length || operation.items_in?.length ? (
+                                <div className="mt-3 space-y-1 border-t border-slate-800 pt-3">
+                                  {(operation.items_out || []).map((item, index) => itemLine(item, index, "out"))}
+                                  {(operation.items_in || []).map((item, index) => itemLine(item, index, "in"))}
                                 </div>
                               ) : null}
-                            </div>
-                            <div className="shrink-0 text-left">
-                              <div className={`text-sm font-black ${difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                                {difference > 0 ? "+" : ""}{formatCurrency(difference)}
-                              </div>
-                              {/* dir=ltr so before → after keeps pointing at the new total inside the RTL page. */}
-                              <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
-                                {formatCurrency(operation.old_total || 0)} → {formatCurrency(operation.new_total || 0)}
-                              </div>
-                            </div>
-                          </button>
 
-                          {operation.items_out?.length || operation.items_in?.length ? (
-                            <div className="mt-2 space-y-1 border-t border-slate-200 pt-2 dark:border-white/10">
-                              {(operation.items_out || []).map((item, index) => itemLine(item, index, "out"))}
-                              {(operation.items_in || []).map((item, index) => itemLine(item, index, "in"))}
-                            </div>
-                          ) : null}
-
-                          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-200 pt-2 text-xs font-bold dark:border-white/10">
-                            {credit > 0 ? (
-                              <span className="text-slate-500">{tt("managerPortal.operations.creditUsed")} {formatCurrency(credit)} ·</span>
-                            ) : null}
-                            {money.amount > 0.009 ? (
-                              <>
-                                <span className={money.paid ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}>
-                                  {money.paid ? tt("managerPortal.operations.paidByCustomer") : tt("managerPortal.operations.refundedToCustomer")} {formatCurrency(money.amount)}
-                                </span>
-                                {money.methods.map((row) => (
-                                  <StatusPill key={`${operation.id}-${row.method}`} tone={money.paid ? "green" : "red"} value={money.methods.length > 1 ? `${paymentMethodLabel(row.method)} ${formatCurrency(row.amount)}` : paymentMethodLabel(row.method)} />
-                                ))}
-                              </>
-                            ) : (
-                              <span className="text-slate-500">{tt("managerPortal.operations.noMoneyMoved")}</span>
-                            )}
-                            {operation.settlement?.deferred_amount > 0 ? (
-                              <span className="text-amber-700 dark:text-amber-300">· {tt("managerPortal.operations.deferred")} {formatCurrency(operation.settlement.deferred_amount)}</span>
-                            ) : null}
-                            {operation.money?.balanced === false ? (
-                              <StatusPill tone="red" value={tt("managerPortal.operations.notInShift")} />
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </Card>
-                </section>
-              ) : null}
-
-              {todayInvoices.length || !isMobilePortal ? (
-                <section ref={liveFeedSectionRef} className="scroll-mt-28">
-                  <Card title={tt("managerPortal.sections.todayInvoices")} subtitle={`${formatNumber(todayInvoices.length)} فاتورة اليوم`} icon={ClipboardList} compact bodyClassName="space-y-2">
-                    {todayInvoices.length ? (
-                      <div className="space-y-2">
-                        {todayInvoices.map((invoice) => (
-                          <article key={`today-invoice-${invoice.id}`} className="rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right shadow-sm">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-sm font-black text-white">{tt("managerPortal.invoice.label")} {portalText(invoice.invoice_number || invoice.id || "")}</div>
-                                <div className="mt-1 text-xs font-semibold text-slate-400">{portalText(invoice.customer_name || tt("managerPortal.invoices.walkInCustomer"))} · {formatDateTime(invoice.created_at)}</div>
+                              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-800 pt-2 text-xs font-bold">
+                                {credit > 0 ? (
+                                  <span className="text-slate-400">{tt("managerPortal.operations.creditUsed")} {formatCurrency(credit)} ·</span>
+                                ) : null}
+                                {money.amount > 0.009 ? (
+                                  <>
+                                    <span className={money.paid ? "text-emerald-300" : "text-rose-300"}>
+                                      {money.paid ? tt("managerPortal.operations.paidByCustomer") : tt("managerPortal.operations.refundedToCustomer")} {formatCurrency(money.amount)}
+                                    </span>
+                                    {money.methods.map((methodRow) => (
+                                      <StatusPill key={`${operation.id}-${methodRow.method}`} tone={money.paid ? "green" : "red"} value={money.methods.length > 1 ? `${paymentMethodLabel(methodRow.method)} ${formatCurrency(methodRow.amount)}` : paymentMethodLabel(methodRow.method)} />
+                                    ))}
+                                  </>
+                                ) : (
+                                  <span className="text-slate-500">{tt("managerPortal.operations.noMoneyMoved")}</span>
+                                )}
+                                {operation.settlement?.deferred_amount > 0 ? (
+                                  <span className="text-amber-300">· {tt("managerPortal.operations.deferred")} {formatCurrency(operation.settlement.deferred_amount)}</span>
+                                ) : null}
+                                {operation.money?.balanced === false ? (
+                                  <StatusPill tone="red" value={tt("managerPortal.operations.notInShift")} />
+                                ) : null}
                               </div>
-                              <div className="shrink-0 text-left">
-                                <div className="text-sm font-black text-emerald-300">{formatCurrency(invoice.total || 0)}</div>
-                                <div className="mt-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] font-black text-amber-200">{paymentMethodLabel(invoice.payment_method || invoice.payment_type)}</div>
-                              </div>
-                            </div>
-                            <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
-                              {(invoice.items || []).map((item) => (
-                                <div key={item.id || `${invoice.id}-${item.product_id}-${item.variant_id}`} className="flex items-center gap-2">
-                                  {item.image_url ? <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-[var(--radius-card)] border border-slate-700 bg-white object-cover" loading="lazy" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Package className="h-5 w-5 text-slate-400" /></div>}
-                                  <div className="min-w-0 flex-1">
-                                    <div className="truncate text-xs font-black text-white">{portalText(item.product_name || tt("managerPortal.common.product"))}</div>
-                                    <div className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{[portalText(item.color || ""), portalText(item.size || ""), `${formatNumber(item.quantity || 0)} قطعة`].filter(Boolean).join(" · ")}</div>
-                                  </div>
-                                  <div className="shrink-0 text-xs font-black text-white">{formatCurrency(item.line_total || item.price || 0)}</div>
-                                </div>
-                              ))}
-                            </div>
-                          </article>
-                        ))}
+                            </article>
+                          );
+                        })}
                       </div>
                     ) : (
                       <EmptyState compact title={tt("managerPortal.invoices.empty")} body={tt("managerPortal.invoices.emptyHint")} />
