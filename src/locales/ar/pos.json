@@ -251,7 +251,21 @@
       "discounts": "الخصومات",
       "ofWhichCoupons": "منهم كوبونات: {{amount}}",
       "employeeAdvances": "سلف الموظفين",
-      "shiftDuration": "مدة الشيفت"
+      "shiftDuration": "مدة الشيفت",
+      "editCashIn": "فروق تعديلات الفواتير",
+      "otherCashIn": "إيداعات نقدية أخرى",
+      "cashWithdrawals": "سحوبات من الدرج",
+      "operationsCount": "{{count}} عملية",
+      "methods": {
+        "cash": "كاش",
+        "card": "بطاقة",
+        "instapay": "إنستاباي",
+        "vodafone_cash": "فودافون كاش",
+        "wallet": "محفظة شركة",
+        "customer_wallet": "رصيد العميل",
+        "credit_sale": "آجل",
+        "unknown": "غير محدد"
+      }
     },
     "shiftReport": {
       "eyebrow": "إغلاق وردية",

@@ -9812,6 +9812,22 @@ function ShiftCloseAuditLayout({
   const { t } = useTranslation();
   const sellerPerformance = Array.isArray(getShiftSellerPerformance(report)) ? getShiftSellerPerformance(report) : [];
   const safeShiftDuration = shiftDuration || report?.shift_duration || report?.duration || "-";
+  const shiftPaymentMethods = Array.isArray(totals?.payment_methods) ? totals.payment_methods.filter((row) => row && row.method) : [];
+  const shiftPaymentMethodLabel = (method) => t(`pos.posPro.shiftCloseAudit.methods.${method}`, method);
+  const shiftCashLines = (() => {
+    const num = (value) => Number(value || 0);
+    const editCashIn = num(totals?.edit_cash_in_events);
+    return {
+      // `totals.cash` has the edit cash-in folded in; the invoices' own cash is what the
+      // manager portal reports, so show them as separate lines that add to the same total.
+      sales: num(totals?.cash_sales ?? (num(totals?.cash) - editCashIn)),
+      editCashIn,
+      otherCashIn: Math.max(0, num(totals?.cash_in_events) - editCashIn),
+      cashReturns: num(totals?.cash_returns ?? totals?.returns),
+      cashExpenses: num(totals?.pos_expenses_cash) + num(totals?.employee_advances_cash),
+      cashWithdrawals: num(totals?.cash_out_events),
+    };
+  })();
   return (
     <>
       <section className={`mt-5 rounded-[24px] border p-4 ${varianceState.className}`}>
@@ -10011,17 +10027,44 @@ function ShiftCloseAuditLayout({
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.08fr_1.08fr_0.88fr]">
             <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.cashSummary")} accent="amber">
-              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashSales")} value={formatCurrency(totals.cash || 0)} />
-              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashReturns")} value={formatCurrency(totals.returns || 0)} />
-              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashExpenses")} value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+              {/* Every line the net actually subtracts, so the panel adds up on screen. It used
+                  to show `cash` (which silently includes the edit cash-in) against `returns`
+                  (ALL returns, not the cash ones the net uses), and hid the drawer withdrawals
+                  entirely — three reasons the rows could not be made to reach the total. */}
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashSales")} value={formatCurrency(shiftCashLines.sales)} />
+              {shiftCashLines.editCashIn > 0.009 ? (
+                <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.editCashIn")} value={`+ ${formatCurrency(shiftCashLines.editCashIn)}`} />
+              ) : null}
+              {shiftCashLines.otherCashIn > 0.009 ? (
+                <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.otherCashIn")} value={`+ ${formatCurrency(shiftCashLines.otherCashIn)}`} />
+              ) : null}
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashReturns")} value={formatCurrency(shiftCashLines.cashReturns)} />
+              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashExpenses")} value={formatCurrency(shiftCashLines.cashExpenses)} />
+              {shiftCashLines.cashWithdrawals > 0.009 ? (
+                <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cashWithdrawals")} value={formatCurrency(shiftCashLines.cashWithdrawals)} />
+              ) : null}
               <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.netExpectedDrawer")} value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} strong highlight />
             </AccountingLedgerSection>
 
             <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.paymentMethods")} accent="emerald">
-              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cards")} value={formatCurrency(totals.card || 0)} />
-              <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.wallet")} value={formatCurrency(totals.wallet || 0)} />
-              <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} />
-              <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} />
+              {shiftPaymentMethods.length ? (
+                shiftPaymentMethods.map((row) => (
+                  <AccountingLedgerRow
+                    key={row.method}
+                    label={shiftPaymentMethodLabel(row.method)}
+                    value={formatCurrency(row.total || 0)}
+                    subtitle={row.count ? t("pos.posPro.shiftCloseAudit.operationsCount", { count: row.count }) : ""}
+                  />
+                ))
+              ) : (
+                // Pre-deploy fallback: the coarse roll-ups are still true, just not split.
+                // The old hardcoded "InstaPay = wallet" and "Vodafone Cash = 0" rows are gone
+                // either way — they stated as fact something the data never contained.
+                <>
+                  <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.cards")} value={formatCurrency(totals.card || 0)} />
+                  <AccountingLedgerRow label={t("pos.posPro.shiftCloseAudit.wallet")} value={formatCurrency(totals.wallet || 0)} />
+                </>
+              )}
             </AccountingLedgerSection>
 
             <AccountingLedgerSection title={t("pos.posPro.shiftCloseAudit.activity")} accent="cyan">

@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { io } from "../utils/socket.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { aggregatePaymentDistribution } from "../services/managerPortalPaymentDistribution.js";
 import {
   closeCashDrawerShift,
   ensureAccountingSchema,
@@ -1057,6 +1058,28 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       `,
       [shiftId, tenantId]
     );
+  // The three roll-up columns cannot answer "how much InstaPay vs how much Vodafone Cash?":
+  // the till writes BOTH into wallet_payment_amount (see the checkout payload in POSPro),
+  // which is why the close screen could only ever print one bucket under two labels. The
+  // authoritative per-method split is in orders.payment_breakdown, and the manager portal
+  // already aggregates exactly that — share its function so the two screens cannot drift.
+  const methodSplitResult = await client.query(
+      `
+      SELECT
+        COALESCE(NULLIF(payment_method, ''), 'unknown') AS payment_method,
+        COALESCE(total_amount, total, 0)::numeric AS total_amount,
+        COALESCE(payment_breakdown, '[]'::jsonb) AS payment_breakdown,
+        COALESCE(cash_amount, 0)::numeric AS cash_amount,
+        COALESCE(card_amount, 0)::numeric AS card_amount,
+        COALESCE(wallet_payment_amount, 0)::numeric AS wallet_payment_amount
+      FROM orders
+      WHERE shift_id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        AND COALESCE(is_personal_transaction, FALSE) = FALSE
+      `,
+      [shiftId, tenantId]
+    ).catch(() => ({ rows: [] }));
   const topProductsResult = await client.query(
       `
       SELECT
@@ -1310,8 +1333,12 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       edit_cash_in_events: editCashInEventTotal,
       return_count: Number(returns.return_count || 0),
       cash: money(Number(sales.cash || 0) + editCashInEventTotal),
+      // The invoices' own cash, without the edit cash-in folded in above. The manager
+      // portal reports exactly this number, so the two screens can be reconciled by eye.
+      cash_sales: money(sales.cash),
       card: money(sales.card),
       wallet: money(sales.wallet),
+      payment_methods: aggregatePaymentDistribution(methodSplitResult.rows || []),
       pos_expenses: money(posExpenses.pos_expenses),
       pos_expenses_cash: money(posExpenses.pos_expenses_cash),
       pos_expense_count: Number(posExpenses.expense_count || 0),

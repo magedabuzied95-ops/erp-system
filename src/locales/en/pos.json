@@ -251,7 +251,21 @@
       "discounts": "Discounts",
       "ofWhichCoupons": "of which coupons: {{amount}}",
       "employeeAdvances": "Employee advances",
-      "shiftDuration": "Shift duration"
+      "shiftDuration": "Shift duration",
+      "editCashIn": "Invoice edit differences",
+      "otherCashIn": "Other cash in",
+      "cashWithdrawals": "Drawer withdrawals",
+      "operationsCount": "{{count}} operations",
+      "methods": {
+        "cash": "Cash",
+        "card": "Card",
+        "instapay": "InstaPay",
+        "vodafone_cash": "Vodafone Cash",
+        "wallet": "Company wallet",
+        "customer_wallet": "Customer credit",
+        "credit_sale": "Credit",
+        "unknown": "Unspecified"
+      }
     },
     "shiftReport": {
       "eyebrow": "Shift close",
