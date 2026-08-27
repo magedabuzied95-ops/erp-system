@@ -138,7 +138,12 @@ export const setCurrency = (nextCurrency = {}) => {
 
 export const formatCurrencyParts = (value, languageOrOverrides = {}) => {
   const language = resolveLanguage(languageOrOverrides);
-  const resolvedLanguage = String(language || "").trim();
+  // `formatCurrency(x)` passes the `{}` default, so resolveLanguage returns "" and the
+  // language that actually shapes the output is only recovered later, inside
+  // isRtlCurrencyLanguage. Pin it here instead: an empty string that silently MEANS "ar"
+  // is a cache key that cannot tell the two apart, which is how an amount formatted
+  // before the language settled stayed English for the rest of the session.
+  const resolvedLanguage = String(language || "").trim() || resolveCurrentLanguage();
   const overrides = typeof languageOrOverrides === "object" && languageOrOverrides !== null ? languageOrOverrides : {};
   const currency = resolveCurrency(overrides);
   const amount = Number(value || 0);
@@ -157,7 +162,9 @@ export const formatCurrencyParts = (value, languageOrOverrides = {}) => {
 
 export const formatCurrency = (value, languageOrOverrides = {}) => {
   const language = resolveLanguage(languageOrOverrides);
-  const resolvedLanguage = String(language || "").trim();
+  // Must resolve exactly as formatCurrencyParts does, or the key below describes a
+  // different render than the one it caches.
+  const resolvedLanguage = String(language || "").trim() || resolveCurrentLanguage();
   const overrides = typeof languageOrOverrides === "object" && languageOrOverrides !== null ? languageOrOverrides : {};
   const currency = resolveCurrency(overrides);
   const amount = Number(value || 0);

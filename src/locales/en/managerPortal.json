@@ -170,7 +170,8 @@
     "credit": "Credit",
     "cashOnDelivery": "Cash on delivery",
     "empty": "No payment data",
-    "emptyHint": "Payment methods will appear once today's invoices are recorded."
+    "emptyHint": "Payment methods will appear once today's invoices are recorded.",
+    "storeCredit": "Store credit"
   },
   "common": {
     "unspecified": "Unspecified",
@@ -595,6 +596,10 @@
     "homeTitle": "Today's operations",
     "homeSubtitle": "Edits, returns, and exchanges made today — these never show under today's invoices",
     "viewAll": "View details",
+    "paidByCustomer": "Customer paid",
+    "refundedToCustomer": "Customer received",
+    "creditUsed": "Credit from the old invoice",
+    "replaces": "Replaces invoice",
     "kinds": {
       "all": "All",
       "edit": "Edit",

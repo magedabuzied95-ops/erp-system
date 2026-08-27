@@ -1342,6 +1342,30 @@ const operationRangeClause = (range = "month", column = "a.created_at") => {
   return template.replaceAll("CREATED_AT", column);
 };
 
+// Credit carried over from the invoice being replaced is not money the customer handed
+// over, so it can never answer "دفع الفرق إزاي؟" — only the real tenders can. A split
+// settlement keeps every method instead of collapsing to whichever one came first.
+const CREDIT_PAYMENT_METHODS = ["exchange_credit", "return_credit", "store_credit"];
+const settlementMethodsFromBreakdown = (breakdown, fallbackMethod = "", fallbackAmount = 0) => {
+  let rows = breakdown;
+  if (typeof rows === "string") {
+    try { rows = JSON.parse(rows || "[]"); } catch { rows = []; }
+  }
+  const totals = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const method = lower(clean(row?.method || row?.payment_method));
+    const amount = toNumber(row?.amount);
+    if (!method || CREDIT_PAYMENT_METHODS.includes(method) || amount <= 0.009) continue;
+    totals.set(method, Number(((totals.get(method) || 0) + amount).toFixed(2)));
+  }
+  if (!totals.size) {
+    const method = lower(clean(fallbackMethod));
+    const amount = toNumber(fallbackAmount);
+    return method && amount > 0.009 ? [{ method, amount: Number(amount.toFixed(2)) }] : [];
+  }
+  return Array.from(totals, ([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount);
+};
+
 const cashEventLabel = (eventType = "") => {
   const key = lower(eventType);
   if (key === "cash_in") return "نقدية دخلت الدرج";
@@ -1475,7 +1499,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   const limit = Math.min(Math.max(Number(query.limit) || 60, 1), 200);
   const kindFilter = lower(query.kind || "all") || "all";
 
-  const [hasOrders, hasEdits, hasReturns, hasReturnItems, hasCashEvents, hasAccountEntries, hasExchangeColumn, hasDisposition] = await Promise.all([
+  const [hasOrders, hasEdits, hasReturns, hasReturnItems, hasCashEvents, hasAccountEntries, hasExchangeColumn, hasDisposition, hasPaymentMethod, hasPaymentBreakdown] = await Promise.all([
     tableExists("orders"),
     tableExists("order_edit_audits"),
     tableExists("returns"),
@@ -1484,6 +1508,8 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
     tableExists("financial_account_entries"),
     columnExists("orders", "exchange_mode"),
     columnExists("returns", "disposition"),
+    columnExists("orders", "payment_method"),
+    columnExists("orders", "payment_breakdown"),
   ]);
   if (!hasOrders) return { operations: [], summary: emptyOperationsSummary(), range, kind: kindFilter, total: 0 };
 
@@ -1638,6 +1664,8 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
           COALESCE(o.exchange_difference, 0) AS exchange_difference,
           COALESCE(o.exchange_invoice_number, '') AS exchange_invoice_number,
           COALESCE(o.paid_amount, 0) AS paid_amount,
+          ${hasPaymentMethod ? "COALESCE(o.payment_method, '')" : "''"} AS payment_method,
+          ${hasPaymentBreakdown ? "COALESCE(o.payment_breakdown, '[]'::jsonb)" : "'[]'::jsonb"} AS payment_breakdown,
           o.shift_id AS order_shift_id,
           COALESCE(b.name, '') AS branch_name,
           COALESCE(NULLIF(u.name, ''), NULLIF(u.email, ''), NULLIF(o.cashier_name, ''), 'غير معروف') AS actor_name
@@ -1724,6 +1752,16 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
       difference,
       items_out: diff.removed,
       items_in: diff.added,
+      // One uniform field across all three mechanisms, so a reader never has to know
+      // whether it is looking at an edit, a return or an exchange invoice to answer
+      // "the customer paid / was paid HOW?".
+      payment_methods: settlementMatches
+        ? settlementMethodsFromBreakdown(
+            settlement.additional_payment_breakdown,
+            settlement.settlement_method,
+            toNumber(settlement.collected_now) || toNumber(settlement.refund_or_credit_due) || Math.abs(difference),
+          )
+        : [],
       settlement: settlementMatches
         ? {
             type: clean(settlement.settlement_type),
@@ -1773,6 +1811,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
       difference: Number((-refundAmount).toFixed(2)),
       refund_amount: refundAmount,
       refund_method: refundMethod,
+      payment_methods: refundAmount > 0.009 ? [{ method: refundMethod, amount: refundAmount }] : [],
       exchange_difference: exchangeDifference,
       restocked: row.restock === true || lower(row.disposition) === "restock",
       disposition: clean(row.disposition),
@@ -1816,6 +1855,8 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
       exchange_credit_amount: credit,
       exchange_difference: toNumber(row.exchange_difference),
       remaining_customer_credit: Math.max(0, Number((credit - total).toFixed(2))),
+      payment_method: lower(clean(row.payment_method)),
+      payment_methods: settlementMethodsFromBreakdown(row.payment_breakdown, row.payment_method, dueNow),
       items_out: [],
       items_in: exchangeItemsByOrder.get(String(row.id)) || [],
       settlement: null,

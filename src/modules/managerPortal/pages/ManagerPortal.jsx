@@ -346,6 +346,11 @@ const paymentMethodLabel = (value = "") => {
     vodafone_cash: tt("managerPortal.payment.vodafoneCash"),
     instapay: tt("managerPortal.payment.instapay"),
     credit_sale: tt("managerPortal.payment.credit"),
+    // Credit kept with the shop — a refund the customer did NOT walk out holding.
+    exchange_credit: tt("managerPortal.payment.storeCredit"),
+    return_credit: tt("managerPortal.payment.storeCredit"),
+    store_credit: tt("managerPortal.payment.storeCredit"),
+    customer_wallet: tt("managerPortal.payment.wallet"),
     cod: tt("managerPortal.payment.cashOnDelivery"),
     cash_on_delivery: tt("managerPortal.payment.cashOnDelivery"),
     mixed: portalText("طرق دفع متعددة"),
@@ -1272,6 +1277,17 @@ export default function ManagerPortal() {
   const todayOperationsList = useMemo(() => (
     (Array.isArray(todayOperations?.operations) ? todayOperations.operations : []).filter((operation) => !operation?.fields_only)
   ), [todayOperations]);
+  // "Did the customer pay or get paid, how much, and through which tender?" — the same
+  // question for all three mechanisms, which each record it in a different place.
+  const operationMoneyLine = (operation = {}) => {
+    const methods = Array.isArray(operation.payment_methods) ? operation.payment_methods.filter((row) => row?.method) : [];
+    if (operation.mechanism === "return") {
+      const amount = Number(operation.refund_amount || 0);
+      return { paid: false, amount, methods: methods.length ? methods : (operation.refund_method ? [{ method: operation.refund_method, amount }] : []) };
+    }
+    const difference = Number(operation.difference || 0);
+    return { paid: difference >= 0, amount: Math.abs(difference), methods };
+  };
   const setTaskExpanded = (taskId, expanded) => {
     setExpandedTaskIds((current) => ({ ...current, [taskId]: expanded }));
   };
@@ -2727,44 +2743,86 @@ export default function ManagerPortal() {
                   >
                     {todayOperationsList.map((operation) => {
                       const difference = Number(operation.difference || 0);
-                      const swapped = [
-                        (operation.items_out || []).map((item) => portalText(item.name)).filter(Boolean).join("، "),
-                        (operation.items_in || []).map((item) => portalText(item.name)).filter(Boolean).join("، "),
-                      ];
+                      const money = operationMoneyLine(operation);
+                      const credit = Number(operation.exchange_credit_amount || 0);
+                      const itemLine = (item, index, tone) => (
+                        <div key={`${tone}-${index}`} className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="min-w-0 flex-1 truncate">
+                            <span className={`me-1 font-black ${tone === "out" ? "text-rose-600" : "text-emerald-600"}`}>{tone === "out" ? "−" : "+"}</span>
+                            <InlineName>{portalText(item.name)}</InlineName>
+                            {item.variant_label ? <span className="ms-1 rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-[11px] font-black text-[var(--primary)]" dir="auto">{portalText(item.variant_label)}</span> : null}
+                            {` × ${formatNumber(item.quantity || 0)}`}
+                          </span>
+                          <span className="shrink-0 font-black">{formatCurrency(item.line_total || 0)}</span>
+                        </div>
+                      );
                       return (
-                        <button
-                          key={`today-operation-${operation.id}`}
-                          type="button"
-                          onClick={() => {
-                            setExpandedOperationIds((current) => ({ ...current, [String(operation.id)]: true }));
-                            setActiveTab("operations");
-                          }}
-                          className="flex w-full items-start justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-right shadow-sm dark:border-white/10 dark:bg-white/[0.03]"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <StatusPill tone={operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber"} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
-                              <span className="text-sm font-black text-slate-950 dark:text-white">{portalText(operation.invoice_number)}</span>
-                            </div>
-                            <div className="mt-1 truncate text-xs font-bold text-slate-600 dark:text-slate-300">
-                              <InlineName>{portalText(operation.customer_name)}</InlineName> · {formatDateTime(operation.at)}
-                            </div>
-                            {swapped[0] || swapped[1] ? (
-                              <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">
-                                {swapped.filter(Boolean).join(" ← ")}
+                        <div key={`today-operation-${operation.id}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-right shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedOperationIds((current) => ({ ...current, [String(operation.id)]: true }));
+                              setActiveTab("operations");
+                            }}
+                            className="flex w-full items-start justify-between gap-3 text-right"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusPill tone={operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber"} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
+                                <span className="text-sm font-black text-slate-950 dark:text-white">{portalText(operation.invoice_number)}</span>
                               </div>
+                              <div className="mt-1 truncate text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <InlineName>{portalText(operation.customer_name)}</InlineName>
+                                {operation.actor_name ? ` · ${portalText(operation.actor_name)}` : ""} · {formatDateTime(operation.at)}
+                              </div>
+                              {operation.original_invoice_number ? (
+                                <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">
+                                  {tt("managerPortal.operations.replaces")} {portalText(operation.original_invoice_number)}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="shrink-0 text-left">
+                              <div className={`text-sm font-black ${difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                                {difference > 0 ? "+" : ""}{formatCurrency(difference)}
+                              </div>
+                              {/* dir=ltr so before → after keeps pointing at the new total inside the RTL page. */}
+                              <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
+                                {formatCurrency(operation.old_total || 0)} → {formatCurrency(operation.new_total || 0)}
+                              </div>
+                            </div>
+                          </button>
+
+                          {operation.items_out?.length || operation.items_in?.length ? (
+                            <div className="mt-2 space-y-1 border-t border-slate-200 pt-2 dark:border-white/10">
+                              {(operation.items_out || []).map((item, index) => itemLine(item, index, "out"))}
+                              {(operation.items_in || []).map((item, index) => itemLine(item, index, "in"))}
+                            </div>
+                          ) : null}
+
+                          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-200 pt-2 text-xs font-bold dark:border-white/10">
+                            {credit > 0 ? (
+                              <span className="text-slate-500">{tt("managerPortal.operations.creditUsed")} {formatCurrency(credit)} ·</span>
+                            ) : null}
+                            {money.amount > 0.009 ? (
+                              <>
+                                <span className={money.paid ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}>
+                                  {money.paid ? tt("managerPortal.operations.paidByCustomer") : tt("managerPortal.operations.refundedToCustomer")} {formatCurrency(money.amount)}
+                                </span>
+                                {money.methods.map((row) => (
+                                  <StatusPill key={`${operation.id}-${row.method}`} tone={money.paid ? "green" : "red"} value={money.methods.length > 1 ? `${paymentMethodLabel(row.method)} ${formatCurrency(row.amount)}` : paymentMethodLabel(row.method)} />
+                                ))}
+                              </>
+                            ) : (
+                              <span className="text-slate-500">{tt("managerPortal.operations.noMoneyMoved")}</span>
+                            )}
+                            {operation.settlement?.deferred_amount > 0 ? (
+                              <span className="text-amber-700 dark:text-amber-300">· {tt("managerPortal.operations.deferred")} {formatCurrency(operation.settlement.deferred_amount)}</span>
+                            ) : null}
+                            {operation.money?.balanced === false ? (
+                              <StatusPill tone="red" value={tt("managerPortal.operations.notInShift")} />
                             ) : null}
                           </div>
-                          <div className="shrink-0 text-left">
-                            <div className={`text-sm font-black ${difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                              {difference > 0 ? "+" : ""}{formatCurrency(difference)}
-                            </div>
-                            {/* dir=ltr so before → after keeps pointing at the new total inside the RTL page. */}
-                            <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
-                              {formatCurrency(operation.old_total || 0)} → {formatCurrency(operation.new_total || 0)}
-                            </div>
-                          </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </Card>
