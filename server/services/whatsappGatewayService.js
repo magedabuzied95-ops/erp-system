@@ -172,7 +172,48 @@ const normalizeEvolutionButtonsLifecycleStatus = (value = "") => {
   return status ? status.toUpperCase() : "PENDING";
 };
 
-const trackEvolutionButtonsMessage = ({
+// A lifecycle only moves forward. Evolution's messages.update for our own send routinely beats our
+// fetch response back, so the ack can be recorded before the sender says SERVER_ACK — and letting
+// that late SERVER_ACK overwrite a DELIVERY_ACK moved the message backwards and re-armed a watchdog
+// the real ack had already answered. FAILED is terminal in its own right.
+const EVOLUTION_LIFECYCLE_RANK = { PENDING: 0, SERVER_ACK: 1, DELIVERY_ACK: 2, READ: 3 };
+
+export const resolveEvolutionLifecycleStatus = (previousStatus = "PENDING", nextStatus = "PENDING") => {
+  if (nextStatus === "FAILED" || previousStatus === "FAILED") return "FAILED";
+  const previousRank = EVOLUTION_LIFECYCLE_RANK[previousStatus] ?? 0;
+  const nextRank = EVOLUTION_LIFECYCLE_RANK[nextStatus] ?? 0;
+  return nextRank >= previousRank ? nextStatus : previousStatus;
+};
+
+// The fallback re-sends the whole message body, so it may only run on evidence that the original
+// will never arrive — never on a guess. It runs at most once per tracked message.
+const runEvolutionButtonsFallback = (trackedMessageId, entry, reason) => {
+  if (typeof entry?.fallbackOnNotDelivered !== "function" || entry.fallbackTriggered) return;
+  entry.fallbackTriggered = true;
+  trackedEvolutionButtonMessages.set(trackedMessageId, entry);
+  console.warn("[evolution:buttons-fallback-triggered]", {
+    messageId: trackedMessageId,
+    reason,
+    endpoint: entry.endpoint,
+    orderId: entry.orderId,
+    phoneSuffix: entry.phoneSuffix,
+  });
+  Promise.resolve()
+    .then(() => entry.fallbackOnNotDelivered())
+    .catch((fallbackError) => {
+      console.warn("[evolution:buttons-not-delivered-fallback-error]", {
+        messageId: trackedMessageId,
+        reason,
+        endpoint: entry.endpoint,
+        orderId: entry.orderId,
+        phoneSuffix: entry.phoneSuffix,
+        message: fallbackError?.message || String(fallbackError),
+        code: fallbackError?.code || "",
+      });
+    });
+};
+
+export const trackEvolutionButtonsMessage = ({
   messageId = "",
   status = "PENDING",
   remoteJid = "",
@@ -208,7 +249,7 @@ const trackEvolutionButtonsMessage = ({
   const updated = {
     ...previous,
     messageId: trackedMessageId,
-    status: nextStatus,
+    status: resolveEvolutionLifecycleStatus(previous.status, nextStatus),
     remoteJid: text(remoteJid || previous.remoteJid || ""),
     messageType: text(messageType || previous.messageType || ""),
     endpoint: text(endpoint || previous.endpoint || ""),
@@ -229,6 +270,11 @@ const trackEvolutionButtonsMessage = ({
   });
   if (updated.status === "SERVER_ACK") {
     if (previous.timer) clearTimeout(previous.timer);
+    // A missing ack is not a failed button. WhatsApp only acks once the customer's phone is back
+    // online, so "no DELIVERY_ACK within 30s" mostly describes a phone that is switched off — and
+    // re-sending the body on that timer is what sent every late-night receipt twice: the CTA at
+    // 23:46:04, then the whole receipt again as plain text at 23:46:34. This timer now only
+    // reports, so the silence stays visible in the logs without costing the customer a duplicate.
     updated.timer = setTimeout(() => {
       const current = trackedEvolutionButtonMessages.get(trackedMessageId);
       if (!current) return;
@@ -241,23 +287,8 @@ const trackEvolutionButtonsMessage = ({
           orderId: current.orderId,
           phoneSuffix: current.phoneSuffix,
           endpoint: current.endpoint,
+          note: "reported only - an un-acked message is usually an offline phone, not a lost one",
         });
-        if (typeof current.fallbackOnNotDelivered === "function" && !current.fallbackTriggered) {
-          current.fallbackTriggered = true;
-          trackedEvolutionButtonMessages.set(trackedMessageId, current);
-          Promise.resolve()
-            .then(() => current.fallbackOnNotDelivered())
-            .catch((fallbackError) => {
-              console.warn("[evolution:buttons-not-delivered-fallback-error]", {
-                messageId: trackedMessageId,
-                endpoint: current.endpoint,
-                orderId: current.orderId,
-                phoneSuffix: current.phoneSuffix,
-                message: fallbackError?.message || String(fallbackError),
-                code: fallbackError?.code || "",
-              });
-            });
-        }
       }
     }, EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS);
   }
@@ -265,6 +296,10 @@ const trackEvolutionButtonsMessage = ({
     clearTimeout(updated.timer);
     updated.timer = null;
   }
+  // The provider saying FAILED is the one signal that really means this message will never arrive,
+  // and it is what the fallback was always for. Until now FAILED merely cleared the timer, so a
+  // button the provider rejected outright cost the customer the message it was attached to.
+  if (updated.status === "FAILED") runEvolutionButtonsFallback(trackedMessageId, updated, "provider_failed");
   trackedEvolutionButtonMessages.set(trackedMessageId, updated);
   return updated;
 };
