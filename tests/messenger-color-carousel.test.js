@@ -53,3 +53,24 @@ test("a Messenger colour-card tap is rewritten to catalog wording before the AI 
   const rawLogIndex = meta.indexOf("SOCIAL_COMMENT_MESSENGER_INBOUND_RAW");
   assert.ok(tapIndex > -1 && tapIndex < rawLogIndex, "rewrite precedes downstream consumption");
 });
+
+test("the REAL messenger sender groups cards into one horizontal carousel", () => {
+  // The AI-Inbox messenger product-card send runs through sendMetaInboxOutboundMessage, NOT
+  // sendMetaPageReply — so the first carousel branch never fired and cards stacked vertically as
+  // one single-element template each (live, 2026-08-28). The carousel now lives in the right sender.
+  const svc = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  assert.match(svc, /const buildMessengerCarouselElement = /, "an element builder exists");
+  assert.match(svc, /let messengerCarouselDone = false/, "the group branch exists");
+  const branch = svc.slice(svc.indexOf("let messengerCarouselDone = false"), svc.indexOf("if (cards.length && !messengerCarouselDone)"));
+  assert.match(branch, /cards\.length >= 2 && normalizedChannel === AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER/, "Messenger + a batch");
+  assert.match(branch, /template_type: "generic", elements: elements\.slice\(i, i \+ 10\)/, "a multi-element generic template, chunked at 10");
+  assert.match(branch, /catch \(carouselError\)/, "failure falls through to the per-card loop");
+  assert.match(svc, /if \(cards\.length && !messengerCarouselDone\)/, "per-card loop runs only when the carousel did not");
+});
+
+test("a colour element carries a variant postback, a plain one keeps عرض المنتج", () => {
+  const svc = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  const el = svc.slice(svc.indexOf("const buildMessengerCarouselElement"), svc.indexOf("const buildMessengerCarouselPayload"));
+  assert.match(el, /type: "postback", title: "اطلب اللون ده ✅", payload: `choose_color:\$\{variantId\}`/);
+  assert.match(el, /type: "web_url", url: productUrl, title: "عرض المنتج"/);
+});
