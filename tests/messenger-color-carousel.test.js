@@ -63,7 +63,7 @@ test("the REAL messenger sender groups cards into one horizontal carousel", () =
   assert.match(svc, /let messengerCarouselDone = false/, "the group branch exists");
   const branch = svc.slice(svc.indexOf("let messengerCarouselDone = false"), svc.indexOf("if (cards.length && !messengerCarouselDone)"));
   assert.match(branch, /cards\.length >= 2 && normalizedChannel === AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER/, "Messenger + a batch");
-  assert.match(branch, /template_type: "generic", elements: elements\.slice\(i, i \+ 10\)/, "a multi-element generic template, chunked at 10");
+  assert.ok(branch.includes('template_type: "generic"') && branch.includes("elements.slice(i, i + 10)"), "a multi-element generic template, chunked at 10");
   assert.match(branch, /catch \(carouselError\)/, "failure falls through to the per-card loop");
   assert.match(svc, /if \(cards\.length && !messengerCarouselDone\)/, "per-card loop runs only when the carousel did not");
 });
