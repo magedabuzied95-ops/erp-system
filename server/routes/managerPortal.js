@@ -28,6 +28,7 @@ import {
   correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
+  getManagerPortalDaySummary,
   markManagerPortalChatRead,
   markManagerPortalChatDelivered,
   updateManagerPortalChatPrefs,
@@ -440,6 +441,19 @@ router.get("/:token/operations", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] operations error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load invoice operations" });
+  }
+});
+
+router.get("/:token/day-summary", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const daySummary = await getManagerPortalDaySummary({ manager, query: req.query || {} });
+    return res.json({ success: true, daySummary });
+  } catch (error) {
+    console.error("[manager-portal] day summary error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load day summary" });
   }
 });
 

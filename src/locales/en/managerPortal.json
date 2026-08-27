@@ -715,5 +715,27 @@
     "4": "Thu",
     "5": "Fri",
     "6": "Sat"
+  },
+  "dayAccounts": {
+    "title": "Day accounts",
+    "subtitle": "Pick a branch and a cashier account to read that drawer on its own",
+    "allBranches": "All branches",
+    "allCashiers": "All cashiers",
+    "branch": "Branch",
+    "cashier": "Cashier account",
+    "sales": "Sales",
+    "invoices": "{{count}} invoices",
+    "expenses": "Expenses",
+    "expensesHint": "Tap for details",
+    "advances": "of which staff advances",
+    "cashExpenses": "of which cash",
+    "drawer": "Total cash in drawer",
+    "openShift": "Open shift",
+    "closedShift": "Closed shift",
+    "openingCash": "Opening cash",
+    "noExpenses": "No expenses today",
+    "noExpensesHint": "Any expense recorded today shows here with its details.",
+    "noShifts": "No shifts",
+    "noShiftsHint": "Once a cashier opens a shift their drawer appears here."
   }
 }

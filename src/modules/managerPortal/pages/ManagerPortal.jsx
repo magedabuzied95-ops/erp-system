@@ -957,6 +957,10 @@ export default function ManagerPortal() {
   // an existing invoice — often one issued days ago — so money can reach the till today with
   // nothing on the home to show for it. This carries today's operations onto the home.
   const [todayOperations, setTodayOperations] = useState({ operations: [], summary: null });
+  const [daySummary, setDaySummary] = useState(null);
+  const [daySummaryLoading, setDaySummaryLoading] = useState(false);
+  const [daySelection, setDaySelection] = useState({ branchId: "all", cashierUserId: "all" });
+  const [expensesOpen, setExpensesOpen] = useState(false);
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [operationsRange, setOperationsRange] = useState("month");
   const [operationsKind, setOperationsKind] = useState("all");
@@ -1292,6 +1296,25 @@ export default function ManagerPortal() {
     const difference = Number(operation.difference || 0);
     return { paid: difference >= 0, amount: Math.abs(difference), methods };
   };
+  // With "all branches" picked there is no single branch to read cashiers from, so the tree
+  // flattens; picking a branch narrows it to that drawer's people. Deduped by user id because
+  // one cashier can open several shifts in a day.
+  const dayCashiers = useMemo(() => {
+    const branches = Array.isArray(daySummary?.branches) ? daySummary.branches : [];
+    const scoped = daySelection.branchId === "all"
+      ? branches
+      : branches.filter((branch) => String(branch.id) === String(daySelection.branchId));
+    const byUser = new Map();
+    for (const branch of scoped) {
+      for (const cashier of branch.cashiers || []) {
+        if (!cashier?.user_id) continue;
+        const existing = byUser.get(String(cashier.user_id));
+        if (existing) existing.open_shifts += Number(cashier.open_shifts || 0);
+        else byUser.set(String(cashier.user_id), { ...cashier, open_shifts: Number(cashier.open_shifts || 0) });
+      }
+    }
+    return Array.from(byUser.values());
+  }, [daySummary, daySelection.branchId]);
   // One timeline, not two lists. A sale, an edit and a return all happened AT a time, and the
   // manager reads the day in that order — an exchange at 8pm belongs under the 8pm sale, not in
   // a separate box at the top. An exchange INVOICE is its own order row, so it would otherwise
@@ -1683,6 +1706,27 @@ export default function ManagerPortal() {
     void reloadTabData("operations", { force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operationsRange, operationsKind]);
+
+  // Its own request, on its own schedule: the day summary is heavier than the home and it
+  // re-runs on every branch/cashier change, so it must never sit inside the home's payload.
+  useEffect(() => {
+    if (!token || loading || activeTab !== "today") return;
+    let cancelled = false;
+    setDaySummaryLoading(true);
+    managerPortalApi
+      .daySummary(token, { branch_id: daySelection.branchId, cashier_user_id: daySelection.cashierUserId })
+      .then((response) => {
+        if (cancelled) return;
+        setDaySummary(normalizeManagerPortalPayload("daySummary", response?.daySummary || null));
+      })
+      .catch(() => {
+        if (!cancelled) setDaySummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDaySummaryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [token, loading, activeTab, daySelection.branchId, daySelection.cashierUserId]);
 
   const markNotificationRead = async (id) => {
     const previous = notifications;
@@ -2742,6 +2786,146 @@ export default function ManagerPortal() {
                   </div>
                 </>
               )}
+
+              <section>
+                <Card
+                  title={tt("managerPortal.dayAccounts.title")}
+                  subtitle={tt("managerPortal.dayAccounts.subtitle")}
+                  icon={Store}
+                  compact
+                  bodyClassName="space-y-2"
+                  action={(
+                    <div className="space-y-2">
+                      {daySummary?.selection?.branch_locked ? null : (
+                        <div className="flex flex-wrap gap-2">
+                          {[{ id: "all", name: tt("managerPortal.dayAccounts.allBranches") }, ...(daySummary?.branches || [])].map((branch) => {
+                            const active = String(daySelection.branchId) === String(branch.id);
+                            return (
+                              <button
+                                key={`day-branch-${branch.id}`}
+                                type="button"
+                                // Changing branch clears the cashier: a cashier account belongs to
+                                // one drawer, so keeping the old pick would show an empty day.
+                                onClick={() => setDaySelection({ branchId: String(branch.id), cashierUserId: "all" })}
+                                className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-slate-900 bg-slate-900 text-white dark:border-white/40" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
+                              >
+                                {portalText(branch.name)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {dayCashiers.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {[{ user_id: "all", name: tt("managerPortal.dayAccounts.allCashiers") }, ...dayCashiers].map((cashier) => {
+                            const active = String(daySelection.cashierUserId) === String(cashier.user_id);
+                            return (
+                              <button
+                                key={`day-cashier-${cashier.user_id}`}
+                                type="button"
+                                onClick={() => setDaySelection((current) => ({ ...current, cashierUserId: String(cashier.user_id) }))}
+                                className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-400/10 dark:text-amber-100" : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300"}`}
+                              >
+                                {portalText(cashier.name)}
+                                {cashier.open_shifts ? " •" : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                >
+                  {daySummaryLoading && !daySummary ? (
+                    <div className="flex items-center justify-center py-6 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+                        <span className="text-sm font-black text-slate-800 dark:text-slate-100">{tt("managerPortal.dayAccounts.sales")}</span>
+                        <span className="text-left">
+                          <span className="block text-sm font-black text-emerald-600 dark:text-emerald-300">{formatCurrency(daySummary?.sales?.total || 0)}</span>
+                          {/* Pre-formatted: i18next's own count formatting renders Latin digits
+                              beside every other Arabic-Indic number on the card. */}
+                          <span className="block text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.invoices", { count: formatNumber(daySummary?.sales?.invoice_count || 0) })}</span>
+                        </span>
+                      </div>
+
+                      {(daySummary?.payment_methods || []).map((row) => (
+                        <div key={`day-method-${row.method}`} className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-bold dark:border-white/10 dark:bg-white/[0.03]">
+                          <span className="inline-flex items-center gap-2 text-slate-700 dark:text-slate-200"><span className="h-2 w-2 rounded-full bg-emerald-500" />{paymentMethodLabel(row.method)}</span>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="font-black text-slate-950 dark:text-white">{formatCurrency(row.total || 0)}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">{formatNumber(row.count || 0)}</span>
+                          </span>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setExpensesOpen((open) => !open)}
+                        className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-amber-300 bg-amber-50 px-3 py-2.5 text-right dark:border-amber-400/20 dark:bg-amber-400/10"
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-sm font-black text-amber-900 dark:text-amber-100">{tt("managerPortal.dayAccounts.expenses")}</span>
+                          <span className="block text-[11px] font-bold text-amber-800/80 dark:text-amber-200/70">{tt("managerPortal.dayAccounts.expensesHint")}</span>
+                        </span>
+                        <span className="shrink-0 text-left">
+                          <span className="block text-sm font-black text-rose-600 dark:text-rose-300">{formatCurrency(daySummary?.expenses?.total || 0)}</span>
+                          <span className="block text-[11px] font-bold text-amber-800/80 dark:text-amber-200/70">{formatNumber(daySummary?.expenses?.count || 0)}</span>
+                        </span>
+                        <ChevronDown className={`h-4 w-4 shrink-0 text-amber-700 transition dark:text-amber-200 ${expensesOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      {expensesOpen ? (
+                        (daySummary?.expenses?.items || []).length ? (
+                          <div className="space-y-1 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                            {daySummary.expenses.items.map((expense) => (
+                              <div key={`day-expense-${expense.id}`} className="flex items-start justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0 dark:border-white/5">
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-xs font-black text-slate-800 dark:text-slate-100"><InlineName>{portalText(expense.title)}</InlineName></span>
+                                  <span className="block truncate text-[11px] font-bold text-slate-500">
+                                    {[portalText(expense.category), paymentMethodLabel(expense.payment_method), portalText(expense.actor_name), formatDateTime(expense.at)].filter(Boolean).join(" · ")}
+                                  </span>
+                                  {expense.notes ? <span className="block truncate text-[11px] font-semibold text-slate-400"><InlineName>{portalText(expense.notes)}</InlineName></span> : null}
+                                </span>
+                                <span className="shrink-0 text-xs font-black text-rose-600 dark:text-rose-300">{formatCurrency(expense.amount || 0)}</span>
+                              </div>
+                            ))}
+                            {daySummary.expenses.advances_total > 0 ? (
+                              <div className="pt-1 text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.advances")}: {formatCurrency(daySummary.expenses.advances_total)}</div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <EmptyState compact title={tt("managerPortal.dayAccounts.noExpenses")} body={tt("managerPortal.dayAccounts.noExpensesHint")} />
+                        )
+                      ) : null}
+
+                      <div className="rounded-[var(--radius-card)] border border-emerald-300 bg-emerald-50 px-3 py-2.5 dark:border-emerald-400/20 dark:bg-emerald-400/10">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-black text-emerald-900 dark:text-emerald-100">{tt("managerPortal.dayAccounts.drawer")}</span>
+                          <span className="text-sm font-black text-emerald-700 dark:text-emerald-200">{formatCurrency(daySummary?.drawer?.expected_total || 0)}</span>
+                        </div>
+                        {(daySummary?.drawer?.shifts || []).length ? (
+                          <div className="mt-2 space-y-1 border-t border-emerald-200 pt-2 dark:border-emerald-400/20">
+                            {daySummary.drawer.shifts.map((shiftRow) => (
+                              <div key={`day-shift-${shiftRow.id}`} className="flex items-center justify-between gap-2 text-[11px] font-bold text-emerald-900/80 dark:text-emerald-100/80">
+                                <span className="min-w-0 flex-1 truncate">
+                                  <InlineName>{portalText(shiftRow.cashier_name)}</InlineName>
+                                  {shiftRow.branch_name ? ` · ${portalText(shiftRow.branch_name)}` : ""}
+                                  {` · ${shiftRow.status === "open" ? tt("managerPortal.dayAccounts.openShift") : tt("managerPortal.dayAccounts.closedShift")}`}
+                                </span>
+                                <span className="shrink-0 font-black">{formatCurrency(shiftRow.expected_cash || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 border-t border-emerald-200 pt-2 text-[11px] font-bold text-emerald-900/70 dark:border-emerald-400/20 dark:text-emerald-100/70">{tt("managerPortal.dayAccounts.noShiftsHint")}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </section>
 
               {todayFeed.length || !isMobilePortal ? (
                 <section ref={liveFeedSectionRef} className="scroll-mt-28">
