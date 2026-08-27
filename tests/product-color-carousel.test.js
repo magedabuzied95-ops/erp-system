@@ -110,3 +110,20 @@ test("expansion is WhatsApp-only - Meta has no carousel to carry it", () => {
   assert.match(routes, /startsWith\("whatsapp"\)\s*\r?\n?\s*\? await expandProductCardsByColor/,
     "a Messenger conversation keeps one card per product instead of N separate images");
 });
+
+test("BOTH approve paths shrink the text for a colour batch - desktop and PWA", () => {
+  // The PWA is a separate component with its own approve handler; the desktop-only fix left the
+  // PWA sending the full per-colour dump next to the carousel (live complaint, 2026-08-28).
+  const desktop = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+  const pwa = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+  assert.match(desktop, /variantOptionsLead/, "desktop shrinks it");
+  assert.match(pwa, /اختار اللي يعجبك 👇/, "the PWA shrinks it too");
+  const approve = pwa.slice(pwa.indexOf("const handleApproveAiSuggestion"), pwa.indexOf("const handleDismissAiSuggestion"));
+  assert.match(approve, /colorChoices\.length >= 2\s*\r?\n?\s*\?/, "gated on an actual colour batch");
+  assert.match(approve, /: activeAiSuggestionText/, "a non-batch suggestion keeps its full text");
+});
+
+test("the PWA service worker version bumped so stale bundles refresh", () => {
+  const sw = fs.readFileSync(new URL("../public/inbox-sw.js", import.meta.url), "utf8");
+  assert.match(sw, /const VERSION = "ai-inbox-v14"/, "a bumped version forces the old cached JS out");
+});

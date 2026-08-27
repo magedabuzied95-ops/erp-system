@@ -5193,8 +5193,19 @@ export default function AiInboxPwa() {
     if (!activeAiSuggestionText) return;
     trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Suggestion Accepted");
     setComposerMode("reply");
-    setComposerText(activeAiSuggestionText);
-    void sendManualReply(activeAiSuggestionText, {
+    // A colour-options suggestion's text lists every colour with its sizes, price and link — which
+    // is exactly what the carousel is about to show as cards. Sending the full text alongside the
+    // carousel made the customer read the same catalogue twice (the long "اللون: ... المتاح: ..."
+    // block). Mirror the desktop: shrink the text leg to a one-line lead for a colour batch.
+    const colorChoices = Array.isArray(activeAiReplyDraft?.send_package?.color_choices)
+      ? activeAiReplyDraft.send_package.color_choices
+      : [];
+    const firstChoiceName = clean(colorChoices[0]?.product_name || colorChoices[0]?.name || "المنتج");
+    const approvalText = colorChoices.length >= 2
+      ? `${firstChoiceName} متوفر بالألوان دي — اختار اللي يعجبك 👇`
+      : activeAiSuggestionText;
+    setComposerText(approvalText);
+    void sendManualReply(approvalText, {
       allowSameTextCorrection: true,
       correctionMetadata: {
         source: "ai_suggestion_approved",
