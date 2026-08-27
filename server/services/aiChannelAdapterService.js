@@ -815,7 +815,12 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
       const recipientId = toText(event.recipient?.id);
       const pageId = toText(entry.id || recipientId);
       const isEcho = event.message?.is_echo === true || event.message?.app_id || event.message?.metadata;
-      const senderLooksLikePage = channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && pageId && senderId === pageId;
+      // A reply typed inside the Facebook or Instagram app comes back as an echo of
+      // our own message, and Instagram's echo does not always carry `is_echo`. Both
+      // objects put the business account in `entry.id`, so a sender that IS the
+      // account is us whatever the flag says. Restricting this to Messenger made
+      // every unflagged Instagram echo look like a message FROM the customer.
+      const senderLooksLikePage = Boolean(pageId) && senderId === pageId;
       const isPageOrigin = Boolean(isEcho || senderLooksLikePage);
       const customerId = isPageOrigin ? recipientId : senderId;
       if (!customerId) continue;

@@ -7293,11 +7293,16 @@ export default function AiInbox({ reviewerMode = false }) {
       setMetaHistorySyncing(false);
       const fb = payload?.facebook || {};
       const ig = payload?.instagram || {};
-      const notes = [];
-      if (Number(payload?.profile_lookups_blocked || 0)) notes.push("صور العملاء محجوبة من Meta — تحتاج موافقة Business Asset User Profile Access في App Review");
-      if (Number(payload?.instagram_permission_blocked || 0)) notes.push("محادثات إنستجرام الأقدم محجوبة — تحتاج Advanced Access على instagram_manage_messages");
+      const warnings = [];
+      if (Number(payload?.profile_lookups_blocked || 0)) warnings.push("صور العملاء محجوبة من Meta — تحتاج موافقة Business Asset User Profile Access في App Review");
+      if (Number(payload?.instagram_permission_blocked || 0)) warnings.push("محادثات إنستجرام الأقدم محجوبة — تحتاج Advanced Access على instagram_manage_messages");
+      // Replies typed inside the Meta apps used to be filed as the customer's.
+      // A sync corrects them from Graph, so say how many were put right — good
+      // news, not a warning, so it must not turn the toast amber.
+      const repaired = Number(fb.messages_repaired || 0) + Number(ig.messages_repaired || 0);
+      const notes = repaired ? [`تم تصحيح ${repaired} رسالة كانت متسجّلة باسم العميل وهي في الأصل ردّ منّا`, ...warnings] : warnings;
       setToast({
-        tone: notes.length ? "amber" : "emerald",
+        tone: warnings.length ? "amber" : "emerald",
         text: `Facebook: ${Number(fb.conversations_synced || 0)} conversations synced · Instagram: ${Number(ig.conversations_synced || 0)} conversations synced${notes.length ? ` · ${notes.join(" · ")}` : ""}`,
       });
       void loadAll({ silent: true });

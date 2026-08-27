@@ -15,6 +15,7 @@ import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/
 import { buildAiPriceGuard, guardAiNameCapture } from "../utils/aiProductReplyGuards.js";
 import {
   appendAiGeneratedSupportReply,
+  appendChannelOutboundSupportReply,
   ensureAiSupportLogSchema,
   hasRecentAiReplyDuplicate,
   getAiSupportConversationState,
@@ -151,6 +152,11 @@ const META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS = [
   "messages",
   "messaging_postbacks",
 ];
+// Echoes of replies typed in the Instagram app are what keep the inbox honest
+// about who said what, but whether `message_echoes` is a legal Instagram field
+// depends on the Graph version the app is pinned to — so it is the widest rung
+// of a ladder, never a requirement.
+const META_INSTAGRAM_WEBHOOK_ECHO_FIELDS = [...META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS, "message_echoes"];
 const META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS = ["messages"];
 const META_WEBHOOK_MINIMAL_FIELDS = [
   "feed",
@@ -7105,59 +7111,58 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   const instagramBusinessAccountId = text(row?.instagram_business_account_id || "");
   result.instagram_subscription = {
     account_id: instagramBusinessAccountId,
-    requested_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
+    requested_fields: META_INSTAGRAM_WEBHOOK_ECHO_FIELDS,
     subscribed_fields: [],
     subscribed: false,
     error: "",
   };
   if (instagramBusinessAccountId) {
-    try {
-      const instagramSubscriptionMeta = await callMetaPostForm({
-        endpoint: `/${encodeURIComponent(instagramBusinessAccountId)}/subscribed_apps`,
-        token,
-        body: { subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS.join(",") },
-      });
-      result.instagram_subscription = {
-        ...result.instagram_subscription,
-        subscribed: instagramSubscriptionMeta?.success !== false,
-        subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
-        meta: instagramSubscriptionMeta || null,
-      };
-      console.log("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_SUCCESS", {
-        tenant_id: numberOrNull(tenantId),
-        instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
-        subscribed_fields: META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
-      });
-    } catch (error) {
+    // Widest set first, keep the first one Meta accepts. Losing a rung costs the
+    // echoes (or the comment fields), never the messages themselves.
+    const instagramFieldLadder = [
+      META_INSTAGRAM_WEBHOOK_ECHO_FIELDS,
+      META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
+      META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS,
+    ];
+    let instagramSubscriptionError = null;
+    for (const [rung, fields] of instagramFieldLadder.entries()) {
       try {
-        const fallbackMeta = await callMetaPostForm({
+        const subscriptionMeta = await callMetaPostForm({
           endpoint: `/${encodeURIComponent(instagramBusinessAccountId)}/subscribed_apps`,
           token,
-          body: { subscribed_fields: META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS.join(",") },
+          body: { subscribed_fields: fields.join(",") },
         });
         result.instagram_subscription = {
           ...result.instagram_subscription,
-          subscribed: fallbackMeta?.success !== false,
-          subscribed_fields: META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS,
-          meta: fallbackMeta || null,
-          optional_fields_error: error?.message || "Meta rejected optional Instagram webhook fields",
+          subscribed: subscriptionMeta?.success !== false,
+          subscribed_fields: fields,
+          meta: subscriptionMeta || null,
+          ...(instagramSubscriptionError
+            ? { optional_fields_error: instagramSubscriptionError?.message || "Meta rejected optional Instagram webhook fields" }
+            : {}),
         };
         console.log("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_SUCCESS", {
           tenant_id: numberOrNull(tenantId),
           instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
-          subscribed_fields: META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS,
-          fallback: true,
+          subscribed_fields: fields,
+          echoes: fields.includes("message_echoes"),
+          fallback: rung > 0,
         });
-      } catch (fallbackError) {
-        result.instagram_subscription.error = fallbackError?.message || error?.message || "Unable to subscribe Instagram messages webhook";
-        result.instagram_subscription.meta = fallbackError?.meta || error?.meta || null;
-        console.warn("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_FAILED", {
-          tenant_id: numberOrNull(tenantId),
-          instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
-          message: result.instagram_subscription.error,
-          meta: result.instagram_subscription.meta,
-        });
+        instagramSubscriptionError = null;
+        break;
+      } catch (error) {
+        instagramSubscriptionError = error;
       }
+    }
+    if (instagramSubscriptionError) {
+      result.instagram_subscription.error = instagramSubscriptionError?.message || "Unable to subscribe Instagram messages webhook";
+      result.instagram_subscription.meta = instagramSubscriptionError?.meta || null;
+      console.warn("META_INSTAGRAM_WEBHOOK_SUBSCRIPTION_FAILED", {
+        tenant_id: numberOrNull(tenantId),
+        instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+        message: result.instagram_subscription.error,
+        meta: result.instagram_subscription.meta,
+      });
     }
   }
 
@@ -23683,6 +23688,68 @@ export const processMetaWebhook = async ({ req } = {}) => {
       tenantId: config.tenant_id,
       attachments: message.attachments,
     });
+    // A reply the team typed inside the Facebook or Instagram app reaches us as an
+    // echo of our OWN message. It belongs in the customer's thread, but as ours:
+    // every echo used to fall through to logIncomingToInbox, which writes
+    // sender_type 'customer' unconditionally, so the transcript showed the team's
+    // own replies as if the customer had sent them — and the AI answered them.
+    if (message.from_me === true || text(message.direction) === "outbound") {
+      const echoAlias = channelAlias(message.channel);
+      const echoMessageId = text(message.external_message_id || message.dedupe_key || "");
+      const echoText = text(message.message_text) || inboundAttachmentLabel(message.attachments) || "[attachment]";
+      // preserveExistingOnProviderMatch: a reply sent FROM the inbox is already
+      // stored under this mid, and Meta echoes it back to us anyway.
+      const outboundRow = await appendChannelOutboundSupportReply({
+        tenantId: config.tenant_id,
+        sessionId: message.external_conversation_id,
+        message: echoText,
+        channel: message.channel,
+        senderType: "staff",
+        staffMessage: echoText,
+        staffUserName: "أنا",
+        source: "meta_provider_echo",
+        sourcePath: "meta_provider_echo",
+        insertSource: "meta_provider_echo",
+        deliveryStatus: "sent",
+        externalMessageId: echoMessageId,
+        providerMessageId: echoMessageId,
+        visualAttachments: message.attachments || [],
+        sessionCustomerName: message.customer_name || "",
+        sessionStatus: "ai_active",
+        preserveExistingOnProviderMatch: true,
+      }).catch((error) => {
+        console.warn("[meta-webhook] outbound echo persistence failed", {
+          tenant_id: config.tenant_id,
+          channel: echoAlias,
+          conversation_id: message.external_conversation_id,
+          message: error?.message || "",
+        });
+        return null;
+      });
+      if (outboundRow) {
+        emitToRooms([`tenant:${config.tenant_id}`], "ai_inbox:message", {
+          tenant_id: config.tenant_id,
+          session_id: message.external_conversation_id,
+          channel: message.channel,
+          message: { ...outboundRow, from_me: true, direction: "outbound" },
+        });
+      }
+      console.log("[meta-webhook] provider_echo_stored", {
+        tenant_id: config.tenant_id,
+        channel: echoAlias,
+        conversation_id: message.external_conversation_id,
+        external_message_id: maskIdForLog(echoMessageId),
+        stored: Boolean(outboundRow),
+      });
+      results.push({
+        channel: echoAlias,
+        external_user_id: message.external_customer_id,
+        stored: Boolean(outboundRow),
+        sent: false,
+        provider_echo: true,
+      });
+      continue;
+    }
     assignInboundMessageLifecycle(message);
     console.info("[meta-inbound-message]", {
       channel: text(message.channel || ""),
@@ -25447,13 +25514,30 @@ const fetchMetaSyncProfile = async ({ userId, token, instagram = false }) => {
   }
 };
 
-const persistMetaSyncedMessage = async ({ tenantId, sessionRefId, sessionId, channel, customerName, customerAvatarUrl, graphMessage, businessIds }) => {
+// Who sent a synced message. A DM thread has exactly two participants, so "not
+// the customer" IS the business. The business-id allowlist alone was too narrow:
+// an Instagram config with no stored instagram_business_account_id matched
+// nothing, and every message the team had sent synced in as the customer's.
+export const metaSyncedMessageIsFromBusiness = ({ fromId = "", businessIds = new Set(), customerExternalId = "" } = {}) => {
+  const sender = text(fromId);
+  if (!sender) return false;
+  const ids = businessIds instanceof Set ? businessIds : new Set(asArray(businessIds).map(text).filter(Boolean));
+  if (ids.has(sender)) return true;
+  const customer = text(customerExternalId);
+  return Boolean(customer) && sender !== customer;
+};
+
+const persistMetaSyncedMessage = async ({ tenantId, sessionRefId, sessionId, channel, customerName, customerAvatarUrl, graphMessage, businessIds, customerExternalId = "" }) => {
   const mid = text(graphMessage?.id);
   const body = text(graphMessage?.message);
   const attachments = mapMetaSyncAttachments(graphMessage);
   if (!mid || (!body && !attachments.length)) return { skipped: true };
   const createdAt = toIsoOrNull(graphMessage?.created_time) || nowIso();
-  const fromBusiness = businessIds.has(text(graphMessage?.from?.id));
+  const fromBusiness = metaSyncedMessageIsFromBusiness({
+    fromId: graphMessage?.from?.id,
+    businessIds,
+    customerExternalId,
+  });
   const displayText = body || inboundAttachmentLabel(attachments) || "[attachment]";
   // The webhook path keys inbound rows by the Meta mid (dedupe_key = mid), so a
   // message that already arrived live conflicts here and is skipped. Outbound
@@ -25461,14 +25545,36 @@ const persistMetaSyncedMessage = async ({ tenantId, sessionRefId, sessionId, cha
   // with a different dedupe_key — the EXISTS guard covers those.
   const existing = await db.query(
     `
-    SELECT 1 FROM ai_support_messages
+    SELECT id, sender_type FROM ai_support_messages
     WHERE tenant_id = $1 AND session_id = $2
       AND (dedupe_key = $3 OR external_message_id = $3 OR provider_message_id = $3)
     LIMIT 1
     `,
     [tenantId, sessionId, mid]
   );
-  if (existing.rows.length) return { existing: true };
+  if (existing.rows.length) {
+    // Graph's `from` is the authority on who sent a message, so a re-sync repairs
+    // threads that were stored the wrong way round — a reply typed in the Meta app
+    // and filed as the customer's. Only customer→staff: nothing Graph returns can
+    // turn one of our own AI replies into a customer message, so the reverse is
+    // never attempted.
+    if (fromBusiness && lower(existing.rows[0].sender_type) === "customer") {
+      await db.query(
+        `
+        UPDATE ai_support_messages
+        SET sender_type = 'staff',
+            staff_message = COALESCE(NULLIF(staff_message, ''), NULLIF(customer_message, ''), NULLIF(message_text, ''), NULLIF(last_message, ''), $2::text),
+            customer_message = '',
+            customer_avatar_url = '',
+            updated_at = NOW()
+        WHERE id = $1::bigint
+        `,
+        [existing.rows[0].id, displayText]
+      );
+      return { existing: true, repaired: true };
+    }
+    return { existing: true };
+  }
   const inserted = await db.query(
     `
     INSERT INTO ai_support_messages (
@@ -25515,6 +25621,7 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
     conversations_synced: 0,
     messages_synced: 0,
     messages_existing: 0,
+    messages_repaired: 0,
     errors: [],
   };
   let token = "";
@@ -25776,9 +25883,13 @@ const syncMetaConversationsForConfig = async ({ config, channel, conversationLim
           customerAvatarUrl,
           graphMessage,
           businessIds,
+          customerExternalId: customerId,
         });
         if (outcome.inserted) { result.messages_synced += 1; insertedAny = true; }
-        else if (outcome.existing) result.messages_existing += 1;
+        else if (outcome.existing) {
+          result.messages_existing += 1;
+          if (outcome.repaired) result.messages_repaired = (result.messages_repaired || 0) + 1;
+        }
       } catch (error) {
         result.errors.push({ endpoint: "db:ai_support_messages", http_status: null, meta_code: null, meta_subcode: null, message: text(error?.message).slice(0, 200) });
       }
@@ -25898,8 +26009,9 @@ export const syncMetaConversationHistoryForTenant = async ({
       conversations_synced: acc.conversations_synced + entry.conversations_synced,
       messages_synced: acc.messages_synced + entry.messages_synced,
       messages_existing: acc.messages_existing + entry.messages_existing,
+      messages_repaired: acc.messages_repaired + Number(entry.messages_repaired || 0),
       errors: acc.errors + entry.errors.length,
-    }), { conversations_found: 0, conversations_synced: 0, messages_synced: 0, messages_existing: 0, errors: 0 });
+    }), { conversations_found: 0, conversations_synced: 0, messages_synced: 0, messages_existing: 0, messages_repaired: 0, errors: 0 });
   await db.query(`UPDATE meta_integration_configs SET last_sync_at = NOW(), updated_at = NOW() WHERE tenant_id = $1`, [safeTenantId]).catch(() => {});
   // Realtime repair, same action as the settings "verify webhook" button: make
   // sure the page is subscribed to the app's webhooks so NEW messages keep
