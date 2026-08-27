@@ -2169,7 +2169,64 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
       },
     });
   }
-  if (productCards.length) {
+  // ── Messenger generic-template carousel (Facebook Messenger only) ────────────────────────────
+  // Messenger has a FIRST-PARTY horizontal carousel (attachment.type "template",
+  // template_type "generic"): up to 10 elements, each an image + title + subtitle + buttons.
+  // It is the same shape the WhatsApp colour carousel gives, but officially supported here.
+  // A postback button carries choose_color:<variant_id> back through the webhook — the same
+  // structured tap the grounding gate already resolves. Instagram does NOT support this button
+  // carousel, so it stays on the per-card path below. Any failure falls through to that path too:
+  // the carousel is an upgrade, never a new way to lose the message.
+  let metaCarouselHandled = false;
+  if (normalized === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && productCards.length >= 2) {
+    try {
+      const elements = productCards.map((product) => {
+        const title = [toText(product.color) || toText(product.name), toText(product.price_text)].filter(Boolean).join(" — ").slice(0, 80);
+        const sizes = asArray(product.sizes || product.available_sizes).map((s) => toText(s)).filter(Boolean);
+        const subtitle = (sizes.length ? `المقاسات: ${sizes.slice(0, 8).join(" / ")}` : toText(product.name)).slice(0, 80);
+        const imageUrl = toText(product.image_url || product.image || product.main_image || "");
+        const variantId = toText(product.variant_id || product.price_variant_id || "");
+        const url = toText(product.storefront_url || product.product_url || product.url || "");
+        const buttons = variantId
+          ? [{ type: "postback", title: "اطلب اللون ده ✅", payload: `choose_color:${variantId}` }]
+          : (url ? [{ type: "web_url", title: "شوف المنتج 🛒", url }] : []);
+        return { title, subtitle, image_url: imageUrl || undefined, buttons: buttons.length ? buttons : undefined };
+      }).filter((el) => el.image_url && el.buttons);
+      if (elements.length >= 2) {
+        // Messenger caps a generic template at 10 elements; chunk instead of truncating.
+        for (let i = 0; i < elements.length; i += 10) {
+          const carouselResult = await postMetaPageMessage({
+            config,
+            payload: {
+              recipient: { id: recipient },
+              messaging_type: "RESPONSE",
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: { template_type: "generic", elements: elements.slice(i, i + 10) },
+                },
+              },
+            },
+          });
+          results.push(carouselResult);
+          productCardSentCount += 1;
+        }
+        for (const batchSummary of productCardBatchSummaries) batchSummary.sent_count = batchSummary.normalized_count;
+        metaCarouselHandled = true;
+        console.info("[ai-agent:meta] messenger carousel sent", {
+          to: maskSecret(recipient),
+          elements: elements.length,
+          with_variant_buttons: elements.filter((el) => el.buttons?.[0]?.type === "postback").length,
+        });
+      }
+    } catch (carouselError) {
+      console.warn("[ai-agent:meta] messenger carousel failed; falling back to per-card sends", {
+        message: carouselError?.message,
+        code: carouselError?.code || "",
+      });
+    }
+  }
+  if (productCards.length && !metaCarouselHandled) {
     for (let batchIndex = 0; batchIndex < normalizedProductCardBatches.length; batchIndex += 1) {
       const batch = normalizedProductCardBatches[batchIndex];
       const requestedBatch = productCardBatches[batchIndex] || [];

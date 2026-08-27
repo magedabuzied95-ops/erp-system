@@ -24111,6 +24111,32 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: alias,
       external_customer_id: message.external_customer_id,
     });
+    // ── Colour-card postback (Messenger) ─────────────────────────────────────────────────────────
+    // A tap on a generic-template colour card arrives as a postback whose payload names the exact
+    // variant: choose_color:<variant_id>. The AI pipeline grounds colours from TEXT, so — exactly
+    // as on WhatsApp — rewrite it into the one sentence the grounding gate resolves deterministically:
+    // the product name and the colour string as the catalog spells them. The tap's own title says
+    // nothing usable; this is what turns it into an unambiguous colour choice.
+    {
+      const metaPostback = text(message?.postback_payload || message?.raw?.event?.postback?.payload || message?.raw?.postback_payload || "");
+      const colorTap = metaPostback.match(/^choose_color:(\d+)$/);
+      if (colorTap) {
+        try {
+          const variantRow = await db.query(
+            `SELECT v.id, v.color, p.name AS product_name FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.id = $1 LIMIT 1`,
+            [Number(colorTap[1])]
+          );
+          const picked = variantRow.rows[0];
+          if (picked) {
+            const rewritten = `عايز ${picked.product_name}${picked.color ? ` لون ${picked.color}` : ""}`;
+            console.info("[meta:color-choice-tap]", { variant_id: picked.id, color: picked.color || "", product: picked.product_name || "", rewritten });
+            message.message_text = rewritten;
+          }
+        } catch (metaTapError) {
+          console.warn("[meta:color-choice-tap-failed]", { payload: metaPostback, message: metaTapError?.message || String(metaTapError) });
+        }
+      }
+    }
     if (text(message?.channel || "") === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
       console.log("SOCIAL_COMMENT_MESSENGER_INBOUND_RAW", {
         sender_id: text(message?.raw?.event?.sender?.id || message?.raw?.sender_psid || message?.external_customer_id || ""),

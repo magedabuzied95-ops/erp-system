@@ -6432,9 +6432,13 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
   const enrichedProductCards = await Promise.all(
     normalizedProductCards.map((card) => enrichSelectedProductCard({ tenantId, card }))
   );
-  // WhatsApp-only: Evolution renders the colour cards as one carousel. Meta and Telegram have no
-  // carousel transport here, so expanding for them would fan one product into N separate images.
-  const productCards = envText(req.params.conversationId).startsWith("whatsapp")
+  // WhatsApp (Evolution carousel) and Messenger (generic-template carousel) both render the colour
+  // cards as one swipeable strip, so expand a multi-colour product for them. Instagram has no
+  // button carousel and Telegram no carousel transport here, so they keep one card per product —
+  // expanding there would just fan one product into N separate images.
+  const conversationKey = envText(req.params.conversationId);
+  const supportsColorCarousel = conversationKey.startsWith("whatsapp") || conversationKey.startsWith("facebook_messenger");
+  const productCards = supportsColorCarousel
     ? await expandProductCardsByColor({ tenantId, cards: enrichedProductCards })
     : enrichedProductCards;
   if (!productCards.length) {
