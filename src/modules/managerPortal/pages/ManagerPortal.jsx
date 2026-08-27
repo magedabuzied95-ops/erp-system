@@ -948,6 +948,10 @@ export default function ManagerPortal() {
   const [sales, setSales] = useState(null);
   const [stockAlerts, setStockAlerts] = useState(null);
   const [operations, setOperations] = useState({ operations: [], summary: null, truncated: false });
+  // "فواتير اليوم" only ever lists orders CREATED today. An edit / return / exchange rewrites
+  // an existing invoice — often one issued days ago — so money can reach the till today with
+  // nothing on the home to show for it. This carries today's operations onto the home.
+  const [todayOperations, setTodayOperations] = useState({ operations: [], summary: null });
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [operationsRange, setOperationsRange] = useState("month");
   const [operationsKind, setOperationsKind] = useState("all");
@@ -1263,6 +1267,11 @@ export default function ManagerPortal() {
   const visibleLowStock = showMoreLowStock ? [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock] : [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].slice(0, 3);
   const hasMoreLowStock = [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].length > visibleLowStock.length;
   const todayInvoices = Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices : [];
+  // Field-only edits (address, shipping status) moved neither goods nor money — they belong in
+  // the operations tab, not on a home card whose whole point is "money moved and you can't see it".
+  const todayOperationsList = useMemo(() => (
+    (Array.isArray(todayOperations?.operations) ? todayOperations.operations : []).filter((operation) => !operation?.fields_only)
+  ), [todayOperations]);
   const setTaskExpanded = (taskId, expanded) => {
     setExpandedTaskIds((current) => ({ ...current, [taskId]: expanded }));
   };
@@ -1363,12 +1372,13 @@ export default function ManagerPortal() {
 
   const loadDeferredData = useCallback(async () => {
     if (!token) return;
-    const [staffRes, tasksRes, salesRes, stockRes, templatesRes] = await Promise.allSettled([
+    const [staffRes, tasksRes, salesRes, stockRes, templatesRes, todayOperationsRes] = await Promise.allSettled([
       managerPortalApi.staff(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.tasks(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.sales(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.stockAlerts(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.taskTemplates(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+      managerPortalApi.operations(token, { range: "today", kind: "all", limit: 20 }, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
     ]);
 
     const now = Date.now();
@@ -1385,6 +1395,16 @@ export default function ManagerPortal() {
 
     const nextStock = settledValue(stockRes);
     if (nextStock) { setStockAlerts(normalizeManagerPortalPayload("stockAlerts", nextStock?.stockAlerts || null)); tabFetchedAtRef.current.today = now; }
+
+    // Marking `today` fresh above suppresses the tab's own reload for the next 45s, so the
+    // home's operations card has to be filled from this pass or it stays empty on first paint.
+    const nextTodayOperations = settledValue(todayOperationsRes);
+    if (nextTodayOperations) {
+      setTodayOperations(normalizeManagerPortalPayload("todayOperations", {
+        operations: Array.isArray(nextTodayOperations?.operations) ? nextTodayOperations.operations : [],
+        summary: nextTodayOperations?.summary || null,
+      }));
+    }
   }, [token]);
 
   useEffect(() => {
@@ -1563,16 +1583,22 @@ export default function ManagerPortal() {
     }
     try {
       if (tab === "today") {
-        const [dashboardRes, notificationsRes, stockRes] = await Promise.all([
+        const [dashboardRes, notificationsRes, stockRes, todayOperationsRes] = await Promise.all([
           managerPortalApi.dashboard(token),
           managerPortalApi.notifications(token, { limit: 40 }),
           managerPortalApi.stockAlerts(token),
+          // Never let the operations feed take the home down with it — the card just stays hidden.
+          managerPortalApi.operations(token, { range: "today", kind: "all", limit: 20 }).catch(() => null),
         ]);
         setDashboard(normalizeManagerPortalPayload("dashboardReload", dashboardRes?.dashboard || null));
         setNotifications(normalizeManagerPortalPayload("notificationsReload", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
         setUnreadCount(Number(notificationsRes?.unread_count || 0));
         setSettings(mergeSettings(normalizeManagerPortalPayload("settingsReload", notificationsRes?.settings || me?.notification_settings || {})));
         setStockAlerts(normalizeManagerPortalPayload("stockAlertsReload", stockRes?.stockAlerts || null));
+        setTodayOperations(normalizeManagerPortalPayload("todayOperationsReload", {
+          operations: Array.isArray(todayOperationsRes?.operations) ? todayOperationsRes.operations : [],
+          summary: todayOperationsRes?.summary || null,
+        }));
       }
       if (tab === "staff") {
         const response = await managerPortalApi.staff(token);
@@ -2679,6 +2705,71 @@ export default function ManagerPortal() {
                   </div>
                 </>
               )}
+
+              {todayOperationsList.length ? (
+                <section>
+                  <Card
+                    title={tt("managerPortal.operations.homeTitle")}
+                    subtitle={tt("managerPortal.operations.homeSubtitle")}
+                    icon={ArrowLeftRight}
+                    compact
+                    tone="amber"
+                    bodyClassName="space-y-2"
+                    action={(
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("operations")}
+                        className="rounded-full border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900 dark:bg-amber-400/10 dark:text-amber-100"
+                      >
+                        {tt("managerPortal.operations.viewAll")}
+                      </button>
+                    )}
+                  >
+                    {todayOperationsList.map((operation) => {
+                      const difference = Number(operation.difference || 0);
+                      const swapped = [
+                        (operation.items_out || []).map((item) => portalText(item.name)).filter(Boolean).join("، "),
+                        (operation.items_in || []).map((item) => portalText(item.name)).filter(Boolean).join("، "),
+                      ];
+                      return (
+                        <button
+                          key={`today-operation-${operation.id}`}
+                          type="button"
+                          onClick={() => {
+                            setExpandedOperationIds((current) => ({ ...current, [String(operation.id)]: true }));
+                            setActiveTab("operations");
+                          }}
+                          className="flex w-full items-start justify-between gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-right shadow-sm dark:border-white/10 dark:bg-white/[0.03]"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusPill tone={operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber"} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
+                              <span className="text-sm font-black text-slate-950 dark:text-white">{portalText(operation.invoice_number)}</span>
+                            </div>
+                            <div className="mt-1 truncate text-xs font-bold text-slate-600 dark:text-slate-300">
+                              <InlineName>{portalText(operation.customer_name)}</InlineName> · {formatDateTime(operation.at)}
+                            </div>
+                            {swapped[0] || swapped[1] ? (
+                              <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">
+                                {swapped.filter(Boolean).join(" ← ")}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="shrink-0 text-left">
+                            <div className={`text-sm font-black ${difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                              {difference > 0 ? "+" : ""}{formatCurrency(difference)}
+                            </div>
+                            {/* dir=ltr so before → after keeps pointing at the new total inside the RTL page. */}
+                            <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
+                              {formatCurrency(operation.old_total || 0)} → {formatCurrency(operation.new_total || 0)}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </Card>
+                </section>
+              ) : null}
 
               {todayInvoices.length || !isMobilePortal ? (
                 <section ref={liveFeedSectionRef} className="scroll-mt-28">

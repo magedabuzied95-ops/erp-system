@@ -592,6 +592,9 @@
   "operations": {
     "title": "Edits & returns",
     "subtitle": "Every edit, return, and exchange made after the invoice was issued",
+    "homeTitle": "Today's operations",
+    "homeSubtitle": "Edits, returns, and exchanges made today — these never show under today's invoices",
+    "viewAll": "View details",
     "kinds": {
       "all": "All",
       "edit": "Edit",
