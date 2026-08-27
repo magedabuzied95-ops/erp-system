@@ -850,7 +850,7 @@
     --sf-purple-2: #d0a632;
     --sf-cream: #f3f3f1;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --mobile-bottom-nav-height: 58px;
+    --mobile-bottom-nav-height: 62px;
     --checkout-sticky-actions-height: 0px;
     --sf-floating-gap: 10px;
     --sf-mobile-buy-bar-bottom: calc(var(--mobile-bottom-nav-height, 64px) + var(--safe-bottom) + 1rem);
@@ -2036,6 +2036,16 @@
     max-height: 2.5rem;
   }
 
+  /* Separator between ticker items, in place of a per-item icon. */
+  .sf-header-announcement-dot {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.32;
+  }
+
   .sf-announcement-track {
     display: inline-flex;
     min-width: max-content;
@@ -2072,26 +2082,26 @@
     transform: scaleX(1);
   }
 
+  /* Icon-only, matching the mobile header: a bordered, filled, drop-shadowed
+     tile behind each glyph made four utilities look like four buttons demanding
+     equal attention. The hit area is unchanged at 44px. */
   .sf-header-action {
     position: relative;
     display: grid;
     width: 2.75rem;
     height: 2.75rem;
     place-items: center;
-    border: 1px solid rgba(214, 211, 209, 0.86);
-    border-radius: 1rem;
-    background: rgba(255, 255, 255, 0.68);
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
     color: rgb(41, 37, 36);
-    box-shadow: 0 12px 28px rgba(39, 20, 75, 0.055);
-    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease, background-color 180ms ease;
+    box-shadow: none;
+    transition: color 180ms ease, background-color 180ms ease;
   }
 
   .sf-header-action:hover {
-    transform: translateY(-1px);
-    border-color: rgba(212, 175, 55, 0.35);
-    background: rgba(212, 175, 55, 0.08);
-    color: #d4af37;
-    box-shadow: 0 16px 38px rgba(212, 175, 55, 0.12);
+    background: rgba(28, 25, 23, 0.06);
+    color: #a47a12;
   }
 
   .sf-cart-action:hover {
@@ -2117,17 +2127,16 @@
   }
 
   .storefront-dark .sf-header-action {
-    border-color: rgba(255, 255, 255, 0.11);
-    background: rgba(255, 255, 255, 0.055);
-    color: rgb(245, 245, 244);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    border: 0;
+    background: transparent;
+    color: rgba(245, 245, 244, 0.9);
+    box-shadow: none;
   }
 
   .storefront-dark .sf-header-action:hover {
-    border-color: rgba(212, 175, 55, 0.35);
-    background: rgba(212, 175, 55, 0.08);
-    color: #d4af37;
-    box-shadow: 0 16px 42px rgba(212, 175, 55, 0.14);
+    background: rgba(255, 255, 255, 0.07);
+    color: #ffffff;
+    box-shadow: none;
   }
 
   .storefront-dark .sf-action-badge {
@@ -2162,14 +2171,13 @@
       color: #f8fafc !important;
     }
 
+    /* The gold spotlight, the drop shadow and the inner highlight were three
+       effects doing the work one hairline does. What is left is a flat bar the
+       logo can sit on top of. */
     .storefront-shell .sf-mobile-header-shell {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      background:
-        radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.08), transparent 44%),
-        linear-gradient(180deg, rgba(4, 4, 4, 0.98), rgba(14, 14, 13, 0.96)) !important;
-      box-shadow:
-        0 18px 42px rgba(0, 0, 0, 0.22),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(6, 6, 6, 0.94) !important;
+      box-shadow: none !important;
       backdrop-filter: blur(18px) saturate(1.06);
       -webkit-backdrop-filter: blur(18px) saturate(1.06);
     }
@@ -2178,25 +2186,22 @@
       min-height: 3rem;
     }
 
+    /* Icon-only, no chip. A filled circle behind every glyph turns three
+       utilities into three competing buttons; the icon is the button. */
     .storefront-shell .sf-mobile-header-button {
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.065) !important;
-      color: #f8fafc !important;
-      box-shadow:
-        0 10px 24px rgba(0, 0, 0, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      border: 0;
+      background: transparent !important;
+      color: rgba(248, 250, 252, 0.9) !important;
+      box-shadow: none !important;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
 
     .storefront-shell .sf-mobile-header-button:hover,
     .storefront-shell .sf-mobile-header-button:focus-visible {
-      border-color: rgba(212, 175, 55, 0.34);
-      background: rgba(255, 255, 255, 0.1) !important;
+      background: rgba(255, 255, 255, 0.07) !important;
       color: #ffffff !important;
-      box-shadow:
-        0 14px 30px rgba(212, 175, 55, 0.12),
-        0 0 0 4px rgba(212, 175, 55, 0.07) !important;
+      box-shadow: none !important;
     }
 
     .storefront-shell .sf-mobile-header-logo {
@@ -2291,15 +2296,18 @@
       outline: none;
     }
 
+    /* A count, not a beacon: the glow made a two-digit basket the loudest thing
+       in the header. Same gold, no shadow, tucked against the icon. */
     .storefront-shell .sf-mobile-cart-badge {
-      left: -0.05rem !important;
-      top: -0.08rem !important;
-      min-width: 0.95rem !important;
-      height: 0.95rem !important;
-      border-width: 1px !important;
+      left: auto !important;
+      inset-inline-end: 0.32rem !important;
+      top: 0.3rem !important;
+      min-width: 0.9rem !important;
+      height: 0.9rem !important;
+      border-width: 0 !important;
       background: #d4af37 !important;
       color: #090d18 !important;
-      box-shadow: 0 10px 20px rgba(212, 175, 55, 0.24) !important;
+      box-shadow: none !important;
       font-size: 0.55rem !important;
     }
   }
@@ -2645,14 +2653,51 @@
     color: #ffffff !important;
   }
 
+  /*
+   * The dark theme never got the same treatment, so the utility row inherited
+   * body ink -- rgb(27,25,21) on a black header. WhatsApp, Track order, Wishlist
+   * and Account were painted, laid out and clickable, and invisible. (The
+   * language and currency buttons carry their own text-white/80 and were the
+   * only two anyone could see.)
+   */
+  .storefront-shell.storefront-dark .sf-utility-row {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Same dead-variant problem one row down. The category nav used to carry
+     `text-stone-700/90 dark:text-stone-300/90`, and which of the two applied
+     depended on a race between ThemeProvider and the storefront over the `dark`
+     class -- so the nav painted dark grey on near-black about half the time.
+     The colour utilities are gone from the markup; the two rules below own it.
+     Light text in BOTH themes, because the light-mode header surface is the dark
+     gradient declared a few rules above. */
+  .sf-collapsible-nav .sf-header-nav-link {
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .sf-collapsible-nav .sf-header-nav-link:hover,
+  .sf-collapsible-nav .sf-header-nav-link.active {
+    color: #ffffff;
+  }
+
+  .storefront-shell.storefront-dark .sf-utility-row :is(a, button) {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .storefront-shell.storefront-dark .sf-utility-row :is(a, button):hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+
+  /* The announcement bar sits directly above a header that is dark in BOTH
+     themes, so a pale indigo gradient here put a bright band between the page
+     and a black bar -- and indigo is not in the M1 palette. Same near-black
+     surface as the header in either theme; only one strip, one colour. */
   .storefront-shell:not(.storefront-dark) .sf-header-announcement {
-    background:
-      linear-gradient(105deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.97) 42%, rgba(224, 231, 255, 0.96)) !important;
-    color: #0f172a !important;
-    border-color: rgba(148, 163, 184, 0.24) !important;
-    box-shadow:
-      inset 0 -1px 0 rgba(148, 163, 184, 0.18),
-      0 8px 22px rgba(15, 23, 42, 0.04) !important;
+    background: #0a0a0a !important;
+    color: rgba(248, 250, 252, 0.82) !important;
+    border-color: rgba(255, 255, 255, 0.07) !important;
+    box-shadow: none !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-header-announcement,
@@ -2660,7 +2705,7 @@
   .storefront-shell:not(.storefront-dark) .sf-header-announcement span,
   .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100,
   .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100\/95 {
-    color: #0f172a !important;
+    color: rgba(248, 250, 252, 0.82) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-header-announcement-icon,
@@ -2799,16 +2844,18 @@
     }
   }
 
+  /* One announcement bar, one colour. It sits on top of a header that is dark in
+     both themes, so the light theme used to open the page with white-to-indigo,
+     then near-black, then the page -- three surfaces in the first 100px. */
   .storefront-shell:not(.storefront-dark) .sf-announcement-row {
-    background:
-      linear-gradient(105deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96) 42%, rgba(238, 242, 255, 0.96)) !important;
-    color: var(--sf-light-text) !important;
-    box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.16);
+    background: #0a0a0a !important;
+    color: rgba(248, 250, 252, 0.82) !important;
+    box-shadow: none;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-announcement-row,
   .storefront-shell:not(.storefront-dark) .sf-announcement-track {
-    color: var(--sf-light-text) !important;
+    color: rgba(248, 250, 252, 0.82) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-announcement-row svg,
@@ -2818,7 +2865,7 @@
   .storefront-shell:not(.storefront-dark) .sf-announcement-row .text-white\/76,
   .storefront-shell:not(.storefront-dark) .sf-announcement-row .text-white\/72,
   .storefront-shell:not(.storefront-dark) .sf-announcement-row .text-white\/68 {
-    color: var(--sf-light-text) !important;
+    color: rgba(248, 250, 252, 0.82) !important;
     opacity: 1 !important;
   }
 
@@ -2835,18 +2882,20 @@
     color: var(--sf-light-text) !important;
   }
 
+  /* The light-theme header surface is the dark gradient declared above, so its
+     controls follow the dark treatment: no white chip, no shadow, light ink. */
   .storefront-shell:not(.storefront-dark) .sf-header-action {
-    border-color: rgba(148, 163, 184, 0.28) !important;
-    background: rgba(255, 255, 255, 0.92) !important;
-    color: var(--sf-light-text) !important;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06) !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: rgba(248, 250, 252, 0.9) !important;
+    box-shadow: none !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-header-action:hover {
-    border-color: rgba(124, 58, 237, 0.24) !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    color: #6d28d9 !important;
-    box-shadow: 0 16px 38px rgba(109, 40, 217, 0.12) !important;
+    border: 0 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
   }
 
   /* The cart count wears the site black, not the legacy violet. */
@@ -2865,12 +2914,14 @@
     opacity: 0.75 !important;
   }
 
+  /* Chip removed: the active tab is marked by gold ink and a heavier stroke,
+     not by a filled, bordered, shadowed tile behind it. */
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] {
-    background: rgba(212, 175, 55, 0.14) !important;
-    border: 1px solid rgba(212, 175, 55, 0.35) !important;
+    background: transparent !important;
+    border: 0 !important;
     color: #d4af37 !important;
     opacity: 1 !important;
-    transform: scale(1.05);
+    transform: none;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] span:first-child {
@@ -4914,14 +4965,14 @@ html[data-theme] .bg-zinc-950\/70 {
 }
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-announcement {
-  border-bottom: 1px solid rgba(180, 134, 11, 0.14) !important;
-  background: linear-gradient(90deg, #fffaf0 0%, #f9edc9 50%, #fffaf0 100%) !important;
-  color: #5c4510 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  background: #0a0a0a !important;
+  color: rgba(248, 250, 252, 0.82) !important;
   box-shadow: none !important;
 }
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-announcement span {
-  color: #5c4510 !important;
+  color: rgba(248, 250, 252, 0.82) !important;
 }
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-announcement-icon,
@@ -4954,19 +5005,19 @@ html[data-theme] .bg-zinc-950\/70 {
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-menu-button,
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-action {
-  border-color: rgba(28, 25, 23, 0.12) !important;
-  background: #ffffff !important;
+  border: 0 !important;
+  background: transparent !important;
   background-image: none !important;
-  color: #292524 !important;
-  box-shadow: 0 7px 18px rgba(28, 25, 23, 0.06) !important;
+  color: rgba(248, 250, 252, 0.9) !important;
+  box-shadow: none !important;
 }
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-menu-button:hover,
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-action:hover {
-  border-color: rgba(180, 134, 11, 0.36) !important;
-  background: #fffaf0 !important;
-  color: #9a7108 !important;
-  box-shadow: 0 10px 24px rgba(180, 134, 11, 0.12) !important;
+  border: 0 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
 }
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-nav-link,
@@ -5992,11 +6043,11 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .storefront-shell.storefront-dark .sf-mobile-bottom-nav a[aria-current="page"] {
-    background: rgba(212, 175, 55, 0.12) !important;
-    border: 1px solid rgba(212, 175, 55, 0.35) !important;
+    background: transparent !important;
+    border: 0 !important;
     color: #d4af37 !important;
     opacity: 1 !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+    box-shadow: none !important;
   }
 
   .storefront-shell.storefront-dark .sf-mobile-bottom-nav a[aria-current="page"] :is(svg, span:first-child) {
@@ -6183,14 +6234,14 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .storefront-shell.storefront-dark .sf-mobile-bottom-nav a[aria-current="page"] {
-    background: rgba(212, 175, 55, 0.12) !important;
-    border-color: rgba(212, 175, 55, 0.35) !important;
+    background: transparent !important;
+    border-color: transparent !important;
     color: #d4af37 !important;
   }
 
   .storefront-shell.storefront-dark .sf-mobile-bottom-nav a[aria-current="page"] :is(svg, span:first-child) {
     color: #d4af37 !important;
-    filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.12));
+    filter: none;
   }
 
   .storefront-shell.storefront-dark .grid.grid-cols-2 > button.group.relative[class*="min-h-[112px]"][class*="rounded-[1rem]"] {
@@ -6457,17 +6508,18 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   color: #171715 !important;
 }
 
+/* Smaller, unringed and further from the bar: at 46px with a white ring and a
+   green glow it read as a sixth navigation item stacked on top of the five real
+   ones. Same target size class, far less voice. */
 .storefront-shell .sf-whatsapp-float {
   right: max(14px, env(safe-area-inset-right)) !important;
-  bottom: calc(var(--mobile-bottom-nav-height, 58px) + env(safe-area-inset-bottom) + 1rem) !important;
-  width: 46px !important;
-  height: 46px !important;
-  border: 2px solid rgba(255, 255, 255, 0.96) !important;
+  bottom: calc(var(--mobile-bottom-nav-height, 62px) + env(safe-area-inset-bottom) + 1.25rem) !important;
+  width: 44px !important;
+  height: 44px !important;
+  border: 0 !important;
   background: #25d366 !important;
   color: #ffffff !important;
-  box-shadow:
-    0 8px 24px rgba(37, 211, 102, 0.34),
-    0 2px 7px rgba(0, 0, 0, 0.24) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22) !important;
 }
 
 .storefront-shell .sf-whatsapp-float:hover {
@@ -6475,8 +6527,8 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell .sf-whatsapp-float svg {
-  width: 28px !important;
-  height: 28px !important;
+  width: 24px !important;
+  height: 24px !important;
   color: #ffffff !important;
   fill: currentColor !important;
 }
@@ -6714,7 +6766,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .sf-mobile-bottom-nav__surface {
-  height: 58px;
+  height: 62px;
   border: 1px solid;
   isolation: isolate;
   backdrop-filter: blur(22px) saturate(1.25);
@@ -6724,13 +6776,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__surface {
   border-color: rgba(28, 25, 23, 0.11);
   background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 14px 38px rgba(28, 25, 23, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  box-shadow: 0 6px 20px rgba(28, 25, 23, 0.10);
 }
 
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__surface {
   border-color: rgba(255, 255, 255, 0.11);
   background: rgba(12, 12, 14, 0.93);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.34);
 }
 
 .sf-mobile-categories-sheet {
@@ -6928,20 +6980,34 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   filter: none !important;
 }
 
+/* The active tab used to carry a gold gradient chip, a gold border and a drop
+   shadow behind its icon. Colour alone already says "you are here"; the chip
+   was the fourth signal saying it, and the loudest thing on the bar. */
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__icon,
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__icon {
-  border: 1px solid rgba(182, 138, 44, 0.32);
-  background: linear-gradient(145deg, #fff7e0, #e2c878);
+  border: 0;
+  background: transparent;
   color: var(--sf-premium-gold-deep) !important;
-  box-shadow: 0 7px 18px rgba(118, 78, 18, 0.18);
+  box-shadow: none;
 }
 
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__icon,
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__icon {
-  border-color: rgba(216, 183, 95, 0.34);
-  background: linear-gradient(145deg, rgba(182, 138, 44, 0.24), rgba(123, 83, 24, 0.14));
+  border: 0;
+  background: transparent;
   color: var(--sf-premium-gold-soft) !important;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.26);
+  box-shadow: none;
+}
+
+/* One quiet marker instead: a short gold rule under the active label. */
+.sf-mobile-bottom-nav .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__label,
+.sf-mobile-bottom-nav .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__label {
+  font-weight: 600;
+}
+
+.sf-mobile-bottom-nav .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__svg,
+.sf-mobile-bottom-nav .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__svg {
+  stroke-width: 2.2;
 }
 
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__label {
