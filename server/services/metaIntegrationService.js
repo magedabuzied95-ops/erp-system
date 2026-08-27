@@ -11136,16 +11136,25 @@ const buildMessengerCarouselElement = (product = {}) => {
     ...asArray(product.size_options),
   ].map(text).filter(Boolean))];
   const selectedSize = text(product.size || product.selected_size || "");
-  const subtitle = [
-    selectedSize ? `Size: ${selectedSize}` : availableSizes.length ? `Available sizes: ${availableSizes.join(", ")}` : "",
-    text(product.price ? `EGP ${Number(product.price).toFixed(2)}` : ""),
-  ].filter(Boolean).join(" • ").slice(0, 80) || undefined;
+  const priceText = product.price ? `${Number(product.price).toLocaleString("en-US")} جنيه` : "";
+  // Messenger renders the TITLE bold and larger and the SUBTITLE as plain grey text with no font
+  // control. So the colour and price ride the title (bold, big — as the owner asked), and the
+  // sizes go under a label on their OWN line in the subtitle (newline honoured). The 80-char
+  // subtitle cap is why the size list uses "·" rather than ", " padding.
+  const headline = [text(title), priceText].filter(Boolean).join(" — ").slice(0, 80) || "Product";
+  const sizeLine = selectedSize
+    ? `المقاس: ${selectedSize}`
+    : availableSizes.length
+      ? `المقاسات المتاحة:
+${availableSizes.join(" · ")}`
+      : "";
+  const subtitle = sizeLine.slice(0, 80) || undefined;
   const variantId = text(product.variant_id || product.price_variant_id || "");
   const productUrl = text(product.product_url || product.url || product.storefront_url || product.share_url || "");
   const buttons = variantId
     ? [{ type: "postback", title: "اطلب اللون ده ✅", payload: `choose_color:${variantId}` }]
     : (productUrl ? [{ type: "web_url", url: productUrl, title: "عرض المنتج" }] : []);
-  return { title: title.slice(0, 80) || "Product", image_url: imageUrl || undefined, subtitle, buttons: buttons.length ? buttons : undefined };
+  return { title: headline, image_url: imageUrl || undefined, subtitle, buttons: buttons.length ? buttons : undefined };
 };
 
 const buildMessengerCarouselPayload = ({ recipientId = "", products = [] } = {}) => ({

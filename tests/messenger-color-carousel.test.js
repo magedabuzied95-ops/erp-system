@@ -85,3 +85,13 @@ test("the carousel frames a square image so the whole product shows", () => {
   assert.match(expand, /ensureSquareCardImageUrl\(rawImage\)/, "the colour photos are padded to a square canvas");
   assert.match(expand, /image_url: squared \|\| flatCard\.image_url/, "a failed square keeps the original photo");
 });
+
+test("the card layout: bold big colour+price title, sizes on their own line", () => {
+  // Messenger gives no font control on the subtitle, so the price rides the TITLE (which Messenger
+  // renders bold and larger) and the sizes get a labelled line of their own (owner request).
+  const svc = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  const el = svc.slice(svc.indexOf("const buildMessengerCarouselElement"), svc.indexOf("const buildMessengerCarouselPayload"));
+  assert.match(el, /const headline = \[text\(title\), priceText\]\.filter\(Boolean\)\.join\(" — "\)/, "colour and price share the bold title");
+  assert.match(el, /المقاسات المتاحة:\n/, "the sizes label sits on its own line above the sizes");
+  assert.ok(!/join\(" • "\)/.test(el), "the old single-line joined subtitle is gone");
+});
