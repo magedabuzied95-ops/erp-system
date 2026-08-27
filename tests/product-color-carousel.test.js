@@ -105,10 +105,13 @@ test("a colour carousel is never narrated twice", () => {
   assert.match(inbox, /editedText \|\| variantOptionsLead \|\| activeAiSuggestionText/, "a manual edit still wins");
 });
 
-test("expansion is WhatsApp-only - Meta has no carousel to carry it", () => {
+test("colour expansion covers the carousel channels, excludes Instagram/Telegram", () => {
+  // WhatsApp (Evolution) and Messenger (generic template) both carry a carousel; Instagram has
+  // no button carousel and Telegram none here, so they keep one card per product.
   const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
-  assert.match(routes, /startsWith\("whatsapp"\)\s*\r?\n?\s*\? await expandProductCardsByColor/,
-    "a Messenger conversation keeps one card per product instead of N separate images");
+  assert.ok(routes.includes('conversationKey.startsWith("whatsapp") || conversationKey.startsWith("facebook_messenger")'),
+    "both carousel channels expand");
+  assert.ok(routes.includes("supportsColorCarousel"), "gated by an explicit capability flag");
 });
 
 test("BOTH approve paths shrink the text for a colour batch - desktop and PWA", () => {
