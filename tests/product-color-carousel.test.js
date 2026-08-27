@@ -81,7 +81,7 @@ test("expansion failure keeps the original card - an upgrade, never a lost send"
   assert.match(fn, /catch \(expandError\)/);
   assert.match(fn, /expanded\.push\(card\)/, "the single card survives every failure path");
   assert.match(fn, /colorCards\.length >= 2/, "a one-colour product is not wrapped in a carousel");
-  assert.match(fn, /\.slice\(0, 10\)/, "a multi-product click cannot multiply past the carousel cap");
+  assert.ok(fn.includes(".slice(0, 30)"), "a multi-product click cannot multiply without bound (chunked downstream)");
 });
 
 test("the inbox transcript mirrors the WhatsApp strip", () => {
@@ -126,4 +126,26 @@ test("BOTH approve paths shrink the text for a colour batch - desktop and PWA", 
 test("the PWA service worker version bumped so stale bundles refresh", () => {
   const sw = fs.readFileSync(new URL("../public/inbox-sw.js", import.meta.url), "utf8");
   assert.match(sw, /const VERSION = "ai-inbox-v14"/, "a bumped version forces the old cached JS out");
+});
+
+test("expanded colour cards do not re-expand in the adapter", () => {
+  // Each colour card kept the parent's `variants` array, and the adapter re-runs
+  // normalizeProductCards on everything it sends — so every colour card expanded AGAIN into all
+  // colours: duplicated photos, inflated counts, and overflow spilling out as loose images after
+  // the carousel (live, a 23-colour Nike, 2026-08-28).
+  const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  const fn = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  assert.match(fn, /const \{ variants, variant, product, matched_variant, selected_variant, \.\.\.flatCard \} = colorCard/,
+    "the expander strips the re-expansion triggers");
+  assert.ok(!/expanded\.push\(\{\s*\r?\n?\s*\.\.\.card,\s*\r?\n?\s*\.\.\.colorCard/.test(fn),
+    "it must NOT spread the enriched parent card back in");
+});
+
+test("more than ten colours are chunked, not dropped", () => {
+  const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  const fn = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  assert.match(fn, /\.slice\(0, 30\)/, "the colour cap is high enough for a big palette");
+  assert.ok(fn.includes("limit: 30"), "expansion itself is not capped at 10");
+  const adapter = fs.readFileSync(new URL("../server/services/aiChannelAdapterService.js", import.meta.url), "utf8");
+  assert.match(adapter, /i \+= 10/, "the adapter chunks carousels at Evolution's 10-card limit");
 });

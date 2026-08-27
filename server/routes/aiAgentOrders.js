@@ -6377,13 +6377,19 @@ const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
       );
       const colorCards = normalizeProductCards(
         [{ ...product, variants: variantsResult.rows, storefront_url: card.storefront_url || card.product_url || "" }],
-        { limit: 10 }
+        { limit: 30 }
       );
       if (colorCards.length >= 2) {
         for (const colorCard of colorCards) {
+          // colorCard is already ONE flat card for one colour. Spreading `...card` (the enriched
+          // parent) would re-attach the product's full `variants` array, and the adapter re-runs
+          // normalizeProductCards on every card it sends — so each colour card would expand AGAIN
+          // into all colours: duplicated photos, inflated counts, and the overflow spilling out as
+          // loose images after the carousel. Carry only the flat colour card plus the parent's URL.
+          const { variants, variant, product, matched_variant, selected_variant, ...flatCard } = colorCard;
           expanded.push({
-            ...card,
-            ...colorCard,
+            ...flatCard,
+            product_id: colorCard.product_id || card.product_id || card.id,
             storefront_url: colorCard.storefront_url || card.storefront_url || card.product_url || "",
             product_url: colorCard.product_url || card.product_url || card.storefront_url || "",
           });
@@ -6405,7 +6411,8 @@ const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
   }
   // Evolution's carousel caps at 10 cards; the adapter chunks, but a runaway expansion of a
   // multi-product batch should not multiply into dozens of cards from one click.
-  return expanded.slice(0, 10);
+  // Chunked into 10-card carousels downstream, so more than 10 colours simply means more carousels.
+  return expanded.slice(0, 30);
 };
 
 router.post("/conversations/:conversationId/product-card/send", protect, inboxReply(), async (req, res) => {
