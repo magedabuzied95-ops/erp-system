@@ -11154,7 +11154,7 @@ const buildMessengerCarouselPayload = ({ recipientId = "", products = [] } = {})
   message: {
     attachment: {
       type: "template",
-      payload: { template_type: "generic", elements: products.map(buildMessengerCarouselElement).filter((el) => el.image_url && el.buttons) },
+      payload: { template_type: "generic", image_aspect_ratio: "square", elements: products.map(buildMessengerCarouselElement).filter((el) => el.image_url && el.buttons) },
     },
   },
 });
@@ -23212,7 +23212,7 @@ export const sendMetaInboxOutboundMessage = async ({
           const carouselResponse = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: json({ recipient: { id: safeRecipientId }, messaging_type: "RESPONSE", message: { attachment: { type: "template", payload: { template_type: "generic", elements: elements.slice(i, i + 10) } } } }),
+            body: json({ recipient: { id: safeRecipientId }, messaging_type: "RESPONSE", message: { attachment: { type: "template", payload: { template_type: "generic", image_aspect_ratio: "square", elements: elements.slice(i, i + 10) } } } }),
           });
           const carouselResult = await carouselResponse.json().catch(() => ({}));
           if (!carouselResponse.ok) throw Object.assign(new Error(carouselResult?.error?.message || "Messenger carousel failed"), { status: carouselResponse.status, responseBody: carouselResult });

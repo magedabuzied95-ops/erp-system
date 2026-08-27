@@ -74,3 +74,14 @@ test("a colour element carries a variant postback, a plain one keeps عرض ال
   assert.match(el, /type: "postback", title: "اطلب اللون ده ✅", payload: `choose_color:\$\{variantId\}`/);
   assert.match(el, /type: "web_url", url: productUrl, title: "عرض المنتج"/);
 });
+
+test("the carousel frames a square image so the whole product shows", () => {
+  const svc = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  // a square frame + a padded square photo = the whole shoe, not a tall centre-crop
+  const branch = svc.slice(svc.indexOf("let messengerCarouselDone = false"), svc.indexOf("if (cards.length && !messengerCarouselDone)"));
+  assert.match(branch, /image_aspect_ratio: "square"/, "the generic template requests a square frame");
+  const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  const expand = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  assert.match(expand, /ensureSquareCardImageUrl\(rawImage\)/, "the colour photos are padded to a square canvas");
+  assert.match(expand, /image_url: squared \|\| flatCard\.image_url/, "a failed square keeps the original photo");
+});

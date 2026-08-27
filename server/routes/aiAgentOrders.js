@@ -72,6 +72,7 @@ import {
 } from "../services/aiAgentOrderService.js";
 import { buildPublicInvoiceUrl } from "../utils/whatsapp.js";
 import { normalizeProductCards, productCardReplyText } from "../services/aiProductCards.js";
+import { ensureSquareCardImageUrl } from "../services/productImageVariantService.js";
 import {
   buildAiSalesCloserPlan,
   buildAiSalesCloserLookupKeys,
@@ -6387,8 +6388,14 @@ const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
           // into all colours: duplicated photos, inflated counts, and the overflow spilling out as
           // loose images after the carousel. Carry only the flat colour card plus the parent's URL.
           const { variants, variant, product, matched_variant, selected_variant, ...flatCard } = colorCard;
+          // Put the photo on a padded white square so a square carousel frame (WhatsApp and
+          // Messenger both crop to the frame) shows the whole product instead of a tall centre-crop.
+          // A non-local or already-squared image passes through unchanged.
+          const rawImage = String(flatCard.image_url || flatCard.image || "").trim();
+          const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
           expanded.push({
             ...flatCard,
+            image_url: squared || flatCard.image_url,
             product_id: colorCard.product_id || card.product_id || card.id,
             storefront_url: colorCard.storefront_url || card.storefront_url || card.product_url || "",
             product_url: colorCard.product_url || card.product_url || card.storefront_url || "",
