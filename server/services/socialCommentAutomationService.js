@@ -6812,6 +6812,7 @@ export const executeSocialCommentAutomation = async ({
     failureLabel,
     buildExternalId,
     buildTranscriptTarget,
+    sourceComment = null,
   }) => {
     try {
       const response = await send();
@@ -6827,6 +6828,7 @@ export const executeSocialCommentAutomation = async ({
         deliveryError: "",
         externalMessageId: externalReplyId,
         externalReplyId,
+        sourceComment,
       });
       if (key === "like") likeStatus = "sent";
       if (key === "public_reply") publicReplyStatus = "sent";
@@ -6972,6 +6974,28 @@ export const executeSocialCommentAutomation = async ({
       message: replyText || publicReplyText,
       successLabel: "private message success",
       failureLabel: "private message failed",
+      // Stamp the DM row with the source comment's post + comment context so the AI Inbox can render
+      // an inline preview of the post the customer commented on, with their comment quoted beneath it.
+      sourceComment: {
+        post_id: text(safeRow.post_id || ""),
+        post_permalink_url: resolveSocialCommentPostPermalink(safeRow),
+        post_message: resolveSocialCommentPostMessage(safeRow),
+        post_caption: text(safeRow.post_caption || safeRow.raw_payload?.post_caption || ""),
+        post_full_picture: resolveSocialCommentPostFullPicture(safeRow),
+        post_created_time: resolveSocialCommentPostCreatedTime(safeRow),
+        comment_id: text(safeRow.comment_id || ""),
+        commenter_name: text(safeRow.commenter_name || safeRow.customer_name || ""),
+        commenter_profile_picture_url: text(safeRow.commenter_profile_picture_url || ""),
+        comment_created_time: resolveSocialCommentCreatedTime(safeRow),
+        comment_url: text(
+          safeRow.comment_url ||
+            safeRow.raw_payload?.comment_url ||
+            (resolveSocialCommentPostPermalink(safeRow) && safeRow.comment_id
+              ? `${resolveSocialCommentPostPermalink(safeRow)}${resolveSocialCommentPostPermalink(safeRow).includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(text(safeRow.comment_id || ""))}`
+              : "")
+        ),
+        comment_text: text(safeRow.original_comment_text || safeRow.comment_text || ""),
+      },
       buildExternalId: (response) => response?.id || response?.message_id || response?.reply_id || "",
       buildTranscriptTarget: (response) => {
         const recipientId = text(response?.recipient_id || response?.recipientId || response?.recipient?.id || "");

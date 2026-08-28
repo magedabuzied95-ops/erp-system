@@ -879,6 +879,9 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS commenter_profile_picture_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS comment_created_time TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS comment_url TEXT NOT NULL DEFAULT ''`);
+      // The text of the comment that triggered an auto private-reply DM, so the DM row itself can
+      // render an inline preview of the source post + the customer's comment (comment_private_reply).
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS source_comment_text TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS staff_message TEXT NOT NULL DEFAULT ''`);
@@ -2719,10 +2722,14 @@ export const appendAutomationSupportTranscript = async ({
   insertSource = "social_comment_automation",
   staffUserId = null,
   productCards = [],
+  sourceComment = null,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   const safeMessage = repairText(message);
+  // A comment_private_reply DM carries the context of the comment it answered (post image, caption,
+  // permalink, and the customer's comment text) so the DM row can render an inline source preview.
+  const sc = sourceComment && typeof sourceComment === "object" ? sourceComment : {};
   const safeMessageType = toText(messageType || "automation_error") || "automation_error";
   if (!safeTenantId || !safeSessionId || !safeMessage) {
     return null;
@@ -2806,9 +2813,21 @@ export const appendAutomationSupportTranscript = async ({
       external_reply_id,
       message_type,
       product_cards,
-      insert_source
+      insert_source,
+      post_id,
+      post_permalink_url,
+      post_message,
+      post_caption,
+      post_full_picture,
+      post_created_time,
+      comment_id,
+      commenter_name,
+      commenter_profile_picture_url,
+      comment_created_time,
+      comment_url,
+      source_comment_text
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, FALSE, $3, $7, COALESCE(NULLIF($8, ''), 'web_chat'), $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, FALSE, $3, $7, COALESCE(NULLIF($8, ''), 'web_chat'), $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
     RETURNING *
     `,
     [
@@ -2829,6 +2848,18 @@ export const appendAutomationSupportTranscript = async ({
       safeMessageType,
       jsonValue(Array.isArray(productCards) ? productCards : []),
       repairText(insertSource),
+      repairText(sc.post_id || ""),
+      repairText(sc.post_permalink_url || sc.post_permalink || ""),
+      repairText(sc.post_message || ""),
+      repairText(sc.post_caption || ""),
+      repairText(sc.post_full_picture || ""),
+      repairText(sc.post_created_time || ""),
+      repairText(sc.comment_id || ""),
+      repairText(sc.commenter_name || ""),
+      repairText(sc.commenter_profile_picture_url || ""),
+      repairText(sc.comment_created_time || ""),
+      repairText(sc.comment_url || ""),
+      repairText(sc.comment_text || ""),
     ]
   );
 

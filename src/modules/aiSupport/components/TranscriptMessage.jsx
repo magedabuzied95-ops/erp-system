@@ -613,6 +613,72 @@ function StoryContext({ story, variant = "desktop" }) {
   );
 }
 
+// The context of the comment an auto private-reply DM answered: the post the customer commented on
+// (image + caption + link) with their comment quoted beneath. Only comment_private_reply DM rows
+// carry `source_comment_text`, so this never fires on an ordinary text reply.
+const sourceCommentContext = (message = {}) => {
+  const postImage = clean(message.post_full_picture || message.post_thumbnail || message.attachment_image || "");
+  const postText = clean(message.post_message || message.post_caption || "");
+  const postUrl = clean(message.post_permalink_url || message.comment_url || message.post_permalink || "");
+  const commentText = clean(message.source_comment_text || "");
+  const commenter = clean(message.commenter_name || "");
+  const isPrivateReply = clean(message.message_type).toLowerCase() === "comment_private_reply";
+  if (!isPrivateReply && !commentText) return null;
+  if (!postImage && !postText && !commentText && !postUrl) return null;
+  return { postImage, postText, postUrl, commentText, commenter };
+};
+
+function SourceCommentContext({ context, variant = "desktop" }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (!context) return null;
+  const { postImage, postText, postUrl, commentText, commenter } = context;
+  return (
+    <div className="mb-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/50">
+      <div className="flex items-stretch gap-2">
+        <span className="w-1 shrink-0 bg-cyan-400" aria-hidden="true" />
+        {postImage && !imageFailed ? (
+          <img
+            src={postImage}
+            alt=""
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+            className="my-1.5 h-14 w-14 shrink-0 rounded-md object-cover"
+          />
+        ) : null}
+        <div className="min-w-0 flex-1 px-1 py-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">
+            <MessageSquareText className="h-3 w-3" />
+            <span>علّق على منشورك</span>
+          </div>
+          {postText ? <p dir="auto" className="mt-0.5 line-clamp-2 text-[12px] font-bold text-slate-100">{postText}</p> : null}
+          {postUrl ? (
+            <a
+              href={postUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-cyan-300 hover:text-cyan-200"
+            >
+              <ExternalLink className="h-3 w-3" />
+              فتح البوست
+            </a>
+          ) : null}
+        </div>
+      </div>
+      {commentText ? (
+        <div className="border-t border-white/10 px-2 py-1.5">
+          <div className="flex items-start gap-1.5">
+            <MessageSquareText className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" />
+            <p dir="auto" className="min-w-0 text-[12.5px] leading-5 text-white">
+              {commenter ? <span className="font-black text-slate-300">{commenter}: </span> : null}
+              {commentText}
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TranscriptMessage({
   row = null,
   variant = "desktop",
@@ -666,6 +732,7 @@ function TranscriptMessage({
   const sourceLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   const commentLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   const commenterName = clean(message.commenter_name || message.customer_name || message.sender_name || message.from_name || message.author_name || "");
+  const sourceComment = isCommentMessage ? null : sourceCommentContext(message);
   if (!safeRow.visible) return null;
 
   if (variant === "pwa") {
@@ -730,6 +797,7 @@ function TranscriptMessage({
               <span>{message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}</span>
               {message.message_type === "internal_note" ? null : <DeliveryTicks status={message.delivery_status} />}
             </div>
+            {sourceComment ? <SourceCommentContext context={sourceComment} variant="pwa" /> : null}
             <LinkifiedText text={bodyText(message.staff_message)} className="ai-pwa-message-body text-[14px] leading-5.5" />
             <MessageMedia message={message} groups={media} tone="light" variant="pwa" className="mt-2" />
             {message.delivery_status === "failed" && message.delivery_error ? (
@@ -863,6 +931,7 @@ function TranscriptMessage({
                   : <span className={message.delivery_status === "failed" ? "text-rose-200" : "text-emerald-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span>
               ) : null}
             </div>
+            {sourceComment ? <div className="mt-2"><SourceCommentContext context={sourceComment} variant="desktop" /></div> : null}
             <LinkifiedText text={bodyText(message.staff_message)} className="mt-2 text-[15px] leading-7 text-white" />
             <MessageMedia message={message} groups={media} tone="staff" variant="desktop" />
             {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}

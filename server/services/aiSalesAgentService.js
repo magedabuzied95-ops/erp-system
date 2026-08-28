@@ -953,6 +953,23 @@ export const normalizeInboxMessage = (row = {}) => {
     productCards: normalizeInboxProductCards(row),
     visual_attachments: asArray(row.visual_attachments),
     suggested_actions: asArray(row.suggested_actions),
+    // Source-comment context: a comment_inbound row carries the post it was left on; a
+    // comment_private_reply DM row now carries the same context plus the customer's comment text,
+    // so the AI Inbox can show an inline preview of the post the DM answered. Dropping these here is
+    // what previously starved the frontend of per-message post/comment context.
+    post_id: row.post_id || "",
+    post_permalink_url: row.post_permalink_url || "",
+    post_message: row.post_message || "",
+    post_caption: row.post_caption || "",
+    post_full_picture: row.post_full_picture || "",
+    post_created_time: row.post_created_time || "",
+    comment_id: row.comment_id || "",
+    commenter_id: row.commenter_id || "",
+    commenter_name: row.commenter_name || "",
+    commenter_profile_picture_url: row.commenter_profile_picture_url || "",
+    comment_created_time: row.comment_created_time || "",
+    comment_url: row.comment_url || "",
+    source_comment_text: row.source_comment_text || "",
     created_at: row.created_at,
     system_events: [
       row.needs_human_support ? { type: "handoff", label: "Human handoff requested", created_at: row.created_at } : null,
