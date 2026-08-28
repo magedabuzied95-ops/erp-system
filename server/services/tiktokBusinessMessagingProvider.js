@@ -55,11 +55,11 @@ export const TIKTOK_BUSINESS_MESSAGING_STATE = Object.freeze({
   polling_enabled: false,
   webhook_registered: false,
   reason:
-    "TikTok Business Messaging requires an approved TikTok API for Business app, a valid Business App ID, a Data Security & Privacy review, and a separate Business Messaging permission grant. The M1 Store ERP developer app is PENDING and the messaging permission has not been requested.",
+    "TikTok Business Messaging requires a Data Security & Privacy review and a separate Business Messaging permission grant. The M1 Store ERP app was approved on 2026-08-28 for Account Comment only — the messaging permission has not been requested, so messaging stays closed regardless of the comments rollout.",
   blocked_by: "tiktok_business_messaging_permission",
   prerequisites: Object.freeze([
-    { key: "developer_app_approved", satisfied: false, detail: "M1 Store ERP is PENDING" },
-    { key: "business_app_id_issued", satisfied: false, detail: "issued only on approval" },
+    { key: "developer_app_approved", satisfied: true, detail: "M1 Store ERP approved 2026-08-28 (Account Comment scopes only)" },
+    { key: "business_app_id_issued", satisfied: true, detail: "issued with the approval" },
     { key: "data_security_privacy_review", satisfied: false, detail: "not started" },
     { key: "business_messaging_permission", satisfied: false, detail: "separate application" },
   ]),
@@ -71,14 +71,18 @@ export const TIKTOK_BUSINESS_MESSAGING_STATE = Object.freeze({
 export const TIKTOK_BUSINESS_MESSAGING_WIRE = Object.freeze({
   verified: false,
   base: `${TIKTOK_BUSINESS_API_BASE}/open_api/${TIKTOK_BUSINESS_API_VERSION}`,
-  // Names observed in TikTok's public Business API surface. Treat as a research
-  // note, NOT as a contract: parameters and exact segments are unconfirmed.
+  // Research note, NOT a contract. Corrected 2026-08-28: an unauthenticated
+  // gateway probe proved the real segment is `message/` — the earlier
+  // `messaging/` guess answers `40006 no schema found`. Only conversation/list
+  // was confirmed routed; the rest are POST-only or unconfirmed, so the whole
+  // block stays `verified: false` until the Business Messaging docs are read
+  // under an actual messaging grant.
   candidate_paths: Object.freeze({
-    listConversations: "/business/messaging/conversation/list/",
-    listMessages: "/business/messaging/message/list/",
-    sendMessage: "/business/messaging/message/send/",
-    uploadMedia: "/business/messaging/media/upload/",
-    downloadMedia: "/business/messaging/media/download/",
+    listConversations: "/business/message/conversation/list/",
+    listMessages: "/business/message/list/",
+    sendMessage: "/business/message/send/",
+    uploadMedia: "/business/message/media/upload/",
+    downloadMedia: "/business/message/media/download/",
   }),
   // How a TikTok payload maps onto the canonical AI Inbox row. The right-hand
   // side is ours and is stable; the left-hand side is the guess.

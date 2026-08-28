@@ -341,10 +341,13 @@ test("messaging declares the waiting state, not a connected or empty one", () =>
   assert.equal(state.polling_enabled, false);
   assert.equal(state.webhook_registered, false);
   assert.ok(state.prerequisites.length >= 4);
-  assert.ok(
-    state.prerequisites.every((item) => item.satisfied === false),
-    "no Business Messaging prerequisite is satisfied yet"
-  );
+  // 2026-08-28: the developer app IS approved (Account Comment), so the first
+  // two prerequisites flipped to satisfied — but the two that actually gate
+  // messaging (the privacy review and the messaging permission itself) must
+  // remain unsatisfied, and the overall state must remain waiting.
+  const bySatisfaction = Object.fromEntries(state.prerequisites.map((item) => [item.key, item.satisfied]));
+  assert.equal(bySatisfaction.data_security_privacy_review, false);
+  assert.equal(bySatisfaction.business_messaging_permission, false);
 });
 
 test("every network-facing messaging method throws instead of returning []", async () => {
@@ -434,78 +437,75 @@ test("messaging idempotency keys are stable and channel-scoped", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Comments: unavailable, with real normalization ready
+// Comments: implemented (2026-08-28), gated by runtime capability
 // ---------------------------------------------------------------------------
 
-test("comments declare the app-approval waiting state", () => {
-  const state = comments.TIKTOK_BUSINESS_COMMENTS_STATE;
-  assert.equal(state.status, "WAITING_FOR_TIKTOK_BUSINESS_APP_APPROVAL");
-  assert.equal(state.available, false);
-  assert.equal(state.polling_enabled, false);
+test("comments are gated by runtime capability, and DISABLED while flags are off", async () => {
+  // TIKTOK_BUSINESS_ENABLED / TIKTOK_BUSINESS_COMMENTS_ENABLED are unset in
+  // this suite, so the capability ladder must stop at DISABLED without touching
+  // the database or the network.
+  const capability = await comments.describeTikTokBusinessCommentsCapability({ tenantId: 1 });
+  assert.equal(capability.status, "DISABLED");
+  assert.equal(capability.available, false);
 });
 
 test("every network-facing comment method throws instead of returning []", async () => {
-  const operations = [
-    "listVideos",
-    "listComments",
-    "listReplies",
-    "createReply",
-    "deleteComment",
-    "hideComment",
-    "unhideComment",
-    "likeComment",
-    "unlikeComment",
-    "pinComment",
-    "unpinComment",
-  ];
-  for (const operation of operations) {
+  // Returning [] would render as "this video has no comments" — a false claim.
+  for (const operation of ["listVideos", "listComments", "listReplies", "createReply"]) {
     await assert.rejects(
-      () => comments.tiktokBusinessCommentsProvider[operation](),
-      (error) => error.code === "WAITING_FOR_TIKTOK_BUSINESS_APP_APPROVAL" && error.status === 501,
-      `${operation} must fail with the typed approval code`
+      () => comments.tiktokBusinessCommentsProvider[operation]({ tenantId: 1, videoId: "v", commentId: "c", text: "x" }),
+      (error) => error.name === "TikTokBusinessCommentsUnavailableError" && error.status === 501,
+      `${operation} must fail typed while the feature is disabled`
     );
   }
 });
 
-test("no comment capability is advertised as available", () => {
-  for (const [name, value] of Object.entries(comments.tiktokBusinessCommentsProvider.capabilities)) {
-    assert.notEqual(value, true, `capability "${name}" must not be advertised as available`);
-  }
-  // Unconfirmed capabilities are null (unknown), not false (confirmed absent).
-  for (const name of ["hide", "unhide", "like", "unlike", "pin", "unpin"]) {
-    assert.equal(
-      comments.tiktokBusinessCommentsProvider.capabilities[name],
-      null,
-      `${name} existence is unconfirmed and must be null, not false`
-    );
-  }
-});
-
-test("comment normalizer maps a top-level comment onto the canonical row", () => {
+test("comment normalizer maps the documented v1.3 fields onto the canonical row", () => {
   const row = comments.normalizeComment({
     comment_id: "c-1",
     video_id: "v-1",
-    user_id: "u-1",
-    nickname: "Customer",
+    unique_identifier: "+ABc1D2/stable",
+    user_id: "deprecated-user-id",
+    username: "feather_in_the_w1nd",
+    display_name: "Feather in the wind",
+    profile_image: "https://p16-sign-va.tiktokcdn.com/avatar.jpeg?x-expires=1",
     text: " nice shoes ",
     create_time: 1_755_000_000,
-    like_count: 4,
-    reply_count: 2,
+    likes: 4,
+    replies: 2,
+    status: "PUBLIC",
+    owner: false,
+    liked: true,
+    pinned: false,
   });
 
   assert.equal(row.platform, "tiktok");
   assert.equal(row.channel, "tiktok_comment");
   assert.equal(row.external_message_id, "c-1");
   assert.equal(row.external_conversation_id, "v-1");
+  // unique_identifier is the stable cross-API id and must win over the
+  // deprecated user_id.
+  assert.equal(row.external_customer_id, "+ABc1D2/stable");
+  assert.equal(row.customer_name, "Feather in the wind");
+  assert.equal(row.customer_username, "feather_in_the_w1nd");
   assert.equal(row.parent_external_message_id, null);
   assert.equal(row.is_reply, false);
   assert.equal(row.body, "nice shoes");
   assert.equal(row.like_count, 4);
   assert.equal(row.reply_count, 2);
-  // Unknown moderation state must stay unknown, never default to "not hidden".
-  assert.equal(row.is_hidden, null);
+  // PUBLIC/HIDDEN are documented and definitive.
+  assert.equal(row.is_hidden, false);
+  assert.equal(row.is_pinned, false);
+  assert.equal(row.is_liked_by_owner, true);
+});
+
+test("moderation state stays unknown when TikTok does not send it", () => {
+  const row = comments.normalizeComment({ comment_id: "c-9", video_id: "v-1", text: "hi" });
+  assert.equal(row.is_hidden, null, "no status field means unknown, never 'not hidden'");
   assert.equal(row.is_pinned, null);
   assert.equal(row.is_liked_by_owner, null);
+  const hidden = comments.normalizeComment({ comment_id: "c-10", video_id: "v-1", status: "HIDDEN" });
+  assert.equal(hidden.is_hidden, true);
 });
 
 test("comment normalizer derives reply mapping from the parent id", () => {
@@ -525,65 +525,111 @@ test("comment normalizer refuses an id-less payload", () => {
 });
 
 test("pagination never advances a cursor without has_more", () => {
+  // The documented envelope is { comments, cursor, has_more } — flat, not a
+  // page_info object (that was the pre-approval guess).
   assert.deepEqual(
-    comments.parsePageInfo({ page_info: { cursor: "abc", has_more: true, total_number: 30, page_size: 10 } }),
-    { cursor: "abc", has_more: true, total: 30, page_size: 10 }
+    comments.parseCommentPage({ cursor: 30, has_more: true }),
+    { cursor: "30", has_more: true }
   );
   // A cursor present but has_more false must not be followed: that is how a
   // poll loop becomes infinite.
   assert.deepEqual(
-    comments.parsePageInfo({ page_info: { cursor: "abc", has_more: false } }),
-    { cursor: "", has_more: false, total: 0, page_size: 0 }
+    comments.parseCommentPage({ cursor: 30, has_more: false }),
+    { cursor: "", has_more: false }
   );
-  assert.deepEqual(
-    comments.parsePageInfo({}),
-    { cursor: "", has_more: false, total: 0, page_size: 0 }
-  );
+  assert.deepEqual(comments.parseCommentPage({}), { cursor: "", has_more: false });
 });
 
-test("the ads comment API is not mistaken for the organic one", () => {
-  const wire = comments.TIKTOK_BUSINESS_COMMENTS_WIRE;
-  assert.equal(wire.key_field, "business_id", "organic comments are keyed by business_id");
-  for (const path of Object.values(wire.candidate_paths)) {
+test("the ads comment API is not mistaken for the organic one", async () => {
+  const { TIKTOK_BUSINESS_PATHS } = await import("../../server/services/tiktokBusinessApiClient.js");
+  for (const [name, path] of Object.entries(TIKTOK_BUSINESS_PATHS)) {
+    if (!/COMMENT|VIDEO|ACCOUNT/.test(name)) continue;
     assert.ok(
       path.startsWith("/business/"),
-      `${path} must be a business/* organic path, not an advertiser_id ads path`
+      `${name} (${path}) must be a business/* organic path, not an advertiser_id ads path`
     );
   }
-  assert.match(comments.TIKTOK_BUSINESS_COMMENTS_STATE.wrong_api_warning, /advertiser_id/);
 });
+
 
 // ---------------------------------------------------------------------------
 // No unverified contract is presented as verified
 // ---------------------------------------------------------------------------
 
-test("all unconfirmed TikTok wire contracts are flagged unverified", () => {
+test("messaging wire stays unverified; the webhook contract is now documented", () => {
+  // Messaging is still a guess — its docs live behind a grant we do not hold.
   assert.equal(messaging.TIKTOK_BUSINESS_MESSAGING_WIRE.verified, false);
-  assert.equal(comments.TIKTOK_BUSINESS_COMMENTS_WIRE.verified, false);
-  assert.equal(webhook.TIKTOK_BUSINESS_WEBHOOK_CONTRACT.verified, false);
+  // The webhook contract was read from TikTok's Webhook-verification doc on
+  // 2026-08-28 and implemented for real.
+  assert.equal(webhook.TIKTOK_BUSINESS_WEBHOOK_CONTRACT.verified, true);
 });
 
-test("the Content Posting webhook signature contract is not copied to Business", () => {
+test("the Business webhook signs with the Business app secret, never the Content Posting client secret", () => {
   const contract = webhook.TIKTOK_BUSINESS_WEBHOOK_CONTRACT;
-  // Copying "TikTok-Signature" + HMAC(client_secret) from the other app would be
-  // a guess that either rejects real events or accepts forged ones.
-  assert.equal(contract.signature_header, null);
-  assert.equal(contract.signature_algorithm, null);
-  assert.equal(contract.signing_secret_source, null);
+  assert.equal(contract.signing_secret_source, "TIKTOK_BUSINESS_APP_SECRET");
+  assert.equal(contract.signature_header, "tiktok-signature");
   assert.equal(contract.requires_raw_body, true);
 });
 
-test("business webhook signature verification refuses rather than guesses", () => {
+test("business webhook signature verification accepts a genuine payload and rejects forgeries", async () => {
+  const { createHmac } = await import("node:crypto");
+  const secret = "business-webhook-secret";
+  const body = JSON.stringify({ event: "comment.update", create_time: 1_755_000_000 });
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`, "utf8").digest("hex");
+  const header = `t=${timestamp},s=${signature}`;
+
+  // Genuine: passes and returns the timestamp.
+  assert.deepEqual(
+    webhook.verifyBusinessWebhookSignature({ header, rawBody: body, secret }),
+    { timestamp }
+  );
+  // Wrong key: rejected.
   assert.throws(
-    () => webhook.verifyBusinessWebhookSignature(),
-    (error) => error.code === "WAITING_FOR_TIKTOK_BUSINESS_APP_APPROVAL"
+    () => webhook.verifyBusinessWebhookSignature({ header, rawBody: body, secret: "another-secret" }),
+    (error) => error.code === "TIKTOK_BUSINESS_WEBHOOK_SIGNATURE_INVALID"
+  );
+  // Tampered body: rejected.
+  assert.throws(
+    () => webhook.verifyBusinessWebhookSignature({ header, rawBody: `${body} `, secret }),
+    (error) => error.code === "TIKTOK_BUSINESS_WEBHOOK_SIGNATURE_INVALID"
+  );
+  // Replay outside the window: the timestamp is inside the signed payload, so
+  // an attacker cannot refresh it without invalidating the signature.
+  const oldTimestamp = timestamp - 3_600;
+  const oldSignature = createHmac("sha256", secret).update(`${oldTimestamp}.${body}`, "utf8").digest("hex");
+  assert.throws(
+    () => webhook.verifyBusinessWebhookSignature({ header: `t=${oldTimestamp},s=${oldSignature}`, rawBody: body, secret }),
+    (error) => error.code === "TIKTOK_BUSINESS_WEBHOOK_REPLAY"
+  );
+  // Malformed header / missing secret: typed refusals, never a boolean.
+  assert.throws(
+    () => webhook.verifyBusinessWebhookSignature({ header: "garbage", rawBody: body, secret }),
+    (error) => error.code === "TIKTOK_BUSINESS_WEBHOOK_SIGNATURE_MALFORMED"
+  );
+  assert.throws(
+    () => webhook.verifyBusinessWebhookSignature({ header, rawBody: body, secret: "" }),
+    (error) => error.code === "TIKTOK_BUSINESS_WEBHOOK_SECRET_MISSING"
   );
 });
 
-test("webhook event key is stable, or empty when nothing identifies the event", () => {
-  const payload = { event_id: "e-1", event: "message.received", business_id: "b-1", create_time: 1_755_000_000 };
+test("webhook event key survives ids past 2^53 without corruption", () => {
+  // The documented envelope wraps the comment identity as a JSON string in
+  // `content`, and the ids inside it are UNQUOTED JSON numbers larger than
+  // Number.MAX_SAFE_INTEGER. The content string is authored raw here exactly as
+  // it travels on the wire — running it through JSON.stringify of a Number
+  // literal would corrupt it before the code under test ever saw it (that
+  // corruption is precisely the bug the digit-safe parser exists to prevent:
+  // …6913 silently becomes …7000).
+  const payload = {
+    event: "comment.update",
+    user_openid: "open-id-1",
+    create_time: 1_755_000_000,
+    content: '{"comment_id":7247303576418566913,"video_id":7203946942097902849,"comment_action":"insert"}',
+  };
   assert.equal(webhook.webhookEventKey(payload), webhook.webhookEventKey({ ...payload }));
   assert.match(webhook.webhookEventKey(payload), /^tiktok_business:/);
+  assert.match(webhook.webhookEventKey(payload), /7247303576418566913/, "the comment id must survive digit-for-digit");
   // A random fallback key would defeat the unique constraint it feeds.
   assert.equal(webhook.webhookEventKey({}), "");
 });

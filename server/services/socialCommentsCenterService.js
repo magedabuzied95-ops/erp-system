@@ -13,7 +13,14 @@ import {
   DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   updateSocialAutomationSettings,
 } from "./socialAutomationSettingsService.js";
-import { normalizePlatform, isInstagram, isFacebook } from "./socialCommentPlatforms.js";
+import {
+  normalizePlatform,
+  isInstagram,
+  isFacebook,
+  isTikTok,
+  assertMetaPlatform,
+  commentChannelForPlatform,
+} from "./socialCommentPlatforms.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -52,6 +59,26 @@ const getSocialCommentsMetaIntegrationDeps = async () => {
       });
   }
   return socialCommentsMetaIntegrationDepsPromise;
+};
+// TikTok comment reads/sync, lazily imported exactly like the Meta deps: the
+// sync service imports socialCommentAutomationService, so a static import here
+// would create a cycle at module load.
+let tiktokCommentsDepsPromise = null;
+const getTikTokCommentsDeps = async () => {
+  if (!tiktokCommentsDepsPromise) {
+    tiktokCommentsDepsPromise = import("./tiktokBusinessCommentsSyncService.js")
+      .then((module) => ({
+        listTikTokCommentPosts: module.listTikTokCommentPosts,
+        loadTikTokCommentPost: module.loadTikTokCommentPost,
+        listTikTokCommentFastList: module.listTikTokCommentFastList,
+        syncTikTokCommentsForVideo: module.syncTikTokCommentsForVideo,
+      }))
+      .catch((error) => {
+        tiktokCommentsDepsPromise = null;
+        throw error;
+      });
+  }
+  return tiktokCommentsDepsPromise;
 };
 let socialRealtimeEmittersPromise = null;
 const getSocialRealtimeEmitters = async () => {
@@ -1563,7 +1590,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         hydratedPostCreatedTimeSource = text(candidateGraphPost?.created_time ? "graph.created_time" : "graph.post_created_time");
         await persistSocialCommentPostMedia({
           tenantId,
-          channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+          channel: safeRow.channel || commentChannelForPlatform(platform),
           conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
           metadata: {
             post_id: postId,
@@ -1876,7 +1903,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         };
         await persistSocialCommentPostMedia({
           tenantId,
-          channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+          channel: safeRow.channel || commentChannelForPlatform(platform),
           conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
           metadata: fallbackMetadata,
         });
@@ -1935,7 +1962,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         };
         await persistSocialCommentPostMedia({
           tenantId,
-          channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+          channel: safeRow.channel || commentChannelForPlatform(platform),
           conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
           metadata: unsupportedMetadata,
         });
@@ -2047,7 +2074,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     };
     await persistSocialCommentPostMedia({
       tenantId,
-      channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+      channel: safeRow.channel || commentChannelForPlatform(platform),
       conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
       metadata: nextPersistedMetadata,
     });
@@ -3269,6 +3296,12 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   if (!safeTenantId || !safePostId) return null;
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  // TikTok posts live in the automation ledger, not in ai_channel_conversations
+  // — the Meta query below would answer null for them. Dispatch before it runs.
+  if (isTikTok(normalizedPlatform)) {
+    const { loadTikTokCommentPost } = await getTikTokCommentsDeps();
+    return loadTikTokCommentPost({ tenantId: safeTenantId, postId: safePostId });
+  }
   const inputCanonicalIdentity = await resolveSocialPostCanonicalIdentity({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -3441,7 +3474,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       AND c.channel = $3::text
     LIMIT 1
     `,
-    [safeTenantId, safePostId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment", lookupPostId]
+    [safeTenantId, safePostId, commentChannelForPlatform(normalizedPlatform), lookupPostId]
   );
   logSocialSqlTiming({
     logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
@@ -3603,7 +3636,7 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
       ORDER BY MAX(c.updated_at) DESC, MAX(c.created_at) DESC
       LIMIT $3
       `,
-      [safeTenantId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment", safeLimit]
+      [safeTenantId, commentChannelForPlatform(normalizedPlatform), safeLimit]
     ).catch(() => ({ rows: [] }));
     return Array.isArray(fallbackRowsResult.rows) ? fallbackRowsResult.rows : [];
   };
@@ -3853,19 +3886,32 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       forceRefresh,
     });
   }
+  if (normalizedRequestedPlatform === "tiktok") {
+    const { listTikTokCommentPosts } = await getTikTokCommentsDeps();
+    return listTikTokCommentPosts({ tenantId, limit });
+  }
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   const perPlatformLimit = Math.min(safeLimit, 24);
-  const [facebookPosts, instagramPosts] = await Promise.all([
+  // TikTok joins the all-platforms fan-out as a ledger-only read: it costs one
+  // local query, returns [] while nothing is ingested, and a failure there must
+  // never take the two live Meta lists down with it.
+  const [facebookPosts, instagramPosts, tiktokPosts] = await Promise.all([
     listSocialCommentPostsForPlatform({ tenantId, platform: "facebook", limit: perPlatformLimit, includeProductLinks, forceRefresh }),
     listSocialCommentPostsForPlatform({ tenantId, platform: "instagram", limit: perPlatformLimit, includeProductLinks, forceRefresh }),
+    getTikTokCommentsDeps()
+      .then(({ listTikTokCommentPosts }) => listTikTokCommentPosts({ tenantId, limit: perPlatformLimit }))
+      .catch((error) => {
+        debugSocialCommentsWarn("SOCIAL_TIKTOK_POSTS_LIST_FAILED", { message: error?.message || "" });
+        return [];
+      }),
   ]);
   const uniquePosts = new Map();
-  for (const post of [...facebookPosts, ...instagramPosts]) {
-    const postPlatform = lower(post.platform) === "instagram" ? "instagram" : "facebook";
+  for (const post of [...facebookPosts, ...instagramPosts, ...tiktokPosts]) {
+    const postPlatform = normalizePlatform(post.platform);
     const postId = text(post.post_id || post.id || post.platform_post_id || post.permalink_url || "");
     const key = `${postPlatform}:${postId}`;
     if (!postId || uniquePosts.has(key)) continue;
-    uniquePosts.set(key, { ...post, platform: postPlatform, channel: `${postPlatform}_comment` });
+    uniquePosts.set(key, { ...post, platform: postPlatform, channel: commentChannelForPlatform(postPlatform) });
   }
   return [...uniquePosts.values()]
     .sort((left, right) => socialCommentPostSortTime(right) - socialCommentPostSortTime(left))
@@ -3887,9 +3933,12 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
   }
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = lower(platform);
+  // Meta Graph media backfill. The all-platforms scan is pinned to the two Meta
+  // channels explicitly — a tiktok_comment conversation must never be fed into
+  // a Graph lookup, and the CASE below would mislabel it as facebook.
   const platformClause = normalizedPlatform === "facebook" || normalizedPlatform === "instagram"
-    ? `AND c.channel = '${normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"}'`
-    : "";
+    ? `AND c.channel = '${commentChannelForPlatform(normalizedPlatform)}'`
+    : `AND c.channel IN ('facebook_comment', 'instagram_comment')`;
   const result = await db.query(
     `
     SELECT
@@ -4082,7 +4131,21 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   if (!safeTenantId || !safePostId) return [];
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
-  if (normalizedPlatform === "instagram") {
+  // Opening a thread refreshes it from the source platform first. Each branch
+  // is best-effort: a failed refresh still renders the ledger's rows.
+  if (isTikTok(normalizedPlatform)) {
+    const { syncTikTokCommentsForVideo } = await getTikTokCommentsDeps();
+    await syncTikTokCommentsForVideo({
+      tenantId: safeTenantId,
+      videoId: safePostId,
+    }).catch((error) => {
+      console.warn("SOCIAL_TIKTOK_THREAD_SYNC_FAILED", {
+        tenant_id: safeTenantId,
+        post_id: safePostId,
+        message: error?.message || "",
+      });
+    });
+  } else if (normalizedPlatform === "instagram") {
     const { syncMetaInstagramCommentsForTenant } = await getSocialCommentsMetaIntegrationDeps();
     await syncMetaInstagramCommentsForTenant({
       tenantId: safeTenantId,
@@ -4109,7 +4172,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
       });
     });
   }
-  const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
+  const channel = commentChannelForPlatform(normalizedPlatform);
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
   const sessionIds = buildSocialCommentThreadSessionVariants({ postId: canonicalPostId || safePostId, platform: normalizedPlatform });
   const sessionPatterns = Array.from(new Set(sessionIds.flatMap((value) => {
@@ -4517,7 +4580,10 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   const hasRawPayloadColumn = columns.has("raw_payload");
   const whereClauses = ["tenant_id = $1::bigint"];
   const params = [safeTenantId];
-  if (normalizedPlatform === "facebook" || normalizedPlatform === "instagram") {
+  // Plain equality on the ledger's platform column — valid for all three
+  // platforms; tiktok rows live in the same table with platform = 'tiktok'.
+  // An empty/unknown platform still normalizes to facebook, exactly as before.
+  if (["facebook", "instagram", "tiktok"].includes(normalizedPlatform)) {
     whereClauses.push("platform = $2::text");
     params.push(normalizedPlatform);
   }
@@ -4738,7 +4804,7 @@ const getSocialCommentPostByCommentId = async ({ tenantId = null, platform = "",
       AND c.thread_kind = 'comment'
     LIMIT 1
     `,
-    [safeTenantId, safeCommentId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"]
+    [safeTenantId, safeCommentId, commentChannelForPlatform(normalizedPlatform)]
   );
   const row = result.rows?.[0] || null;
   return row ? await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform }) : null;
@@ -4913,7 +4979,12 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
 
 const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", postId = "", commentId = "", comment = null, post = null, settings = null, template = null, force = false } = {}) => {
   const safeTenantId = toTenantId(tenantId);
-  const normalizedPlatform = normalizePlatform(platform);
+  // The auto-reply engine replies/likes/DMs through the Meta Graph API and is
+  // Meta-only by construction. TikTok replies are manual-only and go through
+  // tiktokBusinessCommentsSyncService.replyToTikTokComment — a tiktok value
+  // reaching this engine is a routing bug and must fail loudly, not fall
+  // through to a Facebook Graph call with a TikTok comment id.
+  const normalizedPlatform = assertMetaPlatform(platform, "processSocialCommentAutoReply");
   const safeCommentId = text(commentId || comment?.comment_id || comment?.id || "");
   const safePostId = text(postId || post?.post_id || post?.metadata?.post_id || "");
   if (!safeTenantId || !safeCommentId || !safePostId) {

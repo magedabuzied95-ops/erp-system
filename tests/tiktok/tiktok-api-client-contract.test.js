@@ -11,11 +11,13 @@ import test from "node:test";
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
 const apiSource = read("../../src/shared/api/api.js");
 const cardSource = read("../../src/modules/aiSupport/components/TikTokConnectionCard.jsx");
+const businessCardSource = read("../../src/modules/aiSupport/components/TikTokBusinessCard.jsx");
 const panelSource = read("../../src/modules/marketing/components/TikTokPublishPanel.jsx");
 const marketingApiSource = read("../../src/modules/marketing/services/marketingApi.js");
 
 const tiktokSources = [
   ["TikTokConnectionCard", cardSource],
+  ["TikTokBusinessCard", businessCardSource],
   ["TikTokPublishPanel", panelSource],
   ["marketingApi", marketingApiSource],
 ];

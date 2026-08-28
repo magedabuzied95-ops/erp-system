@@ -1,134 +1,79 @@
 // TikTok organic comments — Social Comments Center provider (TikTok API for Business).
 //
-// STATUS: WAITING_FOR_TIKTOK_BUSINESS_APP_APPROVAL
+// STATUS: IMPLEMENTED. Runtime availability is computed per tenant by
+// tiktokBusinessCapabilityService.js — never assumed from the portal approval.
 //
 // RELATIONSHIP TO tiktokCommentsProvider.js
 // -----------------------------------------
-// That file is the *TikTok for Developers* app's statement: "the Login Kit /
-// Content Posting app exposes no comment API at any scope." It stays true and
-// stays untouched.
+// That file is the *TikTok for Developers* app's statement: the Login Kit /
+// Content Posting app exposes no comment API at any scope. That remains true
+// and that file remains untouched. This file is the real integration, against
+// the Accounts API on business-api.tiktok.com, authorized via the approved
+// "M1 Store ERP" Business app (TikTok Accounts > Account Comment: Get + Manage).
 //
-// This file is the *TikTok API for Business* app's statement. It is where the
-// real comment integration will land, because the organic comment endpoints
-// exist only on business-api.tiktok.com. Keeping the two separate is the whole
-// point of the Phase 2 split: two apps, two credentials, two providers.
+// CONTRACT PROVENANCE (2026-08-28)
+// --------------------------------
+// Every endpoint, parameter, and field below was read from TikTok's official
+// documentation (Accounts > Comments, v1.3) and the paths were confirmed routed
+// against the live gateway. The earlier `verified: false` quarantine is gone
+// because the uncertainty it quarantined is gone. Two corrections against the
+// old guesses, preserved here so they are not re-guessed:
+//   * comment/list is GET with URL params (v1.2 was POST) and paginates via
+//     data.cursor + data.has_more — NOT a page_info object.
+//   * `parent_comment_id` is present ONLY on replies; `unique_identifier` is
+//     the stable cross-API user id (`user_id` is deprecated).
 //
-// WHAT RESEARCH ACTUALLY CONFIRMED (Aug 2026)
-// -------------------------------------------
-// CONFIRMED — there are two distinct comment API families, and conflating them
-// would be a serious bug:
-//
-//   * /open_api/v1.3/comment/*  keyed by `advertiser_id`. These are ADS
-//     comments (Spark Ads). Verified against TikTok's own published SDK
-//     (tiktok/tiktok-business-api-sdk, python_sdk/docs/CommentsApi.md), which
-//     documents comment/list, comment/post, comment/delete, comment/reference,
-//     comment/status/update and the blockedword/* family — all advertiser_id.
-//     This is NOT what Social Comments Center needs.
-//
-//   * business/comment/*  keyed by `business_id`. These are ORGANIC comments on
-//     an owned TikTok video. TikTok's official Postman collection for Business
-//     API v1.3 contains requests named "Business comment list", "Business
-//     comment reply", and "Business comment reply create", which confirms the
-//     family EXISTS and roughly what it covers.
-//
-// NOT CONFIRMED — and deliberately not guessed:
-//   * exact paths, path segments, and version prefix
-//   * request/response parameter names
-//   * the literal permission name that grants organic comment access. The
-//     pending app requests Ad Account Management, Measurement, CTX Events
-//     Management, and TikTok Accounts. "TikTok Accounts" is the plausible home
-//     for organic reads but this is UNVERIFIED.
-//   * whether hide/unhide, like/unlike, and pin/unpin exist at all for organic
-//     comments. They are exposed here as `null` (unknown), never `true`.
-//
-// Both business-api.tiktok.com/portal/docs and the Postman web viewer render
-// client-side, so neither could be read programmatically. They must be confirmed
-// against the portal once the app is approved.
-//
-// Everything unverified is quarantined in TIKTOK_BUSINESS_COMMENTS_WIRE with
-// `verified: false`, and the live gate refuses to build a request while that
-// flag is false. No path in this file is presented as fact.
+// /open_api/v1.3/comment/* (no `business/` prefix) is still the ADS comment API
+// keyed by advertiser_id. It is still not organic comments. Do not substitute.
 
 import {
-  tiktokBusinessCommentsEnabled,
-  TIKTOK_BUSINESS_API_BASE,
-  TIKTOK_BUSINESS_API_VERSION,
-} from "./tiktokBusinessConfigService.js";
+  TIKTOK_BUSINESS_REPLY_MAX_CHARS,
+  createTikTokBusinessCommentReply,
+  fetchTikTokBusinessCommentReplies,
+  fetchTikTokBusinessComments,
+  fetchTikTokBusinessVideos,
+} from "./tiktokBusinessApiClient.js";
+import {
+  TIKTOK_BUSINESS_CAPABILITY,
+  detectTikTokBusinessCommentsCapability,
+} from "./tiktokBusinessCapabilityService.js";
+import { getValidTikTokBusinessAccessToken } from "./tiktokBusinessOAuthService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 
-export const TIKTOK_BUSINESS_COMMENTS_STATUS = "WAITING_FOR_TIKTOK_BUSINESS_APP_APPROVAL";
-
-export const TIKTOK_BUSINESS_COMMENTS_STATE = Object.freeze({
-  status: TIKTOK_BUSINESS_COMMENTS_STATUS,
-  available: false,
-  polling_enabled: false,
-  reason:
-    "Organic TikTok comment management requires an approved TikTok API for Business app and a Business Account authorization. The M1 Store ERP developer app is PENDING, so no Business App ID or business_id exists yet.",
-  blocked_by: "tiktok_business_app_approval",
-  // Recorded so nobody later reaches for the ads endpoints because they are the
-  // ones that happen to be documented.
-  wrong_api_warning:
-    "/open_api/v1.3/comment/* is the ADS comment API keyed by advertiser_id (Spark Ads). It is not organic video comments and must not be substituted.",
-});
-
-// The single quarantine for every unconfirmed wire detail.
-export const TIKTOK_BUSINESS_COMMENTS_WIRE = Object.freeze({
-  verified: false,
-  base: `${TIKTOK_BUSINESS_API_BASE}/open_api/${TIKTOK_BUSINESS_API_VERSION}`,
-  key_field: "business_id",
-  candidate_paths: Object.freeze({
-    listVideos: "/business/video/list/",
-    listComments: "/business/comment/list/",
-    listReplies: "/business/comment/reply/list/",
-    createReply: "/business/comment/reply/create/",
-    deleteComment: "/business/comment/delete/",
-    hideComment: "/business/comment/hide/",
-    likeComment: "/business/comment/like/",
-    pinComment: "/business/comment/pin/",
-  }),
-  comment_field_map: Object.freeze({
-    comment_id: "external_message_id",
-    parent_comment_id: "parent_external_message_id",
-    video_id: "external_conversation_id",
-    user_id: "external_customer_id",
-    nickname: "customer_name",
-    avatar_url: "customer_avatar_url",
-    text: "body",
-    create_time: "created_at",
-    like_count: "like_count",
-    reply_count: "reply_count",
-  }),
-});
-
 export class TikTokBusinessCommentsUnavailableError extends Error {
-  constructor(operation = "") {
+  constructor(operation = "", capability = {}) {
     super(
-      `TikTok Business comment operation "${operation}" is unavailable: ${TIKTOK_BUSINESS_COMMENTS_STATE.reason}`
+      `TikTok Business comment operation "${operation}" is unavailable: ${text(capability?.reason) || "capability check failed"}`
     );
     this.name = "TikTokBusinessCommentsUnavailableError";
-    this.code = TIKTOK_BUSINESS_COMMENTS_STATE.status;
-    this.status = 501;
+    this.code = text(capability?.status) || "TIKTOK_BUSINESS_COMMENTS_UNAVAILABLE";
+    // 501 for structurally-off states, 409 for fix-by-reconnecting states.
+    this.status = capability?.status === TIKTOK_BUSINESS_CAPABILITY.TOKEN_EXPIRED ? 409 : 501;
     this.operation = text(operation);
-    this.blocked_by = TIKTOK_BUSINESS_COMMENTS_STATE.blocked_by;
+    this.capability = capability;
     this.retryable = false;
   }
 }
 
-// Two independent gates, both closed today. Returning [] here instead of
-// throwing would render as "this video has no comments" — a false claim.
-const assertLiveCommentsAllowed = (operation) => {
-  if (!tiktokBusinessCommentsEnabled() || !TIKTOK_BUSINESS_COMMENTS_WIRE.verified) {
-    throw new TikTokBusinessCommentsUnavailableError(operation);
+// Every provider method passes through here first. Returning [] on a closed
+// gate is forbidden — it would render as "this video has no comments", which is
+// a false claim. Callers get a typed error carrying the precise state instead.
+const requireCapability = async ({ tenantId, operation, needReply = false }) => {
+  const capability = await detectTikTokBusinessCommentsCapability({ tenantId, probe: false });
+  if (!capability.available) throw new TikTokBusinessCommentsUnavailableError(operation, capability);
+  if (needReply && !capability.can_reply) {
+    throw new TikTokBusinessCommentsUnavailableError(operation, {
+      ...capability,
+      status: TIKTOK_BUSINESS_CAPABILITY.MISSING_PERMISSION,
+      reason: "The authorized TikTok account did not grant the comment manage permission (comment.list.manage), so replying is unavailable.",
+    });
   }
-  throw new TikTokBusinessCommentsUnavailableError(operation);
+  return capability;
 };
 
-const unavailable = (operation) => async () => assertLiveCommentsAllowed(operation);
-
 // ---------------------------------------------------------------------------
-// Pure helpers — real, credential-free, unit-tested now so that post-approval
-// work is "correct the field map", not "write a mapper from scratch".
+// Pure helpers — mapping the documented wire shape onto canonical rows.
 // ---------------------------------------------------------------------------
 
 const epochToIso = (value) => {
@@ -145,116 +90,166 @@ const countOrZero = (value) => {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : 0;
 };
 
-// Maps one raw comment onto the canonical Social Comments Center row. Returns
-// null for an id-less payload rather than inventing an identity — an id-less
-// comment would collide with every other id-less row on dedupe.
-export const normalizeComment = (raw = {}) => {
+const boolOrNull = (value) => (typeof value === "boolean" ? value : null);
+
+// Maps one raw TikTok comment onto the canonical Social Comments Center row.
+// Field names follow the documented v1.3 response. Returns null for an id-less
+// payload rather than inventing an identity — an id-less comment would collide
+// with every other id-less row on dedupe.
+export const normalizeComment = (raw = {}, { videoId = "" } = {}) => {
   const commentId = text(raw.comment_id);
   if (!commentId) return null;
   const parentId = text(raw.parent_comment_id);
+  const status = text(raw.status).toUpperCase();
   return {
     platform: "tiktok",
     channel: "tiktok_comment",
-    external_conversation_id: text(raw.video_id || raw.item_id),
+    external_conversation_id: text(raw.video_id) || text(videoId),
     external_message_id: commentId,
     parent_external_message_id: parentId || null,
-    // A comment carrying a parent id is a reply. Derived rather than trusting a
-    // separate boolean, so the two can never disagree.
+    // A comment carrying parent_comment_id is a reply — documented: the field
+    // is returned only for replies. Derived rather than trusting a separate
+    // boolean, so the two can never disagree.
     is_reply: Boolean(parentId),
-    external_customer_id: text(raw.user_id || raw.unique_id),
-    customer_name: text(raw.nickname || raw.display_name),
-    customer_avatar_url: text(raw.avatar_url),
-    body: text(raw.text ?? raw.content),
+    // unique_identifier is the stable cross-API id; user_id is deprecated and
+    // kept only as a fallback for transitional payloads.
+    external_customer_id: text(raw.unique_identifier) || text(raw.user_id),
+    customer_name: text(raw.display_name) || text(raw.username),
+    customer_username: text(raw.username),
+    // Documented as temporary (x-expires) — resolve at render time, never treat
+    // as durable.
+    customer_avatar_url: text(raw.profile_image),
+    body: text(raw.text),
+    image_url: text(raw.image_url),
     created_at: epochToIso(raw.create_time),
-    like_count: countOrZero(raw.like_count),
-    reply_count: countOrZero(raw.reply_count),
-    // Tri-state on purpose. `false` would assert "this comment is not hidden",
-    // which we cannot know until the field is confirmed; null means unknown and
-    // a capability-driven UI renders the control as disabled rather than off.
-    is_hidden: typeof raw.is_hidden === "boolean" ? raw.is_hidden : null,
-    is_pinned: typeof raw.is_pinned === "boolean" ? raw.is_pinned : null,
-    is_liked_by_owner: typeof raw.is_liked === "boolean" ? raw.is_liked : null,
+    like_count: countOrZero(raw.likes),
+    reply_count: countOrZero(raw.replies),
+    // HIDDEN/PUBLIC is documented and definitive; anything else stays unknown.
+    is_hidden: status === "HIDDEN" ? true : status === "PUBLIC" ? false : null,
+    is_pinned: boolOrNull(raw.pinned),
+    is_liked_by_owner: boolOrNull(raw.liked),
+    is_owner: boolOrNull(raw.owner),
     metadata: { provider: "tiktok_business" },
   };
 };
 
-// Cursor/page-token parser. TikTok Business paginates with a `page_info` object;
-// `has_more` is authoritative and a cursor without has_more must not be followed
+// Pagination for the documented envelope: { comments, cursor, has_more }.
+// has_more is authoritative — a cursor without has_more must not be followed
 // (following it is how polling loops become infinite).
-export const parsePageInfo = (payload = {}) => {
-  const info = payload?.page_info || payload?.data?.page_info || {};
-  const cursor = text(info.cursor ?? info.next_cursor ?? "");
-  const hasMore = info.has_more === true;
+export const parseCommentPage = (data = {}) => {
+  const hasMore = data?.has_more === true;
+  const cursorValue = data?.cursor;
   return {
-    cursor: hasMore ? cursor : "",
+    cursor: hasMore && cursorValue !== undefined && cursorValue !== null ? String(cursorValue) : "",
     has_more: hasMore,
-    total: countOrZero(info.total_number ?? info.total),
-    page_size: countOrZero(info.page_size),
   };
 };
 
-export const commentIdempotencyKey = (raw = {}) => {
+export const commentIdempotencyKey = (raw = {}, { videoId = "" } = {}) => {
   const commentId = text(raw.comment_id);
   if (!commentId) return "";
-  return `tiktok_business_comment:${text(raw.video_id || raw.item_id) || "unknown"}:${commentId}`;
+  return `tiktok_business_comment:${text(raw.video_id) || text(videoId) || "unknown"}:${commentId}`;
 };
 
 // ---------------------------------------------------------------------------
-// Provider object.
+// Provider object
 // ---------------------------------------------------------------------------
+
+const withConnection = async ({ tenantId, operation, needReply = false }) => {
+  await requireCapability({ tenantId, operation, needReply });
+  return getValidTikTokBusinessAccessToken({ tenantId });
+};
 
 export const tiktokBusinessCommentsProvider = Object.freeze({
   provider: "tiktok_business",
   platform: "tiktok",
   channel: "tiktok_comment",
-  state: TIKTOK_BUSINESS_COMMENTS_STATE,
 
-  // false = confirmed unavailable now. null = existence not confirmed at all.
-  // Neither renders an enabled control; the distinction tells the next engineer
-  // which ones still need a docs check versus which just need the grant.
+  // Static shape of what the integration implements. Per-tenant, per-token
+  // availability comes from getCapabilities()/the capability service — a UI must
+  // not render enabled controls off this object alone.
   capabilities: Object.freeze({
-    list_videos: false,
-    list_comments: false,
-    list_replies: false,
-    create_reply: false,
+    list_videos: true,
+    list_comments: true,
+    list_replies: true,
+    create_reply: true,
+    // Not implemented — the endpoints exist (like/unlike, hide/unhide, delete,
+    // pin) but are out of this phase's scope. false = "the ERP does not do
+    // this", which is the honest value.
     delete_own_reply: false,
-    hide: null,
-    unhide: null,
-    like: null,
-    unlike: null,
-    pin: null,
-    unpin: null,
+    hide: false,
+    unhide: false,
+    like: false,
+    unlike: false,
+    pin: false,
+    unpin: false,
     ai_suggested_replies: false,
-    webhook: false,
-    // No comment webhook exists on either TikTok surface, so ingestion will
-    // have to be polled. Recorded now so it is not rediscovered later.
-    ingestion_mode: "poll_only",
+    // comment.update webhook exists (confirmed in the docs) AND polling is
+    // implemented; the webhook is an accelerator, polling is the guarantee.
+    webhook: true,
+    ingestion_mode: "poll_with_webhook_acceleration",
   }),
 
-  getCapabilities: () => ({
-    ...tiktokBusinessCommentsProvider.capabilities,
-    state: TIKTOK_BUSINESS_COMMENTS_STATE,
-  }),
+  getCapabilities: async ({ tenantId, probe = true } = {}) => {
+    const state = await detectTikTokBusinessCommentsCapability({ tenantId, probe });
+    return { ...tiktokBusinessCommentsProvider.capabilities, state };
+  },
 
-  listVideos: unavailable("listVideos"),
-  listComments: unavailable("listComments"),
-  listReplies: unavailable("listReplies"),
-  createReply: unavailable("createReply"),
-  deleteComment: unavailable("deleteComment"),
-  hideComment: unavailable("hideComment"),
-  unhideComment: unavailable("unhideComment"),
-  likeComment: unavailable("likeComment"),
-  unlikeComment: unavailable("unlikeComment"),
-  pinComment: unavailable("pinComment"),
-  unpinComment: unavailable("unpinComment"),
+  listVideos: async ({ tenantId, cursor, maxCount } = {}) => {
+    const { accessToken, businessId } = await withConnection({ tenantId, operation: "listVideos" });
+    const data = await fetchTikTokBusinessVideos({ accessToken, businessId, cursor, maxCount });
+    return {
+      videos: Array.isArray(data?.videos) ? data.videos : [],
+      ...parseCommentPage(data),
+    };
+  },
+
+  listComments: async ({ tenantId, videoId, cursor, maxCount, commentIds } = {}) => {
+    const { accessToken, businessId } = await withConnection({ tenantId, operation: "listComments" });
+    const data = await fetchTikTokBusinessComments({ accessToken, businessId, videoId, cursor, maxCount, commentIds });
+    const rawComments = Array.isArray(data?.comments) ? data.comments : [];
+    return {
+      comments: rawComments.map((raw) => normalizeComment(raw, { videoId })).filter(Boolean),
+      raw_comments: rawComments,
+      ...parseCommentPage(data),
+    };
+  },
+
+  listReplies: async ({ tenantId, videoId, commentId, cursor, maxCount } = {}) => {
+    const { accessToken, businessId } = await withConnection({ tenantId, operation: "listReplies" });
+    const data = await fetchTikTokBusinessCommentReplies({ accessToken, businessId, videoId, commentId, cursor, maxCount });
+    const rawComments = Array.isArray(data?.comments) ? data.comments : [];
+    return {
+      comments: rawComments.map((raw) => normalizeComment(raw, { videoId })).filter(Boolean),
+      raw_comments: rawComments,
+      ...parseCommentPage(data),
+    };
+  },
+
+  // The only write. Idempotency/duplicate protection is owned by the sync
+  // service's reply log (tiktok_business_reply_log) — this method is the raw
+  // provider call beneath it.
+  createReply: async ({ tenantId, videoId, commentId, text: replyText } = {}) => {
+    const { accessToken, businessId } = await withConnection({ tenantId, operation: "createReply", needReply: true });
+    const data = await createTikTokBusinessCommentReply({ accessToken, businessId, videoId, commentId, text: replyText });
+    return {
+      reply_comment_id: text(data?.comment_id),
+      video_id: text(data?.video_id) || text(videoId),
+      replied_to_comment_id: text(commentId),
+      raw: data,
+    };
+  },
 
   normalizeComment,
-  parsePageInfo,
+  parseCommentPage,
   commentIdempotencyKey,
 });
 
-export const describeTikTokBusinessCommentsCapability = () => ({
-  ...TIKTOK_BUSINESS_COMMENTS_STATE,
-  capabilities: tiktokBusinessCommentsProvider.capabilities,
-  wire_verified: TIKTOK_BUSINESS_COMMENTS_WIRE.verified,
-});
+export { TIKTOK_BUSINESS_REPLY_MAX_CHARS };
+
+// Surfaced by GET /api/tiktok-business/status. Async because the honest answer
+// depends on the tenant's live connection, not on a constant.
+export const describeTikTokBusinessCommentsCapability = async ({ tenantId, probe = false } = {}) => {
+  const state = await detectTikTokBusinessCommentsCapability({ tenantId, probe });
+  return { ...state, capabilities: tiktokBusinessCommentsProvider.capabilities };
+};

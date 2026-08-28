@@ -1298,6 +1298,7 @@ const resolveCommentPlatformLabel = (comment = {}) => {
   const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
   const platform = clean(normalized.platform || raw.platform || metadata.platform || "").toLowerCase();
   if (platform.includes("instagram")) return "Instagram";
+  if (platform.includes("tiktok")) return "TikTok";
   if (platform.includes("facebook")) return "Facebook";
   return platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Facebook";
 };
@@ -2864,7 +2865,7 @@ function SocialCommentsWorkspace({
   if (streamlined) {
     const postPlatforms = (post) => {
       const values = asArray(post.platforms).length ? post.platforms : [post.platform];
-      return Array.from(new Set(values.map((value) => clean(value).toLowerCase()).filter((value) => value === "facebook" || value === "instagram")));
+      return Array.from(new Set(values.map((value) => clean(value).toLowerCase()).filter((value) => value === "facebook" || value === "instagram" || value === "tiktok")));
     };
     return (
       <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">

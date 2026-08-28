@@ -44,12 +44,20 @@
 
 const text = (value = "") => String(value ?? "").trim();
 
+// Updated 2026-08-28: the TikTok API for Business app WAS approved (TikTok
+// Accounts > Account Comment) and the real comment integration now lives in
+// tiktokBusinessCommentsProvider.js / tiktokBusinessCommentsSyncService.js.
+// This provider's own statement is unchanged and still true — the Login Kit /
+// Content Posting app has no comment API — but the status no longer claims to
+// be "waiting": comments are handled by the OTHER integration, and this one
+// points there instead of blocking the story.
 export const TIKTOK_COMMENTS_STATE = Object.freeze({
-  status: "WAITING_FOR_TIKTOK_BUSINESS_PERMISSION",
-  reason: "TikTok comment management requires TikTok API for Business (Business Account) access, which is a separate application from the Login Kit app.",
-  blocked_by: "tiktok_business_account_api_access",
-  // Set to true only once the Business Account API is granted AND the endpoint
-  // paths/scopes have been confirmed against the portal.
+  status: "COMMENTS_HANDLED_BY_TIKTOK_BUSINESS",
+  reason: "The Login Kit / Content Posting app exposes no comment API. TikTok comments are managed by the TikTok API for Business integration (/api/tiktok-business/status).",
+  handled_by: "tiktok_business",
+  handled_by_endpoint: "/api/tiktok-business/status",
+  // Still false HERE: this app cannot do comments. The Business integration
+  // reports its own availability per tenant.
   available: false,
   polling_enabled: false,
 });

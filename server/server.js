@@ -728,6 +728,10 @@ const { tiktokEnabled: isTikTokEnabled, tiktokIntakePollIntervalMs, validateTikT
 // TikTok for Developers / Content Posting). Status endpoint only: the Business
 // app is PENDING review, so there is no App ID, no OAuth, and no webhook mount.
 const { default: tiktokBusinessRoutes } = await import("./routes/tiktokBusiness.js");
+const { default: tiktokBusinessWebhookRoutes } = await import("./routes/tiktokBusinessWebhook.js");
+const { ensureTikTokBusinessSchema } = await import("./services/tiktokBusinessOAuthService.js");
+const { startTikTokBusinessCommentsWorker } = await import("./services/tiktokBusinessCommentsSyncService.js");
+const { tiktokBusinessEnabled: isTikTokBusinessEnabled, tiktokBusinessCommentsEnabled: isTikTokBusinessCommentsEnabled, validateTikTokBusinessConfig } = await import("./services/tiktokBusinessConfigService.js");
 const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
 const { ensureRestockRecoverySchema } = await import("./services/aiRestockRecoveryService.js");
@@ -2035,9 +2039,13 @@ app.use("/api/webhooks/telegram", telegramWebhookRoutes);
 app.use("/api/tiktok", tiktokRoutes);
 // Registered in the TikTok Developer Portal as the Webhook Callback URL.
 app.use("/api/webhooks/tiktok", tiktokWebhookRoutes);
-// Read-only status for the pending TikTok API for Business app. No OAuth and no
-// webhook mount until the app is approved — see routes/tiktokBusinessWebhook.js.
+// TikTok API for Business (approved 2026-08-28): OAuth + status + comment
+// actions. Separate app/credentials from /api/tiktok — see routes/tiktokBusiness.js.
 app.use("/api/tiktok-business", tiktokBusinessRoutes);
+// Registered with TikTok via /business/webhook/update/ once credentials exist.
+// The handler itself answers 503 until TIKTOK_BUSINESS_WEBHOOK_ENABLED is set,
+// so mounting is safe on a dormant deployment.
+app.use("/api/webhooks/tiktok-business", tiktokBusinessWebhookRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
 app.use("/api/ai-studio", aiWorkflowRoutes);
@@ -2563,6 +2571,24 @@ const bootstrapStartup = async () => {
       }
     } else {
       console.log("[server] TikTok schema ensured (integration disabled)");
+    }
+    // TikTok API for Business (comments). Entirely separate lifecycle from the
+    // publisher above. Disabled => zero DDL and zero workers, so a deployment
+    // without the flags boots byte-identically to before this integration.
+    if (isTikTokBusinessEnabled()) {
+      const tiktokBusinessConfig = validateTikTokBusinessConfig();
+      if (!tiktokBusinessConfig.valid) {
+        // Same fail-closed posture as the publisher: refuse to start rather than
+        // run half-configured, and never take the rest of the server down.
+        console.error("[server] TIKTOK_BUSINESS_CONFIG_INVALID", { problems: tiktokBusinessConfig.problems });
+        console.error("[server] TikTok Business is enabled but misconfigured; the integration will not start.");
+      } else {
+        await ensureTikTokBusinessSchema(db);
+        if (isTikTokBusinessCommentsEnabled()) startTikTokBusinessCommentsWorker();
+        console.log("[server] TikTok Business integration ready", {
+          comments_worker: isTikTokBusinessCommentsEnabled(),
+        });
+      }
     }
     await ensureAiSalesAgentSchema(db);
     console.log("[server] AI sales agent schema ensured");

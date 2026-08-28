@@ -401,17 +401,22 @@ test("a draft upload skips post-option validation entirely", () => {
 // Comments boundary
 // ---------------------------------------------------------------------------
 
-test("comments are declared blocked, not merely empty", () => {
-  assert.equal(TIKTOK_COMMENTS_STATE.status, "WAITING_FOR_TIKTOK_BUSINESS_PERMISSION");
+test("comments point at the Business integration, and stay unavailable HERE", () => {
+  // 2026-08-28: the Business app was approved and the real comments integration
+  // lives in tiktokBusinessCommentsProvider.js. The Login Kit app still has no
+  // comment API, so this provider stays unavailable — but its status must no
+  // longer read as "waiting", because nothing is waited on any more.
+  assert.equal(TIKTOK_COMMENTS_STATE.status, "COMMENTS_HANDLED_BY_TIKTOK_BUSINESS");
+  assert.equal(TIKTOK_COMMENTS_STATE.handled_by, "tiktok_business");
   assert.equal(TIKTOK_COMMENTS_STATE.available, false);
-  assert.equal(TIKTOK_COMMENTS_STATE.polling_enabled, false, "no polling may run without Business API access");
+  assert.equal(TIKTOK_COMMENTS_STATE.polling_enabled, false, "the Login Kit app must never poll comments");
 });
 
 test("every comment operation throws rather than returning fake data", async () => {
   for (const operation of ["listComments", "replyToComment", "likeComment", "hideComment", "unhideComment", "deleteOwnReply"]) {
     await assert.rejects(
       () => tiktokCommentsProvider[operation](),
-      (error) => error.code === "WAITING_FOR_TIKTOK_BUSINESS_PERMISSION",
+      (error) => error.code === "COMMENTS_HANDLED_BY_TIKTOK_BUSINESS" && error.status === 501,
       `${operation} must not resolve`
     );
   }

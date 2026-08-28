@@ -26,43 +26,53 @@ const {
 const originalNormalizePlatform = (value = "") =>
   String(value ?? "").trim().toLowerCase() === "instagram" ? "instagram" : "facebook";
 
-test("normalizePlatform is byte-for-byte identical to the implementation it replaced", () => {
+test("normalizePlatform matches the original for every input except the deliberate tiktok flip", () => {
+  // 2026-08-28: tiktok became normalizable — the Center's entry points now
+  // dispatch tiktok rows to the TikTok provider before any binary Meta SQL
+  // runs, which was the precondition for this flip. The literal "tiktok" is the
+  // ONLY input whose output is allowed to differ from the original; everything
+  // the Meta channels can produce is pinned unchanged.
   const inputs = [
     "instagram", "Instagram", "  INSTAGRAM  ", "instagram_comment",
     "facebook", "Facebook", "  facebook ", "facebook_comment",
-    "tiktok", "TikTok", "whatsapp", "telegram", "web_chat",
+    "whatsapp", "telegram", "web_chat",
     "", "   ", null, undefined, 0, 123, "unknown-platform",
   ];
   for (const input of inputs) {
     assert.equal(
       normalizePlatform(input),
       originalNormalizePlatform(input),
-      `normalizePlatform(${JSON.stringify(input)}) changed behaviour`
+      `normalizePlatform(${JSON.stringify(input)}) changed behaviour for a Meta-era input`
     );
   }
 });
 
-test("only the literal instagram maps to instagram; everything else is facebook", () => {
+test("only the literal instagram maps to instagram; non-tiktok garbage is facebook", () => {
   assert.equal(normalizePlatform("instagram"), "instagram");
   assert.equal(normalizePlatform("facebook"), "facebook");
   // Notably including "instagram_comment" — the channel name is not the
-  // platform name, and the SQL sites rely on that distinction.
+  // platform name, and the SQL sites rely on that distinction. Same for
+  // "tiktok_comment": only the bare platform literal normalizes to tiktok.
   assert.equal(normalizePlatform("instagram_comment"), "facebook");
+  assert.equal(normalizePlatform("tiktok_comment"), "facebook");
 });
 
-test("tiktok is registered but is NOT yet reachable through normalizePlatform", () => {
+test("tiktok is registered AND reachable through normalizePlatform (flipped in the required order)", () => {
   assert.equal(isKnownCommentPlatform("tiktok"), true);
-  assert.equal(SOCIAL_COMMENT_PLATFORM_REGISTRY.tiktok.normalizable, false);
-  assert.equal(SOCIAL_COMMENT_PLATFORM_REGISTRY.tiktok.available, false);
-  // The binary SQL sites are only correct for Meta, so tiktok must not leak
-  // into them via normalizePlatform before they are converted.
-  assert.equal(normalizePlatform("tiktok"), "facebook");
+  assert.equal(SOCIAL_COMMENT_PLATFORM_REGISTRY.tiktok.normalizable, true);
+  assert.equal(SOCIAL_COMMENT_PLATFORM_REGISTRY.tiktok.available, true);
+  assert.equal(normalizePlatform("tiktok"), "tiktok");
+  assert.equal(normalizePlatform("  TikTok  "), "tiktok");
+  // The guard below is what keeps this flip safe: tiktok can be produced, but
+  // it cannot pass into a Meta-only SQL path.
 });
 
-test("isInstagram and isFacebook stay mutually exclusive and total", () => {
-  for (const input of ["instagram", "facebook", "tiktok", "", null, "garbage"]) {
+test("isInstagram and isFacebook stay mutually exclusive for Meta inputs; tiktok is neither", () => {
+  for (const input of ["instagram", "facebook", "", null, "garbage"]) {
     assert.notEqual(isInstagram(input), isFacebook(input), `${input} must be exactly one of the two`);
   }
+  assert.equal(isInstagram("tiktok"), false);
+  assert.equal(isFacebook("tiktok"), false, "treating tiktok as facebook is exactly the bug the registry exists to prevent");
 });
 
 test("channel names match the canonical ai_channel_conversations values", () => {

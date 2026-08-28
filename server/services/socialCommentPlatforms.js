@@ -59,12 +59,13 @@ export const SOCIAL_COMMENT_PLATFORM_REGISTRY = Object.freeze({
     platform: SOCIAL_COMMENT_PLATFORMS.TIKTOK,
     channel: "tiktok_comment",
     meta: false,
-    // Not reachable from normalizePlatform yet. Flipping this to true without
-    // first converting the binary SQL sites would route TikTok rows through
-    // Meta queries — the guard below is what catches that.
-    normalizable: false,
-    // Blocked on TikTok approving the API for Business app.
-    available: false,
+    // Flipped 2026-08-28, in the required order: the Center's entry points now
+    // dispatch tiktok to tiktokBusinessCommentsSyncService BEFORE any binary
+    // Meta SQL runs, and every Meta-only path asserts assertMetaPlatform. The
+    // integration is real (TikTok Accounts > Account Comment approved); runtime
+    // availability per tenant comes from tiktokBusinessCapabilityService.
+    normalizable: true,
+    available: true,
   }),
 });
 
@@ -74,15 +75,22 @@ export const isKnownCommentPlatform = (value = "") =>
 export const commentPlatformDescriptor = (value = "") =>
   SOCIAL_COMMENT_PLATFORM_REGISTRY[lower(value)] || null;
 
-// BEHAVIOUR CONTRACT: identical to the original inline implementation for every
-// possible input. Only "instagram" maps to instagram; everything else — including
-// "tiktok", which is registered but not yet normalizable — maps to facebook.
-// This is intentional and is covered by a regression test. Changing it is a
-// behaviour change to two live channels, not a cleanup.
-export const normalizePlatform = (value = "") =>
-  lower(value) === SOCIAL_COMMENT_PLATFORMS.INSTAGRAM
-    ? SOCIAL_COMMENT_PLATFORMS.INSTAGRAM
-    : SOCIAL_COMMENT_PLATFORMS.FACEBOOK;
+// BEHAVIOUR CONTRACT (updated 2026-08-28, deliberately): "instagram" maps to
+// instagram, "tiktok" maps to tiktok, and everything else — empty, null,
+// garbage, "facebook" — maps to facebook exactly as before. The ONLY input
+// whose output changed is the literal "tiktok", which no Meta code path emits;
+// the Meta regression test pins every other input to the old behaviour.
+export const normalizePlatform = (value = "") => {
+  const normalized = lower(value);
+  if (normalized === SOCIAL_COMMENT_PLATFORMS.INSTAGRAM) return SOCIAL_COMMENT_PLATFORMS.INSTAGRAM;
+  if (normalized === SOCIAL_COMMENT_PLATFORMS.TIKTOK && SOCIAL_COMMENT_PLATFORM_REGISTRY[SOCIAL_COMMENT_PLATFORMS.TIKTOK].normalizable) {
+    return SOCIAL_COMMENT_PLATFORMS.TIKTOK;
+  }
+  return SOCIAL_COMMENT_PLATFORMS.FACEBOOK;
+};
+
+export const isTikTok = (value = "") =>
+  normalizePlatform(value) === SOCIAL_COMMENT_PLATFORMS.TIKTOK;
 
 export const isInstagram = (value = "") =>
   normalizePlatform(value) === SOCIAL_COMMENT_PLATFORMS.INSTAGRAM;

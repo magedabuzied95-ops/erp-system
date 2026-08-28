@@ -1996,7 +1996,7 @@
       }
     },
     "tiktok": {
-      "scopeNote": "TikTok is a publishing channel here. It is not an inbox source: comments and direct messages need a separate TikTok Business API grant that has not been issued yet."
+      "scopeNote": "Publishing and comments are two separate connections: publishing via the TikTok Publishing card, comments via the TikTok Business card (they appear in the Social Comments Center). Direct messages are still awaiting the TikTok Business Messaging permission."
     }
   }
 }

@@ -3162,9 +3162,16 @@ router.post("/comments/:commentId/reply", protect, inboxReply(), async (req, res
     return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${commentId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
   }
 
-  const platform = envText(commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
-    ? "instagram"
-    : "facebook";
+  // TikTok is recognised FIRST, off the stored row — the old binary fallback
+  // (anything not instagram => facebook) would have sent a TikTok comment id to
+  // the Facebook Graph API.
+  const runPlatformRaw = envText(commentRun.platform || "").toLowerCase();
+  const isTikTokReply = runPlatformRaw === "tiktok" || envText(commentRun.channel) === "tiktok_comment";
+  const platform = isTikTokReply
+    ? "tiktok"
+    : envText(commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
+      ? "instagram"
+      : "facebook";
   const sessionId = envText(commentRun.inbox_conversation_id || `social_comment:${platform}:${commentRun.root_comment_id || commentRun.comment_id}`);
   const replyChannel = envText(commentRun.channel || `${platform}_comment`) || `${platform}_comment`;
   const nowIso = new Date().toISOString();
@@ -3177,7 +3184,21 @@ router.post("/comments/:commentId/reply", protect, inboxReply(), async (req, res
       commentId: envText(commentRun.comment_id || ""),
       message_preview: envText(replyText || "").slice(0, 400),
     });
-    const metaReply = await replyToComment(platform, commentRun.comment_id, replyText, tenantId);
+    let metaReply;
+    if (isTikTokReply) {
+      // Same duplicate-safe reply seam the sync worker owns: ownership check,
+      // reply_log idempotency, provider call, ledger update.
+      const { replyToTikTokComment } = await import("../services/tiktokBusinessCommentsSyncService.js");
+      const tiktokResult = await replyToTikTokComment({
+        tenantId,
+        commentId: commentRun.comment_id,
+        text: replyText,
+        userId: req.user?.id || null,
+      });
+      metaReply = { id: tiktokResult.provider_reply_id, duplicate: Boolean(tiktokResult.duplicate) };
+    } else {
+      metaReply = await replyToComment(platform, commentRun.comment_id, replyText, tenantId);
+    }
     const externalReplyId = envText(metaReply?.id || metaReply?.comment_id || metaReply?.reply_id || "");
     const message = await appendManualAiSupportReply({
       tenantId,
@@ -3300,6 +3321,16 @@ router.post("/comments/:commentId/like", protect, inboxReply(), async (req, res)
     return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${commentId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
   }
 
+  // Comment likes are a Meta Graph capability. The TikTok like endpoint exists
+  // but is not implemented in this phase — refuse rather than send a TikTok
+  // comment id to Facebook (the old binary fallback would have).
+  if (envText(commentRun.platform).toLowerCase() === "tiktok" || envText(commentRun.channel) === "tiktok_comment") {
+    return res.status(501).json({
+      success: false,
+      code: "TIKTOK_COMMENT_LIKE_NOT_IMPLEMENTED",
+      message: "Liking TikTok comments is not supported yet",
+    });
+  }
   const platform = envText(commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
     ? "instagram"
     : "facebook";
@@ -3370,6 +3401,17 @@ router.post("/comments/:commentId/private-message", protect, inboxReply(), async
   });
   if (!commentRun) {
     return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${uiResolvedId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
+  }
+
+  // Comment-to-DM private replies are a Meta capability. TikTok's equivalent is
+  // Business Messaging, which is deliberately not enabled — see
+  // tiktokBusinessMessagingProvider.js.
+  if (envText(commentRun.platform).toLowerCase() === "tiktok" || envText(commentRun.channel) === "tiktok_comment") {
+    return res.status(501).json({
+      success: false,
+      code: "WAITING_FOR_TIKTOK_BUSINESS_MESSAGING_PERMISSION",
+      message: "Private replies to TikTok comments require TikTok Business Messaging, which is not authorized",
+    });
   }
 
   const rawPayload = commentRun?.raw_payload && typeof commentRun.raw_payload === "object" ? commentRun.raw_payload : {};
