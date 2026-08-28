@@ -45,6 +45,18 @@ test("the read path keeps the post/comment context instead of dropping it", () =
   }
 });
 
+test("old DMs are enriched at read time from the comment_id in their body", () => {
+  // DMs stored before send-time stamping have empty context columns but carry comment_id in the
+  // private-reply link; loadAiInboxMessages borrows the matching comment_inbound row's context so the
+  // same preview renders retroactively — read-only, no backfill.
+  const fn = salesSvc.slice(salesSvc.indexOf("export const loadAiInboxMessages"), salesSvc.indexOf("const customerPhoneKeys ="));
+  assert.match(fn, /extractSourceCommentId/, "it extracts a comment_id from the DM body");
+  assert.match(fn, /comment_id\[=\/\]\(\\d\{5,\}\)/, "it parses comment_id= links");
+  assert.match(fn, /message_type = 'comment_inbound'/, "it looks the context up from the stored comment");
+  assert.match(fn, /split_part\(comment_id, '_', 2\)/, "it matches both bare and <post>_<comment> id formats");
+  assert.match(fn, /source_comment_text: text\(row\.source_comment_text\) \|\| text\(enrich\.customer_message\)/, "the borrowed comment text drives the preview gate");
+});
+
 test("the transcript renders the inline source-comment preview, gated to private replies", () => {
   assert.match(transcript, /function SourceCommentContext\(/, "the preview component exists");
   const gate = transcript.slice(transcript.indexOf("const sourceCommentContext = (message = {})"), transcript.indexOf("function SourceCommentContext("));

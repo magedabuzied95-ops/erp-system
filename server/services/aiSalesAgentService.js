@@ -2051,12 +2051,64 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     `,
     [tenantId, safeConversationId]
   );
+  // Retroactive source-comment preview: DMs stored before we stamped context at send time have empty
+  // post/comment columns, but the private-reply body still carries the comment_id. If that comment was
+  // ingested as a comment_inbound row, borrow its post + comment context so the same inline preview
+  // renders on the old thread too. Read-only enrichment — nothing is written back.
+  const extractSourceCommentId = (row = {}) => {
+    const hay = `${text(row.message_text)} ${text(row.staff_message)} ${text(row.comment_url)}`;
+    const match = hay.match(/comment_id[=/](\d{5,})/) || hay.match(/\/comments\/(\d{5,})/);
+    return match ? match[1] : "";
+  };
+  const enrichmentByRowId = new Map();
+  try {
+    const pending = result.rows
+      .filter((row) => !text(row.source_comment_text) && !text(row.post_full_picture) && extractSourceCommentId(row))
+      .map((row) => [row.id, extractSourceCommentId(row)]);
+    const wantedCommentIds = [...new Set(pending.map(([, cid]) => cid))];
+    if (wantedCommentIds.length) {
+      const ctxResult = await db.query(
+        `
+        SELECT DISTINCT ON (cid) cid, post_full_picture, post_message, post_caption, post_permalink_url,
+               commenter_name, comment_url, comment_created_time, post_created_time, customer_message, message_text
+        FROM (
+          SELECT *, CASE WHEN position('_' IN comment_id) > 0 THEN split_part(comment_id, '_', 2) ELSE comment_id END AS cid
+          FROM ai_support_messages
+          WHERE tenant_id = $1 AND message_type = 'comment_inbound' AND comment_id <> ''
+        ) t
+        WHERE cid = ANY($2::text[])
+        ORDER BY cid, created_at DESC
+        `,
+        [tenantId, wantedCommentIds]
+      );
+      const ctxByCid = new Map(ctxResult.rows.map((r) => [text(r.cid), r]));
+      for (const [rowId, cid] of pending) {
+        const ctx = ctxByCid.get(cid);
+        if (ctx) enrichmentByRowId.set(rowId, ctx);
+      }
+    }
+  } catch (enrichError) {
+    console.warn("[ai-inbox] source-comment enrichment failed", { conversation_id: safeConversationId, message: enrichError?.message });
+  }
   const fetchedMessages = result.rows.map((row) => {
     const canonicalSessionId = lower(row.channel || row.session_id || "").startsWith("whatsapp")
       ? normalizeWhatsappSessionId(row.session_id, row.resolved_phone || row.remote_jid || "")
       : "";
+    const enrich = enrichmentByRowId.get(row.id);
+    const enriched = enrich
+      ? {
+          ...row,
+          post_full_picture: text(row.post_full_picture) || text(enrich.post_full_picture),
+          post_message: text(row.post_message) || text(enrich.post_message) || text(enrich.post_caption),
+          post_permalink_url: text(row.post_permalink_url) || text(enrich.post_permalink_url) || text(enrich.comment_url),
+          commenter_name: text(row.commenter_name) || text(enrich.commenter_name),
+          comment_url: text(row.comment_url) || text(enrich.comment_url),
+          post_created_time: text(row.post_created_time) || text(enrich.post_created_time),
+          source_comment_text: text(row.source_comment_text) || text(enrich.customer_message) || text(enrich.message_text),
+        }
+      : row;
     return normalizeInboxMessage({
-      ...row,
+      ...enriched,
       session_id: canonicalSessionId || row.session_id,
       conversation_id: canonicalSessionId || row.session_id,
       conversation_key: canonicalSessionId || row.session_id,
