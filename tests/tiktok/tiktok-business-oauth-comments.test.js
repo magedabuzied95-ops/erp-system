@@ -734,3 +734,44 @@ test("the auto-reply engine is guarded against tiktok at the source level", asyn
   const fnSlice = source.slice(fnStart, fnStart + 1200);
   assert.match(fnSlice, /assertMetaPlatform\(platform, "processSocialCommentAutoReply"\)/);
 });
+
+test("the Center's tiktok reads use only real social_comment_automation_runs columns", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../../server/services/tiktokBusinessCommentsSyncService.js", import.meta.url), "utf8");
+
+  // The production table's actual columns (information_schema, 2026-08-28).
+  // The rich Meta-era display fields live inside raw_payload JSONB, NOT as
+  // columns — the first deploy referenced them bare and broke the TikTok tab
+  // with `column r.comment_created_time does not exist`.
+  const REAL_COLUMNS = new Set([
+    "id", "tenant_id", "platform", "channel", "post_id", "post_permalink",
+    "comment_id", "parent_comment_id", "root_comment_id", "commenter_id",
+    "commenter_name", "commenter_profile_picture_url", "original_comment_text",
+    "classification_label", "classification_score", "action_taken",
+    "public_reply_status", "dm_status", "like_status", "inbox_conversation_id",
+    "error_code", "raw_payload", "processed_at", "created_at", "updated_at",
+    "automation_state", "config_id", "status", "step_results", "error_message",
+    "skipped_reason", "matched_config_key", "resolved_post_id",
+    "resolved_platform_post_id", "resolved_product_id", "duplicate_reason",
+    "config_found", "config_enabled",
+  ]);
+
+  // Every `r.<name>` inside a template literal that queries the runs table must
+  // be a real column. Strip line comments first so prose can mention the bug.
+  const sqlSource = source
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("//"))
+    .join("\n");
+  const touchesRuns = /social_comment_automation_runs/;
+  assert.ok(touchesRuns.test(sqlSource), "expected the service to query the runs table");
+  const refs = [...sqlSource.matchAll(/\br\.([a-z_]+)\b/g)].map((m) => m[1]);
+  assert.ok(refs.length >= 5, "expected r.<column> references in the runs queries");
+  const phantom = refs.filter((name) => !REAL_COLUMNS.has(name));
+  assert.deepEqual(phantom, [], `phantom runs columns referenced: ${phantom.join(", ")}`);
+
+  // And the display fields must come from raw_payload, so a revert to bare
+  // columns fails this test before it fails in production.
+  for (const field of ["post_caption", "post_message", "post_full_picture", "post_created_time"]) {
+    assert.match(sqlSource, new RegExp(`raw_payload->>'${field}'`), `${field} must be read from raw_payload`);
+  }
+});

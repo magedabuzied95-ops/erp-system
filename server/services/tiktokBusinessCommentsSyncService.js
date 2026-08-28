@@ -425,16 +425,23 @@ export const listTikTokCommentPosts = async ({ tenantId, limit = 50 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   if (!safeTenantId) return [];
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
+  // Column reality check: social_comment_automation_runs is the Meta-era table
+  // and has NO post_caption / post_message / post_full_picture /
+  // post_created_time / comment_created_time columns. The Meta webhook writer
+  // (storeSocialCommentAutomationRuns) folds those into the raw_payload JSONB
+  // and stores the comment's own timestamp in processed_at. Read them from
+  // there — the first deploy of this query with bare column names failed in
+  // production with `column r.comment_created_time does not exist`.
   const { rows } = await db.query(
     `SELECT
        r.post_id,
        COUNT(*) FILTER (WHERE COALESCE(m.is_own_reply, FALSE) = FALSE) AS comments_count,
-       MAX(COALESCE(NULLIF(r.comment_created_time, '')::timestamptz, r.created_at)) AS latest_comment_at,
-       (ARRAY_AGG(r.post_caption ORDER BY r.created_at DESC, r.id DESC))[1] AS post_caption,
-       (ARRAY_AGG(r.post_message ORDER BY r.created_at DESC, r.id DESC))[1] AS post_message,
-       (ARRAY_AGG(r.post_full_picture ORDER BY r.created_at DESC, r.id DESC))[1] AS post_full_picture,
-       (ARRAY_AGG(r.post_permalink_url ORDER BY r.created_at DESC, r.id DESC))[1] AS permalink_url,
-       (ARRAY_AGG(r.post_created_time ORDER BY r.created_at DESC, r.id DESC))[1] AS post_created_time
+       MAX(COALESCE(r.processed_at, r.created_at)) AS latest_comment_at,
+       (ARRAY_AGG(r.raw_payload->>'post_caption' ORDER BY r.created_at DESC, r.id DESC))[1] AS post_caption,
+       (ARRAY_AGG(r.raw_payload->>'post_message' ORDER BY r.created_at DESC, r.id DESC))[1] AS post_message,
+       (ARRAY_AGG(r.raw_payload->>'post_full_picture' ORDER BY r.created_at DESC, r.id DESC))[1] AS post_full_picture,
+       (ARRAY_AGG(COALESCE(NULLIF(r.post_permalink, ''), r.raw_payload->>'post_permalink_url') ORDER BY r.created_at DESC, r.id DESC))[1] AS permalink_url,
+       (ARRAY_AGG(r.raw_payload->>'post_created_time' ORDER BY r.created_at DESC, r.id DESC))[1] AS post_created_time
      FROM social_comment_automation_runs r
      LEFT JOIN tiktok_business_comment_map m
        ON m.tenant_id = r.tenant_id
@@ -442,7 +449,7 @@ export const listTikTokCommentPosts = async ({ tenantId, limit = 50 } = {}) => {
       AND m.tiktok_video_id = r.post_id
      WHERE r.tenant_id = $1::bigint AND r.platform = 'tiktok'
      GROUP BY r.post_id
-     ORDER BY MAX(COALESCE(NULLIF(r.comment_created_time, '')::timestamptz, r.created_at)) DESC
+     ORDER BY MAX(COALESCE(r.processed_at, r.created_at)) DESC
      LIMIT $2::int`,
     [safeTenantId, safeLimit]
   );
