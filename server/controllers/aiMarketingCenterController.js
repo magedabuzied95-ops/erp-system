@@ -14,6 +14,7 @@ import {
   listAiMarketingQueueTimeline,
   listAiMarketingQueue,
   publishAiMarketingQueueItemNow,
+  pushAiMarketingOffersNow,
   restoreAiMarketingQueueItem,
   setAiMarketingAutomationActive,
   updateAiMarketingSettings,
@@ -195,6 +196,18 @@ export const generateAutonomousAiMarketingPlan = async (req, res) => {
     res.status(202).json({ success: true, message: "Generation plan queued", ...result, autopilot });
   } catch (error) {
     sendError(res, error, "Failed to generate AI marketing plan");
+  }
+};
+
+// "انشر العروض" — one click queues a story per offer product, scheduled across
+// the rest of today; the story autopilot publishes each as its design renders.
+export const pushAutonomousAiMarketingOffersNow = async (req, res) => {
+  try {
+    const limit = Number(req.body?.limit) || undefined;
+    const result = await pushAiMarketingOffersNow({ tenantId: tenantScope(req), limit });
+    res.status(202).json({ success: true, ...result });
+  } catch (error) {
+    sendError(res, error, "Failed to push offer stories");
   }
 };
 

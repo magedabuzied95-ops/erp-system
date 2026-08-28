@@ -1,8 +1,12 @@
 import db from "../database/db.js";
 import {
   buildAiMarketingPostingInsightsResponse,
+  countThemeStoriesForDate,
+  enqueueAiMarketingBatchGeneration,
   ensureAiMarketingCenterSchema,
+  getAiMarketingSettings,
   publishAiMarketingQueueItemNow,
+  themeDateKey,
 } from "./aiMarketingCenterService.js";
 
 const AUTOPILOT_ADVISORY_LOCK = 74017211;
@@ -77,6 +81,11 @@ export const STORY_AUTOPILOT_DEFAULTS = {
   max_retries: 2,
   retry_backoff_minutes: 30,
   follow_insights: true,
+  // Full autopilot: the scan itself keeps the upcoming days generated (products
+  // picked by the theme calendar, times stamped from Meta insights) so nobody
+  // has to click "إنشاء الطابور" ever again.
+  auto_generate: false,
+  auto_generate_days_ahead: 1,
 };
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -159,6 +168,8 @@ export const normalizeStoryAutopilotConfig = (input = {}, base = STORY_AUTOPILOT
     max_retries: intValue(config.max_retries, base.max_retries, { min: 0, max: 50 }),
     retry_backoff_minutes: intValue(config.retry_backoff_minutes, base.retry_backoff_minutes, { min: 1, max: 1440 }),
     follow_insights: boolValue(config.follow_insights, base.follow_insights),
+    auto_generate: boolValue(config.auto_generate, base.auto_generate),
+    auto_generate_days_ahead: intValue(config.auto_generate_days_ahead, base.auto_generate_days_ahead, { min: 1, max: 7 }),
   };
 };
 
@@ -306,7 +317,7 @@ export const getStoryAutopilotSettings = async (tenantId) => {
   };
 };
 
-export const updateStoryAutopilotSettings = async (tenantId, patch = {}) => {
+export const updateStoryAutopilotSettings = async (tenantId, patch = {}, { silent = false } = {}) => {
   await ensureStoryAutopilotSchema();
   const currentConfig = { ...(await getStoryAutopilotSettings(tenantId)) };
   delete currentConfig.state;
@@ -324,13 +335,18 @@ export const updateStoryAutopilotSettings = async (tenantId, patch = {}) => {
     `,
     [tenantId, next.enabled, JSON.stringify(next)]
   );
-  await writeAutopilotLog({
-    tenantId,
-    eventType: "settings_updated",
-    status: "info",
-    message: next.enabled ? "تم تفعيل النشر التلقائي للاستوري." : "تم إيقاف النشر التلقائي للاستوري.",
-    metadata: { enabled: next.enabled, schedule_mode: next.schedule_mode, slots: next.slots, platforms: next.platforms },
-  });
+  // silent = an internal self-adjustment (daily slot refresh, auto-generation
+  // alignment); those write their own specific log events instead of spamming
+  // the feed with a generic "settings updated" every day.
+  if (!silent) {
+    await writeAutopilotLog({
+      tenantId,
+      eventType: "settings_updated",
+      status: "info",
+      message: next.enabled ? "تم تفعيل النشر التلقائي للاستوري." : "تم إيقاف النشر التلقائي للاستوري.",
+      metadata: { enabled: next.enabled, schedule_mode: next.schedule_mode, slots: next.slots, platforms: next.platforms },
+    });
+  }
   const row = result.rows[0] || null;
   return { ...next, state: jsonObject(row?.story_autopilot_state, {}) };
 };
@@ -422,7 +438,7 @@ export const buildSuggestedStorySlots = async ({ tenantId, count = 4, timezone =
   };
 };
 
-export const applySuggestedStorySlots = async (tenantId, { count } = {}) => {
+export const applySuggestedStorySlots = async (tenantId, { count, silent = false } = {}) => {
   const current = await getStoryAutopilotSettings(tenantId);
   const suggestion = await buildSuggestedStorySlots({
     tenantId,
@@ -431,7 +447,7 @@ export const applySuggestedStorySlots = async (tenantId, { count } = {}) => {
   });
   // Only the times are applied — max_per_day and the rest stay exactly as the owner set them.
   const slots = suggestion.slots.map((slot) => slot.time);
-  const settings = await updateStoryAutopilotSettings(tenantId, { slots });
+  const settings = await updateStoryAutopilotSettings(tenantId, { slots }, { silent });
   await writeAutopilotLog({
     tenantId,
     eventType: "suggested_slots_applied",
@@ -507,6 +523,9 @@ const publishedTodayCount = async (tenantId, config, now) => {
       AND content_type = 'story'
       AND status = 'published'
       AND published_at >= $2::timestamp
+      -- Manual "انشر العروض" pushes ride on top of the automatic quota, so they
+      -- neither consume the daily cap nor block the themed stories behind them.
+      AND COALESCE(metadata->>'offers_push', '') <> 'true'
     `,
     [tenantId, dayStart.toISOString()]
   );
@@ -533,11 +552,13 @@ const lastStoryPublishAt = async (tenantId) => {
   return result.rows[0]?.published_at || null;
 };
 
-const eligibleStoryItems = async (tenantId, config, now, { limit = 5 } = {}) => {
+const eligibleStoryItems = async (tenantId, config, now, { limit = 5, offersPushOnly = false } = {}) => {
   const params = [tenantId, limit];
   const clauses = [
     "q.tenant_id = $1::bigint",
     "q.content_type = 'story'",
+    // Once the daily cap is spent, only manually pushed offers may still flow.
+    ...(offersPushOnly ? ["q.metadata->>'offers_push' = 'true'"] : []),
     // `publish_failed` belongs here: a publish that lost to a transient Meta
     // answer — a rate limit, a 5xx — is exactly what `max_retries` and
     // `retry_backoff_minutes` below were written for. Without it those two
@@ -592,6 +613,148 @@ const hasGeneratedAsset = (row = {}) => {
 };
 
 /* ------------------------------------------------------------------ *
+ * Auto-generation — the "full autopilot" half.
+ *
+ * The publish runner below only ever drains a queue someone filled. This keeps
+ * the queue filled: every scan, each upcoming day inside the horizon that has
+ * no scheduled stories yet gets one sized generation run (products chosen by
+ * the theme calendar's own cycles, times stamped from the Meta insight
+ * windows), and the publish config is widened so the day actually fits.
+ * Day math is deliberately SERVER-local — the exact clock
+ * buildThemeCalendarStories and scheduledTimeFor plan with.
+ * ------------------------------------------------------------------ */
+const serverDayStart = (now, offset = 0) => {
+  const base = new Date(now.getTime());
+  base.setHours(0, 0, 0, 0);
+  return new Date(base.getTime() + offset * 86400000);
+};
+
+const scheduledStoriesCountBetween = async (tenantId, from, to) => {
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS total
+    FROM ai_marketing_content_queue
+    WHERE tenant_id = $1::bigint
+      AND content_type = 'story'
+      AND status <> 'archived'
+      AND scheduled_at >= $2::timestamp
+      AND scheduled_at < $3::timestamp
+    `,
+    [tenantId, from.toISOString(), to.toISOString()]
+  );
+  return Number(result.rows[0]?.total || 0);
+};
+
+const maybeRunAutoGeneration = async (tenantId, config, now) => {
+  const state = jsonObject(config.state, {});
+  const ledger = jsonObject(state.auto_generated_days, {});
+  const outcome = { fired: [], skipped: [] };
+
+  const engineSettings = await getAiMarketingSettings(tenantId);
+  if (engineSettings.active === false) return outcome;
+
+  const cutoffKey = themeDateKey(serverDayStart(now, -14));
+  for (const key of Object.keys(ledger)) {
+    if (key < cutoffKey) delete ledger[key];
+  }
+
+  // Offset 0 is the first-activation case: the day it gets switched on, today
+  // itself is usually empty. It only fires while today's window still has real
+  // room (≥2h before window end) and the server's "today" IS the tenant's
+  // "today" — around midnight they disagree and a run would schedule into
+  // hours the tenant already finished.
+  const tenantParts = zonedParts(now, config.timezone);
+  const windowEndMinutes = timeToMinutes(config.window_end) ?? 1410;
+  const todayStillUseful =
+    tenantParts.dateKey === themeDateKey(serverDayStart(now, 0)) && tenantParts.minutesOfDay <= windowEndMinutes - 120;
+
+  let maxNeeded = 0;
+  for (let offset = 0; offset <= config.auto_generate_days_ahead; offset += 1) {
+    if (offset === 0 && !todayStillUseful) continue;
+    const target = serverDayStart(now, offset);
+    const dateKey = themeDateKey(target);
+    if (ledger[dateKey]) continue;
+
+    const needed = engineSettings.story_selection_mode === "theme_calendar"
+      ? countThemeStoriesForDate(engineSettings, target)
+      : intValue(engineSettings.stories_per_day, 12, { min: 0, max: 200 });
+    if (needed <= 0) {
+      ledger[dateKey] = { skipped: "no_blocks_for_day", at: now.toISOString() };
+      outcome.skipped.push({ date: dateKey, reason: "no_blocks_for_day" });
+      continue;
+    }
+
+    const existing = await scheduledStoriesCountBetween(tenantId, target, serverDayStart(now, offset + 1));
+    if (existing > 0) {
+      // Someone (a manual plan, an earlier run) already covered this day.
+      ledger[dateKey] = { skipped: "already_scheduled", existing, at: now.toISOString() };
+      outcome.skipped.push({ date: dateKey, reason: "already_scheduled", existing });
+      continue;
+    }
+
+    const run = await enqueueAiMarketingBatchGeneration({
+      tenantId,
+      runType: "plan",
+      plan: { days: 1, start_offset: offset, stories_per_day: Math.min(40, needed), posts_per_day: 0 },
+    });
+    ledger[dateKey] = { run_id: run.run_id, requested: needed, at: now.toISOString() };
+    outcome.fired.push({ date: dateKey, run_id: run.run_id, requested: needed });
+    maxNeeded = Math.max(maxNeeded, needed);
+    await writeAutopilotLog({
+      tenantId,
+      eventType: "auto_generation_started",
+      status: "success",
+      message: `تم تجهيز استوريهات يوم ${dateKey} تلقائيًا (${needed} استوري).`,
+      metadata: { date: dateKey, run_id: run.run_id, requested: needed, selection_mode: engineSettings.story_selection_mode },
+    });
+  }
+
+  if (outcome.fired.length || outcome.skipped.length) {
+    await mergeAutopilotState(tenantId, { auto_generated_days: ledger, last_auto_generation_at: now.toISOString() });
+  }
+
+  // Widen the publish config so the generated day can actually go out: the
+  // queue's own timestamps drive publishing, the cap covers the day's volume,
+  // and late renders survive the catch-up window.
+  if (outcome.fired.length && maxNeeded > 0) {
+    const aligned = {};
+    if (config.schedule_mode !== "queue_schedule") aligned.schedule_mode = "queue_schedule";
+    if (config.max_per_day < maxNeeded) aligned.max_per_day = maxNeeded;
+    if (config.catchup_grace_minutes < 240) aligned.catchup_grace_minutes = 240;
+    const windowStart = timeToMinutes(config.window_start) ?? 540;
+    const windowEnd = timeToMinutes(config.window_end) ?? 1410;
+    const windowMinutes = Math.max(60, windowEnd - windowStart);
+    const fittingGap = Math.max(5, Math.floor(windowMinutes / Math.max(1, maxNeeded * 2)));
+    if (config.min_gap_minutes > fittingGap) aligned.min_gap_minutes = fittingGap;
+    if (Object.keys(aligned).length) {
+      await updateStoryAutopilotSettings(tenantId, aligned, { silent: true });
+      await writeAutopilotLog({
+        tenantId,
+        eventType: "auto_generation_aligned",
+        status: "info",
+        message: "تم ضبط إعدادات النشر تلقائيًا على مواعيد الطابور.",
+        metadata: aligned,
+      });
+    }
+  }
+
+  return outcome;
+};
+
+// suggested_slots mode publishes at fixed times — when the owner opted into
+// follow_insights those times re-derive themselves from the page's measured
+// engagement once a day instead of waiting for a manual "طبّق الأوقات".
+const maybeRefreshInsightSlots = async (tenantId, config, now) => {
+  if (config.schedule_mode !== "suggested_slots" || !config.follow_insights) return false;
+  const todayKey = zonedParts(now, config.timezone).dateKey;
+  const state = jsonObject(config.state, {});
+  if (state.last_insight_slot_refresh_date === todayKey) return false;
+  await applySuggestedStorySlots(tenantId, { silent: true });
+  await mergeAutopilotState(tenantId, { last_insight_slot_refresh_date: todayKey });
+  return true;
+};
+
+/* ------------------------------------------------------------------ *
  * Runner
  * ------------------------------------------------------------------ */
 export const runStoryAutopilotForTenant = async (tenantId, { trigger = "scheduler", force = false } = {}) => {
@@ -608,6 +771,27 @@ export const runStoryAutopilotForTenant = async (tenantId, { trigger = "schedule
     // The AI Marketing Center itself is paused — the autopilot must not override that.
     summary.skipped.push({ reason: "engine_paused" });
     return summary;
+  }
+
+  // The self-maintaining half runs before any slot gating: keeping tomorrow
+  // generated and the slot times fresh must not wait for a publish moment.
+  if (config.auto_generate) {
+    try {
+      summary.auto_generation = await maybeRunAutoGeneration(tenantId, config, now);
+    } catch (error) {
+      console.warn("[story-autopilot] auto-generation failed", { tenant_id: tenantId, message: error?.message || String(error) });
+      await writeAutopilotLog({
+        tenantId,
+        eventType: "auto_generation_failed",
+        status: "failed",
+        message: error?.message || "فشل التوليد التلقائي.",
+      });
+    }
+  }
+  try {
+    await maybeRefreshInsightSlots(tenantId, config, now);
+  } catch (error) {
+    console.warn("[story-autopilot] insight slot refresh failed", { tenant_id: tenantId, message: error?.message || String(error) });
   }
 
   const lastPublishedAt = await lastStoryPublishAt(tenantId);
@@ -630,15 +814,18 @@ export const runStoryAutopilotForTenant = async (tenantId, { trigger = "schedule
 
   const alreadyPublished = await publishedTodayCount(tenantId, config, now);
   const remainingToday = Math.max(0, config.max_per_day - alreadyPublished);
-  if (remainingToday === 0) {
-    summary.skipped.push({ reason: "daily_cap_reached", published_today: alreadyPublished });
-    await mergeAutopilotState(tenantId, { last_run_at: now.toISOString(), last_skip_reason: "daily_cap_reached" });
-    return summary;
-  }
+  // The daily cap bounds the AUTOMATIC flow. Offers the owner pushed by hand
+  // (metadata.offers_push) keep flowing past it — a human explicitly asked.
+  const offersPushOnly = remainingToday === 0;
 
-  const batchSize = Math.min(config.max_per_run, remainingToday);
-  const candidates = await eligibleStoryItems(tenantId, config, now, { limit: batchSize * 3 });
+  const batchSize = offersPushOnly ? config.max_per_run : Math.min(config.max_per_run, remainingToday);
+  const candidates = await eligibleStoryItems(tenantId, config, now, { limit: batchSize * 3, offersPushOnly });
   if (!candidates.length) {
+    if (offersPushOnly) {
+      summary.skipped.push({ reason: "daily_cap_reached", published_today: alreadyPublished });
+      await mergeAutopilotState(tenantId, { last_run_at: now.toISOString(), last_skip_reason: "daily_cap_reached" });
+      return summary;
+    }
     summary.skipped.push({ reason: "no_eligible_story" });
     await mergeAutopilotState(tenantId, { last_run_at: now.toISOString(), last_skip_reason: "no_eligible_story" });
     await writeAutopilotLog({
@@ -847,6 +1034,10 @@ export const getStoryAutopilotStatus = async (tenantId) => {
       last_skip_reason: settings.state?.last_skip_reason || "",
       ready_stories: readyCount,
       next_slot_at: nextStorySlotAt(settings, now),
+      auto_generate: settings.auto_generate === true,
+      auto_generate_days_ahead: settings.auto_generate_days_ahead,
+      last_auto_generation_at: settings.state?.last_auto_generation_at || null,
+      auto_generated_days: jsonObject(settings.state?.auto_generated_days, {}),
     },
     log: logRows,
   };

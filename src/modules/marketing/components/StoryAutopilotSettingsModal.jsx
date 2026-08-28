@@ -277,6 +277,36 @@ const StoryAutopilotSettingsModal = ({ open, onClose, canUpdate = true, canPubli
             </section>
 
             <section className={panelClass}>
+              <div className="mb-3 flex items-center gap-2 text-sm font-black text-emerald-100">
+                <Sparkles className="h-4 w-4" />
+                الأوتوبايلوت الكامل — توليد تلقائي يومي
+              </div>
+              <Toggle
+                label={config.auto_generate ? "النظام بيجهّز الاستوريهات لوحده كل يوم" : "التوليد التلقائي متوقف — لازم تضغط «إنشاء الطابور» بنفسك"}
+                hint="لما يكون مفعّل: كل يوم النظام بيختار منتجات اليوم اللي بعده من تقويم المواضيع (كل بلوك بيلف على منتجاته)، بيجهّز التصميمات بالليل، وبينشرها في أوقات التفاعل اللي بيقيسها من انستجرام وفيسبوك — من غير أي موافقة أو تدخل منك."
+                checked={config.auto_generate === true}
+                onChange={(value) => patch({ auto_generate: value })}
+              />
+              {config.auto_generate ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <NumberField
+                    label="يجهّز قد إيه أيام مقدمًا"
+                    hint="1 = بكرة بس (المعتاد). أكتر = يجهّز كذا يوم قدام."
+                    value={config.auto_generate_days_ahead}
+                    onChange={(value) => patch({ auto_generate_days_ahead: value })}
+                    min={1}
+                    max={7}
+                  />
+                  <StatTile
+                    label="آخر توليد تلقائي"
+                    value={formatDateTime(status?.last_auto_generation_at)}
+                    tone={status?.last_auto_generation_at ? "emerald" : "slate"}
+                  />
+                </div>
+              ) : null}
+            </section>
+
+            <section className={panelClass}>
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-cyan-100">
                 <Sparkles className="h-4 w-4" />
                 الأوقات المقترحة

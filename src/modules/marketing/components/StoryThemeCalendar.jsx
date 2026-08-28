@@ -28,6 +28,16 @@ const AUDIENCE_LABELS = { men: "رجالي", women: "حريمي", kids: "أطف�
 const optionLabel = (option = {}) => option.label_ar || option.name_ar || option.label_en || option.name_en || option.value || "";
 const arrayOf = (value) => (Array.isArray(value) ? value : []);
 
+const todayDateKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
+const formatShortDate = (key = "") => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  return match ? `${Number(match[3])}/${Number(match[2])}` : "";
+};
+
 const pickOptions = (groups, groupKey) =>
   (groups.find((group) => String(group.key || "").toLowerCase() === groupKey)?.options || []).filter((option) => option.is_active !== false);
 
@@ -147,16 +157,25 @@ export default function StoryThemeCalendar({ calendar = [], overview = null, onC
           كل يوم بينزل البلوكات المربوطة بيه بس. لو اليوم فاضي مش هينزل فيه استوري.
         </p>
         <div className="mt-4 grid gap-2 sm:grid-cols-4 xl:grid-cols-7">
-          {WEEK_ORDER.map((day) => {
-            const entry = week.find((row) => row.day === day);
+          {/* The server sends the NEXT SEVEN REAL DATES (date-windowed blocks drop
+              off the exact day they expire). An older payload without date keys
+              still renders as the abstract week. */}
+          {(week.length && week[0]?.date_key
+            ? week
+            : WEEK_ORDER.map((day) => week.find((row) => row.day === day) || { day, blocks: [], total_stories: 0 })
+          ).map((entry) => {
+            const day = entry.day;
             const blocks = arrayOf(entry?.blocks);
             return (
               <div
-                key={day}
+                key={`${day}-${entry.date_key || ""}`}
                 className={`rounded-xl border p-3 ${blocks.length ? "border-white/10 bg-black/25" : "border-amber-400/30 bg-amber-400/5"}`}
               >
                 <div className="flex items-baseline justify-between">
-                  <span className="text-xs font-black text-white">{DAY_LABELS[day]}</span>
+                  <span className="text-xs font-black text-white">
+                    {DAY_LABELS[day]}
+                    {entry.date_label ? <span className="mr-1 text-[10px] font-bold text-slate-400">{entry.is_today ? "النهارده" : entry.date_label}</span> : null}
+                  </span>
                   <span className="text-[11px] font-bold text-slate-400">{Number(entry?.total_stories || 0)} استوري</span>
                 </div>
                 <div className="mt-2 space-y-1">
@@ -187,8 +206,10 @@ export default function StoryThemeCalendar({ calendar = [], overview = null, onC
         {calendar.map((block, index) => {
           const stats = statsByKey.get(block.key);
           const offersOnly = block.filters?.offers_only === true;
+          const expired = Boolean(block.end_date) && block.end_date < todayDateKey();
+          const upcoming = Boolean(block.start_date) && block.start_date > todayDateKey();
           return (
-            <section key={block.key || index} className={`${cardClass} p-5`}>
+            <section key={block.key || index} className={`${cardClass} p-5 ${expired ? "opacity-70" : ""}`}>
               <div className="flex flex-wrap items-center gap-3">
                 <Layers className="h-4 w-4 shrink-0 text-primary" />
                 <input
@@ -200,6 +221,20 @@ export default function StoryThemeCalendar({ calendar = [], overview = null, onC
                 <TogglePill active={block.active !== false} disabled={disabled} onClick={() => updateBlock(index, { active: block.active === false })}>
                   {block.active !== false ? "شغال" : "متوقف"}
                 </TogglePill>
+                {expired ? (
+                  <span className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[11px] font-black text-amber-200">
+                    خلص موعده {formatShortDate(block.end_date)}
+                  </span>
+                ) : block.end_date ? (
+                  <span className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1.5 text-[11px] font-black text-emerald-200">
+                    لحد {formatShortDate(block.end_date)}
+                  </span>
+                ) : null}
+                {upcoming ? (
+                  <span className="rounded-lg border border-sky-400/25 bg-sky-400/10 px-2.5 py-1.5 text-[11px] font-black text-sky-200">
+                    يبدأ {formatShortDate(block.start_date)}
+                  </span>
+                ) : null}
                 {stats?.cycle_number ? (
                   <span className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-1.5 text-[11px] font-black text-slate-300">
                     اللفة {stats.cycle_number}
@@ -243,6 +278,29 @@ export default function StoryThemeCalendar({ calendar = [], overview = null, onC
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black text-slate-400">من تاريخ (اختياري)</span>
+                      <input
+                        type="date"
+                        className={inputClass}
+                        value={block.start_date || ""}
+                        disabled={disabled}
+                        onChange={(event) => updateBlock(index, { start_date: event.target.value })}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black text-slate-400">لحد تاريخ (اختياري)</span>
+                      <input
+                        type="date"
+                        className={inputClass}
+                        value={block.end_date || ""}
+                        disabled={disabled}
+                        onChange={(event) => updateBlock(index, { end_date: event.target.value })}
+                      />
+                    </label>
+                    <p className="col-span-2 -mt-1 text-[11px] font-semibold leading-5 text-slate-500">
+                      سيبهم فاضيين = شغال دايمًا. حدد &quot;لحد تاريخ&quot; لموسم بيخلص لوحده — زي شنط المدارس لحد ١٠/٩ — والبلوك بيقف بعده من غير ما تلمس حاجة.
+                    </p>
                     <label className="block">
                       <span className="mb-2 block text-xs font-black text-slate-400">استوري في اليوم</span>
                       <input

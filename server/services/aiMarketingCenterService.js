@@ -631,6 +631,29 @@ const normalizeThemeFilters = (value = {}) => {
   };
 };
 
+// Seasonal windows are compared as plain YYYY-MM-DD strings against the same
+// server-local day the generator plans with, so a block can't leak past its
+// campaign end because of a timezone conversion.
+const normalizeThemeDate = (value) => {
+  const raw = cleanText(value);
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+  if (!match) return "";
+  const month = Math.min(12, Math.max(1, Number(match[2])));
+  const day = Math.min(31, Math.max(1, Number(match[3])));
+  return `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
+export const themeDateKey = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+// Empty start/end = no bound on that side. Both bounds are inclusive.
+export const themeBlockActiveOnDate = (block = {}, date = new Date()) => {
+  const key = themeDateKey(date);
+  if (block.start_date && key < block.start_date) return false;
+  if (block.end_date && key > block.end_date) return false;
+  return true;
+};
+
 const normalizeThemeBlock = (block = {}, index = 0) => ({
   key: slugify(cleanText(block.key)) || `theme-${index + 1}`,
   label_ar: cleanText(block.label_ar || block.label) || `بلوك ${index + 1}`,
@@ -646,6 +669,8 @@ const normalizeThemeBlock = (block = {}, index = 0) => ({
     THEME_AUDIENCES.includes(entry)
   ),
   filters: normalizeThemeFilters(normalizeJsonObject(block.filters, {})),
+  start_date: normalizeThemeDate(block.start_date),
+  end_date: normalizeThemeDate(block.end_date),
   active: block.active !== false,
 });
 
@@ -693,6 +718,15 @@ export const themeAudienceMatches = (product = {}, block = {}) => {
 
 const activeThemeBlocks = (settings = {}) =>
   (settings.story_theme_calendar || []).filter((block) => block.active !== false && block.days.length > 0 && block.stories_per_day > 0);
+
+// How many themed stories a specific calendar DATE wants — the auto-generation
+// scheduler sizes each day from this instead of the flat stories_per_day.
+export const countThemeStoriesForDate = (settings = {}, date = new Date()) => {
+  const dayOfWeek = date.getDay();
+  return activeThemeBlocks(settings)
+    .filter((block) => block.days.includes(dayOfWeek) && themeBlockActiveOnDate(block, date))
+    .reduce((sum, block) => sum + block.stories_per_day, 0);
+};
 
 const normalizeSettings = (row = {}) => ({
   id: row.id || null,
@@ -1408,6 +1442,7 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
     const rows = coverage.rows.filter((row) => poolIds.has(String(row.product_id)));
     const coveredIds = new Set(rows.map((row) => String(row.product_id)));
     const remaining = pool.filter((product) => !coveredIds.has(String(product.id)));
+    const today = new Date();
     return ({
       key: block.key,
       label_ar: block.label_ar,
@@ -1417,6 +1452,13 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
       audiences: block.audiences,
       filters: block.filters,
       active: block.active,
+      start_date: block.start_date || "",
+      end_date: block.end_date || "",
+      date_status: block.end_date && themeDateKey(today) > block.end_date
+        ? "expired"
+        : block.start_date && themeDateKey(today) < block.start_date
+          ? "upcoming"
+          : "active",
       cycle_number: Number(cycle.cycle_number || 1),
       pool_products: pool.length,
       generated_products: coveredIds.size,
@@ -1433,15 +1475,28 @@ const getThemeCalendarOverview = async (tenantId, settings, catalog = null) => {
     });
   }));
   const byKey = new Map(blocks.map((block) => [block.key, block]));
-  const week = THEME_DAY_LABELS_AR.map((label, day) => {
-    const dayBlocks = calendar.filter((block) => block.active !== false && block.days.includes(day) && block.stories_per_day > 0);
+  // The strip is the NEXT SEVEN REAL DATES, not an abstract weekday grid —
+  // date-windowed blocks (a campaign that ends on 9/10) must drop off the exact
+  // day they expire, which an abstract weekday cannot express.
+  const weekBase = new Date();
+  weekBase.setHours(0, 0, 0, 0);
+  const week = Array.from({ length: 7 }, (_, offset) => {
+    const date = new Date(weekBase.getTime() + offset * 86400000);
+    const day = date.getDay();
+    const dayBlocks = calendar.filter(
+      (block) => block.active !== false && block.days.includes(day) && block.stories_per_day > 0 && themeBlockActiveOnDate(block, date)
+    );
     return {
       day,
-      label,
+      label: THEME_DAY_LABELS_AR[day],
+      date_key: themeDateKey(date),
+      date_label: `${date.getDate()}/${date.getMonth() + 1}`,
+      is_today: offset === 0,
       blocks: dayBlocks.map((block) => ({
         key: block.key,
         label_ar: block.label_ar,
         stories_per_day: block.stories_per_day,
+        end_date: block.end_date || "",
         pool_products: byKey.get(block.key)?.pool_products ?? 0,
         needs_setup: byKey.get(block.key)?.needs_setup === true,
       })),
@@ -4067,7 +4122,11 @@ export const resolveGenerationPlan = ({ runType = "daily", overrides = null, set
     : defaultPosts;
   // 1 = leave today alone and start the plan tomorrow. A plan built late in
   // the evening would otherwise pin its first day into hours already gone.
-  const startOffset = custom && [true, "true", 1, "1"].includes(custom.start_tomorrow) ? 1 : 0;
+  // A numeric start_offset targets one specific future day (the auto-generation
+  // scheduler fills day N without touching the days before it).
+  const startOffset = hasOwnNumber(custom, "start_offset")
+    ? Math.max(0, Math.min(GENERATION_PLAN_LIMITS.max_days, positiveInt(custom.start_offset, 0)))
+    : custom && [true, "true", 1, "1"].includes(custom.start_tomorrow) ? 1 : 0;
   return {
     run_type: custom ? "plan" : runType,
     days,
@@ -4077,7 +4136,9 @@ export const resolveGenerationPlan = ({ runType = "daily", overrides = null, set
     requested_posts: Math.min(GENERATION_PLAN_LIMITS.max_total_posts, postsPerDay * days),
     start_offset: startOffset,
     horizon_days: days + startOffset,
-    pin_days: Boolean(custom) && days > 1,
+    // A single offset day still needs pinning, or the weighted picker scatters
+    // its stories across the whole horizon including days already covered.
+    pin_days: Boolean(custom) && (days > 1 || startOffset > 0),
   };
 };
 
@@ -5346,8 +5407,9 @@ const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, s
   const items = [];
   let index = 0;
   for (let dayOffset = Math.max(0, positiveInt(startOffset, 0)); dayOffset < Math.max(0, positiveInt(startOffset, 0)) + days; dayOffset += 1) {
-    const dayOfWeek = new Date(baseDate.getTime() + dayOffset * 86400000).getDay();
-    for (const block of calendar.filter((row) => row.days.includes(dayOfWeek))) {
+    const dayDate = new Date(baseDate.getTime() + dayOffset * 86400000);
+    const dayOfWeek = dayDate.getDay();
+    for (const block of calendar.filter((row) => row.days.includes(dayOfWeek) && themeBlockActiveOnDate(row, dayDate))) {
       const pool = pools.get(block.key) || [];
       if (!pool.length) continue;
       const state = await stateFor(block);
@@ -5687,6 +5749,115 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", ru
     );
     throw error;
   }
+};
+
+/* ------------------------------------------------------------------ *
+ * "انشر العروض" — the manual offers push.
+ *
+ * Offers deliberately stay OUT of the automatic theme rotation (the seeded
+ * offers block ships inactive): the owner pushes them by hand every so often.
+ * One click builds a story per offer product, schedules them across the rest
+ * of TODAY inside the Meta-insight windows, and lets the story autopilot
+ * publish each one as soon as its design renders. Items are tagged
+ * metadata.offers_push so the autopilot exempts them from its daily cap —
+ * a human explicitly asked for these.
+ * ------------------------------------------------------------------ */
+export const pushAiMarketingOffersNow = async ({ tenantId, limit = 8 } = {}) => {
+  await ensureAiMarketingCenterSchema();
+  const settings = await getAiMarketingSettings(tenantId);
+  const quota = (settings.daily_content_quotas || []).find((row) => row.active !== false) || DEFAULT_QUOTAS[0];
+  const products = await loadProducts(tenantId);
+  const cappedLimit = Math.max(1, Math.min(20, positiveInt(limit, 8)));
+  const candidates = buildOfferStories(products, quota, cappedLimit);
+  if (!candidates.length) return { generated: 0, skipped: 0, queue_ids: [], reason: "no_offer_products" };
+
+  const postingInsights = await syncAiMarketingPostingInsights({ tenantId });
+  const scheduleState = createScheduleState("daily", postingInsights, 1);
+  const inserted = [];
+  let skipped = 0;
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const item = candidates[index];
+    const scheduledAt = scheduledTimeFor(index, "daily", item, scheduleState);
+    const scheduledDesign = {
+      ...(item.design_json || {}),
+      scheduled_at: scheduledAt.toISOString(),
+      best_posting_time: scheduledAt.toISOString(),
+      posting_window: scheduledAt.postingWindow || "",
+      posting_insight_source: scheduledAt.insightSource || "fallback",
+    };
+    const queueMetadata = {
+      ...item.metadata,
+      selection_mode: "offers_push",
+      offers_push: "true",
+      generation_stage: "ready",
+      approval_required: false,
+      next_status_after_ready: "scheduled",
+    };
+    const result = await db.query(
+      `
+      INSERT INTO ai_marketing_content_queue (
+        tenant_id, content_type, strategy_type, department_id, department_name, segment_type, segment_id, segment_name,
+        product_id, variant_id, title, caption, image_url, media_urls, primary_image_url, variant_image_url, color, size,
+        product_url, design_json, status, scheduled_at, metadata
+      )
+      SELECT $1::bigint,'story',$2::varchar,$3::bigint,$4::text,$5::varchar,$6::bigint,$7::text,$8::bigint,$9::bigint,$10::text,$11::text,$12::text,$13::jsonb,$14::text,$15::text,$16::text,$17::text,$18::text,$19::jsonb,'ready',$20::timestamp,$21::jsonb
+      WHERE NOT EXISTS (
+        -- Pushing twice must not double an offer that is still waiting to go
+        -- out; once it published (or died), the next push may mint it again.
+        SELECT 1
+        FROM ai_marketing_content_queue existing
+        WHERE existing.tenant_id = $1
+          AND existing.content_type = 'story'
+          AND existing.product_id = $8
+          AND existing.status NOT IN ('published', 'archived', 'failed')
+          AND COALESCE(existing.publish_status, '') NOT IN ('published')
+          AND existing.created_at >= NOW() - INTERVAL '2 days'
+      )
+      RETURNING *
+      `,
+      [
+        tenantId,
+        item.strategy_type,
+        item.department_id,
+        item.department_name,
+        item.segment_type,
+        item.segment_id,
+        item.segment_name,
+        item.product_id,
+        item.variant_id,
+        item.title,
+        item.caption,
+        item.image_url,
+        JSON.stringify(uniqueImageUrls(item.media_urls || [item.primary_image_url, item.image_url])),
+        item.primary_image_url || item.image_url || "",
+        item.variant_image_url || "",
+        item.color || "",
+        item.size || "",
+        item.product_url,
+        JSON.stringify(scheduledDesign),
+        scheduledAt,
+        JSON.stringify(queueMetadata),
+      ]
+    );
+    if (result.rows[0]) inserted.push(normalizeQueueRow(result.rows[0]));
+    else skipped += 1;
+  }
+
+  for (const row of inserted) {
+    try {
+      await enqueueAiMarketingQueueStoryAssetGeneration(tenantId, row.id);
+    } catch (error) {
+      console.warn("[ai-marketing-offers-push-asset-enqueue-failed]", { queueId: row.id, error: error?.message || String(error) });
+    }
+  }
+
+  return {
+    generated: inserted.length,
+    skipped,
+    queue_ids: inserted.map((row) => row.id),
+    insight_source: postingInsights?.source || "fallback",
+  };
 };
 
 const VIDEO_LANES = [

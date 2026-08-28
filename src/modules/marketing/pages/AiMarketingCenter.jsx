@@ -36,6 +36,7 @@ import {
   getAutonomousAiMarketingQueueTimeline,
   pauseAutonomousAiMarketing,
   publishAutonomousAiMarketingQueueItemNow,
+  pushAutonomousAiMarketingOffersNow,
   resumeAutonomousAiMarketing,
   restoreAutonomousAiMarketingQueueItem,
   syncAutonomousAiMarketingInsights,
@@ -454,6 +455,7 @@ function AiMarketingCenter() {
   const canPublishMarketing = hasPermission("marketing.publish");
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [pushingOffers, setPushingOffers] = useState(false);
 
   const storiesAll = useMemo(() => queue.filter((item) => {
     const flags = getPreviewContentFlags(item);
@@ -933,6 +935,27 @@ function AiMarketingCenter() {
     }
   };
 
+  // "انشر العروض": يجهّز استوري لكل منتج معلّم كعرض ويجدولها على باقي اليوم؛
+  // الأوتوبايلوت بينشر كل واحد أول ما تصميمه يخلص — من غير ما يستهلك حصة اليوم.
+  const pushOffers = async () => {
+    try {
+      setPushingOffers(true);
+      const result = await pushAutonomousAiMarketingOffersNow();
+      if (Number(result?.generated || 0) > 0) {
+        toast.success(`تم تجهيز ${result.generated} استوري عروض — هتتنشر تلقائيًا على مدار اليوم`);
+      } else if (result?.reason === "no_offer_products") {
+        toast("مفيش منتجات معلّمة كعرض دلوقتي");
+      } else {
+        toast("العروض الحالية لسه في الطابور بالفعل — مفيش جديد يتضاف");
+      }
+      await load();
+    } catch (error) {
+      toast.error(formatApiError(error, "تعذر نشر العروض"));
+    } finally {
+      setPushingOffers(false);
+    }
+  };
+
   const syncInsights = async () => {
     try {
       setSyncingInsights(true);
@@ -988,6 +1011,16 @@ function AiMarketingCenter() {
           <button type="button" onClick={() => setPlanOpen(true)} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-primary`} title="إنشاء كمية من القصص وجدولتها على أيام">
             <Wand2 className="h-4 w-4" />
             {running ? "في الطابور..." : canCreateMarketing ? "إنشاء الطابور" : "لا توجد صلاحية إنشاء"}
+          </button>
+          <button
+            type="button"
+            onClick={pushOffers}
+            disabled={pushingOffers || !canCreateMarketing}
+            className={`${buttonClass} border border-amber-300/30 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25`}
+            title="ينشئ استوري لكل منتج معلّم كعرض وينشرها تلقائيًا على مدار اليوم"
+          >
+            <Sparkles className="h-4 w-4" />
+            {pushingOffers ? "جارٍ تجهيز العروض..." : "انشر العروض"}
           </button>
         </div>
       </div>
