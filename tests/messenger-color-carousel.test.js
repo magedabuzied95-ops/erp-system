@@ -86,6 +86,28 @@ test("the carousel frames a square image so the whole product shows", () => {
   assert.match(expand, /image_url: squared \|\| flatCard\.image_url/, "a failed square keeps the original photo");
 });
 
+test("the colour carousel is not capped at 6 — the route hands the real card count", () => {
+  // sendMetaInboxOutboundMessage defaults productCardLimit to 6; a 10-colour product would then
+  // silently drop 4 colours (live: 10 expanded, only 6 reached the sender, 2026-08-28). The route
+  // sends the expanded count so every colour rides the carousel.
+  const send = routes.slice(routes.indexOf("sendResult = await sendMetaInboxOutboundMessage({", routes.indexOf("FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM")), routes.indexOf("deliveryStatus = sendResult?.delivery_status || (sendResult.sent ? \"sent\" : \"failed\");"));
+  assert.match(send, /productCardLimit: Math\.max\(6, productCards\.length\)/, "the Meta send is given the full expanded card count, not the default 6");
+  assert.match(meta, /productCardLimit = 6/, "the default that the route must override still exists (guards the reason for the override)");
+});
+
+test("the lead line lands ABOVE the carousel, not after the cards", () => {
+  // The general message body is otherwise sent last; for a carousel that lead ("اختار اللون 👇")
+  // must precede the cards. It is sent before the elements loop and the trailing send is skipped.
+  const svc = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  const branch = svc.slice(svc.indexOf("let messengerCarouselDone = false"), svc.indexOf("if (cards.length && !messengerCarouselDone)"));
+  assert.match(branch, /leadTextSentBeforeCarousel = true/, "the lead text is sent inside the carousel branch, before the cards");
+  const leadIdx = branch.indexOf("messageText: safeMessage");
+  const loopIdx = branch.indexOf("for (let i = 0; i < elements.length; i += 10)");
+  assert.ok(leadIdx > -1 && loopIdx > -1 && leadIdx < loopIdx, "the lead send precedes the carousel element loop");
+  // and the trailing body send is guarded so the lead is not repeated under the cards
+  assert.match(svc, /if \(!leadTextSentBeforeCarousel\) \{\s*meta = await postMetaMessage\(/, "the trailing body send is skipped once the lead already went out");
+});
+
 test("the card layout: bold big colour+price title, sizes on their own line", () => {
   // Messenger gives no font control on the subtitle, so the price rides the TITLE (which Messenger
   // renders bold and larger) and the sizes get a labelled line of their own (owner request).

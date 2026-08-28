@@ -6632,6 +6632,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
           facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
           instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
           productCards,
+          // The colour expansion already produced the exact card set we want to send (one per
+          // colour, capped at 30). sendMetaInboxOutboundMessage defaults productCardLimit to 6,
+          // which would silently drop every colour past the sixth — so hand it the real count.
+          productCardLimit: Math.max(6, productCards.length),
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult.sent ? "sent" : "failed");
         if (deliveryStatus === "failed" && !deliveryError) {

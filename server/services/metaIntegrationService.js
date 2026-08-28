@@ -23212,10 +23212,21 @@ export const sendMetaInboxOutboundMessage = async ({
   // ≥2 cards; Instagram has no carousel and keeps the per-card loop. Any failure falls straight
   // through to that loop, so the carousel is an upgrade, never a new way to lose the message.
   let messengerCarouselDone = false;
+  let leadTextSentBeforeCarousel = false;
   if (cards.length >= 2 && normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && text(token)) {
     try {
       const elements = cards.map(buildMessengerCarouselElement).filter((el) => el.image_url && el.buttons);
       if (elements.length >= 2) {
+        // The lead line ("... اختار اللون اللي يعجبك 👇") introduces the carousel, so it must land
+        // ABOVE the cards, not after them. The general message body is otherwise sent last (below);
+        // send it here first and mark it done so the trailing send skips it.
+        if (text(safeMessage)) {
+          meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: safeMessage, sendContext }).catch((leadError) => {
+            console.warn("[meta] messenger carousel lead text send failed", { tenant_id: scopedTenantId, message: leadError?.message });
+            return null;
+          });
+          if (meta) leadTextSentBeforeCarousel = true;
+        }
         // Messenger caps a generic template at 10 elements; chunk instead of truncating.
         for (let i = 0; i < elements.length; i += 10) {
           const carouselResponse = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
@@ -23496,13 +23507,15 @@ export const sendMetaInboxOutboundMessage = async ({
         });
       }
     }
-    meta = await postMetaMessage({
-      token,
-      recipientId: safeRecipientId,
-      messageText: safeMessage,
-      sendContext,
-      quickReplies: Array.isArray(quickReplies) && normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? quickReplies : [],
-    });
+    if (!leadTextSentBeforeCarousel) {
+      meta = await postMetaMessage({
+        token,
+        recipientId: safeRecipientId,
+        messageText: safeMessage,
+        sendContext,
+        quickReplies: Array.isArray(quickReplies) && normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? quickReplies : [],
+      });
+    }
   } catch (error) {
     console.error("ai_inbox_send_failed", {
       tenant_id: scopedTenantId,
