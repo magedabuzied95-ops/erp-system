@@ -205,8 +205,12 @@ export const googleFontHref = (font) => {
 const FONT_LINK_ATTR = "data-erp-font";
 
 // Idempotent: one <link> per family for the lifetime of the document. Cairo and
-// Inter are already imported by foundation.css, so they are skipped.
-const PRELOADED_FAMILIES = new Set(["Cairo", "Inter"]);
+// Inter are already imported by foundation.css, so they are skipped. Alexandria
+// is self-hosted with corrected vertical metrics (fonts-alexandria.css) — the
+// Google copy under-declares its descent and iOS clips Arabic letter bottoms,
+// so the Google <link> must never be injected for it. Exported so the stored
+// appearance record (read by index.html's seed) never carries their URLs.
+export const PRELOADED_FAMILIES = new Set(["Cairo", "Inter", "Alexandria"]);
 
 export const ensureFontLoaded = (font) => {
   if (typeof document === "undefined" || !font?.family) return;

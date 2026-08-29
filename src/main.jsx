@@ -4,6 +4,7 @@ import "./i18n/i18n";
 
 import "./index.css";
 import "./theme/foundation.css";
+import "./theme/fonts-alexandria.css";
 import "./theme/reference.css";
 import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?m1PreviewApi=2";
 import { installChunkLoadRecovery, installStylesheetRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";

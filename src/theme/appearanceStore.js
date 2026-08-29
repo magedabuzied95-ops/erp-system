@@ -2,6 +2,7 @@ import { safeSetLocalStorage } from "../utils/safeStorage";
 import {
   ARABIC_FONT_MAP,
   LATIN_FONT_MAP,
+  PRELOADED_FAMILIES,
   appearanceVariables,
   googleFontHref,
   normalizeAppearance,
@@ -19,6 +20,7 @@ export const buildStoredAppearance = (input) => {
   const profile = normalizeAppearance(input);
   const variables = appearanceVariables(profile);
   const links = [ARABIC_FONT_MAP[profile.fontAr], LATIN_FONT_MAP[profile.fontEn]]
+    .filter((font) => font && !PRELOADED_FAMILIES.has(font.family))
     .map((font) => googleFontHref(font))
     .filter(Boolean);
   return {

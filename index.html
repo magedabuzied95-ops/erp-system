@@ -92,6 +92,11 @@
                 root.style.setProperty("--font-en", resolved.fontEn);
                 (resolved.links || []).forEach(function (href) {
                   if (typeof href !== "string" || href.indexOf("https://fonts.googleapis.com/") !== 0) return;
+                  // Alexandria is self-hosted with corrected vertical metrics
+                  // (src/theme/fonts-alexandria.css); Google's copy clips Arabic
+                  // descenders on iOS. Stale stored records may still carry its
+                  // URL — never let the seed resurrect it.
+                  if (href.indexOf("family=Alexandria") !== -1) return;
                   var link = document.createElement("link");
                   link.rel = "stylesheet";
                   link.href = href;
