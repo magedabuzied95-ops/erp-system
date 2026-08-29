@@ -509,7 +509,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
         <div className="fixed inset-0 z-[2147482500] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setInfoOpen(false); }}>
           <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.messageInfo")} className="w-full max-w-md rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">{t("aiSupport.inbox.message.messageInfo")}</div><h3 className="mt-1 text-lg font-black">{t("aiSupport.inbox.message.messageInfo")}</h3></div>
+              <div><h3 className="text-lg font-black">{t("aiSupport.inbox.message.messageInfo")}</h3></div>
               <button type="button" onClick={() => setInfoOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5"><X className="h-4 w-4" /></button>
             </div>
             <dl className="mt-4 grid grid-cols-[110px_1fr] gap-x-3 gap-y-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm">

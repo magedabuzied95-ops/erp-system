@@ -107,7 +107,6 @@ const labels = {
     closeLabel: "إغلاق",
     photoPreview: "معاينة الصورة",
     photoHint: "JPG أو PNG أو WebP — بحد أقصى 5MB",
-    salesOpportunitiesEyebrow: "فرص البيع",
     salesOpportunitiesSubtitle: "موديلات قسم العروض — واللي باقي منها آخر قطعة عليها علامة.",
     salesOpportunitiesTitle: "فرص البيع اليوم",
     salesBoardSizeFilter: "المقاس",
@@ -207,7 +206,6 @@ const labels = {
     closeLabel: "Close",
     photoPreview: "Photo preview",
     photoHint: "JPG, PNG or WebP — 5MB max",
-    salesOpportunitiesEyebrow: "Sales opportunities",
     salesOpportunitiesSubtitle: "Offer-section models — the ones down to a last piece are flagged.",
     salesOpportunitiesTitle: "Today's sales opportunities",
     salesBoardSizeFilter: "Size",
@@ -3835,8 +3833,7 @@ export default function EmployeePayrollPortal() {
               <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">{text.salesOpportunitiesEyebrow}</div>
-                    <h2 className="m1-section-title mt-1">{text.salesOpportunitiesTitle}</h2>
+                    <h2 className="m1-section-title">{text.salesOpportunitiesTitle}</h2>
                     <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">{text.salesOpportunitiesSubtitle}</p>
                   </div>
                   <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">

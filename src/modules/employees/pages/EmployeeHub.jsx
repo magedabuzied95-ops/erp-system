@@ -113,8 +113,7 @@ export default function EmployeeHub() {
       <section className="theme-card p-5">
         <div className="flex flex-col gap-2">
           <div>
-            <p className={isRtl ? "text-[11px] font-black leading-5 text-[var(--muted)]" : "text-[11px] font-black uppercase tracking-[0.22em] text-[var(--muted)]"}>{t("common.employeeHub.eyebrow")}</p>
-            <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("common.employeeHub.title")}</h1>
+            <h1 className="m1-page-title text-[var(--text)]">{t("common.employeeHub.title")}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               {t("common.employeeHub.subtitle")}
             </p>

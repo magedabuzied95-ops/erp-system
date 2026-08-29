@@ -9844,8 +9844,7 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
       <div className="sf-mobile-categories-sheet__panel absolute inset-x-0 bottom-0 px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
         <div className="sf-mobile-categories-sheet__header mx-auto flex max-w-[28rem] items-center justify-between gap-3">
           <div>
-            <p className="sf-mobile-categories-sheet__eyebrow text-[10px] font-black uppercase tracking-[0.22em]">{isRtl ? "الأقسام" : "Categories"}</p>
-            <h3 className="sf-mobile-categories-sheet__title mt-0.5 text-base font-black">{isRtl ? "تصفح الأقسام" : "Browse categories"}</h3>
+            <h3 className="sf-mobile-categories-sheet__title text-base font-black">{isRtl ? "تصفح الأقسام" : "Browse categories"}</h3>
           </div>
           <button type="button" onClick={() => setCategoriesOpen(false)} className="sf-mobile-categories-sheet__close grid h-10 w-10 place-items-center rounded-full transition active:scale-[0.98]">
             <X className="h-5 w-5" />

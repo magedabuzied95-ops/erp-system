@@ -596,7 +596,6 @@ export default function AttendanceCenter() {
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const text = isArabic ? labels.ar : labels.en;
   const sectionLabel = (key) => (SECTION_LABEL_KEYS[key] ? t(SECTION_LABEL_KEYS[key]) : key);
-  const pageEyebrow = t("common.attendanceCenterPage.eyebrow", { defaultValue: isArabic ? "مركز الحضور" : "Attendance Center" });
   const pageTitle = t("common.attendanceCenterPage.title", { defaultValue: text.title });
   const pageSubtitle = t("common.attendanceCenterPage.subtitle", { defaultValue: text.subtitle });
   const [activeTab, setActiveTab] = useState("overview");
@@ -898,8 +897,7 @@ export default function AttendanceCenter() {
       <section className="theme-card p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-xs font-black text-[var(--muted)]">{pageEyebrow}</div>
-            <h2 className="m1-section-title mt-1 text-[var(--text)]">{pageTitle}</h2>
+            <h2 className="m1-section-title text-[var(--text)]">{pageTitle}</h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">

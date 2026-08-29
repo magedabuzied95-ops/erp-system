@@ -426,8 +426,7 @@ function OrderReturnsPage() {
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)]">
             <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{t("orders.returns.customerReturns")}</div>
-                <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("orders.returns.customerReturns")}</h2>
+                <h2 className="m1-section-title text-[var(--text)]">{t("orders.returns.customerReturns")}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <MiniStat label={t("orders.returns.page.results")} value={filteredReturns.length} />
@@ -621,8 +620,7 @@ function SupplierReturnsPanel({
       <section className="rounded-2xl border border-amber-400/30 bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{t("orders.returns.supplierReturns")}</div>
-            <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("orders.returns.supplierReturns")}</h2>
+            <h2 className="m1-section-title text-[var(--text)]">{t("orders.returns.supplierReturns")}</h2>
             <p className="mt-1 text-xs text-[var(--muted)]">{t("orders.returns.page.currentResults", { shown: items.length, total: allItems.length })}</p>
           </div>
           <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-bold text-[var(--text)] hover:bg-[var(--surface)]">{t("orders.returns.page.clearFilters")}</button>
