@@ -5843,6 +5843,11 @@ export const linkSocialCommentIdentitiesFromInbox = async ({ tenantId = null, co
   const result = await db.query(
     `
     WITH sources AS (
+      -- The same person is keyed by the same page-scoped id in every one of
+      -- these, but which table actually holds it depends on how and when the
+      -- thread was created, and older rows can have the id only inside the
+      -- conversation/session key ("facebook_messenger:<psid>"). Reading one
+      -- table finds nothing for exactly the customers this is meant to name.
       SELECT
         c.external_customer_id AS commenter_id,
         COALESCE(NULLIF(c.customer_name, ''), '') AS known_name,
@@ -5851,6 +5856,33 @@ export const linkSocialCommentIdentitiesFromInbox = async ({ tenantId = null, co
       FROM ai_channel_conversations c
       WHERE c.tenant_id = $1::bigint
         AND COALESCE(c.external_customer_id, '') <> ''
+      UNION ALL
+      SELECT
+        regexp_replace(c.external_conversation_id, '^[^:]+:', ''),
+        COALESCE(NULLIF(c.customer_name, ''), ''),
+        COALESCE(NULLIF(c.customer_avatar_url, ''), ''),
+        c.updated_at
+      FROM ai_channel_conversations c
+      WHERE c.tenant_id = $1::bigint
+        AND c.external_conversation_id ~ '^[^:]+:[0-9]{6,}$'
+      UNION ALL
+      SELECT
+        s.external_customer_id,
+        COALESCE(NULLIF(s.customer_name, ''), ''),
+        COALESCE(NULLIF(s.customer_avatar_url, ''), ''),
+        s.updated_at
+      FROM ai_support_sessions s
+      WHERE s.tenant_id = $1::bigint
+        AND COALESCE(s.external_customer_id, '') <> ''
+      UNION ALL
+      SELECT
+        regexp_replace(s.session_id, '^[^:]+:', ''),
+        COALESCE(NULLIF(s.customer_name, ''), ''),
+        COALESCE(NULLIF(s.customer_avatar_url, ''), ''),
+        s.updated_at
+      FROM ai_support_sessions s
+      WHERE s.tenant_id = $1::bigint
+        AND s.session_id ~ '^[^:]+:[0-9]{6,}$'
       UNION ALL
       SELECT
         p.external_customer_id,
