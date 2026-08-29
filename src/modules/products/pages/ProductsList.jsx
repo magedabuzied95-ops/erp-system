@@ -2524,6 +2524,32 @@ function ProductsList() {
     }
   };
 
+  const handleBulkOfferStory = async (nextOfferStory) => {
+    if (!selectedIds.length) return;
+    const pendingRows = rows.filter((row) => selectedIds.includes(row.id) && isOfferStoryValue(row) !== nextOfferStory);
+    if (!pendingRows.length) {
+      toast.success(t("products.toasts.offersBulkNoChange", "No change: the selected products are already in that state"));
+      return;
+    }
+
+    try {
+      await Promise.all(pendingRows.map((row) => updateProductStatus(row.id, { is_offer_story: nextOfferStory })));
+      const changedIds = new Set(pendingRows.map((row) => row.id));
+      setRows((prev) => prev.map((row) => (changedIds.has(row.id) ? { ...row, is_offer_story: nextOfferStory } : row)));
+      setSelectedProduct((prev) => (prev && changedIds.has(prev.id) ? { ...prev, is_offer_story: nextOfferStory } : prev));
+      toast.success(
+        nextOfferStory
+          ? t("products.toasts.offersBulkAdded", { count: changedIds.size, defaultValue: "Added {{count}} products to offers" })
+          : t("products.toasts.offersBulkRemoved", { count: changedIds.size, defaultValue: "Removed {{count}} products from offers" })
+      );
+      refreshProducts();
+    } catch (err) {
+      console.error("[products:list] offer story bulk update failed", err);
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.offerStoryUpdateFailed", "Failed to update offers"));
+      refreshProducts();
+    }
+  };
+
   const handleDuplicate = async (row) => {
     setOpenActionId(null);
     try {
@@ -3362,6 +3388,19 @@ function ProductsList() {
               className="inline-flex items-center gap-2 rounded-full border border-border bg-border-strong px-4 py-2 text-sm font-semibold text-text"
             >
               {t("products.bulk.hideFromStorefront", "إخفاء من الموقع")}
+            </button>
+            <button
+              onClick={() => handleBulkOfferStory(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-200"
+            >
+              <Tag size={16} />
+              {t("products.bulk.addToOffers", "Add to offers")}
+            </button>
+            <button
+              onClick={() => handleBulkOfferStory(false)}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-border-strong px-4 py-2 text-sm font-semibold text-text"
+            >
+              {t("products.bulk.removeFromOffers", "Remove from offers")}
             </button>
           </div>
         )}
