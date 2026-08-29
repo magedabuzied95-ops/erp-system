@@ -123,6 +123,14 @@ const SOCIAL_AUTO_REPLY_DEFAULTS = {
 const SOCIAL_AUTO_REPLY_MODES = new Set(["off", "draft", "manual_approval", "full_auto"]);
 const SOCIAL_FAST_LIST_CACHE_TTL_MS = 4000;
 const SOCIAL_FAST_LIST_METRICS_WINDOW = 120;
+// A Meta feed webhook names what it is about in `value.item`. Reactions, shares
+// and status changes carry the same `from`/`post_id`/`parent_id` shape a comment
+// does, and an ingest bug (fixed 2026-08-29) filed them as comments — page likes
+// surfaced as textless phantom comments. Rows that name a non-comment item are
+// never comments, so the read paths refuse them regardless of what is stored.
+// Rows with no `item` (the poller's own, and every TikTok row) are kept.
+const socialCommentIsCommentRowSql = (alias = "") =>
+  `COALESCE(NULLIF(${alias}raw_payload->>'item', ''), 'comment') = 'comment'`;
 const socialFastListCache = new Map();
 const socialFastListDurationsMs = [];
 let socialFastListCacheHits = 0;
@@ -3706,6 +3714,7 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
       WHERE tenant_id = $1::bigint
         AND platform = $2::text
         AND post_id <> ''
+        AND ${socialCommentIsCommentRowSql()}
       GROUP BY post_id
       `,
       [safeTenantId, normalizedPlatform]
@@ -4282,6 +4291,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
      AND auto_run.comment_id = source.comment_id
     WHERE source.tenant_id = $1::bigint
       AND source.platform = $2::text
+      AND ${socialCommentIsCommentRowSql("source.")}
       AND (
         source.post_id = $3::text
         OR regexp_replace(source.post_id, '^.*_', '') = regexp_replace($3::text, '^.*_', '')
@@ -4586,6 +4596,9 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   if (["facebook", "instagram", "tiktok"].includes(normalizedPlatform)) {
     whereClauses.push("platform = $2::text");
     params.push(normalizedPlatform);
+  }
+  if (hasRawPayloadColumn) {
+    whereClauses.push(socialCommentIsCommentRowSql());
   }
   if (status) {
     const statusParamIndex = params.length + 1;

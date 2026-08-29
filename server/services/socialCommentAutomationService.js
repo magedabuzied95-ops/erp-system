@@ -7182,8 +7182,16 @@ const isCommentChange = (body = {}, change = {}) => {
   const verb = lower(value.verb);
   const allowedVerb = ["add", "created", "edited", "edit", ""].includes(verb);
   if (lower(body.object) === "instagram" && (field === "comments" || field === "mentions") && allowedVerb) return true;
-  if (field === "feed" && item === "comment" && allowedVerb) return true;
-  return Boolean(value.comment_id || value.parent_id || value.post_id || value.media_id);
+  if (field === "feed") {
+    if (item === "comment") return allowedVerb;
+    // `item` names what the feed change is about. A reaction/share/status/photo
+    // carries `from`, `post_id` and `parent_id` exactly like a comment does, so
+    // anything that names a non-comment item is rejected outright — accepting it
+    // filed page likes as phantom comments.
+    if (item) return false;
+  }
+  // Without a named item, only an explicit comment id proves this is a comment.
+  return Boolean(text(value.comment_id));
 };
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
@@ -7209,9 +7217,12 @@ const deriveCommentId = ({ platform = "", postId = "", parentCommentId = "", com
     value.comment_id_str,
     change.comment_id,
     change.id,
-    entry.comment_id,
-    entry.id
+    entry.comment_id
   );
+  // `entry.id` is the PAGE id on every Meta page webhook, never a comment id.
+  // It used to close this chain, so any comment-less change was stored under the
+  // page id — and UNIQUE (tenant_id, platform, comment_id) collapsed them all
+  // onto one row that kept overwriting itself.
   if (explicit) return explicit;
   const source = [
     platform,
@@ -7230,7 +7241,8 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   const value = change.value || {};
   const platform = normalizedPlatform(body);
   const channel = normalizedChannel(platform);
-  const postId = firstText(value.post_id, value.media_id, value.media?.id, value.media?.media_id, value.post?.id, entry.id, value.id);
+  // `entry.id` is the page/IG-account id, never a post id — see deriveCommentId.
+  const postId = firstText(value.post_id, value.media_id, value.media?.id, value.media?.media_id, value.post?.id, value.id);
   const postPermalink = firstText(value.permalink_url, value.post_permalink, value.permalink, value.link, value.url);
   const postMessage = firstText(value.post_message, value.post_caption, value.post?.message, value.post?.caption);
   const postCreatedTime = firstText(value.post_created_time, value.post?.created_time, value.post?.updated_time);
