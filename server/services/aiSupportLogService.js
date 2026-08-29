@@ -3,6 +3,7 @@ import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
+import { pruneWeakConversationChannels, writableConversationChannel } from "../utils/inboxChannelIdentity.js";
 
 let schemaReadyPromise = null;
 
@@ -21,6 +22,16 @@ const logSqlError = (stage, error, extra = {}) => {
     ...extra,
   });
 };
+
+// A channel write must never DOWNGRADE a stored channel. `web_chat` is the
+// column default, so an admin action that did not know the channel arrives here
+// carrying it as a real-looking value; `NULLIF(…, '')` does not stop it, and the
+// thread is rebadged "Web Chat" until the customer sends another message.
+// Every ON CONFLICT branch that touches ai_support_sessions.channel uses this.
+const sessionChannelNoDowngradeSql = (incomingSql) => `CASE
+        WHEN lower(COALESCE(${incomingSql}, '')) IN ('', 'web', 'web_chat') THEN ai_support_sessions.channel
+        ELSE ${incomingSql}
+      END`;
 
 const numberOrNull = (value) => {
   const parsed = Number(value);
@@ -344,9 +355,16 @@ const persistOutboundTranscriptRow = async ({
   preserveSessionState = false,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
-  const safeChannel = toText(channel || "web_chat");
+  // Derive from the session id before falling back to the column default. A
+  // caller that omits `channel` is saying "I don't know", not "this is a web
+  // chat" — and `whatsapp:2010…` knows perfectly well.
+  const safeChannel = writableConversationChannel({ sessionId, channel }) || "web_chat";
+  // The `|| toText(sessionId)` matters now that an omitted channel can resolve to
+  // whatsapp: normalizeCanonicalWhatsappSessionId returns "" for an identity it
+  // cannot key (a bare WhatsApp username has neither digits nor a LID), and an
+  // empty session id makes the guard below reject the message outright.
   const safeSessionId = safeChannel === "whatsapp"
-    ? normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId)
+    ? normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId) || toText(sessionId)
     : toText(sessionId);
   const safeSenderType = toText(senderType || (manualMessage ? "staff" : "ai") || "ai");
   const safeDirection = toText(direction || "outbound").toLowerCase() === "inbound" ? "inbound" : "outbound";
@@ -367,7 +385,13 @@ const persistOutboundTranscriptRow = async ({
   const safeSourcePath = toText(sourcePath, "manual_message_insert");
   const safeInsertSource = toText(insertSource, "manual_message_insert");
   const safeSessionSource = toText(sessionSource || source || safeChannel || "web_chat");
-  const safeSessionChannel = toText(sessionChannel || safeChannel || "web_chat");
+  // "" when nothing is known, so the upsert's no-downgrade guard can keep
+  // whatever the session already had instead of stamping web_chat over it.
+  const safeSessionChannel = writableConversationChannel({
+    sessionId: safeSessionId,
+    channel: sessionChannel,
+    fallbackChannel: safeChannel,
+  });
   const safeSessionCustomerName = toText(sessionCustomerName);
   const safeDetectedIntent = toText(detectedIntent);
   const safeRemoteJid = safeChannel === "whatsapp"
@@ -438,7 +462,7 @@ const persistOutboundTranscriptRow = async ({
         INSERT INTO ai_support_sessions (
           tenant_id, user_id, session_id, source, status, channel, customer_name, last_message, assigned_user_id, assigned_user_name, takeover_started_at, ai_enabled, updated_at
         )
-        VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $2::bigint, $9::text, CASE WHEN $5::text = 'human_takeover' THEN NOW() ELSE NULL END, TRUE, NOW())
+        VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, COALESCE(NULLIF($6::text, ''), 'web_chat'), $7::text, $8::text, $2::bigint, $9::text, CASE WHEN $5::text = 'human_takeover' THEN NOW() ELSE NULL END, TRUE, NOW())
         ON CONFLICT (tenant_id, session_id) DO UPDATE SET
           user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
           source = CASE
@@ -455,7 +479,7 @@ const persistOutboundTranscriptRow = async ({
             WHEN EXCLUDED.status = 'human_takeover' THEN 'human_takeover'
             ELSE COALESCE(NULLIF(EXCLUDED.status, ''), ai_support_sessions.status, 'ai_active')
           END,
-          channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+          channel = ${sessionChannelNoDowngradeSql("$6::text")},
           customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
           last_message = CASE
             WHEN $10::boolean THEN ai_support_sessions.last_message
@@ -980,6 +1004,79 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
               AND existing.external_conversation_id = 'whatsapp:' || regexp_replace(regexp_replace(lower(c.external_conversation_id), '^whatsapp:', ''), '[^0-9]', '', 'g')
           )
       `);
+      // Repair conversations that an admin action rebadged as "Web Chat".
+      //
+      // channel defaults to 'web_chat' and a dozen upserts used to write that
+      // default over a real channel, so starring a WhatsApp thread — or sending a
+      // staff reply from a screen that never passed the channel — moved it into
+      // the Web Chat tab until the customer happened to write again. The write
+      // guards stop new damage; this repairs what is already stored.
+      //
+      // Safe by construction, which matters because a throw here exit(1)s the
+      // whole backend: it only rewrites rows whose channel is the weak default,
+      // it reads the answer from the session id the ingest path minted, and it
+      // can neither collide on a unique key nor delete a row.
+      await clientOrPool.query(`
+        UPDATE ai_support_sessions AS s
+        SET channel = CASE
+              WHEN s.session_id ~* '^whatsapp:' THEN 'whatsapp'
+              WHEN s.session_id ~* '^(facebook_messenger|messenger|facebook):' THEN 'facebook_messenger'
+              WHEN s.session_id ~* '^instagram:' THEN 'instagram'
+              WHEN s.session_id ~* '^telegram:' THEN 'telegram'
+              ELSE s.channel
+            END
+        WHERE lower(COALESCE(s.channel, '')) IN ('', 'web', 'web_chat')
+          AND s.session_id ~* '^(whatsapp|facebook_messenger|messenger|facebook|instagram|telegram):'
+      `).catch((error) => logSqlError("channel_repair_sessions_by_prefix", error));
+      // Prefix-less legacy rows: a message carrying an Evolution instance or a
+      // WhatsApp JID could only have come from WhatsApp.
+      await clientOrPool.query(`
+        UPDATE ai_support_sessions AS s
+        SET channel = 'whatsapp'
+        WHERE lower(COALESCE(s.channel, '')) IN ('', 'web', 'web_chat')
+          AND EXISTS (
+            SELECT 1
+            FROM ai_support_messages m
+            WHERE m.tenant_id = s.tenant_id
+              AND m.session_id = s.session_id
+              AND (
+                COALESCE(m.whatsapp_instance, '') <> ''
+                OR COALESCE(m.remote_jid, '') <> ''
+                OR lower(COALESCE(m.channel, '')) = 'whatsapp'
+              )
+          )
+      `).catch((error) => logSqlError("channel_repair_sessions_by_message_evidence", error));
+      // The conversation row the inbox list actually joins to. Repaired only when
+      // the thread has no row under its real channel yet, so the unique key
+      // (tenant_id, channel, external_conversation_id) cannot be violated. When
+      // both rows exist the phantom stays and the list join demotes it —
+      // deleting inbox state at boot is not worth the risk.
+      await clientOrPool.query(`
+        UPDATE ai_channel_conversations AS c
+        SET channel = repaired.channel
+        FROM (
+          SELECT
+            id,
+            CASE
+              WHEN external_conversation_id ~* '^whatsapp:' THEN 'whatsapp'
+              WHEN external_conversation_id ~* '^(facebook_messenger|messenger|facebook):' THEN 'facebook_messenger'
+              WHEN external_conversation_id ~* '^instagram:' THEN 'instagram'
+              WHEN external_conversation_id ~* '^telegram:' THEN 'telegram'
+              ELSE ''
+            END AS channel
+          FROM ai_channel_conversations
+          WHERE lower(COALESCE(channel, '')) IN ('', 'web', 'web_chat')
+        ) AS repaired
+        WHERE repaired.id = c.id
+          AND repaired.channel <> ''
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ai_channel_conversations AS existing
+            WHERE existing.tenant_id = c.tenant_id
+              AND existing.channel = repaired.channel
+              AND existing.external_conversation_id = c.external_conversation_id
+          )
+      `).catch((error) => logSqlError("channel_repair_channel_conversations_by_prefix", error));
       await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
       await clientOrPool.query(`
         UPDATE ai_support_messages
@@ -1234,11 +1331,16 @@ export const updateAiSupportConversationAiEnabled = async ({
     `,
     [safeTenantId, safeSessionId]
   );
-  const resolvedChannels = [...new Set([
+  // Fanned out over every channel this thread is known by. `web_chat` is dropped
+  // whenever a real channel is available, or a toggle made from a screen that
+  // never sent the channel mints a phantom web_chat row in
+  // ai_channel_conversations that the inbox list join can then pick over the
+  // real one.
+  const resolvedChannels = pruneWeakConversationChannels([
     safeChannel,
     normalizeConversationChannel(sessionState.rows[0]?.channel || ""),
     ...existingChannelRows.rows.map((row) => normalizeConversationChannel(row.channel || "")),
-  ].map((value) => normalizeConversationChannel(value)).filter(Boolean))];
+  ].map((value) => normalizeConversationChannel(value)).filter(Boolean), safeSessionId);
   const sessionResult = await db.query(
     `
     INSERT INTO ai_support_sessions (
@@ -1334,7 +1436,15 @@ export const updateAiSupportConversationFavorite = async ({
     ...conversationReference.lookupSessionIds,
   ].filter(Boolean))];
   const safeFavorite = isFavorite === true;
-  const resolvedChannel = conversationReference.channel || safeChannel || "web_chat";
+  // Starring a thread says nothing about its channel. This used to default to
+  // "web_chat" and then write it through `COALESCE(EXCLUDED.channel, …)`, which
+  // only skips NULL — so one star on a WhatsApp conversation relabelled it
+  // "Web Chat" permanently. Unknown now stays "" and the guard keeps the stored
+  // channel.
+  const resolvedChannel = writableConversationChannel({
+    sessionId: conversationReference.sessionId || safeSessionId,
+    channel: conversationReference.channel || safeChannel,
+  });
 
   const result = await db.query(
     `
@@ -1346,9 +1456,9 @@ export const updateAiSupportConversationFavorite = async ({
       channel,
       is_favorite
     )
-    VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::boolean)
+    VALUES ($1::bigint, $2::bigint, $3::text, $4::text, COALESCE(NULLIF($5::text, ''), 'web_chat'), $6::boolean)
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
-      channel = COALESCE(EXCLUDED.channel, ai_support_sessions.channel),
+      channel = ${sessionChannelNoDowngradeSql("$5::text")},
       is_favorite = EXCLUDED.is_favorite,
       updated_at = NOW()
     RETURNING *
@@ -1357,7 +1467,16 @@ export const updateAiSupportConversationFavorite = async ({
   );
 
   if (result.rows[0]) {
-    return { ...(result.rows[0] || {}), is_favorite: safeFavorite, channel: resolvedChannel, session_id: safeSessionId, external_conversation_id: safeSessionId };
+    // The STORED channel, not the one we guessed: the response is spread over the
+    // conversation in the inbox list, so echoing an empty guess back would blank
+    // the badge the write just took care not to touch.
+    return {
+      ...(result.rows[0] || {}),
+      is_favorite: safeFavorite,
+      channel: toText(result.rows[0].channel) || resolvedChannel,
+      session_id: safeSessionId,
+      external_conversation_id: safeSessionId,
+    };
   }
 
   const fallback = await db.query(
@@ -1376,7 +1495,9 @@ export const updateAiSupportConversationFavorite = async ({
     tenant_id: safeTenantId,
     session_id: safeSessionId,
     external_conversation_id: safeSessionId,
-    channel: resolvedChannel,
+    // Omitted when unknown — this object is spread over the conversation in the
+    // inbox list, and an empty channel would erase the badge.
+    ...(resolvedChannel ? { channel: resolvedChannel } : {}),
     is_favorite: safeFavorite,
   };
 };
@@ -1774,11 +1895,14 @@ export const updateAiSupportConversationState = async ({
     `,
     [safeTenantId, safeSessionId]
   );
-  const resolvedChannels = [...new Set([
+  // See the note on the same list in updateAiSupportConversationAiState: a
+  // defaulted web_chat must not become a second conversation row for a thread
+  // that already has a real channel.
+  const resolvedChannels = pruneWeakConversationChannels([
     safeChannel,
     normalizeConversationChannel(current.rows[0]?.channel || ""),
     ...existingChannelRows.rows.map((row) => normalizeConversationChannel(row.channel || "")),
-  ].map((value) => normalizeConversationChannel(value)).filter(Boolean))];
+  ].map((value) => normalizeConversationChannel(value)).filter(Boolean), safeSessionId);
   for (const resolvedChannel of resolvedChannels) {
     await db.query(
       `
@@ -1945,7 +2069,7 @@ export const appendManualAiSupportReply = async ({
     sessionStatus: internalNote ? "ai_active" : "human_takeover",
     preserveSessionState: internalNote,
     sessionSource: source,
-    sessionChannel: channel || "web_chat",
+    sessionChannel: channel,
     sessionCustomerName: "",
     sourcePath: "manual_message_insert",
     insertSource: "manual_message_insert",
@@ -1965,7 +2089,7 @@ export const appendManualAiSupportReply = async ({
       `
       UPDATE ai_support_sessions
       SET last_message = $3,
-          channel = COALESCE(NULLIF($4, ''), channel),
+          channel = CASE WHEN lower(COALESCE($4, '')) IN ('', 'web', 'web_chat') THEN channel ELSE $4 END,
           updated_at = NOW()
       WHERE tenant_id = $1 AND session_id = $2
       `,
@@ -1973,7 +2097,10 @@ export const appendManualAiSupportReply = async ({
     ).catch(() => {});
   }
   if (safeTenantId && safeSessionId) {
-    const safeChannel = repairText(channel || "web_chat");
+    // Not `channel || "web_chat"`: this call fans the channel out into
+    // ai_channel_conversations, so an invented web_chat becomes a second
+    // conversation row for a thread that already has a real one.
+    const safeChannel = writableConversationChannel({ sessionId: safeSessionId, channel: repairText(channel) });
     await updateAiSupportConversationState({
       tenantId: safeTenantId,
       sessionId: safeSessionId,
@@ -2113,7 +2240,7 @@ export const appendAiGeneratedSupportReply = async ({
     upsertSession: true,
     sessionStatus: "ai_active",
     sessionSource: "whatsapp",
-    sessionChannel: channel || "web_chat",
+    sessionChannel: channel,
     sessionCustomerName: "",
     sourcePath,
     insertSource,
@@ -2764,7 +2891,7 @@ export const appendAutomationSupportTranscript = async ({
       )
       VALUES ($1, $2, $3, $4, 'ai_active', COALESCE(NULLIF($5, ''), 'web_chat'), 'comment', '', $6, NOW())
       ON CONFLICT (tenant_id, session_id) DO UPDATE SET
-        channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+        channel = ${sessionChannelNoDowngradeSql("EXCLUDED.channel")},
         last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
         updated_at = NOW()
       RETURNING id
@@ -2867,7 +2994,7 @@ export const appendAutomationSupportTranscript = async ({
     `
     UPDATE ai_support_sessions
     SET last_message = $3,
-        channel = COALESCE(NULLIF($4, ''), channel),
+        channel = CASE WHEN lower(COALESCE($4, '')) IN ('', 'web', 'web_chat') THEN channel ELSE $4 END,
         updated_at = NOW()
     WHERE tenant_id = $1 AND session_id = $2
     `,
@@ -2897,7 +3024,10 @@ export const logAiSupportMessage = async ({
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   const safeMessage = repairText(customerMessage);
-  const safeChannel = toText(channel || source || "web_chat");
+  // `source` defaults to "admin_console", so falling through to it wrote the
+  // caller's provenance into the channel column. The session id is the only
+  // thing here that actually knows the channel.
+  const safeChannel = writableConversationChannel({ sessionId: safeSessionId, channel, fallbackChannel: source }) || "web_chat";
   const safeCustomerName = repairText(customerName);
   const safeExternalCustomerId = toText(externalCustomerId);
   const safeExternalMessageId = toText(externalMessageId || providerMessageId);
@@ -2926,7 +3056,7 @@ export const logAiSupportMessage = async ({
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
       source = COALESCE(NULLIF(EXCLUDED.source, ''), ai_support_sessions.source),
-      channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+      channel = ${sessionChannelNoDowngradeSql("EXCLUDED.channel")},
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_support_sessions.external_customer_id),
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),

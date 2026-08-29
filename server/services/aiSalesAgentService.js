@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
+import { resolveConversationChannel, resolvedConversationChannelSql } from "../utils/inboxChannelIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { resolveAiProductUrl } from "./aiProductEligibilityService.js";
 // Phase 11.2 — canonical helpers to enrich a grounded card into a send-ready product card (image/url/price/sizes).
@@ -875,7 +876,10 @@ const isWhatsAppGroupConversation = (row = {}, conversationId = "") => {
 
 const whatsappInboxGroupFilterSql = (sessionAlias = "s", conversationAlias = "c") => `
   NOT (
-    COALESCE(${conversationAlias}.channel, ${sessionAlias}.channel, ${sessionAlias}.source) = 'whatsapp'
+    ${resolvedConversationChannelSql(
+      `COALESCE(${conversationAlias}.channel, ${sessionAlias}.channel, ${sessionAlias}.source)`,
+      `${sessionAlias}.session_id`,
+    )} = 'whatsapp'
     AND (
       COALESCE(${conversationAlias}.is_group, FALSE) = TRUE
       OR COALESCE(${conversationAlias}.external_conversation_id, '') LIKE '%@g.us%'
@@ -1065,6 +1069,27 @@ const canonicalInboxChannel = (value = "") => {
   if (channel === "web_chat" || channel === "web") return "web_chat";
   return channel;
 };
+
+// JS twin of INBOX_RESOLVED_CHANNEL_SQL, for the rows that reach the client
+// through a projection that did not go through that expression. A stored
+// web_chat defers to the channel prefix on the session id; every specific
+// stored channel — facebook_comment and instagram_comment included — is kept.
+const inboxConversationChannel = (conversation = {}) => canonicalInboxChannel(
+  resolveConversationChannel({
+    sessionId: conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || "",
+    storedChannel: conversation.channel || conversation.session_channel || conversation.source || "",
+  })
+) || "web_chat";
+
+// The channel every clause, projection and sort in loadAiInbox agrees on.
+//
+// Reading the stored column alone is not enough: a dozen admin actions used to
+// upsert a session with a defaulted "web_chat", so threads that were rebadged
+// before the write guards landed still carry web_chat in the column. The session
+// id keeps the channel its ingest path stamped into it, so it repairs those rows
+// on read — every already-broken conversation shows its real channel without
+// waiting for the backfill or for the customer to write again.
+const INBOX_RESOLVED_CHANNEL_SQL = resolvedConversationChannelSql("COALESCE(c.channel, s.channel, s.source)", "s.session_id");
 
 const extractMessengerPsid = (value = "") => {
   const raw = text(value);
@@ -2375,30 +2400,30 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   if (["draft_orders", "ai_drafts"].includes(normalizedFilter)) clauses.push("COALESCE(o.draft_count, 0) > 0");
   if (normalizedFilter === "confirmed_orders") clauses.push("COALESCE(o.confirmed_count, 0) > 0");
   if (["abandoned", "follow_up_due"].includes(normalizedFilter)) clauses.push("COALESCE(f.due_followup_count, 0) > 0");
-  if (["facebook", "facebook_messenger", "messenger"].includes(normalizedFilter)) clauses.push("COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'facebook', 'messenger')");
-  if (["instagram", "instagram_dm"].includes(normalizedFilter)) clauses.push("COALESCE(c.channel, s.channel, s.source) = 'instagram'");
+  if (["facebook", "facebook_messenger", "messenger"].includes(normalizedFilter)) clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'facebook', 'messenger')`);
+  if (["instagram", "instagram_dm"].includes(normalizedFilter)) clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} = 'instagram'`);
   if (normalizedFilter === "ai_replied") clauses.push("COALESCE(m.ai_answer, '') <> ''");
   if (normalizedFilter === "unread") clauses.push("(m.sender_type = 'customer' OR m.needs_human_support = TRUE OR s.status = 'human_takeover')");
   if (normalizedChannelFilter === "facebook_comment") {
-    clauses.push("(COALESCE(c.channel, s.channel, s.source) = 'facebook_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')");
+    clauses.push(`(${INBOX_RESOLVED_CHANNEL_SQL} = 'facebook_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')`);
   }
   if (normalizedChannelFilter === "instagram_comment") {
-    clauses.push("(COALESCE(c.channel, s.channel, s.source) = 'instagram_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')");
+    clauses.push(`(${INBOX_RESOLVED_CHANNEL_SQL} = 'instagram_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')`);
   }
   if (normalizedChannelFilter === "facebook_messenger") {
-    clauses.push("COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'facebook', 'messenger')");
+    clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'facebook', 'messenger')`);
   }
   if (normalizedChannelFilter === "instagram") {
-    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'instagram'");
+    clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} = 'instagram'`);
   }
   if (normalizedChannelFilter === "whatsapp") {
-    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'whatsapp'");
+    clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} = 'whatsapp'`);
   }
   if (normalizedChannelFilter === "web_chat") {
-    clauses.push("(COALESCE(c.channel, s.channel, s.source) IN ('web_chat', 'web'))");
+    clauses.push(`(${INBOX_RESOLVED_CHANNEL_SQL} IN ('web_chat', 'web'))`);
   }
   if (normalizedChannelFilter === "telegram") {
-    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'telegram'");
+    clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} = 'telegram'`);
   }
   if (searchTerm) {
     // Raw term for the folded comparisons; the SQL folds it the same way it
@@ -2499,7 +2524,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.updated_at,
       s.is_favorite,
       COALESCE(c.ai_enabled, s.ai_enabled, TRUE) AS ai_enabled,
-      COALESCE(c.channel, s.channel, s.source) AS channel,
+      ${INBOX_RESOLVED_CHANNEL_SQL} AS channel,
       c.external_customer_id,
       c.external_conversation_id,
       c.thread_kind AS channel_thread_kind,
@@ -2548,6 +2573,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       WHERE channel_conversation.tenant_id = s.tenant_id
         AND channel_conversation.external_conversation_id = s.session_id
       ORDER BY
+        -- A thread can carry a phantom web_chat row alongside its real one: the
+        -- admin actions that fan a toggle out over ai_channel_conversations used
+        -- to add whatever channel they were handed, and an action that was
+        -- handed nothing defaulted to web_chat. It is the newest row by
+        -- updated_at, so without this it wins the LIMIT 1 and decides the badge.
+        CASE WHEN lower(COALESCE(channel_conversation.channel, '')) IN ('web', 'web_chat') THEN 1 ELSE 0 END,
         CASE WHEN channel_conversation.channel = s.channel THEN 0 ELSE 1 END,
         COALESCE(channel_conversation.last_message_at, channel_conversation.updated_at) DESC,
         channel_conversation.id DESC
@@ -2613,7 +2644,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ) cm ON TRUE
     WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
-      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
+      CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC,
       -- Stable tiebreak. Keyset pagination needs the sort to be a total order,
@@ -2681,7 +2712,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         confirmedCount: 0,
         followupDue: false,
       });
-    const channel = canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat";
+    const channel = inboxConversationChannel(conversation);
     const canonicalSessionId = canonicalInboxConversationSessionId(conversation);
     const systemCustomer = conversationPhoneKeys(conversation)
       .map((key) => systemCustomersByPhone.get(key))
@@ -2949,7 +2980,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.escalated_at,
       s.updated_at,
       COALESCE(c.ai_enabled, s.ai_enabled, TRUE) AS ai_enabled,
-      COALESCE(c.channel, s.channel, s.source) AS channel,
+      ${INBOX_RESOLVED_CHANNEL_SQL} AS channel,
       c.external_customer_id,
       c.external_conversation_id,
       c.thread_kind AS channel_thread_kind,
@@ -3049,7 +3080,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ) f ON f.session_id = s.session_id
     WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
-      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
+      CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
       COALESCE(m.created_at, c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC
     LIMIT $2
@@ -3599,7 +3630,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       const unreadFromChatPreview = conversation.unread_from_chat_preview === true;
       const unreadCount = computedUnreadCount > 0 ? computedUnreadCount : (manuallyUnread || unreadFromChatPreview ? 1 : 0);
       const conversationSessionId = canonicalInboxConversationSessionId(conversation);
-      const channel = canonicalInboxChannel(conversation.channel || conversation.source || "web_chat") || "web_chat";
+      const channel = inboxConversationChannel(conversation);
       return {
         session_id: conversationSessionId || conversation.session_id,
         conversation_id: conversationSessionId || conversation.session_id,
@@ -3686,7 +3717,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     return {
       ...conversation,
       source: conversation.source || conversation.channel || "web_chat",
-      channel: canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat",
+      channel: inboxConversationChannel(conversation),
       customer_name: messengerDisplayName || customerProfile.name || "",
       display_name: messengerDisplayName || customerProfile.display_name || customerProfile.name || "",
       participant_name: messengerDisplayName || customerProfile.display_name || customerProfile.name || "",

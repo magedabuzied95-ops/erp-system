@@ -30,6 +30,40 @@ export const AI_INBOX_BACKEND_CHANNEL_FILTERS = new Map([
 export const backendChannelFilter = (value = "") =>
   AI_INBOX_BACKEND_CHANNEL_FILTERS.get(clean(value).toLowerCase()) || "";
 
+// The channels that mean "nobody told us", not "this is a web chat".
+//
+// `channel` is a NOT NULL DEFAULT 'web_chat' column on the server, and a dozen
+// admin actions used to write that default over a real channel — starring a
+// thread was enough to move a live WhatsApp conversation into the Web Chat tab.
+// server/utils/inboxChannelIdentity.js is the authority; this is the browser
+// twin, because a row can also reach the list from the IndexedDB cache, where it
+// was stored before the server started repairing it.
+export const WEAK_CONVERSATION_CHANNELS = new Set(["", "web", "web_chat"]);
+
+const SESSION_ID_CHANNEL_PREFIXES = [
+  [/^whatsapp:/i, "whatsapp"],
+  [/^(?:facebook_messenger|messenger|facebook):/i, "facebook_messenger"],
+  [/^instagram:/i, "instagram"],
+  [/^telegram:/i, "telegram"],
+];
+
+// The channel stamped into a conversation's session id by whichever ingest path
+// created it. "" when the id carries no recognised prefix — a genuine web chat
+// is keyed by an opaque browser session id.
+export const channelFromConversationSessionId = (conversation = {}) => {
+  const sessionId = clean(
+    (typeof conversation === "string" ? conversation : "") ||
+    conversation?.session_id ||
+    conversation?.conversation_key ||
+    conversation?.external_conversation_id ||
+    conversation?.conversation_id ||
+    ""
+  );
+  if (!sessionId) return "";
+  const match = SESSION_ID_CHANNEL_PREFIXES.find(([pattern]) => pattern.test(sessionId));
+  return match ? match[1] : "";
+};
+
 // Message channels the inbox "All" view covers. Comment channels live in the
 // separate Social Comments section and are deliberately excluded.
 export const AI_INBOX_MESSAGE_CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "web_chat"];

@@ -100,7 +100,7 @@ import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLa
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
-import { backendChannelFilter, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
+import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversationSessionId, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import "./AiInboxOrderComposer.m1.css";
@@ -828,7 +828,15 @@ const socialCommentChannelOrder = ["facebook_comment", "instagram_comment"];
 // all live in the shared module so they stay unit-testable and cannot drift.
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
-  const key = raw.toLowerCase();
+  const stored = raw.toLowerCase();
+  // A stored "web_chat" is the schema default, not an assertion — see
+  // server/utils/inboxChannelIdentity.js. Repair it from the channel prefix the
+  // ingest path stamped into the session id, so a row that predates the server
+  // fix (including one replayed from the IndexedDB cache) still renders under
+  // its real channel instead of "Web Chat".
+  const key = WEAK_CONVERSATION_CHANNELS.has(stored)
+    ? channelFromConversationSessionId(conversation) || stored
+    : stored;
   if (key.includes("whatsapp")) return "whatsapp";
   if (key.includes("telegram")) return "telegram";
   if (key.includes("facebook_comment")) return "facebook_comment";
@@ -7062,11 +7070,16 @@ export default function AiInbox({ reviewerMode = false }) {
     if (!sessionId || !conversationIdentifier) return;
     const previousFavorite = item?.is_favorite === true || clean(item?.is_favorite).toLowerCase() === "true";
     const nextFavorite = !previousFavorite;
+    // Send the channel the way the read/unread toggle below does. The server
+    // writes the conversation row on this call, and a request that carries no
+    // channel used to leave it defaulting to web_chat — one star was enough to
+    // relabel a WhatsApp thread "Web Chat".
+    const channel = clean(item?.channel || item?.source || "");
     patchConversation(conversationIdentifier, (conversation) => ({ ...conversation, is_favorite: nextFavorite }));
     try {
       const payload = await api.patch(
         aiAgentInboxEndpoint(sessionId, "/favorite"),
-        { tenant_id: tenantId, is_favorite: nextFavorite },
+        { tenant_id: tenantId, is_favorite: nextFavorite, ...(channel ? { channel } : {}) },
         { headers, perfComponent: "AiInbox.toggleFavorite" }
       );
       const updatedConversation = payload?.conversation || {};

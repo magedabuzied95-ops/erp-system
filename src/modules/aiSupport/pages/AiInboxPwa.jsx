@@ -65,6 +65,7 @@ import { moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilter
 import EnhancedPwaOrderComposer from "../components/PwaOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
+import { WEAK_CONVERSATION_CHANNELS, channelFromConversationSessionId } from "../services/inboxChannels";
 import "./AiInboxPwa.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
@@ -563,13 +564,21 @@ const conversationIdentifiers = (conversation = {}) => {
 };
 
 const normalizeConversationChannel = (conversation = {}) => {
-  const raw = clean(
+  const stored = clean(
     conversation.channel ||
       conversation.source ||
       conversation.provider ||
       conversation.platform ||
       ""
   ).toLowerCase();
+  // A stored "web_chat" is the column default, not an assertion — see
+  // server/utils/inboxChannelIdentity.js. Repair it from the channel prefix the
+  // ingest path stamped into the session id, so a row that predates the server
+  // fix (including one replayed from the IndexedDB cache) still renders under
+  // its real channel.
+  const raw = WEAK_CONVERSATION_CHANNELS.has(stored)
+    ? channelFromConversationSessionId(conversation) || stored
+    : stored;
   if (raw.includes("whatsapp")) return "whatsapp";
   if (raw.includes("telegram")) return "telegram";
   if (raw.includes("instagram_comment")) return "instagram_comment";
