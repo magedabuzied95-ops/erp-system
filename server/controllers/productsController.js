@@ -1891,7 +1891,43 @@ const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => 
     // so the name can only come from the joined manufacturers row. Referencing
     // p.manufacturer here threw "column p.manufacturer does not exist" the moment
     // the filter was actually passed, which is why it stayed unused until now.
-    parts.push(buildInClause(`COALESCE(NULLIF(TRIM(m.name), ''), '')`, manufacturerValues, values));
+    //
+    // The factory is set per COLOUR (product_variants.manufacturer_ids); the
+    // product-level column is only the legacy fallback, and the list's own row badge
+    // reads the colour rows. Matching on p.manufacturer_id alone therefore filtered
+    // OUT every product whose factory lives on its colours — the chip showed the
+    // factory, clicking it hid the products that actually carry it.
+    const productLevelManufacturerMatch = buildInClause(
+      `COALESCE(NULLIF(TRIM(m.name), ''), '')`,
+      manufacturerValues,
+      values
+    );
+    const colorLevelManufacturerMatch = buildInClause(
+      `TRIM(COALESCE(vmn.name, ''))`,
+      manufacturerValues,
+      values
+    );
+    parts.push(`
+      (
+        ${productLevelManufacturerMatch}
+        OR EXISTS (
+          SELECT 1
+          FROM product_variants pvm
+          CROSS JOIN LATERAL unnest(
+            CASE
+              WHEN COALESCE(cardinality(pvm.manufacturer_ids), 0) > 0 THEN pvm.manufacturer_ids
+              WHEN pvm.manufacturer_id IS NOT NULL THEN ARRAY[pvm.manufacturer_id]::bigint[]
+              ELSE ARRAY[]::bigint[]
+            END
+          ) AS vmf(manufacturer_id)
+          JOIN manufacturers vmn ON vmn.id = vmf.manufacturer_id
+          WHERE pvm.product_id = p.id
+            AND pvm.is_active IS DISTINCT FROM FALSE
+            AND pvm.deleted_at IS NULL
+            AND ${colorLevelManufacturerMatch}
+        )
+      )
+    `);
     applied.manufacturer = manufacturerValues.length === 1 ? manufacturerValues[0] : manufacturerValues;
   }
 
@@ -3324,11 +3360,12 @@ export const getProductsAdminList = async (req, res) => {
     // over every variant, and pulling that into the facet query would roughly
     // double the cost of every products-list request for a maintenance filter
     // that is rarely combined with the factory chips.
+    //
+    // The free-text search is deliberately NOT part of the facet. Searching a product
+    // by name is a lookup, not a filter, and folding it in emptied the chip list — and
+    // so unmounted the whole factory group — the moment the query matched a product
+    // with no factory. The sibling brand dropdown has never been search-narrowed either.
     const manufacturerFacetValues = [...scopeClause.values];
-    const manufacturerFacetSearchClause = buildProductSearchClause({
-      values: manufacturerFacetValues,
-      search: req.query.search ?? req.query.q ?? "",
-    });
     const manufacturerFacetFiltersClause = await buildProductsAdminListFiltersClause({
       values: manufacturerFacetValues,
       filters: {
@@ -3347,11 +3384,8 @@ export const getProductsAdminList = async (req, res) => {
     });
     const manufacturerFacetWhereSql = [
       scopeClause.whereSql,
-      manufacturerFacetSearchClause
-        ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${manufacturerFacetSearchClause}`
-        : "",
       manufacturerFacetFiltersClause.sql
-        ? `${scopeClause.whereSql || manufacturerFacetSearchClause ? "AND" : "WHERE"} ${manufacturerFacetFiltersClause.sql}`
+        ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${manufacturerFacetFiltersClause.sql}`
         : "",
     ].filter(Boolean).join("\n");
 
@@ -3782,14 +3816,35 @@ export const getProductsAdminList = async (req, res) => {
       scopeClause.values
     );
 
+    // Both sources count: the legacy product-level factory AND the factories on the
+    // colour rows, which is where the product form actually writes them. Reading only
+    // p.manufacturer_id left the chip list draining towards empty as products were
+    // re-saved, until the group vanished from the filter panel altogether.
     const manufacturerOptionsResult = await db.query(
       `
       SELECT
-        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(m.name, '')), '') ORDER BY NULLIF(TRIM(COALESCE(m.name, '')), '')), NULL) AS manufacturers
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT facet_names.manufacturer_name ORDER BY facet_names.manufacturer_name), NULL) AS manufacturers
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN brands b ON b.id = p.brand_id
       LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+      CROSS JOIN LATERAL (
+        SELECT NULLIF(TRIM(COALESCE(m.name, '')), '') AS manufacturer_name
+        UNION
+        SELECT DISTINCT NULLIF(TRIM(COALESCE(vmn.name, '')), '') AS manufacturer_name
+        FROM product_variants pvm
+        CROSS JOIN LATERAL unnest(
+          CASE
+            WHEN COALESCE(cardinality(pvm.manufacturer_ids), 0) > 0 THEN pvm.manufacturer_ids
+            WHEN pvm.manufacturer_id IS NOT NULL THEN ARRAY[pvm.manufacturer_id]::bigint[]
+            ELSE ARRAY[]::bigint[]
+          END
+        ) AS vmf(manufacturer_id)
+        JOIN manufacturers vmn ON vmn.id = vmf.manufacturer_id
+        WHERE pvm.product_id = p.id
+          AND pvm.is_active IS DISTINCT FROM FALSE
+          AND pvm.deleted_at IS NULL
+      ) facet_names
       ${manufacturerFacetWhereSql}
       `,
       manufacturerFacetValues

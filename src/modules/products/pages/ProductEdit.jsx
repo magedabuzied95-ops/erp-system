@@ -1562,6 +1562,14 @@ function ProductEdit() {
         const hydratedCategory = resolveCategorySelection(categories, firstRow);
         const hydratedBrand = resolveBrandSelection(brands, firstRow);
         const hydratedUnit = resolveUnitSelection(units, firstRow);
+        // The default-factory box used to be seeded with "" on every load, whatever the
+        // product had saved. It then rode along in the save payload, so the backend saw
+        // `manufacturer_id: null` and wiped products.manufacturer_id on EVERY save —
+        // which is what silently drained the factory chips off the products list.
+        // Seed it from the loaded product so it round-trips instead of being erased.
+        const hydratedDefaultManufacturerId = normalizeManufacturerId(
+          firstRow.manufacturer_id ?? firstRow.manufacturerId ?? ""
+        );
         console.log("[edit-product] hydrated category", hydratedCategory);
         console.log("[edit-product] hydrated brand", hydratedBrand);
         setMainCategory(hydratedCategory.mainCategory || "");
@@ -1609,7 +1617,7 @@ function ProductEdit() {
           setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
           setCoverLabel(resolveMainPreviewImageValue(firstRow) ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
-          setDefaultManufacturerId("");
+          setDefaultManufacturerId(hydratedDefaultManufacturerId);
           setColorGroups([]);
           initialProductCoreSnapshotRef.current = buildProductEditCoreSnapshot({
             product: {
@@ -1623,7 +1631,7 @@ function ProductEdit() {
             childCategory: hydratedCategory.childCategory || "",
             brand: hydratedBrand.brand || "",
             unit: hydratedUnit.unit || "",
-            defaultManufacturerId: "",
+            defaultManufacturerId: hydratedDefaultManufacturerId,
           });
           initialVariantContentSnapshotRef.current = buildProductEditVariantContentSnapshot([]);
           return;
@@ -1658,9 +1666,12 @@ function ProductEdit() {
           return;
         }
 
-        const resolvedDefaultManufacturerId = "";
+        const resolvedDefaultManufacturerId = hydratedDefaultManufacturerId;
+        // Hydration mirrors the database, so the colour groups are built with an empty
+        // default: a colour keeps exactly the factory it has, and one with no factory
+        // stays empty until the user actively picks a default (applyDefaultManufacturer).
         const mappedColorGroups = removeHydrationPlaceholders(
-          buildColorGroupsFromVariants(variantRows, resolvedDefaultManufacturerId)
+          buildColorGroupsFromVariants(variantRows, "")
         );
         const variantSkuSeeds = new Set(loadedExistingSkus);
         const skuAwareColorGroups = mappedColorGroups.map((group) => ({
