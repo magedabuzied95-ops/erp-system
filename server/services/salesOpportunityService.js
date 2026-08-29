@@ -816,8 +816,11 @@ const loadSalesBoardColorRows = async ({ clientOrPool = db, tenantId = null } = 
       string_agg(DISTINCT audience, ',') FILTER (WHERE audience <> '') AS audience_text
     FROM scoped
     GROUP BY product_id, color_key
-    HAVING bool_or(is_offer) OR bool_or(stock = 1)
-    ORDER BY bool_or(is_offer) DESC, bool_or(stock = 1) DESC, MIN(product_name) ASC, color_key ASC
+    -- Offers only (owner request 2026-08-29): shop-wide "last piece" colours
+    -- flooded the board — e.g. a colour with one piece in EVERY size qualified.
+    -- The آخر قطعة badge still shows on offer colours that are down to singles.
+    HAVING bool_or(is_offer)
+    ORDER BY bool_or(stock = 1) DESC, MIN(product_name) ASC, color_key ASC
     LIMIT $2::int
     `,
     [tenantId, SALES_BOARD_ROW_CAP]
