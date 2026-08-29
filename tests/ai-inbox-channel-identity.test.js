@@ -18,6 +18,7 @@ import {
 
 const logService = fs.readFileSync(new URL("../server/services/aiSupportLogService.js", import.meta.url), "utf8");
 const salesService = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
+const adapterService = fs.readFileSync(new URL("../server/services/aiChannelAdapterService.js", import.meta.url), "utf8");
 const inboxSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
 const pwaSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
 
@@ -131,6 +132,22 @@ test("the transcript writer derives an unknown channel instead of defaulting it"
 test("a toggle never fans a defaulted web_chat into ai_channel_conversations", () => {
   const pruned = logService.match(/pruneWeakConversationChannels\(\[/g) || [];
   assert.equal(pruned.length, 2, "both AI-state and conversation-state fan-outs must prune");
+});
+
+test("the canonical conversation upsert cannot mint a phantom web_chat row", () => {
+  // channel is part of the conflict key, so a defaulted web_chat creates a SECOND
+  // row for the same thread rather than overwriting the real one.
+  // Only the conversation-row paths are in scope: the other normalizeChannel()
+  // callers route a message the caller explicitly labelled, and never write a
+  // row keyed by channel.
+  const conversationRowPaths = adapterService.match(/const canonicalExternalCustomerId = normalizedChannel ===/g) || [];
+  const guarded = adapterService.match(/writableConversationChannel\(\{ sessionId: externalConversationId, channel \}\)/g) || [];
+  assert.ok(conversationRowPaths.length >= 2);
+  assert.equal(
+    guarded.length,
+    conversationRowPaths.length,
+    "every conversation-row path must ask the conversation id before defaulting to web_chat"
+  );
 });
 
 // --- the read path ----------------------------------------------------------

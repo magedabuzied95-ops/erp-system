@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import db from "../database/db.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { writableConversationChannel } from "../utils/inboxChannelIdentity.js";
 import { resolveAIStatus } from "./aiStatusResolver.js";
 import {
   normalizeProductCards as normalizeStructuredProductCards,
@@ -1008,7 +1009,15 @@ export const upsertChannelConversationMapping = async ({
   lastMessageAt = null,
 } = {}) => {
   await ensureAiChannelAdapterSchema();
-  const normalizedChannel = normalizeChannel(channel);
+  // `channel` is part of the (tenant_id, channel, external_conversation_id) key,
+  // so a defaulted web_chat does not overwrite the real row — it mints a SECOND
+  // conversation row for the same thread that the inbox list join can then pick.
+  // normalizeChannel() falls back to WEB_CHAT for anything it does not
+  // recognise, "" included, so ask the conversation id first: it carries the
+  // prefix its ingest path stamped in, and nothing rewrites that.
+  const normalizedChannel = normalizeChannel(
+    writableConversationChannel({ sessionId: externalConversationId, channel }) || channel
+  );
   const canonicalExternalCustomerId = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER
     ? toText(externalCustomerId || metadata?.sender_psid || metadata?.customer_psid || metadata?.resolved_customer_id || "")
     : toText(externalCustomerId);
@@ -1093,7 +1102,15 @@ export const linkChannelConversationToCustomerProfile = async ({
   externalCustomerId = "",
 } = {}) => {
   await ensureAiChannelAdapterSchema();
-  const normalizedChannel = normalizeChannel(channel);
+  // `channel` is part of the (tenant_id, channel, external_conversation_id) key,
+  // so a defaulted web_chat does not overwrite the real row — it mints a SECOND
+  // conversation row for the same thread that the inbox list join can then pick.
+  // normalizeChannel() falls back to WEB_CHAT for anything it does not
+  // recognise, "" included, so ask the conversation id first: it carries the
+  // prefix its ingest path stamped in, and nothing rewrites that.
+  const normalizedChannel = normalizeChannel(
+    writableConversationChannel({ sessionId: externalConversationId, channel }) || channel
+  );
   const canonicalExternalCustomerId = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER
     ? toText(externalCustomerId)
     : toText(externalCustomerId);
