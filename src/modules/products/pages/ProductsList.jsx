@@ -1006,9 +1006,23 @@ const getProductTotalStock = (product) => {
     }, 0);
   }
 
+  // A simple product keeps its stock on the product row itself — its variant
+  // aggregate is an empty sum, and 0 is not nullish, so it must never win here.
+  if (isSimpleCatalogProduct(product)) {
+    const simpleStock = Number(
+      product?.total_stock ?? product?.stock ?? product?.product_stock ?? 0
+    );
+    if (Number.isFinite(simpleStock)) {
+      return simpleStock;
+    }
+  }
+
+  // total_stock is the backend's effective stock (variant sum when variant rows
+  // exist, otherwise the product row's own stock) — trust it before the raw
+  // variant aggregate so zero-variant products don't read as out of stock.
   const aggregatedStock = Number(
-    product?.total_variant_stock ??
-      product?.total_stock ??
+    product?.total_stock ??
+      product?.total_variant_stock ??
       product?.stock ??
       product?.quantity ??
       product?.qty ??
