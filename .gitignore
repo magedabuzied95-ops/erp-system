@@ -165,3 +165,8 @@ mediamtx.yml
 # ignores the whole directory, so this needs an explicit allowlist entry or the
 # service never reaches the server.
 !server/services/paymobOnlineService.js
+
+# AI Inbox web push (subscriptions + send). server/services/* above ignores the
+# whole directory, so without this line the deploy ships routes importing a file
+# that does not exist and the backend dies at module load.
+!server/services/aiInboxPushService.js

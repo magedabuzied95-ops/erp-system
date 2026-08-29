@@ -11,14 +11,41 @@ export const normalizeSocketRoomKey = (value = "") =>
     .toLowerCase()
     .replace(/\s+/g, "_");
 
+// `ai_inbox:message` is emitted from ~28 places (WhatsApp, Meta, Telegram, social
+// comments, the agent routes...). Tapping the one emitter every one of them calls
+// is the only way to guarantee no inbound message silently skips its push. The
+// import is lazy so this leaf util keeps no load-order dependency on the service
+// layer, and the send is fire-and-forget: a push failure must never break a socket
+// emit that the live inbox UI depends on.
+let aiInboxPushModule;
+const notifyAiInboxPush = (payload = {}) => {
+  const message = payload?.message;
+  if (!message || typeof message !== "object") return;
+  Promise.resolve()
+    .then(async () => {
+      if (!aiInboxPushModule) aiInboxPushModule = await import("../services/aiInboxPushService.js");
+      if (!aiInboxPushModule.isInboundCustomerMessage(message)) return;
+      await aiInboxPushModule.notifyAiInboxInboundMessage({
+        tenantId: payload.tenant_id ?? payload.tenantId ?? null,
+        sessionId: payload.session_id ?? payload.sessionId ?? payload.conversation_id ?? payload.conversationId ?? "",
+        message,
+        channel: payload.channel || message.channel || message.source || "",
+      });
+    })
+    .catch((error) => {
+      console.warn("[ai-inbox-push:tap-failed]", { message: error?.message || String(error) });
+    });
+};
+
 export const emitToRooms = (rooms = [], eventName, payload = {}) => {
   if (!io || !eventName) return;
   const uniqueRooms = [...new Set(rooms.filter(Boolean))];
   if (!uniqueRooms.length) {
     io.emit(eventName, payload);
-    return;
+  } else {
+    uniqueRooms.reduce((target, room) => target.to(room), io).emit(eventName, payload);
   }
-  uniqueRooms.reduce((target, room) => target.to(room), io).emit(eventName, payload);
+  if (eventName === "ai_inbox:message") notifyAiInboxPush(payload);
 };
 
 export const getRoomClientCount = async (room = "") => {

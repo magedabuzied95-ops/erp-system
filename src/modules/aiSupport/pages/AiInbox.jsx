@@ -75,6 +75,13 @@ import {
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { emitRealtime, subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
+import {
+  handleInboundInboxMessage,
+  primeInboxChime,
+  refreshInboxPushSubscription,
+  subscribeToPushWorkerMessages,
+} from "../services/inboxNotifications";
+import InboxNotificationBell from "../components/InboxNotificationBell";
 import usePermission from "../../permissions/hooks/usePermission";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
@@ -6136,6 +6143,14 @@ export default function AiInbox({ reviewerMode = false }) {
   }, [pageVisible, requestRefresh, socketHealthy]);
 
   useEffect(() => {
+    primeInboxChime();
+    // Push endpoints rotate. Re-subscribing on load keeps the stored one live,
+    // otherwise notifications stop with nothing on screen to explain why.
+    refreshInboxPushSubscription({ surface: "/admin/ai-inbox" }).catch(() => null);
+    return subscribeToPushWorkerMessages();
+  }, []);
+
+  useEffect(() => {
     const refresh = () => {
       if (pageVisible) requestRefresh("socket", { silent: true, force: true });
     };
@@ -6151,6 +6166,16 @@ export default function AiInbox({ reviewerMode = false }) {
       const incoming = payload.message || null;
       if (incoming?.sender_type === "customer" || incoming?.customer_message) {
         setToast({ tone: "cyan", text: "ردّ العميل" });
+      }
+      // Sound + notification for inbound customer messages only; no-ops on our
+      // own AI/staff replies, which arrive on this same event.
+      if (incoming) {
+        handleInboundInboxMessage({
+          message: incoming,
+          conversationId: conversationKey || sessionId,
+          channel,
+          surface: "/admin/ai-inbox",
+        }).catch(() => null);
       }
       if (incoming?.id || incoming?.dedupe_key || incoming?.external_message_id) {
         let skipped = false;
@@ -10206,6 +10231,11 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <div className="mt-0.5 text-xs text-slate-500">{t("aiSupport.inbox.rail.subtitle")}</div>
 	                    </div>
 	                    <div className="flex shrink-0 items-center gap-2">
+	                      <InboxNotificationBell
+	                        surface="/admin/ai-inbox"
+	                        buttonClassName="h-8 w-8 rounded-full border border-white/10 bg-slate-950/70 text-slate-300 hover:border-white/20 hover:text-white"
+	                        dotBorderClassName="border-slate-950"
+	                      />
 	                      <button
 	                        type="button"
 	                        onClick={() => void syncMetaConversations()}

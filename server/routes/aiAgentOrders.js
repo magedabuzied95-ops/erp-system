@@ -20,6 +20,13 @@ import {
   syncMetaConversationHistoryForTenant,
 } from "../services/metaIntegrationService.js";
 import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
+import {
+  getAiInboxPushPublicKey,
+  getAiInboxPushStatus,
+  subscribeAiInboxPush,
+  unsubscribeAiInboxPush,
+  sendAiInboxTestPush,
+} from "../services/aiInboxPushService.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
 import {
@@ -2870,6 +2877,70 @@ const kickMetaHistorySyncIfEmpty = (tenantId) => {
     console.warn("[meta-history-sync] inbox-open kick failed", { tenantId, message: error?.message || String(error) });
   });
 };
+
+// --- Web push for inbound customer messages -------------------------------
+// Both inbox surfaces register the same root-scope worker, so one browser holds
+// one subscription regardless of which surface asked for it.
+
+router.get("/push/public-key", protect, inboxView(), async (req, res) => {
+  try {
+    const payload = await getAiInboxPushPublicKey();
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[ai-inbox-push] public key error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load push key" });
+  }
+});
+
+router.get("/push/status", protect, inboxView(), async (req, res) => {
+  try {
+    const payload = await getAiInboxPushStatus({ user: req.user || {} });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[ai-inbox-push] status error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load push status" });
+  }
+});
+
+router.post("/push/subscribe", protect, inboxView(), async (req, res) => {
+  try {
+    const result = await subscribeAiInboxPush({
+      user: { ...(req.user || {}), tenant_id: toTenantId(req) ?? req.user?.tenant_id ?? null },
+      subscription: req.body?.subscription || req.body || {},
+      userAgent: req.get?.("user-agent") || "",
+      surface: req.body?.surface || req.body?.portal_url || "",
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[ai-inbox-push] subscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save push subscription" });
+  }
+});
+
+router.post("/push/unsubscribe", protect, inboxView(), async (req, res) => {
+  try {
+    const result = await unsubscribeAiInboxPush({
+      user: req.user || {},
+      endpoint: req.body?.endpoint || "",
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[ai-inbox-push] unsubscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to remove push subscription" });
+  }
+});
+
+router.post("/push/test", protect, inboxView(), async (req, res) => {
+  try {
+    const result = await sendAiInboxTestPush({
+      user: { ...(req.user || {}), tenant_id: toTenantId(req) ?? req.user?.tenant_id ?? null },
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[ai-inbox-push] test error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to send test push" });
+  }
+});
 
 router.get("/conversations", protect, inboxView(), async (req, res) => {
   try {

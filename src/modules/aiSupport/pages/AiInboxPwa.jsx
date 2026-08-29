@@ -40,6 +40,13 @@ import { FaFacebookMessenger, FaInstagram, FaTelegramPlane, FaWhatsapp } from "r
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
+import {
+  handleInboundInboxMessage,
+  primeInboxChime,
+  refreshInboxPushSubscription,
+  subscribeToPushWorkerMessages,
+} from "../services/inboxNotifications";
+import InboxNotificationBell from "../components/InboxNotificationBell";
 import usePermission from "../../permissions/hooks/usePermission";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
@@ -3874,8 +3881,18 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register("/inbox-sw.js?v=8", { scope: "/inbox" }).catch(() => null);
+    // `?v=` must move with VERSION inside inbox-sw.js, or clients keep running the
+    // old worker and the cache-first `/assets/` rule strands them on a stale bundle.
+    navigator.serviceWorker.register("/inbox-sw.js?v=15", { scope: "/inbox" }).catch(() => null);
     return undefined;
+  }, []);
+
+  useEffect(() => {
+    primeInboxChime();
+    // Push endpoints rotate. Re-subscribing on load keeps the stored one live,
+    // otherwise notifications stop with nothing on screen to explain why.
+    refreshInboxPushSubscription({ surface: "/inbox" }).catch(() => null);
+    return subscribeToPushWorkerMessages();
   }, []);
 
   useEffect(() => {
@@ -3937,6 +3954,15 @@ export default function AiInboxPwa() {
         if (!normalizedPayload.message || (!normalizedPayload.sessionId && !normalizedPayload.conversationKey && !normalizedPayload.rawSessionId)) return;
 
         const incomingMessage = normalizedPayload.message;
+        // Sound + notification for inbound customer messages. Fires before the
+        // list patch below so the chime is not held up by the state work, and it
+        // no-ops on our own AI/staff replies.
+        handleInboundInboxMessage({
+          message: incomingMessage,
+          conversationId: normalizedPayload.sessionId || normalizedPayload.conversationKey || normalizedPayload.rawSessionId || "",
+          channel: payload.channel || incomingMessage.channel || incomingMessage.source || "",
+          surface: "/inbox",
+        }).catch(() => null);
         const incomingCards = normalizeMessageProductCards(incomingMessage);
         const incomingPreview =
           messageDisplayText(incomingMessage) ||
@@ -6793,15 +6819,18 @@ export default function AiInboxPwa() {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">{t("aiSupport.inbox.kpi.socialCenter")}</h1>
-                <button
-                  type="button"
-                  onClick={togglePwaTheme}
-                  className="ai-pwa-icon-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
-                  aria-label={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
-                  title={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
-                >
-                  {isDarkTheme ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <InboxNotificationBell surface="/inbox" />
+                  <button
+                    type="button"
+                    onClick={togglePwaTheme}
+                    className="ai-pwa-icon-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                    aria-label={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
+                    title={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
+                  >
+                    {isDarkTheme ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+                  </button>
+                </div>
               </div>
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
