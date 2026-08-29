@@ -10,8 +10,8 @@ import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch"
 import { getSizeGroup, resolveSizeGroups, SIZE_GROUP_KEYS } from "../../../../server/utils/sizeGroups.js";
 
 const PRODUCT_AUDIENCE_OPTIONS = [
-  { value: "men", label: "رجال" },
-  { value: "women", label: "نساء" },
+  { value: "men", label: "رجالي" },
+  { value: "women", label: "حريمي" },
   { value: "kids", label: "أطفال" },
 ];
 
@@ -23,6 +23,7 @@ function ProductForm({
   unit = "",
   gender = "",
   audiences = [],
+  showAudiences = false,
   productType = "",
   bagType = "",
   schoolBagSize = "",
@@ -42,6 +43,7 @@ function ProductForm({
   onBrandChange,
   onUnitChange,
   onVariationModeChange,
+  onAudiencesChange,
   onProductTypeChange,
   onBagTypeChange,
   onSchoolBagSizeChange,
@@ -213,6 +215,43 @@ function ProductForm({
         </div>
 
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+          {showAudiences ? (
+            <div className="2xl:col-span-2">
+              <span className="text-sm font-semibold text-text-muted">
+                {t("products.form.audience", "الجمهور المستهدف")} *
+              </span>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                {PRODUCT_AUDIENCE_OPTIONS.map((option) => {
+                  const active = selectedAudiences.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        const next = active
+                          ? selectedAudiences.filter((value) => value !== option.value)
+                          : [...selectedAudiences, option.value];
+                        onAudiencesChange?.(PRODUCT_AUDIENCE_OPTIONS.map((item) => item.value).filter((value) => next.includes(value)));
+                      }}
+                      className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border text-xs font-bold transition ${
+                        active
+                          ? "border-primary/40 bg-primary/15 text-primary"
+                          : "border-border bg-surface text-text-muted hover:text-text"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[11px] text-text-muted">
+                {t(
+                  "products.form.audienceHelp",
+                  "المنتج ده من غير ألوان، فالتحديد هنا هو اللي بيتحكم في ظهوره داخل أقسام المتجر."
+                )}
+              </p>
+            </div>
+          ) : null}
           <SmartClassificationSelect
             label={`${t("products.form.productType")} *`}
             value={productType}

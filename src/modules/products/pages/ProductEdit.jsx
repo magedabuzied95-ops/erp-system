@@ -3358,6 +3358,15 @@ function ProductEdit() {
     const derivedAudiences = ["men", "women", "kids"].filter((audience) =>
       normalizedGroups.some((group) => String(group.audience || "").split(",").includes(audience))
     );
+    // Colour-level audiences are the source of truth only while colour cards
+    // exist. A simple product (or a legacy one with zero variant rows) has no
+    // colour card to carry the control, so the product-level picker wins there —
+    // otherwise saving would wipe product_audiences back to empty.
+    const productLevelAudiences = ["men", "women", "kids"].filter((audience) =>
+      (Array.isArray(product.audiences) ? product.audiences : []).includes(audience)
+    );
+    const finalAudiences =
+      !isSimpleMode && normalizedGroups.length > 0 ? derivedAudiences : productLevelAudiences;
 
     const currentProductCoreSnapshot = buildProductEditCoreSnapshot({
       product,
@@ -3438,9 +3447,9 @@ function ProductEdit() {
             seo_keywords: product.seo_keywords,
             canonical_slug: product.canonical_slug,
             ...pricingPayload,
-            gender: derivedAudiences[0] || "",
-            audiences: derivedAudiences,
-            product_audiences: derivedAudiences,
+            gender: finalAudiences[0] || "",
+            audiences: finalAudiences,
+            product_audiences: finalAudiences,
             product_type: product.product_type || "",
             bag_type: String(product.product_type || "").toLowerCase() === "bags" ? product.bag_type || "" : "",
             style: product.style || "",
@@ -3946,6 +3955,7 @@ function ProductEdit() {
               unit={unit}
               gender={product.gender}
               audiences={product.audiences || []}
+              showAudiences={isSimpleMode || colorGroups.length === 0}
               productType={product.product_type}
               bagType={product.bag_type}
               schoolBagSize={isSchoolBagType(product.bag_type) ? product.fixed_size_label || "" : ""}

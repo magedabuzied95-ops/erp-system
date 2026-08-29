@@ -2253,6 +2253,13 @@ function CreateProduct() {
       const derivedAudiences = ["men", "women", "kids"].filter((audience) =>
         filledGroups.some((group) => String(group.audience || "").split(",").includes(audience))
       );
+      // Same rule as ProductEdit: colour cards carry the audience only when they
+      // exist; a simple product takes it from the product-level picker instead.
+      const productLevelAudiences = ["men", "women", "kids"].filter((audience) =>
+        (Array.isArray(audiences) ? audiences : []).includes(audience)
+      );
+      const finalAudiences =
+        variationMode !== "simple" && filledGroups.length > 0 ? derivedAudiences : productLevelAudiences;
 
       const colorImagesPayload = filledGroups
         .map((group, groupIndex) => {
@@ -2323,9 +2330,9 @@ function CreateProduct() {
         }),
         ...resolveBrandPayload(brands, { brand: selectedBrandName || brand, fallbackBrandId: selectedBrandId || brandId }),
         ...resolveUnitPayload(units, { unitId: unit }),
-        gender: derivedAudiences[0] || "",
-        audiences: derivedAudiences,
-        product_audiences: derivedAudiences,
+        gender: finalAudiences[0] || "",
+        audiences: finalAudiences,
+        product_audiences: finalAudiences,
         product_type: productType,
         bag_type: String(productType).toLowerCase() === "bags" ? bagType : "",
         grade,
@@ -2775,6 +2782,7 @@ function CreateProduct() {
                 unit={unit}
                 gender={gender}
                 audiences={audiences}
+                showAudiences={variationMode === "simple"}
                 productType={productType}
                 bagType={bagType}
                 schoolBagSize={schoolBagSize}
